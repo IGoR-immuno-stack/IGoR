@@ -1,0 +1,49 @@
+### igorConfig.cmake.in ---
+
+@PACKAGE_INIT@
+
+## #############################################################################
+## Search for all components whether ALL is specified or no components are specified
+## #############################################################################
+
+# Search for all available component-configuration directories...
+file(GLOB __@PROJECT_NAME@_all_components
+  LIST_DIRECTORIES false RELATIVE "${CMAKE_CURRENT_LIST_DIR}"
+  "${CMAKE_CURRENT_LIST_DIR}/*Targets.cmake")
+# ...and extract component names from it.
+string(REGEX REPLACE "@PROJECT_NAME@" "" __@PROJECT_NAME@_all_components "${__@PROJECT_NAME@_all_components}")
+string(REGEX REPLACE "Targets.cmake" "" __@PROJECT_NAME@_all_components "${__@PROJECT_NAME@_all_components}")
+
+if(len EQUAL 0 OR ALL_FOUND GREATER -1)
+  list(LENGTH __@PROJECT_NAME@_all_components leng)
+  if(leng GREATER 0)
+    set(@PROJECT_NAME@_FIND_COMPONENTS ${__@PROJECT_NAME@_all_components})
+  endif()
+endif()
+
+## #############################################################################
+## Scan internal dependencies for every required components
+## #############################################################################
+
+foreach(_comp ${@PROJECT_NAME@_FIND_COMPONENTS})
+  if (NOT TARGET @PROJECT_NAME@::${_comp})
+    _scan_dependencies(${_comp} _COMPONENTS_AND_DEPS _EXTERNAL_DEPS)
+  endif()
+  list(REMOVE_DUPLICATES _COMPONENTS_AND_DEPS)
+  list(REMOVE_DUPLICATES _EXTERNAL_DEPS)
+endforeach()
+message(STATUS "@PROJECT_NAME@ required components: ${_COMPONENTS_AND_DEPS}")
+message(STATUS "@PROJECT_NAME@ required external dependencies: ${_EXTERNAL_DEPS}")
+
+## #############################################################################
+## Include every required components with dependencies
+## #############################################################################
+
+foreach(_comp ${@PROJECT_NAME@_FIND_COMPONENTS})
+  if (NOT TARGET @PROJECT_NAME@::${_comp})
+    include("${CMAKE_CURRENT_LIST_DIR}/@PROJECT_NAME@${_comp}Targets.cmake")
+  endif()
+endforeach()
+
+######################################################################
+### igorConfig.cmake.in ends here
