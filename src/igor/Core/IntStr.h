@@ -24,8 +24,7 @@
  *
  */
 
-#ifndef INTSTR_H_
-#define INTSTR_H_
+#pragma once
 
 #include <vector>
 #include <ostream>
@@ -117,5 +116,3 @@ template<>
 
 
 }
-
-#endif /* INTSTR_H_ */

@@ -24,12 +24,11 @@
  *
  */
 
-#ifndef IGOR_SRC_HYPERMUTATIONFULLNMERERRORRATE_H_
-#define IGOR_SRC_HYPERMUTATIONFULLNMERERRORRATE_H_
+#pragma once
 
-#include "igor/Core/Errorrate.h"
-#include "igor/Core/Genechoice.h"
-#include "igor/Core/Deletion.h"
+#include <igor/Core/Errorrate.h>
+#include <igor/Core/Genechoice.h>
+#include <igor/Core/Deletion.h>
 #include <algorithm>
 #include <array>
 #include <math.h>
@@ -171,5 +170,3 @@ private:
 	bool output_Nmer_stat;
 
 };
-
-#endif /* IGOR_SRC_HYPERMUTATIONFULLNMERERRORRATE_H_ */

@@ -23,12 +23,11 @@
  *   along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#ifndef DELETION_H_
-#define DELETION_H_
+#pragma once
 
-#include "igor/Core/Rec_Event.h"
-#include "igor/Core/Utils.h"
-#include "igor/Core/Errorrate.h"
+#include <igor/Core/Rec_Event.h>
+#include <igor/Core/Utils.h>
+#include <igor/Core/Errorrate.h>
 
 #include <forward_list>
 #include <unordered_map>
@@ -192,8 +191,3 @@ std::string& make_transversions(std::string& , bool);
 Int_Str& make_transversions(Int_Str& );
 
 bool del_numb_compare(const Event_realization& , const Event_realization&) ;
-
-
-
-
-#endif /* DELETION_H_ */

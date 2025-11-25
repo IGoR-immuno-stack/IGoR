@@ -24,8 +24,8 @@
  *
  */
 
-#include "igor/Core/Rec_Event.h"
-#include "igor/Core/Counter.h"
+#include <igor/Core/Rec_Event.h>
+#include <igor/Core/Counter.h>
 
 using namespace std;
 

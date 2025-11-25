@@ -24,12 +24,11 @@
  *
  */
 
-#ifndef HYPERMUTATIONGLOBALERRORRATE_H_
-#define HYPERMUTATIONGLOBALERRORRATE_H_
+#pragma once
 
-#include "igor/Core/Errorrate.h"
-#include "igor/Core/Genechoice.h"
-#include "igor/Core/Deletion.h"
+#include <igor/Core/Errorrate.h>
+#include <igor/Core/Genechoice.h>
+#include <igor/Core/Deletion.h>
 #include <algorithm>
 #include <array>
 #include <math.h>
@@ -192,5 +191,3 @@ private:
 
 
 };
-
-#endif /* HYPERMUTATIONGLOBALERRORRATE_H_ */

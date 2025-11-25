@@ -23,17 +23,16 @@
  *   along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#ifndef GENERATIVE_MODEL_SRC_BESTSCENARIOSCOUNTER_H_
-#define GENERATIVE_MODEL_SRC_BESTSCENARIOSCOUNTER_H_
+#pragma once
 
-#include "igor/Core/Counter.h"
+#include <igor/Core/Counter.h>
 #include <queue>
 #include <vector>
 #include <list>
 
-#include "igor/Core/Genechoice.h"
-#include "igor/Core/Deletion.h"
-#include "igor/Core/Insertion.h"
+#include <igor/Core/Genechoice.h>
+#include <igor/Core/Deletion.h>
+#include <igor/Core/Insertion.h>
 
 
 /**
@@ -81,5 +80,3 @@ public:
 
 };
 
-
-#endif /* GENERATIVE_MODEL_SRC_BESTSCENARIOSCOUNTER_H_ */

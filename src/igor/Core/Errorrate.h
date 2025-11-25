@@ -23,11 +23,10 @@
  *   along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#ifndef ERRORRATE_H_
-#define ERRORRATE_H_
+#pragma once
 
-#include "igor/Core/Utils.h"
-#include "igor/Core/IntStr.h"
+#include <igor/Core/Utils.h>
+#include <igor/Core/IntStr.h>
 #include <unordered_map>
 #include <utility>
 #include <string>
@@ -99,6 +98,3 @@ protected:
 };
 
 void add_to_err_rate(Error_rate*,Error_rate*);
-
-
-#endif /* ERRORRATE_H_ */

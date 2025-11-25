@@ -23,10 +23,9 @@
  *   along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#ifndef IGOR_SRC_ERRORSCOUNTER_H_
-#define IGOR_SRC_ERRORSCOUNTER_H_
+#pragma once
 
-#include "igor/Core/Counter.h"
+#include <igor/Core/Counter.h>
 
 /**
  * \class Errors_counter Errorscounter.h
@@ -79,6 +78,3 @@ private:
 	std::vector<std::tuple<double,size_t,size_t>> best_scenarios_vec;
 
 };
-
-
-#endif /* IGOR_SRC_ERRORSCOUNTER_H_ */

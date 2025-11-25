@@ -26,15 +26,14 @@
  *      This class designs a generative model and supply all the methods to run a maximum likelihood estimate of the generative model
  */
 
-#ifndef GENMODEL_H_
-#define GENMODEL_H_
+#pragma once
 
-#include "igor/Core/Model_Parms.h"
-#include "igor/Core/Rec_Event.h"
-#include "igor/Core/Counter.h"
-#include "igor/Core/Model_marginals.h"
-#include "igor/Core/Errorrate.h"
-#include "igor/Core/Utils.h"
+#include <igor/Core/Model_Parms.h>
+#include <igor/Core/Rec_Event.h>
+#include <igor/Core/Counter.h>
+#include <igor/Core/Model_marginals.h>
+#include <igor/Core/Errorrate.h>
+#include <igor/Core/Utils.h>
 #include <list>
 #include <map>
 #include <string>
@@ -186,7 +185,3 @@ std::vector<std::tuple<int,std::string,std::unordered_map<Gene_class , std::vect
 
 
 void output_CDR3_gen_data(size_t , std::pair<std::string , std::queue<std::queue<int>>> seq_and_real , std::shared_ptr<void> func_data);
-
-
-
-#endif /* GENMODEL_H_ */

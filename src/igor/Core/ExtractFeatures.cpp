@@ -23,7 +23,7 @@
  *
  */
 
-#include "igor/Core/ExtractFeatures.h"
+#include <igor/Core/ExtractFeatures.h>
 
 ExtractFeatures::ExtractFeatures() {
 }

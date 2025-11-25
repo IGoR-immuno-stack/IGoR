@@ -26,18 +26,17 @@
  *      of any other event in the model_parms graph
  */
 
-#ifndef DINUCLMARKOV_H_
-#define DINUCLMARKOV_H_
+#pragma once
 
-#include "igor/Core/Rec_Event.h"
-#include "igor/Core/Utils.h"
+#include <igor/Core/Rec_Event.h>
+#include <igor/Core/Utils.h>
 #include <forward_list>
 #include <unordered_map>
 #include <string>
 #include <list>
 #include <queue>
 #include <utility>
-#include "igor/Core/Errorrate.h"
+#include <igor/Core/Errorrate.h>
 #include <random>
 
 /**
@@ -133,5 +132,3 @@ private:
 	inline double compute_nt_freq( int , const Marginal_array_p&) const;
 
 };
-
-#endif /* DINUCLMARKOV_H_ */

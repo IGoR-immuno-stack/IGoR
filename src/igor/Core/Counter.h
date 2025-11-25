@@ -23,17 +23,16 @@
  *   along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#ifndef GENERATIVE_MODEL_SRC_COUNTER_H_
-#define GENERATIVE_MODEL_SRC_COUNTER_H_
+#pragma once
 
 #include <string>
 #include <memory>
 #include <fstream>
-#include "igor/Core/Model_marginals.h"
-#include "igor/Core/Model_Parms.h"
-#include "igor/Core/Rec_Event.h"
-#include "igor/Core/IntStr.h"
-#include "igor/Core/Utils.h"
+#include <igor/Core/Model_marginals.h>
+#include <igor/Core/Model_Parms.h>
+#include <igor/Core/Rec_Event.h>
+#include <igor/Core/IntStr.h>
+#include <igor/Core/Utils.h>
 
 
 /**
@@ -74,6 +73,3 @@ protected:
 	bool fstreams_created;
 	//TODO create a unique identifier of the counter? Make something up to prevent to have twice the same counter??
 };
-
-
-#endif /* GENERATIVE_MODEL_SRC_COUNTER_H_ */

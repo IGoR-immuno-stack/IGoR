@@ -24,7 +24,7 @@
  *
  */
 
-#include "igor/Core/Model_marginals.h"
+#include <igor/Core/Model_marginals.h>
 
 
 using namespace std;

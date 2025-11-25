@@ -23,18 +23,17 @@
  *   along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#ifndef GENECHOICE_H_
-#define GENECHOICE_H_
+#pragma once
 
-#include "igor/Core/Rec_Event.h"
-#include "igor/Core/Utils.h"
+#include <igor/Core/Rec_Event.h>
+#include <igor/Core/Utils.h>
 #include <forward_list>
 #include <unordered_map>
 #include <string>
 #include <list>
 #include <queue>
 #include <utility>
-#include "igor/Core/Errorrate.h"
+#include <igor/Core/Errorrate.h>
 #include <random>
 
 /**
@@ -185,7 +184,3 @@ private:
 
 
 };
-
-
-
-#endif /* GENECHOICE_H_ */

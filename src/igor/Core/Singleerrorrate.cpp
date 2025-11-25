@@ -24,7 +24,7 @@
  *
  */
 
-#include "igor/Core/Singleerrorrate.h"
+#include <igor/Core/Singleerrorrate.h>
 
 using namespace std;
 
