@@ -23,7 +23,7 @@
  *   along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include "igor/Core/Errorrate.h"
+#include <igor/Core/Errorrate.h>
 
 using namespace std;
 

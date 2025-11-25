@@ -24,8 +24,7 @@
  *
  */
 
-#ifndef UTILS_H_
-#define UTILS_H_
+#pragma once
 
 #include <fstream>
 #include <vector>
@@ -34,12 +33,12 @@
 #include <tuple>
 #include <stdexcept>
 #include <iostream>
-#include "igor/Core/IntStr.h"
+#include <igor/Core/IntStr.h>
 #include <memory>
 #include <list>
 #include <random>
 #include <chrono>
-#include<sys/types.h>
+#include <sys/types.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <unordered_map>
@@ -679,5 +678,3 @@ typedef std::unordered_map<std::string,std::string> UMCodonTable;
 
 
 std::string translate(std::string seq);
-
-#endif /* UTILS_H_ */

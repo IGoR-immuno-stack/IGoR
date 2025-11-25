@@ -24,7 +24,7 @@
 
  */
 
-#include "igor/Core/Aligner.h"
+#include <igor/Core/Aligner.h>
 
 using namespace std;
 

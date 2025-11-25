@@ -24,7 +24,7 @@
  *
  */
 
-#include "igor/Core/IntStr.h"
+#include <igor/Core/IntStr.h>
 
 using namespace std;
 

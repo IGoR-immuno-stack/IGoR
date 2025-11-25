@@ -23,10 +23,9 @@
  *   along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#ifndef COVERAGEERRCOUNTER_H_
-#define COVERAGEERRCOUNTER_H_
+#pragma once
 
-#include "igor/Core/Counter.h"
+#include <igor/Core/Counter.h>
 #include <string>
 /**
  * \class Coverage_err_counter Coverageerrcounter.h
@@ -142,5 +141,3 @@ private:
 		int tmp_len_util;
 
 };
-
-#endif /* COVERAGEERRCOUNTER_H_ */

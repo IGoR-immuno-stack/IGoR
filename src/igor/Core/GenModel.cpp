@@ -25,7 +25,7 @@
  *      This class designs a generative model and supply all the methods to run a maximum likelihood estimate of the generative model
  */
 
-#include "igor/Core/GenModel.h"
+#include <igor/Core/GenModel.h>
 
 using namespace std;
 

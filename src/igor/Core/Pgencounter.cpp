@@ -24,7 +24,7 @@
  *
  */
 
-#include "igor/Core/Pgencounter.h"
+#include <igor/Core/Pgencounter.h>
 
 using namespace std;
 

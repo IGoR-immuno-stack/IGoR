@@ -23,7 +23,7 @@
  *   along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include "Genechoice.h"
+#include <igor/Core/Genechoice.h>
 
 using namespace std;
 

@@ -24,7 +24,7 @@
  *
  */
 
-#include "igor/Core/Insertion.h"
+#include <igor/Core/Insertion.h>
 
 
 using namespace std;

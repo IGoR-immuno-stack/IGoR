@@ -27,25 +27,24 @@
  *      This helps defining conditional marginals in the model.
  */
 
-#ifndef MODEL_PARMS_H_
-#define MODEL_PARMS_H_
+#pragma once
 
-#include "igor/Core/Rec_Event.h"
-#include "igor/Core/Utils.h"
-#include "igor/Core/IntStr.h"
+#include <igor/Core/Rec_Event.h>
+#include <igor/Core/Utils.h>
+#include <igor/Core/IntStr.h>
 #include <list>
 #include <unordered_map>
 #include <set>
 #include <string>
 #include <queue>
-#include "igor/Core/Errorrate.h"
-#include "igor/Core/Insertion.h"
-#include "igor/Core/Deletion.h"
-#include "igor/Core/Genechoice.h"
-#include "igor/Core/Singleerrorrate.h"
-#include "igor/Core/Dinuclmarkov.h"
-#include "igor/Core/Hypermutationglobalerrorrate.h"
-#include "igor/Core/HypermutationfullNmererrorrate.h"
+#include <igor/Core/Errorrate.h>
+#include <igor/Core/Insertion.h>
+#include <igor/Core/Deletion.h>
+#include <igor/Core/Genechoice.h>
+#include <igor/Core/Singleerrorrate.h>
+#include <igor/Core/Dinuclmarkov.h>
+#include <igor/Core/Hypermutationglobalerrorrate.h>
+#include <igor/Core/HypermutationfullNmererrorrate.h>
 #include <stdexcept>
 #include <memory>
 
@@ -155,8 +154,3 @@ private:
 
 
 };
-
-
-
-
-#endif /* MODEL_PARMS_H_ */

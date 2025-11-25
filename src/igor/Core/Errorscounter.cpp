@@ -23,7 +23,7 @@
  *   along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include "igor/Core/Errorscounter.h"
+#include <igor/Core/Errorscounter.h>
 
 
 using namespace std;

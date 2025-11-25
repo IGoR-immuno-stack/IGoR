@@ -23,14 +23,14 @@
  *
  */
 
-#ifndef EXTRACTFEATURES_H
-#define EXTRACTFEATURES_H
+#pragma once
+
 #include <unordered_map>
 #include <vector>
-#include "igor/Core/CDR3SeqData.h"
-#include "igor/Core/Aligner.h"
+#include <igor/Core/CDR3SeqData.h>
+#include <igor/Core/Aligner.h>
 #include <sstream>
-#include "igor/Core/Utils.h"
+#include <igor/Core/Utils.h>
 
 using namespace std;
 
@@ -71,6 +71,3 @@ public:
 private:
 
 };
-
-#endif /* EXTRACTFEATURES_H */
-

@@ -24,11 +24,10 @@
  *
  */
 
-#ifndef SINGLEERRORRATE_H_
-#define SINGLEERRORRATE_H_
+#pragma once
 
-#include "igor/Core/Errorrate.h"
-#include "igor/Core/Utils.h"
+#include <igor/Core/Errorrate.h>
+#include <igor/Core/Utils.h>
 #include <math.h>
 
 //Debug
@@ -83,5 +82,3 @@ private:
 
 
 };
-
-#endif /* SINGLEERRORRATE_H_ */

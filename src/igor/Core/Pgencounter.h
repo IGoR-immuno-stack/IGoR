@@ -24,10 +24,9 @@
  *
  */
 
-#ifndef GENERATIVE_MODEL_SRC_PGENCOUNTER_H_
-#define GENERATIVE_MODEL_SRC_PGENCOUNTER_H_
+#pragma once
 
-#include "igor/Core/Counter.h"
+#include <igor/Core/Counter.h>
 #include <unordered_map>
 
 /**
@@ -79,5 +78,3 @@ private:
 	bool dj_ins;
 	bool vj_ins;
 };
-
-#endif /* GENERATIVE_MODEL_SRC_PGENCOUNTER_H_ */

@@ -24,7 +24,7 @@
  *
  */
 
-#include "igor/Core/Hypermutationglobalerrorrate.h"
+#include <igor/Core/Hypermutationglobalerrorrate.h>
 
 using namespace std;
 

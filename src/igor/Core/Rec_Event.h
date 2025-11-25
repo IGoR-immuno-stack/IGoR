@@ -24,13 +24,12 @@
  *
  */
 
-#ifndef REC_EVENT_H_
-#define REC_EVENT_H_
+#pragma once
 
-#include "igor/Core/Errorrate.h"
-#include "igor/Core/IntStr.h"
-#include "igor/Core/Aligner.h"
-#include "igor/Core/Utils.h"
+#include <igor/Core/Errorrate.h>
+#include <igor/Core/IntStr.h>
+#include <igor/Core/Aligner.h>
+#include <igor/Core/Utils.h>
 
 #include <unordered_map>
 #include <unordered_set>
@@ -226,7 +225,3 @@ struct Event_comparator {
 		 return event_p1->get_priority() > event_p2->get_priority();
 	 }
 };
-
-
-
-#endif /* REC_EVENT_H_ */

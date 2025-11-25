@@ -26,9 +26,7 @@
  *      This class defines the model marginals entity, the way they are created and handled.
  */
 
-#ifndef MODEL_MARGINALS_H_
-#define MODEL_MARGINALS_H_
-
+#pragma once
 
 //includes from standard libraries
 #include <list>
@@ -43,8 +41,8 @@
 #include <memory>
 
 //Includes from project
-#include "igor/Core/Model_Parms.h"
-#include "igor/Core/Rec_Event.h"
+#include <igor/Core/Model_Parms.h>
+#include <igor/Core/Rec_Event.h>
 
 
 
@@ -121,7 +119,3 @@ void recurs_array_copy(std::list<std::shared_ptr<Rec_Event>>::const_iterator,siz
 void swap_events_order(const Rec_Event_name ,const Rec_Event_name , std::pair<std::list<std::pair<Rec_Event_name,size_t>>,std::shared_ptr<long double>>&);
 void swap_neighboring_events_order(const Rec_Event_name ,const Rec_Event_name , std::pair<std::list<std::pair<Rec_Event_name,size_t>>,std::shared_ptr<long double>>&);
 void align_marginal_array(const std::list<std::pair<Rec_Event_name,size_t>>& , std::pair<std::list<std::pair<Rec_Event_name,size_t>>,std::shared_ptr<long double>>&);
-
-
-
-#endif /* MODEL_MARGINALS_H_ */

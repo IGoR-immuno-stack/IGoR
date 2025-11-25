@@ -1,13 +1,12 @@
 
-/** 
+/**
  * \class CDR3SeqData CDR3SeqData.h
  * \brief Class to store CDR3 information of a sequence.
  * \author C. Olivares
- * 
+ *
  */
 
-#ifndef CDR3SEQDATA_H
-#define CDR3SEQDATA_H
+#pragma once
 
 #include <string>
 
@@ -26,6 +25,3 @@ public:
 private:
 
 };
-
-#endif /* CDR3SEQDATA_H */
-

@@ -25,7 +25,7 @@
 
 #include <string>
 
-#include "igor/Core/CDR3SeqData.h"
+#include <igor/Core/CDR3SeqData.h>
 
 CDR3SeqData::CDR3SeqData() {
 	seq_index = -1;

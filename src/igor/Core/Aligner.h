@@ -23,8 +23,7 @@
  *   along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#ifndef ALIGNER_H_
-#define ALIGNER_H_
+#pragma once
 
 #include <forward_list>
 #include <list>
@@ -34,13 +33,13 @@
 #include <fstream>
 #include <algorithm>
 #include <iostream>
-#include "igor/Core/Utils.h"
+#include <igor/Core/Utils.h>
 #include <omp.h>
 #include <stdexcept>
 #include <random>
 #include <chrono>
 
-#include "igor/Core/IntStr.h"
+#include <igor/Core/IntStr.h>
 
 
 /**
@@ -180,6 +179,3 @@ std::forward_list<Alignment_data> extract_best_gene_alignments(const std::forwar
 	}
 	*/
 
-
-
-#endif /* ALIGNER_H_ */

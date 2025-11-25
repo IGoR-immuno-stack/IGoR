@@ -27,7 +27,7 @@
  *      This helps defining conditional marginals in the model.
  */
 
-#include "igor/Core/Model_Parms.h"
+#include <igor/Core/Model_Parms.h>
 using namespace std;
 
 /*
