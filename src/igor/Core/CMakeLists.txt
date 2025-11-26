@@ -87,6 +87,11 @@ target_include_directories(${PROJECT_NAME} PUBLIC
 )
 
 target_link_libraries(${PROJECT_NAME} PUBLIC GSL::gsl)
+if(APPLE)
+  target_link_libraries(${PROJECT_NAME} PRIVATE OpenMP::OpenMP)
+else()
+  target_link_libraries(${PROJECT_NAME} PRIVATE OpenMP::OpenMP_CXX)
+endif()
 
 ## ###################################################################
 ## Install rules
