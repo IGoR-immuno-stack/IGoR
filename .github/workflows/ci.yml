@@ -35,6 +35,13 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+      - name: Setup pixi
+        uses: prefix-dev/setup-pixi@v0.8.1
+        with:
+          pixi-version: v0.39.0
+          cache: true
+      - name: Checkout code
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0  # for git info
 
