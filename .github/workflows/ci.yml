@@ -3,12 +3,12 @@ name: CI
 on:
   push:
     branches:
-      - feature/new_arch
+      - feature/1-make-software-installation-easier-for-non-technical-users
       # - master
       # - main
   pull_request:
     branches:
-      - feature/new_arch
+      - feature/1-make-software-installation-easier-for-non-technical-users
       # - master
       # - main
 
