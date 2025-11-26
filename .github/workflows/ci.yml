@@ -1,0 +1,79 @@
+#
+# runner:
+#   - catalysis-zie.inria.fr / macOSX-arm64 / self-hosted
+#
+#
+
+name: CI Build and Test
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:  # permit manual launch
+
+# stop previous workflows in case on multiple pushes
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Build, Test & Coverage
+    runs-on: [self-hosted, macosx-arm64]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # for git info
+
+      - name: Verify pixi installation
+        run: |
+          echo "Pixi location: $(which pixi)"
+          pixi --version
+
+      - name: Configure project
+        run: pixi run configure
+
+      - name: Build project
+        run: pixi run build
+
+      - name: Run tests
+        run: pixi run test
+
+      - name: Generate coverage report
+        run: pixi run coverage
+        continue-on-error: true  # do not block if coverage fails
+
+      - name: Upload coverage to GitHub
+        if: always()  # always run (even on previous errors)
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: |
+            htmlcov/
+            coverage.xml
+            .coverage
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Comment coverage on PR
+        if: github.event_name == 'pull_request'
+        uses: py-cov-action/python-coverage-comment-action@v3
+        with:
+          GITHUB_TOKEN: ${{ github.token }}
+          MINIMUM_GREEN: 80
+          MINIMUM_ORANGE: 60
+        continue-on-error: true
+
+      - name: Build summary
+        if: always()
+        run: |
+          echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Runner:** $(hostname)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Pixi version:** $(pixi --version)" >> $GITHUB_STEP_SUMMARY

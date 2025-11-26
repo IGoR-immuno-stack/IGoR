@@ -1,0 +1,176 @@
+### CMakeLists.txt ---
+
+cmake_minimum_required(VERSION 3.31.0)
+
+######################################################################
+
+project(igor)
+
+## ###################################################################
+## cmake modules folder
+## ###################################################################
+
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake")
+
+## ###################################################################
+## Version setup
+## ###################################################################
+
+set(${PROJECT_NAME}_VERSION_MAJOR 1)
+set(${PROJECT_NAME}_VERSION_MINOR 4)
+set(${PROJECT_NAME}_VERSION_PATCH 0)
+set(${PROJECT_NAME}_VERSION
+  ${${PROJECT_NAME}_VERSION_MAJOR}.${${PROJECT_NAME}_VERSION_MINOR}.${${PROJECT_NAME}_VERSION_PATCH})
+
+## ###################################################################
+## Output directory setup
+## ###################################################################
+
+include(GNUInstallDirs)
+
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/${CMAKE_INSTALL_LIBDIR})
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/${CMAKE_INSTALL_LIBDIR})
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/${CMAKE_INSTALL_BINDIR})
+
+## ###################################################################
+## Default build type (RelWithDebInfo)
+## ###################################################################
+
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+  message(STATUS "Setting build type to 'RelWithDebInfo' as none was specified.")
+  set(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "Choose the type of build." FORCE)
+  set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
+endif()
+
+## #################################################################
+## Install prefix
+## #################################################################
+
+if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+  if (DEFINED ENV{CONDA_PREFIX})
+    set(CMAKE_INSTALL_LIBDIR "lib" CACHE PATH "${PROJECT_NAME} libdir" FORCE)
+    set(CMAKE_INSTALL_PREFIX "$ENV{CONDA_PREFIX}" CACHE PATH "${PROJECT_NAME} install prefix" FORCE)
+  else()
+    set(CMAKE_INSTALL_PREFIX "${CMAKE_SOURCE_DIR}/install" CACHE PATH "${PROJECT_NAME} install prefix" FORCE)
+  endif()
+endif(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+
+## #############################################################################
+## Set RPATH to ensure that both installed libraries and executables
+## can find their dependencies at runtime
+## #############################################################################
+
+set(CMAKE_SKIP_BUILD_RPATH FALSE)
+set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
+list(APPEND CMAKE_INSTALL_RPATH ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR})
+list(REMOVE_DUPLICATES CMAKE_INSTALL_RPATH)
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+
+## #################################################################
+## Generate compilation database
+## #################################################################
+
+set(CMAKE_EXPORT_COMPILE_COMMANDS "ON")
+
+## #################################################################
+## Build setup
+## #################################################################
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+## ###################################################################
+## Test setup
+## ###################################################################
+
+include(CTest)
+enable_testing()
+
+## ###################################################################
+## Dependencies - cmake
+## ###################################################################
+
+include(GenerateExportHeader)
+
+## #################################################################
+## Dependencies - external
+## #################################################################
+
+find_package(GSL REQUIRED)
+
+if (APPLE)
+  find_library(OpenMP_LIBRARY
+    NAMES omp
+  )
+  find_path(OpenMP_INCLUDE_DIR
+    omp.h
+    PATHS
+    $ENV{CONDA_PREFIX}/lib/clang/4.0.1/include
+  )
+  mark_as_advanced(OpenMP_LIBRARY OpenMP_INCLUDE_DIR)
+  include(FindPackageHandleStandardArgs)
+  find_package_handle_standard_args(OpenMP DEFAULT_MSG
+    OpenMP_LIBRARY OpenMP_INCLUDE_DIR)
+
+  if (OpenMP_FOUND)
+    set(OpenMP_LIBRARIES ${OpenMP_LIBRARY})
+    set(OpenMP_INCLUDE_DIRS ${OpenMP_INCLUDE_DIR})
+    set(OpenMP_COMPILE_OPTIONS -Xpreprocessor -fopenmp)
+
+    add_library(OpenMP::OpenMP SHARED IMPORTED)
+    set_target_properties(OpenMP::OpenMP PROPERTIES
+      IMPORTED_LOCATION ${OpenMP_LIBRARIES}
+      INTERFACE_INCLUDE_DIRECTORIES "${OpenMP_INCLUDE_DIRS}"
+      INTERFACE_COMPILE_OPTIONS "${OpenMP_COMPILE_OPTIONS}"
+    )
+  endif()
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lpthread")
+else()
+  find_package(OpenMP REQUIRED)
+endif()
+
+## #############################################################################
+## Options
+## #############################################################################
+
+option(BUILD_DOC_DOXYGEN "Build Doxygen Documentation." false)
+option(ENABLE_COVERAGE "Enable code coverage." false)
+
+if(ENABLE_COVERAGE)
+  add_compile_options(-fprofile-instr-generate -fcoverage-mapping)
+  add_link_options(-fprofile-instr-generate -fcoverage-mapping)
+endif()
+#add_subdirectory(tst)
+## Input
+## ###################################################################
+
+add_subdirectory(src)
+add_subdirectory(app)
+add_subdirectory(tst)
+if(BUILD_DOC_DOXYGEN)
+  add_subdirectory(doc)
+endif()
+
+## ###################################################################
+## Exporting
+## ###################################################################
+
+include(${PROJECT_NAME}Export)
+
+export(PACKAGE ${PROJECT_NAME})
+
+## ###################################################################
+## Beautifying
+## ###################################################################
+
+mark_as_advanced(${PROJECT_NAME}_VERSION_MAJOR)
+mark_as_advanced(${PROJECT_NAME}_VERSION_MINOR)
+mark_as_advanced(${PROJECT_NAME}_VERSION_BUILD)
+
+mark_as_advanced(CMAKE_AR)
+mark_as_advanced(CMAKE_OSX_ARCHITECTURES)
+mark_as_advanced(CMAKE_OSX_DEPLOYMENT_TARGET)
+mark_as_advanced(CMAKE_OSX_SYSROOT)
+
+######################################################################
+### CMakeLists.txt ends here

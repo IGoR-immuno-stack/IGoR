@@ -1,7 +1,0 @@
-[[working-directory]]
-Working directory
-^^^^^^^^^^^^^^^^^
-
-This is where all IGoR outputs will appear. Specific folders will be
-created for alignments, inference, evaluation and outputs.
-

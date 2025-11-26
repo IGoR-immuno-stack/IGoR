@@ -1,9 +1,0 @@
-[[inference-and-evaluation]]
-Inference and evaluation
-~~~~~~~~~~~~~~~~~~~~~~~~
-
-include::inference_commands.adoc[]
-
-include::inference_output.adoc[]
-
-include::inference_troubleshoots.adoc[]

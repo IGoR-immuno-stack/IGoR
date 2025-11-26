@@ -1,0 +1,24 @@
+[workspace]
+authors = ["Erwan Demairy <Erwan.Demairy@inria.fr>"]
+channels = ["conda-forge"]
+name = "igor"
+platforms = ["osx-arm64", "linux-64"]
+version = "0.1.0"
+
+[tasks]
+configure = "cmake -S . -B build -DBUILD_DOC_DOXYGEN=ON -DENABLE_COVERAGE=ON"
+build = "cmake --build build -j8"
+test = "ctest --test-dir build --output-on-failure"
+doc = "cmake --build build --target doc"
+build_package = "conda build pkg/recipe -c conda-forge"
+coverage = "llvm-profdata merge -sparse build/tst/default.profraw -o default.profdata && llvm-cov show build/bin/igor_tests -instr-profile=default.profdata -format=html -output-dir=coverage_report"
+
+[dependencies]
+cmake = "*"
+gsl = "*"
+cxx-compiler = "*"
+doxygen = "~=1.8"
+catch2 = "3.*"
+conda-build = "*"
+python = "*"
+conda = "*"
