@@ -2,16 +2,9 @@
 authors = ["Erwan Demairy <Erwan.Demairy@inria.fr>"]
 channels = ["conda-forge"]
 name = "igor"
-platforms = ["osx-arm64", "linux-64"]
+platforms = ["linux-64", "osx-arm64", "osx-64", "win-64"]
 version = "0.1.0"
-
-[tasks]
-configure = "cmake -S . -B build -DBUILD_DOC_DOXYGEN=ON -DENABLE_COVERAGE=ON"
-build = "cmake --build build -j8"
-test = "ctest --test-dir build --output-on-failure"
-doc = "cmake --build build --target doc"
-build_package = "conda build pkg/recipe -c conda-forge"
-coverage = "llvm-profdata merge -sparse build/tst/default.profraw -o default.profdata && llvm-cov show build/bin/igor_tests -instr-profile=default.profdata -format=html -output-dir=coverage_report"
+preview = ["pixi-build"]
 
 [dependencies]
 cmake = "*"
@@ -19,6 +12,63 @@ gsl = "*"
 cxx-compiler = "*"
 doxygen = "~=1.8"
 catch2 = "3.*"
-conda-build = "*"
-python = "*"
-conda = "*"
+ninja = "*"
+anaconda-client = "*"
+
+[target.osx.dependencies]
+clang-tools = ">=19.1.7,<22"
+
+[tasks]
+configure = "cmake -S . -B build "
+configure_coverage = "cmake -S . -B build -DBUILD_DOC_DOXYGEN=ON -DENABLE_COVERAGE=ON"
+build = "cmake --build build -j8"
+test = "ctest --test-dir build --output-on-failure"
+doc = "cmake --build build --target doc"
+coverage = "llvm-profdata merge -sparse build/tst/default.profraw -o default.profdata && llvm-cov show build/bin/igor_tests -instr-profile=default.profdata -format=html -output-dir=coverage_report"
+bundle = "pixi build --output-dir=bundle"
+
+[tasks.upload]
+args = ["token", { arg = "label", default = "main" }]
+cmd = "anaconda --token {{ token }} upload --user compo --label {{ label }} bundle/*.conda "
+depends-on = "bundle"
+
+# ------------------build package (pixi build)--------------------------------
+
+[package]
+name = "igor"
+version = "1.4.0"
+description = "IGoR is a C++ software designed to infer V(D)J recombination related processes from sequencing data"
+
+[workspace.target.osx.build-variants]
+cxx_compiler_version = ["19.*"]
+
+[workspace.target.linux.build-variants]
+cxx_compiler_version = ["14.*"]
+
+[workspace.target.win.build-variants]
+cxx_compiler = ["vs2022"]
+
+[package.build.backend]
+name = "pixi-build-cmake"
+version = "*"
+
+[package.build.config]
+extra-args = ["-DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER_CLANG_SCAN_DEPS=$PREFIX/bin/clang-scan-deps"]
+env = { MACOSX_DEPLOYMENT_TARGET = "10.15" }
+
+
+[package.build-dependencies]
+
+[package.target.osx-arm64.host-dependencies]
+clang-tools="19.*"
+
+[package.target.osx-arm64.build-dependencies]
+clang-tools="19.*"
+
+[package.host-dependencies]
+# Add dependencies on (header-only) libraries at compile time
+gsl = "*"
+catch2 = "3.*"
+
+[package.run-dependencies]
+gsl = "*"
