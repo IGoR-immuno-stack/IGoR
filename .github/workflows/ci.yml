@@ -8,7 +8,7 @@ name: CI Build and Test
 
 on:
   push:
-  branches: [ main, develop ]
+    ranches: [ main, develop ]
   pull_request:
     branches: [ main, develop ]
   workflow_dispatch:  # permit manual launch
