@@ -32,6 +32,8 @@ build
 build-*
 public
 *.gcov
+coverage_report
+default.profdata
 
 ## ###################################################################
 ## Install tree
