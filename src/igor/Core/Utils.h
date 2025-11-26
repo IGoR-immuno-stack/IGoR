@@ -42,8 +42,8 @@
 #if defined(_WIN32)
 
 #include <process.h>
-#include <windows.h>
 #include <winsock2.h>
+#include <windows.h>
 #include <ws2tcpip.h>
 
 inline int my_getpid() {
