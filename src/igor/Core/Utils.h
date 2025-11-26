@@ -39,7 +39,52 @@
 #include <random>
 #include <chrono>
 #include <sys/types.h>
+#if defined(_WIN32)
+
+#include <process.h>
+#include <windows.h>
+#include <winsock2.h>
+#include <ws2tcpip.h>
+
+inline int my_getpid() {
+    return _getpid();
+}
+
+inline uint32_t my_gethostid() {
+    // Version approximative: IP locale
+    WSADATA wsaData;
+    WSAStartup(MAKEWORD(2,2), &wsaData);
+
+    char hostname[256];
+    gethostname(hostname, sizeof(hostname));
+
+    struct addrinfo hints {};
+    hints.ai_family = AF_INET;
+
+    struct addrinfo* info;
+    if (getaddrinfo(hostname, nullptr, &hints, &info) != 0)
+        return 0;
+
+    uint32_t res = ((struct sockaddr_in*)info->ai_addr)->sin_addr.S_un.S_addr;
+
+    freeaddrinfo(info);
+    WSACleanup();
+    return res;
+}
+
+#else
+
 #include <unistd.h>
+
+inline int portable_getpid() {
+    return getpid();
+}
+
+inline uint32_t portable_gethostid() {
+    return gethostid();
+}
+
+#endif
 #include <stdio.h>
 #include <unordered_map>
 
