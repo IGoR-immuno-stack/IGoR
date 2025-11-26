@@ -408,51 +408,33 @@ unordered_map<int,forward_list<Alignment_data>> Aligner::align_seqs(vector<pair<
 	#pragma omp parallel for schedule(dynamic) reduction(merge:alignment_map) shared(processed_seq_number)
 */
 
-        const int n_seqs = static_cast<int>(sequence_list.size());
+	//Declare parallel loop using OpenMP 3.1 standards
+	#pragma omp parallel for schedule(dynamic) shared(processed_seq_number , alignment_map) //num_threads(1)
+	for(vector<pair<const int , const string>>::const_iterator seq_it = sequence_list.begin() ; seq_it < sequence_list.end() ; seq_it++){
+		forward_list<Alignment_data> seq_alignments = align_seq((*seq_it).second , score_threshold , best_align_only , best_gene_only , genomic_offset_bounds , rev_offset_frame);
+		#pragma omp critical(emplace_seq_alignments)
+		{
+			alignment_map.emplace((*seq_it).first , seq_alignments);
+			//cout<<"Seq "<<processed_seq_number<<" processed"<<endl;
+			++processed_seq_number;
+		}
 
-// Declare parallel loop using OpenMP 3.1 standards
-#pragma omp parallel for schedule(dynamic)                                     \
-    shared(processed_seq_number, alignment_map)
-  for (int i = 0; i < n_seqs; ++i) {
-
-    const auto &seq_pair = sequence_list[i]; // au lieu de *seq_it
-
-    forward_list<Alignment_data> seq_alignments =
-        align_seq(seq_pair.second, score_threshold, best_align_only,
-                  best_gene_only, genomic_offset_bounds, rev_offset_frame);
-
-#pragma omp critical(emplace_seq_alignments)
-    {
-      alignment_map.emplace(seq_pair.first, seq_alignments);
-      ++processed_seq_number;
-    }
-
-    if (processed_seq_number % 50 == 0) {
-#pragma omp critical(show_progress_align)
-      {
-        show_progress_bar(
-            cerr,
-            processed_seq_number /
-                total_number_seqs, // éventuellement caster en double si tu veux
-                                   // un ratio réel
-            to_string(this->gene) + " alignments", 50);
-      }
-    }
-  }
-  close_progress_bar(cerr, to_string(this->gene) + " alignments", 50);
-  return alignment_map;
+		if(processed_seq_number%50 == 0){
+			//Output current progress to cerr
+			#pragma omp critical(show_progress_align)
+			{
+				show_progress_bar(cerr,processed_seq_number/total_number_seqs, to_string(this->gene)+" alignments",50);
+			}
+		}
+	}
+	close_progress_bar(cerr, to_string(this->gene)+" alignments",50);
+	return alignment_map;
 }
 /**
  * \overload
  */
-void Aligner::align_seqs(string filename,
-                         vector<pair<const int, const string>> sequence_list,
-                         double score_threshold, bool best_align_only,
-                         int min_offset, int max_offset,
-                         bool rev_offset_frame /*=false*/) {
-  return this->align_seqs(
-      filename, sequence_list, score_threshold, best_align_only, false,
-      build_genomic_bounds_map(min_offset, max_offset), rev_offset_frame);
+void Aligner::align_seqs( string filename , vector<pair<const int , const string>> sequence_list , double score_threshold , bool best_align_only , int min_offset , int max_offset, bool rev_offset_frame/*=false*/){
+	return this->align_seqs(filename , sequence_list , score_threshold , best_align_only , false , build_genomic_bounds_map(min_offset,max_offset), rev_offset_frame);
 }
 
 /**
