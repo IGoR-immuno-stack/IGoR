@@ -56,7 +56,10 @@ jobs:
       - name: Build project
         run: pixi run build
 
-      - name: Run tests
+      - name: Run regression tests
+        run: pixi run test_regression
+
+      - name: Run C++ tests
         run: pixi run test
 
       - name: Generate coverage report
