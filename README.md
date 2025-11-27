@@ -6,34 +6,13 @@ The goal is this repository is to present what could be a new organization of th
 
 ## Prerequisites
 
-Either `conda` or `mamba` (https://mamba.readthedocs.io/en/latest/installation/micromamba-installation.html) is required in order to use the code properly. 
-
-`Mamba` is just a c++ reimplementation of `conda` which provides better performances.
+pixi should be installed on your system, see https://pixi.readthedocs.io/en/latest/installation.html for more information.
 
 ## Compilation
 
-### MacOS
-
 ```shell
-$ cd path/to/igor
-$ mkdir build; cd build
-$ mamba env update -f ../pkg/env/igor-macOS.yaml
-$ mamba activate igor
-$ cmake .. -DCMAKE_CXX_COMPILER=${CONDA_PREFIX}/bin/clang++ \
-           -DCMAKE_C_COMPILER=${CONDA_PREFIX}/bin/clang
-$ make
-```
-
-### Linux
-
-```shell
-$ cd path/to/igor
-$ mkdir build; cd build
-$ mamba env update -f ../pkg/env/igor.yaml
-$ mamba activate igor
-$ cmake .. -DCMAKE_CXX_COMPILER=${CONDA_PREFIX}/bin/g++ \
-           -DCMAKE_C_COMPILER=${CONDA_PREFIX}/bin/gcc
-$ make
+pixi configure
+pixi build
 ```
 
 ## Example of Use
@@ -41,17 +20,19 @@ $ make
 Firstly, it is necessary to clone `igor-models` repository to execute the tests. 
 
 ```shell
-$ cd path/to/igor/..
-$ git clone git@gitlab.inria.fr:ant-men/igor-stack/igor-models.git
+cd ${IGOR_ROOT}/..
+git clone git@gitlab.inria.fr:ant-men/igor-stack/igor-models.git
+ln -s ${IGOR_ROOT}/../igor-models/models ${IGOR_ROOT}/models
 ```
 
 Then, one can execute igor as follows:
 ```shell
-$ cd path/to/igor
-$ cd script
-$ ./igor-compute_pgen human beta actcagctttgtatttctgtgccagcagcgtagattgggacagggggcctcctacgagcagtacgtcgggccg
-
+cd ${IGOR_ROOT}
+cd scripts
+./igor-compute_pgen human beta actcagctttgtatttctgtgccagcagcgtagattgggacagggggcctcctacgagcagtacgtcgggccg
 ```
+
+It should output something like:
 
 ```shell
 tr: Illegal byte sequence
