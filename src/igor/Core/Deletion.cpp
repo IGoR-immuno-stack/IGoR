@@ -620,7 +620,7 @@ void Deletion::initialize_event(
             name_to_check = "J_gene";
     }
 
-    this->sequence_type_id = SequenceTypeRegistry::get_instance().get_type_id(name_to_check);
+    this->sequence_type_id = SequenceTypeRegistry::get_instance().try_get_type_id(name_to_check);
 
     // Fallback for backward compatibility if not found by name
     if (this->sequence_type_id == -1) {
