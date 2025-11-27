@@ -41,11 +41,57 @@ The demo performs the following steps:
 ## Usage
 
 ```bash
-# Run with default working directory (current directory)
+# Run with default output location (current directory)
+# Creates: ./igor_demo/
 igor-demo
 
-# Run with custom working directory
-igor-demo /path/to/working/directory/
+# Run with custom output parent directory
+# Creates: /path/to/output/igor_demo/
+igor-demo /path/to/output
+
+# Example: output to /tmp
+# Creates: /tmp/igor_demo/
+igor-demo /tmp
+```
+
+**Note:** The program automatically creates an `igor_demo/` subdirectory within the path you provide. If you want output in `/tmp/my_results/`, run `igor-demo /tmp` and you'll get `/tmp/igor_demo/` (not `/tmp/my_results/`).
+
+## OpenMP Optimization
+
+The demo uses OpenMP for parallel processing during model inference. You can control parallelization with environment variables:
+
+```bash
+# Set number of threads (default: number of CPU cores)
+export OMP_NUM_THREADS=4
+igor-demo
+
+# Or set it inline
+OMP_NUM_THREADS=8 igor-demo /tmp
+
+# Disable nested parallelism (recommended for most cases)
+export OMP_NESTED=false
+
+# Set thread affinity for better cache performance
+export OMP_PROC_BIND=true
+
+# Control scheduling (dynamic is default in IGoR)
+export OMP_SCHEDULE="dynamic"
+
+# Combined example for optimal performance:
+OMP_NUM_THREADS=8 OMP_PROC_BIND=true OMP_NESTED=false igor-demo
+```
+
+### Performance Tips
+
+- **OMP_NUM_THREADS**: Set to the number of physical cores (not hyperthreads) for best performance
+- **OMP_PROC_BIND=true**: Pins threads to cores, improving cache locality
+- **OMP_NESTED=false**: Disables nested parallelism (not used in IGoR anyway)
+- For small datasets (like this demo), using 4-8 threads is usually optimal
+- For larger datasets, you can use all available cores
+
+**Example on a 16-core machine:**
+```bash
+OMP_NUM_THREADS=16 OMP_PROC_BIND=true igor-demo /tmp
 ```
 
 ## Output
