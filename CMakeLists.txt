@@ -55,10 +55,14 @@ if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
   endif()
 endif(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
 
-if(DEFINED ENV{CONDA_PREFIX})
-    set(IGOR_DATA_DIR "$ENV{CONDA_PREFIX}/share/igor")
-else()
+if(DEFINED ENV{CONDA_BUILD_SYSROOT})
     set(IGOR_DATA_DIR "${CMAKE_INSTALL_PREFIX}/share/igor")
+else()
+    if(DEFINED ENV{CONDA_PREFIX})
+        set(IGOR_DATA_DIR "$ENV{CONDA_PREFIX}/")
+    else()
+        set(IGOR_DATA_DIR "${CMAKE_INSTALL_PREFIX}/share/igor")
+    endif()
 endif()
 
 # Install the demo directory to the data installation location
