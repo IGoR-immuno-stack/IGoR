@@ -45,6 +45,8 @@
 #include <igor/Core/CDR3SeqData.h>
 #include <igor/Core/ExtractFeatures.h>
 
+#include <igor/Core/Config.h>
+
 #include <iostream>
 #include <chrono>
 #include <set>
@@ -55,12 +57,12 @@ using namespace std;
 
 std::string PACKAGE_NAME="igor";
 std::string PACKAGE_TARNAME="igor";
-std::string PACKAGE_VERSION="1.4.0";
-std::string PACKAGE_STRING="igor 1.4.0";
+std::string PACKAGE_VERSION= IGOR_VERSION;
+std::string PACKAGE_STRING= PACKAGE_NAME + std::string(" ")+ PACKAGE_VERSION;
 std::string PACKAGE_BUGREPORT="quentin.marcou@lpt.ens.fr";
-std::string PACKAGE_URL="https://github.com/qmarcou/IGoR";
+std::string PACKAGE_URL="https://github.com/IGoR-immuno-stack/IGoR";
 
-std::string IGOR_DATA_DIR="../..";
+std::string IGOR_DATA_DIR = IGOR_DATA_DIR_STR;
 
 
 
