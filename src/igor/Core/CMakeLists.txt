@@ -50,6 +50,7 @@ target_sources(${PROJECT_NAME}
     Model_marginals.cpp
     Pgencounter.cpp
     Rec_Event.cpp
+    SequenceTypes.cpp
     Singleerrorrate.cpp
     Utils.cpp
 
@@ -65,10 +66,12 @@ target_sources(${PROJECT_NAME}
       Coverageerrcounter.h
       Deletion.h
       Dinuclmarkov.h
+      DynamicSequenceMap.h
       Errorrate.h
       Errorscounter.h
       EventUtils.h
       ExtractFeatures.h
+      FastMemoryMap.h
       GenModel.h
       Genechoice.h
       HypermutationfullNmererrorrate.h
@@ -79,6 +82,7 @@ target_sources(${PROJECT_NAME}
       Model_marginals.h
       Pgencounter.h
       Rec_Event.h
+      SequenceTypes.h
       Singleerrorrate.h
       Utils.h
       ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_PROJECT_NAME}${PROJECT_NAME}Export.h

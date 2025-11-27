@@ -10,10 +10,11 @@
 
 #include <string>
 
-class CDR3SeqData {
+class CDR3SeqData
+{
 public:
     CDR3SeqData();
-    CDR3SeqData(const CDR3SeqData& orig);
+    CDR3SeqData(const CDR3SeqData &orig);
     virtual ~CDR3SeqData();
     int seq_index;
     int v_anchor;
@@ -23,5 +24,4 @@ public:
     std::string strData();
 
 private:
-
 };
