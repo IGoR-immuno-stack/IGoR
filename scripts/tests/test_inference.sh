@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-source config.sh
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+source $SCRIPT_DIR/config.sh
 OUTDIR="${1:-$(mktemp -d)}"
 IGORCALL="$IGORBIN -set_wd $OUTDIR"
 

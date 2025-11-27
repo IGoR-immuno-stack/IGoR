@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-source config.sh
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+source $SCRIPT_DIR/config.sh
 OUTDIR=$(mktemp -d)
 
 # ------------------------------------------------------------------
@@ -14,7 +15,7 @@ overall_status=0
 run_one() {
     local script="$1"
     echo -e "\n=== Running ${script} ==="
-    if ./"$script" "$OUTDIR"; then
+    if "$script" "$OUTDIR"; then
         echo "✅ ${script} succeeded"
     else
         echo "❌ ${script} FAILED"
@@ -22,9 +23,9 @@ run_one() {
     fi
 }
 
-run_one test_align.sh
-run_one test_inference.sh
-run_one test_generate.sh
+run_one $SCRIPT_DIR/test_align.sh
+run_one $SCRIPT_DIR/test_inference.sh
+run_one $SCRIPT_DIR/test_generate.sh
 
 echo -e "\n===== REGRESSION SUMMARY ====="
 if (( overall_status == 0 )); then
