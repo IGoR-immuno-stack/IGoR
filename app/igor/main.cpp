@@ -256,7 +256,7 @@ int main(int argc , char* argv[]){
 
 		// Flag to extract CDR3 from aligned sequences.
 		bool b_feature		  = true;
-		bool b_feature_CDR3 = true;
+		bool b_feature_CDR3 = false;
 
 
 	while(carg_i<argc){
