@@ -31,12 +31,16 @@ compare_file() {
     # Choose the appropriate sort key(s)
     case "$mode" in
         col1)
-            sort -t, -k1,1 "$ref" >"$ref_sorted"
-            sort -t, -k1,1 "$cur" >"$cur_sorted"
+            sort --field-separator=";" -k1,1 "$ref" >"$ref_sorted"
+            sort --field-separator=";" -k1,1 "$cur" >"$cur_sorted"
             ;;
         col1,col2)
-            sort -t, -k1,1 -k2,2 "$ref" >"$ref_sorted"
-            sort -t, -k1,1 -k2,2 "$cur" >"$cur_sorted"
+            sort --field-separator=";" -k1,1 -k2,2 "$ref" >"$ref_sorted"
+            sort --field-separator=";" -k1,1 -k2,2 "$cur" >"$cur_sorted"
+            ;;
+        all)
+            sort --field-separator=";" "$ref" >"$ref_sorted"
+            sort --field-separator=";" "$cur" >"$cur_sorted"
             ;;
         None)
             cp "$ref" "$ref_sorted"
