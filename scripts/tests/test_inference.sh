@@ -44,10 +44,10 @@ declare -A SORT_PATTERNS=(
 
 for batch in "demo"
 do
-    #for folder in "$TESTREF/$batch_inference" "$OUTDIR/$batch_inference"
-    do
-    cut -d$';' -f 1,3-10 < "$folder/inference_logs.txt" > "$folder/inference_logs.txt"
-    done
-assert_regression "$TESTREF/$batch_inference" "$OUTDIR/$batch_inference" "$LOGFILE"
+    # #for folder in "$TESTREF/$batch_inference" "$OUTDIR/$batch_inference"
+    # do
+    # cut -d$';' -f 1,3-10 < "$folder/inference_logs.txt" > "$folder/inference_logs.txt"
+    # done
+assert_regression "$TESTREF/${batch}_inference" "$OUTDIR/${batch}_inference" "$LOGFILE"
 done
 # The script exits with the same status that run_regression returned
