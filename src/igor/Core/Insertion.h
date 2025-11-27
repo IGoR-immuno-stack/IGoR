@@ -96,6 +96,8 @@ public:
             Downstream_scenario_proba_bound_map &, Seq_type_str_p_map &, Safety_bool_map &,
             std::shared_ptr<Error_rate>, Mismatch_vectors_map &, Seq_offsets_map &, Index_map &);
     void add_to_marginals(long double, Marginal_array_p &) const;
+    void update_event_internal_probas(const Marginal_array_p &,
+                                      const std::unordered_map<Rec_Event_name, int> &);
     void set_crude_upper_bound_proba(size_t, size_t, Marginal_array_p &);
     void initialize_crude_scenario_proba_bound(
             double &, std::forward_list<double *> &,

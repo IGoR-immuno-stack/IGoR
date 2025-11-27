@@ -283,7 +283,7 @@ void Insertion::initialize_event(
     auto &registry = SequenceTypeRegistry::get_instance();
 
     // Try to get type from nickname first (for tandem D support: "VD1_ins", "D1D2_ins", etc.)
-    int type_id = registry.try_get_type_id(this->nickname);
+    int type_id = registry.try_get_type_id(this->nickname + "_seq");
 
     // If not found, use event_class for backward compatibility
     if (type_id < 0) {
@@ -316,6 +316,48 @@ void Insertion::initialize_event(
     this->Rec_Event::initialize_event(processed_events, events_map, offset_map,
                                       downstream_proba_map, constructed_sequences, safety_set,
                                       error_rate_p, mismatches_list, seq_offsets, index_map);
+}
+
+void Insertion::update_event_internal_probas(const Marginal_array_p &marginal_array,
+                                             const unordered_map<Rec_Event_name, int> &index_map)
+{
+    // Update junction type from nickname if not yet done (for tandem D support)
+    if (junction_type_id < 0 && !this->nickname.empty()) {
+        auto &registry = SequenceTypeRegistry::get_instance();
+        int type_id = registry.try_get_type_id(this->nickname + "_seq");
+        if (type_id >= 0) {
+            junction_type_id = type_id;
+            upstream_gene_type_id = registry.get_junction_upstream(junction_type_id);
+            downstream_gene_type_id = registry.get_junction_downstream(junction_type_id);
+        }
+    }
+
+    // If still not set, fall back to event_class defaults
+    if (junction_type_id < 0) {
+        switch (this->event_class) {
+        case VD_genes:
+            junction_type_id = SequenceTypeRegistry::VD_INS_SEQ;
+            upstream_gene_type_id = SequenceTypeRegistry::V_GENE_SEQ;
+            downstream_gene_type_id = SequenceTypeRegistry::D_GENE_SEQ;
+            break;
+        case DJ_genes:
+            junction_type_id = SequenceTypeRegistry::DJ_INS_SEQ;
+            upstream_gene_type_id = SequenceTypeRegistry::D_GENE_SEQ;
+            downstream_gene_type_id = SequenceTypeRegistry::J_GENE_SEQ;
+            break;
+        case VJ_genes:
+            junction_type_id = SequenceTypeRegistry::VJ_INS_SEQ;
+            upstream_gene_type_id = SequenceTypeRegistry::V_GENE_SEQ;
+            downstream_gene_type_id = SequenceTypeRegistry::J_GENE_SEQ;
+            break;
+        default:
+            // Default to VD for unknown
+            junction_type_id = SequenceTypeRegistry::VD_INS_SEQ;
+            upstream_gene_type_id = SequenceTypeRegistry::V_GENE_SEQ;
+            downstream_gene_type_id = SequenceTypeRegistry::D_GENE_SEQ;
+            break;
+        }
+    }
 }
 
 void Insertion::add_to_marginals(long double scenario_proba,

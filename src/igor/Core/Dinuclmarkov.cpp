@@ -26,13 +26,50 @@
 
 #include <igor/Core/Dinuclmarkov.h>
 #include <igor/Core/EventUtils.h>
+#include <igor/Core/SequenceTypes.h>
 
 using namespace std;
 
-Dinucl_markov::Dinucl_markov(Gene_class gene) : Rec_Event(), total_nucl_count(0)
+Dinucl_markov::Dinucl_markov(Gene_class gene)
+    : Rec_Event(),
+      total_nucl_count(0),
+      junction_type_id(-1),
+      upstream_gene_type_id(-1),
+      downstream_gene_type_id(-1),
+      is_reverse_direction(false)
 {
     this->type = Event_type::Dinuclmarkov_t;
     event_class = gene;
+
+    // Initialize junction type based on event_class for generation path
+    // (before initialize_event is called)
+    switch (event_class) {
+    case VD_genes:
+        junction_type_id = SequenceTypeRegistry::VD_INS_SEQ;
+        upstream_gene_type_id = SequenceTypeRegistry::V_GENE_SEQ;
+        downstream_gene_type_id = SequenceTypeRegistry::D_GENE_SEQ;
+        is_reverse_direction = false;
+        break;
+    case DJ_genes:
+        junction_type_id = SequenceTypeRegistry::DJ_INS_SEQ;
+        upstream_gene_type_id = SequenceTypeRegistry::D_GENE_SEQ;
+        downstream_gene_type_id = SequenceTypeRegistry::J_GENE_SEQ;
+        is_reverse_direction = true;
+        break;
+    case VJ_genes:
+        junction_type_id = SequenceTypeRegistry::VJ_INS_SEQ;
+        upstream_gene_type_id = SequenceTypeRegistry::V_GENE_SEQ;
+        downstream_gene_type_id = SequenceTypeRegistry::J_GENE_SEQ;
+        is_reverse_direction = false;
+        break;
+    default:
+        // For VDJ_genes or unknown, will be set in initialize_event
+        junction_type_id = SequenceTypeRegistry::VD_INS_SEQ;
+        upstream_gene_type_id = SequenceTypeRegistry::V_GENE_SEQ;
+        downstream_gene_type_id = SequenceTypeRegistry::D_GENE_SEQ;
+        is_reverse_direction = false;
+        break;
+    }
     // Same indexes as Aligner::nt2int
 
     event_realizations.emplace("A", Event_realization("A", INT16_MAX, "A", Int_Str(), 0));
@@ -61,6 +98,11 @@ shared_ptr<Rec_Event> Dinucl_markov::copy()
     new_dinucl_markov_p->priority = this->priority;
     new_dinucl_markov_p->nickname = this->nickname;
     new_dinucl_markov_p->fixed = this->fixed;
+    // Copy tandem D support fields
+    new_dinucl_markov_p->junction_type_id = this->junction_type_id;
+    new_dinucl_markov_p->upstream_gene_type_id = this->upstream_gene_type_id;
+    new_dinucl_markov_p->downstream_gene_type_id = this->downstream_gene_type_id;
+    new_dinucl_markov_p->is_reverse_direction = this->is_reverse_direction;
     new_dinucl_markov_p->update_event_name();
     new_dinucl_markov_p->set_event_identifier(this->event_index);
     return new_dinucl_markov_p;
@@ -202,53 +244,93 @@ queue<int> Dinucl_markov::draw_random_realization(
 {
 
     uniform_real_distribution<double> distribution(0.0, 1.0);
-    bool correct_class = 0;
     int index = index_map.at(this->get_name());
     queue<int> realization_queue;
 
-    if (event_class == VD_genes || event_class == VDJ_genes) {
-        correct_class = 1;
-        string &vd_ins_seq = constructed_sequences.at(VD_ins_seq);
-        string v_seq = constructed_sequences.at(V_gene_seq);
+    // Use the junction_type_id set during initialization
+    // This supports tandem D with types like D1D2_ins_seq, D2J_ins_seq etc.
+    if (junction_type_id >= 0 && constructed_sequences.count(junction_type_id)) {
+        string &ins_seq = constructed_sequences.at(junction_type_id);
 
-        queue<int> tmp = this->draw_random_common(v_seq, vd_ins_seq, model_marginals_p, index,
+        // Get the upstream gene sequence
+        string upstream_seq;
+        if (constructed_sequences.count(upstream_gene_type_id)) {
+            upstream_seq = constructed_sequences.at(upstream_gene_type_id);
+        }
+
+        // For DJ-like insertions (where downstream is J), read in reverse
+        if (is_reverse_direction) {
+            reverse(upstream_seq.begin(), upstream_seq.end());
+        }
+
+        queue<int> tmp = this->draw_random_common(upstream_seq, ins_seq, model_marginals_p, index,
                                                   distribution, generator);
         while (!tmp.empty()) {
             realization_queue.push(tmp.front());
             tmp.pop();
         }
-    }
-    if (event_class == DJ_genes || event_class == VDJ_genes) {
-        correct_class = 1;
 
-        string &dj_ins_seq = constructed_sequences.at(DJ_ins_seq);
-        string j_seq = constructed_sequences.at(J_gene_seq);
-        reverse(j_seq.begin(), j_seq.end());
-
-        queue<int> tmp = this->draw_random_common(j_seq, dj_ins_seq, model_marginals_p, index,
-                                                  distribution, generator);
-        while (!tmp.empty()) {
-            realization_queue.push(tmp.front());
-            tmp.pop();
+        if (is_reverse_direction) {
+            reverse(ins_seq.begin(), ins_seq.end());
         }
-        reverse(dj_ins_seq.begin(), dj_ins_seq.end());
-    }
-    if (event_class == VJ_genes) {
-        correct_class = 1;
+    } else {
+        // Fallback for backward compatibility with hardcoded event_class
+        bool correct_class = false;
 
-        string &vj_ins_seq = constructed_sequences.at(VJ_ins_seq);
-        string v_seq = constructed_sequences.at(V_gene_seq);
+        if (event_class == VD_genes || event_class == VDJ_genes) {
+            if (constructed_sequences.count(SequenceTypeRegistry::VD_INS_SEQ)) {
+                correct_class = true;
+                string &vd_ins_seq = constructed_sequences.at(SequenceTypeRegistry::VD_INS_SEQ);
+                string v_seq = constructed_sequences.count(SequenceTypeRegistry::V_GENE_SEQ)
+                        ? constructed_sequences.at(SequenceTypeRegistry::V_GENE_SEQ)
+                        : "";
 
-        queue<int> tmp = this->draw_random_common(v_seq, vj_ins_seq, model_marginals_p, index,
-                                                  distribution, generator);
-        while (!tmp.empty()) {
-            realization_queue.push(tmp.front());
-            tmp.pop();
+                queue<int> tmp = this->draw_random_common(v_seq, vd_ins_seq, model_marginals_p,
+                                                          index, distribution, generator);
+                while (!tmp.empty()) {
+                    realization_queue.push(tmp.front());
+                    tmp.pop();
+                }
+            }
         }
-    }
-    if (!correct_class) {
-        throw invalid_argument(std::string("Unknown gene class for DincuclMarkov model: ")
-                               + this->event_class);
+        if (event_class == DJ_genes || event_class == VDJ_genes) {
+            if (constructed_sequences.count(SequenceTypeRegistry::DJ_INS_SEQ)) {
+                correct_class = true;
+                string &dj_ins_seq = constructed_sequences.at(SequenceTypeRegistry::DJ_INS_SEQ);
+                string j_seq = constructed_sequences.count(SequenceTypeRegistry::J_GENE_SEQ)
+                        ? constructed_sequences.at(SequenceTypeRegistry::J_GENE_SEQ)
+                        : "";
+                reverse(j_seq.begin(), j_seq.end());
+
+                queue<int> tmp = this->draw_random_common(j_seq, dj_ins_seq, model_marginals_p,
+                                                          index, distribution, generator);
+                while (!tmp.empty()) {
+                    realization_queue.push(tmp.front());
+                    tmp.pop();
+                }
+                reverse(dj_ins_seq.begin(), dj_ins_seq.end());
+            }
+        }
+        if (event_class == VJ_genes) {
+            if (constructed_sequences.count(SequenceTypeRegistry::VJ_INS_SEQ)) {
+                correct_class = true;
+                string &vj_ins_seq = constructed_sequences.at(SequenceTypeRegistry::VJ_INS_SEQ);
+                string v_seq = constructed_sequences.count(SequenceTypeRegistry::V_GENE_SEQ)
+                        ? constructed_sequences.at(SequenceTypeRegistry::V_GENE_SEQ)
+                        : "";
+
+                queue<int> tmp = this->draw_random_common(v_seq, vj_ins_seq, model_marginals_p,
+                                                          index, distribution, generator);
+                while (!tmp.empty()) {
+                    realization_queue.push(tmp.front());
+                    tmp.pop();
+                }
+            }
+        }
+        if (!correct_class) {
+            throw invalid_argument(std::string("Unknown gene class for DincuclMarkov model: ")
+                                   + std::to_string(this->event_class));
+        }
     }
     return realization_queue;
 }
@@ -452,26 +534,63 @@ void Dinucl_markov::initialize_event(
         shared_ptr<Error_rate> error_rate_p, Mismatch_vectors_map &mismatches_list,
         Seq_offsets_map &seq_offsets, Index_map &index_map)
 {
+    // Determine junction type from nickname or event_class
+    auto &registry = SequenceTypeRegistry::get_instance();
+
+    // Try to get type from nickname first (for tandem D support)
+    // DinucMarkov nicknames are like "VD1_dinucl", corresponding to "VD1_ins"
+    int type_id = -1;
+    if (!this->nickname.empty()) {
+        string ins_nickname = this->nickname;
+        size_t dinucl_pos = ins_nickname.find("_dinucl");
+        if (dinucl_pos != string::npos) {
+            ins_nickname = ins_nickname.substr(0, dinucl_pos) + "_ins";
+        }
+        type_id = registry.try_get_type_id(ins_nickname + "_seq");
+    }
+
+    // If not found, use event_class for backward compatibility
+    if (type_id < 0) {
+        switch (this->event_class) {
+        case VD_genes:
+            type_id = SequenceTypeRegistry::VD_INS_SEQ;
+            break;
+        case DJ_genes:
+            type_id = SequenceTypeRegistry::DJ_INS_SEQ;
+            break;
+        case VJ_genes:
+            type_id = SequenceTypeRegistry::VJ_INS_SEQ;
+            break;
+        default:
+            // For VDJ_genes, default to VD_INS_SEQ for the first junction
+            type_id = SequenceTypeRegistry::VD_INS_SEQ;
+            break;
+        }
+    }
+
+    junction_type_id = type_id;
+
+    // Get upstream and downstream gene types from registry topology
+    upstream_gene_type_id = registry.get_junction_upstream(junction_type_id);
+    downstream_gene_type_id = registry.get_junction_downstream(junction_type_id);
+
+    // Determine direction: DJ-like insertions read in reverse
+    is_reverse_direction = (downstream_gene_type_id == SequenceTypeRegistry::J_GENE_SEQ);
+
+    // Request memory layer for this junction type
+    downstream_proba_map.request_memory_layer(junction_type_id);
+    memory_layer_proba_map_junction_1 = downstream_proba_map.get_current_memory_layer(junction_type_id);
+
+    // For VDJ_genes (standard model), also handle the second junction
+    if (this->event_class == VDJ_genes) {
+        downstream_proba_map.request_memory_layer(SequenceTypeRegistry::DJ_INS_SEQ);
+        memory_layer_proba_map_junction_2 =
+                downstream_proba_map.get_current_memory_layer(SequenceTypeRegistry::DJ_INS_SEQ);
+    }
 
     max_vd_ins = EventUtils::get_insertion_len_max(VD_genes, events_map);
     max_vj_ins = EventUtils::get_insertion_len_max(VJ_genes, events_map);
     max_dj_ins = EventUtils::get_insertion_len_max(DJ_genes, events_map);
-
-    if ((this->event_class == VD_genes) or (this->event_class == VDJ_genes)) {
-        downstream_proba_map.request_memory_layer(VD_ins_seq);
-        memory_layer_proba_map_junction_1 =
-                downstream_proba_map.get_current_memory_layer(VD_ins_seq);
-    }
-    if ((this->event_class == DJ_genes) or (this->event_class == VDJ_genes)) {
-        downstream_proba_map.request_memory_layer(DJ_ins_seq);
-        memory_layer_proba_map_junction_2 =
-                downstream_proba_map.get_current_memory_layer(DJ_ins_seq);
-    }
-    if (this->event_class == VJ_genes) {
-        downstream_proba_map.request_memory_layer(VJ_ins_seq);
-        memory_layer_proba_map_junction_1 =
-                downstream_proba_map.get_current_memory_layer(VJ_ins_seq);
-    }
 
     vd_realizations_indices = new int[max_vd_ins];
     vj_realizations_indices = new int[max_vj_ins];
@@ -528,6 +647,27 @@ void Dinucl_markov::add_to_marginals(long double scenario_proba,
 void Dinucl_markov::update_event_internal_probas(
         const Marginal_array_p &marginal_array, const unordered_map<Rec_Event_name, int> &index_map)
 {
+    // Update junction type from nickname if not yet done (for tandem D support)
+    // DinucMarkov nicknames are like "VD1_dinucl", corresponding to "VD1_ins"
+    if (!this->nickname.empty()) {
+        auto &registry = SequenceTypeRegistry::get_instance();
+
+        // Convert dinucl nickname to insertion nickname (e.g., VD1_dinucl -> VD1_ins)
+        string ins_nickname = this->nickname;
+        size_t dinucl_pos = ins_nickname.find("_dinucl");
+        if (dinucl_pos != string::npos) {
+            ins_nickname = ins_nickname.substr(0, dinucl_pos) + "_ins";
+        }
+
+        int type_id = registry.try_get_type_id(ins_nickname + "_seq");
+        if (type_id >= 0) {
+            junction_type_id = type_id;
+            upstream_gene_type_id = registry.get_junction_upstream(junction_type_id);
+            downstream_gene_type_id = registry.get_junction_downstream(junction_type_id);
+            is_reverse_direction = (downstream_gene_type_id == SequenceTypeRegistry::J_GENE_SEQ);
+        }
+    }
+
     Int_nt const all_nt_vals[] = { int_A, int_C, int_G, int_T, int_R, int_Y, int_K, int_M,
                                    int_S, int_W, int_B, int_D, int_H, int_V, int_N };
     size_t event_index = index_map.at(this->get_name());

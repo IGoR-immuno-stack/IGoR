@@ -601,19 +601,24 @@ void Gene_choice::initialize_event(
 {
     // 1. Determine Sequence Type ID
     if (this->sequence_type_id == -1) {
-        if (this->event_class == V_gene) {
-            this->sequence_type_id = SequenceTypeRegistry::V_GENE_SEQ;
-        } else if (this->event_class == D_gene) {
-            this->sequence_type_id = SequenceTypeRegistry::D_GENE_SEQ;
-        } else if (this->event_class == J_gene) {
-            this->sequence_type_id = SequenceTypeRegistry::J_GENE_SEQ;
-        } else {
-            try {
-                this->sequence_type_id = get_sequence_type_registry().get_type_id(this->nickname);
-            } catch (...) {
-                if (this->nickname.find("D") != string::npos) {
-                    this->sequence_type_id = SequenceTypeRegistry::D_GENE_SEQ;
-                }
+        auto &registry = get_sequence_type_registry();
+
+        // Try nickname-based lookup first (for tandem D: "D1_gene" -> "D1_gene_seq")
+        if (!this->nickname.empty()) {
+            int type_id = registry.try_get_type_id(this->nickname + "_seq");
+            if (type_id >= 0) {
+                this->sequence_type_id = type_id;
+            }
+        }
+
+        // Fall back to event_class-based assignment
+        if (this->sequence_type_id == -1) {
+            if (this->event_class == V_gene) {
+                this->sequence_type_id = SequenceTypeRegistry::V_GENE_SEQ;
+            } else if (this->event_class == D_gene) {
+                this->sequence_type_id = SequenceTypeRegistry::D_GENE_SEQ;
+            } else if (this->event_class == J_gene) {
+                this->sequence_type_id = SequenceTypeRegistry::J_GENE_SEQ;
             }
         }
     }
@@ -787,6 +792,31 @@ void Gene_choice::initialize_event(
     this->Rec_Event::initialize_event(processed_events, events_map, offset_map,
                                       downstream_proba_map, constructed_sequences, safety_set,
                                       error_rate_p, mismatches_list, seq_offsets, index_map);
+}
+
+void Gene_choice::update_event_internal_probas(
+        const Marginal_array_p &marginal_array,
+        const unordered_map<Rec_Event_name, int> &index_map)
+{
+    // Update sequence_type_id from nickname if not yet done (for tandem D support)
+    if (this->sequence_type_id == -1 && !this->nickname.empty()) {
+        auto &registry = get_sequence_type_registry();
+        int type_id = registry.try_get_type_id(this->nickname + "_seq");
+        if (type_id >= 0) {
+            this->sequence_type_id = type_id;
+        }
+    }
+
+    // Fall back to event_class-based assignment
+    if (this->sequence_type_id == -1) {
+        if (this->event_class == V_gene) {
+            this->sequence_type_id = SequenceTypeRegistry::V_GENE_SEQ;
+        } else if (this->event_class == D_gene) {
+            this->sequence_type_id = SequenceTypeRegistry::D_GENE_SEQ;
+        } else if (this->event_class == J_gene) {
+            this->sequence_type_id = SequenceTypeRegistry::J_GENE_SEQ;
+        }
+    }
 }
 
 /**

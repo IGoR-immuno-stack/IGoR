@@ -159,6 +159,12 @@ private:
     // (V_gene_seq,Five_prime); std::pair<Seq_type,Seq_side> j_5_pair =
     // std::make_pair (J_gene_seq,Five_prime);
 
+    // Tandem D support: dynamic junction type identification
+    int junction_type_id;        // The sequence type for this insertion (e.g., VD_ins_seq)
+    int upstream_gene_type_id;   // The upstream gene type (e.g., V_gene_seq)
+    int downstream_gene_type_id; // The downstream gene type (e.g., D_gene_seq)
+    bool is_reverse_direction;   // DJ-like insertions read in reverse
+
     // Iterate common
     int first_nt_index;
     int sec_nt_index;
