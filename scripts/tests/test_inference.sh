@@ -12,6 +12,7 @@ cp -r "$TESTREF/aligns" "$OUTDIR"
 $IGORCALL -batch demo -set_custom_model "$TESTINPUT/TRB_model_parms.txt" "$TESTINPUT/TRB_uniform_model_marginals.txt" -infer --N_iter 4  --L_thresh 1e-35 --P_ratio_thresh 0.0001
 # Evaluate sequences to generate outputs
 $IGORCALL -batch demo -load_last_inferred -evaluate --L_thresh 1e-35 --P_ratio_thresh 0.0001 -output --scenarios 10 --Pgen #--coverage
+# $IGORCALL -batch demo -set_custom_model "$OUTDIR/demo_inference/iteration_3_parms.txt" "$OUTDIR/demo_inference/iteration_3.txt" -evaluate --L_thresh 1e-35 --P_ratio_thresh 0.0001 -output --scenarios 10 --Pgen #--coverage
 
 # Run the inference with the default parameters
 $IGORCALL -batch default -set_custom_model "$TESTINPUT/TRB_model_parms.txt" "$TESTINPUT/TRB_uniform_model_marginals.txt" -infer --N_iter 4 
@@ -32,6 +33,7 @@ declare -A SORT_PATTERNS=(
     # Don't sort model files
     ["*_parms.txt"]="None"
     ["*_marginals.txt"]="None"
+    ["initial_model.txt"]="None"
     ["iteration_*.txt"]="None"
     ["likelihoods.out"]="None"
 
@@ -45,15 +47,20 @@ declare -A SORT_PATTERNS=(
     # Sort err and coverage counter by iteration and gene
     ["*_genes_cov_and_err.csv"]="col1,col2"
 
+    # Sort inference logs
+    ["inference_logs.txt"]="col1"
+
 )
 
 for batch in "demo" "default"
 do
-    # #for folder in "$TESTREF/$batch_inference" "$OUTDIR/$batch_inference"
-    # do
-    # cut -d$';' -f 1,3-10 < "$folder/inference_logs.txt" > "$folder/inference_logs.txt"
-    # done
-#assert_regression "$TESTREF/${batch}_inference" "$OUTDIR/${batch}_inference" "$LOGFILE"
+
+# Drop non reproducible seq processing order and time elapsed per sequence
+tmp="$(mktemp)"                                   # create a safe temp name
+cut -d';' -f 1,3-10  "$OUTDIR/${batch}_inference/inference_logs.txt" >"$tmp"
+mv "$tmp" "$OUTDIR/${batch}_inference/inference_logs.txt"
+
+assert_regression "$TESTREF/${batch}_inference" "$OUTDIR/${batch}_inference" "$LOGFILE"
 assert_regression "$TESTREF/${batch}_output" "$OUTDIR/${batch}_output" "$LOGFILE"
 
 done
