@@ -9,12 +9,12 @@ IGORCALL="$IGORBIN -set_wd $OUTDIR"
 cp -r "$TESTREF/aligns" "$OUTDIR"
 
 # Run the inference with the demo parameters
-$IGORCALL -batch demo -set_custom_model "$TESTINPUT/TRB_model_parms.txt" "$TESTINPUT/TRB_uniform_model_marginals.txt" -infer --N_iter 4  --L_thresh 1e-35 --P_ratio_thresh 0.0001 -output --scenarios 10 --Pgen #--coverage
+$IGORCALL -batch demo -set_custom_model "$TESTINPUT/TRB_model_parms.txt" "$TESTINPUT/TRB_uniform_model_marginals.txt" -infer --N_iter 4  --L_thresh 1e-35 --P_ratio_thresh 0.0001 -output --scenarios 10 --Pgen --coverage VJ_gene
 
 # Run the inference with the default parameters
 $IGORCALL -batch default -set_custom_model "$TESTINPUT/TRB_model_parms.txt" "$TESTINPUT/TRB_uniform_model_marginals.txt" -infer --N_iter 4 
 # Evaluate sequences to generate outputs
-$IGORCALL -batch default -load_last_inferred -evaluate --L_thresh 1e-35 --P_ratio_thresh 0.0001 -output --scenarios 10 --Pgen #--coverage
+$IGORCALL -batch default -load_last_inferred -evaluate --L_thresh 1e-35 --P_ratio_thresh 0.0001 -output --scenarios 10 --Pgen --coverage VJ_gene
 
 # ------------------------------------------------------------------
 # 2️⃣ Test output file regression
