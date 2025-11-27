@@ -24,8 +24,7 @@ run_one() {
 
 run_one test_align.sh
 run_one test_inference.sh
-run_one test_evaluate.sh
-run_one test_seqgen.sh
+run_one test_generate.sh
 
 echo -e "\n===== REGRESSION SUMMARY ====="
 if (( overall_status == 0 )); then
