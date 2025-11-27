@@ -267,7 +267,7 @@ bool GenModel::infer_model(
             unordered_set<Rec_Event_name> init_processed_events;
 
             // Initialize Enum_fast_memory map and dual maps
-            Safety_bool_map safety_set(3);
+            Safety_bool_map safety_set(SequenceTypeRegistry::get_instance().size());
             Seq_type_str_p_map constructed_sequences(
                     SequenceTypeRegistry::get_instance().size()); // Dynamic size
             Mismatch_vectors_map mismatches_lists(SequenceTypeRegistry::get_instance().size());
