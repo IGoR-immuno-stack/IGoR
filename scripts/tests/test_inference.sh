@@ -10,9 +10,13 @@ cp -r "$TESTREF/aligns" "$OUTDIR"
 
 # Run the inference with the demo parameters
 $IGORCALL -batch demo -set_custom_model "$TESTINPUT/TRB_model_parms.txt" "$TESTINPUT/TRB_uniform_model_marginals.txt" -infer --N_iter 4  --L_thresh 1e-35 --P_ratio_thresh 0.0001
-
 # Evaluate sequences to generate outputs
 $IGORCALL -batch demo -load_last_inferred -evaluate --L_thresh 1e-35 --P_ratio_thresh 0.0001 -output --scenarios 10 --Pgen #--coverage
+
+# Run the inference with the default parameters
+$IGORCALL -batch default -set_custom_model "$TESTINPUT/TRB_model_parms.txt" "$TESTINPUT/TRB_uniform_model_marginals.txt" -infer --N_iter 4 
+# Evaluate sequences to generate outputs
+$IGORCALL -batch default -load_last_inferred -evaluate --L_thresh 1e-35 --P_ratio_thresh 0.0001 -output --scenarios 10 --Pgen #--coverage
 
 # ------------------------------------------------------------------
 # 2️⃣ Test output file regression
@@ -33,6 +37,7 @@ declare -A SORT_PATTERNS=(
 
 
     # Sort most counters by seq_id
+    ["best_scenarios_counts.csv"]="col1,col2"
     ["*counts.csv"]="col1"
     ["sequence_mutation_frequency.csv"]="col1"
     ["scenarios_background_and_errors.csv"]="col1"
@@ -42,12 +47,14 @@ declare -A SORT_PATTERNS=(
 
 )
 
-for batch in "demo"
+for batch in "demo" "default"
 do
     # #for folder in "$TESTREF/$batch_inference" "$OUTDIR/$batch_inference"
     # do
     # cut -d$';' -f 1,3-10 < "$folder/inference_logs.txt" > "$folder/inference_logs.txt"
     # done
-assert_regression "$TESTREF/${batch}_inference" "$OUTDIR/${batch}_inference" "$LOGFILE"
+#assert_regression "$TESTREF/${batch}_inference" "$OUTDIR/${batch}_inference" "$LOGFILE"
+assert_regression "$TESTREF/${batch}_output" "$OUTDIR/${batch}_output" "$LOGFILE"
+
 done
 # The script exits with the same status that run_regression returned
