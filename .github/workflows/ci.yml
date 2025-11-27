@@ -10,7 +10,7 @@ on:
   push:
     branches: [ main, develop , feature/new_arch]
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main, develop , feature/*]
   workflow_dispatch:  # permit manual launch
 
 # # stop previous workflows in case on multiple pushes
