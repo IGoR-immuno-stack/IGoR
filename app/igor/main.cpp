@@ -929,7 +929,7 @@ int main(int argc , char* argv[]){
 					catch(exception& e){
 						return terminate_IGoR_with_error_message("Unknown argument \""+string(argv[carg_i])+"\" to specify coverage target!\n Supported arguments are: V_gene, VD_genes, D_gene, DJ_gene, VJ_gene, J_gene, VDJ_genes");
 					}
-					shared_ptr<Counter> coverage_counter_ptr(new Coverage_err_counter(cl_path + "output/",chosen_gc,1,false,true));
+					shared_ptr<Counter> coverage_counter_ptr(new Coverage_err_counter(cl_path + "output/",chosen_gc,1,false, false));
 					cl_counters_list.emplace(cl_counters_list.size(),coverage_counter_ptr);
 				}
 				else{
