@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+source config.sh
+OUTDIR="${1:-$(mktemp -d)}"
+IGORCALL="$IGORBIN -set_wd $OUTDIR"
+
+# Copy reference alignment files 
+cp -r "$TESTREF/aligns" "$OUTDIR"
+
+# Run the inference with the demo parameters
+$IGORCALL -batch demo -set_custom_model "$TESTINPUT/TRB_model_parms.txt" "$TESTINPUT/TRB_uniform_model_marginals.txt" -infer --N_iter 4  --L_thresh 1e-35 --P_ratio_thresh 0.0001
+
+# Evaluate sequences to generate outputs
+$IGORCALL -batch demo -load_last_inferred -evaluate --L_thresh 1e-35 --P_ratio_thresh 0.0001 -output --scenarios 10 --Pgen #--coverage
+
+# ------------------------------------------------------------------
+# 2️⃣ Test output file regression
+# ------------------------------------------------------------------
+LOGFILE="infer_regression.log"
+
+SCRIPT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_ROOT/assert_regression.sh"
+
+# Remove last timing column from the inference_logs.txt
+
+declare -A SORT_PATTERNS=(
+    # Don't sort model files
+    ["*_parms.txt"]="None"
+    ["*_marginals.txt"]="None"
+    ["iteration_*.txt"]="None"
+    ["likelihoods.out"]="None"
+
+
+    # Sort most counters by seq_id
+    ["*counts.csv"]="col1"
+    ["sequence_mutation_frequency.csv"]="col1"
+    ["scenarios_background_and_errors.csv"]="col1"
+
+    # Sort err and coverage counter by iteration and gene
+    ["*_genes_cov_and_err.csv"]="col1,col2"
+
+)
+
+for batch in "demo"
+do
+    #for folder in "$TESTREF/$batch_inference" "$OUTDIR/$batch_inference"
+    do
+    cut -d$';' -f 1,3-10 < "$folder/inference_logs.txt" > "$folder/inference_logs.txt"
+    done
+assert_regression "$TESTREF/$batch_inference" "$OUTDIR/$batch_inference" "$LOGFILE"
+done
+# The script exits with the same status that run_regression returned
