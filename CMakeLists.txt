@@ -138,8 +138,8 @@ option(ENABLE_COVERAGE "Enable code coverage." false)
 
 if(ENABLE_COVERAGE)
   if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-    add_compile_options(-Wvla  -pedantic-errors)
-#    add_compile_options(-Wvla -Werror=vla -pedantic-errors)
+#    add_compile_options(Wall -Wextra -pedantic-errors) # To activate once it compiles without -pedantic-errors
+    add_compile_options(-Wall -Wextra)
   endif()
   if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_compile_options(-fprofile-generate)
