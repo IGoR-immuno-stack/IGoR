@@ -35,6 +35,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+      - name: Clean previous Pixi installation (macOS only)
+        if: runner.os == 'macOS'
+        run: rm -rf ~/.pixi
       - name: Setup pixi
         uses: prefix-dev/setup-pixi@v0.8.1
         with:
