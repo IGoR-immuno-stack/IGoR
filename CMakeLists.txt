@@ -155,7 +155,7 @@ if(ENABLE_COVERAGE)
 endif(ENABLE_COVERAGE)
 add_definitions("-ffp-contract=off")
 if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
-  add_definitions("-mlong-double-64")
+#  add_definitions("-mlong-double-64")
 endif()
 #add_subdirectory(tst)
 ## Input
