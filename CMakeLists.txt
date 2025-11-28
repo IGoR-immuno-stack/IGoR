@@ -96,6 +96,8 @@ include(GenerateExportHeader)
 ## Dependencies - external
 ## #################################################################
 
+include(cmake/Dependencies.cmake)
+
 find_package(GSL REQUIRED)
 
 if (APPLE)

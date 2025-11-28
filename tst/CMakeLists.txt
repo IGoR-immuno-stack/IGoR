@@ -35,3 +35,7 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/igor/Streaming")
         catch_discover_tests(streaming_tests)
     endif()
 endif()
+# Add ZeroCopy tests
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/igor/ZeroCopy")
+    add_subdirectory(igor/ZeroCopy)
+endif()
