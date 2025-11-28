@@ -31,6 +31,9 @@ jobs:
           # - windows-latest
     runs-on: ${{ matrix.os }}
 
+    env:
+      PATH: /usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -39,7 +42,7 @@ jobs:
         if: runner.os != 'macOS'
         uses: prefix-dev/setup-pixi@v0.8.1
         with:
-          pixi-version: v0.39.0
+          # pixi-version: v0.39.0
           cache: true
 
       - name: Checkout code
