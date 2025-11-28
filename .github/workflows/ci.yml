@@ -27,6 +27,7 @@ jobs:
         os:
           - self-hosted
           - ubuntu-latest
+          - macos-15-intel
           # - macos-latest
           # - windows-latest
     runs-on: ${{ matrix.os }}
