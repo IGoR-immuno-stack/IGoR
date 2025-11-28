@@ -102,6 +102,7 @@ int terminate_IGoR_with_error_message(forward_list<string> error_messages, excep
 
 int main(int argc , char* argv[]){
 
+	cout << sizeof(long double) << endl;
 	//Command line argument iterator
 	size_t carg_i = 1;
 	//cout<<argv[argc-1]<<endl;
