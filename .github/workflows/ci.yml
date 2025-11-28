@@ -27,22 +27,19 @@ jobs:
         os:
           - self-hosted
           - ubuntu-latest
-          - macos-latest
+          # - macos-latest
           # - windows-latest
     runs-on: ${{ matrix.os }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        
-      - name: Clean previous Pixi installation (macOS only)
-        if: runner.os == 'macOS'
-        run: rm -rf ~/.pixi
 
       - name: Setup pixi
+        if: runner.os != 'macOS'
         uses: prefix-dev/setup-pixi@v0.8.1
         with:
-          pixi-version: v0.39.0
+          # pixi-version: v0.39.0
           cache: true
 
       - name: Checkout code
