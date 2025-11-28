@@ -69,34 +69,6 @@ compare_file() {
     fi
 }
 
-# ------------------------------------------------------------
-# Helper: resolve a filename to its column list
-# ------------------------------------------------------------
-# Expects a pre declared SORT_PATTERNS with following format:
-# declare -A SORT_PATTERNS=(
-#     # sort indexed seqs by first column only
-#     ["indexed_sequences.csv"]="col1"
-
-#     # Sort alignments by seq_index and gene name
-#     ["*_alignments.csv"]="col1,col2"
-# )
-resolve_sort_columns() {
-    local filename="$1"               # just the basename, e.g. "foo_v2.csv"
-    local cols="Undefined"                    # default if nothing matches
-
-    # Iterate over the associative array in the order it was declared.
-    # The first pattern that matches wins – this mimics typical wildcard
-    # precedence (more specific patterns should be placed earlier).
-    for pat in "${!SORT_PATTERNS[@]}"; do
-        if [[ "$filename" == $pat ]]; then
-            cols="${SORT_PATTERNS[$pat]}"
-            break
-        fi
-    done
-
-    printf '%s' "$cols"
-}
-
 # ------------------------------------------------------------------
 # Main routine – called by each test script
 # ------------------------------------------------------------------

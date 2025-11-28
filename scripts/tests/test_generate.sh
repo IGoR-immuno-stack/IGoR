@@ -24,11 +24,17 @@ LOGFILE="align_regression.log"
 SCRIPT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_ROOT/assert_regression.sh"
 
-declare -A SORT_PATTERNS=(
-    # Sorting not necessary with fixed seed and single thread
-    ["generated_realizations_*err.csv"]="None"
-    ["generated_seqs_*err.csv"]="None"
-)
+resolve_sort_columns() {
+    local filename="$1"
+    case "$filename" in
+        # Sorting not necessary with fixed seed and single thread
+        generated_realizations_*err.csv) echo "None" ;;
+        generated_seqs_*err.csv) echo "None" ;;
+
+        # Catch undefined patterns
+        *)                echo "Undefined" ;;   # fallback
+    esac
+}
 
 for batch in "seed42" "seedRd" "noerr"
 do

@@ -35,13 +35,19 @@ LOGFILE="align_regression.log"
 SCRIPT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_ROOT/assert_regression.sh"
 
-declare -A SORT_PATTERNS=(
-    # sort indexed seqs by first column only
-    ["*indexed_sequences.csv"]="col1"
+resolve_sort_columns() {
+    local filename="$1"
+    case "$filename" in
+        # sort indexed seqs by first column only
+        *indexed_sequences.csv) echo "col1" ;;
 
-    # Sort alignments by seq_index and gene name
-    ["*_alignments.csv"]="col1,col2"
-)
+        # Sort alignments by seq_index and gene name
+        *_alignments.csv) echo "col1,col2" ;;
+
+        # Catch undefined patterns
+        *)                echo "Undefined" ;;   # fallback
+    esac
+}
 
 assert_regression "$TESTREF/aligns" "$OUTDIR/aligns" "$LOGFILE"
 # The script exits with the same status that run_regression returned
