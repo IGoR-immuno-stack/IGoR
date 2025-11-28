@@ -4,18 +4,34 @@ enable_testing()
 # Find Catch2
 find_package(Catch2 3 REQUIRED)
 
-# Add test sources
+# Add test sources (existing tests)
 file(GLOB TEST_SOURCES "*.cpp")
 
-add_executable(igor_tests ${TEST_SOURCES})
+if(TEST_SOURCES)
+    add_executable(igor_tests ${TEST_SOURCES})
+    target_link_libraries(igor_tests PRIVATE igor::Core Catch2::Catch2WithMain)
+    include(Catch)
+    catch_discover_tests(igor_tests)
+endif()
 
-# Link against the core library and Catch2
-# (Assuming igor::Core is the main library target)
-target_link_libraries(igor_tests PRIVATE igor::Core Catch2::Catch2WithMain)
+# Add streaming tests
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/igor/Streaming")
+    file(GLOB STREAMING_TEST_SOURCES "igor/Streaming/*.cpp")
 
-# Set include directories if needed
-# target_include_directories(igor_tests PRIVATE ../src/igor/Core)
+    if(STREAMING_TEST_SOURCES)
+        add_executable(streaming_tests ${STREAMING_TEST_SOURCES})
 
-# Register the tests with CTest
-include(Catch)
-catch_discover_tests(igor_tests)
+        target_link_libraries(streaming_tests
+            PRIVATE
+                igor::Core
+                igor::Streaming
+                Catch2::Catch2WithMain
+                sparrow::sparrow
+                Arrow::arrow_shared
+                Parquet::parquet_shared)
+
+        # Register with CTest
+        include(Catch)
+        catch_discover_tests(streaming_tests)
+    endif()
+endif()
