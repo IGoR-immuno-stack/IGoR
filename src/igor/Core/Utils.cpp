@@ -447,9 +447,9 @@ uint64_t draw_random_64bits_seed(){
 		uint64_t time1 = dur1.count();
 		uint64_t time2 = dur2.count();
 		// Get process ID
-		int pid = ::getpid();
+		int pid = ::portable_getpid();
 		// Get host ID
-		long int hid = ::gethostid();
+		long int hid = ::portable_gethostid();
 		//Get a somewhat random timing (will vary of the order of micro seconds)
 		chrono::duration<uint64_t,nano> dur3 (myclock::now() - time);
 		uint64_t time3 = dur3.count();

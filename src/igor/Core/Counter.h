@@ -25,6 +25,7 @@
 
 #pragma once
 
+#include <igor/Core/Utils.h>
 #include <string>
 #include <memory>
 #include <fstream>
@@ -32,7 +33,7 @@
 #include <igor/Core/Model_Parms.h>
 #include <igor/Core/Rec_Event.h>
 #include <igor/Core/IntStr.h>
-#include <igor/Core/Utils.h>
+
 
 
 /**
