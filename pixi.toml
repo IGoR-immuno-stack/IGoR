@@ -53,17 +53,11 @@ name = "pixi-build-cmake"
 version = "*"
 
 [package.build.config]
-extra-args = ["-DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER_CLANG_SCAN_DEPS=$PREFIX/bin/clang-scan-deps"]
+extra-args = ["-DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_SCAN_FOR_MODULES=OFF"]
 env = { MACOSX_DEPLOYMENT_TARGET = "10.15" }
 
 
 [package.build-dependencies]
-
-[package.target.osx-arm64.host-dependencies]
-clang-tools="19.*"
-
-[package.target.osx-arm64.build-dependencies]
-clang-tools="19.*"
 
 [package.host-dependencies]
 # Add dependencies on (header-only) libraries at compile time

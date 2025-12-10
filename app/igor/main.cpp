@@ -62,9 +62,14 @@ std::string PACKAGE_STRING= PACKAGE_NAME + std::string(" ")+ PACKAGE_VERSION;
 std::string PACKAGE_BUGREPORT="quentin.marcou@lpt.ens.fr";
 std::string PACKAGE_URL="https://github.com/IGoR-immuno-stack/IGoR";
 
-std::string IGOR_DATA_DIR = IGOR_DATA_DIR_STR;
-
-
+// remove \0 characters due to conda relocation
+std::string clean_path(std::string s) {
+    auto pos0 = s.find('\0');
+    if (pos0 != std::string::npos) {
+        s.resize(pos0);
+    }
+    return s;
+}
 
 // TODO: Possible typedef definitions for code readability.
 typedef std::string strSeqID;    // fasta description >strSeqID
@@ -104,7 +109,9 @@ int terminate_IGoR_with_error_message(forward_list<string> error_messages, excep
 
 int main(int argc , char* argv[]){
 
-	//Command line argument iterator
+	std::string IGOR_DATA_DIR = clean_path(IGOR_DATA_DIR_STR);
+
+    //Command line argument iterator
 	size_t carg_i = 1;
 	//cout<<argv[argc-1]<<endl;
 
