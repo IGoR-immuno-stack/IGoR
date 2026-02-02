@@ -28,14 +28,14 @@ coverage = "llvm-profdata merge -sparse build/tst/default.profraw -o default.pro
 bundle = "pixi build --output-dir=bundle"
 
 [tasks.upload]
-args = ["token", { arg = "label", default = "main" }]
-cmd = "anaconda --token {{ token }} upload --user compo --label {{ label }} bundle/*.conda "
+args = ["token", { arg = "label", default = "main" },{ arg = "channel", default = "nniclausse" }]
+cmd = "anaconda --token {{ token }} upload --user {{ channel }} --label {{ label }} bundle/*.conda "
 depends-on = "bundle"
 
 # ------------------build package (pixi build)--------------------------------
 
 [package]
-name = "igor"
+name = "igor_vdj"
 version = "1.4.0"
 description = "IGoR is a C++ software designed to infer V(D)J recombination related processes from sequencing data"
 
