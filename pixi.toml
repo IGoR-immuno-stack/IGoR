@@ -36,7 +36,7 @@ memcheck = {cmd="ctest --test-dir build -T memcheck --timeout 240 -C Release --o
 
 [tasks.upload]
 args = ["token", { arg = "label", default = "main" },{ arg = "channel", default = "nniclausse" }]
-cmd = "anaconda --token {{ token }} upload --user {{ channel }} --label {{ label }} bundle/*.conda "
+cmd = "anaconda --token {{ token }} upload --skip-existing --user {{ channel }} --label {{ label }} bundle/*.conda "
 
 # ------------------build package (pixi build)--------------------------------
 
