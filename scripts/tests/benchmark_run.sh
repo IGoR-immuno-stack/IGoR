@@ -9,7 +9,7 @@ LOG_FILE="$BENCH_DIR/benchmark.log"
 
 # Default sizes
 # Standalone sampling sizes (Generation only)
-GEN_SIZES=(10000 100000)
+GEN_SIZES=(1000 10000 100000 1000000)
 # Pipeline sizes (Generate -> Read -> Align -> Infer)
 PIPELINE_SIZES=(100 500 1000)
 
@@ -21,7 +21,7 @@ GENOMIC_D="$TESTINPUT/genomicDs.fasta"
 GENOMIC_J="$TESTINPUT/genomicJs_all_curated.fasta"
 
 # Results storage
-declare -a OPTIONAL_ARGS
+OPTIONAL_ARGS=()
 declare -a RESULTS
 CURRENT_CONTEXT=""
 
