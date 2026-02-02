@@ -26,6 +26,7 @@
  */
 
 #include <igor/Core/Singleerrorrate.h>
+#include <igor/Core/SequenceTypes.h>
 
 using namespace std;
 

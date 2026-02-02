@@ -2,6 +2,7 @@
 
 #include <forward_list>
 #include <igor/Core/Rec_Event.h>
+#include <igor/Core/SequenceTypes.h>
 #include <igor/Core/Utils.h>
 #include <memory>
 #include <string>

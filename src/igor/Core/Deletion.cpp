@@ -27,6 +27,7 @@
 #include <igor/Core/Aligner.h>
 #include <igor/Core/Deletion.h>
 #include <igor/Core/EventUtils.h>
+#include <igor/Core/SequenceTypes.h>
 
 using namespace std;
 

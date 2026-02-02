@@ -321,6 +321,19 @@ public:
 			}
 		}
 
+		const V& at(const K& key) const{
+			if(key>range-1){
+				throw std::out_of_range("Unknown key in Enum_fast_memory_map::at(const K& key)");
+			}
+			else{
+				if(memory_layer_ptr[key]>-1){
+					return (*(value_ptr_arr + key + memory_layer_ptr[key]*range));
+				}
+				else{
+					throw std::out_of_range("Trying to access uninitialized position in Enum_fast_memory_map::at(const K& key)");
+				}
+			}
+		}
 
 		int get_current_memory_layer(const K& key){
 			return memory_layer_ptr[key];
@@ -417,15 +430,15 @@ protected:
 
 
 
-typedef Enum_fast_memory_map<Seq_type,Int_Str_ptr> Seq_type_str_p_map;
+typedef Enum_fast_memory_map<int,Int_Str> Seq_type_str_p_map;
 
-typedef Enum_fast_memory_map<Event_safety,bool> Safety_bool_map;
+typedef Enum_fast_memory_map<int,bool> Safety_bool_map;
 
-typedef Enum_fast_memory_map<Seq_type,std::vector<int>*> Mismatch_vectors_map;
+typedef Enum_fast_memory_map<int,std::vector<int>*> Mismatch_vectors_map;
 
 typedef Enum_fast_memory_map<int,size_t> Index_map;
 
-typedef Enum_fast_memory_map<Seq_type,double> Downstream_scenario_proba_bound_map;
+typedef Enum_fast_memory_map<int,double> Downstream_scenario_proba_bound_map;
 
 /*
 	template<> class Enum_fast_memory_map<Seq_type ,Str_ptr>{
@@ -611,7 +624,7 @@ protected:
 
 };
 
-typedef Enum_fast_memory_dual_key_map<Seq_type,Seq_side,Seq_Offset> Seq_offsets_map;
+typedef Enum_fast_memory_dual_key_map<int,Seq_side,Seq_Offset> Seq_offsets_map;
 
 
 
@@ -680,6 +693,20 @@ typedef Enum_fast_memory_dual_key_map<Seq_type,Seq_side,Seq_Offset> Seq_offsets_
 					^(hash<int>()(g_class) <<1)>>1)
 					^(hash<int>()(s_side) <<1));
 
+		}
+	 };
+
+	 // Hash specialization for tuple<Event_type, int, Seq_side> used in events_map
+	 template<>
+	 struct hash<std::tuple<Event_type,int,Seq_side>>{
+		std::size_t operator()(const std::tuple<Event_type,int,Seq_side>& event_triplet) const{
+			Event_type ev_type;
+			int int_val;
+			Seq_side s_side;
+			std::tie(ev_type,int_val,s_side) = event_triplet;
+			return ((hash<int>()(ev_type)
+					^(hash<int>()(int_val) <<1)>>1)
+					^(hash<int>()(s_side) <<1));
 		}
 	 };
 

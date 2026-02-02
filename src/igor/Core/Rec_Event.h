@@ -30,6 +30,7 @@
 #include <igor/Core/Aligner.h>
 #include <igor/Core/Errorrate.h>
 #include <igor/Core/IntStr.h>
+#include <igor/Core/SequenceTypes.h>
 #include <igor/Core/Utils.h>
 
 #include <forward_list>
