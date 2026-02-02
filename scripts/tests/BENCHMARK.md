@@ -24,10 +24,10 @@ pixi run benchmark sampling
 ```
 
 **Custom / Stress Test**:
-Run with a specific sequence count (e.g., 1,000,000). To go huge (e.g., 1,000,000,000), typical limits apply (disk space, time).
+Run with specific sequence counts. You can pass multiple values to see scaling behavior.
 ```bash
-# Example: 1 million sequences
-pixi run benchmark -- sampling 1000000
+# Example: Scale from 1k to 1 million
+pixi run benchmark -- sampling 1000 10000 100000 1000000
 ```
 
 ### 3. Pipeline Benchmarks
@@ -42,13 +42,14 @@ pixi run benchmark pipeline
 We measure **Wall Clock Time** (in seconds).
 
 #### Standalone
-*   **Standalone_Sampling**: Pure synthetic sequence generation throughput. Isolated from pipeline steps.
+*   **Generation (Standalone)**: Pure synthetic sequence generation throughput. Isolated from pipeline steps.
 
 #### Pipeline Steps
-*   **Pipeline_Gen**: Generation step specifically to prepare input for the pipeline tests.
-*   **Pipeline_Read**: Parsing sequences.
-*   **Pipeline_Align**: Alignment against V, D, and J genomic templates.
-*   **Pipeline_Infer**: EM algorithm inference.
+*   **Pipeline: Generation**: Generation step specifically to prepare input for the pipeline tests.
+*   **Pipeline: Read**: Parsing sequences.
+*   **Pipeline: Alignment**: Alignment against V, D, and J genomic templates.
+    *   *Verbose Mode*: Splits into **Align V**, **Align D**, **Align J**.
+*   **Pipeline: Inference**: EM algorithm inference.
 
 ### Test Cases
 
