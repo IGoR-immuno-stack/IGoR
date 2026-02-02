@@ -78,7 +78,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Build conda package
-        run: pixi run bundle
+        run: pixi build --output-dir=bundle
 
       - name: Set channel
         run: |
