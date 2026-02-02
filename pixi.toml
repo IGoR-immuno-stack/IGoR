@@ -30,7 +30,6 @@ build_coverage = {cmd="cmake --build build_cov -j8", depends-on = "configure_cov
 test = {cmd="ctest --test-dir build --output-on-failure", depends-on = "build"}
 doc = "cmake --build build --target doc"
 coverage = {cmd="llvm-profdata merge -sparse build_cov/tst/default.profraw -o default.profdata && llvm-cov show build_cov/bin/igor_tests -instr-profile=default.profdata -format=html -output-dir=htmlcov", depends-on = "build_coverage"}
-bundle = "pixi build --output-dir=bundle"
 
 [target.linux.tasks]
 memcheck = {cmd="ctest --test-dir build -T memcheck --timeout 240 -C Release --output-junit ../ctest-memcheck-junit.xml", depends-on = "build"}
@@ -38,7 +37,6 @@ memcheck = {cmd="ctest --test-dir build -T memcheck --timeout 240 -C Release --o
 [tasks.upload]
 args = ["token", { arg = "label", default = "main" },{ arg = "channel", default = "nniclausse" }]
 cmd = "anaconda --token {{ token }} upload --user {{ channel }} --label {{ label }} bundle/*.conda "
-depends-on = "bundle"
 
 # ------------------build package (pixi build)--------------------------------
 
