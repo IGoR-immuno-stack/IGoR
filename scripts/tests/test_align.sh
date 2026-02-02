@@ -30,7 +30,7 @@ $IGORCALL -batch demo -align --J ---thresh 10 ---offset_bounds 42 48 ---best_ali
 # ------------------------------------------------------------------
 # 2️⃣ Test output file regression
 # ------------------------------------------------------------------
-LOGFILE="align_regression.log"
+LOGFILE="$OUTDIR/align_regression.log"
 
 SCRIPT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_ROOT/assert_regression.sh"

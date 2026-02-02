@@ -6,8 +6,10 @@ source $SCRIPT_DIR/config.sh
 OUTDIR="${1:-$(mktemp -d)}"
 IGORCALL="$IGORBIN -set_wd $OUTDIR"
 
-# Copy reference alignment files 
-cp -r "$TESTREF/aligns" "$OUTDIR"
+# Copy reference alignment files
+if [[ ! -d "$OUTDIR/aligns" ]]; then
+    cp -r "$TESTREF/aligns" "$OUTDIR"
+fi
 
 # Run the inference with the demo parameters
 $IGORCALL -batch demo -set_custom_model "$TESTINPUT/TRB_model_parms.txt" "$TESTINPUT/TRB_uniform_model_marginals.txt" -infer --N_iter 4  --L_thresh 1e-35 --P_ratio_thresh 0.0001 -output --scenarios 10 --Pgen --coverage VJ_gene
@@ -20,7 +22,7 @@ $IGORCALL -batch default -load_last_inferred -evaluate --L_thresh 1e-35 --P_rati
 # ------------------------------------------------------------------
 # 2️⃣ Test output file regression
 # ------------------------------------------------------------------
-LOGFILE="infer_regression.log"
+LOGFILE="$OUTDIR/infer_regression.log"
 
 SCRIPT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_ROOT/assert_regression.sh"
