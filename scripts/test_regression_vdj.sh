@@ -66,7 +66,7 @@ cd build/bin
 ./igor -set_wd ../../$TEST_DIR/run2 -batch gen -set_custom_model ../../demo/simple_vj_model.txt -generate 10 --seed $SEED > /dev/null 2>&1
 cd ../..
 
-if diff "$TEST_DIR/gen_generated/generated_seqs_werr.csv" "$TEST_DIR/run2/generated/generated_seqs_werr.csv" > /dev/null 2>&1; then
+if diff "$TEST_DIR/gen_generated/generated_seqs_werr.csv" "$TEST_DIR/run2/gen_generated/generated_seqs_werr.csv" > /dev/null 2>&1; then
     echo "✅ PASS: Deterministic generation verified"
 else
     echo "❌ FAIL: Non-deterministic output"

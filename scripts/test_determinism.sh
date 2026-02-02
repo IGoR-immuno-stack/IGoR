@@ -20,14 +20,14 @@ mkdir -p $WD1 $WD2
 ABS_WD1=$(pwd)/$WD1
 ABS_WD2=$(pwd)/$WD2
 
-# Run from build/bin to satisfy hardcoded relative paths for models
+# Use simple VJ model for deterministic testing
 cd build/bin
 
 # First run
-./igor -set_wd $ABS_WD1 -batch test -species human -chain beta -generate $COUNT --seed $SEED > /dev/null 2>&1
+./igor -set_wd $ABS_WD1 -batch test -set_custom_model ../../demo/simple_vj_model.txt -generate $COUNT --seed $SEED > /dev/null 2>&1
 
 # Second run
-./igor -set_wd $ABS_WD2 -batch test -species human -chain beta -generate $COUNT --seed $SEED > /dev/null 2>&1
+./igor -set_wd $ABS_WD2 -batch test -set_custom_model ../../demo/simple_vj_model.txt -generate $COUNT --seed $SEED > /dev/null 2>&1
 
 cd ../..
 

@@ -226,9 +226,9 @@ queue<int> Dinucl_markov::draw_random_realization(
 
 void Dinucl_markov::write2txt(ofstream &outfile)
 {
-    outfile << "#DinuclMarkov;" << event_class << ";" << event_side << ";" << priority << ";"
+    outfile << "#DinucMarkov;" << event_class << ";" << event_side << ";" << priority << ";"
             << nickname << endl;
-    // Dinuclmarkov doesn't usually write realizations to txt in this way in IGoR, 
+    // DinucMarkov doesn't usually write realizations to txt in this way in IGoR, 
     // it's usually a matrix. But let's keep it consistent.
 }
 

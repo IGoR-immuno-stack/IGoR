@@ -1223,11 +1223,13 @@ void Model_marginals::write2txt_iteration(
         }
 
         outfile << endl;
-        outfile << "%" << marginal_array_smart_p[index];
-        for (int j = 1; j < current_event_p->size(); ++j) {
-            outfile << "," << marginal_array_smart_p[index + j];
+        if (current_event_p->size() > 0) {
+            outfile << "%" << marginal_array_smart_p[index];
+            for (int j = 1; j < current_event_p->size(); ++j) {
+                outfile << "," << marginal_array_smart_p[index + j];
+            }
+            outfile << endl;
         }
-        outfile << endl;
     }
 }
 
