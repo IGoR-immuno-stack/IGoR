@@ -25,7 +25,7 @@ build = {cmd="cmake --build build --parallel", depends-on = "configure"}
 build_coverage = {cmd="cmake --build build_cov -j8", depends-on = "configure_coverage"}
 test = {cmd="ctest --test-dir build --output-on-failure", depends-on = "build"}
 doc = "cmake --build build --target doc"
-coverage = {cmd="llvm-profdata merge -sparse build_cov/tst/default.profraw -o default.profdata && llvm-cov show build_cov/bin/igor_tests -instr-profile=default.profdata -format=html -output-dir=coverage_report", depends-on = "build_coverage"}
+coverage = {cmd="llvm-profdata merge -sparse build_cov/tst/default.profraw -o default.profdata && llvm-cov show build_cov/bin/igor_tests -instr-profile=default.profdata -format=html -output-dir=htmlcov", depends-on = "build_coverage"}
 bundle = "pixi build --output-dir=bundle"
 
 [tasks.upload]
