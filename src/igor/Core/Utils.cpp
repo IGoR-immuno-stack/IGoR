@@ -30,126 +30,69 @@
 using namespace std;
 
 /////Utilitaries
-ostream &operator<<(ostream &os, Gene_class gc)
-{
-    switch (gc) {
-    case V_gene:
-        os << "V_gene";
-        break;
-    case VD_genes:
-        os << "VD_genes";
-        break;
-    case D_gene:
-        os << "D_gene";
-        break;
-    case DJ_genes:
-        os << "DJ_gene";
-        break;
-    case VJ_genes:
-        os << "VJ_gene";
-        break;
-    case J_gene:
-        os << "J_gene";
-        break;
-    case VDJ_genes:
-        os << "VDJ_genes";
-        break;
-    case Undefined_gene:
-        os << "Undefined_gene";
-        break;
+ostream& operator<<(ostream& os , Gene_class gc){
+	switch(gc){
+	case V_gene:os<<"V_gene";break;
+	case VD_genes:os<<"VD_genes";break;
+	case D_gene:os<<"D_gene";break;
+	case DJ_genes:os<<"DJ_gene";break;
+	case VJ_genes:os<<"VJ_gene";break;
+	case J_gene:os<<"J_gene";break;
+	case VDJ_genes:os<<"VDJ_genes";break;
+	case Undefined_gene: os<<"Undefined_gene";break;
 
-    default:
-        throw invalid_argument("Unknown Gene_class in operator<< ");
-    }
-    return os;
+	default:
+		throw invalid_argument("Unknown Gene_class in operator<< ");
+	}
+	return os;
 }
 
-ostream &operator<<(ostream &os, Seq_side ss)
-{
-    switch (ss) {
-    case Five_prime:
-        os << "Five_prime";
-        break;
-    case Three_prime:
-        os << "Three_prime";
-        break;
-    case Undefined_side:
-        os << "Undefined_side";
-        break;
+ostream& operator<<(ostream& os , Seq_side ss){
+	switch(ss){
+	case Five_prime:os<<"Five_prime";break;
+	case Three_prime:os<<"Three_prime";break;
+	case Undefined_side:os<<"Undefined_side";break;
 
-    default:
-        throw invalid_argument("Unknown Seq_side in operator << ");
-    }
-    return os;
+	default:
+		throw invalid_argument("Unknown Seq_side in operator << ");
+	}
+	return os;
 }
 
-string operator+(const string &str, Gene_class gc)
-{
-    string next_str;
-    switch (gc) {
-    case V_gene:
-        next_str = "V_gene";
-        break;
-    case VD_genes:
-        next_str = "VD_genes";
-        break;
-    case D_gene:
-        next_str = "D_gene";
-        break;
-    case DJ_genes:
-        next_str = "DJ_gene";
-        break;
-    case VJ_genes:
-        next_str = "VJ_gene";
-        break;
-    case J_gene:
-        next_str = "J_gene";
-        break;
-    case VDJ_genes:
-        next_str = "VDJ_genes";
-        break;
-    case Undefined_gene:
-        next_str = "Undefined_gene";
-        break;
-    }
-    return str + next_str;
+string operator+(const string& str , Gene_class gc){
+	string next_str;
+	switch(gc){
+	case V_gene:next_str="V_gene";break;
+	case VD_genes:next_str="VD_genes";break;
+	case D_gene:next_str="D_gene";break;
+	case DJ_genes:next_str="DJ_gene";break;
+	case VJ_genes:next_str="VJ_gene";break;
+	case J_gene:next_str="J_gene";break;
+	case VDJ_genes:next_str="VDJ_genes";break;
+	case Undefined_gene: next_str="Undefined_gene";break;
+	}
+	return str+next_str;
 }
 
-string operator+(const string &str, Seq_side ss)
-{
-    string next_str;
-    switch (ss) {
-    case Five_prime:
-        next_str = "Five_prime";
-        break;
-    case Three_prime:
-        next_str = "Three_prime";
-        break;
-    case Undefined_side:
-        next_str = "Undefined_side";
-        break;
-    }
-    return str + next_str;
+string operator+(const string& str , Seq_side ss){
+	string next_str;
+	switch(ss){
+	case Five_prime:next_str="Five_prime";break;
+	case Three_prime:next_str="Three_prime";break;
+	case Undefined_side:next_str="Undefined_side";break;
+	}
+	return str+next_str;
 }
 
-string operator+(const string &str, Event_type et)
-{
-    string next_str;
-    switch (et) {
-    case GeneChoice_t:
-        next_str = "GeneChoice";
-        break;
-    case Deletion_t:
-        next_str = "Deletion";
-        break;
-    case Insertion_t:
-        next_str = "Insertion";
-        break;
-    case Dinuclmarkov_t:
-        next_str = "DinucMarkov";
-        break;
-    }
-    return str + next_str;
+string operator+(const string& str , Event_type et){
+	string next_str;
+	switch(et){
+	case GeneChoice_t:next_str="GeneChoice";break;
+	case Deletion_t:next_str="Deletion";break;
+	case Insertion_t:next_str="Insertion";break;
+	case Dinuclmarkov_t:next_str="DinucMarkov";break;
+	}
+	return str+next_str;
 }
 
 /**
@@ -157,29 +100,20 @@ string operator+(const string &str, Event_type et)
  * \author Q.Marcou
  * \version 1.0.0
  */
-Gene_class str2GeneClass(const string str)
-{
-    Gene_class gene_class;
-    if (str == "V_gene") {
-        gene_class = V_gene;
-    } else if (str == "VD_genes") {
-        gene_class = VD_genes;
-    } else if (str == "D_gene") {
-        gene_class = D_gene;
-    } else if (str == "DJ_gene") {
-        gene_class = DJ_genes;
-    } else if (str == "VJ_gene") {
-        gene_class = VJ_genes;
-    } else if (str == "J_gene") {
-        gene_class = J_gene;
-    } else if (str == "VDJ_genes") {
-        gene_class = VDJ_genes;
-    } else if (str == "Undefined_gene") {
-        gene_class = Undefined_gene;
-    } else {
-        throw runtime_error("Unknown Gene_class in str2GeneClass");
-    }
-    return gene_class;
+Gene_class str2GeneClass(const string str){
+	Gene_class gene_class;
+	if(str == "V_gene"){gene_class = V_gene;}
+	else if(str == "VD_genes"){gene_class = VD_genes;}
+	else if(str == "D_gene"){gene_class = D_gene;}
+	else if(str == "DJ_gene"){gene_class = DJ_genes;}
+	else if(str == "VJ_gene"){gene_class = VJ_genes;}
+	else if(str == "J_gene"){gene_class = J_gene;}
+	else if(str == "VDJ_genes"){gene_class = VDJ_genes;}
+	else if(str == "Undefined_gene"){gene_class = Undefined_gene;}
+	else{
+		throw runtime_error("Unknown Gene_class in str2GeneClass");
+	}
+	return gene_class;
 }
 
 /**
@@ -187,29 +121,20 @@ Gene_class str2GeneClass(const string str)
  * \author Q.Marcou
  * \version 1.2.0
  */
-string to_string(const Gene_class gc)
-{
-    switch (gc) {
-    case V_gene:
-        return "V_gene";
-    case VD_genes:
-        return "VD_genes";
-    case D_gene:
-        return "D_gene";
-    case DJ_genes:
-        return "DJ_gene";
-    case VJ_genes:
-        return "VJ_gene";
-    case J_gene:
-        return "J_gene";
-    case VDJ_genes:
-        return "VDJ_genes";
-    case Undefined_gene:
-        return "Undefined_gene";
+string to_string(const Gene_class gc){
+	switch(gc){
+	case V_gene:return "V_gene";
+	case VD_genes:return "VD_genes";
+	case D_gene:return "D_gene";
+	case DJ_genes:return "DJ_gene";
+	case VJ_genes:return "VJ_gene";
+	case J_gene:return "J_gene";
+	case VDJ_genes:return "VDJ_genes";
+	case Undefined_gene:return "Undefined_gene";
 
-    default:
-        throw invalid_argument("Unknown Gene_class in to_string(const Gene_class).");
-    }
+	default:
+		throw invalid_argument("Unknown Gene_class in to_string(const Gene_class).");
+	}
 }
 
 /**
@@ -217,19 +142,15 @@ string to_string(const Gene_class gc)
  * \author Q.Marcou
  * \version 1.0.0
  */
-Seq_side str2SeqSide(const string str)
-{
-    Seq_side seq_side;
-    if (str == "Five_prime") {
-        seq_side = Five_prime;
-    } else if (str == "Three_prime") {
-        seq_side = Three_prime;
-    } else if (str == "Undefined_side") {
-        seq_side = Undefined_side;
-    } else {
-        throw runtime_error("Unknown event_side in str2SeqSide");
-    }
-    return seq_side;
+Seq_side str2SeqSide(const string str){
+	Seq_side seq_side;
+	if(str == "Five_prime"){seq_side = Five_prime;}
+		else if(str == "Three_prime"){seq_side = Three_prime;}
+		else if(str == "Undefined_side"){seq_side = Undefined_side;}
+	else{
+		throw runtime_error("Unknown event_side in str2SeqSide");
+	}
+	return seq_side;
 }
 
 /**
@@ -237,19 +158,16 @@ Seq_side str2SeqSide(const string str)
  * \author Q.Marcou
  * \version 1.2.0
  */
-string to_string(const Seq_side ss)
-{
-    switch (ss) {
-    case Five_prime:
-        return "Five_prime";
-    case Three_prime:
-        return "Three_prime";
-    case Undefined_side:
-        return "Undefined_side";
+string to_string(const Seq_side ss){
+	switch(ss){
+	case Five_prime:return "Five_prime";
+	case Three_prime:return "Three_prime";
+	case Undefined_side:return "Undefined_side";
 
-    default:
-        throw invalid_argument("Unknown Seq_side in to_string(const Seq_side).");
-    }
+	default:
+		throw invalid_argument("Unknown Seq_side in to_string(const Seq_side).");
+	}
+
 }
 
 //Seq_type_str_p_map::Seq_type_str_p_map(): Enum_fast_memory_map<Seq_type,Str_ptr>(6){}
@@ -407,7 +325,7 @@ Enum_fast_memory_map::~Enum_fast_memory_map(){
 		return *this;
 	}*/
 
-/*
+	/*
 	 * Copy constructor
 	 * Provides a deep copy of the object
 
@@ -434,18 +352,17 @@ Enum_fast_memory_map::~Enum_fast_memory_map(){
  *
  * \return A vector containing the separated fields in order of appearance.
  */
-vector<string> extract_string_fields(const string total_string, const string separator)
-{
-    vector<string> output_vector;
-    int sep_index = -1;
-    int next_sep_index = total_string.find(separator);
-    while (next_sep_index > 0) {
-        output_vector.emplace_back(total_string.substr(sep_index + 1, next_sep_index));
-        sep_index = next_sep_index;
-        next_sep_index = total_string.find(separator, sep_index + 1);
-    }
-    output_vector.emplace_back(total_string.substr(sep_index + 1, string::npos));
-    return output_vector;
+vector<string> extract_string_fields(const string total_string ,const string separator){
+	vector<string> output_vector;
+	int sep_index = -1;
+	int next_sep_index = total_string.find(separator);
+	while(next_sep_index>0){
+		output_vector.emplace_back(total_string.substr(sep_index+1,next_sep_index));
+		sep_index = next_sep_index;
+		next_sep_index = total_string.find(separator,sep_index+1);
+	}
+	output_vector.emplace_back(total_string.substr(sep_index+1,string::npos));
+	return output_vector;
 }
 
 /**
@@ -463,19 +380,15 @@ vector<string> extract_string_fields(const string total_string, const string sep
  * Note this function's call should eventually be followed by a call to close_progress_bar
  *
  */
-void show_progress_bar(std::ostream &output_stream, double progress,
-                       std::string prefix_message /*= ""*/, size_t progress_bar_size /*= 50*/)
-{
-    output_stream << prefix_message << " [";
-    size_t pos = progress_bar_size * progress;
-    for (size_t i = 0; i != progress_bar_size; ++i) {
-        if (i < pos)
-            output_stream << "|";
-        else
-            output_stream << " ";
-    }
-    output_stream << "] " << to_string(progress * 100.0).substr(0, 5) << " %\r";
-    output_stream.flush();
+void show_progress_bar(std::ostream& output_stream , double progress, std::string prefix_message /*= ""*/, size_t progress_bar_size /*= 50*/){
+	output_stream << prefix_message <<" [";
+	size_t pos = progress_bar_size * progress;
+	for(size_t i=0 ; i!=progress_bar_size ; ++i){
+		if(i<pos) output_stream<<"|";
+		else output_stream<<" ";
+	}
+	output_stream<< "] " << to_string(progress * 100.0).substr(0,5) << " %\r";
+	output_stream.flush();
 }
 
 /**
@@ -491,16 +404,14 @@ void show_progress_bar(std::ostream &output_stream, double progress,
  * Note this function's output needs to be terminated by \endl.
  *
  */
-void close_progress_bar(std::ostream &output_stream, std::string prefix_message /*= ""*/,
-                        size_t progress_bar_size /*= 50*/)
-{
-    output_stream << prefix_message << " [";
-    for (size_t i = 0; i != progress_bar_size; ++i) {
-        output_stream << "|";
-    }
-    output_stream << "] " << " Done." << " \r";
-    output_stream.flush();
-    output_stream << endl;
+void close_progress_bar(std::ostream& output_stream , std::string prefix_message /*= ""*/, size_t progress_bar_size /*= 50*/){
+	output_stream << prefix_message <<" [";
+	for(size_t i=0 ; i!=progress_bar_size ; ++i){
+		output_stream<<"|";
+	}
+	output_stream<< "] " << " Done." << " \r";
+	output_stream.flush();
+	output_stream<<endl;
 }
 
 /**
@@ -512,150 +423,101 @@ void close_progress_bar(std::ostream &output_stream, std::string prefix_message 
  * If a random device is available (e.g /dev/random) is available, two 32 bits integers are drawn from it and combined as a 64 bit one.
  * If no random device is available a 64 bits random seed is computed from time, process id, etc...
  */
-uint64_t draw_random_64bits_seed()
-{
-    uint64_t random_seed;
-    try {
-        // Use a random device (e.g /dev/random)
-        random_device rd;
-        // Draw two different 32 bits seeds
-        uint32_t subseed1 = rd();
-        uint32_t subseed2 = rd();
-        // Combine them in a single 64 bit unsigned integer.
-        uint32_t *begin_ptr = (uint32_t *)&random_seed;
-        *begin_ptr = subseed1;
-        *(begin_ptr + 1) = subseed2;
-    } catch (exception &e) {
-        cerr << "Exception caught trying to initialize random_device to generate a random seed in "
-                "draw_random_64bits_seed"
-             << endl;
-        cerr << "A lesser quality seed based on date,time,PID,... has been provided instead."
-             << endl;
-        //Get today's time
-        typedef std::chrono::high_resolution_clock myclock;
-        myclock::time_point time = myclock::now();
-        chrono::duration<uint64_t, nano> dur1(time - myclock::time_point::min());
-        chrono::duration<uint64_t, nano> dur2(myclock::time_point::max() - time);
-        uint64_t time1 = dur1.count();
-        uint64_t time2 = dur2.count();
-        // Get process ID
-        int pid = ::getpid();
-        // Get host ID
-        long int hid = ::gethostid();
-        //Get a somewhat random timing (will vary of the order of micro seconds)
-        chrono::duration<uint64_t, nano> dur3(myclock::now() - time);
-        uint64_t time3 = dur3.count();
+uint64_t draw_random_64bits_seed(){
+	uint64_t random_seed;
+	try{
+		// Use a random device (e.g /dev/random)
+		random_device rd;
+		// Draw two different 32 bits seeds
+		uint32_t subseed1 = rd();
+		uint32_t subseed2 = rd();
+		// Combine them in a single 64 bit unsigned integer.
+		uint32_t* begin_ptr = (uint32_t*)&random_seed;
+		*begin_ptr = subseed1;
+		*(begin_ptr+1) = subseed2;
+	}
+	catch (exception& e){
+		cerr<<"Exception caught trying to initialize random_device to generate a random seed in draw_random_64bits_seed"<<endl;
+		cerr<<"A lesser quality seed based on date,time,PID,... has been provided instead."<<endl;
+		//Get today's time
+		typedef std::chrono::high_resolution_clock myclock;
+		myclock::time_point time = myclock::now();
+		chrono::duration<uint64_t,nano> dur1 (time -  myclock::time_point::min());
+		chrono::duration<uint64_t,nano> dur2 (myclock::time_point::max() - time);
+		uint64_t time1 = dur1.count();
+		uint64_t time2 = dur2.count();
+		// Get process ID
+		int pid = ::portable_getpid();
+		// Get host ID
+		long int hid = ::portable_gethostid();
+		//Get a somewhat random timing (will vary of the order of micro seconds)
+		chrono::duration<uint64_t,nano> dur3 (myclock::now() - time);
+		uint64_t time3 = dur3.count();
 
-        //Now combine them
-        uint64_t rd_id = pid * hid - pid;
-        //Perform a somewhat random circular shift
-        rd_id = (rd_id << rd_id % 17) | (rd_id >> (64 - rd_id % 17));
-        time1 = (time1 << time1 % 23) | (time1 >> (64 - time1 % 23));
-        time2 = (time2 << time2 % 13) | (time2 >> (64 - time2 % 13));
-        time3 = (time3 << time3 % 7) | (time3 >> (64 - time3 % 7));
-        uint64_t rd_time = time1 ^ ((time2 << 1) ^ (time3 >> 1) >> 1);
-        random_seed = (rd_id >> 1) ^ (rd_time << 1) << 1;
-    }
-    return random_seed;
+		//Now combine them
+		uint64_t rd_id = pid*hid-pid;
+			//Perform a somewhat random circular shift
+				rd_id = (rd_id << rd_id%17) | (rd_id >> (64 - rd_id%17));
+				time1 = (time1 << time1%23) | (time1 >> (64 - time1%23));
+				time2 = (time2 << time2%13) | (time2 >> (64 - time2%13));
+				time3 = (time3 << time3%7) | (time3 >> (64 - time3%7));
+		uint64_t rd_time = time1^((time2<<1)^(time3>>1)>>1);
+		random_seed = (rd_id>>1)^(rd_time<<1)<<1;
+	}
+	return random_seed;
 }
 
-UMCodonTable CodonTableStandard = { { "TTT", "F" },
-                                    { "TTC", "F" },
-                                    { "TTA", "L" },
-                                    { "TTG", "L" },
-                                    { "TCT", "S" },
-                                    { "TCC", "S" },
-                                    { "TCA", "S" },
-                                    { "TCG", "S" },
-                                    { "TAT", "Y" },
-                                    { "TAC", "Y" },
-                                    { "TGT", "C" },
-                                    { "TGC", "C" },
-                                    { "TGG", "W" },
-                                    { "CTT", "L" },
-                                    { "CTC", "L" },
-                                    { "CTA", "L" },
-                                    { "CTG", "L" },
-                                    { "CCT", "P" },
-                                    { "CCC", "P" },
-                                    { "CCA", "P" },
-                                    { "CCG", "P" },
-                                    { "CAT", "H" },
-                                    { "CAC", "H" },
-                                    { "CAA", "Q" },
-                                    { "CAG", "Q" },
-                                    { "CGT", "R" },
-                                    { "CGC", "R" },
-                                    { "CGA", "R" },
-                                    { "CGG", "R" },
-                                    { "ATT", "I" },
-                                    { "ATC", "I" },
-                                    { "ATA", "I" },
-                                    { "ATG", "M" },
-                                    { "ACT", "T" },
-                                    { "ACC", "T" },
-                                    { "ACA", "T" },
-                                    { "ACG", "T" },
-                                    { "AAT", "N" },
-                                    { "AAC", "N" },
-                                    { "AAA", "K" },
-                                    { "AAG", "K" },
-                                    { "AGT", "S" },
-                                    { "AGC", "S" },
-                                    { "AGA", "R" },
-                                    { "AGG", "R" },
-                                    { "GTT", "V" },
-                                    { "GTC", "V" },
-                                    { "GTA", "V" },
-                                    { "GTG", "V" },
-                                    { "GCT", "A" },
-                                    { "GCC", "A" },
-                                    { "GCA", "A" },
-                                    { "GCG", "A" },
-                                    { "GAT", "D" },
-                                    { "GAC", "D" },
-                                    { "GAA", "E" },
-                                    { "GAG", "E" },
-                                    { "GGT", "G" },
-                                    { "GGC", "G" },
-                                    { "GGA", "G" },
-                                    { "GGG", "G" },
-                                    // Stop  codon
-                                    { "TAA", "*" },
-                                    { "TAG", "*" },
-                                    { "TGA", "*" },
-                                    // Start codon
-                                    { "TTG", "s" },
-                                    { "CTG", "s" },
-                                    { "ATG", "s" } };
+
+UMCodonTable CodonTableStandard = {
+	{"TTT", "F"}, {"TTC", "F"}, {"TTA", "L"}, {"TTG", "L"}, 
+	{"TCT", "S"}, {"TCC", "S"}, {"TCA", "S"}, {"TCG", "S"}, 
+	{"TAT", "Y"}, {"TAC", "Y"}, {"TGT", "C"}, {"TGC", "C"}, 
+	{"TGG", "W"}, {"CTT", "L"}, {"CTC", "L"}, {"CTA", "L"}, 
+	{"CTG", "L"}, {"CCT", "P"}, {"CCC", "P"}, {"CCA", "P"}, 
+	{"CCG", "P"}, {"CAT", "H"}, {"CAC", "H"}, {"CAA", "Q"}, 
+	{"CAG", "Q"}, {"CGT", "R"}, {"CGC", "R"}, {"CGA", "R"}, 
+	{"CGG", "R"}, {"ATT", "I"}, {"ATC", "I"}, {"ATA", "I"}, 
+	{"ATG", "M"}, {"ACT", "T"}, {"ACC", "T"}, {"ACA", "T"}, 
+	{"ACG", "T"}, {"AAT", "N"}, {"AAC", "N"}, {"AAA", "K"}, 
+	{"AAG", "K"}, {"AGT", "S"}, {"AGC", "S"}, {"AGA", "R"}, 
+	{"AGG", "R"}, {"GTT", "V"}, {"GTC", "V"}, {"GTA", "V"}, 
+	{"GTG", "V"}, {"GCT", "A"}, {"GCC", "A"}, {"GCA", "A"}, 
+	{"GCG", "A"}, {"GAT", "D"}, {"GAC", "D"}, {"GAA", "E"}, 
+	{"GAG", "E"}, {"GGT", "G"}, {"GGC", "G"}, {"GGA", "G"}, 
+	{"GGG", "G"},
+	// Stop  codon
+	{"TAA", "*"}, {"TAG", "*"}, {"TGA", "*"},
+	// Start codon
+	{"TTG", "s"}, {"CTG", "s"}, {"ATG", "s"}
+};
+
 
 /**
  * \param seq: DNA sequence to translate.
  * \return amino acid sequence. 
  */
-string translate(string seq)
-{
-    size_t codonPos = 0;
-    const size_t codonLen = 3;
-    size_t seqLen = seq.length();
-    string strCodon = "";
-    string AA = "";
-    string AAChain = "";
-    bool stopCodonQ = false;
-    if (seqLen % codonLen == 0) {
-        while ((codonPos < seqLen)) {
-            strCodon = seq.substr(codonPos, codonLen);
-            //		cout << strCodon << " codonPos: " << codonPos << endl;
-            codonPos += codonLen;
-            AA = CodonTableStandard[strCodon];
-            if (AA == "*") {
-                stopCodonQ = true;
-            }
-            AAChain += AA;
-        }
-        return AAChain;
-    } else {
-        // FIXME: Add a message? or leave it blank?
-        return AAChain;
-    }
+string translate(string seq){
+	size_t codonPos = 0;
+	const size_t codonLen = 3;
+	size_t seqLen = seq.length();
+	string strCodon = "";
+	string AA ="";
+	string AAChain ="";
+	bool stopCodonQ = false;
+	if (seqLen % codonLen == 0){
+			while ((codonPos < seqLen) ){
+			strCodon = seq.substr(codonPos, codonLen);
+	//		cout << strCodon << " codonPos: " << codonPos << endl;
+			codonPos += codonLen; 
+			AA = CodonTableStandard[strCodon];
+			if (AA == "*"){
+				stopCodonQ = true;
+			}
+			AAChain +=  AA;			
+		}
+		return AAChain;
+	}else{
+		// FIXME: Add a message? or leave it blank?
+		return AAChain;
+	}
 }
