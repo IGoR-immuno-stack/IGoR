@@ -18,6 +18,9 @@ anaconda-client = "*"
 [target.osx.dependencies]
 clang-tools = ">=19.1.7,<22"
 
+[target.linux.dependencies]
+valgrind = "*"
+
 [tasks]
 configure = "cmake -S . -B build "
 configure_coverage = "cmake -S . -B build_cov -DBUILD_DOC_DOXYGEN=ON -DENABLE_COVERAGE=ON"
@@ -27,6 +30,9 @@ test = {cmd="ctest --test-dir build --output-on-failure", depends-on = "build"}
 doc = "cmake --build build --target doc"
 coverage = {cmd="llvm-profdata merge -sparse build_cov/tst/default.profraw -o default.profdata && llvm-cov show build_cov/bin/igor_tests -instr-profile=default.profdata -format=html -output-dir=htmlcov", depends-on = "build_coverage"}
 bundle = "pixi build --output-dir=bundle"
+
+[target.linux.tasks]
+memcheck = {cmd="ctest --test-dir build -T memcheck --timeout 240 -C Release --output-junit ../ctest-memcheck-junit.xml", depends-on = "build"}
 
 [tasks.upload]
 args = ["token", { arg = "label", default = "main" },{ arg = "channel", default = "nniclausse" }]
