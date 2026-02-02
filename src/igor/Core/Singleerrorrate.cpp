@@ -110,51 +110,56 @@ double Single_error_rate::compare_sequences_error_prob(
         Mismatch_vectors_map &mismatches_lists, double &seq_max_prob_scenario,
         double &proba_threshold_factor)
 {
-    // TODO extract sequence comparision from here, implement it in Errorrate
-    // class??
     number_errors = 0;
-    // cout<<constructed_sequences.at(V_gene_seq);
     genomic_nucl = 0;
 
-    Int_Str &v_gene_seq = (*constructed_sequences[V_gene_seq]);
-    Int_Str &d_gene_seq = (*constructed_sequences[D_gene_seq]);
-    Int_Str &j_gene_seq = (*constructed_sequences[J_gene_seq]);
+    // Use SequenceTypeRegistry to iterate over ALL registered sequence segments.
+    // This supports arbitrary topologies including Tandem D.
+    const auto &types = SequenceTypeRegistry::get_instance().get_all_types();
+    for (const auto &type_info : types) {
+        int id = type_info.id;
+        
+        // We only care about genomic segments (V, D, J).
+        // Junction segments (insertions) don't have errors in IGoR's model.
+        if (SequenceTypeRegistry::get_instance().is_junction_type(id)) {
+            continue;
+        }
 
-    vector<int> &v_mismatch_list = *mismatches_lists[V_gene_seq];
-    if (mismatches_lists.exist(D_gene_seq)) {
-        vector<int> &d_mismatch_list = *mismatches_lists[D_gene_seq];
-        number_errors += d_mismatch_list.size();
-        genomic_nucl += d_gene_seq.size();
+        if (constructed_sequences.exist(id)) {
+            Int_Str &seq = (constructed_sequences.at(id));
+            genomic_nucl += seq.size();
+            
+            if (mismatches_lists.exist(id)) {
+                vector<int> &mismatch_list = *mismatches_lists.at(id);
+                number_errors += mismatch_list.size();
+            }
+        }
     }
-
-    vector<int> &j_mismatch_list = *mismatches_lists[J_gene_seq];
-
-    genomic_nucl += v_gene_seq.size();
-    // genomic_nucl+=d_gene_seq.size();
-    genomic_nucl += j_gene_seq.size();
-
-    number_errors += v_mismatch_list.size();
-    // number_errors+=d_mismatch_list.size();
-    number_errors += j_mismatch_list.size();
 
     // Here a long double is required in case a lot of errors occur and/or the
     // model rate is low, the probability will be truncated to 0 if it gets below
     // ± 2.225,073,858,507,201,4 · 10-308 with double precision
 
-    scenario_new_proba = scenario_probability * pow(model_rate / 3, number_errors)
-            * pow(1 - model_rate, genomic_nucl - number_errors);
-    if (scenario_new_proba >= seq_max_prob_scenario * proba_threshold_factor) {
+    long double scenario_new_proba_ld = (long double)scenario_probability * pow((long double)model_rate / 3, number_errors)
+            * pow((long double)1 - model_rate, genomic_nucl - number_errors);
+    
+    scenario_new_proba = (double)scenario_new_proba_ld;
+    if (scenario_new_proba_ld >= (long double)seq_max_prob_scenario * proba_threshold_factor) {
         // if genomic nucl != 0 ?
-        this->seq_mean_error_number += number_errors * scenario_new_proba;
-        temp2 = (double(number_errors) / double(genomic_nucl));
-        temp = scenario_new_proba * temp2;
+        this->seq_mean_error_number += number_errors * scenario_new_proba_ld;
+        if (genomic_nucl > 0) {
+            temp2 = (double(number_errors) / double(genomic_nucl));
+        } else {
+            temp2 = 0;
+        }
+        temp = scenario_new_proba_ld * temp2;
         if (viterbi_run) {
             this->seq_weighted_er = temp;
-            this->seq_likelihood = scenario_new_proba;
+            this->seq_likelihood = scenario_new_proba_ld;
             this->seq_probability = scenario_probability;
         } else {
             this->seq_weighted_er += temp;
-            this->seq_likelihood += scenario_new_proba;
+            this->seq_likelihood += scenario_new_proba_ld;
             this->seq_probability += scenario_probability;
         }
 
@@ -264,10 +269,6 @@ void Single_error_rate::add_to_norm_counter()
         number_seq += 1;
     }
 
-    /*if(seq_weighted_er != 0){ //Why seq weighted error instead of seq
-  likelihood? normalized_counter += seq_weighted_er/seq_likelihood;
-          model_log_likelihood+=log10(seq_likelihood);
-  }*/
     seq_weighted_er = 0;
     seq_likelihood = 0;
     seq_probability = 0;

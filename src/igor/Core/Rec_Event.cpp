@@ -48,7 +48,8 @@ Rec_Event::Rec_Event(Gene_class gene, Seq_side side)
       scenario_downstream_upper_bound_proba(-1),
       event_upper_bound_proba(-1),
       scenario_upper_bound_proba(-1),
-      current_realization_index(nullptr)
+      current_realization_index(nullptr),
+      current_downstream_proba_memory_layers(std::vector<int>())
 {
 } // FIXME why does this exist? anyway fix initilization
 
@@ -91,6 +92,8 @@ bool Rec_Event::operator==(const Rec_Event &other) const
         return 0;
     if (this->priority != other.priority)
         return 0;
+    if (this->nickname != other.nickname)
+        return 0;
     if (this->event_realizations.size() != other.event_realizations.size())
         return 0;
     for (unordered_map<string, Event_realization>::const_iterator iter =
@@ -105,8 +108,7 @@ bool Rec_Event::operator==(const Rec_Event &other) const
 void Rec_Event::update_event_name()
 {
     this->name = string() + this->type + string("_") + this->event_class + string("_")
-            + this->event_side + string("_prio") + to_string(priority) + string("_size")
-            + to_string(this->size());
+            + this->event_side + string("_prio") + to_string(priority);
 }
 
 void Rec_Event::add_realization(const Event_realization &realization)
@@ -192,7 +194,6 @@ void Rec_Event::iterate_wrap_up(
                 proba_threshold_factor);
 
     } else {
-
         long double scenario_error_w_proba = error_rate_p->compare_sequences_error_prob(
                 scenario_proba, sequence, constructed_sequences, seq_offsets, events_map,
                 mismatches_lists, seq_max_prob_scenario, proba_threshold_factor);
@@ -267,7 +268,8 @@ void Rec_Event::initialize_event(
         }
     }
 
-    downstream_proba_map.get_all_current_memory_layer(current_downstream_proba_memory_layers);
+    current_downstream_proba_memory_layers.assign(SequenceTypeRegistry::get_instance().size(), -1);
+    downstream_proba_map.get_all_current_memory_layer(current_downstream_proba_memory_layers.data());
 
     processed_events.emplace(this->name);
     return;

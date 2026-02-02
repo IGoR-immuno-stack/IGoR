@@ -97,32 +97,11 @@ std::string operator+(const std::string &, Gene_class);
 std::string operator+(const std::string &, Seq_side);
 std::string operator+(const std::string &, Event_type);
 
-// Type used to describe the array of doubles containing the marginals values
 typedef std::unique_ptr<long double[]> Marginal_array_p;
-
-// Type used as key for unordered map since Rec_event cannot be instantiated
 typedef std::string Rec_Event_name;
-
-// Type used for offset of alignmed sequences in sequence_offsets maps. Used to
-// characterize the beginning and the end of a sequence on the data sequence
 typedef int Seq_Offset;
-typedef Int_Str *Int_Str_ptr;
-
-// Typedef used for getting the next event ptr
-// typedef std::shared_ptr<Rec_Event> Next_event_ptr; //Does not work for some
-// reason
 typedef Rec_Event *Next_event_ptr;
 
-/**
- * \brief Declare a null_delete function
- * \author Q.Marcou
- * This function is not performing any task, it's purpose is to supply a
- * "null_delete" function to prevent shared pointer objects created when passing
- * Rec_Event or Error_rate objects pointers to model_parms to be destroyed when
- * the model_parms object is destroyed itself and the rec_event and error_rate
- * objects might still be of used (and if not prevent from a segfault error by
- * trying to delete them twice)
- */
 template <class T>
 struct null_delete
 {
@@ -132,10 +111,6 @@ struct null_delete
     void operator()(T *) const { }
 };
 
-/*
- * Declare a simple matrix class
- *
- */
 template <typename T>
 struct Matrix
 {
@@ -161,7 +136,6 @@ public:
     }
     Matrix(const Matrix<T> &other)
     {
-        // Provides deep copy of a matrix
         this->rows = other.rows;
         this->cols = other.cols;
         this->array_p = new T[rows * cols];
@@ -186,11 +160,7 @@ public:
     T &operator()(const int &i, const int &j)
     {
         if ((i > rows - 1) || (j > cols - 1)) {
-            throw std::length_error("Cannot access indices [" + std::to_string(i) + ","
-                                    + std::to_string(j) + "] with matrix dimensions ["
-                                    + std::to_string(rows) + "," + std::to_string(cols) + "]");
-            std::cout << "out_of range matrix coordinates: " << rows << "<" << i << " or " << cols
-                      << "<" << j << std::endl;
+            throw std::length_error("Cannot access indices");
         }
         return array_p[i + rows * j];
     }
@@ -198,11 +168,7 @@ public:
     const T &operator()(const int &i, const int &j) const
     {
         if ((i > rows - 1) || (j > cols - 1)) {
-            throw std::length_error("Cannot access indices [" + std::to_string(i) + ","
-                                    + std::to_string(j) + "] with matrix dimensions ["
-                                    + std::to_string(rows) + "," + std::to_string(cols) + "]");
-            std::cout << "out_of range matrix coordinates: " << rows << "<" << i << " or " << cols
-                      << "<" << j << std::endl;
+            throw std::length_error("Cannot access indices");
         }
         return array_p[i + rows * j];
     }
@@ -210,16 +176,11 @@ public:
     T get_field(const int &i, const int &j) const
     {
         if ((i > rows - 1) || (j > cols - 1)) {
-            throw std::length_error("Cannot access indices [" + std::to_string(i) + ","
-                                    + std::to_string(j) + "] with matrix dimensions ["
-                                    + std::to_string(rows) + "," + std::to_string(cols) + "]");
-            std::cout << "out_of range matrix coordinates: " << rows << "<" << i << " or " << cols
-                      << "<" << j << std::endl;
+            throw std::length_error("Cannot access indices");
         }
         return array_p[i + rows * j];
     }
 
-    // Accessors
     const int &get_n_rows() const { return rows; }
     const int &get_n_cols() const { return cols; }
 
@@ -248,138 +209,30 @@ std::ostream &operator<<(std::ostream &stream, const Matrix<T> &mat)
 #include <igor/Core/DynamicSequenceMap.h>
 #include <igor/Core/FastMemoryMap.h>
 
-typedef DynamicSequenceMap<Int_Str_ptr> Seq_type_str_p_map;
-
+typedef DynamicSequenceMap<Int_Str> Seq_type_str_p_map;
 typedef Enum_fast_memory_map<int, bool> Safety_bool_map;
-
 typedef Enum_fast_memory_map<int, std::vector<int> *> Mismatch_vectors_map;
-
 typedef Enum_fast_memory_map<int, size_t> Index_map;
-
 typedef Enum_fast_memory_map<int, double> Downstream_scenario_proba_bound_map;
-
 typedef Enum_fast_memory_dual_key_map<int, Seq_side, Seq_Offset> Seq_offsets_map;
 
-/*
- * Defining a hash functions for Rec_Event, Gene_class and
- * pair<Gene_class,Seq_side>
- */
 namespace std {
-/*
-template<>
-struct hash<Rec_Event>{
-       inline std::size_t operator()(const Rec_Event& event) const{ //TODO
-inline? return  (((hash<int>()(event.get_class())
-                               ^(hash<int>()(event.get_side())<<1 )) >>1)
-                               ^(hash<int>()(event.get_priority())<<1)>>1)
-                               ^(hash<int>()(event.get_realizations_map().size())<<1);
-               //Note : only consider the size of the realization map and not
-what it contains for speed purposes
-               //this should be enough to ensure no collisions
-       }
-};
-*/
-
-/*
-         template<>
-         struct hash<Rec_Event*>{
-                 std::size_t operator()(const Rec_Event*& event_point) const{
-                         return hash<Rec_Event>()(*event_point);
-                 }
-         };
-         */
-
-template <>
-struct hash<Seq_type>
-{
-    std::size_t operator()(const Seq_type &seq_t) const { return hash<int>()(seq_t); }
-};
-
-template <>
-struct hash<Gene_class>
-{
-    std::size_t operator()(const Gene_class &gene) const { return hash<int>()(gene); }
-};
-
-template <>
-struct hash<std::pair<Gene_class, Seq_side>>
-{
-    std::size_t operator()(const pair<Gene_class, Seq_side> &gene_pair) const
-    {
-        return (hash<Gene_class>()(gene_pair.first) ^ (hash<int>()(gene_pair.second) << 1)) >> 1;
-    }
-};
-
-template <>
-struct hash<std::tuple<Event_type, Gene_class, Seq_side>>
-{
-    std::size_t operator()(const std::tuple<Event_type, Gene_class, Seq_side> &event_triplet) const
-    {
-        Event_type ev_type;
-        Gene_class g_class;
-        Seq_side s_side;
-        std::tie(ev_type, g_class, s_side) = event_triplet;
-        return ((hash<int>()(ev_type) ^ (hash<int>()(g_class) << 1) >> 1)
-                ^ (hash<int>()(s_side) << 1));
-    }
-};
-
-template <>
-struct hash<std::tuple<Event_type, int, Seq_side>>
-{
-    std::size_t operator()(const std::tuple<Event_type, int, Seq_side> &event_triplet) const
-    {
-        Event_type ev_type;
-        int g_class;
-        Seq_side s_side;
-        std::tie(ev_type, g_class, s_side) = event_triplet;
-        return ((hash<int>()(ev_type) ^ (hash<int>()(g_class) << 1) >> 1)
-                ^ (hash<int>()(s_side) << 1));
-    }
-};
-
-template <>
-struct hash<std::pair<Seq_type, Seq_side>>
-{
-    std::size_t operator()(const std::pair<Seq_type, Seq_side> seq_pair) const
-    {
-        return (hash<int>()(seq_pair.first) ^ (hash<int>()(seq_pair.second) << 1)) >> 1;
-    }
-};
-
-template <>
-struct hash<Event_safety>
-{
-    std::size_t operator()(const Event_safety ev_saf) const { return (hash<int>()(ev_saf)); }
-};
+template <> struct hash<Seq_type> { std::size_t operator()(const Seq_type &seq_t) const { return hash<int>()(seq_t); } };
+template <> struct hash<Gene_class> { std::size_t operator()(const Gene_class &gene) const { return hash<int>()(gene); } };
+template <> struct hash<std::pair<Gene_class, Seq_side>> { std::size_t operator()(const pair<Gene_class, Seq_side> &gene_pair) const { return (hash<Gene_class>()(gene_pair.first) ^ (hash<int>()(gene_pair.second) << 1)) >> 1; } };
+template <> struct hash<std::tuple<Event_type, Gene_class, Seq_side>> { std::size_t operator()(const std::tuple<Event_type, Gene_class, Seq_side> &event_triplet) const { Event_type ev_type; Gene_class g_class; Seq_side s_side; std::tie(ev_type, g_class, s_side) = event_triplet; return ((hash<int>()(ev_type) ^ (hash<int>()(g_class) << 1) >> 1) ^ (hash<int>()(s_side) << 1)); } };
+template <> struct hash<std::tuple<Event_type, int, Seq_side>> { std::size_t operator()(const std::tuple<Event_type, int, Seq_side> &event_triplet) const { Event_type ev_type; int g_class; Seq_side s_side; std::tie(ev_type, g_class, s_side) = event_triplet; return ((hash<int>()(ev_type) ^ (hash<int>()(g_class) << 1) >> 1) ^ (hash<int>()(s_side) << 1)); } };
+template <> struct hash<std::pair<Seq_type, Seq_side>> { std::size_t operator()(const std::pair<Seq_type, Seq_side> seq_pair) const { return (hash<int>()(seq_pair.first) ^ (hash<int>()(seq_pair.second) << 1)) >> 1; } };
+template <> struct hash<Event_safety> { std::size_t operator()(const Event_safety ev_saf) const { return (hash<int>()(ev_saf)); } };
 } // namespace std
 
-struct D_position_comparator
-{
-    bool operator()(std::tuple<std::string, int, int, double> position_1,
-                    std::tuple<std::string, int, int, double> position_2)
-    {
-        return std::get<3>(position_1) > std::get<3>(position_2);
-    }
-};
-
-struct inverse_offset_comparator
-{
-    bool operator()(const std::pair<std::shared_ptr<const Rec_Event>, int> &inv_offset_1,
-                    const std::pair<std::shared_ptr<const Rec_Event>, int> &inv_offset_2)
-    {
-        return inv_offset_1.second < inv_offset_2.second;
-    }
-};
+struct D_position_comparator { bool operator()(std::tuple<std::string, int, int, double> position_1, std::tuple<std::string, int, int, double> position_2) { return std::get<3>(position_1) > std::get<3>(position_2); } };
+struct inverse_offset_comparator { bool operator()(const std::pair<std::shared_ptr<const Rec_Event>, int> &inv_offset_1, const std::pair<std::shared_ptr<const Rec_Event>, int> &inv_offset_2) { return inv_offset_1.second < inv_offset_2.second; } };
 
 std::vector<std::string> extract_string_fields(const std::string, const std::string);
-
-void show_progress_bar(std::ostream &, double, std::string prefix_message = "",
-                       size_t progress_bar_size = 70);
-void close_progress_bar(std::ostream &, std::string prefix_message = "",
-                        size_t progress_bar_size = 70);
+void show_progress_bar(std::ostream &, double, std::string prefix_message = "", size_t progress_bar_size = 70);
+void close_progress_bar(std::ostream &, std::string prefix_message = "", size_t progress_bar_size = 70);
 uint64_t draw_random_64bits_seed();
 
 typedef std::unordered_map<std::string, std::string> UMCodonTable;
-
 std::string translate(std::string seq);

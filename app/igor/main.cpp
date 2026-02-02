@@ -261,7 +261,7 @@ int main(int argc, char *argv[])
 
     // Flag to extract CDR3 from aligned sequences.
     bool b_feature = true;
-    bool b_feature_CDR3 = true;
+    bool b_feature_CDR3 = false;
 
     while (carg_i < argc) {
 
@@ -1366,8 +1366,15 @@ int main(int argc, char *argv[])
         unordered_map<tuple<Event_type, int, Seq_side>, shared_ptr<Rec_Event>> tmp_events_map =
                 cl_model_parms.get_events_map();
         if (custom_v) {
-            shared_ptr<Rec_Event> v_choice = tmp_events_map.at(
-                    tuple<Event_type, int, Seq_side>(GeneChoice_t, V_gene, Undefined_side));
+            auto it_v = tmp_events_map.find(tuple<Event_type, int, Seq_side>(GeneChoice_t, V_gene, Undefined_side));
+            if (it_v == tmp_events_map.end()) {
+                // Try with sequence_type_id 0
+                 it_v = tmp_events_map.find(tuple<Event_type, int, Seq_side>(GeneChoice_t, 0, Undefined_side));
+            }
+            if (it_v == tmp_events_map.end()) {
+                 return terminate_IGoR_with_error_message("Could not find V gene choice event in model");
+            }
+            shared_ptr<Rec_Event> v_choice = it_v->second;
             shared_ptr<Gene_choice> v_choice_gc = dynamic_pointer_cast<Gene_choice>(v_choice);
             bool any_genomic_difference = false;
             unordered_map<string, Event_realization> realization_map_copy =
@@ -1410,90 +1417,94 @@ int main(int argc, char *argv[])
             }
         }
         if (has_D and custom_d) {
-            shared_ptr<Rec_Event> d_choice = tmp_events_map.at(
-                    tuple<Event_type, int, Seq_side>(GeneChoice_t, D_gene, Undefined_side));
-            shared_ptr<Gene_choice> d_choice_gc = dynamic_pointer_cast<Gene_choice>(d_choice);
-            bool any_genomic_difference = false;
-            unordered_map<string, Event_realization> realization_map_copy =
-                    d_choice_gc->get_realizations_map();
-            /*
-       * We loop over provided genomic templates and check if they are contained
-       * in the current model
-       */
-            for (pair<string, string> genomic_template : d_genomic) {
-                if (realization_map_copy.count(genomic_template.first) > 0) {
-                    Event_realization &ev_real = realization_map_copy.at(genomic_template.first);
-                    if (ev_real.value_str == genomic_template.second) {
-                        // Remove the genomic template from the unseen list
-                        // FIXME this will fail if the same genomic template has been read
-                        // several times
-                        realization_map_copy.erase(genomic_template.first);
+            auto it_d = tmp_events_map.find(tuple<Event_type, int, Seq_side>(GeneChoice_t, D_gene, Undefined_side));
+            if (it_d != tmp_events_map.end()) {
+                shared_ptr<Rec_Event> d_choice = it_d->second;
+                shared_ptr<Gene_choice> d_choice_gc = dynamic_pointer_cast<Gene_choice>(d_choice);
+                bool any_genomic_difference = false;
+                unordered_map<string, Event_realization> realization_map_copy =
+                        d_choice_gc->get_realizations_map();
+                /*
+           * We loop over provided genomic templates and check if they are contained
+           * in the current model
+           */
+                for (pair<string, string> genomic_template : d_genomic) {
+                    if (realization_map_copy.count(genomic_template.first) > 0) {
+                        Event_realization &ev_real = realization_map_copy.at(genomic_template.first);
+                        if (ev_real.value_str == genomic_template.second) {
+                            // Remove the genomic template from the unseen list
+                            // FIXME this will fail if the same genomic template has been read
+                            // several times
+                            realization_map_copy.erase(genomic_template.first);
+                        } else {
+                            any_genomic_difference = true;
+                        }
                     } else {
                         any_genomic_difference = true;
                     }
-                } else {
-                    any_genomic_difference = true;
+                    if (any_genomic_difference) {
+                        break;
+                    }
                 }
                 if (any_genomic_difference) {
-                    break;
-                }
-            }
-            if (any_genomic_difference) {
-                // If any difference is detected reset the marginals
-                Rec_Event_name former_name = d_choice_gc->get_name();
-                d_choice_gc->set_genomic_templates(d_genomic);
-                cl_model_parms.update_edge_event_name(former_name, d_choice_gc->get_name());
-                any_custom_gene = true;
-            } else {
-                // Else we set to 0 probability all the ones that were not found in the
-                // list of genomic templates
-                for (pair<string, Event_realization> ev_real : realization_map_copy) {
-                    cl_model_marginals.set_realization_proba(ev_real.first, d_choice, 0.0,
-                                                             cl_model_parms);
+                    // If any difference is detected reset the marginals
+                    Rec_Event_name former_name = d_choice_gc->get_name();
+                    d_choice_gc->set_genomic_templates(d_genomic);
+                    cl_model_parms.update_edge_event_name(former_name, d_choice_gc->get_name());
+                    any_custom_gene = true;
+                } else {
+                    // Else we set to 0 probability all the ones that were not found in the
+                    // list of genomic templates
+                    for (pair<string, Event_realization> ev_real : realization_map_copy) {
+                        cl_model_marginals.set_realization_proba(ev_real.first, d_choice, 0.0,
+                                                                 cl_model_parms);
+                    }
                 }
             }
         }
         if (custom_j) {
-            shared_ptr<Rec_Event> j_choice = tmp_events_map.at(
-                    tuple<Event_type, int, Seq_side>(GeneChoice_t, J_gene, Undefined_side));
-            shared_ptr<Gene_choice> j_choice_gc = dynamic_pointer_cast<Gene_choice>(j_choice);
-            bool any_genomic_difference = false;
-            unordered_map<string, Event_realization> realization_map_copy =
-                    j_choice_gc->get_realizations_map();
-            /*
-       * We loop over provided genomic templates and check if they are contained
-       * in the current model
-       */
-            for (pair<string, string> genomic_template : j_genomic) {
-                if (realization_map_copy.count(genomic_template.first) > 0) {
-                    Event_realization &ev_real = realization_map_copy.at(genomic_template.first);
-                    if (ev_real.value_str == genomic_template.second) {
-                        // Remove the genomic template from the unseen list
-                        // FIXME this will fail if the same genomic template has been read
-                        // several times
-                        realization_map_copy.erase(genomic_template.first);
+            auto it_j = tmp_events_map.find(tuple<Event_type, int, Seq_side>(GeneChoice_t, J_gene, Undefined_side));
+            if (it_j != tmp_events_map.end()) {
+                shared_ptr<Rec_Event> j_choice = it_j->second;
+                shared_ptr<Gene_choice> j_choice_gc = dynamic_pointer_cast<Gene_choice>(j_choice);
+                bool any_genomic_difference = false;
+                unordered_map<string, Event_realization> realization_map_copy =
+                        j_choice_gc->get_realizations_map();
+                /*
+           * We loop over provided genomic templates and check if they are contained
+           * in the current model
+           */
+                for (pair<string, string> genomic_template : j_genomic) {
+                    if (realization_map_copy.count(genomic_template.first) > 0) {
+                        Event_realization &ev_real = realization_map_copy.at(genomic_template.first);
+                        if (ev_real.value_str == genomic_template.second) {
+                            // Remove the genomic template from the unseen list
+                            // FIXME this will fail if the same genomic template has been read
+                            // several times
+                            realization_map_copy.erase(genomic_template.first);
+                        } else {
+                            any_genomic_difference = true;
+                        }
                     } else {
                         any_genomic_difference = true;
                     }
-                } else {
-                    any_genomic_difference = true;
+                    if (any_genomic_difference) {
+                        break;
+                    }
                 }
                 if (any_genomic_difference) {
-                    break;
-                }
-            }
-            if (any_genomic_difference) {
-                // If any difference is detected reset the marginals
-                Rec_Event_name former_name = j_choice_gc->get_name();
-                j_choice_gc->set_genomic_templates(j_genomic);
-                cl_model_parms.update_edge_event_name(former_name, j_choice_gc->get_name());
-                any_custom_gene = true;
-            } else {
-                // Else we set to 0 probability all the ones that were not found in the
-                // list of genomic templates
-                for (pair<string, Event_realization> ev_real : realization_map_copy) {
-                    cl_model_marginals.set_realization_proba(ev_real.first, j_choice, 0.0,
-                                                             cl_model_parms);
+                    // If any difference is detected reset the marginals
+                    Rec_Event_name former_name = j_choice_gc->get_name();
+                    j_choice_gc->set_genomic_templates(j_genomic);
+                    cl_model_parms.update_edge_event_name(former_name, j_choice_gc->get_name());
+                    any_custom_gene = true;
+                } else {
+                    // Else we set to 0 probability all the ones that were not found in the
+                    // list of genomic templates
+                    for (pair<string, Event_realization> ev_real : realization_map_copy) {
+                        cl_model_marginals.set_realization_proba(ev_real.first, j_choice, 0.0,
+                                                                 cl_model_parms);
+                    }
                 }
             }
         }
@@ -1989,7 +2000,12 @@ int main(int argc, char *argv[])
                         int max_offset = INT32_MIN;
                         for (pair<string, string> v_template : v_genomic) {
                             if (v_CDR3_anchors.count(v_template.first) > 0) {
-                                int gene_offset = -v_CDR3_anchors.at(v_template.first);
+                                int gene_offset = 0;
+                                if (v_CDR3_anchors.count(v_template.first) > 0) {
+                                    gene_offset = -v_CDR3_anchors.at(v_template.first);
+                                } else {
+                                    // Default offset
+                                }
                                 // Use a reversed offset and substract 2 in order to take into
                                 // account the anchor's codon
                                 v_genomic_CDR3_offset_bounds.emplace(
@@ -2149,7 +2165,12 @@ int main(int argc, char *argv[])
                         int max_offset = INT32_MIN;
                         for (pair<string, string> j_template : j_genomic) {
                             if (j_CDR3_anchors.count(j_template.first) > 0) {
-                                int gene_offset = -j_CDR3_anchors.at(j_template.first) - 2;
+                                int gene_offset = -2;
+                                if (j_CDR3_anchors.count(j_template.first) > 0) {
+                                    gene_offset = -j_CDR3_anchors.at(j_template.first) - 2;
+                                } else {
+                                    // Default
+                                }
                                 // Use a reversed offset and substract 2 in order to take into
                                 // account the anchor's codon
                                 j_genomic_CDR3_offset_bounds.emplace(

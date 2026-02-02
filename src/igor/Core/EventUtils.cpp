@@ -33,35 +33,35 @@ Int_Str build_scenario_sequence(const Seq_type_str_p_map &constructed_sequences,
     Int_Str scenario_resulting_sequence;
 
     if (has_v) {
-        scenario_resulting_sequence += (*constructed_sequences.at(V_gene_seq));
+        scenario_resulting_sequence += constructed_sequences.at(V_gene_seq);
     }
 
     if (has_d) {
         if (has_vd_ins) {
-            scenario_resulting_sequence += (*constructed_sequences.at(VD_ins_seq));
+            scenario_resulting_sequence += constructed_sequences.at(VD_ins_seq);
         }
-        scenario_resulting_sequence += (*constructed_sequences.at(D_gene_seq));
+        scenario_resulting_sequence += constructed_sequences.at(D_gene_seq);
         if (has_dj_ins) {
-            scenario_resulting_sequence += (*constructed_sequences.at(DJ_ins_seq));
+            scenario_resulting_sequence += constructed_sequences.at(DJ_ins_seq);
         }
     } else {
         if (has_vj_ins) {
-            scenario_resulting_sequence += (*constructed_sequences.at(VJ_ins_seq));
+            scenario_resulting_sequence += constructed_sequences.at(VJ_ins_seq);
         }
     }
 
     if (has_j) {
-        scenario_resulting_sequence += (*constructed_sequences.at(J_gene_seq));
+        scenario_resulting_sequence += constructed_sequences.at(J_gene_seq);
     }
 
     return scenario_resulting_sequence;
 }
 
-int get_insertion_len_max(Gene_class gene_pair,
+int get_insertion_len_max(int type_id,
                           const std::unordered_map<std::tuple<Event_type, int, Seq_side>,
                                                    std::shared_ptr<Rec_Event>> &events_map)
 {
-    auto key = std::make_tuple(Insertion_t, (int)gene_pair, Undefined_side);
+    auto key = std::make_tuple(Insertion_t, type_id, Undefined_side);
     if (events_map.count(key) != 0) {
         return events_map.at(key)->get_len_max();
     }

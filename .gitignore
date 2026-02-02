@@ -1,57 +1,84 @@
-### .gitignore ---
-##
-##
-######################################################################
-##
-### Commentary:
-##
-##
-##
-######################################################################
-##
-### Change Log:
-##
-##
-######################################################################
-##
-### Code:
+# Git Ignore File for IGoR Project
+# =================================
 
+# Build Artifacts
+# ---------------
+build/
+build-*/
+*.o
+*.obj
+*.so
+*.dylib
+*.dll
+*.a
+*.lib
+*.exe
+*.profraw
+default.profraw
+
+# CMake
+-------
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+compile_commands.json
+CTestTestfile.cmake
+Testing/
+
+# IDE and Editor Files
+# --------------------
+.vscode/
+.idea/
+*.swp
+*.swo
 *~
-.#*
-\#*
-__pycache__
-.ipynb_checkpoints
-.cache
 .DS_Store
-.pixi
 
-## ###################################################################
-## Build tree
-## ###################################################################
+# Python Environment
+# ------------------
+.pixi/
+.cache/
+__pycache__/
+*.pyc
+*.pyo
 
-build
-build-*
-public
-*.gcov
-coverage_report
-default.profdata
+# Temporary and Generated Files
+# -----------------------------
+tmp_*/
+test_*/
+val_*/
+bench_*/
+vj_*/
+tandem_*/
+*.tmp
+*.log
+*.out
 
-## ###################################################################
-## Install tree
-## ###################################################################
+# Validation Output Directories (generated during testing)
+# --------------------------------------------------------
+/tmp/
+/var/tmp/
+/tmp/igor_*/
 
-install
-install*
+# Documentation Build
+# -------------------
+docs/_build/
+docs/html/
+docs/latex/
 
-## ###################################################################
-## qtcreator stuff
-## ###################################################################
+# Fasta Files - DO NOT ignore small reference templates
+# -----------------------------------------------------
+# Keep validation reference files (small test fixtures)
+!val_genomicVs.fasta
+!val_genomicDs.fasta
+!val_genomicJs.fasta
+# Ignore large genomic databases and generated fasta outputs
+*.generated.fasta
+models/*/ref_genome/*.fasta
 
-CMakeLists.txt.user
-.cache
-
-.Rhistory
-.RData
-
-######################################################################
-### .gitignore ends here
+# Explicitly ignore debug/temporary scripts
+# -----------------------------------------
+debug_*.sh
+*.debug
+temp_*

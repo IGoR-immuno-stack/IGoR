@@ -181,6 +181,8 @@ public:
     void multiply_all(double &prod_operand, int *memory_adresses)
     {
         for (size_t i = 0; i != range; ++i) {
+            if (memory_adresses[i] < 0)
+                continue;
             prod_operand *= value_ptr_arr[i + memory_adresses[i] * range];
         }
     }

@@ -403,8 +403,17 @@ size_t Model_marginals::get_event_size(shared_ptr<const Rec_Event> event_p,
                                        const Model_Parms &model_parms) const
 {
     size_t event_size = event_p->size();
-    list<shared_ptr<Rec_Event>> parents_list =
-            model_parms.get_edges().at(event_p->get_name()).parents;
+    unordered_map<Rec_Event_name, Adjacency_list> edges = model_parms.get_edges();
+    auto it = edges.find(event_p->get_name());
+    if (it == edges.end()) {
+        cerr << "Error in get_event_size: Key not found in edges map: " << event_p->get_name() << endl;
+        cerr << "Available keys in edges map:" << endl;
+        for (auto const& [key, val] : edges) {
+            cerr << "  " << key << endl;
+        }
+        throw out_of_range("Key not found in edges map");
+    }
+    list<shared_ptr<Rec_Event>> parents_list = it->second.parents;
 
     for (list<shared_ptr<Rec_Event>>::const_iterator jiter = parents_list.begin();
          jiter != parents_list.end(); ++jiter) {
@@ -799,8 +808,11 @@ Model_marginals::get_inverse_offset_map(const Model_Parms &model_parms,
             unordered_map<Rec_Event_name, list<pair<shared_ptr<const Rec_Event>, int>>>();
     while (!model_queue.empty()) {
 
+        shared_ptr<Rec_Event> current_event_point = model_queue.front();
+        Rec_Event_name ev_name = current_event_point->get_name();
+        invert_offset_map.emplace(ev_name, list<pair<shared_ptr<const Rec_Event>, int>>());
+
         if (!model_stack.empty()) {
-            shared_ptr<Rec_Event> current_event_point = model_queue.front();
             //We look for all events upstream (parents)
             unordered_map<Rec_Event_name, shared_ptr<Rec_Event>> *related_events_map_p =
                     new unordered_map<Rec_Event_name,
@@ -820,14 +832,12 @@ Model_marginals::get_inverse_offset_map(const Model_Parms &model_parms,
             //Copy model stack to have a modifiable copy
             //TODO model stack might be more complicated than a simple list
             stack<shared_ptr<Rec_Event>> model_stack_copy = model_stack;
-            invert_offset_map.emplace(current_event_point->get_name(),
-                                      list<pair<shared_ptr<const Rec_Event>, int>>());
 
             int offset = (*current_event_point).size();
 
             while (!model_stack_copy.empty()) {
                 if (related_events_map.count(model_stack_copy.top()->get_name()) > 0) {
-                    invert_offset_map.at(current_event_point->get_name())
+                    invert_offset_map.at(ev_name)
                             .push_back(make_pair(model_stack_copy.top(), offset));
                     offset *= (*model_stack_copy.top()).size();
                 }
@@ -898,7 +908,6 @@ unordered_map<Rec_Event_name, int>
 Model_marginals::get_index_map(const Model_Parms &model_parms,
                                queue<shared_ptr<Rec_Event>> model_queue) const
 {
-
     int index = 0;
     stack<shared_ptr<Rec_Event>> *model_stack_p = new stack<shared_ptr<Rec_Event>>;
     stack<shared_ptr<Rec_Event>> model_stack = *model_stack_p;
@@ -911,35 +920,7 @@ Model_marginals::get_index_map(const Model_Parms &model_parms,
         shared_ptr<Rec_Event> current_event_point = model_queue.front();
         int event_size = current_event_point->size();
 
-        /*if(!model_stack.empty()){
-
-						//We look for all events upstream (parents)
-						unordered_map<Rec_Event_name,shared_ptr<Rec_Event>>* related_events_map_p = new unordered_map<Rec_Event_name,shared_ptr<Rec_Event>>; //stores all the related events
-						unordered_map<Rec_Event_name,shared_ptr<Rec_Event>> related_events_map = *related_events_map_p;
-
-						if(!model_parms.get_parents( current_event_point ).empty()){
-								list<shared_ptr<Rec_Event>> event_parents = model_parms.get_parents(current_event_point);
-
-							for(list<shared_ptr<Rec_Event>>::const_iterator iter=event_parents.end() ; iter!= event_parents.end() ; iter++){
-								related_events_map.insert(make_pair((*iter)->get_name(),*iter));
-							}
-
-						}
-						//Copy model stack to have a modifiable copy
-						//TODO model stack might be more complicated than a simple list
-						stack<shared_ptr<Rec_Event>> model_stack_copy = model_stack;
-
-
-				//Compute the event size: total size needed on the array to store informations on an event and the ones that it depends on
-				while(!model_stack_copy.empty()){
-					if(related_events_map.count(model_stack_copy.top()->get_name())!=0){
-						event_size *= model_stack_copy.top()->size();
-					}
-					model_stack_copy.pop();
-				}
-				delete related_events_map_p;
-		}*/
-        list<shared_ptr<Rec_Event>> parents_list = model_parms.get_parents(current_event_point);
+        list<shared_ptr<Rec_Event>> parents_list = model_parms.get_parents(current_event_point->get_name());
         if (!parents_list.empty()) {
             for (list<shared_ptr<Rec_Event>>::const_iterator iter = parents_list.begin();
                  iter != parents_list.end(); ++iter) {
@@ -971,13 +952,21 @@ void Model_marginals::normalize(
             related_events = list<pair<shared_ptr<const Rec_Event>,
                                        int>>(); //TODO change this to prevent memory leak
         } else {
-            related_events = inverse_offset_map.at(current_event_point->get_name());
+            auto it_inv = inverse_offset_map.find(current_event_point->get_name());
+            if (it_inv == inverse_offset_map.end()) {
+                 cerr << "Error in normalize: Key not found in inverse_offset_map: " << current_event_point->get_name() << endl;
+                 throw out_of_range("Key not found in inverse_offset_map");
+            }
+            related_events = it_inv->second;
         }
 
-        //TODO if list not empty
-        iterate_normalize(current_event_point, related_events,
-                          index_map.at(current_event_point->get_name()), 0);
-        //delete &related_events;
+        auto it = index_map.find(current_event_point->get_name());
+        if (it == index_map.end()) {
+            cerr << "Error in normalize: Key not found: " << current_event_point->get_name() << endl;
+            throw out_of_range("Key not found in index_map");
+        }
+        
+        iterate_normalize(current_event_point, related_events, it->second, 0);
 
         model_queue.pop();
     }

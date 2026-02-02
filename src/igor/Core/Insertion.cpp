@@ -1,7 +1,7 @@
 /*
  * Insertion.cpp
  *
- *  Created on: Dec 9, 2014
+ *  Created on: Dec 11, 2014
  *      Author: Quentin Marcou
  *
  *  This source code is distributed as part of the IGoR software.
@@ -22,78 +22,72 @@
 
  *   You should have received a copy of the GNU General Public License
  *   along with this program.  If not, see <https://www.gnu.org/licenses/>.
- *
  */
 
+#include <igor/Core/Aligner.h>
+#include <igor/Core/EventUtils.h>
 #include <igor/Core/Insertion.h>
-#include <igor/Core/SequenceTypes.h>
 
 using namespace std;
-Insertion::Insertion() : Insertion(Undefined_gene)
+
+Insertion::Insertion() : Insertion(Undefined_gene, Undefined_side) { }
+
+Insertion::Insertion(Gene_class gene, std::pair<int, int> bounds)
+    : Insertion(gene, Undefined_side)
 {
-    this->type = Event_type::Insertion_t;
-    this->update_event_name();
-}
-
-Insertion::Insertion(Gene_class genes, pair<int, int> ins_range) : Insertion(genes)
-{ // FIXME nonsense new
-
-    int min_ins = min(ins_range.first, ins_range.second);
-    int max_ins = max(ins_range.first, ins_range.second);
-
-    this->type = Event_type::Insertion_t;
-    this->len_max = max_ins;
-    this->len_min = min_ins;
-
-    for (int i = min_ins; i != max_ins + 1; ++i) {
-        this->add_realization(i);
+    int min_ins = bounds.first;
+    int max_ins = bounds.second;
+    for (int i = min_ins; i <= max_ins; ++i) {
+        string ins_name = to_string(i);
+        Event_realization er(ins_name, i, "", Int_Str(), this->size());
+        this->event_realizations.insert({ins_name, er});
     }
-    this->update_event_name();
 }
 
-Insertion::Insertion(Gene_class gene)
-    : Rec_Event(gene, Undefined_side),
-      proba_contribution(-1),
-      previous_index(-1),
-      insertions(-1),
-      new_scenario_proba(-1),
-      base_index(-1),
-      new_index(-1),
-      realization_index(-1),
-      dinuc_updated_bound(NULL),
-      junction_type_id(-1),
-      upstream_gene_type_id(-1),
-      downstream_gene_type_id(-1)
-{
-    this->type = Event_type::Insertion_t;
-    for (unordered_map<string, Event_realization>::const_iterator iter =
-                 this->event_realizations.begin();
-         iter != this->event_realizations.end(); ++iter) {
-        if ((*iter).second.value_int > this->len_max) {
-            this->len_max = (*iter).second.value_int;
-        } else if ((*iter).second.value_int < this->len_min) {
-            this->len_min = (*iter).second.value_int;
-        }
-    }
-    this->update_event_name();
-}
+Insertion::Insertion(Gene_class gene) : Insertion(gene, Undefined_side) { }
 
 Insertion::Insertion(Gene_class gene, unordered_map<string, Event_realization> &realizations)
-    : Insertion(gene)
+    : Insertion(gene, Undefined_side, realizations)
+{
+}
+
+Insertion::Insertion(Gene_class gene, Seq_side side)
+    : Rec_Event(gene, side),
+      memory_layer_off_threep(-1),
+      memory_layer_off_fivep(-1),
+      memory_layer_safety_upstream(-1),
+      memory_layer_safety_downstream(-1),
+      memory_layer_off_check1(-1),
+      memory_layer_off_check2(-1),
+      memory_layer_cs(-1),
+      upstream_seq_type(-1),
+      downstream_seq_type(-1),
+      upstream_exists(false),
+      downstream_exists(false),
+      upstream_chosen(false),
+      downstream_chosen(false),
+      upstream_ins_type(-1),
+      downstream_ins_type(-1)
+{
+    this->type = Event_type::Insertion_t;
+    this->update_event_name();
+}
+
+Insertion::Insertion(Gene_class gene, Seq_side side,
+                     unordered_map<string, Event_realization> &realizations)
+    : Insertion(gene, side)
 {
     this->event_realizations = realizations;
-
-    this->type = Event_type::Insertion_t;
     for (unordered_map<string, Event_realization>::const_iterator iter =
                  this->event_realizations.begin();
          iter != this->event_realizations.end(); ++iter) {
-        if ((*iter).second.value_int > this->len_max) {
-            this->len_max = (*iter).second.value_int;
-        } else if ((*iter).second.value_int < this->len_min) {
-            this->len_min = (*iter).second.value_int;
+        int val = (*iter).second.value_int;
+        if (val > this->len_max) {
+            this->len_max = val;
+        } else if (val < this->len_min) {
+            this->len_min = val;
         }
     }
-    this->update_event_name();
 }
 
 Insertion::~Insertion()
@@ -103,28 +97,26 @@ Insertion::~Insertion()
 
 shared_ptr<Rec_Event> Insertion::copy()
 {
-    // TODO check this kind of copy for memory leak
     shared_ptr<Insertion> new_insertion_p =
-            shared_ptr<Insertion>(new Insertion(this->event_class, this->event_realizations));
+            shared_ptr<Insertion>(new Insertion(this->event_class, this->event_side, this->event_realizations));
     new_insertion_p->priority = this->priority;
     new_insertion_p->nickname = this->nickname;
     new_insertion_p->fixed = this->fixed;
-    new_insertion_p->update_event_name();
+
+    // Tandem D
+    new_insertion_p->sequence_type_id = this->sequence_type_id;
+    new_insertion_p->upstream_seq_type = this->upstream_seq_type;
+    new_insertion_p->downstream_seq_type = this->downstream_seq_type;
+    new_insertion_p->upstream_exists = this->upstream_exists;
+    new_insertion_p->downstream_exists = this->downstream_exists;
+    new_insertion_p->upstream_chosen = this->upstream_chosen;
+    new_insertion_p->downstream_chosen = this->downstream_chosen;
+    new_insertion_p->upstream_ins_type = this->upstream_ins_type;
+    new_insertion_p->downstream_ins_type = this->downstream_ins_type;
+
+    new_insertion_p->name = this->name; // Copy name directly
     new_insertion_p->set_event_identifier(this->event_index);
     return new_insertion_p;
-}
-
-bool Insertion::add_realization(int insertion_number)
-{
-    this->Rec_Event::add_realization(Event_realization(
-            to_string(insertion_number), insertion_number, "", Int_Str(), this->size()));
-    if (insertion_number > this->len_max) {
-        this->len_max = insertion_number;
-    } else if (insertion_number < this->len_min) {
-        this->len_min = insertion_number;
-    }
-    this->update_event_name();
-    return 0;
 }
 
 void Insertion::iterate(
@@ -132,8 +124,8 @@ void Insertion::iterate(
         const string &sequence, const Int_Str &int_sequence, Index_map &base_index_map,
         const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>>
                 &offset_map,
-        shared_ptr<Next_event_ptr> &next_event_ptr_arr, Marginal_array_p &updated_marginals_point,
-        const Marginal_array_p &model_parameters_point,
+        shared_ptr<Next_event_ptr> &next_event_ptr_arr, Marginal_array_p &updated_marginals_pointer,
+        const Marginal_array_p &model_parameters_pointer,
         const unordered_map<Gene_class, vector<Alignment_data>> &allowed_realizations,
         Seq_type_str_p_map &constructed_sequences, Seq_offsets_map &seq_offsets,
         shared_ptr<Error_rate> &error_rate_p, map<size_t, shared_ptr<Counter>> &counters_list,
@@ -141,106 +133,70 @@ void Insertion::iterate(
         Safety_bool_map &safety_set, Mismatch_vectors_map &mismatches_lists,
         double &seq_max_prob_scenario, double &proba_threshold_factor)
 {
-    base_index = base_index_map.at(this->event_index);
-    new_scenario_proba = scenario_proba;
-    proba_contribution = 1;
+    int base_index = base_index_map.at(this->event_index);
+    int type_id = this->sequence_type_id;
 
-    // Use topology-based junction calculation
-    // junction_type_id, upstream_gene_type_id, and downstream_gene_type_id
-    // are set during initialize_event()
+    if (!upstream_exists || !downstream_exists || !upstream_chosen || !downstream_chosen)
+        return;
 
-    // Calculate number of insertions: downstream_5' - upstream_3' - 1
-    insertions = seq_offsets.at(downstream_gene_type_id, Five_prime)
-            - seq_offsets.at(upstream_gene_type_id, Three_prime) - 1;
+    int us_3_off = seq_offsets.at(upstream_seq_type, Three_prime, memory_layer_off_check1);
+    int ds_5_off = seq_offsets.at(downstream_seq_type, Five_prime, memory_layer_off_check2);
 
-    proba_contribution =
-            (*this).iterate_common(proba_contribution, insertions, base_index, base_index_map,
-                                   offset_map, model_parameters_point);
-    if (proba_contribution != 0) {
-        inserted_str.assign(insertions, -1);
-        new_index = base_index + this->event_realizations.at(to_string(insertions)).index;
-        constructed_sequences[junction_type_id] = &inserted_str;
-        downstream_proba_map.set_value(junction_type_id,
-                                       junction_length_best_proba_map.at(insertions),
-                                       memory_layer_proba_map_junction);
-    }
+    int ins_len = ds_5_off - us_3_off - 1;
 
-    if (proba_contribution != 0) {
-        new_scenario_proba *= proba_contribution;
-        (*dinuc_updated_bound) = upper_bound_per_ins.at(insertions);
+    if (ins_len < 0)
+        return;
 
-        // Compute scenario downstream proba bound
-        scenario_upper_bound_proba = new_scenario_proba;
-        // Multiply all downstream probas
+    for (unordered_map<string, Event_realization>::const_iterator iter =
+                 this->event_realizations.begin();
+         iter != this->event_realizations.end(); ++iter) {
+        if ((*iter).second .value_int!= ins_len)
+            continue;
+
+        double proba_contribution =
+                Rec_Event::iterate_common((*iter).second.index, base_index, base_index_map,
+                                          model_parameters_pointer);
+        double new_scenario_proba = scenario_proba * proba_contribution;
+
+        // Fill insertions with 'N' (14) if they haven't been inferred by Dinuclmarkov yet
+        Int_Str ins_str(ins_len, 14);
+        constructed_sequences.set_value(type_id, ins_str, memory_layer_cs);
+
+        double scenario_upper_bound_proba = new_scenario_proba;
         downstream_proba_map.multiply_all(scenario_upper_bound_proba,
-                                          current_downstream_proba_memory_layers);
+                                          current_downstream_proba_memory_layers.data());
 
         if (scenario_upper_bound_proba >= (seq_max_prob_scenario * proba_threshold_factor)) {
             Rec_Event::iterate_wrap_up(
                     new_scenario_proba, downstream_proba_map, sequence, int_sequence,
-                    base_index_map, offset_map, next_event_ptr_arr, updated_marginals_point,
-                    model_parameters_point, allowed_realizations, constructed_sequences,
+                    base_index_map, offset_map, next_event_ptr_arr, updated_marginals_pointer,
+                    model_parameters_pointer, allowed_realizations, constructed_sequences,
                     seq_offsets, error_rate_p, counters_list, events_map, safety_set,
                     mismatches_lists, seq_max_prob_scenario, proba_threshold_factor);
         }
     }
 }
 
-/*
- *This short method performs the iterate operations common to all Rec_event
- *(modify index map and fetch realization probability)
- */
-inline double Insertion::iterate_common(
-        double scenario_proba, int insertions, int base_index, Index_map &base_index_map,
-        const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>>
-                &offset_map,
-        const Marginal_array_p &model_parameters_point)
-{
-
-    // insertions_str = to_string(insertions);
-    // TODO just output proba contribution no need to take it as argument
-    if (this->ordered_realization_map.count(insertions) > 0) {
-        realization_index = this->ordered_realization_map.at(insertions).index;
-        current_realizations_index_vec[0] = realization_index;
-    } else {
-        // discard out of range cases
-        realization_index = INT32_MAX; // make sure the index called at the end is in the range
-        // scenario_proba = 0;//discard the recombination scenario
-        return 0;
-    }
-
-    /*	if (offset_map.count(this->name)!=0){
-                  for(vector<pair<const Rec_Event*,int>>::const_iterator jiter =
-     offset_map.at(this->name).begin() ; jiter!= offset_map.at(this->name).end()
-     ; jiter++){
-                          //modify index map using offset map
-                          base_index_map.at((*jiter).first->get_name()) +=
-     realization_index * ((*jiter).second);
-                  }
-          }*/
-
-    double prob = Rec_Event::iterate_common(realization_index, base_index, base_index_map,
-                                            model_parameters_point);
-    return scenario_proba * prob;
-}
-
 queue<int> Insertion::draw_random_realization(
         const Marginal_array_p &model_marginals_p, unordered_map<Rec_Event_name, int> &index_map,
         const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>>
                 &offset_map,
-        std::unordered_map<int, std::string> &constructed_sequences, mt19937_64 &generator) const
+        std::unordered_map<int, std::string> &constructed_sequences,
+        std::mt19937_64 &generator) const
 {
     uniform_real_distribution<double> distribution(0.0, 1.0);
     double rand = distribution(generator);
     double prob_count = 0;
     queue<int> realization_queue;
+
     for (unordered_map<string, Event_realization>::const_iterator iter =
                  this->event_realizations.begin();
          iter != this->event_realizations.end(); ++iter) {
         prob_count += model_marginals_p[index_map.at(this->get_name()) + (*iter).second.index];
         if (prob_count >= rand) {
-            // Use topology-based junction type assignment
-            constructed_sequences[junction_type_id] = string((*iter).second.value_int, 'I');
+            int ins_len = (*iter).second.value_int;
+            string ins_seq(ins_len, 'N'); // Placeholder
+            constructed_sequences[this->sequence_type_id] = ins_seq;
 
             realization_queue.push((*iter).second.index);
             if (offset_map.count(this->get_name()) != 0) {
@@ -251,7 +207,6 @@ queue<int> Insertion::draw_random_realization(
                             (*iter).second.index * (*jiter).second;
                 }
             }
-
             break;
         }
     }
@@ -264,7 +219,8 @@ void Insertion::write2txt(ofstream &outfile)
             << nickname << endl;
     for (unordered_map<string, Event_realization>::const_iterator iter = event_realizations.begin();
          iter != event_realizations.end(); ++iter) {
-        outfile << "%" << (*iter).second.value_int << ";" << (*iter).second.index << endl;
+        outfile << "%" << (*iter).second.name << ";" << (*iter).second .value_int<< ";"
+                << (*iter).second.index << endl;
     }
 }
 
@@ -278,230 +234,68 @@ void Insertion::initialize_event(
         shared_ptr<Error_rate> error_rate_p, Mismatch_vectors_map &mismatches_list,
         Seq_offsets_map &seq_offsets, Index_map &index_map)
 {
-
-    // Determine junction type from nickname or event_class
-    auto &registry = SequenceTypeRegistry::get_instance();
-
-    // Try to get type from nickname first (for tandem D support: "VD1_ins", "D1D2_ins", etc.)
-    int type_id = registry.try_get_type_id(this->nickname + "_seq");
-
-    // If not found, use event_class for backward compatibility
-    if (type_id < 0) {
-        switch (this->event_class) {
-        case VD_genes:
-            type_id = SequenceTypeRegistry::VD_INS_SEQ;
-            break;
-        case DJ_genes:
-            type_id = SequenceTypeRegistry::DJ_INS_SEQ;
-            break;
-        case VJ_genes:
-            type_id = SequenceTypeRegistry::VJ_INS_SEQ;
-            break;
-        default:
-            throw runtime_error("Unknown Gene_class for Insertion: "
-                                + std::to_string(this->event_class));
+    // 1. Determine Sequence Type ID
+    if (this->sequence_type_id == -1) {
+        auto &registry = get_sequence_type_registry();
+        if (!this->nickname.empty()) {
+            int type_id = registry.try_get_type_id(this->nickname);
+            if (type_id >= 0)
+                this->sequence_type_id = type_id;
+        }
+        if (this->sequence_type_id == -1) {
+            if (this->event_class == VD_genes)
+                this->sequence_type_id = SequenceTypeRegistry::VD_INS_SEQ;
+            else if (this->event_class == DJ_genes)
+                this->sequence_type_id = SequenceTypeRegistry::DJ_INS_SEQ;
+            else if (this->event_class == VJ_genes)
+                this->sequence_type_id = SequenceTypeRegistry::VJ_INS_SEQ;
         }
     }
 
-    junction_type_id = type_id;
+    // 2. Neighbors
+    auto &registry = get_sequence_type_registry();
+    auto neighbors = registry.get_neighbors_for_junction(
+            (SequenceTypeRegistry::TypeId)this->sequence_type_id);
 
-    // Get upstream and downstream gene types from registry topology
-    upstream_gene_type_id = registry.get_junction_upstream(junction_type_id);
-    downstream_gene_type_id = registry.get_junction_downstream(junction_type_id);
+    upstream_exists = false;
+    downstream_exists = false;
+    upstream_chosen = false;
+    downstream_chosen = false;
 
-    // Request memory layer for this junction type
-    downstream_proba_map.request_memory_layer(junction_type_id);
-    memory_layer_proba_map_junction = downstream_proba_map.get_current_memory_layer(junction_type_id);
+    for (const auto &neighbor : neighbors) {
+        auto status = EventUtils::check_gene_choice((Gene_class)neighbor.neighbor_type, events_map,
+                                                    processed_events);
+        if (status.exists) {
+            if (neighbor.is_upstream) {
+                upstream_exists = true;
+                upstream_seq_type = neighbor.neighbor_type;
+                if (status.chosen)
+                    upstream_chosen = true;
+            } else {
+                downstream_exists = true;
+                downstream_seq_type = neighbor.neighbor_type;
+                if (status.chosen)
+                    downstream_chosen = true;
+            }
+        }
+    }
+
+    // 3. Request Memory Layers
+    constructed_sequences.request_memory_layer(this->sequence_type_id);
+    this->memory_layer_cs = constructed_sequences.get_current_memory_layer(this->sequence_type_id);
+
+    if (upstream_exists) {
+        memory_layer_off_check1 =
+                seq_offsets.get_current_memory_layer(upstream_seq_type, Three_prime);
+    }
+    if (downstream_exists) {
+        memory_layer_off_check2 =
+                seq_offsets.get_current_memory_layer(downstream_seq_type, Five_prime);
+    }
 
     this->Rec_Event::initialize_event(processed_events, events_map, offset_map,
                                       downstream_proba_map, constructed_sequences, safety_set,
                                       error_rate_p, mismatches_list, seq_offsets, index_map);
-}
-
-void Insertion::update_event_internal_probas(const Marginal_array_p &marginal_array,
-                                             const unordered_map<Rec_Event_name, int> &index_map)
-{
-    // Update junction type from nickname if not yet done (for tandem D support)
-    if (junction_type_id < 0 && !this->nickname.empty()) {
-        auto &registry = SequenceTypeRegistry::get_instance();
-        int type_id = registry.try_get_type_id(this->nickname + "_seq");
-        if (type_id >= 0) {
-            junction_type_id = type_id;
-            upstream_gene_type_id = registry.get_junction_upstream(junction_type_id);
-            downstream_gene_type_id = registry.get_junction_downstream(junction_type_id);
-        }
-    }
-
-    // If still not set, fall back to event_class defaults
-    if (junction_type_id < 0) {
-        switch (this->event_class) {
-        case VD_genes:
-            junction_type_id = SequenceTypeRegistry::VD_INS_SEQ;
-            upstream_gene_type_id = SequenceTypeRegistry::V_GENE_SEQ;
-            downstream_gene_type_id = SequenceTypeRegistry::D_GENE_SEQ;
-            break;
-        case DJ_genes:
-            junction_type_id = SequenceTypeRegistry::DJ_INS_SEQ;
-            upstream_gene_type_id = SequenceTypeRegistry::D_GENE_SEQ;
-            downstream_gene_type_id = SequenceTypeRegistry::J_GENE_SEQ;
-            break;
-        case VJ_genes:
-            junction_type_id = SequenceTypeRegistry::VJ_INS_SEQ;
-            upstream_gene_type_id = SequenceTypeRegistry::V_GENE_SEQ;
-            downstream_gene_type_id = SequenceTypeRegistry::J_GENE_SEQ;
-            break;
-        default:
-            // Default to VD for unknown
-            junction_type_id = SequenceTypeRegistry::VD_INS_SEQ;
-            upstream_gene_type_id = SequenceTypeRegistry::V_GENE_SEQ;
-            downstream_gene_type_id = SequenceTypeRegistry::D_GENE_SEQ;
-            break;
-        }
-    }
-}
-
-void Insertion::add_to_marginals(long double scenario_proba,
-                                 Marginal_array_p &updated_marginals) const
-{
-    if (viterbi_run) {
-        updated_marginals[this->new_index] = scenario_proba;
-    } else {
-        updated_marginals[this->new_index] += scenario_proba;
-    }
-}
-
-void Insertion::set_crude_upper_bound_proba(size_t base_index, size_t event_size,
-                                            Marginal_array_p &marginal_array_p)
-{
-
-    size_t numb_realizations = this->size();
-    upper_bound_per_ins.clear();
-    for (unordered_map<string, Event_realization>::const_iterator iter =
-                 this->event_realizations.begin();
-         iter != this->event_realizations.end(); ++iter) {
-        // Get the max proba for each number of insertions
-        size_t real_index = (*iter).second.index;
-        size_t j = 0;
-        double max_proba = 0;
-
-        while ((j * numb_realizations + real_index) < event_size) {
-            if (marginal_array_p[base_index + ((j * numb_realizations + real_index))] > max_proba) {
-                max_proba = marginal_array_p[base_index + ((j * numb_realizations + real_index))];
-            }
-            ++j;
-        }
-        upper_bound_per_ins[(*iter).second.value_int] = max_proba;
-    }
-}
-
-void Insertion::initialize_crude_scenario_proba_bound(
-        double &downstream_proba_bound, forward_list<double *> &updated_proba_list,
-        const unordered_map<tuple<Event_type, int, Seq_side>, shared_ptr<Rec_Event>> &events_map)
-{
-    this->scenario_downstream_upper_bound_proba = downstream_proba_bound;
-    this->updated_proba_bounds_list = updated_proba_list;
-    this->event_upper_bound_proba = 0;
-    shared_ptr<Rec_Event> dinuc_event_p;
-
-    // TODO remove this and correct the way ordered realization map works
-    ordered_realization_map.clear();
-    for (unordered_map<string, Event_realization>::const_iterator iter =
-                 (*this).event_realizations.begin();
-         iter != (*this).event_realizations.end(); ++iter) {
-        ordered_realization_map.emplace((*iter).second.value_int, (*iter).second);
-    }
-
-    switch (this->event_class) {
-        // TODO be careful in case there is both VDJ and VD/DJ (however this should
-        // not happen)
-
-    case VD_genes:
-        if (events_map.count(
-                    tuple<Event_type, int, Seq_side>(Dinuclmarkov_t, VD_genes, Undefined_side))) {
-            dinuc_event_p = events_map.at(
-                    tuple<Event_type, int, Seq_side>(Dinuclmarkov_t, VD_genes, Undefined_side));
-        } else if (events_map.count(tuple<Event_type, int, Seq_side>(Dinuclmarkov_t, VDJ_genes,
-                                                                     Undefined_side))) {
-            dinuc_event_p = events_map.at(
-                    tuple<Event_type, int, Seq_side>(Dinuclmarkov_t, VDJ_genes, Undefined_side));
-        }
-        break;
-
-    case VJ_genes:
-        if (events_map.count(
-                    tuple<Event_type, int, Seq_side>(Dinuclmarkov_t, VJ_genes, Undefined_side))) {
-            dinuc_event_p = events_map.at(
-                    tuple<Event_type, int, Seq_side>(Dinuclmarkov_t, VJ_genes, Undefined_side));
-        }
-        break;
-
-    case DJ_genes:
-        if (events_map.count(
-                    tuple<Event_type, int, Seq_side>(Dinuclmarkov_t, DJ_genes, Undefined_side))) {
-            dinuc_event_p = events_map.at(
-                    tuple<Event_type, int, Seq_side>(Dinuclmarkov_t, DJ_genes, Undefined_side));
-        } else if (events_map.count(tuple<Event_type, int, Seq_side>(Dinuclmarkov_t, VDJ_genes,
-                                                                     Undefined_side))) {
-            dinuc_event_p = events_map.at(
-                    tuple<Event_type, int, Seq_side>(Dinuclmarkov_t, VDJ_genes, Undefined_side));
-        }
-        break;
-    default:
-        throw runtime_error("Unknown Gene class for insertion in "
-                            "initialize_scenario_proba_bound()");
-        break;
-    }
-    double dinuc_upper_bound_proba = dinuc_event_p->get_upper_bound_proba();
-    for (map<int, double>::iterator iter = upper_bound_per_ins.begin();
-         iter != upper_bound_per_ins.end(); ++iter) {
-        // Compute joint upper bound of dinuc and insertion and store it as
-        // insertion upper bound
-        (*iter).second *= pow(dinuc_upper_bound_proba, (*iter).first);
-        if ((*iter).second > this->event_upper_bound_proba) {
-            this->event_upper_bound_proba = (*iter).second;
-        }
-        // Only keep information about the dinucleotide probability to update the
-        // dinuc upperbound
-        (*iter).second = pow(dinuc_upper_bound_proba, (*iter).first);
-    }
-    this->dinuc_updated_bound = dinuc_event_p->get_updated_ptr();
-    // Remove the pointer from the list (otherwise dinuc upperbound is accounted
-    // for twice for events before insertion)
-    updated_proba_list.remove(dinuc_updated_bound);
-
-    // Apply the computed upper bound
-    downstream_proba_bound *= event_upper_bound_proba;
-}
-
-bool Insertion::has_effect_on(int seq_type) const
-{
-    // An insertion has effect on a junction if this insertion IS that junction
-    // or if they share a common endpoint (for length-proba bound calculations)
-
-    // Direct match: this insertion is the junction being queried
-    if (seq_type == junction_type_id) {
-        return true;
-    }
-
-    // For backward compatibility with VJ_ins_seq which shares endpoints with VD and DJ
-    // Check if this junction shares an endpoint with the queried junction
-    const auto &registry = SequenceTypeRegistry::get_instance();
-
-    if (registry.is_junction_type(seq_type)) {
-        int query_upstream = registry.get_junction_upstream(seq_type);
-        int query_downstream = registry.get_junction_downstream(seq_type);
-
-        // If our upstream matches query's upstream or downstream,
-        // or our downstream matches query's upstream or downstream
-        if (upstream_gene_type_id == query_upstream
-            || upstream_gene_type_id == query_downstream
-            || downstream_gene_type_id == query_upstream
-            || downstream_gene_type_id == query_downstream) {
-            return true;
-        }
-    }
-
-    return false;
 }
 
 void Insertion::iterate_initialize_Len_proba(
@@ -510,20 +304,11 @@ void Insertion::iterate_initialize_Len_proba(
         const Marginal_array_p &model_parameters_point, Index_map &base_index_map,
         Seq_type_str_p_map &constructed_sequences, int &seq_len /*=0*/) const
 {
-
-    if (this->has_effect_on(considered_junction)) {
-
-        base_index = base_index_map.at(this->event_index, 0);
-
-        // Use topology-based junction type
-        int seq_type = junction_type_id;
-
+    if (considered_junction == this->sequence_type_id) {
+        int base_index = base_index_map.at(this->event_index, 0);
         for (unordered_map<string, Event_realization>::const_iterator iter =
                      this->event_realizations.begin();
              iter != this->event_realizations.end(); ++iter) {
-
-            // Get the max proba for this realization (in case the event is child of
-            // another)
             double real_max_proba = 0;
             for (size_t i = 0; i != this->event_marginal_size / this->size(); ++i) {
                 if (model_parameters_point[base_index + (*iter).second.index + i * this->size()]
@@ -532,45 +317,70 @@ void Insertion::iterate_initialize_Len_proba(
                                                             + i * this->size()];
                 }
             }
-
-            // Build an inserted sequence to let the Dinuc know about the number of
-            // insertions considered
-            inserted_str.assign(iter->second.value_int, -1);
-            constructed_sequences[seq_type] = &inserted_str;
-
-            // Update the length and the probability within the recursive call
             Rec_Event::iterate_initialize_Len_proba_wrap_up(
                     considered_junction, length_best_proba_map, model_queue,
                     scenario_proba * real_max_proba, model_parameters_point, base_index_map,
                     constructed_sequences, seq_len + (*iter).second.value_int);
         }
     } else {
-        // Recursive call
         Rec_Event::iterate_initialize_Len_proba_wrap_up(
                 considered_junction, length_best_proba_map, model_queue, scenario_proba,
                 model_parameters_point, base_index_map, constructed_sequences, seq_len);
     }
 }
-
-void Insertion::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &model_queue,
-                                           const Marginal_array_p &model_parameters_point,
-                                           Index_map &base_index_map)
+void Insertion::set_nickname(string name)
 {
-    // Use topology-based junction type
-    int seq_type = junction_type_id;
-
-    Seq_type_str_p_map constructed_sequences(SequenceTypeRegistry::get_instance().size());
-
-    junction_length_best_proba_map.clear();
-
-    for (unordered_map<string, Event_realization>::const_iterator iter =
-                 this->event_realizations.begin();
-         iter != this->event_realizations.end(); ++iter) {
-        inserted_str.assign(iter->second.value_int, -1);
-        constructed_sequences[seq_type] = &inserted_str;
-        double init_proba = 1.0;
-        this->Rec_Event::iterate_initialize_Len_proba(
-                seq_type, junction_length_best_proba_map, model_queue, init_proba,
-                model_parameters_point, base_index_map, constructed_sequences);
+    this->nickname = name;
+    auto &registry = get_sequence_type_registry();
+    int type_id = registry.try_get_type_id(this->nickname);
+    
+    if (type_id >= 0) {
+        // Type already registered, use it
+        this->sequence_type_id = type_id;
+    } else {
+        // Check for tandem D junction patterns: VD1_ins, V1D2_ins, D2J_ins
+        // Also handle VD_genes and DJ_genes standard cases
+        if (this->nickname.find("VD") == 0 || this->nickname.find("DJ") == 0) {
+            // Register as a tandem D junction
+            this->sequence_type_id = registry.register_junction_type(this->nickname);
+        } else if (this->event_class == VD_genes) {
+            this->sequence_type_id = SequenceTypeRegistry::VD_INS_SEQ;
+        } else if (this->event_class == DJ_genes) {
+            this->sequence_type_id = SequenceTypeRegistry::DJ_INS_SEQ;
+        } else if (this->event_class == VJ_genes) {
+            this->sequence_type_id = SequenceTypeRegistry::VJ_INS_SEQ;
+        } else {
+            this->sequence_type_id = -1;
+        }
     }
+}
+
+bool Insertion::has_effect_on(int) const
+{
+    return false; // to be implemented if needed
+}
+
+void Insertion::add_to_marginals(long double, Marginal_array_p &) const
+{
+    // TODO: implement
+}
+
+void Insertion::set_crude_upper_bound_proba(size_t, size_t, Marginal_array_p&)
+{
+    // TODO: implement
+}
+
+void Insertion::update_event_internal_probas(const Marginal_array_p &,
+                                         const std::unordered_map<std::string, int> &)
+{
+    // TODO: implement
+}
+
+void Insertion::initialize_crude_scenario_proba_bound(
+        double &,
+        std::forward_list<double *> &,
+        const std::unordered_map<std::tuple<Event_type, int, Seq_side>,
+                                std::shared_ptr<Rec_Event>> &)
+{
+    // TODO: implement
 }

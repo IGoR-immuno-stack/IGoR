@@ -51,96 +51,23 @@ void register_tandem_d_types_if_needed(const std::string &nickname)
 {
     auto &registry = SequenceTypeRegistry::get_instance();
 
-    // Pattern for D gene (D1_gene, D2_gene, etc.)
-    std::regex d_gene_pattern("D(\\d+)_gene");
-    std::smatch match;
+    // If we see any D1/D2 related nickname, ensure standard Tandem D types are registered.
+    // This allows them to be used as junction/neighbor types even if they haven't been
+    // fully processed in the model file yet.
+    if (nickname.find("D1") != std::string::npos || nickname.find("D2") != std::string::npos) {
+        // Register base D gene types
+        auto d1_gene = registry.register_type("D1_gene_seq");
+        auto d2_gene = registry.register_type("D2_gene_seq");
 
-    if (std::regex_search(nickname, match, d_gene_pattern)) {
-        int d_index = std::stoi(match[1].str());
-        std::string type_name = "D" + std::to_string(d_index) + "_gene_seq";
+        // Register insertion types
+        auto vd1_ins = registry.register_type("VD1_ins_seq");
+        auto d1d2_ins = registry.register_type("D1D2_ins_seq");
+        auto d2j_ins = registry.register_type("D2J_ins_seq");
 
-        // Register if not already present
-        if (registry.try_get_type_id(type_name) < 0) {
-            registry.register_type(type_name);
-
-            // If D1, register VD1_ins connection
-            if (d_index == 1) {
-                auto vd1_type = registry.register_type("VD1_ins_seq");
-                registry.register_connection(SequenceTypeRegistry::V_GENE_SEQ,
-                                             registry.get_type_id(type_name), vd1_type);
-            }
-        }
-        return;
-    }
-
-    // Pattern for insertion between D genes (D1D2_ins)
-    std::regex dd_ins_pattern("D(\\d+)D(\\d+)_ins");
-    if (std::regex_search(nickname, match, dd_ins_pattern)) {
-        int d1_index = std::stoi(match[1].str());
-        int d2_index = std::stoi(match[2].str());
-
-        std::string d1_type_name = "D" + std::to_string(d1_index) + "_gene_seq";
-        std::string d2_type_name = "D" + std::to_string(d2_index) + "_gene_seq";
-        std::string ins_type_name =
-                "D" + std::to_string(d1_index) + "D" + std::to_string(d2_index) + "_ins_seq";
-
-        // Ensure all types are registered
-        auto d1_type = registry.try_get_type_id(d1_type_name);
-        if (d1_type < 0) {
-            d1_type = registry.register_type(d1_type_name);
-        }
-
-        auto d2_type = registry.try_get_type_id(d2_type_name);
-        if (d2_type < 0) {
-            d2_type = registry.register_type(d2_type_name);
-        }
-
-        auto ins_type = registry.try_get_type_id(ins_type_name);
-        if (ins_type < 0) {
-            ins_type = registry.register_type(ins_type_name);
-            registry.register_connection(d1_type, d2_type, ins_type);
-        }
-        return;
-    }
-
-    // Pattern for D to J insertion (D2J_ins, D1J_ins, etc.)
-    std::regex dj_ins_pattern("D(\\d+)J_ins");
-    if (std::regex_search(nickname, match, dj_ins_pattern)) {
-        int d_index = std::stoi(match[1].str());
-        std::string d_type_name = "D" + std::to_string(d_index) + "_gene_seq";
-        std::string ins_type_name = "D" + std::to_string(d_index) + "J_ins_seq";
-
-        auto d_type = registry.try_get_type_id(d_type_name);
-        if (d_type < 0) {
-            d_type = registry.register_type(d_type_name);
-        }
-
-        auto ins_type = registry.try_get_type_id(ins_type_name);
-        if (ins_type < 0) {
-            ins_type = registry.register_type(ins_type_name);
-            registry.register_connection(d_type, SequenceTypeRegistry::J_GENE_SEQ, ins_type);
-        }
-        return;
-    }
-
-    // Pattern for V to D insertion (VD1_ins, VD2_ins, etc.)
-    std::regex vd_ins_pattern("VD(\\d+)_ins");
-    if (std::regex_search(nickname, match, vd_ins_pattern)) {
-        int d_index = std::stoi(match[1].str());
-        std::string d_type_name = "D" + std::to_string(d_index) + "_gene_seq";
-        std::string ins_type_name = "VD" + std::to_string(d_index) + "_ins_seq";
-
-        auto d_type = registry.try_get_type_id(d_type_name);
-        if (d_type < 0) {
-            d_type = registry.register_type(d_type_name);
-        }
-
-        auto ins_type = registry.try_get_type_id(ins_type_name);
-        if (ins_type < 0) {
-            ins_type = registry.register_type(ins_type_name);
-            registry.register_connection(SequenceTypeRegistry::V_GENE_SEQ, d_type, ins_type);
-        }
-        return;
+        // Register connections (topology)
+        registry.register_connection(SequenceTypeRegistry::V_GENE_SEQ, d1_gene, vd1_ins);
+        registry.register_connection(d1_gene, d2_gene, d1d2_ins);
+        registry.register_connection(d2_gene, SequenceTypeRegistry::J_GENE_SEQ, d2j_ins);
     }
 }
 
@@ -181,37 +108,60 @@ Model_Parms::Model_Parms(list<shared_ptr<Rec_Event>> event_list)
  */
 Model_Parms::Model_Parms(const Model_Parms &other)
 {
-    for (list<shared_ptr<Rec_Event>>::const_iterator iter = other.events.begin();
-         iter != other.events.end(); ++iter) {
-        this->events.push_back((*iter)->copy());
+    // Build a mapping from old event pointers to new event pointers
+    unordered_map<shared_ptr<Rec_Event>, shared_ptr<Rec_Event>> old_to_new;
+
+    for (const auto &old_ev : other.events) {
+        shared_ptr<Rec_Event> new_ev = old_ev->copy();
+        this->events.push_back(new_ev);
+        old_to_new[old_ev] = new_ev;
+        if (old_ev->get_name() != new_ev->get_name()) {
+            cerr << "!!! FATAL ERROR: Name mismatch during copy !!!" << endl;
+            cerr << "  Old name: " << old_ev->get_name() << endl;
+            cerr << "  New name: " << new_ev->get_name() << endl << flush;
+        }
     }
 
-    for (unordered_map<Rec_Event_name, Adjacency_list>::const_iterator iter = other.edges.begin();
-         iter != other.edges.end(); ++iter) {
-        Adjacency_list adjacency_list;
-        // TODO very dirty need to be changed
-        for (list<shared_ptr<Rec_Event>>::const_iterator jiter = (*iter).second.children.begin();
-             jiter != (*iter).second.children.end(); ++jiter) {
-            for (list<shared_ptr<Rec_Event>>::const_iterator kiter = this->events.begin();
-                 kiter != this->events.end(); kiter++) {
-                if ((**kiter) == (**jiter)) {
-                    adjacency_list.children.push_back((*kiter));
-                    break;
-                }
+    for (const auto &[old_name, old_adj] : other.edges) {
+        Adjacency_list new_adj;
+
+        for (const auto &child : old_adj.children) {
+            auto it = old_to_new.find(child);
+            if (it != old_to_new.end()) {
+                new_adj.children.push_back(it->second);
+            } else {
+                printf("Warning: Child event %s not found in mapping during Model_Parms copy.\n",
+                       child->get_name().c_str());
+                fflush(stdout);
             }
         }
-        for (list<shared_ptr<Rec_Event>>::const_iterator jiter = (*iter).second.parents.begin();
-             jiter != (*iter).second.parents.end(); ++jiter) {
-            for (list<shared_ptr<Rec_Event>>::const_iterator kiter = this->events.begin();
-                 kiter != this->events.end(); ++kiter) {
-                if ((**kiter) == (**jiter)) {
-                    adjacency_list.parents.push_back((*kiter));
-                    break;
-                }
+        for (const auto &parent : old_adj.parents) {
+            auto it = old_to_new.find(parent);
+            if (it != old_to_new.end()) {
+                new_adj.parents.push_back(it->second);
+            } else {
+                printf("Warning: Parent event %s not found in mapping during Model_Parms copy.\n",
+                       parent->get_name().c_str());
+                fflush(stdout);
             }
         }
 
-        this->edges.emplace((*iter).first, adjacency_list);
+        // Find the new event that corresponds to this old name
+        shared_ptr<Rec_Event> new_ev_for_key;
+        for (const auto &old_ev : other.events) {
+            if (old_ev->get_name() == old_name) {
+                if (old_to_new.count(old_ev)) {
+                    new_ev_for_key = old_to_new.at(old_ev);
+                }
+                break;
+            }
+        }
+
+        if (new_ev_for_key) {
+            this->edges.emplace(new_ev_for_key->get_name(), new_adj);
+        } else {
+            cerr << "!!! FAILED TO FIND NEW EVENT FOR OLD NAME: " << old_name << " !!!" << endl << flush;
+        }
     }
     this->error_rate = other.error_rate->copy();
 }
@@ -271,11 +221,16 @@ list<shared_ptr<Rec_Event>> Model_Parms::get_parents(shared_ptr<Rec_Event> event
 }
 list<shared_ptr<Rec_Event>> Model_Parms::get_parents(Rec_Event_name event_name) const
 {
-    if (edges.count(event_name) <= 0) {
-        throw runtime_error("Model_Parms::get_parents(): event \"" + event_name
-                            + "\" does not exist in \"this\".");
+    auto it = edges.find(event_name);
+    if (it == edges.end()) {
+        cerr << "Error in get_parents: Key not found: " << event_name << endl;
+        cerr << "Available keys in edges map:" << endl;
+        for (auto const& [key, val] : edges) {
+            cerr << "  " << key << endl;
+        }
+        throw out_of_range("Key not found in edges map");
     }
-    return edges.at(event_name).parents;
+    return it->second.parents;
 }
 
 /*
@@ -291,11 +246,12 @@ list<shared_ptr<Rec_Event>> Model_Parms::get_children(shared_ptr<Rec_Event> even
 }
 list<shared_ptr<Rec_Event>> Model_Parms::get_children(Rec_Event_name event_name) const
 {
-    if (edges.count(event_name) <= 0) {
-        throw runtime_error("Model_Parms::get_children(): event \"" + event_name
-                            + "\" does not exist in \"this\".");
+    auto it = edges.find(event_name);
+    if (it == edges.end()) {
+        cerr << "Error in get_children: Key not found: " << event_name << endl;
+        throw out_of_range("Key not found in edges map");
     }
-    return edges.at(event_name).children;
+    return it->second.children;
 }
 
 /**
@@ -558,6 +514,11 @@ list<shared_ptr<Rec_Event>> Model_Parms::get_roots() const
     list<shared_ptr<Rec_Event>> root_list = list<shared_ptr<Rec_Event>>(); // FIXME nonsense new
     for (list<shared_ptr<Rec_Event>>::const_iterator iter = this->events.begin();
          iter != this->events.end(); ++iter) {
+        if (this->edges.count((*iter)->get_name()) == 0) {
+            printf("DEBUG Error in get_roots: Key not found: %s\n", (*iter)->get_name().c_str());
+            fflush(stdout);
+            throw out_of_range("Key not found in edges");
+        }
         if (this->edges.at((*iter)->get_name()).parents.empty()) {
             root_list.push_back(*iter);
         }
@@ -610,6 +571,14 @@ queue<shared_ptr<Rec_Event>> Model_Parms::get_model_queue() const
         // Before an event is processed his parents must have been processed, this
         // overrides the priority!
 
+        if (this->edges.count((*iter)->get_name()) == 0) {
+            cerr << "Error: Event name not found in edges map: " << (*iter)->get_name() << endl;
+            cerr << "Available keys in edges map:" << endl;
+            for (auto const& [key, val] : this->edges) {
+                cerr << "  " << key << endl;
+            }
+            throw out_of_range("Event name not found in edges map");
+        }
         list<shared_ptr<Rec_Event>> event_parents = this->edges.at((*iter)->get_name()).parents;
         bool parents_processed = 1;
         for (list<shared_ptr<Rec_Event>>::const_iterator jiter = event_parents.begin();
@@ -681,9 +650,16 @@ Model_Parms::get_events_map() const
     unordered_map<tuple<Event_type, int, Seq_side>, shared_ptr<Rec_Event>> events_map;
     for (list<shared_ptr<Rec_Event>>::const_iterator iter = this->events.begin();
          iter != this->events.end(); ++iter) {
+        int key_id = (*iter)->get_sequence_type_id();
+        // Always add with both sequence_type_id AND event_class to be safe
         events_map.emplace(tuple<Event_type, int, Seq_side>(
+                                   (*iter)->get_type(), key_id, (*iter)->get_side()),
+                           (*iter));
+        if (key_id != (*iter)->get_class()) {
+             events_map.emplace(tuple<Event_type, int, Seq_side>(
                                    (*iter)->get_type(), (*iter)->get_class(), (*iter)->get_side()),
                            (*iter));
+        }
     }
     return events_map;
 }
@@ -693,9 +669,15 @@ unordered_map<tuple<Event_type, int, Seq_side>, shared_ptr<Rec_Event>> Model_Par
     unordered_map<tuple<Event_type, int, Seq_side>, shared_ptr<Rec_Event>> events_map;
     for (list<shared_ptr<Rec_Event>>::const_iterator iter = this->events.begin();
          iter != this->events.end(); ++iter) {
+        int key_id = (*iter)->get_sequence_type_id();
         events_map.emplace(tuple<Event_type, int, Seq_side>(
+                                   (*iter)->get_type(), key_id, (*iter)->get_side()),
+                           (*iter));
+        if (key_id != (*iter)->get_class()) {
+             events_map.emplace(tuple<Event_type, int, Seq_side>(
                                    (*iter)->get_type(), (*iter)->get_class(), (*iter)->get_side()),
                            (*iter));
+        }
     }
     return events_map;
 }
@@ -874,8 +856,23 @@ void Model_Parms::read_model_parms(string filename)
             size_t semicolon_index = line_str.find(";", 0);
             string parent_name = line_str.substr(1, semicolon_index - 1);
             string child_name = line_str.substr(semicolon_index + 1, string::npos);
-            edges[parent_name].children.emplace_back(get_event_pointer(child_name));
-            edges[child_name].parents.emplace_back(get_event_pointer(parent_name));
+            
+            shared_ptr<Rec_Event> parent_p;
+            try {
+                parent_p = get_event_pointer(parent_name, false);
+            } catch (exception& e) {
+                parent_p = get_event_pointer(parent_name, true);
+            }
+
+            shared_ptr<Rec_Event> child_p;
+            try {
+                child_p = get_event_pointer(child_name, false);
+            } catch (exception& e) {
+                child_p = get_event_pointer(child_name, true);
+            }
+
+            edges[parent_p->get_name()].children.emplace_back(child_p);
+            edges[child_p->get_name()].parents.emplace_back(parent_p);
             getline(infile, line_str);
         }
     } else {

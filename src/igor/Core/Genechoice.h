@@ -1,27 +1,5 @@
 /*
  * Genechoice.h
- *
- *  Created on: Dec 9, 2014
- *      Author: Quentin Marcou
- *
- *  This source code is distributed as part of the IGoR software.
- *  IGoR (Inference and Generation of Repertoires) is a versatile software to
- analyze and model immune receptors
- *  generation, selection, mutation and all other processes.
- *   Copyright (C) 2017  Quentin Marcou
- *
- *   This program is free software: you can redistribute it and/or modify
- *   it under the terms of the GNU General Public License as published by
- *   the Free Software Foundation, either version 3 of the License, or
- *   (at your option) any later version.
- *
- *   This program is distributed in the hope that it will be useful,
- *   but WITHOUT ANY WARRANTY; without even the implied warranty of
- *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *   GNU General Public License for more details.
-
- *   You should have received a copy of the GNU General Public License
- *   along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
 #pragma once
@@ -35,28 +13,11 @@
 #include <unordered_map>
 #include <utility>
 
-/**
- * \class Gene_choice Genechoice.h
- * \brief GeneChoice recombination event.
- * \author Q.Marcou
- * \version 1.0
- *
- * Models the gene choice recombination process.
- * The event realizations are explored based on the sequence alignments that
- * were provdided to the inference. Since D gene can be heavily deleted and
- * might not be recognizable by sequence alignments, a special handling of the D
- * gene choice exploring all D positions ranked by their likelihood has been
- * implemented.
- */
 class Gene_choice : public Rec_Event
 {
-    friend class Coverage_err_counter; // Grant friendship to access current gene
-    // realization and offset
-    friend class Hypermutation_global_errorrate; // Grant friendship to access
-    // current gene realization and
-    // offset
-    friend class Hypermutation_full_Nmer_errorrate; // Same
-
+    friend class Coverage_err_counter;
+    friend class Hypermutation_global_errorrate;
+    friend class Hypermutation_full_Nmer_errorrate;
 public:
     // Constructors
     Gene_choice();
@@ -66,9 +27,8 @@ public:
     // Destructor
     virtual ~Gene_choice();
     // Virtual methods overload
-    std::shared_ptr<Rec_Event> copy();
-    inline void
-    iterate(double &, Downstream_scenario_proba_bound_map &, const std::string &, const Int_Str &,
+    std::shared_ptr<Rec_Event> copy() override;
+    void iterate(double &, Downstream_scenario_proba_bound_map &, const std::string &, const Int_Str &,
             Index_map &,
             const std::unordered_map<Rec_Event_name,
                                      std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>>
@@ -79,8 +39,8 @@ public:
             std::map<size_t, std::shared_ptr<Counter>> &,
             const std::unordered_map<std::tuple<Event_type, int, Seq_side>,
                                      std::shared_ptr<Rec_Event>> &,
-            Safety_bool_map &, Mismatch_vectors_map &, double &, double &);
-    void add_realization(int);
+            Safety_bool_map &, Mismatch_vectors_map &, double &, double &) override;
+
     bool add_realization(std::string gene_name, std::string gene_sequence);
     void set_genomic_templates(const std::vector<std::pair<std::string, std::string>> &);
     std::queue<int> draw_random_realization(
@@ -88,8 +48,8 @@ public:
             const std::unordered_map<Rec_Event_name,
                                      std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>>
                     &,
-            std::unordered_map<int, std::string> &, std::mt19937_64 &) const;
-    void write2txt(std::ofstream &);
+            std::unordered_map<int, std::string> &, std::mt19937_64 &) const override;
+    void write2txt(std::ofstream &) override;
     void initialize_event(
             std::unordered_set<Rec_Event_name> &,
             const std::unordered_map<std::tuple<Event_type, int, Seq_side>,
@@ -98,24 +58,26 @@ public:
                                      std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>>
                     &,
             Downstream_scenario_proba_bound_map &, Seq_type_str_p_map &, Safety_bool_map &,
-            std::shared_ptr<Error_rate>, Mismatch_vectors_map &, Seq_offsets_map &, Index_map &);
-    void add_to_marginals(long double, Marginal_array_p &) const;
+            std::shared_ptr<Error_rate>, Mismatch_vectors_map &, Seq_offsets_map &, Index_map &) override;
+    void add_to_marginals(long double, Marginal_array_p &) const override;
     void update_event_internal_probas(const Marginal_array_p &,
-                                      const std::unordered_map<Rec_Event_name, int> &);
+                                      const std::unordered_map<Rec_Event_name, int> &) override;
+    void set_nickname(std::string name) override;
+    int get_sequence_type_id() const override { return sequence_type_id; }
 
     // Proba bound related computation methods
-    bool has_effect_on(int) const;
+    bool has_effect_on(int) const override;
     void iterate_initialize_Len_proba(
             int considered_junction, std::map<int, double> &length_best_proba_map,
             std::queue<std::shared_ptr<Rec_Event>> &model_queue, double &scenario_proba,
             const Marginal_array_p &model_parameters_point, Index_map &base_index_map,
-            Seq_type_str_p_map &constructed_sequences, int &seq_len) const;
+            Seq_type_str_p_map &constructed_sequences, int &seq_len) const override;
     void initialize_Len_proba_bound(std::queue<std::shared_ptr<Rec_Event>> &model_queue,
                                     const Marginal_array_p &model_parameters_point,
-                                    Index_map &base_index_map);
+                                    Index_map &base_index_map) override;
 
 private:
-    inline double iterate_common(
+    double iterate_common(
             double, const int &, int, Index_map &,
             const std::unordered_map<Rec_Event_name,
                                      std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>>
@@ -123,12 +85,9 @@ private:
             const Marginal_array_p &);
 
     // Inference variables
-    // Bool checks
     bool vd_check;
     bool vj_check;
     bool dj_check;
-
-    // Offsets checks
 
     Seq_Offset d_5_min_offset;
     Seq_Offset d_5_max_offset;
@@ -139,37 +98,25 @@ private:
     Seq_Offset d_offset;
     Seq_Offset j_offset;
     Seq_Offset v_offset;
-
     Seq_Offset v_3_min_offset;
     Seq_Offset v_3_max_offset;
     Seq_Offset d_3_off;
     Seq_Offset d_5_off;
-
     Seq_Offset d_3_min_offset;
     Seq_Offset d_3_max_offset;
-
     Seq_Offset j_5_off;
 
-    // Suitable D align bool
     bool no_d_align;
-    std::vector<int> no_d_mismatches;
     size_t d_size;
     Seq_Offset d_full_3_offset;
 
-    // Declare common variables
     mutable int base_index;
     double new_scenario_proba;
     double new_tmp_err_w_proba;
     double proba_contribution;
-    Int_Str gene_seq;
     int new_index;
     const int *alignment_offset_p;
-    std::vector<int>::const_iterator mism_iter;
-    std::vector<int>::const_reverse_iterator rev_mism_iter;
-    size_t endogeneous_mismatches;
 
-    // Constants
-    // Memory Layers
     int memory_layer_cs;
     int memory_layer_mismatches;
     int memory_layer_safety_1;
@@ -180,11 +127,8 @@ private:
     int memory_layer_offset_check2;
     int memory_layer_proba_map_seq;
     int memory_layer_proba_map_junction;
-    int memory_layer_proba_map_junction_d2; // If V and J have been chosen D will
-    // need to update VJ, VD and DJ
-    int memory_layer_proba_map_junction_d3;
+    int memory_layer_proba_map_junction_upstream;
 
-    // Gene choices
     bool v_chosen;
     bool v_choice_exist;
     bool d_chosen;
@@ -192,27 +136,18 @@ private:
     bool j_chosen;
     bool j_choice_exist;
 
-    // Generic neighbor support for Tandem D
     int sequence_type_id = -1;
     int upstream_seq_type = -1;
     int downstream_seq_type = -1;
-
     bool upstream_chosen = false;
     bool upstream_exists = false;
     bool downstream_chosen = false;
     bool downstream_exists = false;
-
     int upstream_ins_type = -1;
     int downstream_ins_type = -1;
-
     int memory_layer_safety_upstream = -1;
     int memory_layer_safety_downstream = -1;
-    int memory_layer_proba_map_junction_upstream = -1;
 
-    std::vector<std::pair<int, int>> active_upstream_junctions;
-    std::vector<std::pair<int, int>> active_downstream_junctions;
-
-    // Deletion ranges
     int d_5_max_del;
     int d_5_min_del;
     int d_5_real_max_del;
@@ -223,12 +158,8 @@ private:
     int d_3_max_del;
     int d_3_min_del;
 
-    // Downstream junction length proba bounds
+    std::vector<std::pair<int, int>> active_upstream_junctions;
+    std::vector<std::pair<int, int>> active_downstream_junctions;
     std::map<int, std::map<int, double>> junction_length_best_proba_maps;
-
-    // No D prunning proba bound map
-    std::map<int, std::vector<std::tuple<std::string, int, int, double>>>
-            vj_length_d_position_proba;
-
-    D_position_comparator D_position_tuple;
+    std::map<int, std::vector<std::tuple<std::string, int, int, double>>> vj_length_d_position_proba;
 };

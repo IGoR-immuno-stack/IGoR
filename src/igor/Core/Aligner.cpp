@@ -1968,3 +1968,12 @@ extract_best_gene_alignments(const forward_list<Alignment_data> &all_aligns)
     }
     return best_gene_aligns;
 }
+char int2nt(int nt_int) {
+    switch (nt_int) {
+        case 0: return 'A';
+        case 1: return 'C';
+        case 2: return 'G';
+        case 3: return 'T';
+        default: return 'N';
+    }
+}

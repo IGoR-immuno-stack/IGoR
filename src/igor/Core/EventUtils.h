@@ -34,7 +34,7 @@ void initialize_offset_memory(
         const std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>> &offset_vector,
         Index_map &index_map, std::forward_list<std::tuple<int, int, int>> &memory_and_offsets);
 
-int get_insertion_len_max(Gene_class gene_pair,
+int get_insertion_len_max(int type_id,
                           const std::unordered_map<std::tuple<Event_type, int, Seq_side>,
                                                    std::shared_ptr<Rec_Event>> &events_map);
 } // namespace EventUtils

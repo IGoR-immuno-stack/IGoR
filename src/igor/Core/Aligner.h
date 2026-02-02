@@ -258,6 +258,7 @@ std::unordered_map<std::string, std::pair<int, int>>
 read_template_specific_offset_csv(std::string, std::string separator = ";");
 void write_indexed_seq_csv(std::string, std::vector<std::pair<const int, const std::string>>);
 Int_Str nt2int(std::string);
+char int2nt(int);
 bool comp_nt_int(const int &, const int &);
 std::list<Int_nt> get_ambiguous_nt_list(const Int_nt &);
 inline void write_single_seq_alignment(std::ofstream &, int, std::forward_list<Alignment_data>);

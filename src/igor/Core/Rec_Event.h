@@ -195,7 +195,7 @@ public:
     const int get_priority() const { return priority; };
     const Rec_Event_name get_name() const { return name; };
     const std::string get_nickname() const { return nickname; };
-    void set_nickname(std::string name) { nickname = name; }
+    virtual void set_nickname(std::string name) { nickname = name; }
     Event_type get_type() const { return this->type; }
     int get_len_max() const { return this->len_max; };
     int get_len_min() const { return this->len_min; };
@@ -235,6 +235,7 @@ public:
     void set_event_identifier(size_t);
     int get_event_identifier() const;
     void set_event_marginal_size(size_t ev_size) { this->event_marginal_size = ev_size; };
+    virtual int get_sequence_type_id() const { return -1; }
     bool is_updated() const { return updated; };
     void fix(bool fix_status) { fixed = fix_status; }
     bool is_fixed() const { return fixed; }
@@ -294,7 +295,8 @@ protected:
     std::forward_list<double *> updated_proba_bounds_list;
     std::vector<int> current_realizations_index_vec;
     const int *current_realization_index;
-    int current_downstream_proba_memory_layers[6];
+    std::vector<int> current_downstream_proba_memory_layers;
+    mutable int new_index;
 
     int compare_sequences(std::string,
                           std::string); // TODO should probably not be a member functino

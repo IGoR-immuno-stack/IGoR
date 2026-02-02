@@ -104,6 +104,26 @@ void SequenceTypeRegistry::register_connection(TypeId upstream, TypeId downstrea
     junction_endpoints_[junction] = { upstream, downstream };
 }
 
+SequenceTypeRegistry::TypeId SequenceTypeRegistry::register_junction_type(const std::string &name)
+{
+    if (name_to_id_.count(name)) {
+        return name_to_id_[name];
+    }
+    TypeId id = id_to_name_.size();
+    id_to_name_.push_back(name);
+    name_to_id_[name] = id;
+    // Set unknown endpoints for stand-alone registration
+    junction_endpoints_[id] = { -1, -1 };
+    return id;
+}
+
+SequenceTypeRegistry::TypeId SequenceTypeRegistry::register_junction_type(const std::string &name, TypeId upstream, TypeId downstream)
+{
+    TypeId id = register_junction_type(name);
+    junction_endpoints_[id] = { upstream, downstream };
+    return id;
+}
+
 std::vector<SequenceTypeRegistry::NeighborInfo>
 SequenceTypeRegistry::get_upstream_neighbors(TypeId type_id) const
 {
@@ -127,6 +147,29 @@ bool SequenceTypeRegistry::is_junction_type(TypeId type_id) const
     return junction_endpoints_.count(type_id) > 0;
 }
 
+bool SequenceTypeRegistry::is_gene_type(TypeId type_id) const
+{
+    // A type is a gene if it's NOT a junction
+    return !is_junction_type(type_id);
+}
+
+SequenceTypeRegistry::TypeInfo SequenceTypeRegistry::get_type_info(TypeId id) const
+{
+    if (id >= id_to_name_.size()) {
+        throw std::out_of_range("SequenceTypeRegistry: invalid ID");
+    }
+    return { id, id_to_name_[id], is_gene_type(id), is_junction_type(id) };
+}
+
+std::vector<SequenceTypeRegistry::TypeInfo> SequenceTypeRegistry::get_all_types() const
+{
+    std::vector<TypeInfo> result;
+    for (TypeId id = 0; id < id_to_name_.size(); ++id) {
+        result.push_back(get_type_info(id));
+    }
+    return result;
+}
+
 SequenceTypeRegistry::TypeId SequenceTypeRegistry::get_junction_upstream(TypeId junction_type) const
 {
     if (junction_endpoints_.count(junction_type)) {
@@ -142,6 +185,18 @@ SequenceTypeRegistry::get_junction_downstream(TypeId junction_type) const
         return junction_endpoints_.at(junction_type).second;
     }
     return static_cast<TypeId>(-1);
+}
+
+std::vector<SequenceTypeRegistry::JunctionNeighbor>
+SequenceTypeRegistry::get_neighbors_for_junction(TypeId junction_type) const
+{
+    std::vector<JunctionNeighbor> result;
+    if (junction_endpoints_.count(junction_type)) {
+        auto endpoints = junction_endpoints_.at(junction_type);
+        result.push_back({ endpoints.first, true });
+        result.push_back({ endpoints.second, false });
+    }
+    return result;
 }
 
 int SequenceTypeRegistry::try_get_type_id(const std::string &name) const

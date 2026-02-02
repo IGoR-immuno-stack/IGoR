@@ -53,6 +53,10 @@ public:
     // For tandem D support
     TypeId register_d_gene(int d_index); // D1, D2, etc.
     TypeId register_d_insertion(int from_d, int to_d); // D1D2_ins
+    
+    // For tandem D junctions
+    TypeId register_junction_type(const std::string &name);
+    TypeId register_junction_type(const std::string &name, TypeId upstream, TypeId downstream);
 
     size_t size() const { return id_to_name_.size(); }
 
@@ -74,11 +78,28 @@ public:
 
     // Helpers for insertion/junction handling
     bool is_junction_type(TypeId type_id) const;
+    bool is_gene_type(TypeId type_id) const;
     TypeId get_junction_upstream(TypeId junction_type) const;
     TypeId get_junction_downstream(TypeId junction_type) const;
 
+    struct JunctionNeighbor {
+        TypeId neighbor_type;
+        bool is_upstream;
+    };
+    std::vector<JunctionNeighbor> get_neighbors_for_junction(TypeId junction_type) const;
+
     // Safe type lookup (returns -1 if not found instead of throwing)
     int try_get_type_id(const std::string &name) const;
+
+    // Direct access to internal structures for iteration
+    struct TypeInfo {
+        TypeId id;
+        std::string name;
+        bool is_gene;
+        bool is_junction;
+    };
+    std::vector<TypeInfo> get_all_types() const;
+    TypeInfo get_type_info(TypeId id) const;
 
 private:
     SequenceTypeRegistry();

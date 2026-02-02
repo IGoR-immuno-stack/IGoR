@@ -24,6 +24,7 @@
  *   along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <igor/Core/Aligner.h>
 #include <igor/Core/EventUtils.h>
 #include <igor/Core/Genechoice.h>
 #include <igor/Core/SequenceTypes.h>
@@ -91,6 +92,7 @@ Gene_choice::Gene_choice(Gene_class gene)
       d_3_min_del(INT16_MAX)
 {
     this->type = Event_type::GeneChoice_t;
+    this->sequence_type_id = gene;  // Set to gene for proper events_map lookups
     this->update_event_name();
 }
 
@@ -147,7 +149,18 @@ shared_ptr<Rec_Event> Gene_choice::copy()
     new_gene_choice_p->priority = this->priority;
     new_gene_choice_p->nickname = this->nickname;
     new_gene_choice_p->fixed = this->fixed;
-    new_gene_choice_p->update_event_name();
+    // Copy tandem D support fields
+    new_gene_choice_p->sequence_type_id = this->sequence_type_id;
+    new_gene_choice_p->upstream_seq_type = this->upstream_seq_type;
+    new_gene_choice_p->downstream_seq_type = this->downstream_seq_type;
+    new_gene_choice_p->upstream_exists = this->upstream_exists;
+    new_gene_choice_p->downstream_exists = this->downstream_exists;
+    new_gene_choice_p->upstream_chosen = this->upstream_chosen;
+    new_gene_choice_p->downstream_chosen = this->downstream_chosen;
+    new_gene_choice_p->upstream_ins_type = this->upstream_ins_type;
+    new_gene_choice_p->downstream_ins_type = this->downstream_ins_type;
+
+    new_gene_choice_p->name = this->name; // Copy name directly to ensure stability
     new_gene_choice_p->set_event_identifier(this->event_index);
     return new_gene_choice_p;
 }
@@ -177,7 +190,7 @@ void Gene_choice::set_genomic_templates(const vector<pair<string, string>> &geno
     }
 }
 
-inline void Gene_choice::iterate(
+void Gene_choice::iterate(
         double &scenario_proba, Downstream_scenario_proba_bound_map &downstream_proba_map,
         const string &sequence, const Int_Str &int_sequence, Index_map &base_index_map,
         const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>>
@@ -200,36 +213,36 @@ inline void Gene_choice::iterate(
     bool is_j_like = (downstream_seq_type == -1); // No downstream
     bool is_d_like = (!is_v_like && !is_j_like); // Middle
 
+    if (allowed_realizations.count(this->event_class) == 0) {
+        if (this->event_class == D_gene) {
+             return;
+        }
+        return;
+    }
+
     // --- V-like Logic (Upstream-most) ---
     if (is_v_like) {
         // Iterate over allowed realizations
         for (const auto &iter : allowed_realizations.at(this->event_class)) {
-            // const string& gene_seq_str = this->event_realizations.at(iter.gene_name).value_str;
-            const vector<int> &gene_seq = this->event_realizations.at(iter.gene_name).value_str_int;
+            if (this->event_realizations.count(iter.gene_name) == 0) {
+                continue;
+            }
+            const Int_Str &gene_seq = this->event_realizations.at(iter.gene_name).value_str_int;
 
-            constructed_sequences.set_value(this->sequence_type_id, (Int_Str *)&gene_seq,
+            constructed_sequences.set_value(this->sequence_type_id, gene_seq,
                                             memory_layer_cs);
 
             int v_3_off = iter.offset + gene_seq.size() - 1;
             int v_5_off = iter.offset;
 
             // Check downstream safety (e.g. VD or VJ)
-            bool safe = true;
             if (downstream_exists && downstream_chosen) {
-                // Check against downstream neighbor
                 // Check against downstream neighbor
                 int ds_5_offset =
                         seq_offsets.at(downstream_seq_type, Five_prime,
                                        memory_layer_offset_check2); // Using check2 for downstream
 
-                // We need to know deletions. For V, we only have 3' deletion.
-                // Downstream has 5' deletion.
-                // Check if overlap is possible/impossible
-
                 // Max deletion check (Impossible to fit)
-                // v_3_max_del and j_5_max_del hold len_min (negative max deletion amount)
-                // Shortest V end: v_3_off + v_3_max_del (e.g. off - 10)
-                // Shortest DS start: ds_5_offset - j_5_max_del (e.g. off + 10)
                 if ((v_3_off + v_3_max_del) >= (ds_5_offset - j_5_max_del)) {
                     // Overlap even with max deletions -> Bad
                     continue;
@@ -246,8 +259,6 @@ inline void Gene_choice::iterate(
                                          memory_layer_safety_downstream);
                 }
             } else if (downstream_exists) {
-                // Downstream exists but not chosen yet (or not chosen).
-                // If not chosen, we might be safe? Original code sets safe if not chosen.
                 if (memory_layer_safety_downstream != -1)
                     safety_set.set_value(memory_layer_safety_downstream, true,
                                          memory_layer_safety_downstream);
@@ -294,7 +305,7 @@ inline void Gene_choice::iterate(
 
             // Recurse
             downstream_proba_map.multiply_all(scenario_upper_bound_proba,
-                                              current_downstream_proba_memory_layers);
+                                              current_downstream_proba_memory_layers.data());
 
             if (scenario_upper_bound_proba >= (seq_max_prob_scenario * proba_threshold_factor)) {
                 Rec_Event::iterate_wrap_up(
@@ -331,23 +342,21 @@ inline void Gene_choice::iterate(
             ds_check = true;
         } else {
             if (downstream_exists) {
-                // If downstream exists but not chosen, we might need to set safe?
-                // Or if downstream is J and not chosen, we set safe.
                 if (memory_layer_safety_downstream != -1)
                     safety_set.set_value(memory_layer_safety_downstream, true,
                                          memory_layer_safety_downstream);
             }
-            // Special case for J not chosen: set ds_5_offset to end of sequence?
             if (!downstream_chosen && downstream_exists) { // Assuming J-like behavior
                 ds_5_offset = sequence.size() - 1;
             }
         }
 
-        bool no_align = true;
-
         for (const auto &iter : allowed_realizations.at(this->event_class)) {
-            const vector<int> &gene_seq = this->event_realizations.at(iter.gene_name).value_str_int;
-            constructed_sequences.set_value(this->sequence_type_id, (Int_Str *)&gene_seq,
+            if (this->event_realizations.count(iter.gene_name) == 0) {
+                continue;
+            }
+            const Int_Str &gene_seq = this->event_realizations.at(iter.gene_name).value_str_int;
+            constructed_sequences.set_value(this->sequence_type_id, gene_seq,
                                             memory_layer_cs);
 
             int d_5_off = iter.offset;
@@ -355,9 +364,8 @@ inline void Gene_choice::iterate(
 
             // Upstream Check
             if (us_check) {
-                // Check if overlap is unavoidable (Shortest D start <= Shortest V end)
                 if ((d_5_off - d_5_max_del)
-                    <= (us_3_offset + v_3_max_del)) { // Using v_3_max_del for shortest V end
+                    <= (us_3_offset + v_3_max_del)) { 
                     continue; // Overlap
                 }
                 if ((d_5_off - d_5_min_del) > (us_3_offset - v_3_max_del)) {
@@ -384,7 +392,7 @@ inline void Gene_choice::iterate(
             // Downstream Check
             if (ds_check) {
                 if ((d_3_off + d_3_max_del)
-                    >= (ds_5_offset - j_5_max_del)) { // Using j_5 vars for downstream 5' del
+                    >= (ds_5_offset - j_5_max_del)) { 
                     continue; // Overlap
                 }
                 if ((d_3_off + d_3_min_del) < (ds_5_offset - j_5_min_del)) {
@@ -429,10 +437,9 @@ inline void Gene_choice::iterate(
 
             // Recurse
             downstream_proba_map.multiply_all(scenario_upper_bound_proba,
-                                              current_downstream_proba_memory_layers);
+                                              current_downstream_proba_memory_layers.data());
 
             if (scenario_upper_bound_proba >= (seq_max_prob_scenario * proba_threshold_factor)) {
-                no_align = false;
                 Rec_Event::iterate_wrap_up(
                         new_scenario_proba, downstream_proba_map, sequence, int_sequence,
                         base_index_map, offset_map, next_event_ptr_arr, updated_marginals_pointer,
@@ -440,12 +447,6 @@ inline void Gene_choice::iterate(
                         seq_offsets, error_rate_p, counters_list, events_map, safety_set,
                         mismatches_lists, seq_max_prob_scenario, proba_threshold_factor);
             }
-        }
-
-        if (no_align) {
-            // Handle no alignment case (e.g. D gene not found but required?)
-            // Original code has logic for "no_d_align" to handle cases where D is missing but we still proceed?
-            // Or maybe it's about updating mismatches for the "null" D?
         }
     }
     // --- J-like Logic (Downstream-most) ---
@@ -465,8 +466,11 @@ inline void Gene_choice::iterate(
         }
 
         for (const auto &iter : allowed_realizations.at(this->event_class)) {
-            const vector<int> &gene_seq = this->event_realizations.at(iter.gene_name).value_str_int;
-            constructed_sequences.set_value(this->sequence_type_id, (Int_Str *)&gene_seq,
+            if (this->event_realizations.count(iter.gene_name) == 0) {
+                continue;
+            }
+            const Int_Str &gene_seq = this->event_realizations.at(iter.gene_name).value_str_int;
+            constructed_sequences.set_value(this->sequence_type_id, gene_seq,
                                             memory_layer_cs);
 
             int j_5_off = iter.offset;
@@ -474,9 +478,8 @@ inline void Gene_choice::iterate(
 
             // Upstream Check
             if (us_check) {
-                // Check if overlap is unavoidable (Shortest J start <= Shortest V end)
                 if ((j_5_off - j_5_max_del)
-                    <= (us_3_offset + v_3_max_del)) { // Using v_3_max_del for shortest V end
+                    <= (us_3_offset + v_3_max_del)) { 
                     continue; // Overlap
                 }
                 if ((j_5_off - j_5_min_del) > (us_3_offset - v_3_max_del)) {
@@ -521,7 +524,7 @@ inline void Gene_choice::iterate(
 
             // Recurse
             downstream_proba_map.multiply_all(scenario_upper_bound_proba,
-                                              current_downstream_proba_memory_layers);
+                                              current_downstream_proba_memory_layers.data());
 
             if (scenario_upper_bound_proba >= (seq_max_prob_scenario * proba_threshold_factor)) {
                 Rec_Event::iterate_wrap_up(
@@ -645,8 +648,9 @@ void Gene_choice::initialize_event(
 
     // Find active upstream neighbor
     for (const auto &neighbor : upstream_neighbors) {
-        if (events_map.count(tuple<Event_type, int, Seq_side>(GeneChoice_t, neighbor.neighbor_type,
-                                                              Undefined_side))) {
+        auto v_status = EventUtils::check_gene_choice((Gene_class)neighbor.neighbor_type,
+                                                      events_map, processed_events);
+        if (v_status.exists) {
             active_upstream_junctions.push_back({ neighbor.neighbor_type, neighbor.junction_type });
 
             if (!upstream_exists) {
@@ -654,9 +658,7 @@ void Gene_choice::initialize_event(
                 upstream_seq_type = neighbor.neighbor_type;
                 upstream_ins_type = neighbor.junction_type;
 
-                auto event_it = events_map.find(tuple<Event_type, int, Seq_side>(
-                        GeneChoice_t, neighbor.neighbor_type, Undefined_side));
-                if (processed_events.count(event_it->second->get_name())) {
+                if (v_status.chosen) {
                     upstream_chosen = true;
                 }
             }
@@ -665,8 +667,9 @@ void Gene_choice::initialize_event(
 
     // Find active downstream neighbor
     for (const auto &neighbor : downstream_neighbors) {
-        if (events_map.count(tuple<Event_type, int, Seq_side>(GeneChoice_t, neighbor.neighbor_type,
-                                                              Undefined_side))) {
+        auto j_status = EventUtils::check_gene_choice((Gene_class)neighbor.neighbor_type,
+                                                      events_map, processed_events);
+        if (j_status.exists) {
             active_downstream_junctions.push_back(
                     { neighbor.neighbor_type, neighbor.junction_type });
 
@@ -675,9 +678,7 @@ void Gene_choice::initialize_event(
                 downstream_seq_type = neighbor.neighbor_type;
                 downstream_ins_type = neighbor.junction_type;
 
-                auto event_it = events_map.find(tuple<Event_type, int, Seq_side>(
-                        GeneChoice_t, neighbor.neighbor_type, Undefined_side));
-                if (processed_events.count(event_it->second->get_name())) {
+                if (j_status.chosen) {
                     downstream_chosen = true;
                 }
             }
@@ -794,29 +795,16 @@ void Gene_choice::initialize_event(
                                       error_rate_p, mismatches_list, seq_offsets, index_map);
 }
 
+void Gene_choice::set_nickname(string name)
+{
+    this->nickname = name;
+    // For backward compatibility, sequence_type_id is set in constructor
+}
+
 void Gene_choice::update_event_internal_probas(
         const Marginal_array_p &marginal_array,
         const unordered_map<Rec_Event_name, int> &index_map)
 {
-    // Update sequence_type_id from nickname if not yet done (for tandem D support)
-    if (this->sequence_type_id == -1 && !this->nickname.empty()) {
-        auto &registry = get_sequence_type_registry();
-        int type_id = registry.try_get_type_id(this->nickname + "_seq");
-        if (type_id >= 0) {
-            this->sequence_type_id = type_id;
-        }
-    }
-
-    // Fall back to event_class-based assignment
-    if (this->sequence_type_id == -1) {
-        if (this->event_class == V_gene) {
-            this->sequence_type_id = SequenceTypeRegistry::V_GENE_SEQ;
-        } else if (this->event_class == D_gene) {
-            this->sequence_type_id = SequenceTypeRegistry::D_GENE_SEQ;
-        } else if (this->event_class == J_gene) {
-            this->sequence_type_id = SequenceTypeRegistry::J_GENE_SEQ;
-        }
-    }
 }
 
 /**
@@ -858,20 +846,6 @@ void Gene_choice::iterate_initialize_Len_proba(
         for (unordered_map<string, Event_realization>::const_iterator iter =
                      this->event_realizations.begin();
              iter != this->event_realizations.end(); ++iter) {
-
-            /*		//Update base index map
-                      for(forward_list<tuple<int,int,int>>::const_iterator jiter
-         = memory_and_offsets.begin() ; jiter!=memory_and_offsets.end() ;
-         ++jiter){
-                              //Get previous index for the considered event
-                              int previous_index =
-         base_index_map.at(get<0>(*jiter),get<1>(*jiter)-1);
-                              //Update the index given the realization and the
-         offset previous_index += iter->second.index *get<2>(*jiter);
-                              //Set the value
-                              base_index_map.set_value(get<0>(*jiter) ,
-         previous_index , get<1>(*jiter));
-                      }*/
 
             // Get the max proba for this realization (in case the event is child of
             // another)
