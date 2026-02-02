@@ -13,6 +13,7 @@ doc = "cmake --build build --target doc"
 build_package = "conda build pkg/recipe -c conda-forge"
 coverage = "llvm-profdata merge -sparse build/tst/default.profraw -o default.profdata && llvm-cov show build/bin/igor_tests -instr-profile=default.profdata -format=html -output-dir=coverage_report"
 test_regression = { cmd = "scripts/tests/test_run.sh", depends-on = ["build"] }
+benchmark = { cmd = "scripts/tests/benchmark_run.sh", depends-on = ["build"] }
 
 [dependencies]
 cmake = "*"
