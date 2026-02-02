@@ -21,8 +21,8 @@ clang-tools = ">=19.1.7,<22"
 [tasks]
 configure = "cmake -S . -B build "
 configure_coverage = "cmake -S . -B build -DBUILD_DOC_DOXYGEN=ON -DENABLE_COVERAGE=ON"
-build = "cmake --build build -j8"
-test = "ctest --test-dir build --output-on-failure"
+build = {cmd="cmake --build build -j8", depends-on = "configure"}
+test = {cmd="ctest --test-dir build --output-on-failure", depends-on = "build"}
 doc = "cmake --build build --target doc"
 coverage = "llvm-profdata merge -sparse build/tst/default.profraw -o default.profdata && llvm-cov show build/bin/igor_tests -instr-profile=default.profdata -format=html -output-dir=coverage_report"
 bundle = "pixi build --output-dir=bundle"
