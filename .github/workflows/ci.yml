@@ -81,7 +81,8 @@ jobs:
         run: pixi run bundle
 
       - name: Upload conda package
-        if: contains(fromJson('["master", "feature/pixi_build"]'), github.ref_name)
+#        if: contains(fromJson('["master", "feature/pixi_build"]'), github.ref_name)
+        if: contains(fromJson('["master"'), github.ref_name)
         env:
           ANACONDA_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
         run: pixi run upload $ANACONDA_TOKEN test
