@@ -87,8 +87,7 @@ jobs:
         run: pixi run upload $ANACONDA_TOKEN test
 
       - name: Comment coverage on PR
-        if: matrix.os == 'self-hosted'
-        if: github.event_name == 'pull_request'
+        if: ${{ (matrix.os == 'self-hosted') && (github.event_name == 'pull_request') }}
         uses: py-cov-action/python-coverage-comment-action@v3
         with:
           GITHUB_TOKEN: ${{ github.token }}
