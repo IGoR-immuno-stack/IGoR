@@ -80,19 +80,19 @@ jobs:
       - name: Build conda package
         run: pixi build --output-dir=bundle
 
-      - name: Set channel
+      - name: Set label
         run: |
           if [[ "${{ github.ref_name }}" == "master" ]]; then
-          echo "CHANNEL=main" >> $GITHUB_ENV
+          echo "LABEL=main" >> $GITHUB_ENV
           else
-          echo "CHANNEL=test" >> $GITHUB_ENV
+          echo "LABEL=test" >> $GITHUB_ENV
           fi
 
       - name: Upload conda package
         if: contains(fromJson('["master", "feature/pixi_build"]'), github.ref_name)
         env:
           ANACONDA_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
-        run: pixi run upload $ANACONDA_TOKEN $CHANNEL igor-immuno
+        run: pixi run upload $ANACONDA_TOKEN $LABEL igor-immuno
 
       - name: Comment coverage on PR
         if: ${{ (matrix.os == 'self-hosted') && (github.event_name == 'pull_request') }}
