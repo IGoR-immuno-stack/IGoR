@@ -28,6 +28,8 @@ GENOMIC_J="$TESTINPUT/genomicJs_all_curated.fasta"
 # Results storage
 declare -a RESULTS
 VERBOSE=false
+
+
 SPECIFIC_BENCHMARK=""
 
 # ------------------------------------------------------------------
@@ -223,9 +225,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --)
             shift
+            break
             ;;
         -*)
-            echo "Unknown option: $1" >&2
+            echo "Error: Unknown option '$1'" >&2
             usage >&2
             exit 1
             ;;
@@ -301,6 +304,11 @@ run_step() {
 
     printf "  %-25s : " "$step_name"
 
+    # Show command if verbose mode
+    if $VERBOSE; then
+        printf '\n    $ %s\n' "$command_str"
+    fi
+
     local start=$(get_time)
     echo "CMD: $command_str" >> "$LOG_FILE"
     if eval "$command_str" >> "$LOG_FILE" 2>&1; then
@@ -360,6 +368,10 @@ EOF
 # MAIN
 # ------------------------------------------------------------------
 MODE="${1:-}"
+# Track if we're using custom sizes
+USE_CUSTOM_SIZES=false
+CUSTOM_SIZES=()
+
 if [[ -n "$SPECIFIC_BENCHMARK" ]]; then
     # Specific benchmark ID overrides mode
     BENCHMARKS_TO_RUN=($(parse_benchmark_spec "$SPECIFIC_BENCHMARK"))
@@ -377,14 +389,20 @@ else
             sampling|gen)
                 # Use custom sizes if provided
                 if [[ $# -gt 0 ]]; then
-                    GEN_SIZES=("$@")
+                    CUSTOM_SIZES=("$@")
+                    USE_CUSTOM_SIZES=true
                 fi
+                # Build dynamic benchmark list
                 BENCHMARKS_TO_RUN=()
-                idx_var=1
-                for size in "${GEN_SIZES[@]}"; do
-                    BENCHMARKS_TO_RUN+=("$idx_var")
-                    ((idx_var++))
-                done
+                if $USE_CUSTOM_SIZES; then
+                    for ((i=0; i<${#CUSTOM_SIZES[@]}; i++)); do
+                        BENCHMARKS_TO_RUN+=("$((i+1))")
+                    done
+                else
+                    for ((i=0; i<${#GEN_SIZES[@]}; i++)); do
+                        BENCHMARKS_TO_RUN+=("$((i+1))")
+                    done
+                fi
                 ;;
             pipeline)
                 BENCHMARKS_TO_RUN=(5 6 7 8 9)
@@ -396,25 +414,38 @@ else
     fi
 fi
 
-# Run additional args for custom gen sizes if no specific benchmark
-if [[ -z "$SPECIFIC_BENCHMARK" ]] && [[ "$MODE" == "sampling" || "$MODE" == "gen" ]]; then
-    if [[ $# -gt "${#GEN_SIZES[@]}" ]]; then
-        GEN_SIZES=("$@")
-        BENCHMARKS_TO_RUN=()
-        for ((i=0; i<${#GEN_SIZES[@]}; i++)); do
-            BENCHMARKS_TO_RUN+=("$((i+1))")
-        done
-    fi
-fi
-
 echo "Starting Benchmarks..."
 echo "Log file: $LOG_FILE"
 echo "Report:   $REPORT_BASE_DIR"
+if $USE_CUSTOM_SIZES; then
+    echo "Custom sizes: ${CUSTOM_SIZES[*]}"
+fi
+if $VERBOSE; then
+    echo "Verbose: enabled"
+fi
 echo "Benchmarks: ${BENCHMARKS_TO_RUN[*]}"
 echo ""
 
 for bench_idx in "${BENCHMARKS_TO_RUN[@]}"; do
-    def=$(get_benchmark_def "$bench_idx")
+    # For custom sizes in sampling mode, use the custom size instead of definition
+    actual_size=""
+    array_idx=""
+    if $USE_CUSTOM_SIZES && [[ "$MODE" == "sampling" || "$MODE" == "gen" ]]; then
+        # Get size from CUSTOM_SIZES array (index is 1-based)
+        array_idx=$((bench_idx - 1))
+        if [[ $array_idx -lt ${#CUSTOM_SIZES[@]} ]]; then
+            actual_size="${CUSTOM_SIZES[$array_idx]}"
+        else
+            # Fallback to definition if out of bounds
+            def=$(get_benchmark_def "$bench_idx")
+            IFS='|' read -r idx name actual_size threads context <<< "$def"
+        fi
+        # Reconstruct definition with custom size
+        def="$bench_idx|gen_${actual_size}|${actual_size}|1|Standalone (N=${actual_size})"
+    else
+        def=$(get_benchmark_def "$bench_idx")
+    fi
+    
     if [[ -z "$def" ]]; then
         echo "Warning: Skipping invalid benchmark index $bench_idx"
         continue
