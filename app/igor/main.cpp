@@ -177,6 +177,10 @@ int main(int argc , char* argv[]){
 	bool gen_output_CDR3_data = false;
 	string gen_filename_prefix="";
 	int gen_random_engine_seed=-1; //-1 will cause IGoR to generate a time stamp based seed
+	bool gen_use_fast = false; // Use fast parallel generation
+	bool gen_use_maxspeed = false; // Use maximum speed mode (statistically equivalent but not identical sequences)
+	size_t gen_num_threads = 0; // 0 = auto-detect
+	bool gen_sequences_only = false; // Only output sequences (no realizations)
 
 	//Inference parms
 	bool viterbi_inference = false;
@@ -198,6 +202,7 @@ int main(int argc , char* argv[]){
 	//Alignment parameters
 	double heavy_pen_nuc44_vect [] = { // A,C,G,T,R,Y,K,M,S,W,B,D,H,V,N
 		5,-14,-14,-14,-14,2,-14,2,2,-14,-14,1,1,1,0,
+
 		-14,5,-14,-14,-14,2,2,-14,-14,2,1,-14,1,1,0,
 		-14,-14,5,-14,2,-14,2,-14,2,-14,1,1,-14,1,0,
 		-14,-14,-14,5,2,-14,-14,2,-14,2,1,1,1,-14,0,
@@ -984,6 +989,25 @@ int main(int argc , char* argv[]){
 						return terminate_IGoR_with_error_message("Expected a positive integer after \"--seed\" for sequence generation's seed, received: \"" + string(argv[carg_i]) + "\"");
 					}
 					gen_random_engine_seed = stoi(string(argv[carg_i]));
+				}
+				else if(string(argv[carg_i]) == "--fast"){
+					gen_use_fast = true;
+				}
+				else if(string(argv[carg_i]) == "--maxspeed"){
+					gen_use_fast = true;
+					gen_use_maxspeed = true;
+				}
+				else if(string(argv[carg_i]) == "--threads"){
+					++carg_i;
+					try{
+						gen_num_threads = stoul(string(argv[carg_i]));
+					}
+					catch(exception& e){
+						return terminate_IGoR_with_error_message("Expected a positive integer after \"--threads\", received: \"" + string(argv[carg_i]) + "\"");
+					}
+				}
+				else if(string(argv[carg_i]) == "--sequences-only"){
+					gen_sequences_only = true;
 				}
 				else{
 					return terminate_IGoR_with_error_message("Unknown argument \""+string(argv[carg_i])+"\" to specify sequence generation parameters");
@@ -2131,10 +2155,27 @@ int main(int argc , char* argv[]){
 				func_data_pairs_list.emplace_back(output_CDR3_gen_data,CDR3_func_data_ptr);
 			}
 
-			genmodel.generate_sequences(generate_n_seq,generate_werr,
-					cl_path +  batchname + "generated/" + gen_filename_prefix +"generated_seqs_" + w_err_str + ".csv",
-					cl_path + batchname + "generated/" + gen_filename_prefix +"generated_realizations_" + w_err_str + ".csv",
-					func_data_pairs_list,false,gen_random_engine_seed);
+			if (gen_use_fast) {
+				// Use fast parallel generation
+				igor::GenerationConfig fast_config;
+				fast_config.num_threads = gen_num_threads;
+				fast_config.generate_errors = generate_werr;
+				fast_config.seed = (gen_random_engine_seed >= 0) ? static_cast<uint64_t>(gen_random_engine_seed) : 0;
+				fast_config.output_realizations = !gen_sequences_only;
+				fast_config.mode = gen_use_maxspeed ? igor::GenerationMode::MaxSpeed : igor::GenerationMode::ExactMatch;
+				
+				string seq_file = cl_path + batchname + "generated/" + gen_filename_prefix + "generated_seqs_" + w_err_str + ".csv";
+				string real_file = gen_sequences_only ? "" : 
+					(cl_path + batchname + "generated/" + gen_filename_prefix + "generated_realizations_" + w_err_str + ".csv");
+				
+				genmodel.generate_sequences_fast(generate_n_seq, seq_file, real_file, fast_config);
+			} else {
+				// Use original generation method
+				genmodel.generate_sequences(generate_n_seq,generate_werr,
+						cl_path +  batchname + "generated/" + gen_filename_prefix +"generated_seqs_" + w_err_str + ".csv",
+						cl_path + batchname + "generated/" + gen_filename_prefix +"generated_realizations_" + w_err_str + ".csv",
+						func_data_pairs_list,false,gen_random_engine_seed);
+			}
 		}
 
 	}

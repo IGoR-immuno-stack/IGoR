@@ -143,6 +143,7 @@ public:
 	void set_error_ratep(std::shared_ptr<Error_rate> Er_r){error_rate = Er_r;}
 
 	std::shared_ptr<Error_rate> get_err_rate_p(){return error_rate;}
+	std::shared_ptr<const Error_rate> get_err_rate_p() const{return error_rate;}
 
 
 

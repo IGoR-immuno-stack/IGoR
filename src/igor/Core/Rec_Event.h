@@ -141,7 +141,7 @@ public:
 	//Accessors
 	const Gene_class get_class() const{return event_class;};
 	const Seq_side get_side() const{return event_side;};
-	const std::unordered_map<std::string , Event_realization>  get_realizations_map() const{return event_realizations;};
+	const std::unordered_map<std::string , Event_realization>& get_realizations_map() const{return event_realizations;};
 	const int get_priority() const{return priority;};
 	const Rec_Event_name get_name() const{return name;};
 	const std::string get_nickname() const{return nickname;};

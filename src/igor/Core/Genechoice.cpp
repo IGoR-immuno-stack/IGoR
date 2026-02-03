@@ -951,27 +951,37 @@ queue<int> Gene_choice::draw_random_realization( const Marginal_array_p& model_m
 	double prob_count = 0;
 	queue<int> realization_queue;
 
-	for(unordered_map<string,Event_realization>::const_iterator iter = this->event_realizations.begin() ; iter != this->event_realizations.end() ; ++iter ){
-		prob_count += model_marginals_p[index_map.at(this->get_name()) + (*iter).second.index];
+	// Build sorted list of realizations by index for deterministic iteration
+	// This ensures reproducibility across different copies of Model_Parms
+	std::vector<std::pair<int, const Event_realization*>> sorted_reals;
+	sorted_reals.reserve(event_realizations.size());
+	for (const auto& [key, real] : event_realizations) {
+		sorted_reals.emplace_back(real.index, &real);
+	}
+	std::sort(sorted_reals.begin(), sorted_reals.end(),
+		[](const auto& a, const auto& b) { return a.first < b.first; });
+
+	for (const auto& [idx, real_ptr] : sorted_reals) {
+		prob_count += model_marginals_p[index_map.at(this->get_name()) + idx];
 		if(prob_count>=rand){
 			switch(this->event_class){
 			case V_gene:
-				constructed_sequences[V_gene_seq] = (*iter).second.value_str;
+				constructed_sequences[V_gene_seq] = real_ptr->value_str;
 				break;
 			case D_gene:
-				constructed_sequences[D_gene_seq] = (*iter).second.value_str;
+				constructed_sequences[D_gene_seq] = real_ptr->value_str;
 				break;
 			case J_gene:
-				constructed_sequences[J_gene_seq] = (*iter).second.value_str;
+				constructed_sequences[J_gene_seq] = real_ptr->value_str;
 				break;
 			default:
 				break;
 
 			}
-			realization_queue.push((*iter).second.index);
+			realization_queue.push(idx);
 			if(offset_map.count(this->get_name()) != 0){
 				for (vector<pair<shared_ptr<const Rec_Event>,int>>::const_iterator jiter = offset_map.at(this->get_name()).begin() ; jiter!= offset_map.at(this->get_name()).end() ; ++jiter){
-					index_map.at((*jiter).first->get_name()) += (*iter).second.index*(*jiter).second;
+					index_map.at((*jiter).first->get_name()) += idx*(*jiter).second;
 				}
 			}
 

@@ -1210,18 +1210,28 @@ void Deletion::iterate(double& scenario_proba , Downstream_scenario_proba_bound_
 	 double rand = distribution(generator);
 	double prob_count = 0;
 	queue<int> realization_queue ;
-	for(unordered_map<string,Event_realization>::const_iterator iter = this->event_realizations.begin() ; iter != this->event_realizations.end() ; ++iter ){
-		prob_count += model_marginals_p[index_map.at(this->get_name()) + (*iter).second.index];
+
+	// Build sorted list of realizations by index for deterministic iteration
+	std::vector<std::pair<int, const Event_realization*>> sorted_reals;
+	sorted_reals.reserve(event_realizations.size());
+	for (const auto& [key, real] : event_realizations) {
+		sorted_reals.emplace_back(real.index, &real);
+	}
+	std::sort(sorted_reals.begin(), sorted_reals.end(),
+		[](const auto& a, const auto& b) { return a.first < b.first; });
+
+	for (const auto& [idx, real_ptr] : sorted_reals) {
+		prob_count += model_marginals_p[index_map.at(this->get_name()) + idx];
 		if(prob_count>=rand){
 			switch(this->event_class){
 
 			case V_gene:
-				if((*iter).second.value_int>=0){
-					constructed_sequences.at(V_gene_seq).erase(constructed_sequences.at(V_gene_seq).size() - (*iter).second.value_int);
+				if(real_ptr->value_int>=0){
+					constructed_sequences.at(V_gene_seq).erase(constructed_sequences.at(V_gene_seq).size() - real_ptr->value_int);
 				}
 				else{
 					string& v_gene_seq = constructed_sequences.at(V_gene_seq);
-					gen_tmp_str = v_gene_seq.substr(v_gene_seq.size() + (*iter).second.value_int , string::npos);
+					gen_tmp_str = v_gene_seq.substr(v_gene_seq.size() + real_ptr->value_int , string::npos);
 					reverse(gen_tmp_str.begin(),gen_tmp_str.end());
 					make_transversions(gen_tmp_str,false);
 					v_gene_seq+=gen_tmp_str;
@@ -1233,12 +1243,12 @@ void Deletion::iterate(double& scenario_proba , Downstream_scenario_proba_bound_
 				switch(this->event_side){
 
 				case Five_prime:
-					if((*iter).second.value_int>=0){
-						constructed_sequences.at(D_gene_seq).erase(0 , (*iter).second.value_int);
+					if(real_ptr->value_int>=0){
+						constructed_sequences.at(D_gene_seq).erase(0 , real_ptr->value_int);
 					}
 					else{
 						string& d_gene_seq = constructed_sequences.at(D_gene_seq);
-						gen_tmp_str = d_gene_seq.substr(0 , -(*iter).second.value_int );
+						gen_tmp_str = d_gene_seq.substr(0 , -real_ptr->value_int );
 						reverse(gen_tmp_str.begin(),gen_tmp_str.end());
 						make_transversions(gen_tmp_str,false);
 						gen_new_str = gen_tmp_str + d_gene_seq;
@@ -1249,12 +1259,12 @@ void Deletion::iterate(double& scenario_proba , Downstream_scenario_proba_bound_
 					break;
 
 				case Three_prime:
-					if((*iter).second.value_int>=0){
-						constructed_sequences.at(D_gene_seq).erase(constructed_sequences.at(D_gene_seq).size() - (*iter).second.value_int);
+					if(real_ptr->value_int>=0){
+						constructed_sequences.at(D_gene_seq).erase(constructed_sequences.at(D_gene_seq).size() - real_ptr->value_int);
 					}
 					else{
 						string& d_gene_seq = constructed_sequences.at(D_gene_seq);
-						gen_tmp_str = d_gene_seq.substr(d_gene_seq.size() + (*iter).second.value_int , string::npos);
+						gen_tmp_str = d_gene_seq.substr(d_gene_seq.size() + real_ptr->value_int , string::npos);
 						reverse(gen_tmp_str.begin(),gen_tmp_str.end());
 						make_transversions(gen_tmp_str,false);
 						d_gene_seq+=gen_tmp_str;
@@ -1268,12 +1278,12 @@ void Deletion::iterate(double& scenario_proba , Downstream_scenario_proba_bound_
 				}
 				break;
 			case J_gene:
-				if((*iter).second.value_int>=0){
-					constructed_sequences.at(J_gene_seq).erase(0 , (*iter).second.value_int);
+				if(real_ptr->value_int>=0){
+					constructed_sequences.at(J_gene_seq).erase(0 , real_ptr->value_int);
 				}
 				else{
 					string& j_gene_seq = constructed_sequences.at(J_gene_seq);
-					gen_tmp_str = j_gene_seq.substr(0 , -(*iter).second.value_int );
+					gen_tmp_str = j_gene_seq.substr(0 , -real_ptr->value_int );
 					reverse(gen_tmp_str.begin(),gen_tmp_str.end());
 					make_transversions(gen_tmp_str,false);
 					gen_new_str = gen_tmp_str + j_gene_seq;
@@ -1285,10 +1295,10 @@ void Deletion::iterate(double& scenario_proba , Downstream_scenario_proba_bound_
 				break;
 
 			}
-			realization_queue.push((*iter).second.index);
+			realization_queue.push(idx);
 			if(offset_map.count(this->get_name()) != 0){
 				for (vector<pair<shared_ptr<const Rec_Event>,int>>::const_iterator jiter = offset_map.at(this->get_name()).begin() ; jiter!= offset_map.at(this->get_name()).end() ; ++jiter){
-					index_map.at((*jiter).first->get_name()) += (*iter).second.index*(*jiter).second;
+					index_map.at((*jiter).first->get_name()) += idx*(*jiter).second;
 				}
 			}
 

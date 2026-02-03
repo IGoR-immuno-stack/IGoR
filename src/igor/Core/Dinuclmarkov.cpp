@@ -60,6 +60,8 @@ shared_ptr<Rec_Event> Dinucl_markov::copy(){
 	new_dinucl_markov_p->fixed = this->fixed;
 	new_dinucl_markov_p->update_event_name();
 	new_dinucl_markov_p->set_event_identifier(this->event_index);
+	new_dinucl_markov_p->dinuc_proba_matrix = this->dinuc_proba_matrix;
+	new_dinucl_markov_p->event_realizations = this->event_realizations;
 	return new_dinucl_markov_p;
 }
 
@@ -217,55 +219,43 @@ queue<int> Dinucl_markov::draw_random_common(const string& previous_seq , string
 
 	queue<int> realization_queue;
 	double prob_count;
+
+	// Build sorted list of realizations by index for deterministic iteration
+	std::vector<std::pair<int, const Event_realization*>> sorted_reals;
+	sorted_reals.reserve(event_realizations.size());
+	for (const auto& [key, real] : event_realizations) {
+		sorted_reals.emplace_back(real.index, &real);
+	}
+	std::sort(sorted_reals.begin(), sorted_reals.end(),
+		[](const auto& a, const auto& b) { return a.first < b.first; });
+
 	if(!inserted_seq.empty()){
 		double rand;
 		if(inserted_seq[0]=='I'){
 			rand = distribution(generator);
 			prob_count = 0;
-			/*THIS WAS REMOVED WHEN INTRODUCING AMBIGUOUS NUCLEOTIDES SUPPORT
-			 * int offset;
-			try{
-				offset = event_realizations.at(previous_seq.substr(previous_seq.size()-1,1)).index*event_realizations.size();
-			}
-			catch(exception& except){
-				cout<<"exception caught in DinucMarkov draw random common, key used: "<<previous_seq.substr(previous_seq.size()-1,1);
-				throw except;
-			}
-			*/
 			int prev_nt = nt2int(previous_seq.substr(previous_seq.size()-1,1)).at(0);
-			for(unordered_map<string,Event_realization>::const_iterator iter = event_realizations.begin() ; iter != event_realizations.end() ; ++iter){
-				//prob_count += model_marginals_p[index + offset + (*iter).second.index];
-				prob_count += this->dinuc_proba_matrix(prev_nt,(*iter).second.index);
+			for(const auto& [idx, real_ptr] : sorted_reals){
+				prob_count += this->dinuc_proba_matrix(prev_nt,idx);
 				if(prob_count>=rand){
-					inserted_seq[0] = (*iter).second.value_str[0];
-					realization_queue.push((*iter).second.index);
+					inserted_seq[0] = real_ptr->value_str[0];
+					realization_queue.push(idx);
 					break;
 				}
 			}
 		}
 		for(size_t i=1 ; i!=inserted_seq.size() ; ++i){
 			if(inserted_seq[i]=='I'){
-				/*THIS WAS REMOVED WHEN INTRODUCING AMBIGUOUS NUCLEOTIDES SUPPORT
-				int offset;
-				try{
-					offset = event_realizations.at(inserted_seq.substr(i-1,1)).index*event_realizations.size();
-				}
-				catch(exception& except){
-					cout<<"exception caught, key used: "<<inserted_seq.substr(i-1,1)<<",ins seq: "<<inserted_seq<<",i = "<<i<<", previous rand: "<<rand<<", previous prob_count: "<<prob_count<<endl;
-					throw except;
-				}
-				*/
 				int prev_nt = nt2int(inserted_seq.substr(i-1,1)).at(0);
 
 				rand = distribution(generator);
 				prob_count = 0;
 
-				for(unordered_map<string,Event_realization>::const_iterator iter = event_realizations.begin() ; iter != event_realizations.end() ; ++iter){
-					//prob_count += model_marginals_p[index + offset + (*iter).second.index];
-					prob_count += this->dinuc_proba_matrix(prev_nt,(*iter).second.index);
+				for(const auto& [idx, real_ptr] : sorted_reals){
+					prob_count += this->dinuc_proba_matrix(prev_nt,idx);
 					if(prob_count>=rand){
-						inserted_seq[i] = (*iter).second.value_str[0];
-						realization_queue.push((*iter).second.index);
+						inserted_seq[i] = real_ptr->value_str[0];
+						realization_queue.push(idx);
 						break;
 					}
 				}
