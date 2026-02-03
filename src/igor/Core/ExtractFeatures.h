@@ -25,7 +25,7 @@
 
 #pragma once
 
-#include <unordered_map>
+#include <map>
 #include <vector>
 #include <igor/Core/CDR3SeqData.h>
 #include <igor/Core/Aligner.h>
@@ -45,22 +45,22 @@ public:
     ExtractFeatures(const ExtractFeatures& orig);
     virtual ~ExtractFeatures();
     
-    unordered_map<string, string> UMap_v_genomic;
-    unordered_map<string, string> UMap_j_genomic;
-    unordered_map<string, size_t> UMap_v_CDR3_anchors; 
-    unordered_map<string, size_t> UMap_j_CDR3_anchors;
+    map<string, string> UMap_v_genomic;
+    map<string, string> UMap_j_genomic;
+    map<string, size_t> UMap_v_CDR3_anchors; 
+    map<string, size_t> UMap_j_CDR3_anchors;
 //    vector<pair<const int, const string>> *p_indexed_seqlist;
-    unordered_map<int,pair<string,unordered_map<Gene_class,vector<Alignment_data>>>>  *p_sorted_alignments;
+    map<int,pair<string,map<Gene_class,vector<Alignment_data>>>>  *p_sorted_alignments;
     
     void load_VJgenomicTemplates(vector<pair<string,string>> v_genomic, vector<pair<string,string>> j_genomic);
     void load_VJanchors(string flnV_CDR3_anchors, string flnJ_CDR3_anchors);
-    void load_VJanchors(unordered_map<string, size_t>  flnV_CDR3_anchors, unordered_map<string, size_t>  flnJ_CDR3_anchors);
+    void load_VJanchors(map<string, size_t>  flnV_CDR3_anchors, map<string, size_t>  flnJ_CDR3_anchors);
     
     void print_VgenomicTemplates();
     void print_JgenomicTemplates();
     
 //    void set_indexed_seqlist(vector<pair<const int, const string>>* pointer);
-    void set_sorted_alignments(unordered_map<int,pair<string,unordered_map<Gene_class,vector<Alignment_data>>>>* pointer);
+    void set_sorted_alignments(map<int,pair<string,map<Gene_class,vector<Alignment_data>>>>* pointer);
     
     
     CDR3SeqData extractCDR3(int seq_index);

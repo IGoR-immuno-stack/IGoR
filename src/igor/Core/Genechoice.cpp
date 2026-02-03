@@ -51,11 +51,11 @@ Gene_choice::Gene_choice(Gene_class gene): Rec_Event(gene , Undefined_side ),
  * Should probably be avoided, default initialize the event and use add_event_realization() instead
  * unless you're sure about the index fields in the Event_realizations instances
  */
-Gene_choice::Gene_choice(Gene_class gene  ,unordered_map<string,Event_realization>& realizations): Gene_choice(gene){
+Gene_choice::Gene_choice(Gene_class gene  ,map<string,Event_realization>& realizations): Gene_choice(gene){
 	this->event_realizations = realizations;
 
 	this->type = Event_type::GeneChoice_t;
-	for(unordered_map<string,Event_realization>::const_iterator iter = this->event_realizations.begin() ; iter != this->event_realizations.end(); ++iter){
+	for(map<string,Event_realization>::const_iterator iter = this->event_realizations.begin() ; iter != this->event_realizations.end(); ++iter){
 		int str_len = (*iter).second.value_str.length();
 		if(str_len > this->len_max){this->len_max = str_len;}
 		else if (str_len < this->len_min){this->len_min = str_len;}
@@ -109,7 +109,7 @@ void Gene_choice::set_genomic_templates(const vector<pair<string,string>>& genom
 
 
 
-void Gene_choice::iterate( double& scenario_proba , Downstream_scenario_proba_bound_map& downstream_proba_map ,const string& sequence , const Int_Str& int_sequence , Index_map& base_index_map , const unordered_map<Rec_Event_name,vector<pair<shared_ptr<const Rec_Event>,int>>>& offset_map , shared_ptr<Next_event_ptr>& next_event_ptr_arr , Marginal_array_p& updated_marginals_pointer , const Marginal_array_p& model_parameters_pointer ,const unordered_map<Gene_class , vector<Alignment_data>>& allowed_realizations , Seq_type_str_p_map& constructed_sequences , Seq_offsets_map& seq_offsets ,shared_ptr<Error_rate>& error_rate_p , map<size_t,shared_ptr<Counter>>& counters_list , const unordered_map<tuple<Event_type,Gene_class,Seq_side>, shared_ptr<Rec_Event>>& events_map  , Safety_bool_map& safety_set , Mismatch_vectors_map& mismatches_lists, double& seq_max_prob_scenario , double& proba_threshold_factor){
+void Gene_choice::iterate( double& scenario_proba , Downstream_scenario_proba_bound_map& downstream_proba_map ,const string& sequence , const Int_Str& int_sequence , Index_map& base_index_map , const map<Rec_Event_name,vector<pair<shared_ptr<const Rec_Event>,int>>>& offset_map , shared_ptr<Next_event_ptr>& next_event_ptr_arr , Marginal_array_p& updated_marginals_pointer , const Marginal_array_p& model_parameters_pointer ,const map<Gene_class , vector<Alignment_data>>& allowed_realizations , Seq_type_str_p_map& constructed_sequences , Seq_offsets_map& seq_offsets ,shared_ptr<Error_rate>& error_rate_p , map<size_t,shared_ptr<Counter>>& counters_list , const map<tuple<Event_type,Gene_class,Seq_side>, shared_ptr<Rec_Event>>& events_map  , Safety_bool_map& safety_set , Mismatch_vectors_map& mismatches_lists, double& seq_max_prob_scenario , double& proba_threshold_factor){
 	base_index = base_index_map.at(this->event_index);
 
 
@@ -587,7 +587,7 @@ void Gene_choice::iterate( double& scenario_proba , Downstream_scenario_proba_bo
 					}
 				}
 				else{
-					for(unordered_map<string,Event_realization>::const_iterator d_gene_iter = this->event_realizations.begin() ; d_gene_iter!=this->event_realizations.end() ; ++d_gene_iter){
+					for(map<string,Event_realization>::const_iterator d_gene_iter = this->event_realizations.begin() ; d_gene_iter!=this->event_realizations.end() ; ++d_gene_iter){
 
 						//Starts the D one nucleotide after v_3_min offset(-1 if no V chosen) given max deletions on the 5' of the D
 						//FIXME v_min offset set to -1 if no V chosen
@@ -918,7 +918,7 @@ void Gene_choice::iterate( double& scenario_proba , Downstream_scenario_proba_bo
  *This short method performs the iterate operations common to all Rec_event (modify index map and fetch realization probability)
  *
  */
-double Gene_choice::iterate_common(double scenario_proba ,const int& gene_index , int base_index , Index_map& base_index_map ,const unordered_map<Rec_Event_name,vector<pair<shared_ptr<const Rec_Event>,int>>>& offset_map ,const Marginal_array_p& model_parameters){
+double Gene_choice::iterate_common(double scenario_proba ,const int& gene_index , int base_index , Index_map& base_index_map ,const map<Rec_Event_name,vector<pair<shared_ptr<const Rec_Event>,int>>>& offset_map ,const Marginal_array_p& model_parameters){
 
 	//TODO remove scenario proba as argument
 	//int gene_index = ((*this)).event_realizations.at((*iter).gene_name).index;
@@ -945,13 +945,13 @@ double Gene_choice::iterate_common(double scenario_proba ,const int& gene_index 
 	return  scenario_proba * model_parameters[base_index+gene_index];
 }
 
-queue<int> Gene_choice::draw_random_realization( const Marginal_array_p& model_marginals_p , unordered_map<Rec_Event_name,int>& index_map , const unordered_map<Rec_Event_name,vector<pair<shared_ptr<const Rec_Event>,int>>>& offset_map , unordered_map<Seq_type , string>& constructed_sequences , mt19937_64& generator)const{
+queue<int> Gene_choice::draw_random_realization( const Marginal_array_p& model_marginals_p , map<Rec_Event_name,int>& index_map , const map<Rec_Event_name,vector<pair<shared_ptr<const Rec_Event>,int>>>& offset_map , map<Seq_type , string>& constructed_sequences , mt19937_64& generator)const{
 	uniform_real_distribution<double> distribution(0.0,1.0);
 	double rand = distribution(generator);
 	double prob_count = 0;
 	queue<int> realization_queue;
 
-	for(unordered_map<string,Event_realization>::const_iterator iter = this->event_realizations.begin() ; iter != this->event_realizations.end() ; ++iter ){
+	for(map<string,Event_realization>::const_iterator iter = this->event_realizations.begin() ; iter != this->event_realizations.end() ; ++iter ){
 		prob_count += model_marginals_p[index_map.at(this->get_name()) + (*iter).second.index];
 		if(prob_count>=rand){
 			switch(this->event_class){
@@ -982,12 +982,12 @@ queue<int> Gene_choice::draw_random_realization( const Marginal_array_p& model_m
 }
 void Gene_choice::write2txt(ofstream& outfile){
 	outfile<<"#GeneChoice;"<<event_class<<";"<<event_side<<";"<<priority<<";"<<nickname<<endl;
-	for(unordered_map<string,Event_realization>::const_iterator iter=event_realizations.begin() ; iter!= event_realizations.end() ; ++iter){
+	for(map<string,Event_realization>::const_iterator iter=event_realizations.begin() ; iter!= event_realizations.end() ; ++iter){
 		outfile<<"%"<<(*iter).second.name<<";"<<(*iter).second.value_str<<";"<<(*iter).second.index<<endl;
 	}
 }
 
-void Gene_choice::initialize_event( unordered_set<Rec_Event_name>& processed_events , const unordered_map<tuple<Event_type,Gene_class,Seq_side>, shared_ptr<Rec_Event>>& events_map , const unordered_map<Rec_Event_name,vector<pair<shared_ptr<const Rec_Event>,int>>>& offset_map , Downstream_scenario_proba_bound_map& downstream_proba_map , Seq_type_str_p_map& constructed_sequences , Safety_bool_map& safety_set , shared_ptr<Error_rate> error_rate_p , Mismatch_vectors_map& mismatches_list , Seq_offsets_map& seq_offsets , Index_map& index_map){
+void Gene_choice::initialize_event( unordered_set<Rec_Event_name>& processed_events , const map<tuple<Event_type,Gene_class,Seq_side>, shared_ptr<Rec_Event>>& events_map , const map<Rec_Event_name,vector<pair<shared_ptr<const Rec_Event>,int>>>& offset_map , Downstream_scenario_proba_bound_map& downstream_proba_map , Seq_type_str_p_map& constructed_sequences , Safety_bool_map& safety_set , shared_ptr<Error_rate> error_rate_p , Mismatch_vectors_map& mismatches_list , Seq_offsets_map& seq_offsets , Index_map& index_map){
 
 
 
@@ -1272,7 +1272,7 @@ void Gene_choice::iterate_initialize_Len_proba(Seq_type considered_junction ,  s
 
 	if(this->has_effect_on(considered_junction)){
 		base_index = base_index_map.at(this->event_index,0);
-		for(unordered_map <string, Event_realization>::const_iterator iter = this->event_realizations.begin() ; iter!= this->event_realizations.end() ; ++iter){
+		for(map <string, Event_realization>::const_iterator iter = this->event_realizations.begin() ; iter!= this->event_realizations.end() ; ++iter){
 
 
 	/*		//Update base index map
@@ -1341,7 +1341,7 @@ void Gene_choice::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>>& model
 
 
 				//Loop over D gene choices
-				for(unordered_map<string,Event_realization>::const_iterator d_gene_iter = this->event_realizations.begin() ; d_gene_iter!=this->event_realizations.end() ; ++d_gene_iter){
+				for(map<string,Event_realization>::const_iterator d_gene_iter = this->event_realizations.begin() ; d_gene_iter!=this->event_realizations.end() ; ++d_gene_iter){
 					//Get considered D gene best proba
 					double d_gene_max_proba = 0;
 					base_index = base_index_map.at(this->event_index,0);

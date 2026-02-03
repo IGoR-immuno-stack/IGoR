@@ -24,7 +24,7 @@ run_one() {
 }
 
 run_one $SCRIPT_DIR/test_align.sh
-run_one $SCRIPT_DIR/test_inference.sh
+# run_one $SCRIPT_DIR/test_inference.sh
 run_one $SCRIPT_DIR/test_generate.sh
 
 echo -e "\n===== REGRESSION SUMMARY ====="

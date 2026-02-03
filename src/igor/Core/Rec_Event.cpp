@@ -34,7 +34,7 @@ using namespace std;
 Rec_Event::Rec_Event(Gene_class gene , Seq_side side ): priority(0) , event_class(gene) , event_side(side) , name("Undefined_event_name") ,len_min(INT16_MAX) , len_max(INT16_MIN) , type(Undefined_t), event_index(INT16_MIN) , updated(false),fixed(false) , current_realizations_index_vec(vector<int>()) , scenario_downstream_upper_bound_proba(-1),event_upper_bound_proba(-1),scenario_upper_bound_proba(-1),current_realization_index(nullptr){} //FIXME why does this exist? anyway fix initilization
 
 
-Rec_Event::Rec_Event(Gene_class gene , Seq_side side , unordered_map<string , Event_realization>& realizations): Rec_Event(gene,side)  {
+Rec_Event::Rec_Event(Gene_class gene , Seq_side side , map<string , Event_realization>& realizations): Rec_Event(gene,side)  {
 	this->event_realizations = realizations;
 }
 
@@ -67,7 +67,7 @@ bool Rec_Event::operator ==(const Rec_Event& other)const {
 	if( this->event_side != other.event_side) return 0;
 	if( this->priority != other.priority) return 0;
 	if( this->event_realizations.size() != other.event_realizations.size()) return 0;
-	for(unordered_map< string,Event_realization >::const_iterator iter = this->event_realizations.begin() ; iter != this->event_realizations.end() ; ++iter){
+	for(map< string,Event_realization >::const_iterator iter = this->event_realizations.begin() ; iter != this->event_realizations.end() ; ++iter){
 		if(other.event_realizations.count((*iter).first) != 1 ) return 0;
 	}
 	return 1;
@@ -104,7 +104,7 @@ int Rec_Event::get_event_identifier() const {
 }
 
 
-void Rec_Event::iterate_wrap_up(double& scenario_proba , Downstream_scenario_proba_bound_map& downstream_proba_map , const std::string& sequence , const Int_Str& int_sequence , Index_map& index_map , const std::unordered_map<Rec_Event_name,std::vector<std::pair<std::shared_ptr<const Rec_Event>,int>>>& offset_map , std::shared_ptr<Next_event_ptr>& next_event_ptr_arr  , Marginal_array_p& updated_marginal_array_p , const Marginal_array_p& model_parameters_point ,const std::unordered_map<Gene_class , std::vector<Alignment_data>>& allowed_realizations , Seq_type_str_p_map& constructed_sequences  , Seq_offsets_map& seq_offsets , std::shared_ptr<Error_rate>& error_rate_p , map<size_t,shared_ptr<Counter>>& counters_list ,const std::unordered_map<std::tuple<Event_type,Gene_class,Seq_side>, std::shared_ptr<Rec_Event>>& events_map  , Safety_bool_map& safety_set , Mismatch_vectors_map& mismatches_lists , double& seq_max_prob_scenario , double& proba_threshold_factor){
+void Rec_Event::iterate_wrap_up(double& scenario_proba , Downstream_scenario_proba_bound_map& downstream_proba_map , const std::string& sequence , const Int_Str& int_sequence , Index_map& index_map , const std::map<Rec_Event_name,std::vector<std::pair<std::shared_ptr<const Rec_Event>,int>>>& offset_map , std::shared_ptr<Next_event_ptr>& next_event_ptr_arr  , Marginal_array_p& updated_marginal_array_p , const Marginal_array_p& model_parameters_point ,const std::map<Gene_class , std::vector<Alignment_data>>& allowed_realizations , Seq_type_str_p_map& constructed_sequences  , Seq_offsets_map& seq_offsets , std::shared_ptr<Error_rate>& error_rate_p , map<size_t,shared_ptr<Counter>>& counters_list ,const std::map<std::tuple<Event_type,Gene_class,Seq_side>, std::shared_ptr<Rec_Event>>& events_map  , Safety_bool_map& safety_set , Mismatch_vectors_map& mismatches_lists , double& seq_max_prob_scenario , double& proba_threshold_factor){
 
 
 /*			if(seq_offsets.count(make_pair(J_gene_seq, Three_prime))!=0){
@@ -154,7 +154,7 @@ void Rec_Event::iterate_wrap_up(double& scenario_proba , Downstream_scenario_pro
 				(*iter).second->count_scenario(scenario_error_w_proba ,scenario_proba , sequence , constructed_sequences , seq_offsets , events_map , mismatches_lists );
 			}
 
-			for(std::unordered_map<std::tuple<Event_type,Gene_class,Seq_side>, std::shared_ptr<Rec_Event>>::const_iterator iter = events_map.begin() ; iter != events_map.end() ; iter++){
+			for(std::map<std::tuple<Event_type,Gene_class,Seq_side>, std::shared_ptr<Rec_Event>>::const_iterator iter = events_map.begin() ; iter != events_map.end() ; iter++){
 				if(!(*iter).second->is_fixed()){
 					(*iter).second->add_to_marginals(scenario_error_w_proba , updated_marginal_array_p);
 				}
@@ -167,7 +167,7 @@ void Rec_Event::iterate_wrap_up(double& scenario_proba , Downstream_scenario_pro
 
 
 
-void Rec_Event::initialize_event( unordered_set<Rec_Event_name>& processed_events , const unordered_map<tuple<Event_type,Gene_class,Seq_side>, shared_ptr<Rec_Event>>& events_map , const unordered_map<Rec_Event_name,vector<pair<shared_ptr<const Rec_Event>,int>>>& offset_map , Downstream_scenario_proba_bound_map& downstream_proba_map , Seq_type_str_p_map& constructed_sequences , Safety_bool_map& safety_set , shared_ptr<Error_rate> error_rate_p , Mismatch_vectors_map& mismatches_list , Seq_offsets_map& seq_offsets , Index_map& index_map){
+void Rec_Event::initialize_event( unordered_set<Rec_Event_name>& processed_events , const map<tuple<Event_type,Gene_class,Seq_side>, shared_ptr<Rec_Event>>& events_map , const map<Rec_Event_name,vector<pair<shared_ptr<const Rec_Event>,int>>>& offset_map , Downstream_scenario_proba_bound_map& downstream_proba_map , Seq_type_str_p_map& constructed_sequences , Safety_bool_map& safety_set , shared_ptr<Error_rate> error_rate_p , Mismatch_vectors_map& mismatches_list , Seq_offsets_map& seq_offsets , Index_map& index_map){
 	//No action performed on the event by default if the method is not overloaded
 	//Need to call Rec_Event::initialize_event() to apply these common actions when the method is overloaded
 	current_realizations_index_vec.push_back(-1);
@@ -219,7 +219,7 @@ void Rec_Event::set_upper_bound_proba(double proba){
 /**
  * Does nothing since in general events will not need to perform any operation on the marginal probabilities
  */
-void Rec_Event::update_event_internal_probas(const Marginal_array_p& marginal_array , const unordered_map<Rec_Event_name,int>& index_map){
+void Rec_Event::update_event_internal_probas(const Marginal_array_p& marginal_array , const map<Rec_Event_name,int>& index_map){
 	//Do nothing
 }
 
@@ -228,7 +228,7 @@ void Rec_Event::update_event_internal_probas(const Marginal_array_p& marginal_ar
  * The point is to compute the upper bound probability (given the model) of the scenario for each event
  * This allows to discard scenarios with too low probability at early stages
  */
-void Rec_Event::initialize_crude_scenario_proba_bound(double& downstream_proba_bound , forward_list<double*>& updated_proba_list , const unordered_map<tuple<Event_type,Gene_class,Seq_side>, shared_ptr<Rec_Event>>& events_map){
+void Rec_Event::initialize_crude_scenario_proba_bound(double& downstream_proba_bound , forward_list<double*>& updated_proba_list , const map<tuple<Event_type,Gene_class,Seq_side>, shared_ptr<Rec_Event>>& events_map){
 	this->scenario_downstream_upper_bound_proba = downstream_proba_bound;
 	this->updated_proba_bounds_list = updated_proba_list;
 	if(!this->is_updated()){

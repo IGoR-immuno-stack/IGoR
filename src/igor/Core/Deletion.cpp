@@ -54,18 +54,18 @@ Deletion::Deletion(Gene_class gene , Seq_side side ):Rec_Event(gene,side), new_s
 		d_3_min_offset(INT16_MAX) , d_5_max_offset(INT16_MAX) , j_5_min_del(INT16_MAX) , d_5_new_offset(INT16_MAX) , vj_check(true) , d_3_min_del(INT16_MAX) , base_index(INT16_MAX) , memory_layer_offset_check1(-1) , d_5_offset(INT16_MAX) , d_del_opposite_side_processed(false),
 		v_3_offset(INT16_MAX) , d_5_min_del(INT16_MAX) , previous_marginal_index(INT16_MAX) , deletion_value(INT16_MAX) , j_5_max_del(INT16_MAX) , d_3_offset(INT16_MAX) , proba_contribution(-1) , d_3_new_offset(INT16_MAX) , memory_layer_cs(-1) , j_5_new_offset(INT16_MAX){
 	this->type = Event_type::Deletion_t;
-	for(unordered_map<string,Event_realization>::const_iterator iter = this->event_realizations.begin() ; iter != this->event_realizations.end() ; ++iter){
+	for(auto iter = this->event_realizations.begin() ; iter != this->event_realizations.end() ; ++iter){
 		if((*iter).second.value_int > (-this->len_min)){this->len_min = -(*iter).second.value_int;}
 		else if((*iter).second.value_int < (-this->len_max)){this->len_max = -(*iter).second.value_int;}
 	}
 	this->update_event_name();
 }
 
-Deletion::Deletion(Gene_class gene , Seq_side side , unordered_map<string,Event_realization>& realizations): Deletion(gene,side){
+Deletion::Deletion(Gene_class gene , Seq_side side , map<string,Event_realization>& realizations): Deletion(gene,side){
 	this->event_realizations = realizations;
 
 	this->type = Event_type::Deletion_t;
-	for(unordered_map<string,Event_realization>::const_iterator iter = this->event_realizations.begin() ; iter != this->event_realizations.end() ; ++iter){
+	for(auto iter = this->event_realizations.begin() ; iter != this->event_realizations.end() ; ++iter){
 		if((*iter).second.value_int > (-this->len_min)){this->len_min = -(*iter).second.value_int;}
 		else if((*iter).second.value_int < (-this->len_max)){this->len_max = -(*iter).second.value_int;}
 	}
@@ -102,13 +102,13 @@ void Deletion::add_realization(int del_number){
  * -First check whether any of these number of deletions is possible given the current position and number of deletions on other genes
  * -Loop over # of deletions in decreasing order
  */
-void Deletion::iterate(double& scenario_proba , Downstream_scenario_proba_bound_map& downstream_proba_map , const string& sequence , const Int_Str& int_sequence , Index_map& base_index_map , const unordered_map<Rec_Event_name,vector<pair<shared_ptr<const Rec_Event>,int>>>& offset_map , shared_ptr<Next_event_ptr>& next_event_ptr_arr , Marginal_array_p& updated_marginals_point , const Marginal_array_p& model_parameters_point ,const unordered_map<Gene_class , vector<Alignment_data>>& allowed_realizations , Seq_type_str_p_map& constructed_sequences , Seq_offsets_map& seq_offsets , shared_ptr<Error_rate>& error_rate_p , map<size_t,shared_ptr<Counter>>& counters_list , const unordered_map<tuple<Event_type,Gene_class,Seq_side>, shared_ptr<Rec_Event>>& events_map , Safety_bool_map& safety_set , Mismatch_vectors_map& mismatches_lists , double& seq_max_prob_scenario , double& proba_threshold_factor){
+void Deletion::iterate(double& scenario_proba , Downstream_scenario_proba_bound_map& downstream_proba_map , const string& sequence , const Int_Str& int_sequence , Index_map& base_index_map , const map<Rec_Event_name,vector<pair<shared_ptr<const Rec_Event>,int>>>& offset_map , shared_ptr<Next_event_ptr>& next_event_ptr_arr , Marginal_array_p& updated_marginals_point , const Marginal_array_p& model_parameters_point ,const map<Gene_class , vector<Alignment_data>>& allowed_realizations , Seq_type_str_p_map& constructed_sequences , Seq_offsets_map& seq_offsets , shared_ptr<Error_rate>& error_rate_p , map<size_t,shared_ptr<Counter>>& counters_list , const map<tuple<Event_type,Gene_class,Seq_side>, shared_ptr<Rec_Event>>& events_map , Safety_bool_map& safety_set , Mismatch_vectors_map& mismatches_lists , double& seq_max_prob_scenario , double& proba_threshold_factor){
 
 	base_index = base_index_map.at(this->event_index);
 	//constructed_sequences_copy = constructed_sequences;
-	//unordered_map<pair<Seq_type,Seq_side>,Seq_Offset> seq_offsets_copy (seq_offsets);
-	//unordered_map<Rec_Event_name,int> base_index_map_copy(base_index_map);
-	//unordered_map<Seq_type,vector<int>*> mismatches_lists_copy (mismatches_lists);
+	//map<pair<Seq_type,Seq_side>,Seq_Offset> seq_offsets_copy (seq_offsets);
+	//map<Rec_Event_name,int> base_index_map_copy(base_index_map);
+	//map<Seq_type,vector<int>*> mismatches_lists_copy (mismatches_lists);
 
 
 
@@ -1180,7 +1180,7 @@ void Deletion::iterate(double& scenario_proba , Downstream_scenario_proba_bound_
 /*
  * This short method performs the iterate operations common to all Rec_event (modify index map and fetch realization probability)
  */
- void Deletion::iterate_common(forward_list<Event_realization>::const_iterator& iter , Index_map& base_index_map , const unordered_map<Rec_Event_name,vector<pair<shared_ptr<const Rec_Event>,int>>>& offset_map ,const Marginal_array_p& model_parameters_point){
+ void Deletion::iterate_common(forward_list<Event_realization>::const_iterator& iter , Index_map& base_index_map , const map<Rec_Event_name,vector<pair<shared_ptr<const Rec_Event>,int>>>& offset_map ,const Marginal_array_p& model_parameters_point){
 	 //realization_event_index  =
 
 	 	/*if (offset_map.count(this->name)!=0){
@@ -1204,13 +1204,13 @@ void Deletion::iterate(double& scenario_proba , Downstream_scenario_proba_bound_
 	 proba_contribution = (model_parameters_point[base_index+(*iter).index]);
  }
 
- queue<int> Deletion::draw_random_realization( const Marginal_array_p& model_marginals_p , unordered_map<Rec_Event_name,int>& index_map , const unordered_map<Rec_Event_name,vector<pair<shared_ptr<const Rec_Event>,int>>>& offset_map , unordered_map<Seq_type , string>& constructed_sequences , mt19937_64& generator)const{
+ queue<int> Deletion::draw_random_realization( const Marginal_array_p& model_marginals_p , map<Rec_Event_name,int>& index_map , const map<Rec_Event_name,vector<pair<shared_ptr<const Rec_Event>,int>>>& offset_map , map<Seq_type , string>& constructed_sequences , mt19937_64& generator)const{
 
 	 uniform_real_distribution<double> distribution(0.0,1.0);
 	 double rand = distribution(generator);
 	double prob_count = 0;
 	queue<int> realization_queue ;
-	for(unordered_map<string,Event_realization>::const_iterator iter = this->event_realizations.begin() ; iter != this->event_realizations.end() ; ++iter ){
+	for(auto iter = this->event_realizations.begin() ; iter != this->event_realizations.end() ; ++iter ){
 		prob_count += model_marginals_p[index_map.at(this->get_name()) + (*iter).second.index];
 		if(prob_count>=rand){
 			switch(this->event_class){
@@ -1301,20 +1301,20 @@ void Deletion::iterate(double& scenario_proba , Downstream_scenario_proba_bound_
 
  void Deletion::write2txt(ofstream& outfile){
  	outfile<<"#Deletion;"<<event_class<<";"<<event_side<<";"<<priority<<";"<<nickname<<endl;
- 	for(unordered_map<string,Event_realization>::const_iterator iter=event_realizations.begin() ; iter!= event_realizations.end() ; ++iter){
+ 	for(auto iter=event_realizations.begin() ; iter!= event_realizations.end() ; ++iter){
  		outfile<<"%"<<(*iter).second.value_int<<";"<<(*iter).second.index<<endl;
  	}
  }
 
 
- void Deletion::initialize_event( unordered_set<Rec_Event_name>& processed_events , const unordered_map<tuple<Event_type,Gene_class,Seq_side>, shared_ptr<Rec_Event>>& events_map , const unordered_map<Rec_Event_name,vector<pair<shared_ptr<const Rec_Event>,int>>>& offset_map , Downstream_scenario_proba_bound_map& downstream_proba_map , Seq_type_str_p_map& constructed_sequences , Safety_bool_map& safety_set , shared_ptr<Error_rate> error_rate_p , Mismatch_vectors_map& mismatches_list , Seq_offsets_map& seq_offsets , Index_map& index_map){
+ void Deletion::initialize_event( unordered_set<Rec_Event_name>& processed_events , const map<tuple<Event_type,Gene_class,Seq_side>, shared_ptr<Rec_Event>>& events_map , const map<Rec_Event_name,vector<pair<shared_ptr<const Rec_Event>,int>>>& offset_map , Downstream_scenario_proba_bound_map& downstream_proba_map , Seq_type_str_p_map& constructed_sequences , Safety_bool_map& safety_set , shared_ptr<Error_rate> error_rate_p , Mismatch_vectors_map& mismatches_list , Seq_offsets_map& seq_offsets , Index_map& index_map){
 
 	 //err_rate_upper_bound = error_rate_p->get_err_rate_upper_bound(); //TODO should be removed
 
 
 	 //TODO change this and the usage of int_value_and_index
 	 int_value_and_index.clear();
-	 for(unordered_map<string,Event_realization>::const_iterator iter=(*this).event_realizations.begin() ; iter != (*this).event_realizations.end() ; ++iter){
+	 for(auto iter=(*this).event_realizations.begin() ; iter != (*this).event_realizations.end() ; ++iter){
 		 int_value_and_index.push_front((*iter).second);
 	 }
 	 int_value_and_index.sort(del_numb_compare);
@@ -1708,7 +1708,7 @@ void Deletion::iterate(double& scenario_proba , Downstream_scenario_proba_bound_
 
 	 if(this->has_effect_on(considered_junction)){
 		base_index = base_index_map.at(this->event_index,0);
-		for(unordered_map <string, Event_realization>::const_iterator iter = this->event_realizations.begin() ; iter!= this->event_realizations.end() ; ++iter){
+		for(map <string, Event_realization>::const_iterator iter = this->event_realizations.begin() ; iter!= this->event_realizations.end() ; ++iter){
 
 	/*		//Update base index map
 			for(forward_list<tuple<int,int,int>>::const_iterator jiter = memory_and_offsets.begin() ; jiter!=memory_and_offsets.end() ; ++jiter){

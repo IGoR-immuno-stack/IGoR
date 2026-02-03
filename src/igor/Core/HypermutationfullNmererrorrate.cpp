@@ -312,7 +312,7 @@ void Hypermutation_full_Nmer_errorrate::build_upper_bound_matrix(size_t m,size_t
 	this->max_noerr = new_bound_mat.get_n_cols()-1;
 }
 
-double Hypermutation_full_Nmer_errorrate::compare_sequences_error_prob (double scenario_probability , const string& original_sequence ,  Seq_type_str_p_map& constructed_sequences , const Seq_offsets_map& seq_offsets , const unordered_map<tuple<Event_type,Gene_class,Seq_side>, shared_ptr<Rec_Event>>& events_map , Mismatch_vectors_map& mismatches_lists , double& seq_max_prob_scenario , double& proba_threshold_factor){
+double Hypermutation_full_Nmer_errorrate::compare_sequences_error_prob (double scenario_probability , const string& original_sequence ,  Seq_type_str_p_map& constructed_sequences , const Seq_offsets_map& seq_offsets , const map<tuple<Event_type,Gene_class,Seq_side>, shared_ptr<Rec_Event>>& events_map , Mismatch_vectors_map& mismatches_lists , double& seq_max_prob_scenario , double& proba_threshold_factor){
 	//TODO Take into account the order of mutations?
 	//TODO reorganize to be more flexible in the model description
 
@@ -989,7 +989,7 @@ void Hypermutation_full_Nmer_errorrate::update(){
 }
 
 
-void Hypermutation_full_Nmer_errorrate::initialize(const unordered_map<tuple<Event_type,Gene_class,Seq_side>, shared_ptr<Rec_Event>>& events_map){
+void Hypermutation_full_Nmer_errorrate::initialize(const map<tuple<Event_type,Gene_class,Seq_side>, shared_ptr<Rec_Event>>& events_map){
 	//FIXME look for previous initialization to avoid memory leak
 
 	//Initialize booleans for constructed sequences

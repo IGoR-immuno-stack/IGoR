@@ -27,7 +27,7 @@
 
 #include <igor/Core/Utils.h>
 #include <igor/Core/IntStr.h>
-#include <unordered_map>
+#include <map>
 #include <utility>
 #include <string>
 #include <fstream>
@@ -58,9 +58,9 @@ class Error_rate {
 public:
 	Error_rate();
 	virtual ~Error_rate();
-	virtual double compare_sequences_error_prob( double ,const std::string& , Seq_type_str_p_map& , const Seq_offsets_map& , const std::unordered_map<std::tuple<Event_type,Gene_class,Seq_side>, std::shared_ptr<Rec_Event>>&  , Mismatch_vectors_map& , double& , double& )=0;
+	virtual double compare_sequences_error_prob( double ,const std::string& , Seq_type_str_p_map& , const Seq_offsets_map& , const std::map<std::tuple<Event_type,Gene_class,Seq_side>, std::shared_ptr<Rec_Event>>&  , Mismatch_vectors_map& , double& , double& )=0;
 	virtual void update()=0;
-	virtual void initialize(const std::unordered_map<std::tuple<Event_type,Gene_class,Seq_side>, std::shared_ptr<Rec_Event>>&);
+	virtual void initialize(const std::map<std::tuple<Event_type,Gene_class,Seq_side>, std::shared_ptr<Rec_Event>>&);
 	bool is_updated() const {return updated;}
 	void update_value(bool update_status) {updated = update_status;};
 	virtual void add_to_norm_counter()=0;

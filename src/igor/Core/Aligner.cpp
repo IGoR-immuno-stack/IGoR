@@ -267,19 +267,19 @@ forward_list<Alignment_data> Aligner::align_seq(string nt_seq , double score_thr
 /**
  *  \overload
  */
-forward_list<Alignment_data> Aligner::align_seq(string nt_seq , double score_threshold , bool best_align_only , unordered_map<string,pair<int,int>> genomic_offset_bounds,bool rev_offset_frame/*=false*/){
+forward_list<Alignment_data> Aligner::align_seq(string nt_seq , double score_threshold , bool best_align_only , map<string,pair<int,int>> genomic_offset_bounds,bool rev_offset_frame/*=false*/){
 	// Call the align seq function enforcing alignments for all genes to be passed
 	return align_seq(nt_seq , score_threshold , best_align_only, false , genomic_offset_bounds, rev_offset_frame/*=false*/);
 }
 /**
  *  \overload
  */
-forward_list<Alignment_data> Aligner::align_seq(string nt_seq , double score_threshold , bool best_align_only , unordered_map<string,pair<int,int>> genomic_offset_bounds, set<string> restricted_genomic_list , bool rev_offset_frame/*=false*/){
+forward_list<Alignment_data> Aligner::align_seq(string nt_seq , double score_threshold , bool best_align_only , map<string,pair<int,int>> genomic_offset_bounds, set<string> restricted_genomic_list , bool rev_offset_frame/*=false*/){
 	// Call the align seq function enforcing alignments for all genes to be passed
 	return align_seq(nt_seq , score_threshold , best_align_only, false , genomic_offset_bounds, restricted_genomic_list, rev_offset_frame/*=false*/);
 }
 
-forward_list<Alignment_data> Aligner::align_seq(string nt_seq , double score_threshold , bool best_align_only, bool best_gene_only , unordered_map<string,pair<int,int>> genomic_offset_bounds , bool rev_offset_frame/*=false*/){
+forward_list<Alignment_data> Aligner::align_seq(string nt_seq , double score_threshold , bool best_align_only, bool best_gene_only , map<string,pair<int,int>> genomic_offset_bounds , bool rev_offset_frame/*=false*/){
 	set<string> all_genomic_names;
 	for(pair<string,string> genomic_template: this->nt_genomic_sequences){
 		all_genomic_names.emplace(genomic_template.first);
@@ -306,7 +306,7 @@ forward_list<Alignment_data> Aligner::align_seq(string nt_seq , double score_thr
  * There is also a possibility to pass these offsets reversed (i.e defined from the last nucleotide of the target) in case it is more handy (e.g alignement of CDR3 sequences or J/C primer sequencing).
  *
  */
-forward_list<Alignment_data> Aligner::align_seq(string nt_seq , double score_threshold , bool best_align_only, bool best_gene_only , unordered_map<string,pair<int,int>> genomic_offset_bounds, set<string> restricted_genomic_list, bool rev_offset_frame/*=false*/){
+forward_list<Alignment_data> Aligner::align_seq(string nt_seq , double score_threshold , bool best_align_only, bool best_gene_only , map<string,pair<int,int>> genomic_offset_bounds, set<string> restricted_genomic_list, bool rev_offset_frame/*=false*/){
 	int min_offset;
 	int max_offset;
 	Int_Str int_seq = nt2int(nt_seq);
@@ -361,34 +361,34 @@ forward_list<Alignment_data> Aligner::align_seq(string nt_seq , double score_thr
 /*
  * Align sequences and hold them in memory
  */
-unordered_map<int,forward_list<Alignment_data>> Aligner::align_seqs(vector<pair<const int , const string>> sequence_list , double score_threshold , bool best_align_only ){
-	unordered_map<int,forward_list<Alignment_data>> alignment_map = align_seqs(sequence_list , score_threshold , best_align_only , false , INT16_MIN , INT16_MAX);
+map<int,forward_list<Alignment_data>> Aligner::align_seqs(vector<pair<const int , const string>> sequence_list , double score_threshold , bool best_align_only ){
+	map<int,forward_list<Alignment_data>> alignment_map = align_seqs(sequence_list , score_threshold , best_align_only , false , INT16_MIN , INT16_MAX);
 	return alignment_map;
 }
 
 /*
  * Align sequences and hold them in memory
  */
-unordered_map<int,forward_list<Alignment_data>> Aligner::align_seqs(vector<pair<const int , const string>> sequence_list , double score_threshold , bool best_align_only , bool best_gene_only){
-	unordered_map<int,forward_list<Alignment_data>> alignment_map = align_seqs(sequence_list , score_threshold , best_align_only , best_gene_only , INT16_MIN , INT16_MAX);
+map<int,forward_list<Alignment_data>> Aligner::align_seqs(vector<pair<const int , const string>> sequence_list , double score_threshold , bool best_align_only , bool best_gene_only){
+	map<int,forward_list<Alignment_data>> alignment_map = align_seqs(sequence_list , score_threshold , best_align_only , best_gene_only , INT16_MIN , INT16_MAX);
 	return alignment_map;
 }
 
 /*
  * \brief A function performing alignment of all genomic templates against all provided sequences. Alignments are stored in memory.
  */
-unordered_map<int,forward_list<Alignment_data>> Aligner::align_seqs(vector<pair<const int , const string>> sequence_list , double score_threshold , bool best_align_only , int min_offset , int max_offset, bool rev_offset_frame/*=false*/){
-	unordered_map<int,forward_list<Alignment_data>> alignment_map = align_seqs(sequence_list , score_threshold , best_align_only , false , min_offset , max_offset);
+map<int,forward_list<Alignment_data>> Aligner::align_seqs(vector<pair<const int , const string>> sequence_list , double score_threshold , bool best_align_only , int min_offset , int max_offset, bool rev_offset_frame/*=false*/){
+	map<int,forward_list<Alignment_data>> alignment_map = align_seqs(sequence_list , score_threshold , best_align_only , false , min_offset , max_offset);
 	return alignment_map;
 }
 
-unordered_map<int,forward_list<Alignment_data>> Aligner::align_seqs(vector<pair<const int , const string>> sequence_list , double score_threshold , bool best_align_only , bool best_gene_only , int min_offset , int max_offset, bool rev_offset_frame/*=false*/){
-	unordered_map<int,forward_list<Alignment_data>> alignment_map = align_seqs(sequence_list , score_threshold , best_align_only , best_gene_only , build_genomic_bounds_map(min_offset , max_offset), rev_offset_frame );
+map<int,forward_list<Alignment_data>> Aligner::align_seqs(vector<pair<const int , const string>> sequence_list , double score_threshold , bool best_align_only , bool best_gene_only , int min_offset , int max_offset, bool rev_offset_frame/*=false*/){
+	map<int,forward_list<Alignment_data>> alignment_map = align_seqs(sequence_list , score_threshold , best_align_only , best_gene_only , build_genomic_bounds_map(min_offset , max_offset), rev_offset_frame );
 	return alignment_map;
 }
 
-unordered_map<int,forward_list<Alignment_data>> Aligner::align_seqs(vector<pair<const int , const string>> sequence_list , double score_threshold , bool best_align_only , unordered_map<string,pair<int,int>> genomic_offset_bounds , bool rev_offset_frame/*=false*/){
-	unordered_map<int,forward_list<Alignment_data>> alignment_map = align_seqs(sequence_list , score_threshold , best_align_only , false , genomic_offset_bounds, rev_offset_frame );
+map<int,forward_list<Alignment_data>> Aligner::align_seqs(vector<pair<const int , const string>> sequence_list , double score_threshold , bool best_align_only , map<string,pair<int,int>> genomic_offset_bounds , bool rev_offset_frame/*=false*/){
+	map<int,forward_list<Alignment_data>> alignment_map = align_seqs(sequence_list , score_threshold , best_align_only , false , genomic_offset_bounds, rev_offset_frame );
 	return alignment_map;
 }
 
@@ -396,15 +396,15 @@ unordered_map<int,forward_list<Alignment_data>> Aligner::align_seqs(vector<pair<
 /*
  * \brief A function performing alignment of all genomic templates against all provided sequences. Alignments are stored in memory.
  */
-unordered_map<int,forward_list<Alignment_data>> Aligner::align_seqs(vector<pair<const int , const string>> sequence_list , double score_threshold , bool best_align_only , bool best_gene_only , unordered_map<string,pair<int,int>> genomic_offset_bounds , bool rev_offset_frame/*=false*/){
-	unordered_map<int,forward_list<Alignment_data>> alignment_map; //= *(new unordered_map<int,forward_list<Alignment_data>>);
+map<int,forward_list<Alignment_data>> Aligner::align_seqs(vector<pair<const int , const string>> sequence_list , double score_threshold , bool best_align_only , bool best_gene_only , map<string,pair<int,int>> genomic_offset_bounds , bool rev_offset_frame/*=false*/){
+	map<int,forward_list<Alignment_data>> alignment_map; //= *(new map<int,forward_list<Alignment_data>>);
 
 	int processed_seq_number = 0;
 	double total_number_seqs = sequence_list.size(); //Use a double for float division afterwards
 
 /*
  * Declaring parellel loop using OpenMP 4.0 standards
-	#pragma omp declare reduction (merge:unordered_map<int,forward_list<Alignment_data>>:omp_out.insert(omp_in.begin(),omp_in.end()))
+	#pragma omp declare reduction (merge:map<int,forward_list<Alignment_data>>:omp_out.insert(omp_in.begin(),omp_in.end()))
 	#pragma omp parallel for schedule(dynamic) reduction(merge:alignment_map) shared(processed_seq_number)
 */
 
@@ -447,7 +447,7 @@ void Aligner::align_seqs( string filename , vector<pair<const int , const string
 /**
  * \overload
  */
-void Aligner::align_seqs( string filename , vector<pair<const int , const string>> sequence_list , double score_threshold , bool best_align_only , unordered_map<string,pair<int,int>> genomic_offset_bounds,bool rev_offset_frame/*=false*/){
+void Aligner::align_seqs( string filename , vector<pair<const int , const string>> sequence_list , double score_threshold , bool best_align_only , map<string,pair<int,int>> genomic_offset_bounds,bool rev_offset_frame/*=false*/){
 	 return this->align_seqs(filename,sequence_list,score_threshold,best_align_only,false,genomic_offset_bounds,rev_offset_frame);
 }
 
@@ -474,9 +474,9 @@ void Aligner::align_seqs( string filename , vector<pair<const int , const string
  *
  * \bug Summary file creation might not work on Windows systems
  */
-void Aligner::align_seqs( string filename , vector<pair<const int , const string>> sequence_list , double score_threshold , bool best_align_only, bool best_gene_only , unordered_map<string,pair<int,int>> genomic_offset_bounds,bool rev_offset_frame/*=false*/){
+void Aligner::align_seqs( string filename , vector<pair<const int , const string>> sequence_list , double score_threshold , bool best_align_only, bool best_gene_only , map<string,pair<int,int>> genomic_offset_bounds,bool rev_offset_frame/*=false*/){
 
-	unordered_map<int,forward_list<Alignment_data>> alignment_map; //= *(new unordered_map<int,forward_list<Alignment_data>>);
+	map<int,forward_list<Alignment_data>> alignment_map; //= *(new map<int,forward_list<Alignment_data>>);
 
 	string folder_path = filename.substr(0,filename.rfind("/")+1); //Get the file path
 	ofstream align_infos_file(folder_path + "aligns_info.out",fstream::out | fstream::app); //Opens the file in append mode
@@ -513,7 +513,7 @@ void Aligner::align_seqs( string filename , vector<pair<const int , const string
 
 /*
  * Declaring parallel loop using OpenMP 4.0 standards
-	#pragma omp declare reduction (merge:unordered_map<int,forward_list<Alignment_data>>:omp_out.insert(omp_in.begin(),omp_in.end()))
+	#pragma omp declare reduction (merge:map<int,forward_list<Alignment_data>>:omp_out.insert(omp_in.begin(),omp_in.end()))
 	#pragma omp parallel for schedule(dynamic) reduction(merge:alignment_map) shared(processed_seq_number)
 */
 
@@ -575,8 +575,8 @@ void Aligner::align_seqs(string filename , vector<pair<const int , const string>
 /**
  * \brief A small function to automatically build a hashmap containing genomic offset bounds from fixed bounds over genomic templates.
  */
-std::unordered_map<std::string,std::pair<int,int>> Aligner::build_genomic_bounds_map(int min_offset,int max_offset) const{
-	unordered_map<string,pair<int,int>> genomic_offset_bounds;
+std::map<std::string,std::pair<int,int>> Aligner::build_genomic_bounds_map(int min_offset,int max_offset) const{
+	map<string,pair<int,int>> genomic_offset_bounds;
 	for(forward_list<pair<string,Int_Str>>::const_iterator iter = this->int_genomic_sequences.begin() ; iter != this->int_genomic_sequences.end() ; ++iter){
 		genomic_offset_bounds.emplace(iter->first,make_pair(min_offset,max_offset));
 	}
@@ -603,11 +603,11 @@ void write_indexed_seq_csv(string filename , vector<pair<const int,const string>
  * @insertions: list of int coma separated surrounded by curly braces
  * @deletions: list of int coma separated surrounded by curly braces
  */
-void Aligner::write_alignments_seq_csv(string filename , unordered_map<int,forward_list<Alignment_data>> indexed_alignments){
+void Aligner::write_alignments_seq_csv(string filename , map<int,forward_list<Alignment_data>> indexed_alignments){
 	ofstream outfile(filename);
 	outfile<<"seq_index"<<";"<<"gene_name"<<";"<<"score"<<";"<<"offset"<<";"<<"insertions"<<";"<<"deletions"<<";"<<"mismatches"<<";"<<"length"<<endl;
 
-	for(unordered_map<int,forward_list<Alignment_data>>::const_iterator iter = indexed_alignments.begin() ; iter != indexed_alignments.end() ; ++iter){
+	for(map<int,forward_list<Alignment_data>>::const_iterator iter = indexed_alignments.begin() ; iter != indexed_alignments.end() ; ++iter){
 		write_single_seq_alignment(outfile , (*iter).first , (*iter).second);
 	}
 }
@@ -664,13 +664,13 @@ forward_list<pair<const int , const string>> read_indexed_seq_csv(string filenam
  * This method reads the alignment data from a given file (@filename).
  * The structure of the file is assumed to be the same as the one created by the Aligner::write_alignments_seq_csv method
  */
-unordered_map<int,vector<Alignment_data>> read_alignments_seq_csv(string filename , double score_threshold , bool allow_in_dels ){
+map<int,vector<Alignment_data>> read_alignments_seq_csv(string filename , double score_threshold , bool allow_in_dels ){
 	ifstream infile(filename);
 	if(!infile){
 		throw runtime_error("File not found: "+filename);
 	}
 	string line_str;
-	unordered_map<int,vector<Alignment_data>> indexed_alignments;
+	map<int,vector<Alignment_data>> indexed_alignments;
 	//get rid of the first line
 	getline(infile,line_str);
 	while(getline(infile,line_str)){
@@ -791,14 +791,14 @@ unordered_map<int,vector<Alignment_data>> read_alignments_seq_csv(string filenam
 	return indexed_alignments;
 }
 
-unordered_map<int,pair<string,unordered_map<Gene_class,vector<Alignment_data>>>> read_alignments_seq_csv(string filename , Gene_class aligned_gene , double score_threshold , bool allow_in_dels , vector<pair<const int , const string>> indexed_sequences ){
-	unordered_map<int,pair<string,unordered_map<Gene_class,vector<Alignment_data>>>> sorted_alignments;
+map<int,pair<string,map<Gene_class,vector<Alignment_data>>>> read_alignments_seq_csv(string filename , Gene_class aligned_gene , double score_threshold , bool allow_in_dels , vector<pair<const int , const string>> indexed_sequences ){
+	map<int,pair<string,map<Gene_class,vector<Alignment_data>>>> sorted_alignments;
 	sorted_alignments = read_alignments_seq_csv(filename , aligned_gene , score_threshold , allow_in_dels , indexed_sequences , sorted_alignments);
 	return sorted_alignments;
 }
 
-unordered_map<int,pair<string,unordered_map<Gene_class,vector<Alignment_data>>>> read_alignments_seq_csv(string filename , Gene_class aligned_gene , double score_threshold , bool allow_in_dels , vector<pair<const int , const string>> indexed_sequences , unordered_map<int,pair<string,unordered_map<Gene_class,vector<Alignment_data>>>> sorted_alignments){
-	unordered_map<int,vector<Alignment_data>> alignments = read_alignments_seq_csv(filename , score_threshold , allow_in_dels);
+map<int,pair<string,map<Gene_class,vector<Alignment_data>>>> read_alignments_seq_csv(string filename , Gene_class aligned_gene , double score_threshold , bool allow_in_dels , vector<pair<const int , const string>> indexed_sequences , map<int,pair<string,map<Gene_class,vector<Alignment_data>>>> sorted_alignments){
+	map<int,vector<Alignment_data>> alignments = read_alignments_seq_csv(filename , score_threshold , allow_in_dels);
 	for(vector<pair<const int , const string>>::const_iterator seq_it = indexed_sequences.begin() ; seq_it != indexed_sequences.end() ; ++seq_it){
 		sorted_alignments[(*seq_it).first].second[aligned_gene] = alignments[(*seq_it).first];
 		sorted_alignments[(*seq_it).first].first = (*seq_it).second;
@@ -807,14 +807,14 @@ unordered_map<int,pair<string,unordered_map<Gene_class,vector<Alignment_data>>>>
 	return sorted_alignments;
 }
 
-unordered_map<int,pair<string,unordered_map<Gene_class,vector<Alignment_data>>>> read_alignments_seq_csv_score_range(string filename , Gene_class aligned_gene , double score_range , bool allow_in_dels , vector<pair<const int , const string>> indexed_sequences ){
-	unordered_map<int,pair<string,unordered_map<Gene_class,vector<Alignment_data>>>> sorted_alignments;
+map<int,pair<string,map<Gene_class,vector<Alignment_data>>>> read_alignments_seq_csv_score_range(string filename , Gene_class aligned_gene , double score_range , bool allow_in_dels , vector<pair<const int , const string>> indexed_sequences ){
+	map<int,pair<string,map<Gene_class,vector<Alignment_data>>>> sorted_alignments;
 	sorted_alignments = read_alignments_seq_csv_score_range(filename , aligned_gene , score_range , allow_in_dels , indexed_sequences , sorted_alignments);
 	return sorted_alignments;
 }
 
-unordered_map<int,pair<string,unordered_map<Gene_class,vector<Alignment_data>>>> read_alignments_seq_csv_score_range(string filename , Gene_class aligned_gene , double score_range , bool allow_in_dels , vector<pair<const int , const string>> indexed_sequences , unordered_map<int,pair<string,unordered_map<Gene_class,vector<Alignment_data>>>> sorted_alignments){
-	unordered_map<int,vector<Alignment_data>> alignments = read_alignments_seq_csv(filename , 0 , allow_in_dels);
+map<int,pair<string,map<Gene_class,vector<Alignment_data>>>> read_alignments_seq_csv_score_range(string filename , Gene_class aligned_gene , double score_range , bool allow_in_dels , vector<pair<const int , const string>> indexed_sequences , map<int,pair<string,map<Gene_class,vector<Alignment_data>>>> sorted_alignments){
+	map<int,vector<Alignment_data>> alignments = read_alignments_seq_csv(filename , 0 , allow_in_dels);
 	for(vector<pair<const int , const string>>::const_iterator seq_it = indexed_sequences.begin() ; seq_it != indexed_sequences.end() ; ++seq_it){
 			vector<Alignment_data>& seq_alignments = alignments[(*seq_it).first];
 			double max_score = -1;
@@ -831,9 +831,9 @@ unordered_map<int,pair<string,unordered_map<Gene_class,vector<Alignment_data>>>>
 	return sorted_alignments;
 }
 
-vector<tuple<int,string,unordered_map<Gene_class,vector<Alignment_data>>>> map2vect(unordered_map<int,pair<string,unordered_map<Gene_class,vector<Alignment_data>>>> alignments_map){
-	vector<tuple<int,string,unordered_map<Gene_class,vector<Alignment_data>>>> alignmets_vect;
-	for(unordered_map<int,pair<string,unordered_map<Gene_class,vector<Alignment_data>>>>::const_iterator seq_it = alignments_map.begin() ; seq_it != alignments_map.end() ; ++seq_it){
+vector<tuple<int,string,map<Gene_class,vector<Alignment_data>>>> map2vect(map<int,pair<string,map<Gene_class,vector<Alignment_data>>>> alignments_map){
+	vector<tuple<int,string,map<Gene_class,vector<Alignment_data>>>> alignmets_vect;
+	for(map<int,pair<string,map<Gene_class,vector<Alignment_data>>>>::const_iterator seq_it = alignments_map.begin() ; seq_it != alignments_map.end() ; ++seq_it){
 		alignmets_vect.emplace_back((*seq_it).first,(*seq_it).second.first , (*seq_it).second.second);
 	}
 	return alignmets_vect;
@@ -1470,14 +1470,14 @@ bool align_compare(Alignment_data align1 , Alignment_data align2 ){
 /**
  * \brief A dumb function to read CSV anchor gene indices
  */
-unordered_map<string,size_t> read_gene_anchors_csv(string filename , string sep){
+map<string,size_t> read_gene_anchors_csv(string filename , string sep){
 	ifstream infile(filename);
 		if(!infile){
 			throw runtime_error("File not found: "+filename + " in read_gene_anchors_csv()");
 		}
 
 		string temp_str;
-		unordered_map<string,size_t> anchors_map;
+		map<string,size_t> anchors_map;
 
 		getline(infile,temp_str); //Ignore first header line
 
@@ -1508,13 +1508,13 @@ unordered_map<string,size_t> read_gene_anchors_csv(string filename , string sep)
 /**
  * \brief A dumb function to read CSV template specific offset bounds
  */
-unordered_map<string,pair<int,int>> read_template_specific_offset_csv(string filename,string sep/*= ";"*/){
+map<string,pair<int,int>> read_template_specific_offset_csv(string filename,string sep/*= ";"*/){
 	ifstream infile(filename);
 	if(!infile){
 		throw runtime_error("File not found: "+filename + " in read_gene_anchors_csv()");
 	}
 	string temp_str;
-	unordered_map<string,pair<int,int>> template_bounds_map;
+	map<string,pair<int,int>> template_bounds_map;
 
 	getline(infile,temp_str); //Ignore first header line
 
@@ -1595,7 +1595,7 @@ Matrix<double> read_substitution_matrix(const string& filename , string sep/*=",
  * \param [in] genomic_offset_bounds A hash map containing offsets lower and upper bounds for each genomic template. Keys of the map are the genomic templates names.
  * \return A three component tuple: first: boolean true if offsets are template specific (not all the same for all templates, second and third the min and max offsets over all templates.
  */
-tuple<bool,int,int> extract_min_max_genomic_templates_offsets(const unordered_map<string,pair<int,int>>& genomic_offset_bounds){
+tuple<bool,int,int> extract_min_max_genomic_templates_offsets(const map<string,pair<int,int>>& genomic_offset_bounds){
 	//Compute min and max offsets over all genomic templates and check if they are constant.
 	int min_offset = INT32_MAX;
 	int max_offset = INT32_MIN;

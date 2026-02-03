@@ -62,7 +62,7 @@ Model_Parms::Model_Parms(const Model_Parms& other){
 		this->events.push_back((*iter)->copy());
 	}
 
-	for(unordered_map <Rec_Event_name , Adjacency_list >::const_iterator iter = other.edges.begin() ; iter != other.edges.end() ; ++iter){
+	for(auto iter = other.edges.begin() ; iter != other.edges.end() ; ++iter){
 		Adjacency_list adjacency_list;
 		//TODO very dirty need to be changed
 		for(list<shared_ptr<Rec_Event>>::const_iterator jiter = (*iter).second.children.begin() ; jiter != (*iter).second.children.end() ; ++jiter){
@@ -95,7 +95,7 @@ Model_Parms::Model_Parms(const Model_Parms& other){
  */
 /*Model_Parms::Model_Parms(const Model_Parms& other){
 	this->error_rate = other.error_rate->copy();
-	for(unordered_map<Rec_Event_name , Adjacency_list>::const_iterator iter=other.edges.begin() ; iter != other.edges.end();iter++){
+	for(map<Rec_Event_name , Adjacency_list>::const_iterator iter=other.edges.begin() ; iter != other.edges.end();iter++){
 		this->edges.emplace((*iter).first,*iter.)
 	 }
 
@@ -432,7 +432,7 @@ queue<shared_ptr<Rec_Event>> Model_Parms::get_model_queue() const{
 	model_queue.push(*(model_roots.begin()));
 
 	//Keep track of the events already added to the queue
-	unordered_map<Rec_Event_name,shared_ptr<Rec_Event>>* processed_events_point = new unordered_map<Rec_Event_name,shared_ptr<Rec_Event>>;
+	map<Rec_Event_name,shared_ptr<Rec_Event>>* processed_events_point = new map<Rec_Event_name,shared_ptr<Rec_Event>>;
 	(*processed_events_point).insert(make_pair( (*model_roots.begin())->get_name() , *(model_roots.begin()) ));
 	model_roots.pop_front();
 
@@ -498,16 +498,16 @@ void Model_Parms::update_edge_event_name(Rec_Event_name former_name , Rec_Event_
 	}
 }
 
-const unordered_map<tuple<Event_type,Gene_class,Seq_side>, shared_ptr<Rec_Event>> Model_Parms::get_events_map() const{
-	unordered_map<tuple<Event_type,Gene_class,Seq_side>, shared_ptr<Rec_Event>> events_map;
+const map<tuple<Event_type,Gene_class,Seq_side>, shared_ptr<Rec_Event>> Model_Parms::get_events_map() const{
+	map<tuple<Event_type,Gene_class,Seq_side>, shared_ptr<Rec_Event>> events_map;
 	for(list<shared_ptr<Rec_Event>>::const_iterator iter = this->events.begin() ; iter != this->events.end() ; ++iter ){
 		events_map.emplace(tuple<Event_type,Gene_class,Seq_side>( (*iter)->get_type() , (*iter)->get_class() , (*iter)->get_side() ) , (*iter));
 	}
 	return events_map;
 }
 
-unordered_map<tuple<Event_type,Gene_class,Seq_side>, shared_ptr<Rec_Event>> Model_Parms::get_events_map() {
-	unordered_map<tuple<Event_type,Gene_class,Seq_side>, shared_ptr<Rec_Event>> events_map;
+map<tuple<Event_type,Gene_class,Seq_side>, shared_ptr<Rec_Event>> Model_Parms::get_events_map() {
+	map<tuple<Event_type,Gene_class,Seq_side>, shared_ptr<Rec_Event>> events_map;
 	for(list<shared_ptr<Rec_Event>>::const_iterator iter = this->events.begin() ; iter != this->events.end() ; ++iter ){
 		events_map.emplace(tuple<Event_type,Gene_class,Seq_side>( (*iter)->get_type() , (*iter)->get_class() , (*iter)->get_side() ) , (*iter));
 	}
@@ -583,7 +583,7 @@ void Model_Parms::read_model_parms(string filename){
 
 			cerr<<event<<" read"<<endl;
 			if(event == string("Insertion")){
-				unordered_map<string,Event_realization> event_realizations = unordered_map<string,Event_realization> ();
+				map<string,Event_realization> event_realizations = map<string,Event_realization> ();
 				getline(infile,line_str);
 				while(line_str[0]=='%'){
 					semicolon_index = line_str.find(";",0);
@@ -600,7 +600,7 @@ void Model_Parms::read_model_parms(string filename){
 				this->add_event(new_event_p);
 			}
 			else if(event == string("Deletion")){
-				unordered_map<string,Event_realization> event_realizations = unordered_map<string,Event_realization> ();
+				map<string,Event_realization> event_realizations = map<string,Event_realization> ();
 				getline(infile,line_str);
 				while(line_str[0]=='%'){
 					semicolon_index = line_str.find(";",0);
@@ -617,7 +617,7 @@ void Model_Parms::read_model_parms(string filename){
 				this->add_event(new_event_p);
 			}
 			else if(event == string("GeneChoice")){
-				unordered_map<string,Event_realization> event_realizations = unordered_map<string,Event_realization> (); //FIXME nonsense new
+				map<string,Event_realization> event_realizations = map<string,Event_realization> (); //FIXME nonsense new
 				getline(infile,line_str);
 				while(line_str[0]=='%'){
 					semicolon_index = line_str.find(";",0);

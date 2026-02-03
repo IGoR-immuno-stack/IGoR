@@ -41,15 +41,15 @@ GenModel::~GenModel() {
 }
 
 
-bool GenModel::infer_model(const vector<tuple<int,string,unordered_map<Gene_class , vector<Alignment_data>>>>& sequences ,const  int iterations ,const std::string path, bool fast_iter , double likelihood_threshold/*=1e-25*/ , bool viterbi_like/*false*/){
+bool GenModel::infer_model(const vector<tuple<int,string,map<Gene_class , vector<Alignment_data>>>>& sequences ,const  int iterations ,const std::string path, bool fast_iter , double likelihood_threshold/*=1e-25*/ , bool viterbi_like/*false*/){
 	return this->infer_model(sequences , iterations , path , fast_iter , likelihood_threshold , viterbi_like , 0.001);
 }
 
-bool GenModel::infer_model(const vector<tuple<int,string,unordered_map<Gene_class , vector<Alignment_data>>>>& sequences ,const  int iterations ,const std::string path, bool fast_iter/*=true*/ , double likelihood_threshold/*=1e-25*/ , double proba_threshold_factor/*=0.001*/ ){
+bool GenModel::infer_model(const vector<tuple<int,string,map<Gene_class , vector<Alignment_data>>>>& sequences ,const  int iterations ,const std::string path, bool fast_iter/*=true*/ , double likelihood_threshold/*=1e-25*/ , double proba_threshold_factor/*=0.001*/ ){
 	return this->infer_model(sequences , iterations , path , fast_iter , likelihood_threshold , false , proba_threshold_factor , INFINITY);
 }
 
-bool GenModel::infer_model(const vector<tuple<int,string,unordered_map<Gene_class , vector<Alignment_data>>>>& sequences ,const  int iterations ,const string path , bool fast_iter/*=true*/ ,double likelihood_threshold/*=1e-25 by default*/ , bool viterbi_like/*=false*/ , double proba_threshold_factor/*=0.001 by default*/ , double mean_number_seq_err_thresh /*= INFINITY by default*/){
+bool GenModel::infer_model(const vector<tuple<int,string,map<Gene_class , vector<Alignment_data>>>>& sequences ,const  int iterations ,const string path , bool fast_iter/*=true*/ ,double likelihood_threshold/*=1e-25 by default*/ , bool viterbi_like/*=false*/ , double proba_threshold_factor/*=0.001 by default*/ , double mean_number_seq_err_thresh /*= INFINITY by default*/){
 
 	//If viterbi like only the best scenario is of interest
 	if(viterbi_like){
@@ -72,8 +72,8 @@ bool GenModel::infer_model(const vector<tuple<int,string,unordered_map<Gene_clas
 
 
 	queue<shared_ptr<Rec_Event>> model_queue = model_parms.get_model_queue();
-	unordered_map<Rec_Event_name,int> index_map = model_marginals.get_index_map(model_parms,model_queue);
-	unordered_map<Rec_Event_name,list<pair<shared_ptr<const Rec_Event>,int>>> inv_offset_map = model_marginals.get_inverse_offset_map(model_parms,model_queue);
+	map<Rec_Event_name,int> index_map = model_marginals.get_index_map(model_parms,model_queue);
+	map<Rec_Event_name,list<pair<shared_ptr<const Rec_Event>,int>>> inv_offset_map = model_marginals.get_inverse_offset_map(model_parms,model_queue);
 	int iteration_accomplished = 0;
 	ofstream log_file(path + string("inference_logs.txt"));
 	log_file<<"iteration_n;seq_processed;seq_index;nt_sequence;n_V_aligns;n_J_aligns;seq_likelihood;seq_mean_n_errors;seq_n_scenarios;seq_best_scenario;time"<<endl;
@@ -162,13 +162,13 @@ bool GenModel::infer_model(const vector<tuple<int,string,unordered_map<Gene_clas
 
 		new_marginals.debug_marg_name = "new_marginals";
 
-		const vector<tuple<int,string,unordered_map<Gene_class , vector<Alignment_data>>>>* sequence_util_ptr;
+		const vector<tuple<int,string,map<Gene_class , vector<Alignment_data>>>>* sequence_util_ptr;
 
 		//Take only best alignments if fast_iter
-		vector<tuple<int,string,unordered_map<Gene_class , vector<Alignment_data>>>> fast_iter_sequences;
+		vector<tuple<int,string,map<Gene_class , vector<Alignment_data>>>> fast_iter_sequences;
 		if(fast_iter && iteration_accomplished==0){
 			fast_iter_sequences = sequences;
-			for(unordered_map<Gene_class , vector<Alignment_data>>::const_iterator gc_align_iter = std::get<2>(sequences.at(0)).begin() ; gc_align_iter != std::get<2>(sequences.at(0)).end() ; ++gc_align_iter){
+			for(auto gc_align_iter = std::get<2>(sequences.at(0)).begin() ; gc_align_iter != std::get<2>(sequences.at(0)).end() ; ++gc_align_iter){
 				if ((*gc_align_iter).first == D_gene)continue;
 				fast_iter_sequences = get_best_aligns(fast_iter_sequences,(*gc_align_iter).first);
 			}
@@ -189,11 +189,11 @@ bool GenModel::infer_model(const vector<tuple<int,string,unordered_map<Gene_clas
 		{
 			//Make single thread copies of objects for thread safety
 			Model_Parms single_thread_model_parms (model_parms);
-			unordered_map<Rec_Event_name,int> single_thread_index_map =model_marginals.get_index_map(model_parms,model_queue);
+			map<Rec_Event_name,int> single_thread_index_map =model_marginals.get_index_map(model_parms,model_queue);
 			Model_marginals single_thread_model_marginals (model_marginals);
 			Model_marginals single_thread_marginals (single_thread_model_parms);
 			shared_ptr<Error_rate> single_thread_err_rate = single_thread_model_parms.get_err_rate_p();
-			unordered_map<tuple<Event_type,Gene_class,Seq_side>, shared_ptr<Rec_Event>> events_map = single_thread_model_parms.get_events_map();
+			map<tuple<Event_type,Gene_class,Seq_side>, shared_ptr<Rec_Event>> events_map = single_thread_model_parms.get_events_map();
 			map<size_t,shared_ptr<Counter>> single_thread_counter_list;
 			for(map<size_t,shared_ptr<Counter>>::const_iterator iter = this->counters_list.begin() ; iter != this->counters_list.end() ; ++iter){
 				//Copy only relevant counters for this iteration
@@ -238,7 +238,7 @@ bool GenModel::infer_model(const vector<tuple<int,string,unordered_map<Gene_clas
 			queue<shared_ptr<Rec_Event>> single_thread_model_queue = single_thread_model_parms.get_model_queue(); //single_thread_parms.get_model_queue();
 
 			queue<shared_ptr<Rec_Event>> init_single_thread_model_queue = single_thread_model_queue;
-			unordered_map<Rec_Event_name,vector<pair<shared_ptr<const Rec_Event>,int>>>single_thread_offset_map = model_marginals.get_offsets_map(model_parms,single_thread_model_queue);
+			map<Rec_Event_name,vector<pair<shared_ptr<const Rec_Event>,int>>>single_thread_offset_map = model_marginals.get_offsets_map(model_parms,single_thread_model_queue);
 
 			stack<shared_ptr<Rec_Event>> init_single_thread_stack;
 
@@ -326,7 +326,7 @@ bool GenModel::infer_model(const vector<tuple<int,string,unordered_map<Gene_clas
 			//Use dynamic scheduling to avoid loss of time due to synchronization
 
 			#pragma omp for schedule(dynamic) nowait
-			for(vector<tuple<int,string,unordered_map<Gene_class , vector<Alignment_data>>>>::const_iterator seq_it = (*sequence_util_ptr).begin() ; seq_it < (*sequence_util_ptr).end() ; ++seq_it){
+			for(auto seq_it = (*sequence_util_ptr).begin() ; seq_it < (*sequence_util_ptr).end() ; ++seq_it){
 
 				single_seq_begin = chrono::system_clock::now();
 
@@ -460,8 +460,8 @@ bool GenModel::infer_model(const vector<tuple<int,string,unordered_map<Gene_clas
 forward_list<pair<string,queue<queue<int>>>> GenModel::generate_sequences(int number_seq , bool generate_errors){
 
 	queue<shared_ptr<Rec_Event>> model_queue = this->model_parms.get_model_queue();
-	unordered_map<Rec_Event_name,int> index_map = this->model_marginals.get_index_map(this->model_parms,model_queue);
-	unordered_map<Rec_Event_name,vector<pair<shared_ptr<const Rec_Event> , int>>> offset_map = this->model_marginals.get_offsets_map(this->model_parms,model_queue);
+	map<Rec_Event_name,int> index_map = this->model_marginals.get_index_map(this->model_parms,model_queue);
+	map<Rec_Event_name,vector<pair<shared_ptr<const Rec_Event> , int>>> offset_map = this->model_marginals.get_offsets_map(this->model_parms,model_queue);
 
 	//Create seed for random generator
 	//create a seed from timer
@@ -519,8 +519,8 @@ void GenModel::generate_sequences(int number_seq,bool generate_errors , string f
 		outfile_ind_real<<";Errors"<<endl;
 	}
 	model_queue = this->model_parms.get_model_queue();
-	unordered_map<Rec_Event_name,int> index_map = this->model_marginals.get_index_map(this->model_parms,model_queue);
-	unordered_map<Rec_Event_name,vector<pair<shared_ptr<const Rec_Event> , int>>> offset_map = this->model_marginals.get_offsets_map(this->model_parms,model_queue);
+	map<Rec_Event_name,int> index_map = this->model_marginals.get_index_map(this->model_parms,model_queue);
+	map<Rec_Event_name,vector<pair<shared_ptr<const Rec_Event> , int>>> offset_map = this->model_marginals.get_offsets_map(this->model_parms,model_queue);
 
 	//Create seed for random generator
 	//create a seed from timer if no seed was provided
@@ -590,14 +590,12 @@ void GenModel::generate_sequences(int number_seq,bool generate_errors , string f
 			//Output current progress to cerr
 			show_progress_bar(cerr,seq/(double) number_seq, "Sequence generation", 50);
 		}
-
-
 	}
 	close_progress_bar(cerr, "Sequence generation", 50);
 	return;
 }
 
-pair<string,queue<queue<int>>> GenModel::generate_unique_sequence(queue<shared_ptr<Rec_Event>> model_queue , unordered_map<Rec_Event_name,int> index_map , const unordered_map<Rec_Event_name,vector<pair<shared_ptr<const Rec_Event> , int>>>& offset_map , mt19937_64& generator , bool update_event_internal_proba /*= true*/ ){
+pair<string,queue<queue<int>>> GenModel::generate_unique_sequence(queue<shared_ptr<Rec_Event>> model_queue , map<Rec_Event_name,int> index_map , const map<Rec_Event_name,vector<pair<shared_ptr<const Rec_Event> , int>>>& offset_map , mt19937_64& generator , bool update_event_internal_proba /*= true*/ ){
 	if(update_event_internal_proba){
 		queue<shared_ptr<Rec_Event>> model_queue_copy = model_queue;
 		while(not model_queue_copy.empty()){
@@ -607,8 +605,8 @@ pair<string,queue<queue<int>>> GenModel::generate_unique_sequence(queue<shared_p
 	}
 
 
-	unordered_map<Seq_type,string>* constructed_sequences_p = new unordered_map<Seq_type,string>;
-	unordered_map<Seq_type,string> constructed_sequences = *constructed_sequences_p;
+	map<Seq_type,string>* constructed_sequences_p = new map<Seq_type,string>;
+	map<Seq_type,string> constructed_sequences = *constructed_sequences_p;
 	queue<queue<int>> realizations ;
 	while(! model_queue.empty()){
 		realizations.push(model_queue.front()->draw_random_realization((this->model_marginals.marginal_array_smart_p) , index_map , offset_map , constructed_sequences ,  generator));
@@ -669,10 +667,10 @@ void GenModel::write_seq_real2txt(string filename_ind_seq , string filename_ind_
 /*
  * Extract the best alignment for each sequence for a given gene class (used for the fast iter)
  */
-vector<tuple<int,string,unordered_map<Gene_class , vector<Alignment_data>>>> get_best_aligns (const vector<tuple<int,string,unordered_map<Gene_class , vector<Alignment_data>>>>& all_aligns, Gene_class gc){
+vector<tuple<int,string,map<Gene_class , vector<Alignment_data>>>> get_best_aligns (const vector<tuple<int,string,map<Gene_class , vector<Alignment_data>>>>& all_aligns, Gene_class gc){
 
-	vector<tuple<int,string,unordered_map<Gene_class , vector<Alignment_data>>>> all_aligns_copy (all_aligns);
-	for(vector<tuple<int,string,unordered_map<Gene_class , vector<Alignment_data>>>>::iterator seq_iter = all_aligns_copy.begin() ; seq_iter!=all_aligns_copy.end() ; ++seq_iter){
+	vector<tuple<int,string,map<Gene_class , vector<Alignment_data>>>> all_aligns_copy (all_aligns);
+	for(auto seq_iter = all_aligns_copy.begin() ; seq_iter!=all_aligns_copy.end() ; ++seq_iter){
 		vector<Alignment_data>& align_vect = get<2>((*seq_iter)).at(gc); //TODO add exception
 
 		//Get align best score

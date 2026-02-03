@@ -32,7 +32,6 @@
 #include <list>
 #include <forward_list>
 #include <queue>
-#include <unordered_map>
 #include <set>
 #include <stack>
 #include <random>
@@ -71,7 +70,7 @@ public:
 	Model_marginals& operator -=(Model_marginals );
 	Model_marginals operator +(Model_marginals );
 	Model_marginals operator -(Model_marginals );
-	void normalize(std::unordered_map<Rec_Event_name,std::list<std::pair<std::shared_ptr<const Rec_Event>,int>>> , std::unordered_map<Rec_Event_name,int> , std::queue<std::shared_ptr<Rec_Event>>);
+	void normalize(std::map<Rec_Event_name,std::list<std::pair<std::shared_ptr<const Rec_Event>,int>>> , std::map<Rec_Event_name,int> , std::queue<std::shared_ptr<Rec_Event>>);
 	void uniform_initialize(const Model_Parms&);
 	void null_initialize();
 	void random_initialize(const Model_Parms&);
@@ -79,13 +78,13 @@ public:
 	void set_realization_proba(std::string,std::shared_ptr<const Rec_Event>,double,const Model_Parms&);
 	void add_pseudo_counts(double);
 	bool add_to_marginals(double event_proba , std::list<std::shared_ptr<Rec_Event>> , Model_Parms); //FIXME drop this? pass a list of pointers instead, is this method still needed???
-	void copy_fixed_events_marginals(const Model_marginals&,const Model_Parms&,const std::unordered_map<Rec_Event_name,int>&);
-	std::unordered_map<Rec_Event_name,std::vector<std::pair<std::shared_ptr<const Rec_Event>,int>>> get_offsets_map(const Model_Parms&) const;
-	std::unordered_map<Rec_Event_name,std::vector<std::pair<std::shared_ptr<const Rec_Event>,int>>> get_offsets_map(const Model_Parms& , std::queue<std::shared_ptr<Rec_Event>>) const;
-	std::unordered_map<Rec_Event_name,std::list<std::pair<std::shared_ptr<const Rec_Event>,int>>> get_inverse_offset_map(const Model_Parms&) const;
-	std::unordered_map<Rec_Event_name,std::list<std::pair<std::shared_ptr<const Rec_Event>,int>>> get_inverse_offset_map(const Model_Parms& , std::queue<std::shared_ptr<Rec_Event>>) const;
-	std::unordered_map<Rec_Event_name,int> get_index_map(const Model_Parms&) const; //maybe tie this to the model_marginals itself
-	std::unordered_map<Rec_Event_name,int> get_index_map(const Model_Parms&, std::queue<std::shared_ptr<Rec_Event>>) const;
+	void copy_fixed_events_marginals(const Model_marginals&,const Model_Parms&,const std::map<Rec_Event_name,int>&);
+	std::map<Rec_Event_name,std::vector<std::pair<std::shared_ptr<const Rec_Event>,int>>> get_offsets_map(const Model_Parms&) const;
+	std::map<Rec_Event_name,std::vector<std::pair<std::shared_ptr<const Rec_Event>,int>>> get_offsets_map(const Model_Parms& , std::queue<std::shared_ptr<Rec_Event>>) const;
+	std::map<Rec_Event_name,std::list<std::pair<std::shared_ptr<const Rec_Event>,int>>> get_inverse_offset_map(const Model_Parms&) const;
+	std::map<Rec_Event_name,std::list<std::pair<std::shared_ptr<const Rec_Event>,int>>> get_inverse_offset_map(const Model_Parms& , std::queue<std::shared_ptr<Rec_Event>>) const;
+	std::map<Rec_Event_name,int> get_index_map(const Model_Parms&) const; //maybe tie this to the model_marginals itself
+	std::map<Rec_Event_name,int> get_index_map(const Model_Parms&, std::queue<std::shared_ptr<Rec_Event>>) const;
 	void write2txt(std::string ,const Model_Parms&);
 	void txt2marginals(std::string, const Model_Parms&);
 	Model_marginals empty_copy ();
@@ -99,7 +98,7 @@ public:
 	std::unique_ptr<long double []> marginal_array_smart_p;
 
 private:
-	std::pair<std::list<std::pair<Rec_Event_name,size_t>>,std::shared_ptr<long double>> compute_event_marginal_probability(Rec_Event_name , const std::set<Rec_Event_name>& , const Model_Parms& ,const std::unordered_map<Rec_Event_name,int>& , const std::unordered_map<Rec_Event_name,std::vector<std::pair<std::shared_ptr<const Rec_Event>,int>>>& , const std::unordered_map<Rec_Event_name,std::list<std::pair<std::shared_ptr<const Rec_Event>,int>>>& ) const;
+	std::pair<std::list<std::pair<Rec_Event_name,size_t>>,std::shared_ptr<long double>> compute_event_marginal_probability(Rec_Event_name , const std::set<Rec_Event_name>& , const Model_Parms& ,const std::map<Rec_Event_name,int>& , const std::map<Rec_Event_name,std::vector<std::pair<std::shared_ptr<const Rec_Event>,int>>>& , const std::map<Rec_Event_name,std::list<std::pair<std::shared_ptr<const Rec_Event>,int>>>& ) const;
 	void iterate_normalize(std::shared_ptr<const Rec_Event>, std::list<std::pair<std::shared_ptr<const Rec_Event>,int>>& , int ,int );
 	void write2txt_iteration(const std::list<std::pair<std::shared_ptr<const Rec_Event>,int>>::const_iterator,const std::list<std::pair<std::shared_ptr<const Rec_Event>,int>>::const_iterator,int,std::ofstream&, std::shared_ptr<Rec_Event> , std::list<std::string>&);
 	size_t marginal_arr_size;

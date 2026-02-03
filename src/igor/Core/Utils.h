@@ -86,7 +86,7 @@ inline uint32_t portable_gethostid() {
 
 #endif
 #include <stdio.h>
-#include <unordered_map>
+#include <map>
 
 
 class Rec_Event;
@@ -718,7 +718,7 @@ void close_progress_bar(std::ostream&, std::string prefix_message = "", size_t p
 uint64_t draw_random_64bits_seed();
 
 
-typedef std::unordered_map<std::string,std::string> UMCodonTable;
+typedef std::map<std::string,std::string> UMCodonTable;
 
 
 

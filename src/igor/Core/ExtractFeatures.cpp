@@ -61,10 +61,10 @@ void ExtractFeatures::load_VJanchors(string flnV_CDR3_anchors, string flnJ_CDR3_
 
 /**
  * \brief load data files into GeneFeatures functor class
- * @param v_CDR3_anchors unordered_map of sequence description and position for V genes CDR3 anchors.
- * @param j_CDR3_anchors unordered_map of sequence description and position for J genes CDR3 anchors.
+ * @param v_CDR3_anchors map of sequence description and position for V genes CDR3 anchors.
+ * @param j_CDR3_anchors map of sequence description and position for J genes CDR3 anchors.
  */
-void ExtractFeatures::load_VJanchors(unordered_map<string, size_t>  v_CDR3_anchors, unordered_map<string, size_t>  j_CDR3_anchors){
+void ExtractFeatures::load_VJanchors(map<string, size_t>  v_CDR3_anchors, map<string, size_t>  j_CDR3_anchors){
 	UMap_v_CDR3_anchors = v_CDR3_anchors;
 	UMap_j_CDR3_anchors = j_CDR3_anchors;
 }
@@ -73,7 +73,7 @@ void ExtractFeatures::load_VJanchors(unordered_map<string, size_t>  v_CDR3_ancho
 //	p_indexed_seqlist = pointer;
 //}
 
-void ExtractFeatures::set_sorted_alignments(unordered_map<int,pair<string,unordered_map<Gene_class,vector<Alignment_data>>>>* pointer){
+void ExtractFeatures::set_sorted_alignments(map<int,pair<string,map<Gene_class,vector<Alignment_data>>>>* pointer){
 	p_sorted_alignments = pointer;
 }
 

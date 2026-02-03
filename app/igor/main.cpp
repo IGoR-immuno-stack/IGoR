@@ -161,8 +161,8 @@ int main(int argc , char* argv[]){
 	vector<pair<string,string>> v_genomic;
 	vector<pair<string,string>> d_genomic;
 	vector<pair<string,string>> j_genomic;
-	unordered_map<string,size_t> v_CDR3_anchors;
-	unordered_map<string,size_t> j_CDR3_anchors;
+	map<string,size_t> v_CDR3_anchors;
+	map<string,size_t> j_CDR3_anchors;
 	bool align_data_is_CDR3 = false;
 
 	//Model parms and marginals
@@ -226,7 +226,7 @@ int main(int argc , char* argv[]){
 		bool v_best_gene_only = false;
 		int v_left_offset_bound = INT16_MIN;
 		int v_right_offset_bound = INT16_MAX;
-		unordered_map<string,pair<int,int>> v_template_bounds_map;
+		map<string,pair<int,int>> v_template_bounds_map;
 		bool v_reversed_offsets = false;
 
 		//D alignment vars
@@ -239,7 +239,7 @@ int main(int argc , char* argv[]){
 		bool d_best_gene_only = false;
 		int d_left_offset_bound = INT16_MIN;
 		int d_right_offset_bound = INT16_MAX;
-		unordered_map<string,pair<int,int>> d_template_bounds_map;
+		map<string,pair<int,int>> d_template_bounds_map;
 		bool d_reversed_offsets = false;
 
 		//J alignment vars
@@ -252,7 +252,7 @@ int main(int argc , char* argv[]){
 		bool j_best_gene_only = false;
 		int j_left_offset_bound = INT16_MIN;
 		int j_right_offset_bound = INT16_MAX;
-		unordered_map<string,pair<int,int>> j_template_bounds_map;
+		map<string,pair<int,int>> j_template_bounds_map;
 		bool j_reversed_offsets = false;
 
 		// Flag to extract CDR3 from aligned sequences.
@@ -467,7 +467,7 @@ int main(int argc , char* argv[]){
 				int right_offset_bound;
 				bool reversed_offset_provided = false;
 				bool reversed_offsets;
-				unordered_map<string,pair<int,int>> template_bounds_map;
+				map<string,pair<int,int>> template_bounds_map;
 
 				if( (gene_str_val == "--V")
 						or (gene_str_val == "--D")
@@ -984,6 +984,9 @@ int main(int argc , char* argv[]){
 					catch(exception& e){
 						return terminate_IGoR_with_error_message("Expected a positive integer after \"--seed\" for sequence generation's seed, received: \"" + string(argv[carg_i]) + "\"");
 					}
+					cout << "Setting random seed to " << argv[carg_i] << endl;
+					cout << "Setting random seed to " << string(argv[carg_i]) << endl;
+					cout << "Setting random seed to " << stoi(string(argv[carg_i])) << endl;
 					gen_random_engine_seed = stoi(string(argv[carg_i]));
 				}
 				else{
@@ -1293,12 +1296,12 @@ int main(int argc , char* argv[]){
 	 */
 	if((infer or evaluate or generate)){
 		bool any_custom_gene = false;
-		unordered_map<tuple<Event_type,Gene_class,Seq_side>,shared_ptr<Rec_Event>> tmp_events_map = cl_model_parms.get_events_map();
+		map<tuple<Event_type,Gene_class,Seq_side>,shared_ptr<Rec_Event>> tmp_events_map = cl_model_parms.get_events_map();
 		if(custom_v){
 			shared_ptr<Rec_Event> v_choice = tmp_events_map.at(tuple<Event_type,Gene_class,Seq_side>(GeneChoice_t,V_gene,Undefined_side));
 			shared_ptr<Gene_choice> v_choice_gc = dynamic_pointer_cast<Gene_choice>(v_choice);
 			bool any_genomic_difference = false;
-			unordered_map<string , Event_realization> realization_map_copy = v_choice_gc->get_realizations_map();
+			map<string , Event_realization> realization_map_copy = v_choice_gc->get_realizations_map();
 			/*
 			 * We loop over provided genomic templates and check if they are contained in the current model
 			 */
@@ -1339,7 +1342,7 @@ int main(int argc , char* argv[]){
 			shared_ptr<Rec_Event> d_choice = tmp_events_map.at(tuple<Event_type,Gene_class,Seq_side>(GeneChoice_t,D_gene,Undefined_side));
 			shared_ptr<Gene_choice> d_choice_gc = dynamic_pointer_cast<Gene_choice>(d_choice);
 			bool any_genomic_difference = false;
-			unordered_map<string , Event_realization> realization_map_copy = d_choice_gc->get_realizations_map();
+			map<string , Event_realization> realization_map_copy = d_choice_gc->get_realizations_map();
 			/*
 			 * We loop over provided genomic templates and check if they are contained in the current model
 			 */
@@ -1380,7 +1383,7 @@ int main(int argc , char* argv[]){
 			shared_ptr<Rec_Event> j_choice = tmp_events_map.at(tuple<Event_type,Gene_class,Seq_side>(GeneChoice_t,J_gene,Undefined_side));
 			shared_ptr<Gene_choice> j_choice_gc = dynamic_pointer_cast<Gene_choice>(j_choice);
 			bool any_genomic_difference = false;
-			unordered_map<string , Event_realization> realization_map_copy = j_choice_gc->get_realizations_map();
+			map<string , Event_realization> realization_map_copy = j_choice_gc->get_realizations_map();
 			/*
 			 * We loop over provided genomic templates and check if they are contained in the current model
 			 */
@@ -1590,7 +1593,7 @@ int main(int argc , char* argv[]){
 		clog<<"for "<<indexed_seqlist.size()<<" TCRb sequences of 60bp(from murugan and al), against ";
 		clog<<v_genomic.size()<<" Vs,"<<d_genomic.size()<<" Ds, and "<<j_genomic.size()<<" Js full sequences"<<endl;
 
-		//unordered_map<int,forward_list<Alignment_data>> j_alignments = j_aligner.align_seqs(indexed_seqlist,10,true,42,48);
+		//map<int,forward_list<Alignment_data>> j_alignments = j_aligner.align_seqs(indexed_seqlist,10,true,42,48);
 		//j_aligner.write_alignments_seq_csv(path + string("alignments_J.csv") , j_alignments);
 
 
@@ -1715,11 +1718,11 @@ int main(int argc , char* argv[]){
 
 		//Read alignments
 		//vector<pair<const int, const string>> indexed_seqlist = read_indexed_csv(path+ string(argv[2]) + string("indexed_seq.csv"));
-		unordered_map<int,pair<string,unordered_map<Gene_class,vector<Alignment_data>>>> sorted_alignments = read_alignments_seq_csv_score_range(string(cl_path + "/murugan_naive1_noncoding_demo_seqs") + string("_alignments_V.csv"), V_gene , 55 , false , indexed_seqlist  );//40//35
+		map<int,pair<string,map<Gene_class,vector<Alignment_data>>>> sorted_alignments = read_alignments_seq_csv_score_range(string(cl_path + "/murugan_naive1_noncoding_demo_seqs") + string("_alignments_V.csv"), V_gene , 55 , false , indexed_seqlist  );//40//35
 		sorted_alignments = read_alignments_seq_csv_score_range(string(cl_path + "/murugan_naive1_noncoding_demo_seqs") + string("_alignments_D.csv"), D_gene , 35 , false , indexed_seqlist , sorted_alignments);//30//15
 		sorted_alignments = read_alignments_seq_csv_score_range(string(cl_path + "/murugan_naive1_noncoding_demo_seqs") + string("_alignments_J.csv"), J_gene , 10 , false , indexed_seqlist , sorted_alignments);//30//20
 
-		vector<tuple<int,string,unordered_map<Gene_class,vector<Alignment_data>>>> sorted_alignments_vec = map2vect(sorted_alignments);
+		vector<tuple<int,string,map<Gene_class,vector<Alignment_data>>>> sorted_alignments_vec = map2vect(sorted_alignments);
 
 		//Infer the model
 		clog<<"Infer model"<<endl;
@@ -1822,7 +1825,7 @@ int main(int argc , char* argv[]){
 					}
 					else{ //Provided sequences are ntCDR3s, alignment offsets are based on provided CDR3 gene anchors.
 						clog<<"Performing CDR3s V alignments...."<<endl;
-						unordered_map<string,pair<int,int>> v_genomic_CDR3_offset_bounds;
+						map<string,pair<int,int>> v_genomic_CDR3_offset_bounds;
 						list<string> unknown_gene_anchors;
 						int min_offset = INT32_MAX;
 						int max_offset = INT32_MIN;
@@ -1930,7 +1933,7 @@ int main(int argc , char* argv[]){
 					}
 					else{ //Provided sequences are ntCDR3s, alignment offsets are based on provided CDR3 gene anchors.
 						clog<<"Performing CDR3s J alignments...."<<endl;
-						unordered_map<string,pair<int,int>> j_genomic_CDR3_offset_bounds;
+						map<string,pair<int,int>> j_genomic_CDR3_offset_bounds;
 						list<string> unknown_gene_anchors;
 						int min_offset = INT32_MAX;
 						int max_offset = INT32_MIN;
@@ -1976,7 +1979,7 @@ int main(int argc , char* argv[]){
 
 			//Get CDR3 from alignments.
 			if (b_feature_CDR3){
-				unordered_map<int,pair<string,unordered_map<Gene_class,vector<Alignment_data>>>> sorted_alignments;
+				map<int,pair<string,map<Gene_class,vector<Alignment_data>>>> sorted_alignments;
 				// If alignments files are not found CDR3 will not be extracted.
 				try{
 					sorted_alignments = read_alignments_seq_csv_score_range(cl_path + "aligns/" +  batchname + v_align_filename, V_gene , 55 , false , indexed_seqlist  );
@@ -2041,7 +2044,7 @@ int main(int argc , char* argv[]){
 					return terminate_IGoR_with_error_message("Exception caught trying to subsample indexed sequences before inference/evaluation:",e);
 				}
 			}
-			unordered_map<int,pair<string,unordered_map<Gene_class,vector<Alignment_data>>>> sorted_alignments;
+			map<int,pair<string,map<Gene_class,vector<Alignment_data>>>> sorted_alignments;
 			try{
 				sorted_alignments = read_alignments_seq_csv_score_range(cl_path + "aligns/" +  batchname + v_align_filename, V_gene , 55 , false , indexed_seqlist  );
 			}
@@ -2064,7 +2067,7 @@ int main(int argc , char* argv[]){
 				return terminate_IGoR_with_error_message("Exception caught while reading J alignments before inference/evaluation. Make sure alignments were carried previously using \"-align --J\" or \"-align --all\" with similar path parameters (working directory, batchname, ...)",e);
 			}
 
-			vector<tuple<int,string,unordered_map<Gene_class,vector<Alignment_data>>>> sorted_alignments_vec = map2vect(sorted_alignments);
+			vector<tuple<int,string,map<Gene_class,vector<Alignment_data>>>> sorted_alignments_vec = map2vect(sorted_alignments);
 
 			//create the output directory
 			system(&("mkdir " + cl_path +  batchname + "output")[0]);

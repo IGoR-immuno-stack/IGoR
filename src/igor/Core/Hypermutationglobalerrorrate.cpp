@@ -292,7 +292,7 @@ void Hypermutation_global_errorrate::build_upper_bound_matrix(size_t m,size_t n)
 	this->max_noerr = new_bound_mat.get_n_cols()-1;
 }
 
-double Hypermutation_global_errorrate::compare_sequences_error_prob (double scenario_probability , const string& original_sequence ,  Seq_type_str_p_map& constructed_sequences , const Seq_offsets_map& seq_offsets , const unordered_map<tuple<Event_type,Gene_class,Seq_side>, shared_ptr<Rec_Event>>& events_map , Mismatch_vectors_map& mismatches_lists , double& seq_max_prob_scenario , double& proba_threshold_factor){
+double Hypermutation_global_errorrate::compare_sequences_error_prob (double scenario_probability , const string& original_sequence ,  Seq_type_str_p_map& constructed_sequences , const Seq_offsets_map& seq_offsets , const map<tuple<Event_type,Gene_class,Seq_side>, shared_ptr<Rec_Event>>& events_map , Mismatch_vectors_map& mismatches_lists , double& seq_max_prob_scenario , double& proba_threshold_factor){
 	//TODO Take into account the order of mutations?
 	//TODO reorganize to be more flexible in the model description
 
@@ -1446,7 +1446,7 @@ void Hypermutation_global_errorrate::increment_base_10_and_4(int& base_10_counte
 	}
 }
 
-void Hypermutation_global_errorrate::initialize(const unordered_map<tuple<Event_type,Gene_class,Seq_side>, shared_ptr<Rec_Event>>& events_map){
+void Hypermutation_global_errorrate::initialize(const map<tuple<Event_type,Gene_class,Seq_side>, shared_ptr<Rec_Event>>& events_map){
 	//FIXME look for previous initialization to avoid memory leak
 
 	//Initialize booleans for constructed sequences
@@ -1670,7 +1670,7 @@ void Hypermutation_global_errorrate::update_Nmers_proba(int current_pos , int cu
 
 
 	if(learn_on_v){
-		for(unordered_map<string,Event_realization>::const_iterator real_iter = v_realizations.begin() ; real_iter!=v_realizations.end() ; real_iter++){
+		for(map<string,Event_realization>::const_iterator real_iter = v_realizations.begin() ; real_iter!=v_realizations.end() ; real_iter++){
 			pair<size_t,double*> nucleotide_coverage = v_gene_nucleotide_coverage_p[(*real_iter).second.index];
 			pair<size_t,double*> nucleotide_error = v_gene_per_nucleotide_error_p[(*real_iter).second.index];
 
@@ -1726,7 +1726,7 @@ void Hypermutation_global_errorrate::update_Nmers_proba(int current_pos , int cu
 	//TODO remove code duplication this should be only one function taking nucleotide coverage and nucleotide error as arguments
 
 	if(learn_on_j){
-		for(unordered_map<string,Event_realization>::const_iterator real_iter = j_realizations.begin() ; real_iter!=j_realizations.end() ; real_iter++){
+		for(map<string,Event_realization>::const_iterator real_iter = j_realizations.begin() ; real_iter!=j_realizations.end() ; real_iter++){
 			pair<size_t,double*> nucleotide_coverage = j_gene_nucleotide_coverage_p[(*real_iter).second.index];
 			pair<size_t,double*> nucleotide_error = j_gene_per_nucleotide_error_p[(*real_iter).second.index];
 
