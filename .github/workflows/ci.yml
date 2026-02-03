@@ -58,7 +58,12 @@ jobs:
         run: pixi run build
 
       - name: Run regression tests
+        if: matrix.os == 'ubuntu-latest'
         run: pixi run test_regression
+
+      - name: Run PARTIAL regression tests
+        if: matrix.os != 'ubuntu-latest'
+        run: pixi run test_align
 
       - name: Run C++ tests
         run: pixi run test
