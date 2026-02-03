@@ -1,8 +1,22 @@
 # Streaming Layer Task Plan
 
 **Branch:** feature/streaming  
-**Last Updated:** 3 February 2026  
-**Goal:** Stream, read and write files under Parquet and AIRR format
+**Last Updated:** 3 February 2026
+
+---
+
+## Objective
+
+Enable IGoR to read and write receptor sequence data in standard formats for interoperability with the immunology research ecosystem.
+
+**Target Formats:**
+- **Parquet** — High-performance binary format for large datasets, interoperable with Arrow/pandas/R
+- **AIRR** — AIRR-Community standard (TSV/CSV) for sharing data between immune repertoire tools
+
+**Why This Matters:**
+- **Data Exchange** — Share sequence/alignment data with tools like immunarch (R), scirpy (Python), and other AIRR-compliant software
+- **Performance** — Parquet enables fast I/O for large datasets (millions of sequences)
+- **Preservation** — Full round-trip of all 9 alignment fields (gene name, offset, score, insertions, deletions, mismatches, etc.)
 
 ---
 
