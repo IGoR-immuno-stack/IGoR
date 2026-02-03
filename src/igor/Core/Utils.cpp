@@ -100,7 +100,7 @@ string operator+(const string& str , Event_type et){
  * \author Q.Marcou
  * \version 1.0.0
  */
-Gene_class str2GeneClass(const string str){
+Gene_class str2GeneClass(const string& str){
 	Gene_class gene_class;
 	if(str == "V_gene"){gene_class = V_gene;}
 	else if(str == "VD_genes"){gene_class = VD_genes;}
@@ -142,7 +142,7 @@ string to_string(const Gene_class gc){
  * \author Q.Marcou
  * \version 1.0.0
  */
-Seq_side str2SeqSide(const string str){
+Seq_side str2SeqSide(const string& str){
 	Seq_side seq_side;
 	if(str == "Five_prime"){seq_side = Five_prime;}
 		else if(str == "Three_prime"){seq_side = Three_prime;}
@@ -352,7 +352,7 @@ Enum_fast_memory_map::~Enum_fast_memory_map(){
  *
  * \return A vector containing the separated fields in order of appearance.
  */
-vector<string> extract_string_fields(const string total_string ,const string separator){
+vector<string> extract_string_fields(const string& total_string ,const string& separator){
 	vector<string> output_vector;
 	int sep_index = -1;
 	int next_sep_index = total_string.find(separator);
@@ -380,7 +380,7 @@ vector<string> extract_string_fields(const string total_string ,const string sep
  * Note this function's call should eventually be followed by a call to close_progress_bar
  *
  */
-void show_progress_bar(std::ostream& output_stream , double progress, std::string prefix_message /*= ""*/, size_t progress_bar_size /*= 50*/){
+void show_progress_bar(std::ostream& output_stream , double progress, const std::string& prefix_message /*= ""*/, size_t progress_bar_size /*= 50*/){
 	output_stream << prefix_message <<" [";
 	size_t pos = progress_bar_size * progress;
 	for(size_t i=0 ; i!=progress_bar_size ; ++i){
@@ -404,7 +404,7 @@ void show_progress_bar(std::ostream& output_stream , double progress, std::strin
  * Note this function's output needs to be terminated by \endl.
  *
  */
-void close_progress_bar(std::ostream& output_stream , std::string prefix_message /*= ""*/, size_t progress_bar_size /*= 50*/){
+void close_progress_bar(std::ostream& output_stream , const std::string& prefix_message /*= ""*/, size_t progress_bar_size /*= 50*/){
 	output_stream << prefix_message <<" [";
 	for(size_t i=0 ; i!=progress_bar_size ; ++i){
 		output_stream<<"|";
@@ -431,10 +431,8 @@ uint64_t draw_random_64bits_seed(){
 		// Draw two different 32 bits seeds
 		uint32_t subseed1 = rd();
 		uint32_t subseed2 = rd();
-		// Combine them in a single 64 bit unsigned integer.
-		uint32_t* begin_ptr = (uint32_t*)&random_seed;
-		*begin_ptr = subseed1;
-		*(begin_ptr+1) = subseed2;
+		// Combine them in a single 64 bit unsigned integer using bit operations
+		uint64_t random_seed = (static_cast<uint64_t>(subseed1) << 32) | subseed2;
 	}
 	catch (exception& e){
 		cerr<<"Exception caught trying to initialize random_device to generate a random seed in draw_random_64bits_seed"<<endl;
@@ -496,7 +494,7 @@ UMCodonTable CodonTableStandard = {
  * \param seq: DNA sequence to translate.
  * \return amino acid sequence. 
  */
-string translate(string seq){
+string translate(const string& seq){
 	size_t codonPos = 0;
 	const size_t codonLen = 3;
 	size_t seqLen = seq.length();
