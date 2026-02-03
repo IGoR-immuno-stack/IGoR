@@ -8,9 +8,9 @@ name: CI Build and Test
 
 on:
   push:
-    branches: [ main, develop , feature/*]
+    branches: [ master, develop , feature/*]
   pull_request:
-    branches: [ main, develop , feature/*]
+    branches: [ master, develop , feature/*]
   workflow_dispatch:  # permit manual launch
 
 # # stop previous workflows in case on multiple pushes
@@ -89,7 +89,7 @@ jobs:
           fi
 
       - name: Upload conda package
-        if: contains(fromJson('["master"]'), github.ref_name)
+        if: contains(fromJson('["master", "feature/pixi_build"]'), github.ref_name)
         env:
           ANACONDA_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
         run: pixi run upload $ANACONDA_TOKEN $LABEL igor-immuno
