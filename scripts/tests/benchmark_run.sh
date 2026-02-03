@@ -387,10 +387,23 @@ else
 
         case "$MODE" in
             sampling|gen)
-                # Use custom sizes if provided
+                # Use custom sizes if provided (filter out any remaining options)
                 if [[ $# -gt 0 ]]; then
-                    CUSTOM_SIZES=("$@")
-                    USE_CUSTOM_SIZES=true
+                    for arg in "$@"; do
+                        if [[ "$arg" =~ ^[0-9]+$ ]]; then
+                            CUSTOM_SIZES+=("$arg")
+                        elif [[ "$arg" == -* ]]; then
+                            echo "Error: Unknown option '$arg'" >&2
+                            usage >&2
+                            exit 1
+                        else
+                            echo "Error: Invalid size '$arg' (must be a number)" >&2
+                            exit 1
+                        fi
+                    done
+                    if [[ ${#CUSTOM_SIZES[@]} -gt 0 ]]; then
+                        USE_CUSTOM_SIZES=true
+                    fi
                 fi
                 # Build dynamic benchmark list
                 BENCHMARKS_TO_RUN=()
