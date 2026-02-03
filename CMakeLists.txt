@@ -55,6 +55,17 @@ if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
   endif()
 endif(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
 
+if(DEFINED ENV{PIXI_PROJECT_ROOT})
+  set(IGOR_DATA_DIR ${CMAKE_SOURCE_DIR})
+else()
+  set(IGOR_DATA_DIR "${CMAKE_INSTALL_PREFIX}/share/igor")
+endif()
+
+# Install the demo directory to the data installation location
+install(DIRECTORY ${CMAKE_SOURCE_DIR}/demo
+        DESTINATION share/igor
+        USE_SOURCE_PERMISSIONS)
+
 ## #############################################################################
 ## Set RPATH to ensure that both installed libraries and executables
 ## can find their dependencies at runtime

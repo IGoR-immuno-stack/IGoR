@@ -8,9 +8,9 @@ name: CI Build and Test
 
 on:
   push:
-    branches: [ main, develop , feature/*]
+    branches: [ master, develop , feature/*]
   pull_request:
-    branches: [ main, develop , feature/*]
+    branches: [ master, develop , feature/*]
   workflow_dispatch:  # permit manual launch
 
 # # stop previous workflows in case on multiple pushes
@@ -27,22 +27,23 @@ jobs:
         os:
           - self-hosted
           - ubuntu-latest
-          - macos-latest
+          - macos-15-intel
+          # - macos-latest
           # - windows-latest
     runs-on: ${{ matrix.os }}
+
+    env:
+      PATH: /usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        
-      - name: Clean previous Pixi installation (macOS only)
-        if: runner.os == 'macOS'
-        run: rm -rf ~/.pixi
 
       - name: Setup pixi
+        if: matrix.os != 'self-hosted'
         uses: prefix-dev/setup-pixi@v0.8.1
         with:
-          pixi-version: v0.39.0
+          pixi-version: v0.63.2
           cache: true
 
       - name: Checkout code
@@ -63,11 +64,12 @@ jobs:
         run: pixi run test
 
       - name: Generate coverage report
+        if: matrix.os == 'self-hosted'
         run: pixi run coverage
         continue-on-error: true  # do not block if coverage fails
 
       - name: Upload coverage to GitHub
-        if: always()  # always run (even on previous errors)
+        if: matrix.os == 'self-hosted'
         uses: actions/upload-artifact@v4
         with:
           name: coverage-report
@@ -78,8 +80,25 @@ jobs:
           retention-days: 30
           if-no-files-found: warn
 
+      - name: Build conda package
+        run: pixi build --output-dir=bundle
+
+      - name: Set label
+        run: |
+          if [[ "${{ github.ref_name }}" == "master" ]]; then
+          echo "LABEL=main" >> $GITHUB_ENV
+          else
+          echo "LABEL=test" >> $GITHUB_ENV
+          fi
+
+      - name: Upload conda package
+        if: github.ref_name == 'master'
+        env:
+          ANACONDA_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
+        run: pixi run upload $ANACONDA_TOKEN $LABEL igor-immuno
+
       - name: Comment coverage on PR
-        if: github.event_name == 'pull_request'
+        if: ${{ (matrix.os == 'self-hosted') && (github.event_name == 'pull_request') }}
         uses: py-cov-action/python-coverage-comment-action@v3
         with:
           GITHUB_TOKEN: ${{ github.token }}
