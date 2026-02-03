@@ -15,17 +15,30 @@ pixi run configure
 pixi run build
 ```
 
-## Example of Use
+## Models
 
-Firstly, it is necessary to clone `igor-models` repository to execute the tests. 
+This repository includes the models from `igor-models` as a git submodule.
+
+### Models Location
+
+- Submodule path: `models/`
+- Models path: `models/models/`
+- Source: `../igor-models` (relative path)
+- Content: model files for human (alpha, beta, heavy, IGK, IGL) and mouse (beta) chains
+
+### Updating Models
+
+To update the models from the upstream `igor-models` repository:
 
 ```shell
-cd ${IGOR_ROOT}/..
-git clone git@gitlab.inria.fr:ant-men/igor-stack/igor-models.git
-ln -s ${IGOR_ROOT}/../igor-models/models ${IGOR_ROOT}/models
+cd models
+git pull
+cd ..
 ```
 
-Then, one can execute igor as follows:
+## Example of Use
+
+To execute igor as follows:
 ```shell
 cd ${IGOR_ROOT}
 cd scripts
