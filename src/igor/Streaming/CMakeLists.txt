@@ -28,6 +28,15 @@ add_library(${CMAKE_PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 ## #################################################################
 
 target_sources(${PROJECT_NAME}
+  PUBLIC
+    FILE_SET HEADERS
+    BASE_DIRS
+      ${CMAKE_BINARY_DIR}/src
+    FILES
+      ${CMAKE_BINARY_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/Export.h
+)
+
+target_sources(${PROJECT_NAME}
   PRIVATE
     SequenceBatchHelpers.cpp
     ParquetWriter.cpp
@@ -35,14 +44,12 @@ target_sources(${PROJECT_NAME}
   PUBLIC
     FILE_SET HEADERS
     BASE_DIRS
-        ${PROJECT_BINARY_DIR}
-        ${PROJECT_SOURCE_DIR}
+      ${CMAKE_SOURCE_DIR}/src
     FILES
-      ${PROJECT_BINARY_DIR}/Export.h
-      SequenceBatchHelpers.h
-      ParquetWriter.h
-      ParquetReader.h
-      ArrowCompatibility.h
+      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/SequenceBatchHelpers.h
+      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/ParquetWriter.h
+      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/ParquetReader.h
+      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/ArrowCompatibility.h
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC

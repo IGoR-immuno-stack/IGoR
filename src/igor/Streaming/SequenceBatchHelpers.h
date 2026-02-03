@@ -24,6 +24,66 @@
  *   along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+/**
+ * @file SequenceBatchHelpers.h
+ * @brief Helper functions for converting sequences to/from Apache Arrow batch format
+ *
+ * This module provides conversion utilities that bridge two data representations:
+ *
+ * **"Batch" - Apache Arrow Terminology:**
+ * A `sparrow::record_batch` is the central data structure from the Arrow/Sparrow library.
+ * It represents a collection of rows (typically 1,000 to 1,000,000) stored in columnar
+ * format, optimized for efficient processing and I/O operations.
+ *
+ * In Arrow/Parquet world, a batch is:
+ * - A collection of rows stored in columnar format (data organized by column, not row)
+ * - A self-contained unit with schema + data
+ * - A chunk optimized for batch processing and compression
+ *
+ * **"Helpers" - Conversion Utilities:**
+ * These functions aren't the main I/O classes (ParquetWriter/ParquetReader). They are
+ * helper functions that assist with format conversion between:
+ *
+ * @code
+ *   IGoR Legacy Format               Apache Arrow Columnar Format
+ *   (row-oriented)              ↔    (column-oriented)
+ *   ------------------               --------------------
+ *   vector<Seq_data>            →    sparrow::record_batch
+ *                                    (via vector_to_batch)
+ *
+ *   sparrow::record_batch       →    vector<Seq_data>
+ *                                    (via row_to_sequence_data)
+ * @endcode
+ *
+ * **Purpose:**
+ * - ParquetWriter uses `vector_to_batch()` to convert sequences before writing
+ * - ParquetReader uses `row_to_sequence_data()` to convert sequences after reading
+ * - These helpers enable seamless integration between IGoR's internal format and
+ *   modern columnar storage systems (Parquet, Arrow IPC, etc.)
+ *
+ * **Columnar vs Row-Based Storage:**
+ *
+ * Row-based (CSV, TSV):
+ * @code
+ *   [seq1_id, seq1_sequence, seq1_v_gene, seq1_score]
+ *   [seq2_id, seq2_sequence, seq2_v_gene, seq2_score]
+ *   [seq3_id, seq3_sequence, seq3_v_gene, seq3_score]
+ * @endcode
+ *
+ * Columnar (Parquet):
+ * @code
+ *   Column 0: [seq1_id, seq2_id, seq3_id, ...]
+ *   Column 1: [seq1_sequence, seq2_sequence, seq3_sequence, ...]
+ *   Column 2: [seq1_v_gene, seq2_v_gene, seq3_v_gene, ...]
+ *   Column 3: [seq1_score, seq2_score, seq3_score, ...]
+ * @endcode
+ *
+ * Columnar format enables:
+ * - Better compression (similar data types compress together)
+ * - Selective column reading (read only the fields you need)
+ * - Efficient analytical queries on large datasets
+ */
+
 #pragma once
 
 #include <igor/Streaming/Export.h>
@@ -162,5 +222,31 @@ int get_int_value(const sparrow::record_batch &batch, const std::string &column_
  */
 double get_double_value(const sparrow::record_batch &batch, const std::string &column_name,
                         size_t row_index, double default_value = 0.0);
+
+/**
+ * @brief Get size_t value from batch, handling nulls
+ *
+ * @param batch The record_batch
+ * @param column_name Name of the column
+ * @param row_index Row index
+ * @param default_value Value to return if null or missing
+ * @return size_t value or default
+ */
+size_t get_size_t_value(const sparrow::record_batch &batch, const std::string &column_name,
+                        size_t row_index, size_t default_value = 0);
+
+/**
+ * @brief Get list of integers from batch, handling nulls and nested structures
+ *
+ * Extracts a list/array column from the batch and converts it to a std::vector<int>.
+ * Handles both Arrow list and fixed-size list types.
+ *
+ * @param batch The record_batch
+ * @param column_name Name of the column
+ * @param row_index Row index
+ * @return Vector of integers (empty if null or missing)
+ */
+std::vector<int> get_int_list_value(const sparrow::record_batch &batch,
+                                     const std::string &column_name, size_t row_index);
 
 } // namespace igor

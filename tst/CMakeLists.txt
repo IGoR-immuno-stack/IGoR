@@ -16,7 +16,12 @@ endif()
 
 # Add streaming tests
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/igor/Streaming")
-    file(GLOB STREAMING_TEST_SOURCES "igor/Streaming/*.cpp")
+    set(STREAMING_TEST_SOURCES
+        igor/Streaming/StreamingTestUtils.cpp
+        igor/Streaming/test_streaming_helpers.cpp
+        igor/Streaming/test_parquet_reader.cpp
+        igor/Streaming/test_parquet_writer.cpp
+    )
 
     if(STREAMING_TEST_SOURCES)
         add_executable(streaming_tests ${STREAMING_TEST_SOURCES})
@@ -29,6 +34,10 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/igor/Streaming")
                 sparrow::sparrow
                 Arrow::arrow_shared
                 Parquet::parquet_shared)
+
+        # Configure test data path at compile time
+        target_compile_definitions(streaming_tests PRIVATE
+            IGOR_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/igor/Streaming/test_data")
 
         # Register with CTest
         include(Catch)

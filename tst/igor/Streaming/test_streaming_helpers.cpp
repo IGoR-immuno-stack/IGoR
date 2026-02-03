@@ -5,297 +5,304 @@
  *      Author: IGoR Development Team
  *
  *  Unit tests for SequenceBatchHelpers module
+ *
+ *  Refactored to use Catch2 v3 features:
+ *  - TEST_CASE_METHOD for fixtures
+ *  - GENERATE for parametric tests
+ *  - SECTION for grouping related tests
+ *  - Matchers for cleaner assertions
+ *  - Proper BENCHMARK macro (hidden by default)
  */
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
+#include <catch2/generators/catch_generators_adapters.hpp>
+#include <catch2/matchers/catch_matchers_container_properties.hpp>
+#include <catch2/matchers/catch_matchers_contains.hpp>
+#include <catch2/matchers/catch_matchers_range_equals.hpp>
 #include <catch2/benchmark/catch_benchmark.hpp>
+
+#include "StreamingTestUtils.h"
 #include <igor/Streaming/SequenceBatchHelpers.h>
-#include <sparrow/record_batch.hpp>
-#include <sparrow/array.hpp>
-#include <sparrow/builder.hpp>
-#include <chrono>
 
 using namespace igor;
+using namespace igor::test;
+using namespace Catch::Matchers;
 
-// Helper function to create a test batch
-static sparrow::record_batch create_test_batch()
+//==============================================================================
+// Fixtures
+//==============================================================================
+
+struct HelpersFixture
 {
-    std::vector<std::string> names = { "sequence_id", "sequence" };
-    std::vector<sparrow::array> arrays;
+    sparrow::record_batch batch = create_test_batch();
+};
 
-    // Create ID array using builder
-    std::vector<int32_t> ids = { 0, 1, 2 };
-    arrays.emplace_back(sparrow::build(ids));
+//==============================================================================
+// has_column tests
+//==============================================================================
 
-    // Create sequence array using builder
-    std::vector<std::string> sequences = { "ATCGATCGATCG", "GCTAGCTAGCTA", "TTAATTAATTAA" };
-    arrays.emplace_back(sparrow::build(sequences));
-
-    return sparrow::record_batch(std::move(names), std::move(arrays));
-}
-
-// Test: has_column function
-TEST_CASE("has_column detects existing columns", "[streaming][helpers]")
+TEST_CASE_METHOD(HelpersFixture, "has_column", "[streaming][helpers]")
 {
-    auto test_batch = create_test_batch();
-    REQUIRE(has_column(test_batch, "sequence_id"));
-    REQUIRE(has_column(test_batch, "sequence"));
-}
+    SECTION("detects existing columns")
+    {
+        REQUIRE(has_column(batch, "sequence_id"));
+        REQUIRE(has_column(batch, "sequence"));
+    }
 
-TEST_CASE("has_column returns false for missing columns", "[streaming][helpers]")
-{
-    auto test_batch = create_test_batch();
-    REQUIRE_FALSE(has_column(test_batch, "nonexistent_column"));
-    REQUIRE_FALSE(has_column(test_batch, "v_gene_name"));
-}
-
-// Test: get_string_value function
-TEST_CASE("get_string_value returns correct value", "[streaming][helpers]")
-{
-    auto test_batch = create_test_batch();
-
-    std::string seq = get_string_value(test_batch, "sequence", 0);
-    REQUIRE(seq == "ATCGATCGATCG");
-
-    seq = get_string_value(test_batch, "sequence", 1);
-    REQUIRE(seq == "GCTAGCTAGCTA");
-
-    seq = get_string_value(test_batch, "sequence", 2);
-    REQUIRE(seq == "TTAATTAATTAA");
-}
-
-TEST_CASE("get_string_value returns default for missing column", "[streaming][helpers]")
-{
-    auto test_batch = create_test_batch();
-    std::string result = get_string_value(test_batch, "missing", 0, "default");
-    REQUIRE(result == "default");
-}
-
-// Test: get_int_value function
-TEST_CASE("get_int_value returns correct value", "[streaming][helpers]")
-{
-    auto test_batch = create_test_batch();
-
-    int id = get_int_value(test_batch, "sequence_id", 0);
-    REQUIRE(id == 0);
-
-    id = get_int_value(test_batch, "sequence_id", 1);
-    REQUIRE(id == 1);
-
-    id = get_int_value(test_batch, "sequence_id", 2);
-    REQUIRE(id == 2);
-}
-
-TEST_CASE("get_int_value returns default for missing column", "[streaming][helpers]")
-{
-    auto test_batch = create_test_batch();
-    int result = get_int_value(test_batch, "missing", 0, -999);
-    REQUIRE(result == -999);
-}
-
-// Test: row_to_sequence_data function
-TEST_CASE("row_to_sequence_data converts correctly", "[streaming][helpers]")
-{
-    auto test_batch = create_test_batch();
-    SequenceData seq_data = row_to_sequence_data(test_batch, 0);
-
-    REQUIRE(seq_data.index == 0);
-    REQUIRE(seq_data.sequence == "ATCGATCGATCG");
-}
-
-TEST_CASE("row_to_sequence_data handles all rows", "[streaming][helpers]")
-{
-    auto test_batch = create_test_batch();
-    for (size_t i = 0; i < test_batch.nb_rows(); ++i) {
-        SequenceData seq_data = row_to_sequence_data(test_batch, i);
-        REQUIRE(seq_data.index == static_cast<int>(i));
-        REQUIRE_FALSE(seq_data.sequence.empty());
+    SECTION("returns false for missing columns")
+    {
+        auto col = GENERATE("nonexistent_column", "v_gene_name", "");
+        CAPTURE(col);
+        REQUIRE_FALSE(has_column(batch, col));
     }
 }
 
-TEST_CASE("row_to_sequence_data throws on invalid index", "[streaming][helpers]")
+//==============================================================================
+// get_*_value tests
+//==============================================================================
+
+TEST_CASE_METHOD(HelpersFixture, "get_string_value", "[streaming][helpers]")
 {
-    auto test_batch = create_test_batch();
-    REQUIRE_THROWS_AS(row_to_sequence_data(test_batch, 999), std::out_of_range);
-}
+    SECTION("returns correct values")
+    {
+        auto [row, expected] = GENERATE(table<size_t, std::string>({
+            {0, "ATCGATCGATCG"},
+            {1, "GCTAGCTAGCTA"},
+            {2, "TTAATTAATTAA"}
+        }));
 
-TEST_CASE("row_to_sequence_data throws on missing sequence column", "[streaming][helpers]")
-{
-    // Create a batch without "sequence" column
-    std::vector<std::string> names = { "sequence_id" };
-    std::vector<sparrow::array> arrays;
+        CAPTURE(row);
+        REQUIRE(get_string_value(batch, "sequence", row) == expected);
+    }
 
-    arrays.emplace_back(sparrow::build(std::vector<int32_t>{ 0 }));
-
-    sparrow::record_batch bad_batch(std::move(names), std::move(arrays));
-
-    REQUIRE_THROWS_AS(row_to_sequence_data(bad_batch, 0), std::runtime_error);
-}
-
-// Test: vector_to_batch function
-TEST_CASE("vector_to_batch converts empty vector", "[streaming][helpers]")
-{
-    std::vector<std::tuple<int, std::string,
-                           std::unordered_map<Gene_class, std::vector<Alignment_data>>>>
-            empty_vec;
-
-    sparrow::record_batch batch = vector_to_batch(empty_vec);
-
-    REQUIRE(batch.nb_rows() == 0);
-    REQUIRE(has_column(batch, "sequence_id"));
-    REQUIRE(has_column(batch, "sequence"));
-}
-
-TEST_CASE("vector_to_batch converts single sequence", "[streaming][helpers]")
-{
-    std::vector<std::tuple<int, std::string,
-                           std::unordered_map<Gene_class, std::vector<Alignment_data>>>>
-            sequences;
-
-    std::unordered_map<Gene_class, std::vector<Alignment_data>> empty_alignments;
-    sequences.emplace_back(42, "ACGTACGTACGT", empty_alignments);
-
-    sparrow::record_batch batch = vector_to_batch(sequences);
-
-    REQUIRE(batch.nb_rows() == 1);
-
-    SequenceData seq_data = row_to_sequence_data(batch, 0);
-    REQUIRE(seq_data.index == 42);
-    REQUIRE(seq_data.sequence == "ACGTACGTACGT");
-}
-
-TEST_CASE("vector_to_batch converts multiple sequences", "[streaming][helpers]")
-{
-    std::vector<std::tuple<int, std::string,
-                           std::unordered_map<Gene_class, std::vector<Alignment_data>>>>
-            sequences;
-
-    std::unordered_map<Gene_class, std::vector<Alignment_data>> empty_alignments;
-
-    sequences.emplace_back(0, "AAAA", empty_alignments);
-    sequences.emplace_back(1, "TTTT", empty_alignments);
-    sequences.emplace_back(2, "GGGG", empty_alignments);
-    sequences.emplace_back(3, "CCCC", empty_alignments);
-
-    sparrow::record_batch batch = vector_to_batch(sequences);
-
-    REQUIRE(batch.nb_rows() == 4);
-
-    for (size_t i = 0; i < 4; ++i) {
-        SequenceData seq_data = row_to_sequence_data(batch, i);
-        REQUIRE(seq_data.index == static_cast<int>(i));
+    SECTION("returns default for missing column")
+    {
+        REQUIRE(get_string_value(batch, "missing", 0, "default") == "default");
     }
 }
 
-// Test: Round-trip conversion (vector → batch → SequenceData)
+TEST_CASE_METHOD(HelpersFixture, "get_int_value", "[streaming][helpers]")
+{
+    SECTION("returns correct values")
+    {
+        auto row = GENERATE(0, 1, 2);
+        CAPTURE(row);
+        REQUIRE(get_int_value(batch, "sequence_id", row) == row);
+    }
+
+    SECTION("returns default for missing column")
+    {
+        REQUIRE(get_int_value(batch, "missing", 0, -999) == -999);
+    }
+}
+
+TEST_CASE_METHOD(HelpersFixture, "get_double_value", "[streaming][helpers]")
+{
+    SECTION("returns default for missing column")
+    {
+        REQUIRE(get_double_value(batch, "nonexistent", 0, 3.14) == 3.14);
+    }
+}
+
+//==============================================================================
+// row_to_sequence_data tests
+//==============================================================================
+
+TEST_CASE_METHOD(HelpersFixture, "row_to_sequence_data", "[streaming][helpers]")
+{
+    SECTION("converts first row correctly")
+    {
+        auto seq_data = row_to_sequence_data(batch, 0);
+        REQUIRE(seq_data.index == 0);
+        REQUIRE(seq_data.sequence == "ATCGATCGATCG");
+    }
+
+    SECTION("handles all rows")
+    {
+        auto row = GENERATE(size_t{0}, size_t{1}, size_t{2});
+        CAPTURE(row);
+
+        auto seq_data = row_to_sequence_data(batch, row);
+        REQUIRE(seq_data.index == static_cast<int>(row));
+        REQUIRE_THAT(seq_data.sequence, !IsEmpty());
+    }
+
+    SECTION("throws on invalid index")
+    {
+        REQUIRE_THROWS_AS(row_to_sequence_data(batch, 999), std::out_of_range);
+    }
+
+    SECTION("throws on missing sequence column")
+    {
+        // Create batch without "sequence" column
+        std::vector<std::string> names = {"sequence_id"};
+        std::vector<sparrow::array> arrays;
+        arrays.emplace_back(sparrow::build(std::vector<int32_t>{0}));
+        sparrow::record_batch bad_batch(std::move(names), std::move(arrays));
+
+        REQUIRE_THROWS_AS(row_to_sequence_data(bad_batch, 0), std::runtime_error);
+    }
+}
+
+//==============================================================================
+// vector_to_batch tests
+//==============================================================================
+
+TEST_CASE("vector_to_batch", "[streaming][helpers]")
+{
+    SECTION("converts empty vector")
+    {
+        std::vector<SequenceTuple> empty_vec;
+        auto batch = vector_to_batch(empty_vec);
+
+        REQUIRE(batch.nb_rows() == 0);
+        REQUIRE(has_column(batch, "sequence_id"));
+        REQUIRE(has_column(batch, "sequence"));
+    }
+
+    SECTION("converts various sizes")
+    {
+        auto count = GENERATE(1, 4, 50);
+        CAPTURE(count);
+
+        auto sequences = create_test_sequences(static_cast<size_t>(count));
+        auto batch = vector_to_batch(sequences);
+
+        REQUIRE(batch.nb_rows() == static_cast<size_t>(count));
+
+        for (size_t i = 0; i < batch.nb_rows(); ++i) {
+            auto seq_data = row_to_sequence_data(batch, i);
+            REQUIRE(seq_data.index == static_cast<int>(i));
+        }
+    }
+}
+
+//==============================================================================
+// Round-trip tests
+//==============================================================================
+
 TEST_CASE("round-trip conversion preserves data", "[streaming][helpers]")
 {
-    std::vector<std::tuple<int, std::string,
-                           std::unordered_map<Gene_class, std::vector<Alignment_data>>>>
-            original_sequences;
+    auto count = GENERATE(1, 10, 100);
+    CAPTURE(count);
 
-    std::unordered_map<Gene_class, std::vector<Alignment_data>> empty_alignments;
+    auto original = create_test_sequences(static_cast<size_t>(count));
+    auto batch = vector_to_batch(original);
 
-    // Create test sequences
-    original_sequences.emplace_back(100, "ATCGATCGATCG", empty_alignments);
-    original_sequences.emplace_back(200, "GCTAGCTAGCTA", empty_alignments);
-    original_sequences.emplace_back(300, "TTAATTAATTAA", empty_alignments);
+    REQUIRE(batch.nb_rows() == original.size());
 
-    // Convert to batch
-    sparrow::record_batch batch = vector_to_batch(original_sequences);
-
-    // Convert back and verify
-    for (size_t i = 0; i < original_sequences.size(); ++i) {
-        SequenceData seq_data = row_to_sequence_data(batch, i);
-
-        REQUIRE(seq_data.index == std::get<0>(original_sequences[i]));
-        REQUIRE(seq_data.sequence == std::get<1>(original_sequences[i]));
+    for (size_t i = 0; i < original.size(); ++i) {
+        auto recovered = row_to_sequence_data(batch, i);
+        REQUIRE(recovered.index == std::get<0>(original[i]));
+        REQUIRE(recovered.sequence == std::get<1>(original[i]));
     }
 }
 
-// Test: Null handling
-TEST_CASE("null handling works correctly", "[streaming][helpers]")
+TEST_CASE("round-trip with populated alignments", "[streaming][helpers][regression]")
 {
-    auto test_batch = create_test_batch();
-    // get_string_value, get_int_value, get_double_value should handle nulls gracefully
-    // by returning default values
+    // Regression test: ensures alignment list fields survive round-trip
+    auto [id, seq, alignments] = create_sequence_with_v_alignment(1, "ACGT");
 
-    double result = get_double_value(test_batch, "nonexistent", 0, 3.14);
-    REQUIRE(result == 3.14);
+    std::vector<SequenceTuple> sequences = {{id, seq, alignments}};
+    auto batch = vector_to_batch(sequences);
+    auto recovered = row_to_sequence_data(batch, 0);
+
+    REQUIRE(recovered.alignments.count(V_gene) == 1);
+    REQUIRE(recovered.alignments.at(V_gene).size() == 1);
+
+    const auto& orig = alignments.at(V_gene)[0];
+    const auto& res = recovered.alignments.at(V_gene)[0];
+
+    REQUIRE(res.gene_name == orig.gene_name);
+    REQUIRE(res.offset == orig.offset);
+    REQUIRE(res.score == orig.score);
+
+    // Compare forward_list fields
+    std::vector<int> orig_ins(orig.insertions.begin(), orig.insertions.end());
+    std::vector<int> res_ins(res.insertions.begin(), res.insertions.end());
+    REQUIRE_THAT(res_ins, RangeEquals(orig_ins));
+
+    std::vector<int> orig_del(orig.deletions.begin(), orig.deletions.end());
+    std::vector<int> res_del(res.deletions.begin(), res.deletions.end());
+    REQUIRE_THAT(res_del, RangeEquals(orig_del));
+
+    REQUIRE(res.mismatches == orig.mismatches);
 }
 
-// Test: parse_alignments_from_columns
-TEST_CASE("parse_alignments returns empty for no alignment columns", "[streaming][helpers]")
+//==============================================================================
+// parse_alignments tests
+//==============================================================================
+
+TEST_CASE_METHOD(HelpersFixture, "parse_alignments_from_columns", "[streaming][helpers]")
 {
-    auto test_batch = create_test_batch();
-    auto alignments = parse_alignments_from_columns(test_batch, 0);
-
-    // Should return empty map when no alignment columns present
-    REQUIRE(alignments.empty());
-}
-
-TEST_CASE("parse_alignments extracts V gene data", "[streaming][helpers]")
-{
-    // Create a batch with V gene alignment data
-    std::vector<std::string> names = { "sequence_id", "sequence", "v_gene_name", "v_gene_offset",
-                                       "v_gene_score" };
-    std::vector<sparrow::array> arrays;
-
-    // Create arrays using builder
-    arrays.emplace_back(sparrow::build(std::vector<int32_t>{ 0 }));
-    arrays.emplace_back(sparrow::build(std::vector<std::string>{ "ATCG" }));
-    arrays.emplace_back(sparrow::build(std::vector<std::string>{ "IGHV1-1*01" }));
-    arrays.emplace_back(sparrow::build(std::vector<int32_t>{ 5 }));
-    arrays.emplace_back(sparrow::build(std::vector<double>{ 150.5 }));
-
-    sparrow::record_batch batch(std::move(names), std::move(arrays));
-
-    auto alignments = parse_alignments_from_columns(batch, 0);
-
-    REQUIRE_FALSE(alignments.empty());
-    REQUIRE(alignments.find(V_gene) != alignments.end());
-    REQUIRE(alignments[V_gene].size() == 1);
-    REQUIRE(alignments[V_gene][0].gene_name == "IGHV1-1*01");
-    REQUIRE(alignments[V_gene][0].offset == 5);
-    REQUIRE(alignments[V_gene][0].score == 150.5);
-}
-
-// Performance test: verify conversion speed meets target (≥100K conversions/second)
-TEST_CASE("performance conversion speed", "[streaming][helpers][!benchmark]")
-{
-    // Create a larger batch for performance testing
-    const size_t num_sequences = 10000;
-
-    std::vector<std::tuple<int, std::string,
-                           std::unordered_map<Gene_class, std::vector<Alignment_data>>>>
-            sequences;
-    sequences.reserve(num_sequences);
-
-    std::unordered_map<Gene_class, std::vector<Alignment_data>> empty_alignments;
-
-    for (size_t i = 0; i < num_sequences; ++i) {
-        sequences.emplace_back(static_cast<int>(i), "ATCGATCGATCGATCG", empty_alignments);
+    SECTION("returns empty for batch without alignment columns")
+    {
+        auto alignments = parse_alignments_from_columns(batch, 0);
+        REQUIRE_THAT(alignments, IsEmpty());
     }
 
-    sparrow::record_batch batch = vector_to_batch(sequences);
+    SECTION("extracts V gene data")
+    {
+        // Create batch with V gene alignment data
+        std::vector<std::string> names = {
+            "sequence_id", "sequence",
+            "v_gene_name", "v_gene_offset", "v_gene_score"
+        };
+        std::vector<sparrow::array> arrays;
 
-    // Time the conversions
-    auto start = std::chrono::high_resolution_clock::now();
+        arrays.emplace_back(sparrow::build(std::vector<int32_t>{0}));
+        arrays.emplace_back(sparrow::build(std::vector<std::string>{"ATCG"}));
+        arrays.emplace_back(sparrow::build(std::vector<std::string>{"IGHV1-1*01"}));
+        arrays.emplace_back(sparrow::build(std::vector<int32_t>{5}));
+        arrays.emplace_back(sparrow::build(std::vector<double>{150.5}));
 
-    for (size_t i = 0; i < batch.nb_rows(); ++i) {
-        SequenceData seq_data = row_to_sequence_data(batch, i);
-        // Prevent optimization from removing the conversion
-        REQUIRE_FALSE(seq_data.sequence.empty());
+        sparrow::record_batch v_batch(std::move(names), std::move(arrays));
+        auto alignments = parse_alignments_from_columns(v_batch, 0);
+
+        REQUIRE_THAT(alignments, !IsEmpty());
+        REQUIRE(alignments.count(V_gene) == 1);
+        REQUIRE(alignments.at(V_gene).size() == 1);
+
+        const auto& v = alignments.at(V_gene)[0];
+        REQUIRE(v.gene_name == "IGHV1-1*01");
+        REQUIRE(v.offset == 5);
+        REQUIRE(v.score == 150.5);
     }
+}
 
-    auto end = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+//==============================================================================
+// Benchmarks (hidden by default, run with [.benchmark])
+//==============================================================================
 
-    double conversions_per_second = (num_sequences * 1000.0) / duration.count();
+TEST_CASE("Conversion benchmarks", "[.benchmark]")
+{
+    constexpr size_t NUM_SEQUENCES = 10000;
+    auto sequences = create_test_sequences(NUM_SEQUENCES);
+    auto batch = vector_to_batch(sequences);
 
-    INFO("Conversion performance: " << conversions_per_second << " conversions/second");
+    BENCHMARK("row_to_sequence_data - single row")
+    {
+        return row_to_sequence_data(batch, 0);
+    };
 
-    // Target: ≥100K conversions/second
-    // We'll use a relaxed threshold for CI environments
-    REQUIRE(conversions_per_second > 50000);
+    BENCHMARK("row_to_sequence_data - all rows")
+    {
+        for (size_t i = 0; i < batch.nb_rows(); ++i) {
+            auto seq = row_to_sequence_data(batch, i);
+            (void)seq;  // Prevent optimization
+        }
+    };
+
+    BENCHMARK("vector_to_batch - 100 sequences")
+    {
+        auto small = create_test_sequences(100);
+        return vector_to_batch(small);
+    };
+
+    BENCHMARK("vector_to_batch - 1000 sequences")
+    {
+        auto medium = create_test_sequences(1000);
+        return vector_to_batch(medium);
+    };
 }

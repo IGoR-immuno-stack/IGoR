@@ -5,12 +5,25 @@
  *      Author: IGoR Development Team
  *
  *  Unit tests for ParquetWriter module
+ *
+ *  Refactored to use Catch2 v3 features:
+ *  - TEST_CASE_METHOD for fixtures with RAII cleanup
+ *  - GENERATE for parametric tests
+ *  - SECTION for grouping related tests
+ *  - Matchers for cleaner assertions
+ *  - Proper BENCHMARK macro (hidden by default)
  */
 
 // Include Arrow compatibility workarounds before any other headers
 #include <igor/Streaming/ArrowCompatibility.h>
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
+#include <catch2/matchers/catch_matchers_container_properties.hpp>
+#include <catch2/matchers/catch_matchers_contains.hpp>
+#include <catch2/benchmark/catch_benchmark.hpp>
+
+#include "StreamingTestUtils.h"
 #include <igor/Streaming/ParquetWriter.h>
 #include <igor/Streaming/SequenceBatchHelpers.h>
 
@@ -18,151 +31,43 @@
 #include <arrow/io/api.h>
 #include <parquet/arrow/reader.h>
 
-#include <sparrow/record_batch.hpp>
-#include <sparrow/builder.hpp>
-
-#include <filesystem>
-#include <fstream>
-
 using namespace igor;
+using namespace igor::test;
+using namespace Catch::Matchers;
 
-// Test fixture for Parquet writer tests
-static const std::string TEST_OUTPUT_DIR = "/tmp/igor_parquet_tests";
+//==============================================================================
+// Fixtures
+//==============================================================================
 
-// Helper to ensure test directory exists
-static void setup_test_directory()
+/**
+ * @brief Fixture for ParquetWriter tests with automatic directory cleanup
+ */
+struct ParquetWriterFixture
 {
-    std::filesystem::create_directories(TEST_OUTPUT_DIR);
-}
+    TestDirectory test_dir{"igor_parquet_writer_tests"};
 
-// Helper to clean up test files
-static void cleanup_test_file(const std::string &filename)
+    std::string path(const std::string& name) { return test_dir.path(name); }
+};
+
+//==============================================================================
+// Basic write tests
+//==============================================================================
+
+TEST_CASE_METHOD(ParquetWriterFixture, "write simple parquet file", "[parquet][writer]")
 {
-    std::filesystem::path filepath = std::filesystem::path(TEST_OUTPUT_DIR) / filename;
-    if (std::filesystem::exists(filepath)) {
-        std::filesystem::remove(filepath);
-    }
-}
-
-// Helper to get full test path
-static std::string test_path(const std::string &filename)
-{
-    return (std::filesystem::path(TEST_OUTPUT_DIR) / filename).string();
-}
-
-// Helper to create test sequences
-static std::vector<std::tuple<int, std::string,
-                              std::unordered_map<Gene_class, std::vector<Alignment_data>>>>
-create_test_sequences(size_t count)
-{
-    std::vector<std::tuple<int, std::string,
-                           std::unordered_map<Gene_class, std::vector<Alignment_data>>>>
-            sequences;
-    sequences.reserve(count);
-
-    std::unordered_map<Gene_class, std::vector<Alignment_data>> empty_alignments;
-
-    for (size_t i = 0; i < count; ++i) {
-        std::string seq = "ATCG";
-        for (size_t j = 0; j < i % 10; ++j) {
-            seq += "ACGT";
-        }
-        sequences.emplace_back(static_cast<int>(i), seq, empty_alignments);
-    }
-
-    return sequences;
-}
-
-// Test: Write simple Parquet file
-TEST_CASE("write simple parquet file", "[parquet][writer]")
-{
-    setup_test_directory();
-    std::string output_file = test_path("simple_test.parquet");
-    cleanup_test_file("simple_test.parquet");
-
-    // Create test sequences
     auto sequences = create_test_sequences(10);
+    auto output = path("simple.parquet");
 
-    // Write to Parquet
-    REQUIRE_NOTHROW(ParquetWriter::write_sequences(output_file, sequences));
+    REQUIRE_NOTHROW(ParquetWriter::write_sequences(output, sequences));
+    REQUIRE(std::filesystem::exists(output));
 
-    // Verify file exists
-    REQUIRE(std::filesystem::exists(output_file));
-
-    // Verify file size is reasonable (should be small)
-    auto file_size = std::filesystem::file_size(output_file);
+    auto file_size = std::filesystem::file_size(output);
     REQUIRE(file_size > 0);
-    REQUIRE(file_size < 10000); // Should be small for 10 sequences
-
-    cleanup_test_file("simple_test.parquet");
+    REQUIRE(file_size < 10000);  // Small file for 10 sequences
 }
 
-// Test: Write with different compression types
-TEST_CASE("write with compression types", "[parquet][writer][compression]")
+TEST_CASE_METHOD(ParquetWriterFixture, "write from record_batch", "[parquet][writer]")
 {
-    setup_test_directory();
-
-    auto sequences = create_test_sequences(100);
-
-    std::vector<CompressionType> compressions = {
-        CompressionType::NONE, CompressionType::SNAPPY, CompressionType::GZIP,
-        CompressionType::ZSTD, CompressionType::LZ4
-    };
-
-    for (auto compression : compressions) {
-        std::string filename = "test_" + ParquetWriter::compression_name(compression) + ".parquet";
-        std::string output_file = test_path(filename);
-        cleanup_test_file(filename);
-
-        INFO("Testing compression: " << ParquetWriter::compression_name(compression));
-
-        REQUIRE_NOTHROW(ParquetWriter::write_sequences(output_file, sequences, compression));
-        REQUIRE(std::filesystem::exists(output_file));
-
-        cleanup_test_file(filename);
-    }
-}
-
-// Test: Compression reduces file size
-TEST_CASE("compression reduces file size", "[parquet][writer][compression]")
-{
-    setup_test_directory();
-
-    auto sequences = create_test_sequences(1000);
-
-    std::string uncompressed_file = test_path("uncompressed.parquet");
-    std::string snappy_file = test_path("snappy.parquet");
-
-    cleanup_test_file("uncompressed.parquet");
-    cleanup_test_file("snappy.parquet");
-
-    // Write without compression
-    ParquetWriter::write_sequences(uncompressed_file, sequences, CompressionType::NONE);
-
-    // Write with Snappy compression
-    ParquetWriter::write_sequences(snappy_file, sequences, CompressionType::SNAPPY);
-
-    auto uncompressed_size = std::filesystem::file_size(uncompressed_file);
-    auto snappy_size = std::filesystem::file_size(snappy_file);
-
-    INFO("Uncompressed: " << uncompressed_size << " bytes");
-    INFO("Snappy: " << snappy_size << " bytes");
-    INFO("Compression ratio: " << (double)uncompressed_size / snappy_size << "x");
-
-    // Snappy should provide some compression
-    REQUIRE(snappy_size < uncompressed_size);
-
-    cleanup_test_file("uncompressed.parquet");
-    cleanup_test_file("snappy.parquet");
-}
-
-// Test: Write from record_batch
-TEST_CASE("write from record_batch", "[parquet][writer]")
-{
-    setup_test_directory();
-    std::string output_file = test_path("batch_test.parquet");
-    cleanup_test_file("batch_test.parquet");
-
     // Create batch using builder
     std::vector<int32_t> ids = {0, 1, 2, 3, 4};
     std::vector<std::string> sequences = {"ATCG", "GCTA", "TTAA", "GGCC", "ATAT"};
@@ -176,127 +81,202 @@ TEST_CASE("write from record_batch", "[parquet][writer]")
     sparrow::record_batch batch(std::move(names), std::move(arrays));
 
     // Write batch
-    REQUIRE_NOTHROW(ParquetWriter::write_batch(output_file, batch));
-
-    // Verify file exists
-    REQUIRE(std::filesystem::exists(output_file));
-
-    cleanup_test_file("batch_test.parquet");
+    REQUIRE_NOTHROW(ParquetWriter::write_batch(path("batch.parquet"), batch));
+    REQUIRE(std::filesystem::exists(path("batch.parquet")));
 }
 
-// Test: Verify Parquet file is readable by Arrow
-TEST_CASE("parquet file is readable by arrow", "[parquet][writer][validation]")
+//==============================================================================
+// Compression tests (using GENERATE)
+//==============================================================================
+
+TEST_CASE_METHOD(ParquetWriterFixture, "write with compression", "[parquet][writer][compression]")
 {
-    setup_test_directory();
-    std::string output_file = test_path("arrow_readable.parquet");
-    cleanup_test_file("arrow_readable.parquet");
+    auto compression = GENERATE(
+        CompressionType::NONE,
+        CompressionType::SNAPPY,
+        CompressionType::GZIP,
+        CompressionType::ZSTD,
+        CompressionType::LZ4
+    );
 
-    // Create and write test data
+    CAPTURE(ParquetWriter::compression_name(compression));
+
+    auto sequences = create_test_sequences(100);
+    auto output = path("test_" + ParquetWriter::compression_name(compression) + ".parquet");
+
+    REQUIRE_NOTHROW(ParquetWriter::write_sequences(output, sequences, compression));
+    REQUIRE(std::filesystem::exists(output));
+}
+
+TEST_CASE_METHOD(ParquetWriterFixture, "compression reduces file size", "[parquet][writer][compression]")
+{
+    auto sequences = create_test_sequences(1000);
+
+    ParquetWriter::write_sequences(path("uncompressed.parquet"), sequences, CompressionType::NONE);
+    ParquetWriter::write_sequences(path("snappy.parquet"), sequences, CompressionType::SNAPPY);
+
+    auto uncompressed_size = std::filesystem::file_size(path("uncompressed.parquet"));
+    auto snappy_size = std::filesystem::file_size(path("snappy.parquet"));
+
+    CAPTURE(uncompressed_size, snappy_size);
+    INFO("Compression ratio: " << static_cast<double>(uncompressed_size) / snappy_size << "x");
+
+    REQUIRE(snappy_size < uncompressed_size);
+}
+
+//==============================================================================
+// Edge cases
+//==============================================================================
+
+TEST_CASE_METHOD(ParquetWriterFixture, "edge cases", "[parquet][writer][edge]")
+{
+    SECTION("empty sequences")
+    {
+        std::vector<SequenceTuple> empty;
+        REQUIRE_NOTHROW(ParquetWriter::write_sequences(path("empty.parquet"), empty));
+        REQUIRE(std::filesystem::exists(path("empty.parquet")));
+
+        // Verify it's readable
+        auto input = arrow::io::ReadableFile::Open(path("empty.parquet"));
+        REQUIRE(input.ok());
+
+        std::unique_ptr<parquet::arrow::FileReader> reader;
+        REQUIRE(parquet::arrow::OpenFile(*input, arrow::default_memory_pool(), &reader).ok());
+
+        auto metadata = reader->parquet_reader()->metadata();
+        REQUIRE(metadata->num_rows() == 0);
+    }
+
+    SECTION("invalid path throws")
+    {
+        auto sequences = create_test_sequences(10);
+        REQUIRE_THROWS_AS(
+            ParquetWriter::write_sequences("/nonexistent_directory/invalid/test.parquet", sequences),
+            std::runtime_error
+        );
+    }
+}
+
+//==============================================================================
+// Validation tests
+//==============================================================================
+
+TEST_CASE_METHOD(ParquetWriterFixture, "parquet file is readable by Arrow", "[parquet][writer][validation]")
+{
     auto sequences = create_test_sequences(50);
-    ParquetWriter::write_sequences(output_file, sequences);
+    ParquetWriter::write_sequences(path("arrow_readable.parquet"), sequences);
 
-    // Try to read with Arrow Parquet reader
-    auto input_result = arrow::io::ReadableFile::Open(output_file);
-    REQUIRE(input_result.ok());
-
-    auto input_stream = input_result.ValueOrDie();
+    // Read with Arrow Parquet reader
+    auto input = arrow::io::ReadableFile::Open(path("arrow_readable.parquet"));
+    REQUIRE(input.ok());
 
     std::unique_ptr<parquet::arrow::FileReader> reader;
-    auto reader_status = parquet::arrow::OpenFile(input_stream, arrow::default_memory_pool(), &reader);
-    REQUIRE(reader_status.ok());
+    REQUIRE(parquet::arrow::OpenFile(*input, arrow::default_memory_pool(), &reader).ok());
 
-    // Read metadata
+    // Verify metadata
     auto metadata = reader->parquet_reader()->metadata();
     REQUIRE(metadata->num_rows() == 50);
-    REQUIRE(metadata->num_columns() == 2); // sequence_id, sequence
 
-    // Read table
+    // 2 basic columns + 9 fields × 3 gene classes = 29 columns
+    constexpr int EXPECTED_COLUMNS = 29;
+    REQUIRE(metadata->num_columns() == EXPECTED_COLUMNS);
+
+    // Read full table
     std::shared_ptr<arrow::Table> table;
-    auto read_status = reader->ReadTable(&table);
-    REQUIRE(read_status.ok());
+    REQUIRE(reader->ReadTable(&table).ok());
     REQUIRE(table->num_rows() == 50);
-
-    cleanup_test_file("arrow_readable.parquet");
 }
 
-// Test: Empty sequences
-TEST_CASE("write empty sequences", "[parquet][writer][edge-case]")
+//==============================================================================
+// Utility function tests
+//==============================================================================
+
+TEST_CASE("compression_name", "[parquet][writer][utility]")
 {
-    setup_test_directory();
-    std::string output_file = test_path("empty.parquet");
-    cleanup_test_file("empty.parquet");
+    auto [type, expected] = GENERATE(table<CompressionType, std::string>({
+        {CompressionType::NONE, "NONE"},
+        {CompressionType::SNAPPY, "SNAPPY"},
+        {CompressionType::GZIP, "GZIP"},
+        {CompressionType::ZSTD, "ZSTD"},
+        {CompressionType::LZ4, "LZ4"}
+    }));
 
-    std::vector<std::tuple<int, std::string,
-                           std::unordered_map<Gene_class, std::vector<Alignment_data>>>>
-            empty_sequences;
+    REQUIRE(ParquetWriter::compression_name(type) == expected);
+}
 
-    REQUIRE_NOTHROW(ParquetWriter::write_sequences(output_file, empty_sequences));
-    REQUIRE(std::filesystem::exists(output_file));
+//==============================================================================
+// Real data integration tests (hidden by default)
+//==============================================================================
 
-    // Verify it's readable
-    auto input_result = arrow::io::ReadableFile::Open(output_file);
-    REQUIRE(input_result.ok());
+TEST_CASE_METHOD(ParquetWriterFixture, "write Murugan dataset", "[parquet][writer][.integration]")
+{
+    auto real_sequences = load_murugan_dataset();
+    REQUIRE(real_sequences.size() == 300);
+
+    INFO("Loaded " << real_sequences.size() << " sequences from Murugan dataset");
+
+    REQUIRE_NOTHROW(ParquetWriter::write_sequences(path("murugan.parquet"), real_sequences));
+    REQUIRE(std::filesystem::exists(path("murugan.parquet")));
+
+    auto file_size = std::filesystem::file_size(path("murugan.parquet"));
+    CAPTURE(file_size);
+    REQUIRE(file_size > 10000);  // Should have substantial data
+
+    // Verify with Arrow
+    auto input = arrow::io::ReadableFile::Open(path("murugan.parquet"));
+    REQUIRE(input.ok());
 
     std::unique_ptr<parquet::arrow::FileReader> reader;
-    auto reader_status = parquet::arrow::OpenFile(input_result.ValueOrDie(),
-                                                  arrow::default_memory_pool(), &reader);
-    REQUIRE(reader_status.ok());
+    REQUIRE(parquet::arrow::OpenFile(*input, arrow::default_memory_pool(), &reader).ok());
 
-    auto metadata = reader->parquet_reader()->metadata();
-    REQUIRE(metadata->num_rows() == 0);
+    std::shared_ptr<arrow::Table> table;
+    REQUIRE(reader->ReadTable(&table).ok());
 
-    cleanup_test_file("empty.parquet");
+    constexpr int EXPECTED_COLUMNS = 29;  // 2 basic + 27 alignment fields
+    REQUIRE(table->num_rows() == 300);
+    REQUIRE(table->num_columns() == EXPECTED_COLUMNS);
+
+    // Verify alignment column presence
+    auto schema = table->schema();
+    bool has_v_insertions = false;
+    bool has_d_gene_name = false;
+    bool has_j_score = false;
+
+    for (int i = 0; i < schema->num_fields(); ++i) {
+        std::string name = schema->field(i)->name();
+        if (name == "v_gene_insertions") has_v_insertions = true;
+        if (name == "d_gene_name") has_d_gene_name = true;
+        if (name == "j_gene_score") has_j_score = true;
+    }
+
+    REQUIRE(has_v_insertions);
+    REQUIRE(has_d_gene_name);
+    REQUIRE(has_j_score);
 }
 
-// Test: Large dataset (performance test)
-TEST_CASE("write large dataset", "[parquet][writer][performance][!benchmark]")
+//==============================================================================
+// Benchmarks (hidden by default)
+//==============================================================================
+
+TEST_CASE("Write benchmarks", "[.benchmark]")
 {
-    setup_test_directory();
-    std::string output_file = test_path("large.parquet");
-    cleanup_test_file("large.parquet");
+    TestDirectory dir{"igor_parquet_write_benchmarks"};
 
-    const size_t num_sequences = 10000;
-    auto sequences = create_test_sequences(num_sequences);
+    BENCHMARK("write 100 sequences")
+    {
+        auto sequences = create_test_sequences(100);
+        ParquetWriter::write_sequences(dir.path("bench_100.parquet"), sequences, CompressionType::SNAPPY);
+    };
 
-    // Measure write time
-    auto start = std::chrono::high_resolution_clock::now();
+    BENCHMARK("write 1000 sequences")
+    {
+        auto sequences = create_test_sequences(1000);
+        ParquetWriter::write_sequences(dir.path("bench_1000.parquet"), sequences, CompressionType::SNAPPY);
+    };
 
-    ParquetWriter::write_sequences(output_file, sequences, CompressionType::SNAPPY);
-
-    auto end = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-
-    double sequences_per_second = (num_sequences * 1000.0) / duration.count();
-
-    INFO("Wrote " << num_sequences << " sequences in " << duration.count() << " ms");
-    INFO("Write speed: " << sequences_per_second << " sequences/second");
-
-    // Target: ≥100K sequences/second
-    // We'll use a relaxed threshold for CI
-    REQUIRE(sequences_per_second > 5000);
-
-    auto file_size = std::filesystem::file_size(output_file);
-    INFO("File size: " << file_size << " bytes");
-
-    cleanup_test_file("large.parquet");
-}
-
-// Test: Compression name function
-TEST_CASE("compression name function", "[parquet][writer][utility]")
-{
-    REQUIRE(ParquetWriter::compression_name(CompressionType::NONE) == "NONE");
-    REQUIRE(ParquetWriter::compression_name(CompressionType::SNAPPY) == "SNAPPY");
-    REQUIRE(ParquetWriter::compression_name(CompressionType::GZIP) == "GZIP");
-    REQUIRE(ParquetWriter::compression_name(CompressionType::ZSTD) == "ZSTD");
-    REQUIRE(ParquetWriter::compression_name(CompressionType::LZ4) == "LZ4");
-}
-
-// Test: Invalid output path
-TEST_CASE("write to invalid path fails gracefully", "[parquet][writer][error]")
-{
-    std::string invalid_path = "/nonexistent_directory/invalid/test.parquet";
-    auto sequences = create_test_sequences(10);
-
-    REQUIRE_THROWS_AS(ParquetWriter::write_sequences(invalid_path, sequences),
-                     std::runtime_error);
+    BENCHMARK("write 10000 sequences")
+    {
+        auto sequences = create_test_sequences(10000);
+        ParquetWriter::write_sequences(dir.path("bench_10000.parquet"), sequences, CompressionType::SNAPPY);
+    };
 }

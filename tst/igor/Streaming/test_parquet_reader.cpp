@@ -5,124 +5,116 @@
  *      Author: IGoR Development Team
  *
  *  Unit tests for ParquetReader module
+ *
+ *  Refactored to use Catch2 v3 features:
+ *  - TEST_CASE_METHOD for fixtures with RAII cleanup
+ *  - GENERATE for parametric tests
+ *  - SECTION for grouping related tests
+ *  - Matchers for cleaner assertions
+ *  - Proper BENCHMARK macro (hidden by default)
  */
 
 // Include Arrow compatibility workarounds before any other headers
 #include <igor/Streaming/ArrowCompatibility.h>
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
+#include <catch2/matchers/catch_matchers_container_properties.hpp>
+#include <catch2/matchers/catch_matchers_contains.hpp>
+#include <catch2/benchmark/catch_benchmark.hpp>
+
+#include "StreamingTestUtils.h"
 #include <igor/Streaming/ParquetReader.h>
 #include <igor/Streaming/ParquetWriter.h>
 #include <igor/Streaming/SequenceBatchHelpers.h>
 
-#include <sparrow/record_batch.hpp>
-#include <sparrow/builder.hpp>
-
-#include <filesystem>
-#include <fstream>
-
 using namespace igor;
+using namespace igor::test;
+using namespace Catch::Matchers;
 
-// Test fixture for Parquet reader tests
-static const std::string TEST_OUTPUT_DIR = "/tmp/igor_parquet_reader_tests";
+//==============================================================================
+// Fixtures
+//==============================================================================
 
-// Helper to ensure test directory exists
-static void setup_test_directory()
+/**
+ * @brief Fixture for ParquetReader tests
+ *
+ * Creates a test directory and provides helper methods for creating
+ * test files. Automatically cleans up on destruction.
+ */
+struct ParquetReaderFixture
 {
-    std::filesystem::create_directories(TEST_OUTPUT_DIR);
-}
+    TestDirectory test_dir{"igor_parquet_reader_tests"};
 
-// Helper to create test sequences
-static std::vector<std::tuple<int, std::string, std::unordered_map<Gene_class, std::vector<Alignment_data>>>>
-create_test_sequences(size_t count)
-{
-    std::vector<std::tuple<int, std::string, std::unordered_map<Gene_class, std::vector<Alignment_data>>>> sequences;
-    sequences.reserve(count);
+    std::string path(const std::string& name) { return test_dir.path(name); }
 
-    for (size_t i = 0; i < count; ++i) {
-        int id = static_cast<int>(i);
-        std::string seq = "ACGTACGT" + std::to_string(i);
-        std::unordered_map<Gene_class, std::vector<Alignment_data>> alignments;
-
-        sequences.emplace_back(id, seq, alignments);
+    /// Create a test file with the given number of sequences
+    std::string create_test_file(const std::string& name, size_t count)
+    {
+        auto sequences = create_test_sequences(count);
+        auto filepath = path(name);
+        ParquetWriter::write_sequences(filepath, sequences);
+        return filepath;
     }
+};
 
-    return sequences;
+//==============================================================================
+// Basic read tests
+//==============================================================================
+
+TEST_CASE_METHOD(ParquetReaderFixture, "read simple parquet file", "[parquet][reader]")
+{
+    auto file = create_test_file("simple.parquet", 10);
+
+    auto batch = ParquetReader::read_batch(file);
+
+    REQUIRE(batch.nb_rows() == 10);
+    REQUIRE(batch.nb_columns() >= 2);  // At least id and sequence
 }
 
-TEST_CASE("read simple parquet file", "[parquet][reader]")
+TEST_CASE_METHOD(ParquetReaderFixture, "read_batch returns correct data", "[parquet][reader]")
 {
-    setup_test_directory();
-
-    // Create a test file using the writer
-    auto sequences = create_test_sequences(10);
-    std::string test_file = TEST_OUTPUT_DIR + "/read_simple.parquet";
-
-    ParquetWriter::write_sequences(test_file, sequences);
-
-    // Now read it back
-    REQUIRE_NOTHROW([&]() {
-        auto batch = ParquetReader::read_batch(test_file);
-        REQUIRE(batch.nb_rows() == 10);
-        REQUIRE(batch.nb_columns() >= 2); // At least id and sequence
-    }());
-}
-
-TEST_CASE("read_batch returns correct data", "[parquet][reader]")
-{
-    setup_test_directory();
-
-    auto sequences = create_test_sequences(5);
-    std::string test_file = TEST_OUTPUT_DIR + "/read_batch_data.parquet";
-
-    ParquetWriter::write_sequences(test_file, sequences);
-
-    auto batch = ParquetReader::read_batch(test_file);
+    auto file = create_test_file("read_data.parquet", 5);
+    auto batch = ParquetReader::read_batch(file);
 
     REQUIRE(batch.nb_rows() == 5);
 
-    // Verify we can access the data
     for (size_t i = 0; i < batch.nb_rows(); ++i) {
         auto seq_data = row_to_sequence_data(batch, i);
         REQUIRE(seq_data.index == static_cast<int>(i));
-        REQUIRE(seq_data.sequence == "ACGTACGT" + std::to_string(i));
+        REQUIRE_THAT(seq_data.sequence, !IsEmpty());
     }
 }
 
-TEST_CASE("read_sequences converts to legacy format", "[parquet][reader]")
+TEST_CASE_METHOD(ParquetReaderFixture, "read_sequences converts to legacy format", "[parquet][reader]")
 {
-    setup_test_directory();
+    auto original = create_test_sequences(10);
+    ParquetWriter::write_sequences(path("legacy.parquet"), original);
 
-    auto original_sequences = create_test_sequences(10);
-    std::string test_file = TEST_OUTPUT_DIR + "/read_sequences.parquet";
-
-    ParquetWriter::write_sequences(test_file, original_sequences);
-
-    auto read_sequences = ParquetReader::read_sequences(test_file);
+    auto read_sequences = ParquetReader::read_sequences(path("legacy.parquet"));
 
     REQUIRE(read_sequences.size() == 10);
 
-    // Verify data matches
     for (size_t i = 0; i < read_sequences.size(); ++i) {
-        REQUIRE(std::get<0>(read_sequences[i]) == std::get<0>(original_sequences[i]));
-        REQUIRE(std::get<1>(read_sequences[i]) == std::get<1>(original_sequences[i]));
+        REQUIRE(std::get<0>(read_sequences[i]) == std::get<0>(original[i]));
+        REQUIRE(std::get<1>(read_sequences[i]) == std::get<1>(original[i]));
     }
 }
 
-TEST_CASE("round-trip preserves all data", "[parquet][reader][writer]")
+//==============================================================================
+// Round-trip tests
+//==============================================================================
+
+TEST_CASE_METHOD(ParquetReaderFixture, "round-trip preserves all data", "[parquet][reader][writer]")
 {
-    setup_test_directory();
+    auto count = GENERATE(10, 50, 100);
+    CAPTURE(count);
 
-    auto original = create_test_sequences(50);
-    std::string test_file = TEST_OUTPUT_DIR + "/roundtrip.parquet";
+    auto original = create_test_sequences(static_cast<size_t>(count));
+    ParquetWriter::write_sequences(path("roundtrip.parquet"), original);
 
-    // Write
-    ParquetWriter::write_sequences(test_file, original);
+    auto read_back = ParquetReader::read_sequences(path("roundtrip.parquet"));
 
-    // Read
-    auto read_back = ParquetReader::read_sequences(test_file);
-
-    // Verify
     REQUIRE(read_back.size() == original.size());
 
     for (size_t i = 0; i < original.size(); ++i) {
@@ -131,203 +123,255 @@ TEST_CASE("round-trip preserves all data", "[parquet][reader][writer]")
     }
 }
 
-TEST_CASE("get_file_info returns correct metadata", "[parquet][reader][metadata]")
+TEST_CASE_METHOD(ParquetReaderFixture, "read-write-read preserves data exactly", "[parquet][reader][writer][roundtrip]")
 {
-    setup_test_directory();
+    auto original = create_test_sequences(100);
 
+    // Write original data
+    ParquetWriter::write_sequences(path("file1.parquet"), original);
+
+    // Read as batch and write again
+    auto batch = ParquetReader::read_batch(path("file1.parquet"));
+    ParquetWriter::write_batch(path("file2.parquet"), batch);
+
+    // Read both and compare
+    auto from_file1 = ParquetReader::read_sequences(path("file1.parquet"));
+    auto from_file2 = ParquetReader::read_sequences(path("file2.parquet"));
+
+    REQUIRE(from_file1.size() == from_file2.size());
+    REQUIRE(from_file1.size() == original.size());
+
+    for (size_t i = 0; i < from_file1.size(); ++i) {
+        REQUIRE(std::get<0>(from_file1[i]) == std::get<0>(from_file2[i]));
+        REQUIRE(std::get<1>(from_file1[i]) == std::get<1>(from_file2[i]));
+    }
+
+    // Verify file metadata consistency
+    auto info1 = ParquetReader::get_file_info(path("file1.parquet"));
+    auto info2 = ParquetReader::get_file_info(path("file2.parquet"));
+
+    REQUIRE(info1.num_rows == info2.num_rows);
+    REQUIRE(info1.num_columns == info2.num_columns);
+    REQUIRE(info1.column_names == info2.column_names);
+}
+
+//==============================================================================
+// Metadata tests
+//==============================================================================
+
+TEST_CASE_METHOD(ParquetReaderFixture, "get_file_info returns correct metadata", "[parquet][reader][metadata]")
+{
     auto sequences = create_test_sequences(100);
-    std::string test_file = TEST_OUTPUT_DIR + "/metadata_test.parquet";
+    ParquetWriter::write_sequences(path("metadata.parquet"), sequences, CompressionType::SNAPPY);
 
-    ParquetWriter::write_sequences(test_file, sequences, CompressionType::SNAPPY);
-
-    auto info = ParquetReader::get_file_info(test_file);
+    auto info = ParquetReader::get_file_info(path("metadata.parquet"));
 
     REQUIRE(info.num_rows == 100);
     REQUIRE(info.num_columns >= 2);
     REQUIRE(info.compression == "SNAPPY");
     REQUIRE(info.column_names.size() >= 2);
 
-    // Check that we have the expected columns
-    bool has_id = false;
-    bool has_sequence = false;
-    for (const auto &name : info.column_names) {
-        if (name == "sequence_id") has_id = true;
-        if (name == "sequence") has_sequence = true;
+    // Check expected columns exist
+    REQUIRE_THAT(info.column_names, Contains(std::string("sequence_id")));
+    REQUIRE_THAT(info.column_names, Contains(std::string("sequence")));
+}
+
+//==============================================================================
+// Column selection tests
+//==============================================================================
+
+TEST_CASE_METHOD(ParquetReaderFixture, "read_columns", "[parquet][reader]")
+{
+    create_test_file("columns.parquet", 10);
+
+    SECTION("reads single column")
+    {
+        auto batch = ParquetReader::read_columns(path("columns.parquet"), {"sequence"});
+
+        REQUIRE(batch.nb_rows() == 10);
+        REQUIRE(batch.nb_columns() == 1);
+
+        auto column_names = batch.names();
+        REQUIRE(column_names.size() == 1);
+        REQUIRE(column_names[0] == "sequence");
     }
-    REQUIRE(has_id);
-    REQUIRE(has_sequence);
+
+    SECTION("reads multiple columns")
+    {
+        auto batch = ParquetReader::read_columns(path("columns.parquet"), {"sequence_id", "sequence"});
+
+        REQUIRE(batch.nb_rows() == 10);
+        REQUIRE(batch.nb_columns() == 2);
+    }
+
+    SECTION("throws on invalid column")
+    {
+        REQUIRE_THROWS_AS(
+            ParquetReader::read_columns(path("columns.parquet"), {"non_existent_column"}),
+            std::runtime_error
+        );
+    }
 }
 
-TEST_CASE("read empty parquet file", "[parquet][reader][edge-case]")
+//==============================================================================
+// Compression reading tests
+//==============================================================================
+
+TEST_CASE_METHOD(ParquetReaderFixture, "read different compression types", "[parquet][reader][compression]")
 {
-    setup_test_directory();
-
-    std::vector<std::tuple<int, std::string, std::unordered_map<Gene_class, std::vector<Alignment_data>>>> empty;
-    std::string test_file = TEST_OUTPUT_DIR + "/empty.parquet";
-
-    ParquetWriter::write_sequences(test_file, empty);
-
-    auto batch = ParquetReader::read_batch(test_file);
-    REQUIRE(batch.nb_rows() == 0);
-
-    auto sequences = ParquetReader::read_sequences(test_file);
-    REQUIRE(sequences.empty());
-}
-
-TEST_CASE("read non-existent file throws", "[parquet][reader][error]")
-{
-    std::string non_existent = TEST_OUTPUT_DIR + "/does_not_exist.parquet";
-
-    REQUIRE_THROWS_AS(ParquetReader::read_batch(non_existent), std::runtime_error);
-    REQUIRE_THROWS_AS(ParquetReader::read_sequences(non_existent), std::runtime_error);
-    REQUIRE_THROWS_AS(ParquetReader::get_file_info(non_existent), std::runtime_error);
-}
-
-TEST_CASE("read_columns reads subset of columns", "[parquet][reader]")
-{
-    setup_test_directory();
-
-    auto sequences = create_test_sequences(10);
-    std::string test_file = TEST_OUTPUT_DIR + "/columns_test.parquet";
-
-    ParquetWriter::write_sequences(test_file, sequences);
-
-    // Read only the sequence column
-    auto batch = ParquetReader::read_columns(test_file, {"sequence"});
-
-    REQUIRE(batch.nb_rows() == 10);
-    REQUIRE(batch.nb_columns() == 1);
-
-    auto column_names = batch.names();
-    REQUIRE(column_names.size() == 1);
-    REQUIRE(column_names[0] == "sequence");
-}
-
-TEST_CASE("read_columns with multiple columns", "[parquet][reader]")
-{
-    setup_test_directory();
-
-    auto sequences = create_test_sequences(10);
-    std::string test_file = TEST_OUTPUT_DIR + "/multi_columns.parquet";
-
-    ParquetWriter::write_sequences(test_file, sequences);
-
-    auto batch = ParquetReader::read_columns(test_file, {"sequence_id", "sequence"});
-
-    REQUIRE(batch.nb_rows() == 10);
-    REQUIRE(batch.nb_columns() == 2);
-}
-
-TEST_CASE("read_columns with invalid column throws", "[parquet][reader][error]")
-{
-    setup_test_directory();
-
-    auto sequences = create_test_sequences(5);
-    std::string test_file = TEST_OUTPUT_DIR + "/invalid_column.parquet";
-
-    ParquetWriter::write_sequences(test_file, sequences);
-
-    REQUIRE_THROWS_AS(
-        ParquetReader::read_columns(test_file, {"non_existent_column"}),
-        std::runtime_error
+    auto compression = GENERATE(
+        CompressionType::NONE,
+        CompressionType::SNAPPY,
+        CompressionType::GZIP,
+        CompressionType::ZSTD,
+        CompressionType::LZ4
     );
-}
 
-TEST_CASE("read different compression types", "[parquet][reader][compression]")
-{
-    setup_test_directory();
+    auto name = ParquetWriter::compression_name(compression);
+    CAPTURE(name);
 
     auto sequences = create_test_sequences(20);
+    ParquetWriter::write_sequences(path("compression_" + name + ".parquet"), sequences, compression);
 
-    std::vector<std::pair<CompressionType, std::string>> compressions = {
-        {CompressionType::NONE, "NONE"},
-        {CompressionType::SNAPPY, "SNAPPY"},
-        {CompressionType::GZIP, "GZIP"},
-        {CompressionType::ZSTD, "ZSTD"},
-        {CompressionType::LZ4, "LZ4"}
+    auto info = ParquetReader::get_file_info(path("compression_" + name + ".parquet"));
+    REQUIRE(info.compression == name);
+
+    auto read_back = ParquetReader::read_sequences(path("compression_" + name + ".parquet"));
+    REQUIRE(read_back.size() == sequences.size());
+}
+
+//==============================================================================
+// Edge cases
+//==============================================================================
+
+TEST_CASE_METHOD(ParquetReaderFixture, "edge cases", "[parquet][reader][edge]")
+{
+    SECTION("read empty file")
+    {
+        std::vector<SequenceTuple> empty;
+        ParquetWriter::write_sequences(path("empty.parquet"), empty);
+
+        auto batch = ParquetReader::read_batch(path("empty.parquet"));
+        REQUIRE(batch.nb_rows() == 0);
+
+        auto sequences = ParquetReader::read_sequences(path("empty.parquet"));
+        REQUIRE_THAT(sequences, IsEmpty());
+    }
+
+    SECTION("non-existent file throws")
+    {
+        std::string non_existent = path("does_not_exist.parquet");
+
+        REQUIRE_THROWS_AS(ParquetReader::read_batch(non_existent), std::runtime_error);
+        REQUIRE_THROWS_AS(ParquetReader::read_sequences(non_existent), std::runtime_error);
+        REQUIRE_THROWS_AS(ParquetReader::get_file_info(non_existent), std::runtime_error);
+    }
+}
+
+//==============================================================================
+// Real data integration tests (hidden by default)
+//==============================================================================
+
+TEST_CASE_METHOD(ParquetReaderFixture, "Murugan dataset round-trip", "[parquet][reader][.integration]")
+{
+    // Load real test data (300 sequences with 73K+ alignments)
+    auto real_sequences = load_murugan_dataset();
+    REQUIRE(real_sequences.size() == 300);
+
+    INFO("Loaded " << real_sequences.size() << " sequences from Murugan dataset");
+
+    // Write to Parquet
+    ParquetWriter::write_sequences(path("murugan.parquet"), real_sequences);
+    REQUIRE(std::filesystem::exists(path("murugan.parquet")));
+
+    // Check file info
+    auto file_info = ParquetReader::get_file_info(path("murugan.parquet"));
+    REQUIRE(file_info.num_rows == 300);
+
+    constexpr int EXPECTED_COLUMNS = 29;  // 2 basic + 27 alignment fields
+    REQUIRE(file_info.num_columns == EXPECTED_COLUMNS);
+
+    // Read back
+    auto read_sequences = ParquetReader::read_sequences(path("murugan.parquet"));
+    REQUIRE(read_sequences.size() == 300);
+
+    // Verify a sample of sequences with alignments
+    for (size_t i = 0; i < std::min(size_t{10}, read_sequences.size()); ++i) {
+        const auto& original = real_sequences[i];
+        const auto& recovered = read_sequences[i];
+
+        // Check basic fields
+        REQUIRE(std::get<0>(recovered) == std::get<0>(original));
+        REQUIRE(std::get<1>(recovered) == std::get<1>(original));
+
+        // Check alignments for each gene class
+        const auto& orig_aligns = std::get<2>(original);
+        const auto& recov_aligns = std::get<2>(recovered);
+
+        for (auto gene_class : {V_gene, D_gene, J_gene}) {
+            if (orig_aligns.count(gene_class) > 0 && !orig_aligns.at(gene_class).empty()) {
+                CAPTURE(i, static_cast<int>(gene_class));
+                REQUIRE(recov_aligns.count(gene_class) > 0);
+
+                const auto& orig_align = orig_aligns.at(gene_class)[0];
+                const auto& recov_align = recov_aligns.at(gene_class)[0];
+
+                CHECK(recov_align.gene_name == orig_align.gene_name);
+                CHECK(recov_align.score == orig_align.score);
+                CHECK(recov_align.offset == orig_align.offset);
+                CHECK(recov_align.five_p_offset == orig_align.five_p_offset);
+                CHECK(recov_align.three_p_offset == orig_align.three_p_offset);
+                CHECK(recov_align.align_length == orig_align.align_length);
+
+                // Check list fields
+                std::vector<int> orig_insertions(orig_align.insertions.begin(), orig_align.insertions.end());
+                std::vector<int> recov_insertions(recov_align.insertions.begin(), recov_align.insertions.end());
+                CHECK(recov_insertions == orig_insertions);
+
+                std::vector<int> orig_deletions(orig_align.deletions.begin(), orig_align.deletions.end());
+                std::vector<int> recov_deletions(recov_align.deletions.begin(), recov_align.deletions.end());
+                CHECK(recov_deletions == orig_deletions);
+
+                CHECK(recov_align.mismatches == orig_align.mismatches);
+            }
+        }
+    }
+}
+
+//==============================================================================
+// Benchmarks (hidden by default)
+//==============================================================================
+
+TEST_CASE("Read benchmarks", "[.benchmark]")
+{
+    TestDirectory dir{"igor_parquet_read_benchmarks"};
+
+    // Create test files of various sizes
+    auto small = create_test_sequences(100);
+    auto medium = create_test_sequences(1000);
+    auto large = create_test_sequences(10000);
+
+    ParquetWriter::write_sequences(dir.path("small.parquet"), small);
+    ParquetWriter::write_sequences(dir.path("medium.parquet"), medium);
+    ParquetWriter::write_sequences(dir.path("large.parquet"), large);
+
+    BENCHMARK("read 100 sequences")
+    {
+        return ParquetReader::read_sequences(dir.path("small.parquet"));
     };
 
-    for (const auto &[type, name] : compressions) {
-        std::string test_file = TEST_OUTPUT_DIR + "/compression_" + name + ".parquet";
+    BENCHMARK("read 1000 sequences")
+    {
+        return ParquetReader::read_sequences(dir.path("medium.parquet"));
+    };
 
-        INFO("Testing compression: " << name);
+    BENCHMARK("read 10000 sequences")
+    {
+        return ParquetReader::read_sequences(dir.path("large.parquet"));
+    };
 
-        ParquetWriter::write_sequences(test_file, sequences, type);
-
-        auto info = ParquetReader::get_file_info(test_file);
-        REQUIRE(info.compression == name);
-
-        auto read_back = ParquetReader::read_sequences(test_file);
-        REQUIRE(read_back.size() == sequences.size());
-    }
-}
-
-TEST_CASE("read large dataset efficiently", "[parquet][reader][performance]")
-{
-    setup_test_directory();
-
-    const size_t num_sequences = 10000;
-    auto sequences = create_test_sequences(num_sequences);
-    std::string test_file = TEST_OUTPUT_DIR + "/large_dataset.parquet";
-
-    ParquetWriter::write_sequences(test_file, sequences);
-
-    auto start = std::chrono::high_resolution_clock::now();
-    auto read_sequences = ParquetReader::read_sequences(test_file);
-    auto end = std::chrono::high_resolution_clock::now();
-
-    auto duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-
-    REQUIRE(read_sequences.size() == num_sequences);
-
-    // Should be able to read 10K sequences in under 1 second
-    INFO("Read " << num_sequences << " sequences in " << duration_ms << " ms");
-    REQUIRE(duration_ms < 1000);
-
-    double sequences_per_second = (num_sequences * 1000.0) / std::max(duration_ms, 1LL);
-    INFO("Read speed: " << sequences_per_second << " sequences/second");
-    REQUIRE(sequences_per_second > 5000); // Should read at least 5K seqs/sec
-}
-TEST_CASE("read-write-read preserves data exactly", "[parquet][reader][writer][roundtrip]")
-{
-    setup_test_directory();
-
-    // Create original test data
-    auto original_sequences = create_test_sequences(100);
-    std::string file1 = TEST_OUTPUT_DIR + "/read_write_read_1.parquet";
-    std::string file2 = TEST_OUTPUT_DIR + "/read_write_read_2.parquet";
-    
-    // Write original data
-    ParquetWriter::write_sequences(file1, original_sequences);
-    
-    // Read it back as a batch
-    auto batch = ParquetReader::read_batch(file1);
-    
-    // Write the batch to a new file
-    ParquetWriter::write_batch(file2, batch);
-    
-    // Read both files and compare
-    auto sequences_from_file1 = ParquetReader::read_sequences(file1);
-    auto sequences_from_file2 = ParquetReader::read_sequences(file2);
-    
-    // Verify same number of sequences
-    REQUIRE(sequences_from_file1.size() == sequences_from_file2.size());
-    REQUIRE(sequences_from_file1.size() == original_sequences.size());
-    
-    // Verify all data matches exactly
-    for (size_t i = 0; i < sequences_from_file1.size(); ++i) {
-        REQUIRE(std::get<0>(sequences_from_file1[i]) == std::get<0>(sequences_from_file2[i]));
-        REQUIRE(std::get<0>(sequences_from_file1[i]) == std::get<0>(original_sequences[i]));
-        
-        REQUIRE(std::get<1>(sequences_from_file1[i]) == std::get<1>(sequences_from_file2[i]));
-        REQUIRE(std::get<1>(sequences_from_file1[i]) == std::get<1>(original_sequences[i]));
-    }
-    
-    // Verify file metadata is consistent
-    auto info1 = ParquetReader::get_file_info(file1);
-    auto info2 = ParquetReader::get_file_info(file2);
-    
-    REQUIRE(info1.num_rows == info2.num_rows);
-    REQUIRE(info1.num_columns == info2.num_columns);
-    REQUIRE(info1.column_names == info2.column_names);
+    BENCHMARK("read_batch 10000 sequences")
+    {
+        return ParquetReader::read_batch(dir.path("large.parquet"));
+    };
 }
