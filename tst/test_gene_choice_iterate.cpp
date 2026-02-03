@@ -39,6 +39,11 @@
 using namespace IgorTestUtils;
 using namespace Catch::Matchers;
 
+
+// =============================================================================
+// TEMPORARY TESTS USED FOR TEST MOCKING ARCHITECTURE DEVELOPMENT
+// =============================================================================
+
 TEST_CASE("Gene_choice event construction and realizations", "[gene_choice][basic]") {
     SECTION("Create V gene choice with single realization") {
         Gene_choice v_choice(V_gene);
@@ -273,527 +278,659 @@ TEST_CASE("Gene_choice::iterate basic call", "[gene_choice][iterate]") {
 // COMPREHENSIVE TEST COVERAGE - V_GENE CODE PATHS
 // =============================================================================
 
-TEST_CASE("V_gene iterate - VD safety check: overlap detected", "[gene_choice][iterate][v_gene][safety]") {
-    // Code path: lines 196-209 in Genechoice.cpp
-    // When D chosen and (v_3_off + v_3_max_del) >= (d_5_max_offset) => continue (skip)
+TEST_CASE("V_gene iterate - comprehensive code path coverage", "[gene_choice][iterate][v_gene]") {
     
-    // TODO: Set up scenario where V and D would overlap even with max deletions
-    std::string seq = "ACGTACGTACGTACGT"; // TODO: Tune sequence
-    std::string v_gene_seq = "ACGTACGTACGT"; // TODO: Tune V gene
-    std::string d_gene_seq = "TGCATGCA"; // TODO: Tune D gene
+    SECTION("Basic V alignment - no other genes") {
+        // Simplest case: Only V gene, no D or J
+        // Tests core V alignment processing without safety checks
+        
+        std::string gene_seq = "ACGTACGTACGT";
+        std::string test_sequence = "ACGTACGTACGTNNNNNN";
+        double realization_proba = .5; 
+        
+        auto v_event = create_stub_gene_choice(V_gene, "TRBV1", gene_seq, 0);
+        v_event->fix(false);  // Ensure event is not fixed (required for marginal updates)
+        
+        auto alignments = std::vector<Alignment_data>{
+            create_perfect_alignment("TRBV1", gene_seq.length())
+        };
+        
+        auto state = create_iterate_state(test_sequence);
+        state.model_marginals[0] = realization_proba;
+        
+        std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
+        allowed_realizations[V_gene] = alignments;
+        
+        // For isolated V testing without D or J genes, create events_map with only V
+        auto events_map = create_events_map(v_event);
+        
+        call_iterate(v_event, state, allowed_realizations, events_map);
+        
+        // Verify V gene offsets and sequence
+        REQUIRE(get_seq_offset(state, V_gene_seq, Five_prime) == 0);
+        REQUIRE(get_seq_offset(state, V_gene_seq, Three_prime) == gene_seq.size() -1);
+        REQUIRE(get_constructed_sequence(state, V_gene_seq) != nullptr);
+        REQUIRE(get_mismatches(state, V_gene_seq).empty());
+        
+        // When testing a single event in isolation without downstream events,
+        // scenario_proba isn't updated by iterate(). Instead, check updated_marginals
+        // which contains the computed probability for this realization.
+        REQUIRE(state.updated_marginals[0] == realization_proba);
+    }
     
-    auto v_event = create_stub_gene_choice(V_gene, "IGHV1-1*01", v_gene_seq, 0);
-    auto d_stub = create_stub_gene_choice(D_gene, "IGHD1-1*01", d_gene_seq, 1);
+    SECTION("VD safety check: overlap detected") {
+        // Code path: lines 196-209 in v1.4.0 Genechoice.cpp
+        // When D chosen and (v_3_off + v_3_max_del) >= (d_5_max_offset) => continue (skip)
+        
+        // TODO: Set up scenario where V and D would overlap even with max deletions
+        std::string seq = "ACGTACGTACGTACGT"; // TODO: Tune sequence
+        std::string v_gene_seq = "ACGTACGTACGT"; // TODO: Tune V gene
+        std::string d_gene_seq = "TGCATGCA"; // TODO: Tune D gene
+        
+        auto v_event = create_stub_gene_choice(V_gene, "IGHV1-1*01", v_gene_seq, 0);
+        auto d_stub = create_stub_gene_choice(D_gene, "IGHD1-1*01", d_gene_seq, 1);
+        
+        // TODO: Set v_3_max_del, d_5_max_offset such that overlap occurs
+        // Need to initialize D offset first via events_map
+        
+        auto alignments = std::vector<Alignment_data>{
+            create_perfect_alignment("IGHV1-1*01", v_gene_seq.length())
+        };
+        
+        auto events_map = create_events_map(v_event, d_stub, nullptr);
+        auto state = create_iterate_state(seq);
+        
+        // TODO: Pre-set D offset in state to trigger overlap check
+        std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
+        allowed_realizations[V_gene] = alignments;
+        call_iterate(v_event, state, allowed_realizations, events_map);
+        
+        // Assertion: iterate should skip this realization (no V offset set)
+        // TODO: Verify that when overlap occurs, the realization is skipped
+        // REQUIRE(state.scenario_proba == 1.0); // Unchanged
+        // OR check that V offsets were not set (indicating skip)
+    }
     
-    // TODO: Set v_3_max_del, d_5_max_offset such that overlap occurs
-    // Need to initialize D offset first via events_map
+    SECTION("VD safety: safe with min deletions") {
+        // Code path: lines 206-209 in Genechoice.cpp
+        // When (v_3_off + v_3_min_del) < (d_5_min_offset) => VD_safe = true
+        
+        // TODO: Configure scenario with large gap between V and D
+        std::string seq = "ACGTACGTNNNNNNNNNNNTGCATGCA"; // TODO: Large insertion
+        std::string v_gene = "ACGTACGT"; // TODO: Tune
+        std::string d_gene = "TGCATGCA"; // TODO: Tune
+        
+        auto v_event = create_stub_gene_choice(V_gene, "IGHV1-1*01", v_gene, 0);
+        auto d_stub = create_stub_gene_choice(D_gene, "IGHD1-1*01", d_gene, 1);
+        
+        auto alignments = std::vector<Alignment_data>{
+            create_perfect_alignment("IGHV1-1*01", v_gene.length())
+        };
+        
+        auto events_map = create_events_map(v_event, d_stub, nullptr);
+        auto state = create_iterate_state(seq);
+        
+        // TODO: Set D offset far from V to ensure safety
+        std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
+        allowed_realizations[V_gene] = alignments;
+        call_iterate(v_event, state, allowed_realizations, events_map);
+        
+        // When gap is large enough, even with min deletions no overlap occurs
+        REQUIRE(has_safety(state, VD_safe, 0));
+        REQUIRE(is_safe(state, VD_safe, 0) == true);
+        REQUIRE(get_seq_offset(state, V_gene_seq, Five_prime, 0) == 0);
+        REQUIRE(get_seq_offset(state, V_gene_seq, Three_prime, 0) == v_gene.length() - 1);
+    }
     
-    auto alignments = std::vector<Alignment_data>{
-        create_perfect_alignment("IGHV1-1*01", v_gene_seq.length())
-    };
+    SECTION("VD safety: unsafe in deletion range") {
+        // Code path: lines 209-212 in Genechoice.cpp
+        // When in deletion range => VD_safe = false (some deletions cause overlap)
+        
+        // TODO: Configure intermediate gap requiring careful deletion control
+        std::string seq = "ACGTACGTNNNNTGCA"; // TODO: Small junction
+        std::string v_gene = "ACGTACGT"; // TODO: Tune
+        std::string d_gene = "TGCATGCA"; // TODO: Tune
+        
+        auto v_event = create_stub_gene_choice(V_gene, "IGHV1-1*01", v_gene, 0);
+        auto d_stub = create_stub_gene_choice(D_gene, "IGHD1-1*01", d_gene, 1);
+        
+        auto alignments = std::vector<Alignment_data>{
+            create_perfect_alignment("IGHV1-1*01", v_gene.length())
+        };
+        
+        auto events_map = create_events_map(v_event, d_stub, nullptr);
+        auto state = create_iterate_state(seq);
+        
+        // TODO: Set D offset to create ambiguous deletion scenario
+        std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
+        allowed_realizations[V_gene] = alignments;
+        call_iterate(v_event, state, allowed_realizations, events_map);
+        
+        // When in deletion range, some deletions would cause overlap
+        REQUIRE(has_safety(state, VD_safe, 0));
+        REQUIRE(is_safe(state, VD_safe, 0) == false);
+        REQUIRE(get_seq_offset(state, V_gene_seq, Five_prime, 0) == 0);
+        REQUIRE(get_seq_offset(state, V_gene_seq, Three_prime, 0) == v_gene.length() - 1);
+    }
     
-    auto events_map = create_events_map(v_event, d_stub, nullptr);
+    SECTION("VJ safety checks (no D gene)") {
+        // Code path: lines 214-236 in Genechoice.cpp
+        // Similar logic to VD but for VJ junction (when D not present)
+        
+        // TODO: Configure VJ model (no D gene)
+        std::string seq = "ACGTACGTNNNNNNGGGGTTTT"; // TODO: VJ sequence
+        std::string v_gene = "ACGTACGT"; // TODO: V gene
+        std::string j_gene = "GGGGTTTT"; // TODO: J gene
+        
+        auto v_event = create_stub_gene_choice(V_gene, "IGHV1-1*01", v_gene, 0);
+        auto j_stub = create_stub_gene_choice(J_gene, "IGHJ1*01", j_gene, 1);
+        
+        auto alignments = std::vector<Alignment_data>{
+            create_perfect_alignment("IGHV1-1*01", v_gene.length())
+        };
+        
+        auto events_map = create_events_map(v_event, nullptr, j_stub);
+        auto state = create_iterate_state(seq);
+        
+        // TODO: Set J offset appropriately
+        std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
+        allowed_realizations[V_gene] = alignments;
+        call_iterate(v_event, state, allowed_realizations, events_map);
+        
+        // Verify VJ safety flag is set correctly (depends on gap size)
+        // REQUIRE(is_safe(state, VJ_safe, 0) == true); // or false, depending on configuration
+        REQUIRE(get_seq_offset(state, V_gene_seq, Five_prime, 0) == 0);
+        REQUIRE(get_seq_offset(state, V_gene_seq, Three_prime, 0) == v_gene.length() - 1);
+    }
     
-    auto state = create_iterate_state(seq);
-    // TODO: Pre-set D offset in state to trigger overlap check
-    std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
-    allowed_realizations[V_gene] = alignments;
-    call_iterate(v_event, state, allowed_realizations, events_map);
+    SECTION("Multiple alignments with different positions") {
+        // Code path: lines 176-289 (iterates over all alignments)
+        // Tests that iterate processes all alignment candidates
+        
+        std::string seq = "ACGTACGTACGTACGT"; // TODO: Tune
+        std::string v_gene = "ACGTACGTACGT"; // TODO: Tune
+        
+        auto v_event = create_stub_gene_choice(V_gene, "IGHV1-1*01", v_gene, 0);
+        
+        // Multiple alignments at different positions
+        auto alignments = std::vector<Alignment_data>{
+            create_perfect_alignment("IGHV1-1*01", v_gene.length()),
+            create_mock_alignment_data("IGHV1-1*01", 2, 2, 2 + v_gene.length() - 1, {}, 100.0),
+            create_mock_alignment_data("IGHV1-1*01", 4, 4, 4 + v_gene.length() - 1, {}, 100.0)
+        };
+        
+        auto state = create_iterate_state(seq);
+        std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
+        allowed_realizations[V_gene] = alignments;
+        call_iterate(v_event, state, allowed_realizations, {});
+        
+        // Verify that at least one alignment was processed
+        REQUIRE(get_seq_offset(state, V_gene_seq, Five_prime, 0) >= 0);
+        REQUIRE(get_constructed_sequence(state, V_gene_seq, 0) != nullptr);
+        // TODO: Verify all three alignments contributed to marginals
+        // (Would need to track how many times iterate_wrap_up was called)
+    }
     
-    // Assertion: iterate should skip this realization (no V offset set)
-    // TODO: Verify that when overlap occurs, the realization is skipped
-    // REQUIRE(state.scenario_proba == 1.0); // Unchanged
-    // OR check that V offsets were not set (indicating skip)
-}
-
-TEST_CASE("V_gene iterate - VD safety: safe with min deletions", "[gene_choice][iterate][v_gene][safety]") {
-    // Code path: lines 206-209 in Genechoice.cpp
-    // When (v_3_off + v_3_min_del) < (d_5_min_offset) => VD_safe = true
+    SECTION("Alignment with mismatches") {
+        // Code path: lines 250-257 (endogenous mismatch counting)
+        // Tests mismatch handling and error rate computation
+        
+        std::string seq = "ACGTACGTACGT"; // TODO: Tune
+        std::string v_gene = "ACTTACGTACGT"; // TODO: Mismatches at specific positions
+        
+        auto v_event = create_stub_gene_choice(V_gene, "IGHV1-1*01", v_gene, 0);
+        
+        // Alignment with mismatches at specific positions
+        std::vector<int> mismatch_positions = {2, 5}; // TODO: Tune positions
+        auto alignments = std::vector<Alignment_data>{
+            create_alignment_with_mismatches("IGHV1-1*01", 0, v_gene.length(), mismatch_positions)
+        };
+        
+        auto state = create_iterate_state(seq);
+        std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
+        allowed_realizations[V_gene] = alignments;
+        call_iterate(v_event, state, allowed_realizations, {});
+        
+        // Verify mismatches are tracked
+        REQUIRE(get_mismatches(state, V_gene_seq, 0).size() == 2);
+        // TODO: Verify specific mismatch positions match expected values
+        // REQUIRE(get_mismatches(state, V_gene_seq, 0)[0] == 2);
+        // REQUIRE(get_mismatches(state, V_gene_seq, 0)[1] == 5);
+    }
     
-    // TODO: Configure scenario with large gap between V and D
-    std::string seq = "ACGTACGTNNNNNNNNNNNTGCATGCA"; // TODO: Large insertion
-    std::string v_gene = "ACGTACGT"; // TODO: Tune
-    std::string d_gene = "TGCATGCA"; // TODO: Tune
+    SECTION("Junction length probability check") {
+        // Code path: lines 240-247 (junction length probability map lookup)
+        // When junction length not in map => continue (skip scenario)
+        
+        // TODO: Configure scenario with impossible junction length
+        std::string seq = "ACGTNNNNNNNNNNNNNNNNNNNNNTGCA"; // TODO: Very long junction
+        std::string v_gene = "ACGT"; // TODO: Short V
+        std::string d_gene = "TGCA"; // TODO: Short D
+        
+        auto v_event = create_stub_gene_choice(V_gene, "IGHV1-1*01", v_gene, 0);
+        auto d_stub = create_stub_gene_choice(D_gene, "IGHD1-1*01", d_gene, 1);
+        
+        auto alignments = std::vector<Alignment_data>{
+            create_perfect_alignment("IGHV1-1*01", v_gene.length())
+        };
+        
+        auto events_map = create_events_map(v_event, d_stub, nullptr);
+        auto state = create_iterate_state(seq);
+        
+        // TODO: Configure D offset to create junction length not in probability map
+        std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
+        allowed_realizations[V_gene] = alignments;
+        call_iterate(v_event, state, allowed_realizations, events_map);
+        
+        // When junction length not in probability map, scenario should be skipped
+        // TODO: Verify V offsets were not set or scenario_proba unchanged
+        // REQUIRE(state.scenario_proba == 1.0); // Should remain at initial value
+    }
     
-    auto v_event = create_stub_gene_choice(V_gene, "IGHV1-1*01", v_gene, 0);
-    auto d_stub = create_stub_gene_choice(D_gene, "IGHD1-1*01", d_gene, 1);
-    
-    auto alignments = std::vector<Alignment_data>{
-        create_perfect_alignment("IGHV1-1*01", v_gene.length())
-    };
-    
-    auto events_map = create_events_map(v_event, d_stub, nullptr);
-    auto state = create_iterate_state(seq);
-    
-    // TODO: Set D offset far from V to ensure safety
-    std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
-    allowed_realizations[V_gene] = alignments;
-    call_iterate(v_event, state, allowed_realizations, events_map);
-    
-    // When gap is large enough, even with min deletions no overlap occurs
-    REQUIRE(is_safe(state, VD_safe, 0) == true);
-    REQUIRE(get_seq_offset(state, V_gene_seq, Five_prime, 0) == 0);
-    REQUIRE(get_seq_offset(state, V_gene_seq, Three_prime, 0) == v_gene.length() - 1);
-}
-
-TEST_CASE("V_gene iterate - VD safety: unsafe in deletion range", "[gene_choice][iterate][v_gene][safety]") {
-    // Code path: lines 209-212 in Genechoice.cpp
-    // When in deletion range => VD_safe = false (some deletions cause overlap)
-    
-    // TODO: Configure intermediate gap requiring careful deletion control
-    std::string seq = "ACGTACGTNNNNTGCA"; // TODO: Small junction
-    std::string v_gene = "ACGTACGT"; // TODO: Tune
-    std::string d_gene = "TGCATGCA"; // TODO: Tune
-    
-    auto v_event = create_stub_gene_choice(V_gene, "IGHV1-1*01", v_gene, 0);
-    auto d_stub = create_stub_gene_choice(D_gene, "IGHD1-1*01", d_gene, 1);
-    
-    auto alignments = std::vector<Alignment_data>{
-        create_perfect_alignment("IGHV1-1*01", v_gene.length())
-    };
-    
-    auto events_map = create_events_map(v_event, d_stub, nullptr);
-    auto state = create_iterate_state(seq);
-    
-    // TODO: Set D offset to create ambiguous deletion scenario
-    std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
-    allowed_realizations[V_gene] = alignments;
-    call_iterate(v_event, state, allowed_realizations, events_map);
-    
-    // When in deletion range, some deletions would cause overlap
-    REQUIRE(is_safe(state, VD_safe, 0) == false);
-    REQUIRE(get_seq_offset(state, V_gene_seq, Five_prime, 0) == 0);
-    REQUIRE(get_seq_offset(state, V_gene_seq, Three_prime, 0) == v_gene.length() - 1);
-}
-
-TEST_CASE("V_gene iterate - VJ safety checks (no D gene)", "[gene_choice][iterate][v_gene][safety]") {
-    // Code path: lines 214-236 in Genechoice.cpp
-    // Similar logic to VD but for VJ junction (when D not present)
-    
-    // TODO: Configure VJ model (no D gene)
-    std::string seq = "ACGTACGTNNNNNNGGGGTTTT"; // TODO: VJ sequence
-    std::string v_gene = "ACGTACGT"; // TODO: V gene
-    std::string j_gene = "GGGGTTTT"; // TODO: J gene
-    
-    auto v_event = create_stub_gene_choice(V_gene, "IGHV1-1*01", v_gene, 0);
-    auto j_stub = create_stub_gene_choice(J_gene, "IGHJ1*01", j_gene, 1);
-    
-    auto alignments = std::vector<Alignment_data>{
-        create_perfect_alignment("IGHV1-1*01", v_gene.length())
-    };
-    
-    auto events_map = create_events_map(v_event, nullptr, j_stub);
-    auto state = create_iterate_state(seq);
-    
-    // TODO: Set J offset appropriately
-    std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
-    allowed_realizations[V_gene] = alignments;
-    call_iterate(v_event, state, allowed_realizations, events_map);
-    
-    // Verify VJ safety flag is set correctly (depends on gap size)
-    // REQUIRE(is_safe(state, VJ_safe, 0) == true); // or false, depending on configuration
-    REQUIRE(get_seq_offset(state, V_gene_seq, Five_prime, 0) == 0);
-    REQUIRE(get_seq_offset(state, V_gene_seq, Three_prime, 0) == v_gene.length() - 1);
-}
-
-TEST_CASE("V_gene iterate - multiple alignments with different positions", "[gene_choice][iterate][v_gene]") {
-    // Code path: lines 176-289 (iterates over all alignments)
-    // Tests that iterate processes all alignment candidates
-    
-    std::string seq = "ACGTACGTACGTACGT"; // TODO: Tune
-    std::string v_gene = "ACGTACGTACGT"; // TODO: Tune
-    
-    auto v_event = create_stub_gene_choice(V_gene, "IGHV1-1*01", v_gene, 0);
-    
-    // Multiple alignments at different positions
-    auto alignments = std::vector<Alignment_data>{
-        create_perfect_alignment("IGHV1-1*01", v_gene.length()),
-        create_mock_alignment_data("IGHV1-1*01", 2, 2, 2 + v_gene.length() - 1, {}, 100.0),
-        create_mock_alignment_data("IGHV1-1*01", 4, 4, 4 + v_gene.length() - 1, {}, 100.0)
-    };
-    
-    auto state = create_iterate_state(seq);
-    std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
-    allowed_realizations[V_gene] = alignments;
-    call_iterate(v_event, state, allowed_realizations, {});
-    
-    // Verify that at least one alignment was processed
-    REQUIRE(get_seq_offset(state, V_gene_seq, Five_prime, 0) >= 0);
-    REQUIRE(get_constructed_sequence(state, V_gene_seq, 0) != nullptr);
-    // TODO: Verify all three alignments contributed to marginals
-    // (Would need to track how many times iterate_wrap_up was called)
-}
-
-TEST_CASE("V_gene iterate - alignment with mismatches", "[gene_choice][iterate][v_gene][error]") {
-    // Code path: lines 250-257 (endogenous mismatch counting)
-    // Tests mismatch handling and error rate computation
-    
-    std::string seq = "ACGTACGTACGT"; // TODO: Tune
-    std::string v_gene = "ACTTACGTACGT"; // TODO: Mismatches at specific positions
-    
-    auto v_event = create_stub_gene_choice(V_gene, "IGHV1-1*01", v_gene, 0);
-    
-    // Alignment with mismatches at specific positions
-    std::vector<int> mismatch_positions = {2, 5}; // TODO: Tune positions
-    auto alignments = std::vector<Alignment_data>{
-        create_alignment_with_mismatches("IGHV1-1*01", 0, v_gene.length(), mismatch_positions)
-    };
-    
-    auto state = create_iterate_state(seq);
-    std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
-    allowed_realizations[V_gene] = alignments;
-    call_iterate(v_event, state, allowed_realizations, {});
-    
-    // Verify mismatches are tracked
-    REQUIRE(get_mismatches(state, V_gene_seq, 0).size() == 2);
-    // TODO: Verify specific mismatch positions match expected values
-    // REQUIRE(get_mismatches(state, V_gene_seq, 0)[0] == 2);
-    // REQUIRE(get_mismatches(state, V_gene_seq, 0)[1] == 5);
-}
-
-TEST_CASE("V_gene iterate - junction length probability check", "[gene_choice][iterate][v_gene][junction]") {
-    // Code path: lines 240-247 (junction length probability map lookup)
-    // When junction length not in map => continue (skip scenario)
-    
-    // TODO: Configure scenario with impossible junction length
-    std::string seq = "ACGTNNNNNNNNNNNNNNNNNNNNNTGCA"; // TODO: Very long junction
-    std::string v_gene = "ACGT"; // TODO: Short V
-    std::string d_gene = "TGCA"; // TODO: Short D
-    
-    auto v_event = create_stub_gene_choice(V_gene, "IGHV1-1*01", v_gene, 0);
-    auto d_stub = create_stub_gene_choice(D_gene, "IGHD1-1*01", d_gene, 1);
-    
-    auto alignments = std::vector<Alignment_data>{
-        create_perfect_alignment("IGHV1-1*01", v_gene.length())
-    };
-    
-    auto events_map = create_events_map(v_event, d_stub, nullptr);
-    auto state = create_iterate_state(seq);
-    
-    // TODO: Configure D offset to create junction length not in probability map
-    std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
-    allowed_realizations[V_gene] = alignments;
-    call_iterate(v_event, state, allowed_realizations, events_map);
-    
-    // When junction length not in probability map, scenario should be skipped
-    // TODO: Verify V offsets were not set or scenario_proba unchanged
-    // REQUIRE(state.scenario_proba == 1.0); // Should remain at initial value
-}
-
-TEST_CASE("V_gene iterate - probability threshold filtering", "[gene_choice][iterate][v_gene][threshold]") {
-    // Code path: lines 261-263 (threshold check)
-    // When scenario_upper_bound_proba < (seq_max_prob_scenario * threshold_factor) => continue
-    
-    // TODO: Configure low-probability scenario
-    std::string seq = "ACGTACGTACGT"; // TODO: Tune
-    std::string v_gene = "TTTTTTTTTTT"; // TODO: Mismatched gene (low probability)
-    
-    auto v_event = create_stub_gene_choice(V_gene, "IGHV1-1*01", v_gene, 0);
-    
-    // Many mismatches => low probability
-    std::vector<int> many_mismatches = {0, 1, 2, 3, 4, 5, 6, 7, 8}; // TODO: Tune
-    auto alignments = std::vector<Alignment_data>{
-        create_alignment_with_mismatches("IGHV1-1*01", 0, v_gene.length(), many_mismatches)
-    };
-    
-    auto state = create_iterate_state(seq);
-    // TODO: Set seq_max_prob_scenario and threshold to trigger filtering
-    std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
-    allowed_realizations[V_gene] = alignments;
-    call_iterate(v_event, state, allowed_realizations, {});
-    
-    // When probability below threshold, scenario should be filtered
-    // TODO: Verify realization was skipped due to low probability
-    // REQUIRE(state.scenario_proba == 1.0); // Should remain unchanged
-    // OR verify that iterate_wrap_up was not called (no offsets set)
+    SECTION("Probability threshold filtering") {
+        // Code path: lines 261-263 (threshold check)
+        // When scenario_upper_bound_proba < (seq_max_prob_scenario * threshold_factor) => continue
+        
+        // TODO: Configure low-probability scenario
+        std::string seq = "ACGTACGTACGT"; // TODO: Tune
+        std::string v_gene = "TTTTTTTTTTT"; // TODO: Mismatched gene (low probability)
+        
+        auto v_event = create_stub_gene_choice(V_gene, "IGHV1-1*01", v_gene, 0);
+        
+        // Many mismatches => low probability
+        std::vector<int> many_mismatches = {0, 1, 2, 3, 4, 5, 6, 7, 8}; // TODO: Tune
+        auto alignments = std::vector<Alignment_data>{
+            create_alignment_with_mismatches("IGHV1-1*01", 0, v_gene.length(), many_mismatches)
+        };
+        
+        auto state = create_iterate_state(seq);
+        // TODO: Set seq_max_prob_scenario and threshold to trigger filtering
+        std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
+        allowed_realizations[V_gene] = alignments;
+        call_iterate(v_event, state, allowed_realizations, {});
+        
+        // When probability below threshold, scenario should be filtered
+        // TODO: Verify realization was skipped due to low probability
+        // REQUIRE(state.scenario_proba == 1.0); // Should remain unchanged
+        // OR verify that iterate_wrap_up was not called (no offsets set)
+    }
 }
 
 // =============================================================================
 // COMPREHENSIVE TEST COVERAGE - D_GENE CODE PATHS
 // =============================================================================
 
-TEST_CASE("D_gene iterate - alignment-based with VD safety check", "[gene_choice][iterate][d_gene][safety]") {
-    // Code path: lines 349-381 (D gene with alignments, VD overlap check)
+TEST_CASE("D_gene iterate - comprehensive code path coverage", "[gene_choice][iterate][d_gene]") {
     
-    // TODO: Configure VDJ scenario with D alignments
-    std::string seq = "ACGTNNNNNNNTGCANNNNGGGG"; // TODO: Full VDJ sequence
-    std::string v_gene = "ACGT"; // TODO: V gene
-    std::string d_gene = "TGCA"; // TODO: D gene
-    std::string j_gene = "GGGG"; // TODO: J gene
+    SECTION("Basic D alignment - no other genes") {
+        // Simplest case: Only D gene, no V or J
+        // Tests core D alignment processing without safety checks
+        
+        std::string seq = "NNNNNNNTGCANNNNNN"; // TODO: Tune sequence
+        std::string d_gene = "TGCA"; // TODO: Tune D gene
+        
+        auto d_event = create_stub_gene_choice(D_gene, "IGHD1-1*01", d_gene, 1);
+        
+        int d_offset = 7; // TODO: Tune D alignment position
+        auto alignments = std::vector<Alignment_data>{
+            create_mock_alignment_data("IGHD1-1*01", d_offset, d_offset, d_offset + d_gene.length() - 1, {}, 100.0)
+        };
+        
+        auto events_map = create_events_map(nullptr, d_event, nullptr);
+        auto state = create_iterate_state(seq);
+        state.model_marginals[0] = 1.0; // P(IGHD1-1*01) = 1.0
+        std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
+        allowed_realizations[D_gene] = alignments;
+        call_iterate(d_event, state, allowed_realizations, events_map);
+        
+        // Basic assertions: D offsets should be set correctly
+        REQUIRE(get_seq_offset(state, D_gene_seq, Five_prime, 0) == d_offset);
+        REQUIRE(get_seq_offset(state, D_gene_seq, Three_prime, 0) == d_offset + d_gene.length() - 1);
+        REQUIRE(get_constructed_sequence(state, D_gene_seq, 0) != nullptr);
+        // TODO: Verify mismatches if alignment has them
+        // No safety checks needed - no other genes
+    }
     
-    auto d_event = create_stub_gene_choice(D_gene, "IGHD1-1*01", d_gene, 1);
-    auto v_stub = create_stub_gene_choice(V_gene, "IGHV1-1*01", v_gene, 0);
-    auto j_stub = create_stub_gene_choice(J_gene, "IGHJ1*01", j_gene, 2);
+    SECTION("Basic D exhaustive search - no other genes") {
+        // Simplest exhaustive case: Only D gene, no alignments provided
+        // Tests D sliding through all positions without V/J constraints
+        
+        std::string seq = "NNNNNNNNNNNNNNNN"; // TODO: Tune sequence
+        std::string d_gene = "TGCA"; // TODO: Tune D gene
+        
+        auto d_event = create_stub_gene_choice(D_gene, "IGHD1-1*01", d_gene, 1);
+        
+        auto alignments = std::vector<Alignment_data>{}; // Empty - triggers exhaustive search
+        
+        auto events_map = create_events_map(nullptr, d_event, nullptr);
+        auto state = create_iterate_state(seq);
+        state.model_marginals[0] = 1.0; // P(IGHD1-1*01) = 1.0
+        std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
+        allowed_realizations[D_gene] = alignments;
+        call_iterate(d_event, state, allowed_realizations, events_map);
+        
+        // D should be positioned somewhere in the sequence
+        // TODO: Verify D offset is within valid range
+        // REQUIRE(get_seq_offset(state, D_gene_seq, Five_prime, 0) >= 0);
+        // REQUIRE(get_seq_offset(state, D_gene_seq, Five_prime, 0) < seq.length());
+        // REQUIRE(get_constructed_sequence(state, D_gene_seq, 0) != nullptr);
+    }
     
-    int d_offset = 10; // TODO: Tune D alignment position
-    auto alignments = std::vector<Alignment_data>{
-        create_mock_alignment_data("IGHD1-1*01", d_offset, d_offset, d_offset + d_gene.length() - 1, {}, 100.0)
-    };
+    SECTION("Alignment-based with VD safety check") {
+        // Code path: lines 349-381 (D gene with alignments, VD overlap check)
+        
+        // TODO: Configure VDJ scenario with D alignments
+        std::string seq = "ACGTNNNNNNNTGCANNNNGGGG"; // TODO: Full VDJ sequence
+        std::string v_gene = "ACGT"; // TODO: V gene
+        std::string d_gene = "TGCA"; // TODO: D gene
+        std::string j_gene = "GGGG"; // TODO: J gene
+        
+        auto d_event = create_stub_gene_choice(D_gene, "IGHD1-1*01", d_gene, 1);
+        auto v_stub = create_stub_gene_choice(V_gene, "IGHV1-1*01", v_gene, 0);
+        auto j_stub = create_stub_gene_choice(J_gene, "IGHJ1*01", j_gene, 2);
+        
+        int d_offset = 10; // TODO: Tune D alignment position
+        auto alignments = std::vector<Alignment_data>{
+            create_mock_alignment_data("IGHD1-1*01", d_offset, d_offset, d_offset + d_gene.length() - 1, {}, 100.0)
+        };
+        
+        auto state = create_iterate_state(seq);
+        // TODO: Pre-set V and J offsets in state
+        std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
+        allowed_realizations[D_gene] = alignments;
+        call_iterate(d_event, state, allowed_realizations, {});
+        
+        REQUIRE(get_seq_offset(state, D_gene_seq, Five_prime, 0) == d_offset);
+        REQUIRE(get_seq_offset(state, D_gene_seq, Three_prime, 0) == d_offset + d_gene.length() - 1);
+        // TODO: Verify VD_safe flag based on V offset configuration
+        // REQUIRE(is_safe(state, VD_safe, 0) == true); // or false
+    }
     
-    auto state = create_iterate_state(seq);
-    // TODO: Pre-set V and J offsets in state
-    std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
-    allowed_realizations[D_gene] = alignments;
-    call_iterate(d_event, state, allowed_realizations, {});
+    SECTION("DJ safety overlap detection") {
+        // Code path: lines 382-395 (DJ overlap check)
+        // When (d_3_off + d_3_max_del) >= (j_5_max_offset) => continue (skip)
+        
+        // TODO: Configure D and J that would overlap
+        std::string seq = "NNNNTGCAGGGG"; // TODO: Short DJ junction
+        std::string d_gene = "TGCATGCA"; // TODO: Long D gene
+        std::string j_gene = "GGGGTTTT"; // TODO: J gene
+        
+        auto d_event = create_stub_gene_choice(D_gene, "IGHD1-1*01", d_gene, 1);
+        auto j_stub = create_stub_gene_choice(J_gene, "IGHJ1*01", j_gene, 2);
+        
+        int d_offset = 4; // TODO: D too close to J
+        auto alignments = std::vector<Alignment_data>{
+            create_mock_alignment_data("IGHD1-1*01", d_offset, d_offset, d_offset + d_gene.length() - 1, {}, 100.0)
+        };
+        
+        auto state = create_iterate_state(seq);
+        // TODO: Set J offset to trigger overlap
+        std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
+        allowed_realizations[D_gene] = alignments;
+        call_iterate(d_event, state, allowed_realizations, {});
+        
+        // When D and J would overlap, realization should be skipped
+        // TODO: Verify D offsets were not set (indicating skip)
+        // REQUIRE(state.scenario_proba == 1.0); // Should remain unchanged
+    }
     
-    REQUIRE(get_seq_offset(state, D_gene_seq, Five_prime, 0) == d_offset);
-    REQUIRE(get_seq_offset(state, D_gene_seq, Three_prime, 0) == d_offset + d_gene.length() - 1);
-    // TODO: Verify VD_safe flag based on V offset configuration
-    // REQUIRE(is_safe(state, VD_safe, 0) == true); // or false
-}
-
-TEST_CASE("D_gene iterate - DJ safety overlap detection", "[gene_choice][iterate][d_gene][safety]") {
-    // Code path: lines 382-395 (DJ overlap check)
-    // When (d_3_off + d_3_max_del) >= (j_5_max_offset) => continue (skip)
+    SECTION("Exhaustive search with V and J chosen") {
+        // Code path: lines 470-587 (no_d_align=true, exhaustive D positioning)
+        // When no alignments provided, slides D through all valid positions
+        
+        // TODO: Configure scenario without D alignments
+        std::string seq = "ACGTNNNNNNNNGGGG"; // TODO: VJ sequence with unknown D position
+        std::string v_gene = "ACGT"; // TODO: V gene
+        std::string d_gene = "TGCA"; // TODO: D gene (will be positioned exhaustively)
+        std::string j_gene = "GGGG"; // TODO: J gene
+        
+        auto d_event = create_stub_gene_choice(D_gene, "IGHD1-1*01", d_gene, 1);
+        auto v_stub = create_stub_gene_choice(V_gene, "IGHV1-1*01", v_gene, 0);
+        auto j_stub = create_stub_gene_choice(J_gene, "IGHJ1*01", j_gene, 2);
+        
+        // Empty alignments => triggers exhaustive search
+        auto alignments = std::vector<Alignment_data>{};
+        
+        auto state = create_iterate_state(seq);
+        // TODO: Pre-set V and J offsets to define search range
+        std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
+        allowed_realizations[D_gene] = alignments;
+        call_iterate(d_event, state, allowed_realizations, {});
+        
+        // In exhaustive search, D should be positioned somewhere valid
+        // TODO: Verify D offset is in expected range
+        // REQUIRE(get_seq_offset(state, D_gene_seq, Five_prime, 0) >= 0);
+        // REQUIRE(get_seq_offset(state, D_gene_seq, Five_prime, 0) < seq.length());
+        // Mismatches should be computed for the positioned D
+        // TODO: Verify mismatch vector has expected size
+    }
     
-    // TODO: Configure D and J that would overlap
-    std::string seq = "NNNNTGCAGGGG"; // TODO: Short DJ junction
-    std::string d_gene = "TGCATGCA"; // TODO: Long D gene
-    std::string j_gene = "GGGGTTTT"; // TODO: J gene
+    SECTION("Exhaustive search sliding D position") {
+        // Code path: lines 598-746 (while loop sliding D one nucleotide at a time)
+        // Tests exhaustive D positioning when only V or only J chosen
+        
+        // TODO: Configure VD model (no J) or DJ model (no V)
+        std::string seq = "ACGTNNNNNNNNNNNN"; // TODO: V + insertion region
+        std::string v_gene = "ACGT"; // TODO: V gene
+        std::string d_gene = "TGCA"; // TODO: D gene to slide
+        
+        auto d_event = create_stub_gene_choice(D_gene, "IGHD1-1*01", d_gene, 1);
+        auto v_stub = create_stub_gene_choice(V_gene, "IGHV1-1*01", v_gene, 0);
+        
+        auto alignments = std::vector<Alignment_data>{}; // No alignments
+        
+        auto state = create_iterate_state(seq);
+        // TODO: Set V offset, configure deletion bounds for sliding range
+        std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
+        allowed_realizations[D_gene] = alignments;
+        call_iterate(d_event, state, allowed_realizations, {});
+        
+        // D should slide through valid positions between V and sequence end
+        // TODO: Verify D was positioned (at least one valid position found)
+        // REQUIRE(get_seq_offset(state, D_gene_seq, Five_prime, 0) >= 0);
+        // REQUIRE(get_constructed_sequence(state, D_gene_seq, 0) != nullptr);
+        // Mismatches should be updated for each sliding position
+        // TODO: Verify mismatch vector is populated
+    }
     
-    auto d_event = create_stub_gene_choice(D_gene, "IGHD1-1*01", d_gene, 1);
-    auto j_stub = create_stub_gene_choice(J_gene, "IGHJ1*01", j_gene, 2);
+    SECTION("Both ends truncated (max deletions)") {
+        // Code path: lines 463-468 (D fully deleted case check)
+        // When (d_5_off - d_5_max_del) >= (d_3_off + d_3_max_del) => D invisible
+        
+        // TODO: Configure scenario with large deletions on D
+        std::string seq = "ACGTNNNNGGGG"; // TODO: VJ with no visible D
+        std::string d_gene = "TGCA"; // TODO: Short D gene
+        
+        auto d_event = create_stub_gene_choice(D_gene, "IGHD1-1*01", d_gene, 1);
+        
+        int d_offset = 8; // TODO: Position with heavy deletions
+        auto alignments = std::vector<Alignment_data>{
+            create_mock_alignment_data("IGHD1-1*01", d_offset, d_offset, d_offset + d_gene.length() - 1, {}, 100.0)
+        };
+        
+        auto state = create_iterate_state(seq);
+        // TODO: Set deletion bounds such that D fully truncated
+        std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
+        allowed_realizations[D_gene] = alignments;
+        call_iterate(d_event, state, allowed_realizations, {});
+        
+        // When D fully truncated, error rate should be 1.0 (no penalty)
+        REQUIRE(get_seq_offset(state, D_gene_seq, Five_prime, 0) == d_offset);
+        // TODO: Verify downstream_proba_map[D_gene_seq] == 1.0
+        // (Would need to expose downstream_proba_map in test state)
+    }
     
-    int d_offset = 4; // TODO: D too close to J
-    auto alignments = std::vector<Alignment_data>{
-        create_mock_alignment_data("IGHD1-1*01", d_offset, d_offset, d_offset + d_gene.length() - 1, {}, 100.0)
-    };
-    
-    auto state = create_iterate_state(seq);
-    // TODO: Set J offset to trigger overlap
-    std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
-    allowed_realizations[D_gene] = alignments;
-    call_iterate(d_event, state, allowed_realizations, {});
-    
-    // When D and J would overlap, realization should be skipped
-    // TODO: Verify D offsets were not set (indicating skip)
-    // REQUIRE(state.scenario_proba == 1.0); // Should remain unchanged
-}
-
-TEST_CASE("D_gene iterate - exhaustive search with V and J chosen", "[gene_choice][iterate][d_gene][exhaustive]") {
-    // Code path: lines 470-587 (no_d_align=true, exhaustive D positioning)
-    // When no alignments provided, slides D through all valid positions
-    
-    // TODO: Configure scenario without D alignments
-    std::string seq = "ACGTNNNNNNNNGGGG"; // TODO: VJ sequence with unknown D position
-    std::string v_gene = "ACGT"; // TODO: V gene
-    std::string d_gene = "TGCA"; // TODO: D gene (will be positioned exhaustively)
-    std::string j_gene = "GGGG"; // TODO: J gene
-    
-    auto d_event = create_stub_gene_choice(D_gene, "IGHD1-1*01", d_gene, 1);
-    auto v_stub = create_stub_gene_choice(V_gene, "IGHV1-1*01", v_gene, 0);
-    auto j_stub = create_stub_gene_choice(J_gene, "IGHJ1*01", j_gene, 2);
-    
-    // Empty alignments => triggers exhaustive search
-    auto alignments = std::vector<Alignment_data>{};
-    
-    auto state = create_iterate_state(seq);
-    // TODO: Pre-set V and J offsets to define search range
-    std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
-    allowed_realizations[D_gene] = alignments;
-    call_iterate(d_event, state, allowed_realizations, {});
-    
-    // In exhaustive search, D should be positioned somewhere valid
-    // TODO: Verify D offset is in expected range
-    // REQUIRE(get_seq_offset(state, D_gene_seq, Five_prime, 0) >= 0);
-    // REQUIRE(get_seq_offset(state, D_gene_seq, Five_prime, 0) < seq.length());
-    // Mismatches should be computed for the positioned D
-    // TODO: Verify mismatch vector has expected size
-}
-
-TEST_CASE("D_gene iterate - exhaustive search sliding D position", "[gene_choice][iterate][d_gene][exhaustive]") {
-    // Code path: lines 598-746 (while loop sliding D one nucleotide at a time)
-    // Tests exhaustive D positioning when only V or only J chosen
-    
-    // TODO: Configure VD model (no J) or DJ model (no V)
-    std::string seq = "ACGTNNNNNNNNNNNN"; // TODO: V + insertion region
-    std::string v_gene = "ACGT"; // TODO: V gene
-    std::string d_gene = "TGCA"; // TODO: D gene to slide
-    
-    auto d_event = create_stub_gene_choice(D_gene, "IGHD1-1*01", d_gene, 1);
-    auto v_stub = create_stub_gene_choice(V_gene, "IGHV1-1*01", v_gene, 0);
-    
-    auto alignments = std::vector<Alignment_data>{}; // No alignments
-    
-    auto state = create_iterate_state(seq);
-    // TODO: Set V offset, configure deletion bounds for sliding range
-    std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
-    allowed_realizations[D_gene] = alignments;
-    call_iterate(d_event, state, allowed_realizations, {});
-    
-    // D should slide through valid positions between V and sequence end
-    // TODO: Verify D was positioned (at least one valid position found)
-    // REQUIRE(get_seq_offset(state, D_gene_seq, Five_prime, 0) >= 0);
-    // REQUIRE(get_constructed_sequence(state, D_gene_seq, 0) != nullptr);
-    // Mismatches should be updated for each sliding position
-    // TODO: Verify mismatch vector is populated
-}
-
-TEST_CASE("D_gene iterate - both ends truncated (max deletions)", "[gene_choice][iterate][d_gene][edge]") {
-    // Code path: lines 463-468 (D fully deleted case check)
-    // When (d_5_off - d_5_max_del) >= (d_3_off + d_3_max_del) => D invisible
-    
-    // TODO: Configure scenario with large deletions on D
-    std::string seq = "ACGTNNNNGGGG"; // TODO: VJ with no visible D
-    std::string d_gene = "TGCA"; // TODO: Short D gene
-    
-    auto d_event = create_stub_gene_choice(D_gene, "IGHD1-1*01", d_gene, 1);
-    
-    int d_offset = 8; // TODO: Position with heavy deletions
-    auto alignments = std::vector<Alignment_data>{
-        create_mock_alignment_data("IGHD1-1*01", d_offset, d_offset, d_offset + d_gene.length() - 1, {}, 100.0)
-    };
-    
-    auto state = create_iterate_state(seq);
-    // TODO: Set deletion bounds such that D fully truncated
-    std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
-    allowed_realizations[D_gene] = alignments;
-    call_iterate(d_event, state, allowed_realizations, {});
-    
-    // When D fully truncated, error rate should be 1.0 (no penalty)
-    REQUIRE(get_seq_offset(state, D_gene_seq, Five_prime, 0) == d_offset);
-    // TODO: Verify downstream_proba_map[D_gene_seq] == 1.0
-    // (Would need to expose downstream_proba_map in test state)
-}
-
-TEST_CASE("D_gene iterate - mismatch computation in exhaustive search", "[gene_choice][iterate][d_gene][error]") {
-    // Code path: lines 541-553 (mismatch detection in exhaustive positioning)
-    // Tests mismatch list construction when D positioned manually
-    
-    // TODO: Configure sequence with known mismatches to D gene
-    std::string seq = "ACGTNNNNNNNNGGGG"; // TODO: Sequence with mismatches
-    std::string d_gene = "TGCATGCA"; // TODO: D that won't perfectly match
-    
-    auto d_event = create_stub_gene_choice(D_gene, "IGHD1-1*01", d_gene, 1);
-    auto v_stub = create_stub_gene_choice(V_gene, "IGHV1-1*01", "ACGT", 0);
-    auto j_stub = create_stub_gene_choice(J_gene, "IGHJ1*01", "GGGG", 2);
-    
-    auto alignments = std::vector<Alignment_data>{}; // Exhaustive search
-    
-    auto state = create_iterate_state(seq);
-    // TODO: Position D to have specific mismatches
-    std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
-    allowed_realizations[D_gene] = alignments;
-    call_iterate(d_event, state, allowed_realizations, {});
-    
-    // Mismatches should be computed between D gene and sequence
-    // TODO: Verify mismatch positions are correct for positioned D
-    // REQUIRE(get_mismatches(state, D_gene_seq, 0).size() > 0);
-    // REQUIRE(get_seq_offset(state, D_gene_seq, Five_prime, 0) >= 0);
+    SECTION("Mismatch computation in exhaustive search") {
+        // Code path: lines 541-553 (mismatch detection in exhaustive positioning)
+        // Tests mismatch list construction when D positioned manually
+        
+        // TODO: Configure sequence with known mismatches to D gene
+        std::string seq = "ACGTNNNNNNNNGGGG"; // TODO: Sequence with mismatches
+        std::string d_gene = "TGCATGCA"; // TODO: D that won't perfectly match
+        
+        auto d_event = create_stub_gene_choice(D_gene, "IGHD1-1*01", d_gene, 1);
+        auto v_stub = create_stub_gene_choice(V_gene, "IGHV1-1*01", "ACGT", 0);
+        auto j_stub = create_stub_gene_choice(J_gene, "IGHJ1*01", "GGGG", 2);
+        
+        auto alignments = std::vector<Alignment_data>{}; // Exhaustive search
+        
+        auto state = create_iterate_state(seq);
+        // TODO: Position D to have specific mismatches
+        std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
+        allowed_realizations[D_gene] = alignments;
+        call_iterate(d_event, state, allowed_realizations, {});
+        
+        // Mismatches should be computed between D gene and sequence
+        // TODO: Verify mismatch positions are correct for positioned D
+        // REQUIRE(get_mismatches(state, D_gene_seq, 0).size() > 0);
+        // REQUIRE(get_seq_offset(state, D_gene_seq, Five_prime, 0) >= 0);
+    }
 }
 
 // =============================================================================
 // COMPREHENSIVE TEST COVERAGE - J_GENE CODE PATHS  
 // =============================================================================
 
-TEST_CASE("J_gene iterate - DJ safety check", "[gene_choice][iterate][j_gene][safety]") {
-    // Code path: lines 858-878 (J gene with D chosen, DJ overlap check)
+TEST_CASE("J_gene iterate - comprehensive code path coverage", "[gene_choice][iterate][j_gene]") {
     
-    // TODO: Configure DJ junction scenario
-    std::string seq = "NNNNTGCANNNNGGGGTTTT"; // TODO: D and J genes
-    std::string d_gene = "TGCA"; // TODO: D gene
-    std::string j_gene = "GGGGTTTT"; // TODO: J gene
+    SECTION("Basic J alignment - no other genes") {
+        // Simplest case: Only J gene, no V or D
+        // Tests core J alignment processing without safety checks
+        
+        std::string seq = "NNNNNNGGGGTTTT"; // TODO: Tune sequence
+        std::string j_gene = "GGGGTTTT"; // TODO: Tune J gene
+        
+        auto j_event = create_stub_gene_choice(J_gene, "IGHJ1*01", j_gene, 2);
+        
+        int j_offset = 6; // TODO: Tune J alignment position
+        auto alignments = std::vector<Alignment_data>{
+            create_mock_alignment_data("IGHJ1*01", j_offset, j_offset, j_offset + j_gene.length() - 1, {}, 100.0)
+        };
+        
+        auto events_map = create_events_map(nullptr, nullptr, j_event);
+        auto state = create_iterate_state(seq);
+        state.model_marginals[0] = 1.0; // P(IGHJ1*01) = 1.0
+        std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
+        allowed_realizations[J_gene] = alignments;
+        call_iterate(j_event, state, allowed_realizations, events_map);
+        
+        // Basic assertions: J offsets should be set correctly
+        REQUIRE(get_seq_offset(state, J_gene_seq, Five_prime, 0) == j_offset);
+        REQUIRE(get_seq_offset(state, J_gene_seq, Three_prime, 0) == j_offset + j_gene.length() - 1);
+        REQUIRE(get_constructed_sequence(state, J_gene_seq, 0) != nullptr);
+        // TODO: Verify mismatches if alignment has them
+        // No safety checks needed - no other genes
+    }
     
-    auto j_event = create_stub_gene_choice(J_gene, "IGHJ1*01", j_gene, 2);
-    auto d_stub = create_stub_gene_choice(D_gene, "IGHD1-1*01", d_gene, 1);
+    SECTION("DJ safety check") {
+        // Code path: lines 858-878 (J gene with D chosen, DJ overlap check)
+        
+        // TODO: Configure DJ junction scenario
+        std::string seq = "NNNNTGCANNNNGGGGTTTT"; // TODO: D and J genes
+        std::string d_gene = "TGCA"; // TODO: D gene
+        std::string j_gene = "GGGGTTTT"; // TODO: J gene
+        
+        auto j_event = create_stub_gene_choice(J_gene, "IGHJ1*01", j_gene, 2);
+        auto d_stub = create_stub_gene_choice(D_gene, "IGHD1-1*01", d_gene, 1);
+        
+        int j_offset = 12; // TODO: J alignment position
+        auto alignments = std::vector<Alignment_data>{
+            create_mock_alignment_data("IGHJ1*01", j_offset, j_offset, j_offset + j_gene.length() - 1, {}, 100.0)
+        };
+        
+        auto state = create_iterate_state(seq);
+        // TODO: Pre-set D offset for safety check
+        std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
+        allowed_realizations[J_gene] = alignments;
+        call_iterate(j_event, state, allowed_realizations, {});
+        
+        REQUIRE(get_seq_offset(state, J_gene_seq, Five_prime, 0) == j_offset);
+        REQUIRE(get_seq_offset(state, J_gene_seq, Three_prime, 0) == j_offset + j_gene.length() - 1);
+        // TODO: Verify DJ_safe flag based on D offset configuration
+        // REQUIRE(is_safe(state, DJ_safe, 0) == true); // or false
+    }
     
-    int j_offset = 12; // TODO: J alignment position
-    auto alignments = std::vector<Alignment_data>{
-        create_mock_alignment_data("IGHJ1*01", j_offset, j_offset, j_offset + j_gene.length() - 1, {}, 100.0)
-    };
+    SECTION("VJ safety check (no D)") {
+        // Code path: lines 880-900 (J with V chosen, VJ overlap check)
+        
+        // TODO: Configure VJ model
+        std::string seq = "ACGTNNNNGGGGTTTT"; // TODO: VJ sequence
+        std::string v_gene = "ACGT"; // TODO: V gene
+        std::string j_gene = "GGGGTTTT"; // TODO: J gene
+        
+        auto j_event = create_stub_gene_choice(J_gene, "IGHJ1*01", j_gene, 2);
+        auto v_stub = create_stub_gene_choice(V_gene, "IGHV1-1*01", v_gene, 0);
+        
+        int j_offset = 8; // TODO: J position
+        auto alignments = std::vector<Alignment_data>{
+            create_mock_alignment_data("IGHJ1*01", j_offset, j_offset, j_offset + j_gene.length() - 1, {}, 100.0)
+        };
+        
+        auto state = create_iterate_state(seq);
+        // TODO: Set V offset for VJ check
+        std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
+        allowed_realizations[J_gene] = alignments;
+        call_iterate(j_event, state, allowed_realizations, {});
+        
+        // Verify VJ safety flag is set correctly
+        REQUIRE(get_seq_offset(state, J_gene_seq, Five_prime, 0) == j_offset);
+        // TODO: Verify VJ_safe flag based on V offset and gap configuration
+        // REQUIRE(is_safe(state, VJ_safe, 0) == true); // or false
+    }
     
-    auto state = create_iterate_state(seq);
-    // TODO: Pre-set D offset for safety check
-    std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
-    allowed_realizations[J_gene] = alignments;
-    call_iterate(j_event, state, allowed_realizations, {});
+    SECTION("Overlap causes skip") {
+        // Code path: lines 910-913 or 925-928 (overlap detection => continue)
+        
+        // TODO: Configure J too close to D or V
+        std::string seq = "NNNNTGCAGGGG"; // TODO: Short junction
+        std::string d_gene = "TGCATGCA"; // TODO: Long D
+        std::string j_gene = "GGGGTTTT"; // TODO: J gene
+        
+        auto j_event = create_stub_gene_choice(J_gene, "IGHJ1*01", j_gene, 2);
+        auto d_stub = create_stub_gene_choice(D_gene, "IGHD1-1*01", d_gene, 1);
+        
+        int j_offset = 8; // TODO: Too close to D
+        auto alignments = std::vector<Alignment_data>{
+            create_mock_alignment_data("IGHJ1*01", j_offset, j_offset, j_offset + j_gene.length() - 1, {}, 100.0)
+        };
+        
+        auto state = create_iterate_state(seq);
+        // TODO: Set D offset to trigger overlap
+        std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
+        allowed_realizations[J_gene] = alignments;
+        call_iterate(j_event, state, allowed_realizations, {});
+        
+        // When J overlaps with D or V, realization should be skipped
+        // TODO: Verify J offsets were not set (indicating skip)
+        // REQUIRE(state.scenario_proba == 1.0); // Should remain unchanged
+    }
     
-    REQUIRE(get_seq_offset(state, J_gene_seq, Five_prime, 0) == j_offset);
-    REQUIRE(get_seq_offset(state, J_gene_seq, Three_prime, 0) == j_offset + j_gene.length() - 1);
-    // TODO: Verify DJ_safe flag based on D offset configuration
-    // REQUIRE(is_safe(state, DJ_safe, 0) == true); // or false
-}
-
-TEST_CASE("J_gene iterate - VJ safety check (no D)", "[gene_choice][iterate][j_gene][safety]") {
-    // Code path: lines 880-900 (J with V chosen, VJ overlap check)
-    
-    // TODO: Configure VJ model
-    std::string seq = "ACGTNNNNGGGGTTTT"; // TODO: VJ sequence
-    std::string v_gene = "ACGT"; // TODO: V gene
-    std::string j_gene = "GGGGTTTT"; // TODO: J gene
-    
-    auto j_event = create_stub_gene_choice(J_gene, "IGHJ1*01", j_gene, 2);
-    auto v_stub = create_stub_gene_choice(V_gene, "IGHV1-1*01", v_gene, 0);
-    
-    int j_offset = 8; // TODO: J position
-    auto alignments = std::vector<Alignment_data>{
-        create_mock_alignment_data("IGHJ1*01", j_offset, j_offset, j_offset + j_gene.length() - 1, {}, 100.0)
-    };
-    
-    auto state = create_iterate_state(seq);
-    // TODO: Set V offset for VJ check
-    std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
-    allowed_realizations[J_gene] = alignments;
-    call_iterate(j_event, state, allowed_realizations, {});
-    
-    // Verify VJ safety flag is set correctly
-    REQUIRE(get_seq_offset(state, J_gene_seq, Five_prime, 0) == j_offset);
-    // TODO: Verify VJ_safe flag based on V offset and gap configuration
-    // REQUIRE(is_safe(state, VJ_safe, 0) == true); // or false
-}
-
-TEST_CASE("J_gene iterate - overlap causes skip", "[gene_choice][iterate][j_gene][safety]") {
-    // Code path: lines 910-913 or 925-928 (overlap detection => continue)
-    
-    // TODO: Configure J too close to D or V
-    std::string seq = "NNNNTGCAGGGG"; // TODO: Short junction
-    std::string d_gene = "TGCATGCA"; // TODO: Long D
-    std::string j_gene = "GGGGTTTT"; // TODO: J gene
-    
-    auto j_event = create_stub_gene_choice(J_gene, "IGHJ1*01", j_gene, 2);
-    auto d_stub = create_stub_gene_choice(D_gene, "IGHD1-1*01", d_gene, 1);
-    
-    int j_offset = 8; // TODO: Too close to D
-    auto alignments = std::vector<Alignment_data>{
-        create_mock_alignment_data("IGHJ1*01", j_offset, j_offset, j_offset + j_gene.length() - 1, {}, 100.0)
-    };
-    
-    auto state = create_iterate_state(seq);
-    // TODO: Set D offset to trigger overlap
-    std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
-    allowed_realizations[J_gene] = alignments;
-    call_iterate(j_event, state, allowed_realizations, {});
-    
-    // When J overlaps with D or V, realization should be skipped
-    // TODO: Verify J offsets were not set (indicating skip)
-    // REQUIRE(state.scenario_proba == 1.0); // Should remain unchanged
-}
-
-TEST_CASE("J_gene iterate - multiple J alignments", "[gene_choice][iterate][j_gene]") {
-    // Code path: lines 903-990+ (iterate over all J alignments)
-    
-    // TODO: Multiple possible J alignments
-    std::string seq = "NNNNGGGGGGGGGGGGTTTT"; // TODO: Ambiguous J region
-    std::string j_gene = "GGGGTTTT"; // TODO: J with repetitive start
-    
-    auto j_event = create_stub_gene_choice(J_gene, "IGHJ1*01", j_gene, 2);
-    
-    // Multiple J positions possible
-    auto alignments = std::vector<Alignment_data>{
-        create_mock_alignment_data("IGHJ1*01", 4, 4, 4 + j_gene.length() - 1, {}, 100.0),
-        create_mock_alignment_data("IGHJ1*01", 8, 8, 8 + j_gene.length() - 1, {}, 100.0),
-        create_mock_alignment_data("IGHJ1*01", 12, 12, 12 + j_gene.length() - 1, {}, 100.0)
-    };
-    
-    auto state = create_iterate_state(seq);
-    std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
-    allowed_realizations[J_gene] = alignments;
-    call_iterate(j_event, state, allowed_realizations, {});
-    
-    // Verify at least one J alignment was processed
-    REQUIRE(get_seq_offset(state, J_gene_seq, Five_prime, 0) >= 0);
-    REQUIRE(get_constructed_sequence(state, J_gene_seq, 0) != nullptr);
-    // TODO: Verify all three alignments contributed to marginals
+    SECTION("Multiple J alignments") {
+        // Code path: lines 903-990+ (iterate over all J alignments)
+        
+        // TODO: Multiple possible J alignments
+        std::string seq = "NNNNGGGGGGGGGGGGTTTT"; // TODO: Ambiguous J region
+        std::string j_gene = "GGGGTTTT"; // TODO: J with repetitive start
+        
+        auto j_event = create_stub_gene_choice(J_gene, "IGHJ1*01", j_gene, 2);
+        
+        // Multiple J positions possible
+        auto alignments = std::vector<Alignment_data>{
+            create_mock_alignment_data("IGHJ1*01", 4, 4, 4 + j_gene.length() - 1, {}, 100.0),
+            create_mock_alignment_data("IGHJ1*01", 8, 8, 8 + j_gene.length() - 1, {}, 100.0),
+            create_mock_alignment_data("IGHJ1*01", 12, 12, 12 + j_gene.length() - 1, {}, 100.0)
+        };
+        
+        auto state = create_iterate_state(seq);
+        std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
+        allowed_realizations[J_gene] = alignments;
+        call_iterate(j_event, state, allowed_realizations, {});
+        
+        // Verify at least one J alignment was processed
+        REQUIRE(get_seq_offset(state, J_gene_seq, Five_prime, 0) >= 0);
+        REQUIRE(get_constructed_sequence(state, J_gene_seq, 0) != nullptr);
+        // TODO: Verify all three alignments contributed to marginals
+    }
 }
 
 // =============================================================================

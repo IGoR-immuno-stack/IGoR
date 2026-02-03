@@ -271,7 +271,7 @@ IterateTestState create_iterate_state(
         std::make_unique<long double[]>(marginal_array_size),  // model_marginals
         Seq_type_str_p_map(6),                    // constructed_sequences (6 Seq_types)
         Seq_offsets_map(6, 3),                    // seq_offsets (6 Seq_types, 3 Seq_sides)
-        std::make_shared<Single_error_rate>(),    // error_rate
+        std::make_shared<Single_error_rate>(0.0), // error_rate with 0% error rate
         {},                                       // counters_list
         Safety_bool_map(3),                       // safety_set (3 Event_safety values)
         Mismatch_vectors_map(6),                  // mismatches_lists (6 Seq_types)
@@ -294,7 +294,17 @@ void call_iterate(
     const std::unordered_map<Gene_class, std::vector<Alignment_data>>& allowed_realizations,
     const std::unordered_map<std::tuple<Event_type,Gene_class,Seq_side>, std::shared_ptr<Rec_Event>>& events_map
 ) {
-    // Initialize the event first
+    // Set base_index_map for ALL events in events_map (required by IGoR)
+    // Even stub events need base_index_map entries
+    for (const auto& event_pair : events_map) {
+        const auto& ev = event_pair.second;
+        if (ev) {
+            state.base_index_map[ev->get_event_identifier()] = 0;
+        }
+    }
+    
+    // Initialize the event - this will call initialize_event() which requests memory layers
+    // and then calls Rec_Event::initialize_event() which uses get_all_current_memory_layer()
     std::unordered_set<Rec_Event_name> initialized_events;
     event->initialize_event(
         initialized_events,
@@ -309,9 +319,29 @@ void call_iterate(
         state.base_index_map
     );
     
-    // Create a nullptr wrapped in shared_ptr for next_event_ptr
-    // This is safe for unit tests where we're testing isolated events
-    std::shared_ptr<Next_event_ptr> next_event_ptr(nullptr);
+    // Initialize empty sequences and mismatch lists for genes not initialized by the event
+    // This prevents null pointer dereferencing in error rate calculation (compare_sequences)
+    // Use static storage to ensure pointers remain valid throughout test execution
+    static Int_Str empty_seq = nt2int("");
+    static std::vector<int> empty_mismatches;
+    
+    if (!state.constructed_sequences.exist(V_gene_seq)) {
+        state.constructed_sequences.set_value(V_gene_seq, &empty_seq, 0);
+        state.mismatches_lists.set_value(V_gene_seq, &empty_mismatches, 0);
+    }
+    if (!state.constructed_sequences.exist(J_gene_seq)) {
+        state.constructed_sequences.set_value(J_gene_seq, &empty_seq, 0);
+        state.mismatches_lists.set_value(J_gene_seq, &empty_mismatches, 0);
+    }
+    
+    // Create a next_event_ptr array for the event chain
+    // For isolated event testing, we create an array large enough to hold
+    // pointers for all possible events, initialized to nullptr
+    const size_t max_events = 100; // Arbitrary size large enough for test events
+    std::shared_ptr<Next_event_ptr> next_event_ptr(
+        new Next_event_ptr[max_events](),  // () initializes all to nullptr
+        std::default_delete<Next_event_ptr[]>()
+    );
     
     // Call iterate with all parameters from the state struct
     event->iterate(
@@ -350,12 +380,39 @@ int get_seq_offset(
     return state.seq_offsets.at(seq_type, side, layer);
 }
 
+bool has_seq_offset(
+    const IterateTestState& state,
+    Seq_type seq_type,
+    Seq_side side,
+    int layer
+) {
+    try {
+        state.seq_offsets.at(seq_type, side, layer);
+        return true;
+    } catch (const std::out_of_range&) {
+        return false;
+    }
+}
+
 const Int_Str* get_constructed_sequence(
     const IterateTestState& state,
     Seq_type seq_type,
     int layer
 ) {
     return state.constructed_sequences.at(seq_type, layer);
+}
+
+bool has_constructed_sequence(
+    const IterateTestState& state,
+    Seq_type seq_type,
+    int layer
+) {
+    try {
+        state.constructed_sequences.at(seq_type, layer);
+        return true;
+    } catch (const std::out_of_range&) {
+        return false;
+    }
 }
 
 std::vector<int> get_mismatches(
@@ -376,6 +433,19 @@ bool is_safe(
     int layer
 ) {
     return state.safety_set.at(safety_type, layer);
+}
+
+bool has_safety(
+    const IterateTestState& state,
+    Event_safety safety_type,
+    int layer
+) {
+    try {
+        state.safety_set.at(safety_type, layer);
+        return true;
+    } catch (const std::out_of_range&) {
+        return false;
+    }
 }
 
 // ============================================================================

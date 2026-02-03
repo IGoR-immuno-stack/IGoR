@@ -182,6 +182,22 @@ int get_seq_offset(
 );
 
 /**
+ * @brief Check if a seq_offset exists in the map
+ * 
+ * @param state Test state
+ * @param seq_type Sequence type (V_gene_seq, D_gene_seq, J_gene_seq)
+ * @param side Sequence side (Five_prime, Three_prime)
+ * @param layer Memory layer (default 0)
+ * @return true if the offset exists, false otherwise
+ */
+bool has_seq_offset(
+    const IterateTestState& state,
+    Seq_type seq_type,
+    Seq_side side,
+    int layer = 0
+);
+
+/**
  * @brief Get constructed sequence from IterateTestState
  * 
  * @param state Test state
@@ -190,6 +206,20 @@ int get_seq_offset(
  * @return Pointer to constructed sequence, or nullptr if not set
  */
 const Int_Str* get_constructed_sequence(
+    const IterateTestState& state,
+    Seq_type seq_type,
+    int layer = 0
+);
+
+/**
+ * @brief Check if a constructed sequence exists in the map
+ * 
+ * @param state Test state
+ * @param seq_type Sequence type (V_gene_seq, D_gene_seq, J_gene_seq)
+ * @param layer Memory layer (default 0)
+ * @return true if the constructed sequence exists, false otherwise
+ */
+bool has_constructed_sequence(
     const IterateTestState& state,
     Seq_type seq_type,
     int layer = 0
@@ -218,6 +248,20 @@ std::vector<int> get_mismatches(
  * @return true if safety condition is met
  */
 bool is_safe(
+    const IterateTestState& state,
+    Event_safety safety_type,
+    int layer = 0
+);
+
+/**
+ * @brief Check if a safety flag exists in the map
+ * 
+ * @param state Test state
+ * @param safety_type VD_safe, VJ_safe, or DJ_safe
+ * @param layer Memory layer (default 0)
+ * @return true if the safety flag exists, false otherwise
+ */
+bool has_safety(
     const IterateTestState& state,
     Event_safety safety_type,
     int layer = 0
