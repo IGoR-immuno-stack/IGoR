@@ -12,24 +12,28 @@ TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 REPORT_BASE_DIR="$REPORT_DIR/regression_$TIMESTAMP"
 mkdir -p "$REPORT_BASE_DIR"
 
-# Test definitions with name, script, and description
-declare -A TEST_NAMES=(
-    [1]="align"
-    [2]="inference"
-    [3]="generate"
+# Test definitions with name, script, and description (parallel indexed arrays)
+TEST_NAMES=(
+    "align"
+    "inference"
+    "generate"
 )
 
-declare -A TEST_SCRIPTS=(
-    [1]="$SCRIPT_DIR/test_align.sh"
-    [2]="$SCRIPT_DIR/test_inference.sh"
-    [3]="$SCRIPT_DIR/test_generate.sh"
+TEST_SCRIPTS=(
+    "$SCRIPT_DIR/test_align.sh"
+    "$SCRIPT_DIR/test_inference.sh"
+    "$SCRIPT_DIR/test_generate.sh"
 )
 
-declare -A TEST_DESCRIPTIONS=(
-    [1]="Alignment tests"
-    [2]="Inference tests"
-    [3]="Generation tests"
+TEST_DESCRIPTIONS=(
+    "Alignment tests"
+    "Inference tests"
+    "Generation tests"
 )
+
+# Helper to get array index from test number (1-based to 0-based)
+idx_from_num() { echo $(($1 - 1)); }
+num_from_idx() { echo $(($1 + 1)); }
 
 # ------------------------------------------------------------------
 # Usage
@@ -115,8 +119,9 @@ if $LIST_TESTS; then
     echo "---------------------------"
     printf "%-3s | %-15s | %s\n" "Idx" "Name" "Description"
     echo "-----|-----------------|-------------------------------------"
-    for i in $(seq 1 ${#TEST_NAMES[@]}); do
-        printf "%-3s | %-15s | %s\n" "$i" "${TEST_NAMES[$i]}" "${TEST_DESCRIPTIONS[$i]}"
+    for i in "${!TEST_NAMES[@]}"; do
+        num=$(num_from_idx "$i")
+        printf "%-3s | %-15s | %s\n" "$num" "${TEST_NAMES[$i]}" "${TEST_DESCRIPTIONS[$i]}"
     done
     echo "-----|-----------------|-------------------------------------"
     exit 0
@@ -136,10 +141,11 @@ fi
 parse_test_spec() {
     local spec="$1"
     local tests=()
+    local num_tests=${#TEST_NAMES[@]}
 
     if [[ "$spec" == "all" ]]; then
-        for i in $(seq 1 ${#TEST_NAMES[@]}); do
-            tests+=("$i")
+        for i in "${!TEST_NAMES[@]}"; do
+            tests+=("$(num_from_idx "$i")")
         done
         echo "${tests[@]}"
         return
@@ -154,18 +160,20 @@ parse_test_spec() {
         if [[ "$item" =~ ^[0-9]+-[0-9]+$ ]]; then
             local start=$(echo "$item" | cut -d'-' -f1)
             local end=$(echo "$item" | cut -d'-' -f2)
-            for ((i=start; i<=end; i++)); do
-                if [[ -n "${TEST_NAMES[$i]:-}" ]]; then
-                    tests+=("$i")
+            for ((n=start; n<=end; n++)); do
+                local idx=$(idx_from_num "$n")
+                if [[ $idx -ge 0 && $idx -lt $num_tests ]]; then
+                    tests+=("$n")
                 else
-                    echo "Error: Invalid test index '$i'" >&2
+                    echo "Error: Invalid test index '$n'" >&2
                     echo "Run '$0 --list' to see available tests." >&2
                     exit 1
                 fi
             done
         # Check if it's an index
         elif [[ "$item" =~ ^[0-9]+$ ]]; then
-            if [[ -n "${TEST_NAMES[$item]:-}" ]]; then
+            local idx=$(idx_from_num "$item")
+            if [[ $idx -ge 0 && $idx -lt $num_tests ]]; then
                 tests+=("$item")
             else
                 echo "Error: Invalid test index '$item'" >&2
@@ -175,9 +183,9 @@ parse_test_spec() {
         # Check if it's a name
         else
             local found=false
-            for i in $(seq 1 ${#TEST_NAMES[@]}); do
+            for i in "${!TEST_NAMES[@]}"; do
                 if [[ "${TEST_NAMES[$i]}" == "$item" ]]; then
-                    tests+=("$i")
+                    tests+=("$(num_from_idx "$i")")
                     found=true
                     break
                 fi
@@ -211,14 +219,15 @@ echo "Tests to run: ${TESTS_TO_RUN[*]}"
 echo "=============================================================================="
 echo ""
 
-for test_idx in "${TESTS_TO_RUN[@]}"; do
+for test_num in "${TESTS_TO_RUN[@]}"; do
+    test_idx=$(idx_from_num "$test_num")
     test_name="${TEST_NAMES[$test_idx]}"
     test_script="${TEST_SCRIPTS[$test_idx]}"
     test_desc="${TEST_DESCRIPTIONS[$test_idx]}"
     test_outdir="$REPORT_BASE_DIR/${test_name}_output"
     test_report="$REPORT_BASE_DIR/${test_name}_report.txt"
 
-    printf "Running test %d: %s (%s)\n" "$test_idx" "$test_name" "$test_desc"
+    printf "Running test %d: %s (%s)\n" "$test_num" "$test_name" "$test_desc"
 
     # Create test-specific output directory
     mkdir -p "$test_outdir"
@@ -228,7 +237,7 @@ for test_idx in "${TESTS_TO_RUN[@]}"; do
 ==============================================================================
 REGRESSION TEST REPORT: $test_name
 ==============================================================================
-Test:       $test_name (index $test_idx)
+Test:       $test_name (index $test_num)
 Description: $test_desc
 Script:     $test_script
 Started:    $(date)
@@ -275,12 +284,13 @@ EOF
     echo "    Finalized: $(date)" >> "$test_report"
     echo "" >> "$test_report"
 
-    TEST_RESULTS+=("$test_idx|$test_name|$test_status|$test_report")
+    TEST_RESULTS+=("$test_num|$test_name|$test_status|$test_report")
 done
 
 # Clean up output directories if not keeping them
 if ! $KEEP_OUTPUT; then
-    for test_idx in "${TESTS_TO_RUN[@]}"; do
+    for test_num in "${TESTS_TO_RUN[@]}"; do
+        test_idx=$(idx_from_num "$test_num")
         test_name="${TEST_NAMES[$test_idx]}"
         test_outdir="$REPORT_BASE_DIR/${test_name}_output"
 

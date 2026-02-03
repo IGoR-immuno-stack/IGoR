@@ -152,7 +152,7 @@ Arguments:
                       Default: all
 
   EXTRA_ARGS          Additional arguments depending on mode:
-                      - For 'sampling'/'gen': custom sizes [size1 size2 ...]
+                      - For 'sampling'/'gen': custom sizes (space or comma-separated)
                       - For 'pipeline': (none, uses default sizes)
 
   BENCHMARK_ID        Specific benchmark index to run (overrides MODE)
@@ -177,7 +177,8 @@ Examples (pixi):
   pixi run benchmark all              Run all benchmarks (same as above)
   pixi run benchmark sampling         Run standalone sampling benchmarks
   pixi run benchmark pipeline         Run full pipeline benchmarks
-  pixi run benchmark sampling 5000 50000  Custom sampling sizes
+  pixi run benchmark sampling 5000 50000  Custom sizes (space-separated)
+  pixi run benchmark sampling 10,1000,100000  Custom sizes (comma-separated)
   pixi run benchmark 1                Run benchmark #1 only
   pixi run benchmark 5-8              Run benchmarks #5 through #8
   pixi run benchmark 1,3,5            Run benchmarks 1, 3, and 5
@@ -387,10 +388,21 @@ else
 
         case "$MODE" in
             sampling|gen)
-                # Use custom sizes if provided (filter out any remaining options)
+                # Use custom sizes if provided (supports comma-separated and space-separated)
                 if [[ $# -gt 0 ]]; then
                     for arg in "$@"; do
-                        if [[ "$arg" =~ ^[0-9]+$ ]]; then
+                        # Handle comma-separated values within a single argument
+                        if [[ "$arg" =~ ^[0-9,]+$ ]] && [[ "$arg" == *,* ]]; then
+                            IFS=',' read -ra SIZES <<< "$arg"
+                            for size in "${SIZES[@]}"; do
+                                if [[ "$size" =~ ^[0-9]+$ ]]; then
+                                    CUSTOM_SIZES+=("$size")
+                                else
+                                    echo "Error: Invalid size '$size' (must be a number)" >&2
+                                    exit 1
+                                fi
+                            done
+                        elif [[ "$arg" =~ ^[0-9]+$ ]]; then
                             CUSTOM_SIZES+=("$arg")
                         elif [[ "$arg" == -* ]]; then
                             echo "Error: Unknown option '$arg'" >&2
