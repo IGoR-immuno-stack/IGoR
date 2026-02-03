@@ -765,8 +765,8 @@ void Model_Parms::read_model_parms(string filename)
 
             cerr << event << " read" << endl;
             if (event == string("Insertion")) {
-                unordered_map<string, Event_realization> event_realizations =
-                        unordered_map<string, Event_realization>();
+                map<string, Event_realization> event_realizations =
+                        map<string, Event_realization>();
                 getline(infile, line_str);
                 while (line_str[0] == '%') {
                     semicolon_index = line_str.find(";", 0);
@@ -787,8 +787,8 @@ void Model_Parms::read_model_parms(string filename)
                 new_event_p->set_nickname(nickname);
                 this->add_event(new_event_p);
             } else if (event == string("Deletion")) {
-                unordered_map<string, Event_realization> event_realizations =
-                        unordered_map<string, Event_realization>();
+                map<string, Event_realization> event_realizations =
+                        map<string, Event_realization>();
                 getline(infile, line_str);
                 while (line_str[0] == '%') {
                     semicolon_index = line_str.find(";", 0);
@@ -809,8 +809,8 @@ void Model_Parms::read_model_parms(string filename)
                 new_event_p->set_nickname(nickname);
                 this->add_event(new_event_p);
             } else if (event == string("GeneChoice")) {
-                unordered_map<string, Event_realization> event_realizations =
-                        unordered_map<string, Event_realization>(); // FIXME nonsense new
+                map<string, Event_realization> event_realizations =
+                        map<string, Event_realization>(); // FIXME nonsense new
                 getline(infile, line_str);
                 while (line_str[0] == '%') {
                     semicolon_index = line_str.find(";", 0);

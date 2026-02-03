@@ -54,7 +54,7 @@ Rec_Event::Rec_Event(Gene_class gene, Seq_side side)
 } // FIXME why does this exist? anyway fix initilization
 
 Rec_Event::Rec_Event(Gene_class gene, Seq_side side,
-                     unordered_map<string, Event_realization> &realizations)
+                     map<string, Event_realization> &realizations)
     : Rec_Event(gene, side)
 {
     this->event_realizations = realizations;
@@ -96,7 +96,7 @@ bool Rec_Event::operator==(const Rec_Event &other) const
         return 0;
     if (this->event_realizations.size() != other.event_realizations.size())
         return 0;
-    for (unordered_map<string, Event_realization>::const_iterator iter =
+    for (map<string, Event_realization>::const_iterator iter =
                  this->event_realizations.begin();
          iter != this->event_realizations.end(); ++iter) {
         if (other.event_realizations.count((*iter).first) != 1)

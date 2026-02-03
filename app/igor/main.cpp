@@ -1306,7 +1306,7 @@ int main(int argc , char* argv[]){
 			shared_ptr<Rec_Event> v_choice = tmp_events_map.at(tuple<Event_type,int,Seq_side>(GeneChoice_t,V_gene,Undefined_side));
 			shared_ptr<Gene_choice> v_choice_gc = dynamic_pointer_cast<Gene_choice>(v_choice);
 			bool any_genomic_difference = false;
-			unordered_map<string , Event_realization> realization_map_copy = v_choice_gc->get_realizations_map();
+			auto realization_map_copy = v_choice_gc->get_realizations_map();
 			/*
 			 * We loop over provided genomic templates and check if they are contained in the current model
 			 */
@@ -1347,7 +1347,7 @@ int main(int argc , char* argv[]){
 			shared_ptr<Rec_Event> d_choice = tmp_events_map.at(tuple<Event_type,int,Seq_side>(GeneChoice_t,D_gene,Undefined_side));
 			shared_ptr<Gene_choice> d_choice_gc = dynamic_pointer_cast<Gene_choice>(d_choice);
 			bool any_genomic_difference = false;
-			unordered_map<string , Event_realization> realization_map_copy = d_choice_gc->get_realizations_map();
+			auto realization_map_copy = d_choice_gc->get_realizations_map();
 			/*
 			 * We loop over provided genomic templates and check if they are contained in the current model
 			 */
@@ -1388,7 +1388,7 @@ int main(int argc , char* argv[]){
 			shared_ptr<Rec_Event> j_choice = tmp_events_map.at(tuple<Event_type,int,Seq_side>(GeneChoice_t,J_gene,Undefined_side));
 			shared_ptr<Gene_choice> j_choice_gc = dynamic_pointer_cast<Gene_choice>(j_choice);
 			bool any_genomic_difference = false;
-			unordered_map<string , Event_realization> realization_map_copy = j_choice_gc->get_realizations_map();
+			auto realization_map_copy = j_choice_gc->get_realizations_map();
 			/*
 			 * We loop over provided genomic templates and check if they are contained in the current model
 			 */

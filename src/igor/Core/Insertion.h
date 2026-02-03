@@ -18,9 +18,9 @@ public:
     Insertion();
     Insertion(Gene_class);
     Insertion(Gene_class, std::pair<int, int>); // bounds for insertion lengths
-    Insertion(Gene_class, std::unordered_map<std::string, Event_realization> &);
+    Insertion(Gene_class, std::map<std::string, Event_realization> &);
     Insertion(Gene_class, Seq_side);
-    Insertion(Gene_class, Seq_side, std::unordered_map<std::string, Event_realization> &);
+    Insertion(Gene_class, Seq_side, std::map<std::string, Event_realization> &);
 
     virtual ~Insertion();
 

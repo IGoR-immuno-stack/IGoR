@@ -50,7 +50,7 @@ Dinucl_markov::Dinucl_markov(Gene_class gene, Seq_side side)
 }
 
 Dinucl_markov::Dinucl_markov(Gene_class gene, Seq_side side,
-                             unordered_map<string, Event_realization> &realizations)
+                             map<string, Event_realization> &realizations)
     : Dinucl_markov(gene, side)
 {
     this->event_realizations = realizations;

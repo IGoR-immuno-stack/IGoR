@@ -113,7 +113,7 @@ class Rec_Event
 public:
     Rec_Event();
     Rec_Event(Gene_class, Seq_side);
-    Rec_Event(Gene_class, Seq_side, std::unordered_map<std::string, Event_realization> &);
+    Rec_Event(Gene_class, Seq_side, std::map<std::string, Event_realization> &);
     virtual ~Rec_Event();
     virtual std::shared_ptr<Rec_Event> copy() = 0; // TODO make it const somehow
     virtual int size() const;
@@ -189,7 +189,7 @@ public:
     // Accessors
     const Gene_class get_class() const { return event_class; };
     const Seq_side get_side() const { return event_side; };
-    const std::unordered_map<std::string, Event_realization> get_realizations_map() const
+    const std::map<std::string, Event_realization> get_realizations_map() const
     {
         return event_realizations;
     };
@@ -272,7 +272,7 @@ public:
                                             Index_map &base_index_map) = 0;
 
 protected:
-    std::unordered_map<std::string, Event_realization> event_realizations;
+    std::map<std::string, Event_realization> event_realizations;
     int priority;
     Gene_class event_class;
     Seq_side event_side;

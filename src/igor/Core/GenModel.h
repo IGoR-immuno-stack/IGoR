@@ -69,10 +69,10 @@ struct gen_CDR3_data
     bool output_productive = false;
 
     gen_CDR3_data(const std::unordered_map<std::string, size_t> &v_anchors_indices,
-                  const std::unordered_map<std::string, Event_realization> &v_reals,
+                  const std::map<std::string, Event_realization> &v_reals,
                   size_t v_event_pos,
                   const std::unordered_map<std::string, size_t> &j_anchors_indices,
-                  const std::unordered_map<std::string, Event_realization> &j_reals,
+                  const std::map<std::string, Event_realization> &j_reals,
                   size_t j_event_pos,
                   std::shared_ptr<std::ostream> output_stream_ptr =
                           std::shared_ptr<std::ostream>(&std::cout, null_delete<std::ostream>()))

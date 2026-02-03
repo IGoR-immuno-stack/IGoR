@@ -27,7 +27,7 @@ public:
     Deletion();
     Deletion(Gene_class, Seq_side);
     Deletion(Gene_class, Seq_side, std::pair<int, int>); // bounds for deletion lengths
-    Deletion(Gene_class, Seq_side, std::unordered_map<std::string, Event_realization> &);
+    Deletion(Gene_class, Seq_side, std::map<std::string, Event_realization> &);
 
     // Destructor
     virtual ~Deletion();

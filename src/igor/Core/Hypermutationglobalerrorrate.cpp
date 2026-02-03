@@ -1876,7 +1876,7 @@ void Hypermutation_global_errorrate::update_Nmers_proba(int current_pos, int cur
 
 
         if(learn_on_v){
-                for(unordered_map<string,Event_realization>::const_iterator
+                for(map<string,Event_realization>::const_iterator
 real_iter = v_realizations.begin() ; real_iter!=v_realizations.end() ;
 real_iter++){ pair<size_t,double*> nucleotide_coverage =
 v_gene_nucleotide_coverage_p[(*real_iter).second.index]; pair<size_t,double*>
@@ -1945,7 +1945,7 @@ nucleotide_error.second[i];
 nucleotide coverage and nucleotide error as arguments
 
         if(learn_on_j){
-                for(unordered_map<string,Event_realization>::const_iterator
+                for(map<string,Event_realization>::const_iterator
 real_iter = j_realizations.begin() ; real_iter!=j_realizations.end() ;
 real_iter++){ pair<size_t,double*> nucleotide_coverage =
 j_gene_nucleotide_coverage_p[(*real_iter).second.index]; pair<size_t,double*>

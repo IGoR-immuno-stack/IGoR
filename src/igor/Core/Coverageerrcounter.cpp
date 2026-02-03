@@ -552,7 +552,7 @@ shared_ptr<Counter> Coverage_err_counter::copy() const
 }
 
 void Coverage_err_counter::allocate_coverage_and_errors_arrays(
-        size_t n_real, const unordered_map<string, Event_realization> realizations,
+        size_t n_real, const map<string, Event_realization> realizations,
         pair<size_t, double *> *&gene_nucleotide_coverage_p,
         pair<size_t, double *> *&gene_per_nucleotide_error_p,
         pair<size_t, double *> *&gene_nucleotide_coverage_seq_p,
@@ -565,7 +565,7 @@ void Coverage_err_counter::allocate_coverage_and_errors_arrays(
     gene_nucleotide_coverage_seq_p = new pair<size_t, double *>[n_real];
     gene_per_nucleotide_error_seq_p = new pair<size_t, double *>[n_real];
 
-    for (unordered_map<string, Event_realization>::const_iterator iter = realizations.begin();
+    for (map<string, Event_realization>::const_iterator iter = realizations.begin();
          iter != realizations.end(); iter++) {
 
         size_t tmp = pow((*iter).second.value_str_int.size(), record_Npoint_occurence);
@@ -593,7 +593,7 @@ void Coverage_err_counter::allocate_coverage_and_errors_arrays(
 }
 
 void Coverage_err_counter::deallocate_coverage_and_errors_arrays(
-        size_t n_real, const unordered_map<string, Event_realization> realizations,
+        size_t n_real, const map<string, Event_realization> realizations,
         pair<size_t, double *> *&gene_nucleotide_coverage_p,
         pair<size_t, double *> *&gene_per_nucleotide_error_p,
         pair<size_t, double *> *&gene_nucleotide_coverage_seq_p,
@@ -602,7 +602,7 @@ void Coverage_err_counter::deallocate_coverage_and_errors_arrays(
 
     if (n_real != 0) {
         //If n_real==0 then the Counter has probably not been initialized
-        for (unordered_map<string, Event_realization>::const_iterator iter = realizations.begin();
+        for (map<string, Event_realization>::const_iterator iter = realizations.begin();
              iter != realizations.end(); iter++) {
 
             //Deallocate normalized counters

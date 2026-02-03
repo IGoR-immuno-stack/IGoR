@@ -18,7 +18,7 @@ public:
     Dinucl_markov();
     Dinucl_markov(Gene_class);
     Dinucl_markov(Gene_class, Seq_side);
-    Dinucl_markov(Gene_class, Seq_side, std::unordered_map<std::string, Event_realization> &);
+    Dinucl_markov(Gene_class, Seq_side, std::map<std::string, Event_realization> &);
 
     virtual ~Dinucl_markov();
 

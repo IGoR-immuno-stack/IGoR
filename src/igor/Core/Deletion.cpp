@@ -68,11 +68,11 @@ Deletion::Deletion(Gene_class gene, Seq_side side)
 }
 
 Deletion::Deletion(Gene_class gene, Seq_side side,
-                   unordered_map<string, Event_realization> &realizations)
+                   map<string, Event_realization> &realizations)
     : Deletion(gene, side)
 {
     this->event_realizations = realizations;
-    for (unordered_map<string, Event_realization>::const_iterator iter =
+    for (map<string, Event_realization>::const_iterator iter =
                  this->event_realizations.begin();
          iter != this->event_realizations.end(); ++iter) {
         int val = (*iter).second.value_int;
@@ -135,7 +135,7 @@ void Deletion::iterate(
     int prev_5_off = seq_offsets.at(type_id, Five_prime, memory_layer_off_fivep);
     int prev_3_off = seq_offsets.at(type_id, Three_prime, memory_layer_off_threep);
 
-    for (unordered_map<string, Event_realization>::const_iterator iter =
+    for (map<string, Event_realization>::const_iterator iter =
                  this->event_realizations.begin();
          iter != this->event_realizations.end(); ++iter) {
         int del_len = (*iter).second.value_int;
@@ -241,7 +241,7 @@ queue<int> Deletion::draw_random_realization(
     int type_id = this->sequence_type_id;
     string &seq = constructed_sequences[type_id];
 
-    for (unordered_map<string, Event_realization>::const_iterator iter =
+    for (map<string, Event_realization>::const_iterator iter =
                  this->event_realizations.begin();
          iter != this->event_realizations.end(); ++iter) {
         prob_count += model_marginals_p[index_map.at(this->get_name()) + (*iter).second.index];
@@ -276,7 +276,7 @@ void Deletion::write2txt(ofstream &outfile)
 {
     outfile << "#Deletion;" << event_class << ";" << event_side << ";" << priority << ";"
             << nickname << endl;
-    for (unordered_map<string, Event_realization>::const_iterator iter = event_realizations.begin();
+    for (map<string, Event_realization>::const_iterator iter = event_realizations.begin();
          iter != event_realizations.end(); ++iter) {
         outfile << "%" << (*iter).second.name << ";" << (*iter).second .value_int<< ";"
                 << (*iter).second.index << endl;

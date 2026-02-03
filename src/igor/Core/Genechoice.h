@@ -22,7 +22,7 @@ public:
     // Constructors
     Gene_choice();
     Gene_choice(Gene_class);
-    Gene_choice(Gene_class, std::unordered_map<std::string, Event_realization> &);
+    Gene_choice(Gene_class, std::map<std::string, Event_realization> &);
     Gene_choice(Gene_class, std::vector<std::pair<std::string, std::string>>);
     // Destructor
     virtual ~Gene_choice();

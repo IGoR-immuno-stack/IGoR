@@ -101,13 +101,13 @@ Gene_choice::Gene_choice(Gene_class gene)
  * add_event_realization() instead unless you're sure about the index fields in
  * the Event_realizations instances
  */
-Gene_choice::Gene_choice(Gene_class gene, unordered_map<string, Event_realization> &realizations)
+Gene_choice::Gene_choice(Gene_class gene, map<string, Event_realization> &realizations)
     : Gene_choice(gene)
 {
     this->event_realizations = realizations;
 
     this->type = Event_type::GeneChoice_t;
-    for (unordered_map<string, Event_realization>::const_iterator iter =
+    for (map<string, Event_realization>::const_iterator iter =
                  this->event_realizations.begin();
          iter != this->event_realizations.end(); ++iter) {
         int str_len = (*iter).second.value_str.length();
@@ -560,7 +560,7 @@ queue<int> Gene_choice::draw_random_realization(
     double prob_count = 0;
     queue<int> realization_queue;
 
-    for (unordered_map<string, Event_realization>::const_iterator iter =
+    for (map<string, Event_realization>::const_iterator iter =
                  this->event_realizations.begin();
          iter != this->event_realizations.end(); ++iter) {
         prob_count += model_marginals_p[index_map.at(this->get_name()) + (*iter).second.index];
@@ -585,7 +585,7 @@ void Gene_choice::write2txt(ofstream &outfile)
 {
     outfile << "#GeneChoice;" << event_class << ";" << event_side << ";" << priority << ";"
             << nickname << endl;
-    for (unordered_map<string, Event_realization>::const_iterator iter = event_realizations.begin();
+    for (map<string, Event_realization>::const_iterator iter = event_realizations.begin();
          iter != event_realizations.end(); ++iter) {
         outfile << "%" << (*iter).second.name << ";" << (*iter).second.value_str << ";"
                 << (*iter).second.index << endl;
@@ -843,7 +843,7 @@ void Gene_choice::iterate_initialize_Len_proba(
 
     if (this->has_effect_on(considered_junction)) {
         base_index = base_index_map.at(this->event_index, 0);
-        for (unordered_map<string, Event_realization>::const_iterator iter =
+        for (map<string, Event_realization>::const_iterator iter =
                      this->event_realizations.begin();
              iter != this->event_realizations.end(); ++iter) {
 

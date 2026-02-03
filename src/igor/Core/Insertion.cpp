@@ -46,7 +46,7 @@ Insertion::Insertion(Gene_class gene, std::pair<int, int> bounds)
 
 Insertion::Insertion(Gene_class gene) : Insertion(gene, Undefined_side) { }
 
-Insertion::Insertion(Gene_class gene, unordered_map<string, Event_realization> &realizations)
+Insertion::Insertion(Gene_class gene, map<string, Event_realization> &realizations)
     : Insertion(gene, Undefined_side, realizations)
 {
 }
@@ -74,11 +74,11 @@ Insertion::Insertion(Gene_class gene, Seq_side side)
 }
 
 Insertion::Insertion(Gene_class gene, Seq_side side,
-                     unordered_map<string, Event_realization> &realizations)
+                     map<string, Event_realization> &realizations)
     : Insertion(gene, side)
 {
     this->event_realizations = realizations;
-    for (unordered_map<string, Event_realization>::const_iterator iter =
+    for (map<string, Event_realization>::const_iterator iter =
                  this->event_realizations.begin();
          iter != this->event_realizations.end(); ++iter) {
         int val = (*iter).second.value_int;
@@ -147,7 +147,7 @@ void Insertion::iterate(
     if (ins_len < 0)
         return;
 
-    for (unordered_map<string, Event_realization>::const_iterator iter =
+    for (map<string, Event_realization>::const_iterator iter =
                  this->event_realizations.begin();
          iter != this->event_realizations.end(); ++iter) {
         if ((*iter).second .value_int!= ins_len)
@@ -189,7 +189,7 @@ queue<int> Insertion::draw_random_realization(
     double prob_count = 0;
     queue<int> realization_queue;
 
-    for (unordered_map<string, Event_realization>::const_iterator iter =
+    for (map<string, Event_realization>::const_iterator iter =
                  this->event_realizations.begin();
          iter != this->event_realizations.end(); ++iter) {
         prob_count += model_marginals_p[index_map.at(this->get_name()) + (*iter).second.index];
@@ -217,7 +217,7 @@ void Insertion::write2txt(ofstream &outfile)
 {
     outfile << "#Insertion;" << event_class << ";" << event_side << ";" << priority << ";"
             << nickname << endl;
-    for (unordered_map<string, Event_realization>::const_iterator iter = event_realizations.begin();
+    for (map<string, Event_realization>::const_iterator iter = event_realizations.begin();
          iter != event_realizations.end(); ++iter) {
         outfile << "%" << (*iter).second.name << ";" << (*iter).second .value_int<< ";"
                 << (*iter).second.index << endl;
@@ -306,7 +306,7 @@ void Insertion::iterate_initialize_Len_proba(
 {
     if (considered_junction == this->sequence_type_id) {
         int base_index = base_index_map.at(this->event_index, 0);
-        for (unordered_map<string, Event_realization>::const_iterator iter =
+        for (map<string, Event_realization>::const_iterator iter =
                      this->event_realizations.begin();
              iter != this->event_realizations.end(); ++iter) {
             double real_max_proba = 0;
