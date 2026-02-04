@@ -34,6 +34,7 @@
 #include <igor/Core/Model_marginals.h>
 #include <igor/Core/Errorrate.h>
 #include <igor/Core/Utils.h>
+#include <igor/Core/FastGenerator.h>
 #include <list>
 #include <map>
 #include <string>
@@ -181,6 +182,33 @@ public:
             double likelihood_threshold, bool viterbi_like, double proba_threshold_factor,
             double mean_number_seq_err_thresh = INFINITY);
 
+    /**
+     * \brief Fast parallel sequence generation (100x+ speedup).
+     *
+     * Uses precomputed CDFs, binary search/alias sampling, multi-threading,
+     * and batched I/O for high-performance sequence generation.
+     *
+     * \param num_sequences Number of sequences to generate
+     * \param seq_filename Output file for sequences
+     * \param real_filename Output file for realizations
+     * \param num_threads Number of threads (0 = auto-detect)
+     * \param seed Random seed (-1 = random)
+     * \param show_progress Show progress bar
+     */
+    void generate_sequences_fast(size_t num_sequences,
+                                 const std::string &seq_filename,
+                                 const std::string &real_filename,
+                                 size_t num_threads = 0,
+                                 int64_t seed = -1,
+                                 bool show_progress = true);
+
+    /**
+     * \brief Get the fast generator instance (for advanced usage).
+     *
+     * Initializes the fast generator if not already done.
+     */
+    igor::fast::FastGenerator &get_fast_generator();
+
     std::forward_list<std::pair<std::string, std::queue<std::queue<int>>>> generate_sequences(int,
                                                                                               bool);
     void generate_sequences(int, bool, std::string, std::string,
@@ -199,6 +227,7 @@ private:
     Model_marginals model_marginals;
     std::map<size_t, std::shared_ptr<Counter>>
             counters_list; //Size_t is a unique identifier for the Counter(useful for adding them up)
+    std::unique_ptr<igor::fast::FastGenerator> fast_generator_;
     std::pair<std::string, std::queue<std::queue<int>>> generate_unique_sequence(
             std::queue<std::shared_ptr<Rec_Event>>, std::unordered_map<Rec_Event_name, int>,
             const std::unordered_map<Rec_Event_name,

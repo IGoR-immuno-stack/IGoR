@@ -53,6 +53,8 @@ target_sources(${PROJECT_NAME}
     Errorscounter.cpp
     EventUtils.cpp
     ExtractFeatures.cpp
+    FastGenerator.cpp
+    FastSampling.cpp
     GenModel.cpp
     Genechoice.cpp
     HypermutationfullNmererrorrate.cpp
@@ -83,7 +85,9 @@ target_sources(${PROJECT_NAME}
       Errorscounter.h
       EventUtils.h
       ExtractFeatures.h
+      FastGenerator.h
       FastMemoryMap.h
+      FastSampling.h
       GenModel.h
       Genechoice.h
       HypermutationfullNmererrorrate.h
