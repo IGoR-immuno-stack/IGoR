@@ -42,39 +42,40 @@ namespace fast {
 void FastGenerator::initialize(const Model_Parms& model_parms,
                                const Model_marginals& model_marginals) {
     event_samplers_.clear();
+    event_name_to_index_.clear();
 
-    // Get model queue and maps for conditional sampling
+    // Get model queue and index map
     std::queue<std::shared_ptr<Rec_Event>> model_queue = model_parms.get_model_queue();
     std::unordered_map<Rec_Event_name, int> index_map =
         model_marginals.get_index_map(model_parms, model_queue);
 
-    // Get offset map for conditional dependencies
+    // Get inverse offset map for dependencies (tells us for each event, which parents affect it)
     model_queue = model_parms.get_model_queue();
-    auto offset_map = model_marginals.get_offsets_map(model_parms, model_queue);
+    auto inverse_offset_map = model_marginals.get_inverse_offset_map(model_parms, model_queue);
 
-    // Reset queue
+    // Reset queue and count events
     model_queue = model_parms.get_model_queue();
+    size_t num_events = 0;
+    {
+        auto temp_queue = model_queue;
+        while (!temp_queue.empty()) {
+            num_events++;
+            temp_queue.pop();
+        }
+    }
 
-    // Check for D gene and count genes
+    // Check for D gene
     has_d_gene_ = false;
     auto events_map = model_parms.get_events_map();
-
-    // Get gene counts from events
-    if (events_map.count(std::make_tuple(GeneChoice_t, V_gene, Undefined_side)) > 0) {
-        auto v_event = events_map.at(std::make_tuple(GeneChoice_t, V_gene, Undefined_side));
-        num_v_genes_ = v_event->get_realizations_map().size();
-    }
-    if (events_map.count(std::make_tuple(GeneChoice_t, J_gene, Undefined_side)) > 0) {
-        auto j_event = events_map.at(std::make_tuple(GeneChoice_t, J_gene, Undefined_side));
-        num_j_genes_ = j_event->get_realizations_map().size();
-    }
     if (events_map.count(std::make_tuple(GeneChoice_t, D_gene, Undefined_side)) > 0) {
         has_d_gene_ = true;
-        auto d_event = events_map.at(std::make_tuple(GeneChoice_t, D_gene, Undefined_side));
-        num_d_genes_ = d_event->get_realizations_map().size();
     }
 
-    // Initialize sampler for each event in order
+    // First pass: create event samplers and build name-to-index map
+    event_samplers_.reserve(num_events);
+    size_t event_idx = 0;
+
+    model_queue = model_parms.get_model_queue();
     while (!model_queue.empty()) {
         auto event = model_queue.front();
         model_queue.pop();
@@ -84,185 +85,77 @@ void FastGenerator::initialize(const Model_Parms& model_parms,
         sampler.gene_class = event->get_class();
         sampler.side = event->get_side();
         sampler.name = event->get_name();
+        sampler.event_index = event_idx;
+        sampler.num_realizations = event->size();
 
+        event_name_to_index_[sampler.name] = event_idx;
+        event_samplers_.push_back(std::move(sampler));
+        event_idx++;
+    }
+
+    // Second pass: set up dependencies and initialize samplers
+    model_queue = model_parms.get_model_queue();
+    event_idx = 0;
+
+    while (!model_queue.empty()) {
+        auto event = model_queue.front();
+        model_queue.pop();
+
+        FastEventSampler& sampler = event_samplers_[event_idx];
         int base_index = index_map.at(event->get_name());
 
-        // Determine parent dependencies from offset_map
-        if (offset_map.count(event->get_name()) > 0) {
-            for (const auto& parent_offset : offset_map.at(event->get_name())) {
-                Gene_class parent_class = parent_offset.first->get_class();
-                if (sampler.parent_gene_class == Undefined_gene) {
-                    sampler.parent_gene_class = parent_class;
-                } else if (sampler.parent_gene_class_2 == Undefined_gene) {
-                    sampler.parent_gene_class_2 = parent_class;
+        // Build dependencies from inverse_offset_map
+        // The inverse_offset_map gives (parent_event, stride) pairs
+        // where stride is: this_event_size * product_of_earlier_parent_sizes
+        // The condition_index = sum(parent_choice * stride / this_event_size)
+        if (inverse_offset_map.count(event->get_name()) > 0) {
+            const auto& parents = inverse_offset_map.at(event->get_name());
+
+            // Calculate total number of conditions from the strides
+            // The largest stride / num_realizations gives us total conditions
+            size_t max_stride = sampler.num_realizations;
+
+            for (const auto& parent_stride : parents) {
+                const std::string& parent_name = parent_stride.first->get_name();
+                size_t stride = static_cast<size_t>(parent_stride.second);
+
+                if (event_name_to_index_.count(parent_name) > 0) {
+                    EventDependency dep;
+                    dep.parent_event_idx = event_name_to_index_.at(parent_name);
+                    // Normalize stride: divide by num_realizations to get the condition multiplier
+                    dep.stride = stride / sampler.num_realizations;
+                    sampler.dependencies.push_back(dep);
+
+                    // Track max stride to compute total conditions
+                    size_t parent_size = event_samplers_[dep.parent_event_idx].num_realizations;
+                    if (stride * parent_size > max_stride) {
+                        max_stride = stride * parent_size;
+                    }
                 }
             }
+
+            sampler.num_conditions = max_stride / sampler.num_realizations;
+            if (sampler.num_conditions == 0) sampler.num_conditions = 1;
         }
 
-        switch (sampler.type) {
-            case GeneChoice_t:
-                initialize_gene_choice_sampler(sampler, event,
-                    model_marginals.marginal_array_smart_p, base_index);
-                break;
-
-            case Insertion_t:
-                initialize_insertion_sampler(sampler, event,
-                    model_marginals.marginal_array_smart_p, base_index);
-                break;
-
-            case Deletion_t:
-                initialize_deletion_sampler(sampler, event,
-                    model_marginals.marginal_array_smart_p, base_index);
-                break;
-
-            case Dinuclmarkov_t:
-                initialize_dinucl_sampler(sampler, event,
-                    model_marginals.marginal_array_smart_p, base_index);
-                break;
-
-            default:
-                break;
+        // Initialize based on event type
+        if (sampler.type == Dinuclmarkov_t) {
+            initialize_dinucl_sampler(sampler, event,
+                model_marginals.marginal_array_smart_p, base_index);
+        } else {
+            initialize_event_sampler(sampler, event,
+                model_marginals.marginal_array_smart_p, base_index);
         }
 
         sampler.is_initialized = true;
-        event_samplers_.push_back(std::move(sampler));
+        event_idx++;
     }
 
     initialized_ = true;
 }
 
 
-void FastGenerator::initialize_gene_choice_sampler(
-    FastEventSampler& sampler,
-    const std::shared_ptr<Rec_Event>& event,
-    const Marginal_array_p& marginals,
-    int base_index
-) {
-    auto realizations = event->get_realizations_map();
-    size_t n = realizations.size();
-
-    // Store gene sequences
-    sampler.gene_sequences.resize(n);
-    sampler.gene_sequences_int.resize(n);
-
-    for (const auto& pair : realizations) {
-        const Event_realization& real = pair.second;
-        sampler.gene_sequences[real.index] = real.value_str;
-        sampler.gene_sequences_int[real.index] = real.value_str_int;
-    }
-
-    // Determine if this is conditional
-    Gene_class gc = sampler.gene_class;
-
-    if (gc == V_gene) {
-        // V gene is unconditional (root of the model)
-        std::vector<double> probs(n);
-        for (const auto& pair : realizations) {
-            const Event_realization& real = pair.second;
-            probs[real.index] = static_cast<double>(marginals[base_index + real.index]);
-        }
-        sampler.gene_sampler.initialize(probs, true);
-        sampler.is_conditional = false;
-    }
-    else if (gc == J_gene) {
-        // J gene is conditional on V: P(J|V)
-        // Marginals are stored as: marginals[base_index + v_idx * num_j + j_idx]
-        sampler.is_conditional = true;
-        sampler.parent_gene_class = V_gene;
-
-        std::vector<std::vector<double>> cond_probs(num_v_genes_);
-        for (size_t v = 0; v < num_v_genes_; ++v) {
-            cond_probs[v].resize(n);
-            double sum = 0.0;
-            for (const auto& pair : realizations) {
-                const Event_realization& real = pair.second;
-                double p = static_cast<double>(marginals[base_index + v * n + real.index]);
-                cond_probs[v][real.index] = p;
-                sum += p;
-            }
-            // Normalize
-            if (sum > 0) {
-                for (size_t j = 0; j < n; ++j) {
-                    cond_probs[v][j] /= sum;
-                }
-            }
-        }
-        sampler.conditional_gene_sampler.initialize(cond_probs, true);
-    }
-    else if (gc == D_gene) {
-        // D gene is conditional on V and J: P(D|V,J)
-        // Marginals: marginals[base_index + v_idx * num_j * num_d + j_idx * num_d + d_idx]
-        sampler.is_conditional = true;
-        sampler.is_conditional_2d = true;
-        sampler.parent_gene_class = V_gene;
-        sampler.parent_gene_class_2 = J_gene;
-
-        // Build 2D conditional: samplers[v][j] -> P(D|V=v, J=j)
-        sampler.conditional_gene_sampler_2d.resize(num_v_genes_);
-        for (size_t v = 0; v < num_v_genes_; ++v) {
-            std::vector<std::vector<double>> cond_probs_vj(num_j_genes_);
-            for (size_t j = 0; j < num_j_genes_; ++j) {
-                cond_probs_vj[j].resize(n);
-                double sum = 0.0;
-                for (const auto& pair : realizations) {
-                    const Event_realization& real = pair.second;
-                    double p = static_cast<double>(marginals[base_index + v * num_j_genes_ * n + j * n + real.index]);
-                    cond_probs_vj[j][real.index] = p;
-                    sum += p;
-                }
-                // Normalize
-                if (sum > 0) {
-                    for (size_t d = 0; d < n; ++d) {
-                        cond_probs_vj[j][d] /= sum;
-                    }
-                }
-            }
-            sampler.conditional_gene_sampler_2d[v].initialize(cond_probs_vj, true);
-        }
-    }
-    else {
-        // Fallback: treat as unconditional
-        std::vector<double> probs(n);
-        for (const auto& pair : realizations) {
-            const Event_realization& real = pair.second;
-            probs[real.index] = static_cast<double>(marginals[base_index + real.index]);
-        }
-        sampler.gene_sampler.initialize(probs, true);
-        sampler.is_conditional = false;
-    }
-}
-
-
-void FastGenerator::initialize_insertion_sampler(
-    FastEventSampler& sampler,
-    const std::shared_ptr<Rec_Event>& event,
-    const Marginal_array_p& marginals,
-    int base_index
-) {
-    auto realizations = event->get_realizations_map();
-
-    // Find max insertion value and build probability vector
-    sampler.max_insertions = 0;
-    for (const auto& pair : realizations) {
-        if (pair.second.value_int > sampler.max_insertions) {
-            sampler.max_insertions = pair.second.value_int;
-        }
-    }
-
-    // Build probability vector indexed by insertion count
-    std::vector<double> probs(sampler.max_insertions + 1, 0.0);
-    for (const auto& pair : realizations) {
-        const Event_realization& real = pair.second;
-        if (real.value_int >= 0 && real.value_int <= sampler.max_insertions) {
-            probs[real.value_int] = static_cast<double>(marginals[base_index + real.index]);
-        }
-    }
-
-    sampler.insertion_sampler.initialize(probs, true);
-}
-
-
-void FastGenerator::initialize_deletion_sampler(
+void FastGenerator::initialize_event_sampler(
     FastEventSampler& sampler,
     const std::shared_ptr<Rec_Event>& event,
     const Marginal_array_p& marginals,
@@ -271,102 +164,72 @@ void FastGenerator::initialize_deletion_sampler(
     auto realizations = event->get_realizations_map();
     size_t num_realizations = realizations.size();
 
-    // Find deletion range and build index-to-value mapping
-    sampler.min_deletion = INT_MAX;
-    sampler.max_deletion = INT_MIN;
-    sampler.deletion_idx_to_value.resize(num_realizations);
+    // For GeneChoice: store gene sequences
+    if (sampler.type == GeneChoice_t) {
+        sampler.gene_sequences.resize(num_realizations);
+        sampler.gene_sequences_int.resize(num_realizations);
 
-    for (const auto& pair : realizations) {
-        const Event_realization& real = pair.second;
-        int val = real.value_int;
-        if (val < sampler.min_deletion) sampler.min_deletion = val;
-        if (val > sampler.max_deletion) sampler.max_deletion = val;
-        if (real.index >= 0 && static_cast<size_t>(real.index) < num_realizations) {
-            sampler.deletion_idx_to_value[real.index] = val;
+        for (const auto& pair : realizations) {
+            const Event_realization& real = pair.second;
+            sampler.gene_sequences[real.index] = real.value_str;
+            sampler.gene_sequences_int[real.index] = real.value_str_int;
         }
     }
 
-    Gene_class gc = sampler.gene_class;
-    Seq_side side = sampler.side;
-
-    // Special case: D 3' deletion is conditional on both D gene and D 5' deletion
-    // Dim[num_d, num_d5_del, num_d3_del]
-    if (gc == D_gene && side == Three_prime) {
-        sampler.is_conditional = true;
-        sampler.is_conditional_2d = true;
-        sampler.parent_gene_class = D_gene;
-        sampler.parent_gene_class_2 = D_gene;  // Second parent is D 5' deletion (same gene class)
-
-        // Build 2D conditional: samplers[d_gene][d5_del] -> P(d3_del|D, d5_del)
-        // Assuming D 5' deletion has 21 realizations (same as D 3')
-        size_t num_d5_del = num_realizations;  // Same number of realizations
-
-        sampler.deletion_sampler_2d.resize(num_d_genes_);
-        for (size_t d = 0; d < num_d_genes_; ++d) {
-            std::vector<std::vector<double>> cond_probs_d(num_d5_del);
-            for (size_t d5 = 0; d5 < num_d5_del; ++d5) {
-                cond_probs_d[d5].resize(num_realizations, 0.0);
-                double sum = 0.0;
-
-                for (const auto& pair : realizations) {
-                    const Event_realization& real = pair.second;
-                    // Marginals: base_index + d * num_d5 * num_d3 + d5 * num_d3 + d3_idx
-                    double p = static_cast<double>(marginals[base_index + d * num_d5_del * num_realizations +
-                                                             d5 * num_realizations + real.index]);
-                    cond_probs_d[d5][real.index] = p;
-                    sum += p;
-                }
-
-                // Normalize
-                if (sum > 0) {
-                    for (size_t i = 0; i < num_realizations; ++i) {
-                        cond_probs_d[d5][i] /= sum;
-                    }
-                }
+    // For Insertion: find max insertion length
+    if (sampler.type == Insertion_t) {
+        sampler.max_insertions = 0;
+        for (const auto& pair : realizations) {
+            if (pair.second.value_int > sampler.max_insertions) {
+                sampler.max_insertions = pair.second.value_int;
             }
-            sampler.deletion_sampler_2d[d].initialize(cond_probs_d, true);
         }
-        return;
     }
 
-    // Standard 1D conditional case
-    size_t num_conditions = 1;
-    if (gc == V_gene) {
-        num_conditions = num_v_genes_;
-        sampler.parent_gene_class = V_gene;
-    } else if (gc == J_gene) {
-        num_conditions = num_j_genes_;
-        sampler.parent_gene_class = J_gene;
-    } else if (gc == D_gene) {
-        num_conditions = num_d_genes_;
-        sampler.parent_gene_class = D_gene;
+    // For Deletion: build index-to-value mapping
+    if (sampler.type == Deletion_t) {
+        sampler.min_deletion = INT_MAX;
+        sampler.max_deletion = INT_MIN;
+        sampler.deletion_idx_to_value.resize(num_realizations);
+
+        for (const auto& pair : realizations) {
+            const Event_realization& real = pair.second;
+            int val = real.value_int;
+            if (val < sampler.min_deletion) sampler.min_deletion = val;
+            if (val > sampler.max_deletion) sampler.max_deletion = val;
+            if (real.index >= 0 && static_cast<size_t>(real.index) < num_realizations) {
+                sampler.deletion_idx_to_value[real.index] = val;
+            }
+        }
     }
 
-    // Build conditional probability matrix P(del|gene)
+    // Build conditional probability matrix
+    // Layout: marginals[base_index + condition_idx * num_realizations + realization_idx]
+    size_t num_conditions = sampler.num_conditions;
+    if (num_conditions == 0) num_conditions = 1;
+
     std::vector<std::vector<double>> cond_probs(num_conditions);
 
-    for (size_t g = 0; g < num_conditions; ++g) {
-        cond_probs[g].resize(num_realizations, 0.0);
+    for (size_t c = 0; c < num_conditions; ++c) {
+        cond_probs[c].resize(num_realizations, 0.0);
         double sum = 0.0;
 
         for (const auto& pair : realizations) {
             const Event_realization& real = pair.second;
-            // Marginals stored as: base_index + gene_idx * num_realizations + real_idx
-            double p = static_cast<double>(marginals[base_index + g * num_realizations + real.index]);
-            cond_probs[g][real.index] = p;
+            double p = static_cast<double>(marginals[base_index + c * num_realizations + real.index]);
+            cond_probs[c][real.index] = p;
             sum += p;
         }
 
         // Normalize
         if (sum > 0) {
             for (size_t i = 0; i < num_realizations; ++i) {
-                cond_probs[g][i] /= sum;
+                cond_probs[c][i] /= sum;
             }
         }
     }
 
-    sampler.deletion_sampler.initialize(cond_probs, true);
-    sampler.is_conditional = (num_conditions > 1);
+    sampler.sampler.initialize(cond_probs, true);
 }
 
 
@@ -407,134 +270,64 @@ void FastGenerator::initialize_dinucl_sampler(
 }
 
 
-int FastGenerator::get_parent_gene_index(
+size_t FastGenerator::compute_condition_index(
     const FastEventSampler& sampler,
     const SamplingContext& context
 ) const {
-    switch (sampler.parent_gene_class) {
-        case V_gene: return context.v_gene_idx;
-        case J_gene: return context.j_gene_idx;
-        case D_gene: return context.d_gene_idx;
-        default: return 0;
+    if (sampler.dependencies.empty()) {
+        return 0;  // No dependencies = unconditional
     }
+
+    size_t condition_idx = 0;
+    for (const auto& dep : sampler.dependencies) {
+        size_t parent_choice = context.sampled_indices[dep.parent_event_idx];
+        condition_idx += parent_choice * dep.stride;
+    }
+
+    return condition_idx;
 }
 
 
-void FastGenerator::sample_gene_choice(
+void FastGenerator::apply_gene_choice(
     const FastEventSampler& sampler,
-    std::mt19937_64& rng,
-    std::unordered_map<Seq_type, std::string>& sequences,
-    std::vector<int>& realization,
-    SamplingContext& context
+    size_t choice_idx,
+    std::unordered_map<Seq_type, std::string>& sequences
 ) const {
-    size_t gene_idx;
-    Gene_class gc = sampler.gene_class;
-
-    if (gc == V_gene) {
-        // V gene: unconditional marginal
-        gene_idx = sampler.gene_sampler.sample(rng);
-        context.v_gene_idx = static_cast<int>(gene_idx);
-    }
-    else if (gc == J_gene && sampler.is_conditional) {
-        // J gene: conditional on V
-        gene_idx = sampler.conditional_gene_sampler.sample(
-            static_cast<size_t>(context.v_gene_idx), rng);
-        context.j_gene_idx = static_cast<int>(gene_idx);
-    }
-    else if (gc == D_gene && sampler.is_conditional_2d) {
-        // D gene: conditional on V and J
-        gene_idx = sampler.conditional_gene_sampler_2d[context.v_gene_idx].sample(
-            static_cast<size_t>(context.j_gene_idx), rng);
-        context.d_gene_idx = static_cast<int>(gene_idx);
-    }
-    else {
-        // Fallback to unconditional
-        gene_idx = sampler.gene_sampler.sample(rng);
-    }
-
-    realization.push_back(static_cast<int>(gene_idx));
-
     Seq_type seq_type;
-    switch (gc) {
+    switch (sampler.gene_class) {
         case V_gene: seq_type = V_gene_seq; break;
         case D_gene: seq_type = D_gene_seq; break;
         case J_gene: seq_type = J_gene_seq; break;
         default: return;
     }
 
-    sequences[seq_type] = sampler.gene_sequences[gene_idx];
+    if (choice_idx < sampler.gene_sequences.size()) {
+        sequences[seq_type] = sampler.gene_sequences[choice_idx];
+    }
 }
 
 
-void FastGenerator::sample_insertion(
+void FastGenerator::apply_deletion(
     const FastEventSampler& sampler,
-    std::mt19937_64& rng,
-    std::unordered_map<Seq_type, std::string>& sequences,
-    std::vector<int>& realization,
-    SamplingContext& /* context */
+    size_t del_idx,
+    std::unordered_map<Seq_type, std::string>& sequences
 ) const {
-    size_t num_ins = sampler.insertion_sampler.sample(rng);
-    realization.push_back(static_cast<int>(num_ins));
-
-    // Create placeholder string for insertions (will be filled by dinucleotide model)
-    std::string ins_seq(num_ins, 'I');
-
-    Seq_type seq_type;
-    switch (sampler.gene_class) {
-        case VD_genes: seq_type = VD_ins_seq; break;
-        case DJ_genes: seq_type = DJ_ins_seq; break;
-        case VJ_genes: seq_type = VJ_ins_seq; break;
-        default: return;
+    if (del_idx >= sampler.deletion_idx_to_value.size()) {
+        return;
     }
 
-    sequences[seq_type] = ins_seq;
-}
-
-
-void FastGenerator::sample_deletion(
-    const FastEventSampler& sampler,
-    std::mt19937_64& rng,
-    std::unordered_map<Seq_type, std::string>& sequences,
-    std::vector<int>& realization,
-    SamplingContext& context
-) const {
-    size_t del_idx;
-
-    // Handle 2D conditional (D 3' deletion depends on D gene and D 5' deletion)
-    if (sampler.is_conditional_2d && sampler.gene_class == D_gene && sampler.side == Three_prime) {
-        int d_gene_idx = context.d_gene_idx;
-        int d5_del_idx = context.d_5_del_idx;
-
-        if (d_gene_idx < 0) d_gene_idx = 0;
-        if (d5_del_idx < 0) d5_del_idx = 0;
-
-        // Sample from P(d3_del|D=d_gene_idx, d5_del=d5_del_idx)
-        del_idx = sampler.deletion_sampler_2d[d_gene_idx].sample(static_cast<size_t>(d5_del_idx), rng);
-    } else {
-        // Standard 1D conditional case
-        int parent_idx = get_parent_gene_index(sampler, context);
-        if (parent_idx < 0) parent_idx = 0;
-
-        // Sample deletion realization index conditional on gene
-        del_idx = sampler.deletion_sampler.sample(static_cast<size_t>(parent_idx), rng);
-
-        // Track D 5' deletion index for D 3' deletion conditioning
-        if (sampler.gene_class == D_gene && sampler.side == Five_prime) {
-            context.d_5_del_idx = static_cast<int>(del_idx);
-        }
-    }
-
-    // Convert realization index to actual deletion value
     int num_del = sampler.deletion_idx_to_value[del_idx];
-    realization.push_back(static_cast<int>(del_idx));  // Store the realization index for consistency
 
-    // Apply deletion to the appropriate sequence
     Seq_type seq_type;
     switch (sampler.gene_class) {
         case V_gene: seq_type = V_gene_seq; break;
         case D_gene: seq_type = D_gene_seq; break;
         case J_gene: seq_type = J_gene_seq; break;
         default: return;
+    }
+
+    if (sequences.count(seq_type) == 0) {
+        return;
     }
 
     std::string& seq = sequences[seq_type];
@@ -542,12 +335,10 @@ void FastGenerator::sample_deletion(
     if (num_del >= 0) {
         // Positive deletion: remove bases
         if (sampler.side == Three_prime) {
-            // Remove from end
             if (static_cast<size_t>(num_del) < seq.size()) {
                 seq.erase(seq.size() - num_del);
             }
         } else if (sampler.side == Five_prime) {
-            // Remove from beginning
             if (static_cast<size_t>(num_del) < seq.size()) {
                 seq.erase(0, num_del);
             }
@@ -564,12 +355,61 @@ void FastGenerator::sample_deletion(
 }
 
 
+void FastGenerator::sample_event(
+    const FastEventSampler& sampler,
+    std::mt19937_64& rng,
+    std::unordered_map<Seq_type, std::string>& sequences,
+    std::vector<int>& realization,
+    SamplingContext& context
+) const {
+    // Compute condition index from all parent choices
+    size_t condition_idx = compute_condition_index(sampler, context);
+
+    // Sample from conditional distribution
+    size_t choice_idx = sampler.sampler.sample(condition_idx, rng);
+
+    // Store sampled index for downstream conditionals
+    context.sampled_indices[sampler.event_index] = choice_idx;
+
+    // Record realization
+    realization.push_back(static_cast<int>(choice_idx));
+
+    // Apply the sampled choice to sequences based on event type
+    switch (sampler.type) {
+        case GeneChoice_t:
+            apply_gene_choice(sampler, choice_idx, sequences);
+            break;
+
+        case Deletion_t:
+            apply_deletion(sampler, choice_idx, sequences);
+            break;
+
+        case Insertion_t: {
+            // For insertion, sampled index directly gives insertion length
+            // Create placeholder for dinucleotide model
+            Seq_type seq_type;
+            switch (sampler.gene_class) {
+                case VD_genes: seq_type = VD_ins_seq; break;
+                case DJ_genes: seq_type = DJ_ins_seq; break;
+                case VJ_genes: seq_type = VJ_ins_seq; break;
+                default: return;
+            }
+            sequences[seq_type] = std::string(choice_idx, 'I');
+            break;
+        }
+
+        default:
+            break;
+    }
+}
+
+
 void FastGenerator::sample_dinucl_markov(
     const FastEventSampler& sampler,
     std::mt19937_64& rng,
     std::unordered_map<Seq_type, std::string>& sequences,
     std::vector<int>& realization,
-    SamplingContext& /* context */
+    SamplingContext& context
 ) const {
     static const char NT_CHARS[] = {'A', 'C', 'G', 'T'};
     static const int CHAR_TO_INT[] = {
@@ -725,31 +565,19 @@ void FastGenerator::generate_single(std::mt19937_64& rng, GeneratedSequence& res
 
     // Create sampling context for conditional dependencies
     SamplingContext context;
+    context.resize(event_samplers_.size());
 
     // Process each event in order
     for (const auto& sampler : event_samplers_) {
         std::vector<int> event_realization;
         event_realization.reserve(4);
 
-        switch (sampler.type) {
-            case GeneChoice_t:
-                sample_gene_choice(sampler, rng, sequences, event_realization, context);
-                break;
-
-            case Insertion_t:
-                sample_insertion(sampler, rng, sequences, event_realization, context);
-                break;
-
-            case Deletion_t:
-                sample_deletion(sampler, rng, sequences, event_realization, context);
-                break;
-
-            case Dinuclmarkov_t:
-                sample_dinucl_markov(sampler, rng, sequences, event_realization, context);
-                break;
-
-            default:
-                break;
+        if (sampler.type == Dinuclmarkov_t) {
+            // Dinucleotide Markov has special handling (generates sequences)
+            sample_dinucl_markov(sampler, rng, sequences, event_realization, context);
+        } else {
+            // All other events use generic sampler
+            sample_event(sampler, rng, sequences, event_realization, context);
         }
 
         result.realizations.push_back(std::move(event_realization));
