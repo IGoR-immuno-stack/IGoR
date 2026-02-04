@@ -11,8 +11,8 @@ pixi should be installed on your system, see https://pixi.readthedocs.io/en/late
 ## Compilation
 
 ```shell
-pixi configure
-pixi build
+pixi run configure
+pixi run build
 ```
 
 ## Example of Use

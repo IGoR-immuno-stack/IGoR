@@ -45,6 +45,8 @@
 #include <igor/Core/CDR3SeqData.h>
 #include <igor/Core/ExtractFeatures.h>
 
+#include <igor/Core/Config.h>
+
 #include <iostream>
 #include <chrono>
 #include <set>
@@ -55,14 +57,19 @@ using namespace std;
 
 std::string PACKAGE_NAME="igor";
 std::string PACKAGE_TARNAME="igor";
-std::string PACKAGE_VERSION="1.4.0";
-std::string PACKAGE_STRING="igor 1.4.0";
+std::string PACKAGE_VERSION= IGOR_VERSION;
+std::string PACKAGE_STRING= PACKAGE_NAME + std::string(" ")+ PACKAGE_VERSION;
 std::string PACKAGE_BUGREPORT="quentin.marcou@lpt.ens.fr";
-std::string PACKAGE_URL="https://github.com/qmarcou/IGoR";
+std::string PACKAGE_URL="https://github.com/IGoR-immuno-stack/IGoR";
 
-std::string IGOR_DATA_DIR="../..";
-
-
+// remove \0 characters due to conda relocation
+std::string clean_path(std::string s) {
+    auto pos0 = s.find('\0');
+    if (pos0 != std::string::npos) {
+        s.resize(pos0);
+    }
+    return s;
+}
 
 // TODO: Possible typedef definitions for code readability.
 typedef std::string strSeqID;    // fasta description >strSeqID
@@ -102,7 +109,9 @@ int terminate_IGoR_with_error_message(forward_list<string> error_messages, excep
 
 int main(int argc , char* argv[]){
 
-	//Command line argument iterator
+	std::string IGOR_DATA_DIR = clean_path(IGOR_DATA_DIR_STR);
+
+    //Command line argument iterator
 	size_t carg_i = 1;
 	//cout<<argv[argc-1]<<endl;
 
@@ -256,7 +265,7 @@ int main(int argc , char* argv[]){
 
 		// Flag to extract CDR3 from aligned sequences.
 		bool b_feature		  = true;
-		bool b_feature_CDR3 = true;
+		bool b_feature_CDR3 = false;
 
 
 	while(carg_i<argc){
@@ -929,7 +938,7 @@ int main(int argc , char* argv[]){
 					catch(exception& e){
 						return terminate_IGoR_with_error_message("Unknown argument \""+string(argv[carg_i])+"\" to specify coverage target!\n Supported arguments are: V_gene, VD_genes, D_gene, DJ_gene, VJ_gene, J_gene, VDJ_genes");
 					}
-					shared_ptr<Counter> coverage_counter_ptr(new Coverage_err_counter(cl_path + "output/",chosen_gc,1,false,true));
+					shared_ptr<Counter> coverage_counter_ptr(new Coverage_err_counter(cl_path + "output/",chosen_gc,1,false, false));
 					cl_counters_list.emplace(cl_counters_list.size(),coverage_counter_ptr);
 				}
 				else{
