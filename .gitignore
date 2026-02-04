@@ -82,6 +82,4 @@ models/*/ref_genome/*.fasta
 debug_*.sh
 *.debug
 temp_*
-
-# ...
 regression_reports
