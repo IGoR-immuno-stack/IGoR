@@ -86,10 +86,20 @@ target_sources(${PROJECT_NAME}
       Singleerrorrate.h
       Utils.h
       ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_PROJECT_NAME}${PROJECT_NAME}Export.h
+      ${CMAKE_CURRENT_BINARY_DIR}/Config
+      ${CMAKE_CURRENT_BINARY_DIR}/Config.h
 )
+
+configure_file(
+  "${CMAKE_CURRENT_SOURCE_DIR}/Config.h.in"
+  "${CMAKE_CURRENT_BINARY_DIR}/Config.h")
+configure_file(
+  "${CMAKE_CURRENT_SOURCE_DIR}/Config.h.in"
+  "${CMAKE_CURRENT_BINARY_DIR}/Config")
 
 target_include_directories(${PROJECT_NAME} PUBLIC
   $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src>
+  $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/src>
 )
 
 target_link_libraries(${PROJECT_NAME} PUBLIC GSL::gsl)

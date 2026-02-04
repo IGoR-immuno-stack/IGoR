@@ -1,0 +1,10 @@
+
+#pragma once
+
+#define IGOR_DATA_DIR_STR "@IGOR_DATA_DIR@"
+
+#define IGOR_VERSION_MAJOR @igor_VERSION_MAJOR@
+#define IGOR_VERSION_MINOR @igor_VERSION_MINOR@
+#define IGOR_VERSION_PATCH @igor_VERSION_PATCH@
+
+#define IGOR_VERSION "@igor_VERSION@"
