@@ -846,8 +846,8 @@ vector<tuple<int,string,unordered_map<Gene_class,vector<Alignment_data>>>> map2v
 }
 
 void Aligner::set_genomic_sequences(vector< pair <string,string> > nt_genomic_seq){
-	this->nt_genomic_sequences = *(new forward_list<pair<string,string>>);
-	this->int_genomic_sequences = *(new forward_list<pair<string,Int_Str>>);
+	this->nt_genomic_sequences = forward_list<pair<string,string>>();
+	this->int_genomic_sequences = forward_list<pair<string,Int_Str>>();
 	for(vector<pair<string,string>>::const_iterator iter = nt_genomic_seq.begin() ; iter != nt_genomic_seq.end() ; ++iter){
           nt_genomic_sequences.emplace_front((*iter).first, (*iter).second);
 
@@ -1294,8 +1294,8 @@ list<pair<int,Alignment_data>> Aligner::sw_align(const Int_Str& int_data_sequenc
 			//if( (!best_only) | (max_score[align]==max_align_score) ){
 
 
-				forward_list<int> insertions = *(new forward_list<int>); //TODO check this new
-				forward_list<int> deletions = *(new forward_list<int>);
+				forward_list<int> insertions;
+				forward_list<int> deletions;
 				size_t align_length = 0;
 
 				bool end_of_alignment = false;

@@ -79,7 +79,8 @@ Coverage_err_counter::~Coverage_err_counter() {
 	if(count_on_j){
 		this->deallocate_coverage_and_errors_arrays(n_j_real,j_realizations,j_gene_nucleotide_coverage_p,j_gene_per_nucleotide_error_p,j_gene_nucleotide_coverage_seq_p,j_gene_per_nucleotide_error_seq_p);
 	}
-
+    if (positions)
+		delete[] positions;
 }
 
 void Coverage_err_counter::initialize_counter(const Model_Parms& parms , const Model_marginals& marginals){

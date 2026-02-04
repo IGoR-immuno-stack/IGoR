@@ -257,7 +257,7 @@ bool GenModel::infer_model(const vector<tuple<int,string,unordered_map<Gene_clas
 			 * Each event will access the pointer corresponding to its identifier address when calling iterate inside iterate_wrap_up
 			 * The last event will point to null pointer enabling to call the error_rate
 			 */
-			shared_ptr<Next_event_ptr> next_event_ptr_arr (new Next_event_ptr[single_thread_model_parms.get_event_list().size()]);
+			shared_ptr<Next_event_ptr> next_event_ptr_arr (new Next_event_ptr[single_thread_model_parms.get_event_list().size()],std::default_delete<Rec_Event*[]>());
 			init_single_thread_model_queue = single_thread_model_queue;
 			while(!init_single_thread_model_queue.empty()){
 				shared_ptr<Rec_Event> first_init_event = init_single_thread_model_queue.front();
