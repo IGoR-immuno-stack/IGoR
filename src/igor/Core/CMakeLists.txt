@@ -39,6 +39,8 @@ target_sources(${PROJECT_NAME}
     Errorrate.cpp
     Errorscounter.cpp
     ExtractFeatures.cpp
+    FastGenerator.cpp
+    FastSampling.cpp
     GenModel.cpp
     Genechoice.cpp
     HypermutationfullNmererrorrate.cpp
@@ -67,6 +69,8 @@ target_sources(${PROJECT_NAME}
       Errorrate.h
       Errorscounter.h
       ExtractFeatures.h
+      FastGenerator.h
+      FastSampling.h
       GenModel.h
       Genechoice.h
       HypermutationfullNmererrorrate.h
