@@ -57,7 +57,7 @@ jobs:
       - name: Build project
         run: pixi run build
 
-      - name: Run tests
+      - name: Run C++ tests
         run: pixi run test
 
       - name: Generate coverage report
@@ -76,6 +76,14 @@ jobs:
             .coverage
           retention-days: 30
           if-no-files-found: warn
+
+      - name: Run regression tests
+        if: matrix.os == 'ubuntu-latest'
+        run: pixi run test_regression
+
+      - name: Run PARTIAL regression tests
+        if: matrix.os != 'ubuntu-latest'
+        run: pixi run test_align
 
       - name: Build conda package
         run: pixi build --output-dir=bundle
