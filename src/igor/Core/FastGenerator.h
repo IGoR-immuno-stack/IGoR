@@ -45,71 +45,73 @@ namespace fast {
 
 
 /**
+ * \struct EventDependency
+ * \brief Describes a dependency on a parent event for conditional sampling.
+ */
+struct EventDependency {
+    size_t parent_event_idx;  ///< Index of parent event in event_samplers_
+    size_t stride;            ///< Multiplier for parent's choice in condition index
+};
+
+
+/**
  * \struct FastEventSampler
  * \brief Precomputed sampling data for a single recombination event.
  *
  * Contains all data needed for fast sampling without recomputation.
- * Supports conditional sampling for accurate VDJ recombination modeling.
+ * Supports generic conditional sampling based on model structure.
  */
 struct FastEventSampler {
     Event_type type;
     Gene_class gene_class;
     Seq_side side;
     std::string name;
+    size_t event_index;  ///< Index of this event in the event_samplers_ vector
 
-    // For GeneChoice: sampler for gene selection
-    // V gene uses gene_sampler (marginal)
-    // J gene uses conditional_gene_sampler (P(J|V))
-    // D gene uses conditional_gene_sampler_2d (P(D|V,J))
-    CategoricalSampler gene_sampler;                          // For V gene (marginal)
-    ConditionalSampler conditional_gene_sampler;              // For J gene P(J|V)
-    std::vector<ConditionalSampler> conditional_gene_sampler_2d; // For D gene P(D|V,J)
-    std::vector<std::string> gene_sequences;  // Indexed by realization index
-    std::vector<Int_Str> gene_sequences_int;  // Integer-encoded sequences
+    // Dependencies for conditional sampling (generic - works for any model)
+    std::vector<EventDependency> dependencies;
+    size_t num_conditions = 1;  ///< Total number of condition combinations
 
-    // For Insertion: sampler for insertion length
-    CategoricalSampler insertion_sampler;
+    // Generic conditional sampler (handles any dependency structure)
+    ConditionalSampler sampler;
+
+    // For GeneChoice: gene sequences indexed by realization index
+    std::vector<std::string> gene_sequences;
+    std::vector<Int_Str> gene_sequences_int;
+
+    // For Insertion: max insertion length
     int max_insertions = 0;
 
-    // For Deletion: conditional sampler (conditioned on gene)
-    ConditionalSampler deletion_sampler;
-    // For D 3' deletion: conditional on both D gene and D 5' deletion
-    std::vector<ConditionalSampler> deletion_sampler_2d;  // P(del_D3|D, del_D5)
+    // For Deletion: maps sampled index to actual deletion value
     int min_deletion = 0;
     int max_deletion = 0;
-    std::vector<int> deletion_idx_to_value;  // Maps sampled index to actual deletion value
+    std::vector<int> deletion_idx_to_value;
 
     // For Dinucl_markov: precomputed dinucleotide sampler
     DinucleotideMarkovSampler dinuc_sampler;
 
-    // Parent event information for conditional sampling
-    Gene_class parent_gene_class = Undefined_gene;
-    Gene_class parent_gene_class_2 = Undefined_gene;  // For 2D conditionals
-
-    // Offset information for index updates
-    std::vector<std::pair<int, int>> offset_updates;  // (event_index, offset)
+    // Number of realizations for this event
+    size_t num_realizations = 0;
 
     bool is_initialized = false;
-    bool is_conditional = false;
-    bool is_conditional_2d = false;
 };
 
 
 /**
  * \struct SamplingContext
  * \brief Tracks sampled values during sequence generation for conditional sampling.
+ *
+ * Generic context that stores all sampled realization indices by event index.
  */
 struct SamplingContext {
-    int v_gene_idx = -1;
-    int j_gene_idx = -1;
-    int d_gene_idx = -1;
-    int d_5_del_idx = -1;  // For D 3' deletion conditioning
+    std::vector<size_t> sampled_indices;  ///< Sampled index for each event
+
+    void resize(size_t num_events) {
+        sampled_indices.resize(num_events, 0);
+    }
 
     void clear() {
-        v_gene_idx = -1;
-        j_gene_idx = -1;
-        d_gene_idx = -1;
-        d_5_del_idx = -1;
+        std::fill(sampled_indices.begin(), sampled_indices.end(), 0);
     }
 };
 
@@ -217,51 +219,45 @@ public:
     Stats get_stats() const { return stats_; }
 
 private:
-    // Initialize samplers for each event type
-    void initialize_gene_choice_sampler(FastEventSampler& sampler,
-                                        const std::shared_ptr<Rec_Event>& event,
-                                        const Marginal_array_p& marginals,
-                                        int base_index);
+    // Generic initialization for any event type
+    void initialize_event_sampler(FastEventSampler& sampler,
+                                  const std::shared_ptr<Rec_Event>& event,
+                                  const Marginal_array_p& marginals,
+                                  int base_index);
 
-    void initialize_insertion_sampler(FastEventSampler& sampler,
-                                      const std::shared_ptr<Rec_Event>& event,
-                                      const Marginal_array_p& marginals,
-                                      int base_index);
-
-    void initialize_deletion_sampler(FastEventSampler& sampler,
-                                     const std::shared_ptr<Rec_Event>& event,
-                                     const Marginal_array_p& marginals,
-                                     int base_index);
-
+    // Initialize dinucleotide Markov sampler (special case)
     void initialize_dinucl_sampler(FastEventSampler& sampler,
                                    const std::shared_ptr<Rec_Event>& event,
                                    const Marginal_array_p& marginals,
                                    int base_index);
 
-    // Sampling functions for each event type (with context for conditional sampling)
-    void sample_gene_choice(const FastEventSampler& sampler,
-                           std::mt19937_64& rng,
-                           std::unordered_map<Seq_type, std::string>& sequences,
-                           std::vector<int>& realization,
-                           SamplingContext& context) const;
+    // Generic sampling function for any event
+    void sample_event(const FastEventSampler& sampler,
+                     std::mt19937_64& rng,
+                     std::unordered_map<Seq_type, std::string>& sequences,
+                     std::vector<int>& realization,
+                     SamplingContext& context) const;
 
-    void sample_insertion(const FastEventSampler& sampler,
-                         std::mt19937_64& rng,
-                         std::unordered_map<Seq_type, std::string>& sequences,
-                         std::vector<int>& realization,
-                         SamplingContext& context) const;
-
-    void sample_deletion(const FastEventSampler& sampler,
-                        std::mt19937_64& rng,
-                        std::unordered_map<Seq_type, std::string>& sequences,
-                        std::vector<int>& realization,
-                        SamplingContext& context) const;
-
+    // Specialized sampling for dinucleotide Markov (generates insertion sequences)
     void sample_dinucl_markov(const FastEventSampler& sampler,
                              std::mt19937_64& rng,
                              std::unordered_map<Seq_type, std::string>& sequences,
                              std::vector<int>& realization,
                              SamplingContext& context) const;
+
+    // Compute condition index from parent choices
+    size_t compute_condition_index(const FastEventSampler& sampler,
+                                   const SamplingContext& context) const;
+
+    // Apply gene choice to sequences
+    void apply_gene_choice(const FastEventSampler& sampler,
+                          size_t choice_idx,
+                          std::unordered_map<Seq_type, std::string>& sequences) const;
+
+    // Apply deletion to sequences
+    void apply_deletion(const FastEventSampler& sampler,
+                       size_t del_idx,
+                       std::unordered_map<Seq_type, std::string>& sequences) const;
 
     // Assemble final sequence from components
     std::string assemble_sequence(
@@ -270,21 +266,13 @@ private:
     // Apply transversions for palindromic insertions
     static void apply_palindrome(std::string& seq, int num_bases, bool is_3prime);
 
-    // Get parent gene index from context
-    int get_parent_gene_index(const FastEventSampler& sampler,
-                              const SamplingContext& context) const;
-
     // Member variables
     std::vector<FastEventSampler> event_samplers_;
+    std::unordered_map<std::string, size_t> event_name_to_index_;
     std::shared_ptr<Error_rate> error_rate_;
     bool has_d_gene_ = false;
     bool initialized_ = false;
     mutable Stats stats_;
-
-    // Dimension information for conditional distributions
-    size_t num_v_genes_ = 0;
-    size_t num_j_genes_ = 0;
-    size_t num_d_genes_ = 0;
 };
 
 
