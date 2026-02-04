@@ -96,7 +96,7 @@ enum Event_type {GeneChoice_t , Deletion_t , Insertion_t , Dinuclmarkov_t,Undefi
 enum Event_safety{VD_safe = 0  , DJ_safe = 1  , VJ_safe = 2 };
 enum Seq_side{ Five_prime =0 , Three_prime = 1 , Undefined_side = 2 };
 enum Seq_type {V_gene_seq = 0 , VD_ins_seq = 1 , D_gene_seq = 2 , DJ_ins_seq = 3 , J_gene_seq = 4 , VJ_ins_seq = 5};
-enum Gene_class{V_gene=0 , VD_genes=1 , D_gene=2 , DJ_genes=3 , J_gene=4 , VJ_genes=5 , VDJ_genes=6 ,Undefined_gene=7 };
+enum Gene_class{V_gene=0 , VD_genes=1 , D_gene=2 , DJ_genes=3 , J_gene=4 , VJ_genes=5 , VDJ_genes=6 ,Undefined_gene=7 , VD1_genes=8 , D1D2_genes=9 , D2J_genes=10 };
 enum Fileformat{CSV_f,FASTA_f,TXT_f, FASTQ_f};
 enum Int_nt { int_A = 0 , int_C = 1 , int_G = 2 , int_T = 3 , int_R = 4 , int_Y = 5 , int_K = 6 , int_M = 7 , int_S = 8 ,
 				int_W = 9 , int_B = 10 , int_D = 11 , int_H = 12 , int_V = 13 , int_N = 14};

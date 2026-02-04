@@ -2,9 +2,32 @@
 
 **Issue**: Issue #8 - Tandem D Gene Support  
 **Reference**: https://github.com/IGoR-immuno-stack/IGoR/issues/8  
-**Date**: February 2, 2026  
+**Date**: February 4, 2026  
 **Version**: IGoR 1.4.0  
-**Status**: ✅ COMPLETE - V-D₁-D₂-J generation functional
+**Status**: 🟡 PARTIAL - Generation functional, inference pending
+
+---
+
+## Executive Summary
+
+The tandem D (V-D₁-D₂-J) recombination model has been **partially implemented**. The **generation** step is fully functional and tested, producing deterministic V-D₁-D₂-J sequences. However, the complete pipeline including **alignment** and **inference** has not been exhaustively validated due to dependencies on D gene alignment support.
+
+### What's Working ✅
+- Model file parsing with new Gene_class values (VD1_genes, D1D2_genes, D2J_genes)
+- Sequence generation with uniform marginals
+- Deterministic output verified
+- Dynamic type registration for D1/D2 genes
+- Sequence construction following V-D1-D2-J topology
+
+### What's Pending ⏳
+- D gene alignment generation (fake alignments script needs extension)
+- Inference pipeline validation
+- D2 skip logic (None realization) validation
+- Dinucleotide Markov dependency verification
+- Model marginals file generation
+
+### Current Blocker
+**D alignment support in fake alignment generator** - The `make_fake_alignments.py` script only generates V and J alignments. Without D alignments, the inference step cannot run.
 
 ---
 
@@ -403,6 +426,8 @@ J_gene_seq → TypeId    (backwards compatible)
 
 **Goal**: Verify that the system can handle arbitrary numbers of D genes.
 
+**Status**: ⏳ **NOT TESTED** - Requires model file creation
+
 **Model**: V-D₁-D₂-D₃-J where D₁ through D₁₀ are consecutive D genes.
 
 **Expected**:
@@ -411,7 +436,25 @@ J_gene_seq → TypeId    (backwards compatible)
 - All Insertion events have unique TypeIds (VD1_ins→8-1=9, VD2_ins→8-1=11, etc.)
 - System remains stable and performant even with 10 D genes
 
-### 5.6 Performance Validation
+### 5.6 Alignment and Inference Testing
+
+**Status**: ❌ **NOT TESTED** - Blocked by missing D alignment support
+
+**What's Needed**:
+1. Extend `scripts/make_fake_alignments.py` to generate D alignment files
+2. D alignments must support two D segments per sequence (D1 and D2)
+3. Handle D2=None cases (no D2 alignment)
+4. Run inference on synthetic data with complete alignments
+5. Validate that inferred parameters match generating distribution
+
+**Current Error**:
+```bash
+$ ./scripts/run_tandem_d_fake_align_infer.sh
+...
+[IGoR] ERROR: File not found: /tmp/tandem_d_fake/aligns/tandem_d_D_alignments.csv
+```
+
+### 5.7 Performance Validation
 
 Test 1: Standard VDJ vs. VD1D2J
 
@@ -508,9 +551,94 @@ Performance Impact: 19% increase
 
 ---
 
-## 6. Discussion
+## 6. Remaining Work for Full Pipeline Validation
 
-### 6.1 Key Findings
+To achieve exhaustive testing of the tandem D feature with the complete IGoR pipeline, the following work remains:
+
+### 6.1 Pipeline Steps Status
+
+| Step | Status | Blocker |
+|------|--------|---------|
+| **Generation** | ✅ Working | None |
+| **Indexing** | ✅ Working | None |
+| **Alignment** | ⚠️ Partial | D alignments not implemented in fake generator |
+| **Inference** | ❌ Not Tested | Requires D alignment files |
+| **Evaluation** | ❌ Not Tested | Depends on inference |
+| **Pgen Computation** | ❌ Not Tested | Depends on inference |
+
+### 6.2 Critical Blockers
+
+#### 1. D Gene Alignment Support (CRITICAL)
+**Current State**: `make_fake_alignments.py` only generates V and J alignments.
+
+**What's Needed**:
+- Extend the fake alignment generator to create D alignment files
+- D alignments must support **two D segments per sequence** (D1 and D2)
+- Must encode which D gene (from D1 or D2 event) was used
+- Handle D2=None cases (no D2 alignment)
+
+**Implementation**:
+- Add `--out-d` option to `scripts/make_fake_alignments.py`
+- Parse D realizations from generated sequences or realizations file
+- Create alignment records for both D1 and D2 segments
+
+#### 2. Inference with Tandem D Model (CRITICAL)
+**Current State**: Cannot run without D alignments.
+
+**What's Needed**:
+- Run inference on synthetic data with complete alignments (V, D1, D2, J)
+- Verify inference learns correct distributions:
+  - D1 gene usage
+  - D2 gene usage (including "None" probability)
+  - Deletion distributions for D1 and D2
+  - Insertion lengths for VD1, D1D2, D2J
+  - Dinucleotide Markov parameters
+- Validate convergence: inferred marginals should match generating distribution
+
+### 6.3 Important Validations
+
+#### 3. D2 Skip Logic Validation
+- Generate sequences with known D2 usage rate (e.g., 50% have D2)
+- Verify inference correctly estimates D2 presence probability
+- Check that likelihood calculation handles D2=None correctly
+
+#### 4. Sequence Construction Validation
+- Parse generated sequences and verify V-D1-D2-J composition
+- Verify CDR3 structure is maintained
+- Create validation script that checks sequence composition
+
+#### 5. Dinucleotide Markov Dependencies
+- Verify starting nucleotide dependencies:
+  - VD1_dinucl uses last V nucleotide
+  - D1D2_dinucl uses last D1 nucleotide
+  - D2J_dinucl uses last D2 nucleotide when present
+  - D2J_dinucl falls back to last D1 nucleotide when D2=None
+
+### 6.4 Recommended Testing Sequence
+
+1. **Immediate** (Blocker for all else):
+   - Extend `make_fake_alignments.py` to generate D alignments
+
+2. **Short-term** (Core functionality):
+   - Run full inference pipeline on synthetic data
+   - Validate that inferred parameters match generating distribution
+   - Test D2 skip logic with mixed D2 presence/absence
+
+3. **Medium-term** (Validation):
+   - Add sequence structure validation script
+   - Verify dinucleotide Markov dependencies
+   - Test edge cases
+
+4. **Long-term** (Robustness):
+   - Test with error models
+   - Test with large datasets
+   - Performance benchmarking
+
+---
+
+## 7. Discussion
+
+### 7.1 Key Findings
 
 **Finding 1: Hybrid Storage Design Benefits**
 
@@ -539,19 +667,19 @@ The implementation now enables:
 - **Flexible topology** to adapt to their recombination patterns
 - **Research capabilities** without code modifications
 
-### 6.2 Limitations
+### 6.2 Current Limitations
 
-**Current Limitations**:
+**Implemented but Not Fully Tested**:
 
-1. **Junction Sequence TypeIds**: Currently, junction types use simple strings as keys
-   - `VD1_ins_seq` (hardcoded TypeId 1 or 8? depends on fallback)
-   - In future: Could be improved with `SequenceMap` for lookup
+1. **D2 Skip Logic**: D2 has a "None" realization, but inference behavior is untested
+2. **Dinucleotide Markov Dependencies**: Events defined but not validated
+3. **Sequence Construction**: Generated but not programmatically validated
 
-2. **Model Complexity**: Users must manually create Tandem D model files
+**Not Implemented**:
 
-3. **Alignment**: Aligner needs to recognize dynamic junction types
-
-4. **Inference**: Full alignment + inference workflow needs testing
+1. **D Alignment Generation**: `make_fake_alignments.py` needs extension for D genes
+2. **Inference Validation**: Cannot run without D alignments
+3. **Model Marginals Template**: No proper marginals file exists (uniform initialization works)
 
 ### 6.3 Design Alternatives Considered
 
@@ -759,14 +887,40 @@ ps | head -20 /tmp/bench_vdj.log
 
 ### 8.1 Achievement Summary
 
-Issue #8 (Tandem D gene support) has been **successfully completed** with:
+Issue #8 (Tandem D gene support) has been **partially implemented** with:
 
-1. ✅ **Dynamic Type System**: Runtime registration of D1, D₂, D₃,... genes
-2. ✅ **Flexible Topology**: V-D₁-D₂-...-J generation functional
-3. ✅ **Backward Compatible**: Standard VDJ continues to work identically
-4. ✅ **Extensible**: Architecture supports V-D₁-D₂-...-...-Dₙ-J patterns with N≥1 D genes
-5. ✅ **Determined**: Same seed produces identical output
-6. ✅ **Research-Ready**: Enables modeling of Tandem D recombination
+**Completed ✅**:
+1. **Dynamic Type System**: Runtime registration of D1, D₂, D₃,... genes
+2. **Flexible Topology**: V-D₁-D₂-...-J generation functional
+3. **Backward Compatible**: Standard VDJ continues to work identically
+4. **Extensible**: Architecture supports V-D₁-D₂-...-...-Dₙ-J patterns with N≥1 D genes
+5. **Deterministic**: Same seed produces identical output
+6. **Model File Format**: New Gene_class values (VD1_genes, D1D2_genes, D2J_genes) implemented
+
+**Pending ⏳**:
+1. **D Alignment Support**: Fake alignment generator needs D gene extension
+2. **Inference Validation**: Cannot test without D alignments
+3. **D2 Skip Logic**: "None" realization behavior untested in inference
+4. **Dinucleotide Dependencies**: Markov model dependencies not validated
+5. **Marginals File**: Template needs generation or manual creation
+
+### 8.2 Current Status
+
+**Generation**: ✅ Production-ready for V-D₁-D₂-J sequence generation
+**Alignment**: ⚠️ Partial (V/J work, D needed)
+**Inference**: ❌ Not tested (blocked by D alignments)
+**Evaluation**: ❌ Not tested
+
+### 8.3 Path to Completion
+
+To achieve full pipeline validation:
+
+1. **Immediate**: Extend `scripts/make_fake_alignments.py` for D alignments
+2. **Short-term**: Run inference on synthetic data, validate convergence
+3. **Medium-term**: Test D2 skip logic, validate dinucleotide dependencies
+4. **Long-term**: Integration tests with error models and large datasets
+
+The foundation is solid. The remaining work is primarily testing and validation infrastructure.
 
 ---
 

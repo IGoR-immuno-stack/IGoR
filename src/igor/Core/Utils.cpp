@@ -40,6 +40,9 @@ ostream& operator<<(ostream& os , Gene_class gc){
 	case J_gene:os<<"J_gene";break;
 	case VDJ_genes:os<<"VDJ_genes";break;
 	case Undefined_gene: os<<"Undefined_gene";break;
+	case VD1_genes: os<<"VD1_genes";break;
+	case D1D2_genes: os<<"D1D2_genes";break;
+	case D2J_genes: os<<"D2J_genes";break;
 
 	default:
 		throw invalid_argument("Unknown Gene_class in operator<< ");
@@ -70,6 +73,9 @@ string operator+(const string& str , Gene_class gc){
 	case J_gene:next_str="J_gene";break;
 	case VDJ_genes:next_str="VDJ_genes";break;
 	case Undefined_gene: next_str="Undefined_gene";break;
+	case VD1_genes: next_str="VD1_genes";break;
+	case D1D2_genes: next_str="D1D2_genes";break;
+	case D2J_genes: next_str="D2J_genes";break;
 	}
 	return str+next_str;
 }
@@ -110,8 +116,11 @@ Gene_class str2GeneClass(const string str){
 	else if(str == "J_gene"){gene_class = J_gene;}
 	else if(str == "VDJ_genes"){gene_class = VDJ_genes;}
 	else if(str == "Undefined_gene"){gene_class = Undefined_gene;}
+	else if(str == "VD1_genes"){gene_class = VD1_genes;}
+	else if(str == "D1D2_genes"){gene_class = D1D2_genes;}
+	else if(str == "D2J_genes"){gene_class = D2J_genes;}
 	else{
-		throw runtime_error("Unknown Gene_class in str2GeneClass");
+		throw runtime_error("Unknown Gene_class in str2GeneClass: " + str);
 	}
 	return gene_class;
 }
@@ -131,6 +140,9 @@ string to_string(const Gene_class gc){
 	case J_gene:return "J_gene";
 	case VDJ_genes:return "VDJ_genes";
 	case Undefined_gene:return "Undefined_gene";
+	case VD1_genes:return "VD1_genes";
+	case D1D2_genes:return "D1D2_genes";
+	case D2J_genes:return "D2J_genes";
 
 	default:
 		throw invalid_argument("Unknown Gene_class in to_string(const Gene_class).");

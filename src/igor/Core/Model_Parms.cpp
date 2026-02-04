@@ -55,14 +55,19 @@ void register_tandem_d_types_if_needed(const std::string &nickname)
     // This allows them to be used as junction/neighbor types even if they haven't been
     // fully processed in the model file yet.
     if (nickname.find("D1") != std::string::npos || nickname.find("D2") != std::string::npos) {
-        // Register base D gene types
+        // Register base D gene types (both with and without _seq suffix for compatibility)
         auto d1_gene = registry.register_type("D1_gene_seq");
+        registry.register_type("D1_gene");
         auto d2_gene = registry.register_type("D2_gene_seq");
+        registry.register_type("D2_gene");
 
-        // Register insertion types
+        // Register insertion types (both with and without _seq suffix for compatibility)
         auto vd1_ins = registry.register_type("VD1_ins_seq");
+        registry.register_type("VD1_ins");
         auto d1d2_ins = registry.register_type("D1D2_ins_seq");
+        registry.register_type("D1D2_ins");
         auto d2j_ins = registry.register_type("D2J_ins_seq");
+        registry.register_type("D2J_ins");
 
         // Register connections (topology)
         registry.register_connection(SequenceTypeRegistry::V_GENE_SEQ, d1_gene, vd1_ins);

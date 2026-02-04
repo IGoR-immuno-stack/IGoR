@@ -542,9 +542,14 @@ grep -r "WARNING\|warning" src/igor/Core/EventUtils.* src/igor/Core/Genechoice.*
 
 The refactoring provides a solid architectural foundation for:
 
-1. **Issue #8 (Tandem D Support)**: Centralized utilities simplify adding D1, D2+ gene support
+1. **Issue #8 (Tandem D Support)**: ✅ **PARTIALLY IMPLEMENTED** - Centralized utilities enabled V-D₁-D₂-J generation. Generation step is functional; inference pending D alignment support.
 2. **Future Extensions**: New event types can be added without duplicating common logic
 3. **Developer Experience**: Bug fixes and features are easier to implement and test
+
+**Note on Task 2 (Tandem D)**: The refactoring in Task 1 successfully enabled the foundation for tandem D support. Task 2 has been partially completed on top of this foundation:
+- ✅ Dynamic type registration working
+- ✅ V-D₁-D₂-J generation functional and deterministic
+- ⏳ Inference pipeline pending (blocked by D alignment generation)
 
 ### 8.3 Recommendations
 
