@@ -23,7 +23,7 @@ valgrind = "*"
 
 [tasks]
 clean = "rm -fr build && rm -fr build_cov"
-configure = "cmake -S . -B build "
+configure = "cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release "
 configure_coverage = "cmake -S . -B build_cov -DBUILD_DOC_DOXYGEN=ON -DENABLE_COVERAGE=ON"
 build = {cmd="cmake --build build --parallel", depends-on = "configure"}
 build_coverage = {cmd="cmake --build build_cov -j8", depends-on = "configure_coverage"}

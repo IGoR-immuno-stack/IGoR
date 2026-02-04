@@ -27,6 +27,9 @@
 
 #include <igor/Core/Counter.h>
 #include <string>
+#include <igorCoreExport.h>
+
+
 /**
  * \class Coverage_err_counter Coverageerrcounter.h
  * \brief Records the number of time each genomic position is observed with or without error.
@@ -36,7 +39,7 @@
  * The Coverage_err_counter allows to record the number of times each genomic site is observed (coverage) and how many times a mismatch has been observed on it (error/mutation).
  * The recording can be made at the single position level, as well as joint over positions duet,triplet etc (e.g the number of times two nucleotides were observed in the same scenario)
  */
-class Coverage_err_counter: public Counter {
+class CORE_EXPORT Coverage_err_counter: public Counter {
 public:
 
 	Coverage_err_counter(Gene_class);

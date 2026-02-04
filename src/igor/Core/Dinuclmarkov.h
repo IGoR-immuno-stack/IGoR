@@ -39,6 +39,8 @@
 #include <igor/Core/Errorrate.h>
 #include <random>
 
+#include <igorCoreExport.h>
+
 /**
  * \class Dinucl_markov Dinucl_markov.h
  * \brief Dinucleotide insertion Markov model.
@@ -51,7 +53,7 @@
  *
  * By construction the Insertion event must have been explored first
  */
-class Dinucl_markov: public Rec_Event {
+class CORE_EXPORT Dinucl_markov: public Rec_Event {
 public:
 	//Constructors
 	Dinucl_markov(Gene_class);//TODO should be scalable on one side easily (mono di tri quadri nucl)

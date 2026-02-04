@@ -407,14 +407,18 @@ unordered_map<int,forward_list<Alignment_data>> Aligner::align_seqs(vector<pair<
 	#pragma omp declare reduction (merge:unordered_map<int,forward_list<Alignment_data>>:omp_out.insert(omp_in.begin(),omp_in.end()))
 	#pragma omp parallel for schedule(dynamic) reduction(merge:alignment_map) shared(processed_seq_number)
 */
+	const auto n_seqs = sequence_list.size(); // Required for OpenMP with MSVC: can't use iterator for loop, need to use indexes
 
 	//Declare parallel loop using OpenMP 3.1 standards
 	#pragma omp parallel for schedule(dynamic) shared(processed_seq_number , alignment_map) //num_threads(1)
-	for(vector<pair<const int , const string>>::const_iterator seq_it = sequence_list.begin() ; seq_it < sequence_list.end() ; seq_it++){
-		forward_list<Alignment_data> seq_alignments = align_seq((*seq_it).second , score_threshold , best_align_only , best_gene_only , genomic_offset_bounds , rev_offset_frame);
+	for (auto i = 0; i < n_seqs; ++i) {
+
+		const auto &seq_pair = sequence_list[i]; // au lieu de *seq_it
+
+		forward_list<Alignment_data> seq_alignments = align_seq(seq_pair.second , score_threshold , best_align_only , best_gene_only , genomic_offset_bounds , rev_offset_frame);
 		#pragma omp critical(emplace_seq_alignments)
 		{
-			alignment_map.emplace((*seq_it).first , seq_alignments);
+			alignment_map.emplace(seq_pair.first , seq_alignments);
 			//cout<<"Seq "<<processed_seq_number<<" processed"<<endl;
 			++processed_seq_number;
 		}
@@ -517,15 +521,19 @@ void Aligner::align_seqs( string filename , vector<pair<const int , const string
 	#pragma omp parallel for schedule(dynamic) reduction(merge:alignment_map) shared(processed_seq_number)
 */
 
+	const auto n_seqs = sequence_list.size(); // Required for OpenMP with MSVC: can't use iterator for loop, need to use indexes
+
 	//Declare parallel loop using OpenMP 3.1 standards
 	#pragma omp parallel for schedule(dynamic) shared(processed_seq_number , alignment_map) //num_threads(1)
-	for(vector<pair<const int , const string>>::const_iterator seq_it = sequence_list.begin() ; seq_it < sequence_list.end() ; seq_it++){
+	for (auto i = 0; i < n_seqs; ++i) {
+
+		const auto &seq_pair = sequence_list[i]; // au lieu de *seq_it
 		try{
-			forward_list<Alignment_data> seq_alignments = align_seq((*seq_it).second , score_threshold , best_align_only, best_gene_only , genomic_offset_bounds, rev_offset_frame);
+			forward_list<Alignment_data> seq_alignments = align_seq(seq_pair.second , score_threshold , best_align_only, best_gene_only , genomic_offset_bounds, rev_offset_frame);
 
 			#pragma omp critical(emplace_seq_alignments)
 			{
-				write_single_seq_alignment(outfile , (*seq_it).first , seq_alignments );
+				write_single_seq_alignment(outfile , seq_pair.first , seq_alignments );
 				//cout<<"Seq "<<processed_seq_number<<" processed"<<endl;
 				++processed_seq_number;
 			}
@@ -541,7 +549,7 @@ void Aligner::align_seqs( string filename , vector<pair<const int , const string
 		catch(exception& except){
 			cerr<<endl;
 			cerr<<"Exception caught calling align_seq() on sequence:"<<endl;
-			cerr<<(*seq_it).first<<";"<<(*seq_it).second<<endl;
+			cerr<<seq_pair.first<<";"<<seq_pair.second<<endl;
 			cerr<<endl;
 			cerr<<"Throwing exception now..."<<endl<<endl;
 			cerr<<except.what()<<endl;
@@ -1074,7 +1082,7 @@ vector<pair<const int , const string>> sample_indexed_seq(vector<pair<const int 
 	//create a seed from timer
 	typedef std::chrono::high_resolution_clock myclock;
 	myclock::time_point time = myclock::now();
-	myclock::duration dur = myclock::time_point::max() - time;
+	myclock::duration dur = (myclock::time_point::max)() - time;
 
 	//Get a random seed
 	uint64_t random_seed = draw_random_64bits_seed();

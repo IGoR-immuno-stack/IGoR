@@ -38,6 +38,8 @@
 #include <random>
 #include <math.h>
 
+#include <igorCoreExport.h>
+
 /**
  * \class Deletion Deletion.h
  * \brief Deletion recombination event
@@ -49,7 +51,7 @@
  *
  * By construction the corresponding GeneChoice must have been explored first.
  */
-class Deletion: public Rec_Event {
+class CORE_EXPORT Deletion: public Rec_Event {
 	friend class Coverage_err_counter;//Grant friendship to access the current number of deletion
 	friend class Hypermutation_global_errorrate;//Grant friendship to access the current number of deletion
 	friend class Hypermutation_full_Nmer_errorrate;//Same
