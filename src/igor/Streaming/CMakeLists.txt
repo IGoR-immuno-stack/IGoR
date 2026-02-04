@@ -41,8 +41,9 @@ target_sources(${PROJECT_NAME}
     SequenceBatchHelpers.cpp
     ParquetWriter.cpp
     ParquetReader.cpp
-    AIRRReader.cpp
-    AIRRWriter.cpp
+    AIRRCommon.cpp
+    AIRRRearrangementReader.cpp
+    AIRRRearrangementWriter.cpp
   PUBLIC
     FILE_SET HEADERS
     BASE_DIRS
@@ -51,8 +52,9 @@ target_sources(${PROJECT_NAME}
       ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/SequenceBatchHelpers.h
       ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/ParquetWriter.h
       ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/ParquetReader.h
-      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/AIRRReader.h
-      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/AIRRWriter.h
+      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/AIRRCommon.h
+      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/AIRRRearrangementReader.h
+      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/AIRRRearrangementWriter.h
       ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/ArrowCompatibility.h
 )
 

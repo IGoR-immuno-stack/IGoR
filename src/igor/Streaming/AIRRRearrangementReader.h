@@ -1,5 +1,5 @@
 /*
- * AIRRReader.h
+ * AIRRRearrangementReader.h
  *
  *  Created on: Feb 4, 2026
  *      Author: IGoR Development Team
@@ -25,8 +25,8 @@
  */
 
 /**
- * @file AIRRReader.h
- * @brief Reader for AIRR-Community standard TSV/CSV rearrangement files
+ * @file AIRRRearrangementReader.h
+ * @brief Reader for AIRR-Community standard Rearrangement TSV/CSV files
  *
  * This module provides functionality to read immune receptor rearrangement data
  * in the AIRR (Adaptive Immune Receptor Repertoire) standard format.
@@ -66,6 +66,7 @@
 
 #include <igor/Streaming/Export.h>
 #include <igor/Streaming/SequenceBatchHelpers.h>
+#include <igor/Streaming/AIRRCommon.h>
 
 #include <sparrow/record_batch.hpp>
 
@@ -73,33 +74,11 @@
 #include <vector>
 #include <unordered_map>
 
-namespace igor::airr {
+namespace igor::airr::rearrangement {
 
-/**
- * @brief Delimiter type for AIRR files
- */
-enum class Delimiter
-{
-    TAB,   ///< Tab-separated values (TSV) - AIRR standard
-    COMMA, ///< Comma-separated values (CSV) - Alternative
-    AUTO   ///< Auto-detect based on file content
-};
-
-/**
- * @brief Metadata about an AIRR file
- */
-struct STREAMING_EXPORT FileInfo
-{
-    std::string filepath;                     ///< Path to the file
-    size_t num_rows{0};                       ///< Number of data rows (excluding header)
-    std::vector<std::string> column_names;    ///< Column names from header
-    Delimiter delimiter{Delimiter::TAB};      ///< Detected delimiter
-    bool has_sequence_id{false};              ///< Has sequence_id column
-    bool has_sequence{false};                 ///< Has sequence column
-    bool has_v_call{false};                   ///< Has v_call column
-    bool has_d_call{false};                   ///< Has d_call column
-    bool has_j_call{false};                   ///< Has j_call column
-};
+// Use shared types from parent namespace
+using airr::Delimiter;
+using airr::FileInfo;
 
 /**
  * @brief Get metadata about an AIRR file without reading all data
@@ -114,7 +93,7 @@ struct STREAMING_EXPORT FileInfo
  *
  * Example usage:
  * @code
- *   using namespace igor::airr;
+ *   using namespace igor::airr::rearrangement;
  *
  *   auto info = get_file_info("data.tsv");
  *   std::cout << "Found " << info.num_rows << " sequences\n";
@@ -194,18 +173,6 @@ sparrow::record_batch read_columns(
     Delimiter delimiter = Delimiter::AUTO);
 
 /**
- * @brief Auto-detect delimiter from file content
- *
- * Examines the first line to determine if file is TSV or CSV.
- *
- * @param filepath Path to the file
- * @return Detected delimiter (TAB or COMMA)
- * @throws std::runtime_error if file cannot be opened
- */
-STREAMING_EXPORT
-Delimiter detect_delimiter(const std::string& filepath);
-
-/**
  * @brief Validate AIRR schema compliance
  *
  * Checks if the file has the required AIRR columns.
@@ -221,13 +188,5 @@ bool validate_schema(
     const std::string& filepath,
     Delimiter delimiter = Delimiter::AUTO);
 
-/**
- * @brief Get delimiter character
- *
- * @param delimiter Delimiter enum
- * @return Character to use as delimiter
- */
-STREAMING_EXPORT
-char delimiter_char(Delimiter delimiter);
+} // namespace igor::airr::rearrangement
 
-} // namespace igor::airr

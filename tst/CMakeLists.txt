@@ -21,8 +21,8 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/igor/Streaming")
         igor/Streaming/test_streaming_helpers.cpp
         igor/Streaming/test_parquet_reader.cpp
         igor/Streaming/test_parquet_writer.cpp
-        igor/Streaming/test_airr_reader.cpp
-        igor/Streaming/test_airr_writer.cpp
+        igor/Streaming/test_airr_rearrangement_reader.cpp
+        igor/Streaming/test_airr_rearrangement_writer.cpp
     )
 
     if(STREAMING_TEST_SOURCES)

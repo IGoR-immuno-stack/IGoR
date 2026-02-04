@@ -1,7 +1,7 @@
 # Streaming Layer Task Plan
 
-**Branch:** feature/streaming  
-**Last Updated:** 3 February 2026
+**Branch:** feature/streaming
+**Last Updated:** 4 February 2026
 
 ---
 
@@ -25,10 +25,12 @@ Enable IGoR to read and write receptor sequence data in standard formats for int
 | Component | Status | Notes |
 |-----------|--------|-------|
 | Parquet I/O | ✅ Complete | Production-ready with native Arrow list arrays |
-| Test Suite | ✅ Complete | 25 tests, 949 assertions, Catch2 v3 best practices |
-| AIRR I/O | ⬜ Not Started | Tasks 2-4 below |
+| AIRR Rearrangement I/O | ✅ Complete | Reader & Writer with full test coverage |
+| AIRR Common Types | ✅ Complete | Shared utilities for all AIRR formats |
+| AIRR Alignment I/O | 🟡 In Progress | Part A (refactoring) complete |
+| Test Suite | ✅ Complete | 41 tests, 1055 assertions |
 
-**Overall Completion: ~50%** (Parquet complete, AIRR not started)
+**Overall Completion: ~70%** (Parquet complete, Rearrangement complete, Alignment in progress)
 
 ---
 
@@ -191,7 +193,82 @@ pixi run ./build/bin/streaming_tests "[.benchmark]"
 
 ---
 
-### 🟢 Task 4: AIRR Parquet Support (Low Priority)
+### � Task 3.5: AIRR Alignment Schema Support
+
+**Estimated Effort:** ~500-600 LOC
+**Priority:** Medium (before Parquet support)
+
+**Background:**
+The AIRR Alignment Schema (experimental) differs from the Rearrangement Schema:
+- **Rearrangement**: One row per sequence, V/D/J calls inlined as columns
+- **Alignment**: One row per alignment (multiple rows per sequence, one per V/D/J/C)
+
+This enables storing multiple candidate alignments per gene class with ranking.
+
+**✅ Part A: Rename Existing Files & Refactor Common Types (COMPLETE)**
+**Completion Date:** February 4, 2026
+
+- ✅ Renamed `AIRRReader.{h,cpp}` → `AIRRRearrangementReader.{h,cpp}`
+- ✅ Renamed `AIRRWriter.{h,cpp}` → `AIRRRearrangementWriter.{h,cpp}`
+- ✅ Updated namespace from `igor::airr` → `igor::airr::rearrangement`
+- ✅ Updated `test_airr_reader.cpp` → `test_airr_rearrangement_reader.cpp`
+- ✅ Updated `test_airr_writer.cpp` → `test_airr_rearrangement_writer.cpp`
+- ✅ Updated CMakeLists.txt references
+- ✅ Created `AIRRCommon.{h,cpp}` with shared types:
+  - `enum class Delimiter { TAB, COMMA, AUTO }`
+  - `struct FileInfo` (unified for both schemas)
+  - `char delimiter_char(Delimiter)`
+  - `Delimiter detect_delimiter(const std::string&)`
+- ✅ Refactored existing files to use shared types from `igor::airr` namespace
+- ✅ All tests pass (106 assertions in 16 test cases)
+
+**Namespace Organization:**
+- `igor::airr` — Shared types and utilities
+- `igor::airr::rearrangement` — Rearrangement schema (one row per sequence)
+- `igor::airr::alignment` — Alignment schema (one row per alignment)
+
+**Part B: Implement Alignment Schema**
+
+**Files to Create:**
+- `src/igor/Streaming/AIRRAlignmentReader.{h,cpp}`
+- `src/igor/Streaming/AIRRAlignmentWriter.{h,cpp}`
+- `tst/igor/Streaming/test_airr_alignment.cpp`
+
+**AIRR Alignment Schema Fields:**
+| Field | Type | Required | IGoR Mapping |
+|-------|------|----------|--------------|
+| `sequence_id` | string | ✅ | `SequenceData::index` |
+| `segment` | string | ✅ | Gene class (V/D/J/C) |
+| `call` | string | ✅ | `Alignment_data::gene_name` |
+| `score` | number | ✅ | `Alignment_data::score` |
+| `cigar` | string | ✅ | Generated |
+| `identity` | number | | Fractional identity |
+| `support` | number | | E-value/p-value |
+| `sequence_start` | integer | | `offset + 1` (1-based) |
+| `sequence_end` | integer | | `offset + align_length` |
+| `germline_start` | integer | | `five_p_offset + 1` |
+| `germline_end` | integer | | Calculated |
+| `rank` | integer | | Alignment priority |
+
+**Subtasks:**
+1. [ ] Rename existing files (Part A)
+2. [ ] Create `igor::airr::alignment` namespace
+3. [ ] Implement alignment reader (parse segment-based format)
+4. [ ] Implement alignment writer (one row per alignment)
+5. [ ] Handle ranked alignments (multiple per gene class)
+6. [ ] Round-trip validation tests
+7. [ ] Document experimental status
+
+**Acceptance Criteria:**
+- [ ] Existing rearrangement tests pass after rename
+- [ ] Can read AIRR Alignment TSV/CSV files
+- [ ] Can write AIRR Alignment TSV/CSV files
+- [ ] Supports multiple alignments per gene class
+- [ ] Round-trip preserves data
+
+---
+
+### �🟢 Task 4: AIRR Parquet Support (Low Priority)
 
 **Estimated Effort:** ~200-300 LOC
 

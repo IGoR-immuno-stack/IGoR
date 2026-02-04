@@ -1,5 +1,5 @@
 /*
- * AIRRReader.cpp
+ * AIRRRearrangementReader.cpp
  *
  *  Created on: Feb 4, 2026
  *      Author: IGoR Development Team
@@ -24,7 +24,7 @@
  *   along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <igor/Streaming/AIRRReader.h>
+#include <igor/Streaming/AIRRRearrangementReader.h>
 
 #include <sparrow/array.hpp>
 #include <sparrow/builder.hpp>
@@ -35,7 +35,7 @@
 #include <algorithm>
 #include <optional>
 
-namespace igor::airr {
+namespace igor::airr::rearrangement {
 
 //==============================================================================
 // Internal helpers (anonymous namespace)
@@ -191,45 +191,9 @@ std::optional<Alignment_data> extract_alignment(
 // Public API
 //==============================================================================
 
-Delimiter detect_delimiter(const std::string& filepath)
-{
-    std::ifstream file(filepath);
-    if (!file.is_open()) {
-        throw std::runtime_error("airr::detect_delimiter: Cannot open file: " + filepath);
-    }
-
-    std::string first_line;
-    if (!std::getline(file, first_line)) {
-        throw std::runtime_error("airr::detect_delimiter: File is empty: " + filepath);
-    }
-
-    // Count tabs and commas in header line
-    size_t tab_count = std::count(first_line.begin(), first_line.end(), '\t');
-    size_t comma_count = std::count(first_line.begin(), first_line.end(), ',');
-
-    // AIRR standard is TSV, so prefer tabs if both are present
-    if (tab_count >= comma_count && tab_count > 0) {
-        return Delimiter::TAB;
-    } else if (comma_count > 0) {
-        return Delimiter::COMMA;
-    }
-
-    // Default to TSV (AIRR standard)
-    return Delimiter::TAB;
-}
-
-char delimiter_char(Delimiter delimiter)
-{
-    switch (delimiter) {
-        case Delimiter::TAB:
-            return '\t';
-        case Delimiter::COMMA:
-            return ',';
-        case Delimiter::AUTO:
-            return '\t'; // Shouldn't be called with AUTO
-    }
-    return '\t';
-}
+// Use shared utility functions from parent namespace
+using airr::detect_delimiter;
+using airr::delimiter_char;
 
 FileInfo get_file_info(const std::string& filepath, Delimiter delimiter)
 {
@@ -486,4 +450,5 @@ sparrow::record_batch read_columns(
     return sparrow::record_batch(std::move(names), std::move(arrays));
 }
 
-} // namespace igor::airr
+} // namespace igor::airr::rearrangement
+

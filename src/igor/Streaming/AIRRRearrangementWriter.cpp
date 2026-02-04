@@ -1,5 +1,5 @@
 /*
- * AIRRWriter.cpp
+ * AIRRRearrangementWriter.cpp
  *
  *  Created on: Feb 4, 2026
  *      Author: IGoR Development Team
@@ -24,14 +24,14 @@
  *   along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <igor/Streaming/AIRRWriter.h>
+#include <igor/Streaming/AIRRRearrangementWriter.h>
 
 #include <fstream>
 #include <sstream>
 #include <stdexcept>
 #include <iterator>
 
-namespace igor::airr {
+namespace igor::airr::rearrangement {
 
 //==============================================================================
 // Internal helpers
@@ -267,4 +267,5 @@ void write_batch(
     }
 }
 
-} // namespace igor::airr
+} // namespace igor::airr::rearrangement
+

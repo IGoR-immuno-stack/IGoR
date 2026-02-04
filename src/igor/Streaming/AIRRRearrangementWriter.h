@@ -1,5 +1,5 @@
 /*
- * AIRRWriter.h
+ * AIRRRearrangementWriter.h
  *
  *  Created on: Feb 4, 2026
  *      Author: IGoR Development Team
@@ -25,8 +25,8 @@
  */
 
 /**
- * @file AIRRWriter.h
- * @brief Writer for AIRR-Community standard TSV/CSV rearrangement files
+ * @file AIRRRearrangementWriter.h
+ * @brief Writer for AIRR-Community standard Rearrangement TSV/CSV files
  *
  * This module provides functionality to write immune receptor rearrangement data
  * in the AIRR (Adaptive Immune Receptor Repertoire) standard format.
@@ -59,7 +59,8 @@
 
 #include <igor/Streaming/Export.h>
 #include <igor/Streaming/SequenceBatchHelpers.h>
-#include <igor/Streaming/AIRRReader.h>
+#include <igor/Streaming/AIRRCommon.h>
+#include <igor/Streaming/AIRRRearrangementReader.h>
 
 #include <sparrow/record_batch.hpp>
 
@@ -67,7 +68,7 @@
 #include <vector>
 #include <unordered_map>
 
-namespace igor::airr {
+namespace igor::airr::rearrangement {
 
 /**
  * @brief Write sequences to an AIRR TSV file
@@ -81,7 +82,7 @@ namespace igor::airr {
  *
  * Example:
  * @code
- *   using namespace igor::airr;
+ *   using namespace igor::airr::rearrangement;
  *   std::vector<SequenceData> seqs = ...;
  *   write_tsv("output.tsv", seqs);
  * @endcode
@@ -186,4 +187,5 @@ std::string make_cigar(const Alignment_data& alignment);
 STREAMING_EXPORT
 std::vector<std::string> get_airr_columns(bool include_alignment_details = true);
 
-} // namespace igor::airr
+} // namespace igor::airr::rearrangement
+

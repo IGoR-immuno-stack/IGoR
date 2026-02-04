@@ -1,5 +1,5 @@
 /*
- * test_airr_writer.cpp
+ * test_airr_rearrangement_writer.cpp
  *
  *  Created on: Feb 4, 2026
  *      Author: IGoR Development Team
@@ -16,16 +16,19 @@
 #include <catch2/matchers/catch_matchers_string.hpp>
 
 #include "StreamingTestUtils.h"
-#include <igor/Streaming/AIRRWriter.h>
-#include <igor/Streaming/AIRRReader.h>
+#include <igor/Streaming/AIRRRearrangementWriter.h>
+#include <igor/Streaming/AIRRRearrangementReader.h>
 
 #include <fstream>
 #include <sstream>
 
 using namespace igor;
-using namespace igor::airr;
+using namespace igor::airr::rearrangement;
 using namespace igor::test;
 using namespace Catch::Matchers;
+
+// Import shared utility functions from parent namespace
+using igor::airr::delimiter_char;
 
 //==============================================================================
 // Fixtures
