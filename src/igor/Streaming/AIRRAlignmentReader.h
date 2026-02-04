@@ -64,32 +64,19 @@
 
 #include <igor/Streaming/Export.h>
 #include <igor/Streaming/SequenceBatchHelpers.h>
-#include <igor/Streaming/AIRRRearrangementReader.h>
+#include <igor/Streaming/AIRRCommon.h>
 
 #include <sparrow/record_batch.hpp>
 
 #include <string>
 #include <vector>
-#include <unordered_map>
-#include <optional>
+#include <forward_list>
 
 namespace igor::airr::alignment {
 
-/**
- * @brief Metadata about an AIRR Alignment file
- */
-struct STREAMING_EXPORT FileInfo
-{
-    std::string filepath;                     ///< Path to the file
-    size_t num_rows{0};                       ///< Number of alignment rows
-    std::vector<std::string> column_names;    ///< Column names from header
-    rearrangement::Delimiter delimiter{rearrangement::Delimiter::TAB}; ///< Detected delimiter
-    bool has_sequence_id{false};              ///< Has sequence_id column
-    bool has_segment{false};                  ///< Has segment column
-    bool has_call{false};                     ///< Has call column
-    bool has_cigar{false};                    ///< Has cigar column
-    bool has_rank{false};                     ///< Has rank column
-};
+// Use shared types from parent namespace
+using airr::Delimiter;
+using airr::FileInfo;
 
 /**
  * @brief Get metadata about an AIRR Alignment file
@@ -114,7 +101,7 @@ struct STREAMING_EXPORT FileInfo
 STREAMING_EXPORT
 FileInfo get_file_info(
     const std::string& filepath,
-    rearrangement::Delimiter delimiter = rearrangement::Delimiter::AUTO);
+    Delimiter delimiter = Delimiter::AUTO);
 
 /**
  * @brief Validate AIRR Alignment schema compliance
@@ -129,7 +116,7 @@ FileInfo get_file_info(
 STREAMING_EXPORT
 bool validate_schema(
     const std::string& filepath,
-    rearrangement::Delimiter delimiter = rearrangement::Delimiter::AUTO);
+    Delimiter delimiter = Delimiter::AUTO);
 
 /**
  * @brief Read AIRR Alignment file as vector of SequenceData
@@ -145,7 +132,7 @@ bool validate_schema(
 STREAMING_EXPORT
 std::vector<SequenceData> read_sequences(
     const std::string& filepath,
-    rearrangement::Delimiter delimiter = rearrangement::Delimiter::AUTO);
+    Delimiter delimiter = Delimiter::AUTO);
 
 /**
  * @brief Read AIRR Alignment file as Sparrow record_batch
@@ -160,13 +147,22 @@ std::vector<SequenceData> read_sequences(
 STREAMING_EXPORT
 sparrow::record_batch read_batch(
     const std::string& filepath,
-    rearrangement::Delimiter delimiter = rearrangement::Delimiter::AUTO);
+    Delimiter delimiter = Delimiter::AUTO);
 
 /**
  * @brief Parse CIGAR string to extract insertions, deletions, and mismatches
  *
  * Parses a CIGAR string (e.g., "50M2I3D") and extracts the operation counts.
- * This is the inverse of make_cigar() from AIRRWriter.
+ * This is the inverse of make_cigar() from AIRRAlignmentWriter.
+ *
+ * **CIGAR Semantics:**
+ * - `M` (match/mismatch): Adds to alignment length (reference span)
+ * - `I` (insertion): Does NOT add to alignment length (insertion in query)
+ * - `D` (deletion): ADDS to alignment length (deletion from query = gap in query)
+ *
+ * **Note:** The returned `align_length` represents the reference span covered
+ * by the alignment, which includes matches and deletions but not insertions.
+ * This follows standard CIGAR conventions.
  *
  * **Limitation:** This only extracts counts from simplified CIGAR strings.
  * Full CIGAR parsing with exact positions is not yet implemented.
@@ -174,8 +170,8 @@ sparrow::record_batch read_batch(
  * @param cigar CIGAR string
  * @param insertions Output: list of insertion positions (currently just counts)
  * @param deletions Output: list of deletion positions (currently just counts)
- * @param align_length Output: alignment length from CIGAR
- * @return true if parsed successfully, false if CIGAR is invalid
+ * @param align_length Output: reference span (M + D operations)
+ * @return true if parsed successfully, false if CIGAR is invalid or empty
  */
 STREAMING_EXPORT
 bool parse_cigar(

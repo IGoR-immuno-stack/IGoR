@@ -27,10 +27,10 @@ Enable IGoR to read and write receptor sequence data in standard formats for int
 | Parquet I/O | ✅ Complete | Production-ready with native Arrow list arrays |
 | AIRR Rearrangement I/O | ✅ Complete | Reader & Writer with full test coverage |
 | AIRR Common Types | ✅ Complete | Shared utilities for all AIRR formats |
-| AIRR Alignment I/O | 🟡 In Progress | Part A (refactoring) complete |
-| Test Suite | ✅ Complete | 41 tests, 1055 assertions |
+| AIRR Alignment I/O | ✅ Complete | Reader & Writer with full test coverage |
+| Test Suite | ✅ Complete | 50 tests, 1131 assertions |
 
-**Overall Completion: ~70%** (Parquet complete, Rearrangement complete, Alignment in progress)
+**Overall Completion: ~95%** (Core functionality complete, minor optional features pending)
 
 ---
 
@@ -227,44 +227,99 @@ This enables storing multiple candidate alignments per gene class with ranking.
 - `igor::airr::rearrangement` — Rearrangement schema (one row per sequence)
 - `igor::airr::alignment` — Alignment schema (one row per alignment)
 
-**Part B: Implement Alignment Schema**
+**✅ Part B: Implement Alignment Schema (COMPLETE)**
+**Completion Date:** February 4, 2026
 
-**Files to Create:**
-- `src/igor/Streaming/AIRRAlignmentReader.{h,cpp}`
-- `src/igor/Streaming/AIRRAlignmentWriter.{h,cpp}`
-- `tst/igor/Streaming/test_airr_alignment.cpp`
+**Files Created:**
+- ✅ `src/igor/Streaming/AIRRAlignmentReader.{h,cpp}` (~185 + 444 lines)
+- ✅ `src/igor/Streaming/AIRRAlignmentWriter.{h,cpp}` (~139 + 174 lines)
+- ✅ `tst/igor/Streaming/test_airr_alignment.cpp` (~480 lines, 9 test cases, 76 assertions)
 
 **AIRR Alignment Schema Fields:**
-| Field | Type | Required | IGoR Mapping |
-|-------|------|----------|--------------|
-| `sequence_id` | string | ✅ | `SequenceData::index` |
-| `segment` | string | ✅ | Gene class (V/D/J/C) |
-| `call` | string | ✅ | `Alignment_data::gene_name` |
-| `score` | number | ✅ | `Alignment_data::score` |
-| `cigar` | string | ✅ | Generated |
-| `identity` | number | | Fractional identity |
-| `support` | number | | E-value/p-value |
-| `sequence_start` | integer | | `offset + 1` (1-based) |
-| `sequence_end` | integer | | `offset + align_length` |
-| `germline_start` | integer | | `five_p_offset + 1` |
-| `germline_end` | integer | | Calculated |
-| `rank` | integer | | Alignment priority |
+| Field | Type | Required | IGoR Mapping | Status |
+|-------|------|----------|--------------|--------|
+| `sequence_id` | string | ✅ | `SequenceData::index` | ✅ |
+| `segment` | string | ✅ | Gene class (V/D/J) | ✅ |
+| `call` | string | ✅ | `Alignment_data::gene_name` | ✅ |
+| `score` | number | ✅ | `Alignment_data::score` | ✅ |
+| `cigar` | string | ✅ | Generated/parsed | ✅ |
+| `sequence_start` | integer | | `offset + 1` (1-based) | ✅ |
+| `sequence_end` | integer | | `offset + align_length` | ✅ |
+| `germline_start` | integer | | `five_p_offset + 1` | ✅ |
+| `rank` | integer | | Vector position | ✅ |
+| `identity` | number | | Fractional identity | ⬜ |
+| `support` | number | | E-value/p-value | ⬜ |
+| `germline_end` | integer | | Calculated | ⬜ |
 
-**Subtasks:**
-1. [ ] Rename existing files (Part A)
-2. [ ] Create `igor::airr::alignment` namespace
-3. [ ] Implement alignment reader (parse segment-based format)
-4. [ ] Implement alignment writer (one row per alignment)
-5. [ ] Handle ranked alignments (multiple per gene class)
-6. [ ] Round-trip validation tests
-7. [ ] Document experimental status
+**Implementation Status:**
+- ✅ Created `igor::airr::alignment` namespace
+- ✅ Implemented alignment reader with segment parsing
+- ✅ Implemented alignment writer (one row per alignment)
+- ✅ Handles ranked alignments (multiple per gene class)
+- ✅ CIGAR string generation and parsing
+- ✅ Uses shared types from `AIRRCommon.h`
+- ✅ Field mapping and coordinate conversion (0-based ↔ 1-based)
+- ✅ Updated CMakeLists.txt
+- ✅ Library compiles successfully
+- ✅ All tests pass (1131 assertions in 50 test cases)
+- ✅ Test suite for alignment schema (9 test cases, 76 assertions)
+- ✅ Round-trip validation tests
 
-**Acceptance Criteria:**
-- [ ] Existing rearrangement tests pass after rename
-- [ ] Can read AIRR Alignment TSV/CSV files
-- [ ] Can write AIRR Alignment TSV/CSV files
-- [ ] Supports multiple alignments per gene class
-- [ ] Round-trip preserves data
+**Key Features:**
+- Groups multiple alignments per gene class by sequence_id
+- Generates rank field based on alignment order in vector
+- Simplified CIGAR support (counts only, not per-base positions)
+- Validates required columns (sequence_id, segment, call)
+- Supports both TSV and CSV formats
+
+---
+
+### ⚠️ Known Limitations
+
+The following limitations exist in the current implementation and may be addressed in future work:
+
+#### 1. CIGAR String Simplification
+**Affected:** `AIRRAlignmentReader::parse_cigar()`, `AIRRAlignmentWriter::make_cigar()`
+
+- **Limitation:** CIGAR strings are simplified to aggregate counts only (e.g., `50M2I3D`)
+- **Issue:** Per-base insertion/deletion positions are lost during round-trip
+- **Impact:** The exact positions of insertions and deletions cannot be reconstructed from the CIGAR string
+- **Workaround:** Use Parquet format for lossless storage of all alignment fields
+
+#### 2. Alignment Schema: Sequence Field Not Stored
+**Affected:** `AIRRAlignmentReader::read_sequences()`
+
+- **Limitation:** The AIRR Alignment schema does not include a `sequence` column
+- **Issue:** `SequenceData::sequence` is set to empty string when reading alignment files
+- **Impact:** Sequence data must be joined from a separate source (e.g., Rearrangement file)
+- **Workaround:** Use alignment files alongside rearrangement files or Parquet
+
+#### 3. Optional AIRR Fields Not Implemented
+**Affected:** Both reader and writer
+
+- **Not implemented:** `identity`, `support`, `germline_end`
+- **Reason:** These fields are not used in IGoR's internal `Alignment_data` structure
+- **Impact:** Cannot round-trip these fields from external AIRR files
+
+#### 4. C Gene Segment Not Supported
+**Affected:** `AIRRAlignmentReader::parse_segment()`
+
+- **Limitation:** Constant (C) gene segments are ignored
+- **Reason:** IGoR's `Gene_class` enum does not include C genes
+- **Impact:** Alignment rows with `segment=C` are silently skipped
+
+#### 5. Sequence ID Parsing
+**Affected:** `AIRRAlignmentReader::read_sequences()`
+
+- **Limitation:** Non-numeric sequence IDs are hashed to integers
+- **Issue:** Original string IDs are not preserved in `SequenceData::index`
+- **Impact:** May require changes if string-based sequence IDs are needed
+
+#### 6. write_batch() Limited String Support
+**Affected:** `AIRRAlignmentWriter::write_batch()`
+
+- **Limitation:** Assumes all columns are string-convertible via `get_string_value()`
+- **Impact:** Numeric types may have formatting differences on round-trip
 
 ---
 

@@ -23,6 +23,7 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/igor/Streaming")
         igor/Streaming/test_parquet_writer.cpp
         igor/Streaming/test_airr_rearrangement_reader.cpp
         igor/Streaming/test_airr_rearrangement_writer.cpp
+        igor/Streaming/test_airr_alignment.cpp
     )
 
     if(STREAMING_TEST_SOURCES)

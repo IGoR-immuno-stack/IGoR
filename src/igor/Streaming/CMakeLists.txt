@@ -44,6 +44,8 @@ target_sources(${PROJECT_NAME}
     AIRRCommon.cpp
     AIRRRearrangementReader.cpp
     AIRRRearrangementWriter.cpp
+    AIRRAlignmentReader.cpp
+    AIRRAlignmentWriter.cpp
   PUBLIC
     FILE_SET HEADERS
     BASE_DIRS
@@ -55,6 +57,8 @@ target_sources(${PROJECT_NAME}
       ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/AIRRCommon.h
       ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/AIRRRearrangementReader.h
       ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/AIRRRearrangementWriter.h
+      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/AIRRAlignmentReader.h
+      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/AIRRAlignmentWriter.h
       ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/ArrowCompatibility.h
 )
 
