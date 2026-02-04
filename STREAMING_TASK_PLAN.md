@@ -323,8 +323,27 @@ The following limitations exist in the current implementation and may be address
 
 ---
 
-### �🟢 Task 4: AIRR Parquet Support (Low Priority)
+### ⏸️ Task 4: AIRR Parquet Support (DEFERRED)
 
+**Status:** Not planned for current iteration
+
+**Rationale for Deferral:**
+- ✅ **Already have Parquet I/O** — High-performance binary storage is complete (`ParquetWriter`/`ParquetReader`)
+- ✅ **Already have AIRR interoperability** — AIRR Rearrangement and Alignment schemas implemented in TSV/CSV
+- ⚠️ **AIRR spec uses TSV, not Parquet** — AIRR-Community standard format is TSV; Parquet is not part of the spec
+- ⚠️ **External tools expect TSV** — immunarch (R) and scirpy (Python) consume AIRR TSV files
+- 💡 **Redundant effort** — Current implementation already covers both use cases separately
+
+**When This Would Be Useful:**
+- If AIRR Community adopts Parquet as an official format in future spec versions
+- If processing extremely large datasets where a unified AIRR+Parquet format provides value
+- If external tools add native AIRR-Parquet support
+
+**Current Recommendation:** Use existing implementations:
+- **For performance:** Use native IGoR Parquet format
+- **For AIRR interoperability:** Use AIRR Rearrangement/Alignment TSV exporters
+
+**Original Subtasks (if needed later):**
 **Estimated Effort:** ~200-300 LOC
 
 **Subtasks:**
