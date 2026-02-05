@@ -143,7 +143,7 @@ endif()
 
 find_package(Arrow REQUIRED)
 find_package(Parquet REQUIRED)
-find_package(Sparrow REQUIRED)
+find_package(sparrow REQUIRED)
 
 ## #############################################################################
 ## Options
