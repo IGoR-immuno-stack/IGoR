@@ -1,23 +1,19 @@
-### CMakeLists.txt ---
+### CMakeLists.txt for ModelIO Module ---
 
-project(Core
+project(ModelIO
 VERSION
   ${${CMAKE_PROJECT_NAME}_VERSION}
 LANGUAGES
   CXX)
 
 ## #################################################################
-## Core Target Definition (add_library, export header, version, alias)
+## ModelIO Target Definition
 ## #################################################################
 
 add_library(${PROJECT_NAME} SHARED)
 
 generate_export_header(${PROJECT_NAME}
   EXPORT_FILE_NAME "${CMAKE_CURRENT_BINARY_DIR}/Export.h")
-
-configure_file(
-  "${CMAKE_CURRENT_SOURCE_DIR}/Config.h.in"
-  "${CMAKE_CURRENT_BINARY_DIR}/Config.h")
 
 set_target_properties(${PROJECT_NAME}
   PROPERTIES
@@ -28,88 +24,48 @@ set_target_properties(${PROJECT_NAME}
 add_library(${CMAKE_PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 
 ## #################################################################
-## Sources, Headers, Includes, Linking, Install
+## Sources, Headers, Includes, Linking
 ## #################################################################
 
 target_sources(${PROJECT_NAME}
-  PUBLIC FILE_SET HEADERS
+  PUBLIC
+    FILE_SET HEADERS
     BASE_DIRS
       ${CMAKE_CURRENT_BINARY_DIR}
     FILES
       ${CMAKE_CURRENT_BINARY_DIR}/Export.h
-      ${CMAKE_CURRENT_BINARY_DIR}/Config.h
 )
 
 target_sources(${PROJECT_NAME}
   PRIVATE
-    Aligner.cpp
-    Bestscenarioscounter.cpp
-    CDR3SeqData.cpp
-    Counter.cpp
-    Coverageerrcounter.cpp
-    Deletion.cpp
-    Dinuclmarkov.cpp
-    Errorrate.cpp
-    Errorscounter.cpp
-    EventFactory.cpp
-    ExtractFeatures.cpp
-    GenModel.cpp
-    Genechoice.cpp
-    HypermutationfullNmererrorrate.cpp
-    Hypermutationglobalerrorrate.cpp
-    Insertion.cpp
-    IntStr.cpp
-    Model_Parms.cpp
-    Model_marginals.cpp
-    Pgencounter.cpp
-    Rec_Event.cpp
-    Singleerrorrate.cpp
-    Utils.cpp
-
-  PUBLIC FILE_SET HEADERS
+    ModelReader.cpp
+    ModelWriter.cpp
+  PUBLIC
+    FILE_SET HEADERS
     BASE_DIRS
       ${CMAKE_CURRENT_SOURCE_DIR}
     FILES
-      Aligner.h
-      Bestscenarioscounter.h
-      CDR3SeqData.h
-      Counter.h
-      Coverageerrcounter.h
-      Deletion.h
-      Dinuclmarkov.h
-      Errorrate.h
-      Errorscounter.h
-      EventFactory.h
-      ExtractFeatures.h
-      GenModel.h
-      Genechoice.h
-      HypermutationfullNmererrorrate.h
-      Hypermutationglobalerrorrate.h
-      Insertion.h
-      IntStr.h
-      Model_Parms.h
-      Model_marginals.h
-      Pgencounter.h
-      Rec_Event.h
-      Singleerrorrate.h
-      Utils.h
+      ModelIOCommon.h
+      ModelReader.h
+      ModelWriter.h
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src>
-  $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/src>
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src>
+    $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/src>
 )
 
-target_link_libraries(${PROJECT_NAME} PUBLIC GSL::gsl)
-if(APPLE)
-  target_link_libraries(${PROJECT_NAME} PRIVATE OpenMP::OpenMP)
-else()
-  target_link_libraries(${PROJECT_NAME} PRIVATE OpenMP::OpenMP_CXX)
-endif()
+# Link against Core library (public for types)
+# nlohmann_json is header-only, found automatically
+target_link_libraries(${PROJECT_NAME}
+  PUBLIC
+    igor::Core
+  PRIVATE
+    nlohmann_json::nlohmann_json)
 
-## ###################################################################
-## Install rules
-## ###################################################################
+## #################################################################
+## Install
+## #################################################################
 
 install(
   TARGETS

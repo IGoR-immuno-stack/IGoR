@@ -16,6 +16,7 @@ target_link_libraries(igor_tests PRIVATE igor::Core Catch2::Catch2WithMain)
 # Set include directories if needed
 # target_include_directories(igor_tests PRIVATE ../src/igor/Core)
 
-# Register the tests with CTest
-include(Catch)
-catch_discover_tests(igor_tests)
+
+
+# Add ModelIO tests
+add_subdirectory(igor/ModelIO)

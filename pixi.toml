@@ -14,6 +14,7 @@ doxygen = "~=1.8"
 catch2 = "3.*"
 ninja = "*"
 anaconda-client = "*"
+nlohmann_json = "*"
 
 [target.osx.dependencies]
 clang-tools = ">=19.1.7,<22"
@@ -72,6 +73,7 @@ env = { MACOSX_DEPLOYMENT_TARGET = "10.15" }
 # Add dependencies on (header-only) libraries at compile time
 gsl = "*"
 catch2 = "3.*"
+nlohmann_json = "*"
 
 [package.run-dependencies]
 gsl = "*"
