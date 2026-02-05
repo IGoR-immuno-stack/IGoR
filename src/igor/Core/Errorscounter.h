@@ -75,6 +75,6 @@ private:
 	double sequence_average_n_genomic;
 	double sequence_average_n_mismatches;
 
-	std::vector<std::tuple<double,size_t,size_t>> best_scenarios_vec;
+	std::vector<std::tuple<long double,size_t,size_t>> best_scenarios_vec;
 
 };

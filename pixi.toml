@@ -83,3 +83,6 @@ catch2 = "3.*"
 
 [package.run-dependencies]
 gsl = "*"
+
+[target.linux-64.dependencies]
+valgrind = ">=3.26.0,<4"

@@ -102,9 +102,9 @@ enum Int_nt { int_A = 0 , int_C = 1 , int_G = 2 , int_T = 3 , int_R = 4 , int_Y 
 				int_W = 9 , int_B = 10 , int_D = 11 , int_H = 12 , int_V = 13 , int_N = 14};
 
 
-Gene_class str2GeneClass(const std::string);
+Gene_class str2GeneClass(const std::string&);
 std::string to_string(const Gene_class);
-Seq_side str2SeqSide(const std::string);
+Seq_side str2SeqSide(const std::string&);
 std::string to_string(const Seq_side);
 
 std::ostream& operator<<(std::ostream& , Gene_class);
@@ -711,10 +711,10 @@ typedef Enum_fast_memory_dual_key_map<Seq_type,Seq_side,Seq_Offset> Seq_offsets_
 	 }
  };
 
-std::vector<std::string> extract_string_fields(const std::string,const std::string);
+std::vector<std::string> extract_string_fields(const std::string&,const std::string&);
 
-void show_progress_bar(std::ostream&,double, std::string prefix_message = "", size_t progress_bar_size = 70);
-void close_progress_bar(std::ostream&, std::string prefix_message = "", size_t progress_bar_size = 70);
+void show_progress_bar(std::ostream&,double, const std::string& prefix_message = "", size_t progress_bar_size = 70);
+void close_progress_bar(std::ostream&, const std::string& prefix_message = "", size_t progress_bar_size = 70);
 uint64_t draw_random_64bits_seed();
 
 
@@ -722,4 +722,4 @@ typedef std::unordered_map<std::string,std::string> UMCodonTable;
 
 
 
-std::string translate(std::string seq);
+std::string translate(const std::string& seq);
