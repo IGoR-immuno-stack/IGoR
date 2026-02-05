@@ -32,6 +32,9 @@ jobs:
           - windows-latest
     runs-on: ${{ matrix.os }}
 
+    defaults:
+      run:
+        shell: bash
     steps:
       - name: Set Unix PATH
         if: matrix.os != 'windows-latest'
@@ -99,7 +102,6 @@ jobs:
 
       - name: Upload conda package
         if: github.ref_name == 'master'
-        shell: bash
         env:
           ANACONDA_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
         run: pixi run upload $ANACONDA_TOKEN $LABEL igor-immuno
