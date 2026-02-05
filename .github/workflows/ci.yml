@@ -99,6 +99,7 @@ jobs:
 
       - name: Upload conda package
         if: github.ref_name == 'master'
+        shell: bash
         env:
           ANACONDA_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
         run: pixi run upload $ANACONDA_TOKEN $LABEL igor-immuno
