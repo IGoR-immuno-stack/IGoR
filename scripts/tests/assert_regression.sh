@@ -63,7 +63,17 @@ compare_file() {
     else
         # Differences found
         echo "❌ MISMATCH: $(basename "$ref")" | tee -a "$LOGFILE"
-        diff -u "$ref_sorted" "$cur_sorted" | sed 's/^/    /' >>"$LOGFILE"
+        echo "" >>"$LOGFILE"
+        echo "    ----------------------------------------" >>"$LOGFILE"
+        echo "    Reference: $ref" >>"$LOGFILE"
+        echo "    Generated: $cur" >>"$LOGFILE"
+        echo "    ----------------------------------------" >>"$LOGFILE"
+        diff -u "$ref_sorted" "$cur_sorted" | head -100 >>"$LOGFILE"
+        if [[ $(diff -u "$ref_sorted" "$cur_sorted" | wc -l) -gt 100 ]]; then
+            echo "    ... (diff truncated, showing first 100 lines)" >>"$LOGFILE"
+        fi
+        echo "    ----------------------------------------" >>"$LOGFILE"
+        echo "" >>"$LOGFILE"
         rm -f "$ref_sorted" "$cur_sorted"
         return 1
     fi
@@ -76,6 +86,12 @@ assert_regression() {
     local REF_DIR="$1"
     local NEW_DIR="$2"
     LOGFILE="${3:-regression.log}"   # default logfile if none supplied
+
+    # Ensure LOGFILE directory exists
+    local LOGDIR=$(dirname "$LOGFILE")
+    if [[ ! -d "$LOGDIR" ]]; then
+        mkdir -p "$LOGDIR"
+    fi
 
     >"$LOGFILE"                       # start fresh for this test suite
     local suite_status=0

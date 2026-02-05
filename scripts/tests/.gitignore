@@ -1,1 +1,3 @@
 *.log
+regression_reports/
+benchmark_reports/

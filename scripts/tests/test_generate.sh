@@ -19,7 +19,7 @@ $IGORCALL -batch noerr -threads 1 -set_custom_model "$TESTREF/demo_inference/fin
 # ------------------------------------------------------------------
 # 2️⃣ Test output file regression
 # ------------------------------------------------------------------
-LOGFILE="align_regression.log"
+LOGFILE="$OUTDIR/generate_regression.log"
 
 SCRIPT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_ROOT/assert_regression.sh"

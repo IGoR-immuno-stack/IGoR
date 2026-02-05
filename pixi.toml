@@ -30,6 +30,7 @@ build_coverage = {cmd="cmake --build build_cov -j8", depends-on = "configure_cov
 test = {cmd="ctest --test-dir build --output-on-failure", depends-on = "build"}
 test_regression = { cmd = "scripts/tests/test_run.sh", depends-on = ["build"] }
 test_align = { cmd = "scripts/tests/test_align.sh", depends-on = ["build"] }
+benchmark = { cmd = "scripts/tests/benchmark_run.sh", depends-on = ["build"] }
 doc = "cmake --build build --target doc"
 coverage = {cmd="llvm-profdata merge -sparse build_cov/tst/default.profraw -o default.profdata && llvm-cov show build_cov/bin/igor_tests -instr-profile=default.profdata -format=html -output-dir=htmlcov", depends-on = "build_coverage"}
 
