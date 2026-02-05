@@ -64,8 +64,8 @@ name = "pixi-build-cmake"
 version = "*"
 
 [package.build.config]
-extra-args = ["-DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_SCAN_FOR_MODULES=OFF"]
-env = { MACOSX_DEPLOYMENT_TARGET = "10.15" }
+extra-args = ["-DCMAKE_BUILD_TYPE=Release"]
+env = { MACOSX_DEPLOYMENT_TARGET = "13.4" }
 
 
 [package.build-dependencies]
