@@ -13,7 +13,7 @@ LANGUAGES
 add_library(${PROJECT_NAME} SHARED)
 
 generate_export_header(${PROJECT_NAME}
-  EXPORT_FILE_NAME "${PROJECT_BINARY_DIR}/Export.h")
+  EXPORT_FILE_NAME "${CMAKE_CURRENT_BINARY_DIR}/Export.h")
 
 set_target_properties(${PROJECT_NAME}
   PROPERTIES
@@ -31,9 +31,9 @@ target_sources(${PROJECT_NAME}
   PUBLIC
     FILE_SET HEADERS
     BASE_DIRS
-      ${CMAKE_BINARY_DIR}/src
+      ${CMAKE_CURRENT_BINARY_DIR}
     FILES
-      ${CMAKE_BINARY_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/Export.h
+      ${CMAKE_CURRENT_BINARY_DIR}/Export.h
 )
 
 target_sources(${PROJECT_NAME}
@@ -49,17 +49,17 @@ target_sources(${PROJECT_NAME}
   PUBLIC
     FILE_SET HEADERS
     BASE_DIRS
-      ${CMAKE_SOURCE_DIR}/src
+      ${CMAKE_CURRENT_SOURCE_DIR}
     FILES
-      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/SequenceBatchHelpers.h
-      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/ParquetWriter.h
-      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/ParquetReader.h
-      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/AIRRCommon.h
-      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/AIRRRearrangementReader.h
-      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/AIRRRearrangementWriter.h
-      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/AIRRAlignmentReader.h
-      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/AIRRAlignmentWriter.h
-      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/ArrowCompatibility.h
+      SequenceBatchHelpers.h
+      ParquetWriter.h
+      ParquetReader.h
+      AIRRCommon.h
+      AIRRRearrangementReader.h
+      AIRRRearrangementWriter.h
+      AIRRAlignmentReader.h
+      AIRRAlignmentWriter.h
+      ArrowCompatibility.h
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC
