@@ -32,6 +32,7 @@ test_regression = { cmd = "scripts/tests/test_run.sh", depends-on = ["build"] }
 test_align = { cmd = "scripts/tests/test_align.sh", depends-on = ["build"] }
 benchmark = { cmd = "scripts/tests/benchmark_run.sh", depends-on = ["build"] }
 doc = "cmake --build build --target doc"
+format = "cmake --build build --target clang-format"
 coverage = {cmd="llvm-profdata merge -sparse build_cov/tst/default.profraw -o default.profdata && llvm-cov show build_cov/bin/igor_tests -instr-profile=default.profdata -format=html -output-dir=htmlcov", depends-on = "build_coverage"}
 submodule-update = "git submodule update --init --recursive"
 
