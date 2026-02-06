@@ -377,27 +377,20 @@ bool Model_Parms::remove_edge(shared_ptr<Rec_Event> parent_point, shared_ptr<Rec
     if (this->has_edge(parent_point, child_point)) {
         list<shared_ptr<Rec_Event>>::iterator iter;
 
-        // Remove the child from the parent's children list
-        list<shared_ptr<Rec_Event>> &children_list = this->edges.at(parent_point->get_name()).children;
-        for (iter = children_list.begin(); iter != children_list.end(); ++iter) {
-            // Compare the pointers and stop when finding the correct one
-            if ((*iter) == child_point) {
-                break;
-            }
-        }
-        // Erase the pointer using the iterator
-        children_list.erase(iter);
+ 		//Remove the child from the parent's children list
+		list<shared_ptr<Rec_Event>>& children_list = this->edges.at(parent_point->get_name()).children;
+		iter = std::find(children_list.begin(), children_list.end(), child_point);
+		if (iter != children_list.end()) {
+			children_list.erase(iter);
+		}
 
-        // Remove the parent from the child's parent list
-        list<shared_ptr<Rec_Event>> &parents_list = this->edges.at(child_point->get_name()).parents;
-        for (iter = parents_list.begin(); iter != parents_list.end(); ++iter) {
-            // Compare the pointers and stop when finding the correct one
-            if ((*iter) == parent_point) {
-                break;
-            }
-        }
-        // Erase the pointer using the iterator
-        parents_list.erase(iter);
+		//Remove the parent from the child's parent list
+		list<shared_ptr<Rec_Event>>& parents_list = this->edges.at(child_point->get_name()).parents;
+		iter = std::find(parents_list.begin(), parents_list.end(), parent_point);
+		if (iter != parents_list.end()) {
+			parents_list.erase(iter);
+		}
+
         return 1;
     } else {
         throw runtime_error("Model_Parms::remove_edge(): edge between \"" + parent_point->get_name() + "\" and \""

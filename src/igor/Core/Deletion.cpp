@@ -235,8 +235,8 @@ queue<int> Deletion::draw_random_realization(
             }
 
             if (this->event_side == Three_prime) {
-                seq = seq.substr(0, seq.length() - del_len);
-            } else {
+				seq.resize(seq.length() - del_len);
+      } else {
                 seq = seq.substr(del_len);
             }
 

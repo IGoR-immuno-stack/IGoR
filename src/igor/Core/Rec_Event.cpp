@@ -221,7 +221,7 @@ void Rec_Event::iterate_wrap_up(
 
             for (std::unordered_map<std::tuple<Event_type, int, Seq_side>, std::shared_ptr<Rec_Event>>::const_iterator
                          iter = events_map.begin();
-                 iter != events_map.end(); iter++) {
+                 iter != events_map.end(); ++iter) {
                 if (!(*iter).second->is_fixed()) {
                     (*iter).second->add_to_marginals(scenario_error_w_proba, updated_marginal_array_p);
                 }
