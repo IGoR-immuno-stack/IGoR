@@ -533,9 +533,7 @@ pair<list<pair<Rec_Event_name,size_t>>,shared_ptr<long double>> Model_marginals:
 		 * Note that this might result in very big arrays if the graph is big, and might turn out to be inefficient //TODO compute overlap with ancestors and reexpand after marginalization
 		 */
 		set<Rec_Event_name> new_kept_dependencies_list  = kept_dependencies_list;
-		if(new_kept_dependencies_list.count(event_name)==0){
-			new_kept_dependencies_list.emplace(event_name);
-		}
+		new_kept_dependencies_list.emplace(event_name);
 		for(shared_ptr<Rec_Event> parent_event : parents_list){
 			if(new_kept_dependencies_list.count(parent_event->get_name())==0){
 				new_kept_dependencies_list.emplace(parent_event->get_name());
@@ -1040,7 +1038,7 @@ void Model_marginals::set_realization_proba(string realization_name ,shared_ptr<
 	const size_t& event_index = index_map.at(event_ptr->get_name());
 
 	//Get the summed probabilities for all othe realizations for every conditioning
-	double* summed_probas = new double[marginal_event_size/event_size];
+	std::vector<double> summed_probas(marginal_event_size/event_size, 0.0);  // Automatically zero-initialized
 	for(size_t i=0 ; i!=marginal_event_size ; ++i){
 		if(i%event_size != real_index){
 			summed_probas[i/event_size]+=this->marginal_array_smart_p[event_index+i];
@@ -1056,9 +1054,6 @@ void Model_marginals::set_realization_proba(string realization_name ,shared_ptr<
 	for(size_t i=0 ; i!=marginal_event_size/event_size ; ++i){
 		this->marginal_array_smart_p[event_index+i*event_size+real_index] = summed_probas[i];
 	}
-
-	//Delete the array
-	delete [] summed_probas;
 
 	//Now renormalize the marginals
 	auto inverse_offset_map = this->get_inverse_offset_map(model_parms);
@@ -1254,7 +1249,8 @@ void swap_events_order(const Rec_Event_name event_1 ,const Rec_Event_name event_
 				event_1_iterator = iter;
 				break;
 			}
-		}
+        }
+		// FIXME: event_2_iterator is uninitialized !
 		list<pair<Rec_Event_name,size_t>>::iterator next_event_iter = event_2_iterator;
 		if(increment_factor==-1){
 			--next_event_iter;

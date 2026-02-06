@@ -640,7 +640,7 @@ void GenModel::write_seq_real2txt(string filename_ind_seq , string filename_ind_
 	outfile_ind_real<<endl;
 
 	size_t index = 0;
-	for(forward_list<pair<string,queue<queue<int>>>>::const_iterator iter = seq_and_realizations.begin() ; iter != seq_and_realizations.end() ; iter++){
+	for(forward_list<pair<string,queue<queue<int>>>>::const_iterator iter = seq_and_realizations.begin() ; iter != seq_and_realizations.end() ; ++iter){
 		outfile_ind_seq<<index<<";"<<(*iter).first<<endl;
 		outfile_ind_real<<index;
 		queue<queue<int>> realizations = (*iter).second;
@@ -696,8 +696,8 @@ void output_CDR3_gen_data(size_t seq_index, std::pair<std::string , std::queue<s
 	gen_CDR3_data* func_data_cast = static_cast<gen_CDR3_data*>(func_data.get());
 
 
-	tuple<string,size_t,size_t,string>* v_gene_anchors;
-	tuple<string,size_t,size_t,string>* j_gene_anchors;
+	tuple<string,size_t,size_t,string>* v_gene_anchors = nullptr;
+	tuple<string,size_t,size_t,string>* j_gene_anchors = nullptr;
 
 	size_t i = 0;
 	while( (i!=max(func_data_cast->v_event_queue_position,func_data_cast->j_event_queue_position)+1)

@@ -66,7 +66,7 @@ Model_Parms::Model_Parms(const Model_Parms& other){
 		Adjacency_list adjacency_list;
 		//TODO very dirty need to be changed
 		for(list<shared_ptr<Rec_Event>>::const_iterator jiter = (*iter).second.children.begin() ; jiter != (*iter).second.children.end() ; ++jiter){
-			for(list<shared_ptr<Rec_Event>>::const_iterator kiter = this->events.begin() ; kiter != this->events.end() ; kiter++){
+			for(list<shared_ptr<Rec_Event>>::const_iterator kiter = this->events.begin() ; kiter != this->events.end() ; ++kiter){
 				if((**kiter)==(**jiter)){
 					adjacency_list.children.push_back((*kiter));
 					break;
@@ -273,29 +273,17 @@ bool Model_Parms::remove_edge(shared_ptr<Rec_Event> parent_point, shared_ptr<Rec
 
 		//Remove the child from the parent's children list
 		list<shared_ptr<Rec_Event>>& children_list = this->edges.at(parent_point->get_name()).children;
-		for( iter = children_list.begin() ;
-				iter != children_list.end() ;
-				++iter){
-			//Compare the pointers and stop when finding the correct one
-			if((*iter) == child_point){
-				break;
-			}
+		iter = std::find(children_list.begin(), children_list.end(), child_point);
+		if(iter != children_list.end()){
+			children_list.erase(iter);
 		}
-		//Erase the pointer using the iterator
-		children_list.erase(iter);
 
 		//Remove the parent from the child's parent list
 		list<shared_ptr<Rec_Event>>& parents_list = this->edges.at(child_point->get_name()).parents;
-		for( iter = parents_list.begin() ;
-				iter != parents_list.end() ;
-				++iter){
-			//Compare the pointers and stop when finding the correct one
-			if((*iter) == parent_point){
-				break;
-			}
+		iter = std::find(parents_list.begin(), parents_list.end(), parent_point);
+		if(iter != parents_list.end()){
+			parents_list.erase(iter);
 		}
-		//Erase the pointer using the iterator
-		parents_list.erase(iter);
 		return 1;
 	}
 	else{
