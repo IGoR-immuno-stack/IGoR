@@ -4,7 +4,7 @@ set -euo pipefail
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 source $SCRIPT_DIR/config.sh
 OUTDIR="${1:-$(mktemp -d)}"
-IGORCALL="$IGORBIN -set_wd $OUTDIR"
+IGORCALL="$IGORBIN -set_wd $OUTDIR -threads 1"
 
 # Copy reference alignment files
 if [[ ! -d "$OUTDIR/aligns" ]]; then
@@ -53,9 +53,9 @@ resolve_sort_columns() {
 for batch in "demo" "default"
 do
 
-    # Drop non reproducible seq processing order and time elapsed per sequence
+    # Drop non reproducible seq processing order, time, and best scenario probability per sequence
     tmp="$(mktemp)"                                   # create a safe temp name
-    cut -d';' -f 1,3-10  "$OUTDIR/${batch}_inference/inference_logs.txt" >"$tmp"
+    cut -d';' -f 1,3-9  "$OUTDIR/${batch}_inference/inference_logs.txt" >"$tmp"
     mv "$tmp" "$OUTDIR/${batch}_inference/inference_logs.txt"
 
     assert_regression "$TESTREF/${batch}_inference" "$OUTDIR/${batch}_inference" "$LOGFILE"
