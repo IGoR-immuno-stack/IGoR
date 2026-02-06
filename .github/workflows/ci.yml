@@ -29,13 +29,17 @@ jobs:
           - ubuntu-latest
           - macos-15-intel
           # - macos-latest
-          # - windows-latest
+          - windows-latest
     runs-on: ${{ matrix.os }}
 
-    env:
-      PATH: /usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin
-
+    defaults:
+      run:
+        shell: bash
     steps:
+      - name: Set Unix PATH
+        if: matrix.os != 'windows-latest'
+        run: echo "PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin" >> $GITHUB_ENV
+
       - name: Checkout code
         uses: actions/checkout@v4
 

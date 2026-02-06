@@ -42,7 +42,9 @@
 #include <cmath>
 #include <iostream>
 
-// Forward declare Rec_event
+#include <igorCoreExport.h>
+
+//Forward declare Rec_event
 class Rec_Event;
 
 /**
@@ -56,7 +58,7 @@ class Rec_Event;
  * iterate have been processed (terminal leaf of the scenario tree)
  *
  */
-class Error_rate
+class CORE_EXPORT Error_rate
 {
 public:
     Error_rate();

@@ -170,8 +170,8 @@ bool Gene_choice::add_realization(string gene_name, string gene_sequence)
     } else if (str_len < this->len_min) {
         this->len_min = str_len;
     }
-    this->Rec_Event::add_realization(*(new Event_realization(gene_name, INT16_MAX, gene_sequence, nt2int(gene_sequence),
-                                                             this->event_realizations.size()))); // FIXME nonsense new
+    this->Rec_Event::add_realization(Event_realization(gene_name, INT16_MAX, gene_sequence, nt2int(gene_sequence),
+                                                       this->event_realizations.size())); //FIXME nonsense new
     this->update_event_name();
     return 1;
 }

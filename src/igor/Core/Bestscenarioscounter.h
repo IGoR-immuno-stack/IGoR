@@ -34,6 +34,8 @@
 #include <igor/Core/Deletion.h>
 #include <igor/Core/Insertion.h>
 
+#include <igorCoreExport.h>
+
 /**
  * \class Best_scenarios_counter Bestscenarioscounter.h
  * \brief Records the N best scenarios realizations and mismatches.
@@ -43,7 +45,7 @@
  * Implementation of the Counter abstract class.
  * Records the N most likely scenario realizations and mismatches and append it to a semicolon separated file.
  */
-class Best_scenarios_counter : public Counter
+class CORE_EXPORT Best_scenarios_counter : public Counter
 {
 public:
     Best_scenarios_counter();

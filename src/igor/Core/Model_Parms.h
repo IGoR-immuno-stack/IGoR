@@ -51,7 +51,9 @@
 #include <string>
 #include <unordered_map>
 
-// class Rec_Event;
+#include <igorCoreExport.h>
+
+//class Rec_Event;
 
 /**
  * \struct Adjacency_list Model_Parms.h
@@ -80,7 +82,7 @@ struct Adjacency_list
  *the graph structure such as the order in which RecEvents must be processed
  *provided the topological constraints.
  */
-class Model_Parms
+class CORE_EXPORT Model_Parms
 {
 public:
     Model_Parms();
@@ -127,9 +129,8 @@ public:
 
     std::queue<std::shared_ptr<Rec_Event>> get_model_queue() const;
 
-    std::shared_ptr<Rec_Event> get_event_pointer(const Rec_Event_name &) const; // const Rec_Event*??
-    std::shared_ptr<Rec_Event> get_event_pointer(const std::string &,
-                                                 bool by_nickname) const; // const Rec_Event*??
+    std::shared_ptr<Rec_Event> get_event_pointer(const Rec_Event_name &) const; //const Rec_Event*??
+    std::shared_ptr<Rec_Event> get_event_pointer(const std::string &, bool by_nickname) const; //const Rec_Event*??
 
     void update_edge_event_name(Rec_Event_name, Rec_Event_name);
 

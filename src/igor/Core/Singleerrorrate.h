@@ -34,6 +34,8 @@
 // Debug
 #include <iostream>
 
+#include <igorCoreExport.h>
+
 /**
  * \class Single_error_rate Singleerrorrate.h
  * \brief Independent single nucleotide error model.
@@ -43,7 +45,7 @@
  * Simplest instance of the ErrorRate family. Models errors/mutations as a
  * Bernouilli process with a global rate independent of position and context.
  */
-class Single_error_rate : public Error_rate
+class CORE_EXPORT Single_error_rate : public Error_rate
 {
 public:
     Single_error_rate();

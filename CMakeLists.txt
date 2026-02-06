@@ -89,6 +89,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS "ON")
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
 
 ## ###################################################################
 ## Test setup
@@ -165,23 +166,7 @@ if(ENABLE_COVERAGE)
   endif()
 endif(ENABLE_COVERAGE)
 #add_subdirectory(tst)
-## Input
-## ###################################################################
-
-add_subdirectory(src)
-add_subdirectory(app)
-add_subdirectory(tst)
-if(BUILD_DOC_DOXYGEN)
-  add_subdirectory(doc)
-endif()
-
-## ###################################################################
-## Exporting
-## ###################################################################
-
-include(${PROJECT_NAME}Export)
-
-export(PACKAGE ${PROJECT_NAME})
+#
 
 ## #################################################################
 ## Formatting
@@ -202,6 +187,24 @@ if(CLANG_FORMAT)
 else()
   message(WARNING "clang-format not found, formatting target will not be available.")
 endif()
+
+## Input
+## ###################################################################
+
+add_subdirectory(src)
+add_subdirectory(app)
+add_subdirectory(tst)
+if(BUILD_DOC_DOXYGEN)
+  add_subdirectory(doc)
+endif()
+
+## ###################################################################
+## Exporting
+## ###################################################################
+
+include(${PROJECT_NAME}Export)
+
+export(PACKAGE ${PROJECT_NAME})
 
 ## ###################################################################
 ## Beautifying

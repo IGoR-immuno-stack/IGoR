@@ -45,6 +45,8 @@
 #include <stack>
 #include <memory>
 
+#include <igorCoreExport.h>
+
 //Make typedef for the function pointers
 typedef void (*gen_seq_trans)(size_t, std::pair<std::string, std::queue<std::queue<int>>>, std::shared_ptr<void>);
 
@@ -141,7 +143,7 @@ struct gen_CDR3_data
  * It contains the model's graph structure (Model_Parms), the associated probability distribution (Model_Marginals).
  * The GenModel class provides high level functions to perform inference / sequence annotation as well as generating random sequences from the model.
  */
-class GenModel
+class CORE_EXPORT GenModel
 {
 public:
     GenModel(const Model_Parms &);
@@ -190,9 +192,9 @@ private:
             std::mt19937_64 &, bool = true);
 };
 
-std::vector<std::tuple<int, std::string, std::unordered_map<Gene_class, std::vector<Alignment_data>>>> get_best_aligns(
+CORE_EXPORT std::vector<std::tuple<int, std::string, std::unordered_map<Gene_class, std::vector<Alignment_data>>>> get_best_aligns(
         const std::vector<std::tuple<int, std::string, std::unordered_map<Gene_class, std::vector<Alignment_data>>>> &,
         Gene_class);
 
-void output_CDR3_gen_data(size_t, std::pair<std::string, std::queue<std::queue<int>>> seq_and_real,
+CORE_EXPORT void output_CDR3_gen_data(size_t, std::pair<std::string, std::queue<std::queue<int>>> seq_and_real,
                           std::shared_ptr<void> func_data);

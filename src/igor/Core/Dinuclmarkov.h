@@ -12,7 +12,9 @@
 #include <unordered_map>
 #include <utility>
 
-class Dinucl_markov : public Rec_Event
+#include <igorCoreExport.h>
+
+class CORE_EXPORT Dinucl_markov : public Rec_Event
 {
 public:
     Dinucl_markov();

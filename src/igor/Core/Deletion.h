@@ -17,7 +17,9 @@
 #include <unordered_map>
 #include <utility>
 
-class Deletion : public Rec_Event
+#include <igorCoreExport.h>
+
+class CORE_EXPORT Deletion : public Rec_Event
 {
     friend class Coverage_err_counter;
     friend class Hypermutation_global_errorrate;

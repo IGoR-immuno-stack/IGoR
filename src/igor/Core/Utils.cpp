@@ -175,7 +175,7 @@ string operator+(const string &str, Event_type et)
  * \author Q.Marcou
  * \version 1.0.0
  */
-Gene_class str2GeneClass(const string str)
+Gene_class str2GeneClass(const string &str)
 {
     Gene_class gene_class;
     if (str == "V_gene") {
@@ -247,7 +247,7 @@ string to_string(const Gene_class gc)
  * \author Q.Marcou
  * \version 1.0.0
  */
-Seq_side str2SeqSide(const string str)
+Seq_side str2SeqSide(const string &str)
 {
     Seq_side seq_side;
     if (str == "Five_prime") {
@@ -464,7 +464,7 @@ Enum_fast_memory_map::~Enum_fast_memory_map(){
  *
  * \return A vector containing the separated fields in order of appearance.
  */
-vector<string> extract_string_fields(const string total_string, const string separator)
+vector<string> extract_string_fields(const string &total_string, const string &separator)
 {
     vector<string> output_vector;
     int sep_index = -1;
@@ -493,7 +493,7 @@ vector<string> extract_string_fields(const string total_string, const string sep
  * Note this function's call should eventually be followed by a call to close_progress_bar
  *
  */
-void show_progress_bar(std::ostream &output_stream, double progress, std::string prefix_message /*= ""*/,
+void show_progress_bar(std::ostream &output_stream, double progress, const std::string &prefix_message /*= ""*/,
                        size_t progress_bar_size /*= 50*/)
 {
     output_stream << prefix_message << " [";
@@ -521,7 +521,7 @@ void show_progress_bar(std::ostream &output_stream, double progress, std::string
  * Note this function's output needs to be terminated by \endl.
  *
  */
-void close_progress_bar(std::ostream &output_stream, std::string prefix_message /*= ""*/,
+void close_progress_bar(std::ostream &output_stream, const std::string &prefix_message /*= ""*/,
                         size_t progress_bar_size /*= 50*/)
 {
     output_stream << prefix_message << " [";
@@ -551,10 +551,8 @@ uint64_t draw_random_64bits_seed()
         // Draw two different 32 bits seeds
         uint32_t subseed1 = rd();
         uint32_t subseed2 = rd();
-        // Combine them in a single 64 bit unsigned integer.
-        uint32_t *begin_ptr = (uint32_t *)&random_seed;
-        *begin_ptr = subseed1;
-        *(begin_ptr + 1) = subseed2;
+        // Combine them in a single 64 bit unsigned integer using bit operations
+        uint64_t random_seed = (static_cast<uint64_t>(subseed1) << 32) | subseed2;
     } catch (exception &e) {
         cerr << "Exception caught trying to initialize random_device to generate a random seed in "
                 "draw_random_64bits_seed"
@@ -563,8 +561,8 @@ uint64_t draw_random_64bits_seed()
         //Get today's time
         typedef std::chrono::high_resolution_clock myclock;
         myclock::time_point time = myclock::now();
-        chrono::duration<uint64_t, nano> dur1(time - myclock::time_point::min());
-        chrono::duration<uint64_t, nano> dur2(myclock::time_point::max() - time);
+        chrono::duration<uint64_t, nano> dur1(time - (myclock::time_point::min)());
+        chrono::duration<uint64_t, nano> dur2((myclock::time_point::max)() - time);
         uint64_t time1 = dur1.count();
         uint64_t time2 = dur2.count();
         // Get process ID
@@ -662,7 +660,7 @@ UMCodonTable CodonTableStandard = { { "TTT", "F" },
  * \param seq: DNA sequence to translate.
  * \return amino acid sequence. 
  */
-string translate(string seq)
+string translate(const string &seq)
 {
     size_t codonPos = 0;
     const size_t codonLen = 3;

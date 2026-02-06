@@ -1158,15 +1158,15 @@ queue<int> Hypermutation_global_errorrate::generate_errors(string &generated_seq
 
 uint64_t Hypermutation_global_errorrate::generate_random_contributions(double ei_contribution_range)
 {
-    // Create seed for random generator
-    // create a seed from timer
+    //Create seed for random generator
+    //create a seed from timer
     typedef std::chrono::high_resolution_clock myclock;
     myclock::time_point time = myclock::now();
-    myclock::duration dur = myclock::time_point::max() - time;
+    myclock::duration dur = (myclock::time_point::max)() - time;
 
-    // Get a random seed
+    //Get a random seed
     uint64_t random_seed = draw_random_64bits_seed();
-    // Instantiate random number generator
+    //Instantiate random number generator
     mt19937_64 generator = mt19937_64(random_seed);
     uniform_real_distribution<double> distribution(-ei_contribution_range, ei_contribution_range);
 
@@ -1489,7 +1489,7 @@ void Hypermutation_global_errorrate::update()
 double Hypermutation_global_errorrate::compute_new_model_likelihood(double alpha, gsl_vector *update_vect_p)
 {
     double new_R = mu + alpha * gsl_vector_get(update_vect_p, (3 * mutation_Nmer_size));
-    double new_ei_nucleotide_contributions[4 * mutation_Nmer_size];
+    std::vector<double> new_ei_nucleotide_contributions(4 * mutation_Nmer_size);
 
     int a;
     int b;
@@ -1499,21 +1499,20 @@ double Hypermutation_global_errorrate::compute_new_model_likelihood(double alpha
     }
 
     for (a = 0; a != mutation_Nmer_size; ++a) {
-        // ei_nucleotide_contributions[i*mutation_Nmer_size+3] = 0;
+        //ei_nucleotide_contributions[i*mutation_Nmer_size+3] = 0;
         for (b = 0; b != 3; ++b) {
-            // Update the contribution of the nucleotide
+            //Update the contribution of the nucleotide
             new_ei_nucleotide_contributions[a * 4 + b] += alpha * gsl_vector_get(update_vect_p, (a * 3 + b));
 
-            // Compute the contribution of the constrained nucleotide
+            //Compute the contribution of the constrained nucleotide
             new_ei_nucleotide_contributions[a * 4 + 3] -= alpha * gsl_vector_get(update_vect_p, (a * 3 + b));
         }
     }
-    // Compute the values for the Jacobian and Hessian entries
-    int base_4_address[mutation_Nmer_size];
+    //Compute the values for the Jacobian and Hessian entries
+    std::vector<int> base_4_address(mutation_Nmer_size, 0);
     int max_address = 0;
 
     for (a = 0; a != mutation_Nmer_size; ++a) {
-        base_4_address[a] = 0;
         max_address += 3 * adressing_vector[a];
     }
     max_address += 1;
@@ -1525,17 +1524,16 @@ double Hypermutation_global_errorrate::compute_new_model_likelihood(double alpha
     double error_model_likelihood = 0;
 
     while (b != max_address) {
-        // current_Nmer_P_SHM = Nmer_P_SHM[b];
-        // current_Nmer_P_bg = Nmer_P_BG[b];
+        //current_Nmer_P_SHM = Nmer_P_SHM[b];
+        //current_Nmer_P_bg = Nmer_P_BG[b];
         current_Nmer_P_SHM = Nmer_N_SHM[b];
         current_Nmer_P_bg = Nmer_N_bg[b];
-        current_Nmer_unorm_score =
-                compute_Nmer_unorm_score(base_4_address,
-                                         new_ei_nucleotide_contributions); // FIXME change this to chose the
-        // values of the eis and R to use
+        current_Nmer_unorm_score = compute_Nmer_unorm_score(
+                base_4_address.data(),
+                new_ei_nucleotide_contributions.data()); //FIXME change this to chose the values of the eis and R to use
 
-        // Update the base 10 and 4 addresses
-        this->increment_base_10_and_4(b, base_4_address);
+        //Update the base 10 and 4 addresses
+        this->increment_base_10_and_4(b, base_4_address.data());
 
         error_model_likelihood += current_Nmer_P_SHM * (log(new_R) + log(current_Nmer_unorm_score) - log(3))
                 - current_Nmer_P_bg * log(1 + new_R * current_Nmer_unorm_score);
@@ -1546,9 +1544,9 @@ double Hypermutation_global_errorrate::compute_new_model_likelihood(double alpha
 
 void Hypermutation_global_errorrate::increment_base_10_and_4(int &base_10_counter, int *base_4_address)
 {
-    // Update the base 10 and 4 addresses
-    ++base_10_counter; // base 10
-    bool bool_mod_4N = fmod(base_10_counter, 4) == 0; // FIXME define a function for this
+    //Update the base 10 and 4 addresses
+    ++base_10_counter; //base 10
+    bool bool_mod_4N = fmod(base_10_counter, 4) == 0; //FIXME define a function for this
     if (bool_mod_4N) {
         int position = mutation_Nmer_size - 1;
         while (bool_mod_4N) {
@@ -1988,7 +1986,6 @@ void Hypermutation_global_errorrate::introduce_uniform_transversion(
             nt = 'G';
         }
     } else {
-        throw runtime_error("unknown nucleotide in "
-                            "Hypermutationglobalerrorrate::generate_errors()");
+        throw runtime_error("unknown nucleotide in Hypermutationglobalerrorrate::generate_errors()");
     }
 }

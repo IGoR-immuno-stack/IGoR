@@ -8,7 +8,7 @@
 #include <igor/Core/Utils.h>
 #include <map>
 
-class Hypermutation_full_Nmer_errorrate : public Error_rate
+class CORE_EXPORT Hypermutation_full_Nmer_errorrate : public Error_rate
 {
 public:
     Hypermutation_full_Nmer_errorrate();

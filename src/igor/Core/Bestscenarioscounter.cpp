@@ -93,7 +93,7 @@ void Best_scenarios_counter::count_scenario(
                     single_scenario_mismatches_list);
         } else {
             vector<tuple<double, queue<vector<int>>, list<int>>>::iterator jter = this->best_scenarios_vec.begin();
-            while ((scenario_seq_joint_proba > get<0>(*jter)) and (jter != this->best_scenarios_vec.end())) {
+            while ((jter != this->best_scenarios_vec.end()) and (scenario_seq_joint_proba > get<0>(*jter))) {
                 ++jter;
             }
             this->best_scenarios_vec.emplace(jter, scenario_seq_joint_proba,

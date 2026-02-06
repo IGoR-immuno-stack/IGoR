@@ -32,6 +32,7 @@
 #include <igor/Core/IntStr.h>
 #include <igor/Core/SequenceTypes.h>
 #include <igor/Core/Utils.h>
+#include <igorCoreExport.h>
 
 #include <forward_list>
 #include <fstream>
@@ -103,7 +104,7 @@ struct Event_realization
  * draw_random_realization)
  *
  */
-class Rec_Event
+class CORE_EXPORT Rec_Event
 {
 public:
     Rec_Event();
@@ -259,8 +260,7 @@ protected:
     int len_max;
     Event_type type;
     int event_index;
-    std::forward_list<std::tuple<int, int, int>>
-            memory_and_offsets; // 0: event identifier , 1: memory layer , 2: offset
+    std::forward_list<std::tuple<int, int, int>> memory_and_offsets; //0: event identifier , 1: memory layer , 2: offset
     bool updated;
     bool viterbi_run;
     bool initialized;

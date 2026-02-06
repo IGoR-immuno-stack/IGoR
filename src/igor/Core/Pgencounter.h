@@ -30,6 +30,8 @@
 #include <igor/Core/Counter.h>
 #include <unordered_map>
 
+#include <igorCoreExport.h>
+
 /**
  * \class Pgen_counter Pgencounter.h
  * \brief Estimates sequences generation probability.
@@ -41,7 +43,7 @@
  * generation of putative ancestor (unmutated/error free) sequences and their
  * associated posterior probability.
  */
-class Pgen_counter : public Counter
+class CORE_EXPORT Pgen_counter : public Counter
 {
 public:
     Pgen_counter();

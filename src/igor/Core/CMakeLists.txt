@@ -111,6 +111,10 @@ else()
   target_link_libraries(${PROJECT_NAME} PRIVATE OpenMP::OpenMP_CXX)
 endif()
 
+if(WIN32)
+	target_link_libraries(${PROJECT_NAME} PRIVATE ws2_32)
+endif()
+
 ## ###################################################################
 ## Install rules
 ## ###################################################################

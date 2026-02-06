@@ -38,6 +38,8 @@
 #include <math.h>
 #include <memory>
 
+#include <igorCoreExport.h>
+
 /**
  * \class Hypermutation_global_errorrate Hypermutationglobalerrorrate.h
  * \brief An additive (independent site) context dependent hypermutation model.
@@ -52,7 +54,7 @@
  * The identity of the resulting nucleotide after mutation is assumed to follow
  * a uniform distribution.
  */
-class Hypermutation_global_errorrate : public Error_rate
+class CORE_EXPORT Hypermutation_global_errorrate : public Error_rate
 {
 
 public:

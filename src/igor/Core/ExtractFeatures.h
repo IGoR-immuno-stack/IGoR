@@ -32,6 +32,8 @@
 #include <sstream>
 #include <igor/Core/Utils.h>
 
+#include <igorCoreExport.h>
+
 using namespace std;
 
 /**
@@ -39,7 +41,7 @@ using namespace std;
  * \brief Class to extract sequences features (e.g. CDR3) of sequences using alignment and V, J anchors information.
  * \author C. Olivares
  */
-class ExtractFeatures
+class CORE_EXPORT ExtractFeatures
 {
 public:
     ExtractFeatures();

@@ -46,12 +46,12 @@
 #  include <windows.h>
 #  include <ws2tcpip.h>
 
-inline int my_getpid()
+inline int portable_getpid()
 {
     return _getpid();
 }
 
-inline uint32_t my_gethostid()
+inline uint32_t portable_gethostid()
 {
     // Version approximative: IP locale
     WSADATA wsaData;
@@ -98,7 +98,7 @@ enum Event_type { GeneChoice_t, Deletion_t, Insertion_t, Dinuclmarkov_t, Undefin
 enum Event_safety { VD_safe = 0, DJ_safe = 1, VJ_safe = 2 };
 enum Seq_side { Five_prime = 0, Three_prime = 1, Undefined_side = 2 };
 enum Seq_type { V_gene_seq = 0, VD_ins_seq = 1, D_gene_seq = 2, DJ_ins_seq = 3, J_gene_seq = 4, VJ_ins_seq = 5 };
-enum Gene_class {
+enum CORE_EXPORT Gene_class {
     V_gene = 0,
     VD_genes = 1,
     D_gene = 2,
@@ -130,10 +130,10 @@ enum Int_nt {
     int_N = 14
 };
 
-Gene_class str2GeneClass(const std::string);
-std::string to_string(const Gene_class);
-Seq_side str2SeqSide(const std::string);
-std::string to_string(const Seq_side);
+CORE_EXPORT Gene_class str2GeneClass(const std::string &);
+CORE_EXPORT std::string to_string(const Gene_class);
+CORE_EXPORT Seq_side str2SeqSide(const std::string &);
+CORE_EXPORT std::string to_string(const Seq_side);
 
 std::ostream &operator<<(std::ostream &, Gene_class);
 std::ostream &operator<<(std::ostream &, Seq_side);
@@ -785,4 +785,4 @@ uint64_t draw_random_64bits_seed();
 
 typedef std::unordered_map<std::string, std::string> UMCodonTable;
 
-std::string translate(std::string seq);
+std::string translate(const std::string &seq);

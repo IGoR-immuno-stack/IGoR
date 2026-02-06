@@ -13,7 +13,9 @@
 #include <unordered_map>
 #include <utility>
 
-class Gene_choice : public Rec_Event
+#include <igorCoreExport.h>
+
+class CORE_EXPORT Gene_choice : public Rec_Event
 {
     friend class Coverage_err_counter;
     friend class Hypermutation_global_errorrate;

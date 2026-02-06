@@ -12,7 +12,9 @@
 #include <unordered_map>
 #include <utility>
 
-class Insertion : public Rec_Event
+#include <igorCoreExport.h>
+
+class CORE_EXPORT Insertion : public Rec_Event
 {
 public:
     Insertion();
