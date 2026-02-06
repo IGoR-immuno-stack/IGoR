@@ -27,7 +27,7 @@
 
 #include <igor/Core/Counter.h>
 #include <string>
-#include <igorCoreExport.h>
+#include <igor/Core/Export.h>
 
 /**
  * \class Coverage_err_counter Coverageerrcounter.h

@@ -32,7 +32,7 @@
 #include <igor/Core/IntStr.h>
 #include <igor/Core/SequenceTypes.h>
 #include <igor/Core/Utils.h>
-#include <igorCoreExport.h>
+#include <igor/Core/Export.h>
 
 #include <forward_list>
 #include <fstream>

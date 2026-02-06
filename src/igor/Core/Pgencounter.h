@@ -30,7 +30,7 @@
 #include <igor/Core/Counter.h>
 #include <unordered_map>
 
-#include <igorCoreExport.h>
+#include <igor/Core/Export.h>
 
 /**
  * \class Pgen_counter Pgencounter.h

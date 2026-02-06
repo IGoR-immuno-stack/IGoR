@@ -41,7 +41,7 @@
 
 #include <igor/Core/IntStr.h>
 
-#include <igorCoreExport.h>
+#include <igor/Core/Export.h>
 
 /**
  * \class Alignment_data Aligner.h

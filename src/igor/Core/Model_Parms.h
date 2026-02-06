@@ -51,7 +51,7 @@
 #include <string>
 #include <unordered_map>
 
-#include <igorCoreExport.h>
+#include <igor/Core/Export.h>
 
 //class Rec_Event;
 

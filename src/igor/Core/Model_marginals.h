@@ -44,7 +44,7 @@
 #include <igor/Core/Model_Parms.h>
 #include <igor/Core/Rec_Event.h>
 
-#include <igorCoreExport.h>
+#include <igor/Core/Export.h>
 
 /**
  * \class Model_marginals Model_marginals.h

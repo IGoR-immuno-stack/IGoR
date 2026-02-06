@@ -777,10 +777,10 @@ struct inverse_offset_comparator
     }
 };
 
-std::vector<std::string> extract_string_fields(const std::string, const std::string);
+std::vector<std::string> extract_string_fields(const std::string&, const std::string&);
 
-void show_progress_bar(std::ostream &, double, std::string prefix_message = "", size_t progress_bar_size = 70);
-void close_progress_bar(std::ostream &, std::string prefix_message = "", size_t progress_bar_size = 70);
+void show_progress_bar(std::ostream &, double, const std::string &prefix_message = "", size_t progress_bar_size = 70);
+void close_progress_bar(std::ostream &, const std::string &prefix_message = "", size_t progress_bar_size = 70);
 uint64_t draw_random_64bits_seed();
 
 typedef std::unordered_map<std::string, std::string> UMCodonTable;

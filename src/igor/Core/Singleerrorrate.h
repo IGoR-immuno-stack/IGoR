@@ -34,7 +34,7 @@
 // Debug
 #include <iostream>
 
-#include <igorCoreExport.h>
+#include <igor/Core/Export.h>
 
 /**
  * \class Single_error_rate Singleerrorrate.h

@@ -13,7 +13,7 @@
 #include <unordered_map>
 #include <utility>
 
-#include <igorCoreExport.h>
+#include <igor/Core/Export.h>
 
 class CORE_EXPORT Gene_choice : public Rec_Event
 {

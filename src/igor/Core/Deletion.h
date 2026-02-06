@@ -17,7 +17,7 @@
 #include <unordered_map>
 #include <utility>
 
-#include <igorCoreExport.h>
+#include <igor/Core/Export.h>
 
 class CORE_EXPORT Deletion : public Rec_Event
 {

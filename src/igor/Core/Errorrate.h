@@ -42,7 +42,7 @@
 #include <cmath>
 #include <iostream>
 
-#include <igorCoreExport.h>
+#include <igor/Core/Export.h>
 
 //Forward declare Rec_event
 class Rec_Event;

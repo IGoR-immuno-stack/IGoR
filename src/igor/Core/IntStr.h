@@ -30,7 +30,7 @@
 #include <ostream>
 #include <vector>
 
-#include <igorCoreExport.h>
+#include <igor/Core/Export.h>
 
 class CORE_EXPORT Int_Str : public std::vector<int>
 {

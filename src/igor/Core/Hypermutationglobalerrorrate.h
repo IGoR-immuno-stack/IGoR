@@ -38,7 +38,7 @@
 #include <math.h>
 #include <memory>
 
-#include <igorCoreExport.h>
+#include <igor/Core/Export.h>
 
 /**
  * \class Hypermutation_global_errorrate Hypermutationglobalerrorrate.h

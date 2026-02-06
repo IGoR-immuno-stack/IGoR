@@ -34,7 +34,7 @@
 #include <igor/Core/Rec_Event.h>
 #include <igor/Core/IntStr.h>
 
-#include <igorCoreExport.h>
+#include <igor/Core/Export.h>
 
 /**
  * \class Counter Counter.h

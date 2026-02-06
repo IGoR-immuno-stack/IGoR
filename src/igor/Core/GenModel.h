@@ -45,7 +45,7 @@
 #include <stack>
 #include <memory>
 
-#include <igorCoreExport.h>
+#include <igor/Core/Export.h>
 
 //Make typedef for the function pointers
 typedef void (*gen_seq_trans)(size_t, std::pair<std::string, std::queue<std::queue<int>>>, std::shared_ptr<void>);

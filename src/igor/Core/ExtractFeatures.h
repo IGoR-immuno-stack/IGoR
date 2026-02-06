@@ -32,7 +32,7 @@
 #include <sstream>
 #include <igor/Core/Utils.h>
 
-#include <igorCoreExport.h>
+#include <igor/Core/Export.h>
 
 using namespace std;
 

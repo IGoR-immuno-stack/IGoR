@@ -34,7 +34,7 @@
 #include <igor/Core/Deletion.h>
 #include <igor/Core/Insertion.h>
 
-#include <igorCoreExport.h>
+#include <igor/Core/Export.h>
 
 /**
  * \class Best_scenarios_counter Bestscenarioscounter.h

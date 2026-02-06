@@ -6,7 +6,7 @@
 
 #include <igor/Core/Counter.h>
 #include <map>
-#include <igorCoreExport.h>
+#include <igor/Core/Export.h>
 
 class CORE_EXPORT Errors_counter : public Counter
 {

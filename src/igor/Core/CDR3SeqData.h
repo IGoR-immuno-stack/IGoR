@@ -9,7 +9,7 @@
 #pragma once
 
 #include <string>
-#include <igorCoreExport.h>
+#include <igor/Core/Export.h>
 
 class CORE_EXPORT CDR3SeqData
 {
