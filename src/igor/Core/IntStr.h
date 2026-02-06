@@ -29,7 +29,9 @@
 #include <vector>
 #include <ostream>
 
-class Int_Str: public std::vector<int> {
+#include <igorCoreExport.h>
+
+class CORE_EXPORT Int_Str: public std::vector<int> {
 
 public:
 

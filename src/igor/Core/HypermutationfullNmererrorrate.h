@@ -45,7 +45,7 @@
  * A different mutation probability is recorded for each context of size N, leading to 4^N parameters.
  * This model is inspired from the S5F mutability model. The identity of the resulting nucleotide after mutation is assumed to follow a uniform distribution.
  */
-class Hypermutation_full_Nmer_errorrate: public Error_rate {
+class CORE_EXPORT Hypermutation_full_Nmer_errorrate: public Error_rate {
 public:
 public:
 	Hypermutation_full_Nmer_errorrate(size_t,Gene_class,Gene_class,double,size_t=0);

@@ -44,7 +44,7 @@
 #include <igor/Core/Model_Parms.h>
 #include <igor/Core/Rec_Event.h>
 
-
+#include <igorCoreExport.h>
 
 /**
  * \class Model_marginals Model_marginals.h
@@ -55,7 +55,7 @@
  * Model_Marginals central component is a giant array containing all the marginal probabilities (or posterior frequencies during the inference) for each event realization.
  * The class supplies various methods to navigate into this array and as well methods handling normalization and other various transformation.
  */
-class Model_marginals {
+class CORE_EXPORT Model_marginals {
 public:
 	Model_marginals();
 	Model_marginals(const Model_Parms&);

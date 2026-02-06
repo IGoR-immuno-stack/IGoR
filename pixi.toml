@@ -1,18 +1,10 @@
 [workspace]
 authors = ["Erwan Demairy <Erwan.Demairy@inria.fr>"]
 channels = ["conda-forge"]
+preview = ["pixi-build"]
 name = "igor"
 platforms = ["linux-64", "osx-arm64", "osx-64", "win-64"]
 version = "0.1.0"
-
-[tasks]
-configure = "cmake -S . -B build --fresh -DBUILD_DOC_DOXYGEN=ON -DENABLE_COVERAGE=ON"
-build = "cmake --build build -j8"
-test = "ctest --test-dir build --output-on-failure"
-doc = "cmake --build build --target doc"
-build_package = "conda build pkg/recipe -c conda-forge"
-coverage = "llvm-profdata merge -sparse build/tst/default.profraw -o default.profdata && llvm-cov show build/bin/igor_tests -instr-profile=default.profdata -format=html -output-dir=coverage_report"
-submodule-update = "git submodule update --init --recursive"
 
 [dependencies]
 cmake = "*"
@@ -31,8 +23,8 @@ valgrind = "*"
 
 [tasks]
 clean = "rm -fr build && rm -fr build_cov"
-configure = "cmake -S . -B build "
-configure_coverage = "cmake -S . -B build_cov -DBUILD_DOC_DOXYGEN=ON -DENABLE_COVERAGE=ON"
+configure = "cmake -S . -B build -G Ninja"
+configure_coverage = "cmake -S . -B build_cov -DBUILD_DOC_DOXYGEN=ON -DENABLE_COVERAGE=ON  -DCMAKE_CXX_SCAN_FOR_MODULES=OFF"
 build = {cmd="cmake --build build --parallel", depends-on = "configure"}
 build_coverage = {cmd="cmake --build build_cov -j8", depends-on = "configure_coverage"}
 test = {cmd="ctest --test-dir build --output-on-failure", depends-on = "build"}
@@ -41,6 +33,10 @@ test_align = { cmd = "scripts/tests/test_align.sh", depends-on = ["build"] }
 benchmark = { cmd = "scripts/tests/benchmark_run.sh", depends-on = ["build"] }
 doc = "cmake --build build --target doc"
 coverage = {cmd="llvm-profdata merge -sparse build_cov/tst/default.profraw -o default.profdata && llvm-cov show build_cov/bin/igor_tests -instr-profile=default.profdata -format=html -output-dir=htmlcov", depends-on = "build_coverage"}
+submodule-update = "git submodule update --init --recursive"
+
+[target.win-64.tasks]
+configure = "cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release"
 
 [target.linux.tasks]
 memcheck = {cmd="ctest --test-dir build -T memcheck --timeout 240 -C Release --output-junit ../ctest-memcheck-junit.xml", depends-on = "build"}

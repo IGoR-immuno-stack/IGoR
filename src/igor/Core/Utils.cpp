@@ -440,8 +440,8 @@ uint64_t draw_random_64bits_seed(){
 		//Get today's time
 		typedef std::chrono::high_resolution_clock myclock;
 		myclock::time_point time = myclock::now();
-		chrono::duration<uint64_t,nano> dur1 (time -  myclock::time_point::min());
-		chrono::duration<uint64_t,nano> dur2 (myclock::time_point::max() - time);
+		chrono::duration<uint64_t,nano> dur1 (time -  (myclock::time_point::min)());
+		chrono::duration<uint64_t,nano> dur2 ((myclock::time_point::max)() - time);
 		uint64_t time1 = dur1.count();
 		uint64_t time2 = dur2.count();
 		// Get process ID

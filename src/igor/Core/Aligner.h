@@ -41,6 +41,7 @@
 
 #include <igor/Core/IntStr.h>
 
+#include <igorCoreExport.h>
 
 /**
  * \class Alignment_data Aligner.h
@@ -93,7 +94,7 @@ struct Alignment_data {
  * Alignments can be made in parallel using openMP
  *
  */
-class Aligner {
+class CORE_EXPORT Aligner {
 public:
 	Aligner();
 	Aligner(Matrix<double>,int,Gene_class);
@@ -146,29 +147,29 @@ private:
 };
 
 
-std::unordered_map<int,std::pair<std::string,std::unordered_map<Gene_class,std::vector<Alignment_data>>>> read_alignments_seq_csv(const std::string& , Gene_class , double , bool , const std::vector<std::pair<const int,const std::string>>&);
-std::unordered_map<int,std::pair<std::string,std::unordered_map<Gene_class,std::vector<Alignment_data>>>> read_alignments_seq_csv(const std::string& , Gene_class , double , bool , const std::vector<std::pair<const int,const std::string>>&, std::unordered_map<int,std::pair<std::string,std::unordered_map<Gene_class,std::vector<Alignment_data>>>>);
-std::unordered_map<int,std::pair<std::string,std::unordered_map<Gene_class,std::vector<Alignment_data>>>> read_alignments_seq_csv_score_range(const std::string& , Gene_class , double , bool , const std::vector<std::pair<const int,const std::string>>&);
-std::unordered_map<int,std::pair<std::string,std::unordered_map<Gene_class,std::vector<Alignment_data>>>> read_alignments_seq_csv_score_range(const std::string &, Gene_class , double , bool , const std::vector<std::pair<const int,const std::string>>&, std::unordered_map<int,std::pair<std::string,std::unordered_map<Gene_class,std::vector<Alignment_data>>>>);
-std::vector<std::tuple<int,std::string,std::unordered_map<Gene_class,std::vector<Alignment_data>>>> map2vect (std::unordered_map<int,std::pair<std::string,std::unordered_map<Gene_class,std::vector<Alignment_data>>>>);
-std::forward_list<std::pair<const int,const std::string>> read_indexed_seq_csv(const std::string&);
-std::vector<std::pair<const int , const std::string>> read_indexed_csv(const std::string &);
-std::vector<std::pair<const int,const std::string>> read_fasta(const std::string &);
-std::vector<std::pair<std::string,std::string>> read_genomic_fasta(const std::string &);
-std::vector<std::pair<const int,const std::string>> read_txt(const std::string &);
-std::unordered_map<std::string,size_t> read_gene_anchors_csv(const std::string &,std::string separator= ";");
-std::unordered_map<std::string,std::pair<int,int>> read_template_specific_offset_csv(const std::string &,std::string separator= ";");
-void write_indexed_seq_csv(const std::string& , const std::vector<std::pair<const int,const std::string>>&);
-Int_Str nt2int(const std::string &);
-bool comp_nt_int(const int& , const int&);
-std::list<Int_nt> get_ambiguous_nt_list(const Int_nt&);
-inline void write_single_seq_alignment( std::ofstream& , int , std::forward_list<Alignment_data> );
+CORE_EXPORT std::unordered_map<int,std::pair<std::string,std::unordered_map<Gene_class,std::vector<Alignment_data>>>> read_alignments_seq_csv(const std::string& , Gene_class , double , bool , const std::vector<std::pair<const int,const std::string>>&);
+CORE_EXPORT std::unordered_map<int,std::pair<std::string,std::unordered_map<Gene_class,std::vector<Alignment_data>>>> read_alignments_seq_csv(const std::string& , Gene_class , double , bool , const std::vector<std::pair<const int,const std::string>>&, std::unordered_map<int,std::pair<std::string,std::unordered_map<Gene_class,std::vector<Alignment_data>>>>);
+CORE_EXPORT std::unordered_map<int,std::pair<std::string,std::unordered_map<Gene_class,std::vector<Alignment_data>>>> read_alignments_seq_csv_score_range(const std::string& , Gene_class , double , bool , const std::vector<std::pair<const int,const std::string>>&);
+CORE_EXPORT std::unordered_map<int,std::pair<std::string,std::unordered_map<Gene_class,std::vector<Alignment_data>>>> read_alignments_seq_csv_score_range(const std::string &, Gene_class , double , bool , const std::vector<std::pair<const int,const std::string>>&, std::unordered_map<int,std::pair<std::string,std::unordered_map<Gene_class,std::vector<Alignment_data>>>>);
+CORE_EXPORT std::vector<std::tuple<int,std::string,std::unordered_map<Gene_class,std::vector<Alignment_data>>>> map2vect (std::unordered_map<int,std::pair<std::string,std::unordered_map<Gene_class,std::vector<Alignment_data>>>>);
+CORE_EXPORT std::forward_list<std::pair<const int,const std::string>> read_indexed_seq_csv(const std::string&);
+CORE_EXPORT std::vector<std::pair<const int , const std::string>> read_indexed_csv(const std::string &);
+CORE_EXPORT std::vector<std::pair<const int,const std::string>> read_fasta(const std::string &);
+CORE_EXPORT std::vector<std::pair<std::string,std::string>> read_genomic_fasta(const std::string &);
+CORE_EXPORT std::vector<std::pair<const int,const std::string>> read_txt(const std::string &);
+CORE_EXPORT std::unordered_map<std::string,size_t> read_gene_anchors_csv(const std::string &,std::string separator= ";");
+CORE_EXPORT std::unordered_map<std::string,std::pair<int,int>> read_template_specific_offset_csv(const std::string &,std::string separator= ";");
+CORE_EXPORT void write_indexed_seq_csv(const std::string& , const std::vector<std::pair<const int,const std::string>>&);
+CORE_EXPORT Int_Str nt2int(const std::string &);
+CORE_EXPORT bool comp_nt_int(const int& , const int&);
+CORE_EXPORT std::list<Int_nt> get_ambiguous_nt_list(const Int_nt&);
+CORE_EXPORT inline void write_single_seq_alignment( std::ofstream& , int , std::forward_list<Alignment_data> );
 //Compare alignments (sort by score)
-bool align_compare(Alignment_data , Alignment_data );
-std::vector<std::pair<const int , const std::string>> sample_indexed_seq( const std::vector<std::pair<const int , const std::string>>&,const size_t);
-Matrix<double> read_substitution_matrix(const std::string& , std::string sep=",");
-std::tuple<bool,int,int> extract_min_max_genomic_templates_offsets(const std::unordered_map<std::string,std::pair<int,int>>& genomic_offset_bounds);
-std::forward_list<Alignment_data> extract_best_gene_alignments(const std::forward_list<Alignment_data>&);
+CORE_EXPORT bool align_compare(Alignment_data , Alignment_data );
+CORE_EXPORT std::vector<std::pair<const int , const std::string>> sample_indexed_seq( const std::vector<std::pair<const int , const std::string>>&,const size_t);
+CORE_EXPORT Matrix<double> read_substitution_matrix(const std::string& , std::string sep=",");
+CORE_EXPORT std::tuple<bool,int,int> extract_min_max_genomic_templates_offsets(const std::unordered_map<std::string,std::pair<int,int>>& genomic_offset_bounds);
+CORE_EXPORT std::forward_list<Alignment_data> extract_best_gene_alignments(const std::forward_list<Alignment_data>&);
 
 /*
 	namespace substitution_matrices{
