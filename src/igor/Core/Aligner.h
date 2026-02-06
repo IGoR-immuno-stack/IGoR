@@ -60,27 +60,68 @@
  * - list of mismatches (that lie event outside the best alignment to allow IGoR to know mismatch positions in advance while exploring different deletions numbers)
  * - the alignment score
  */
-struct Alignment_data {
-	std::string gene_name;
-	int offset;
-	size_t five_p_offset;
-	size_t three_p_offset;
-	std::forward_list<int> insertions; //gap in the genomic sequence
-	std::forward_list<int> deletions; //gap in the data sequence
-	size_t align_length;
-	mutable std::vector<int> mismatches;
-	double score;
+struct Alignment_data
+{
+    std::string gene_name;
+    int offset;
+    size_t five_p_offset;
+    size_t three_p_offset;
+    std::forward_list<int> insertions; //gap in the genomic sequence
+    std::forward_list<int> deletions; //gap in the data sequence
+    size_t align_length;
+    mutable std::vector<int> mismatches;
+    double score;
 
-	Alignment_data(std::string gene , int off): gene_name(gene) , offset(off) , insertions(*(new std::forward_list<int>)) , deletions(*(new std::forward_list<int>)) , score(0) {}
-	Alignment_data(int off, size_t five_p_off , size_t three_p_off , size_t align_len , std::forward_list<int> ins , std::forward_list<int> del , std::vector<int> mis , double alignment_score): gene_name(std::string()) , offset(off) , five_p_offset(five_p_off) , three_p_offset(three_p_off) , insertions(ins) , deletions(del) , align_length(align_len) , mismatches(mis) , score(alignment_score) {}
-	Alignment_data(std::string gene , int off , size_t align_len , std::forward_list<int> ins , std::forward_list<int> del , std::vector<int> mis , double alignment_score): gene_name(gene) , offset(off) , insertions(ins) , deletions(del) , align_length(align_len) , mismatches(mis) , score(alignment_score) {}
-	Alignment_data(std::string gene , int off, size_t five_p_off , size_t three_p_off , size_t align_len , std::forward_list<int> ins , std::forward_list<int> del , std::vector<int> mis , double alignment_score): gene_name(gene) , offset(off) , five_p_offset(five_p_off) , three_p_offset(three_p_off) , insertions(ins) , deletions(del) , align_length(align_len) , mismatches(mis) , score(alignment_score) {}
+    Alignment_data(std::string gene, int off)
+        : gene_name(gene),
+          offset(off),
+          insertions(*(new std::forward_list<int>)),
+          deletions(*(new std::forward_list<int>)),
+          score(0)
+    {
+    }
+    Alignment_data(int off, size_t five_p_off, size_t three_p_off, size_t align_len, std::forward_list<int> ins,
+                   std::forward_list<int> del, std::vector<int> mis, double alignment_score)
+        : gene_name(std::string()),
+          offset(off),
+          five_p_offset(five_p_off),
+          three_p_offset(three_p_off),
+          insertions(ins),
+          deletions(del),
+          align_length(align_len),
+          mismatches(mis),
+          score(alignment_score)
+    {
+    }
+    Alignment_data(std::string gene, int off, size_t align_len, std::forward_list<int> ins, std::forward_list<int> del,
+                   std::vector<int> mis, double alignment_score)
+        : gene_name(gene),
+          offset(off),
+          insertions(ins),
+          deletions(del),
+          align_length(align_len),
+          mismatches(mis),
+          score(alignment_score)
+    {
+    }
+    Alignment_data(std::string gene, int off, size_t five_p_off, size_t three_p_off, size_t align_len,
+                   std::forward_list<int> ins, std::forward_list<int> del, std::vector<int> mis, double alignment_score)
+        : gene_name(gene),
+          offset(off),
+          five_p_offset(five_p_off),
+          three_p_offset(three_p_off),
+          insertions(ins),
+          deletions(del),
+          align_length(align_len),
+          mismatches(mis),
+          score(alignment_score)
+    {
+    }
 
-/*	bool operator<(const Alignment_data& align){
+    /*	bool operator<(const Alignment_data& align){
 		//Hardcode to get the alignments in descending order using sort()
 		return this->score > align.score;
 	}*/
-
 };
 
 /**
@@ -94,82 +135,119 @@ struct Alignment_data {
  * Alignments can be made in parallel using openMP
  *
  */
-class CORE_EXPORT Aligner {
+class CORE_EXPORT Aligner
+{
 public:
-	Aligner();
-	Aligner(Matrix<double>,int,Gene_class);
-	virtual ~Aligner();
+    Aligner();
+    Aligner(Matrix<double>, int, Gene_class);
+    virtual ~Aligner();
 
-	// Single sequence alignments methods
-	std::forward_list<Alignment_data> align_seq(std::string , double , bool , int , int, bool=false);
-	std::forward_list<Alignment_data> align_seq(std::string , double , bool , int , int, std::set<std::string> , bool=false);
-	std::forward_list<Alignment_data> align_seq(std::string , double , bool , bool , int , int, bool=false);
-	std::forward_list<Alignment_data> align_seq(std::string , double , bool , bool , int , int, std::set<std::string> , bool=false);
-	std::forward_list<Alignment_data> align_seq(std::string , double , bool , std::unordered_map<std::string,std::pair<int,int>>, bool=false);
-	std::forward_list<Alignment_data> align_seq(std::string , double , bool , std::unordered_map<std::string,std::pair<int,int>>, std::set<std::string> , bool=false);
-	std::forward_list<Alignment_data> align_seq(std::string , double , bool , bool , std::unordered_map<std::string,std::pair<int,int>>, bool=false);
-	std::forward_list<Alignment_data> align_seq(std::string , double , bool , bool , std::unordered_map<std::string,std::pair<int,int>> , std::set<std::string> , bool=false);
+    // Single sequence alignments methods
+    std::forward_list<Alignment_data> align_seq(std::string, double, bool, int, int, bool = false);
+    std::forward_list<Alignment_data> align_seq(std::string, double, bool, int, int, std::set<std::string>,
+                                                bool = false);
+    std::forward_list<Alignment_data> align_seq(std::string, double, bool, bool, int, int, bool = false);
+    std::forward_list<Alignment_data> align_seq(std::string, double, bool, bool, int, int, std::set<std::string>,
+                                                bool = false);
+    std::forward_list<Alignment_data> align_seq(std::string, double, bool,
+                                                std::unordered_map<std::string, std::pair<int, int>>, bool = false);
+    std::forward_list<Alignment_data> align_seq(std::string, double, bool,
+                                                std::unordered_map<std::string, std::pair<int, int>>,
+                                                std::set<std::string>, bool = false);
+    std::forward_list<Alignment_data> align_seq(std::string, double, bool, bool,
+                                                std::unordered_map<std::string, std::pair<int, int>>, bool = false);
+    std::forward_list<Alignment_data> align_seq(std::string, double, bool, bool,
+                                                std::unordered_map<std::string, std::pair<int, int>>,
+                                                std::set<std::string>, bool = false);
 
-	// Multiple sequences alignments methods
-	std::unordered_map<int,std::forward_list<Alignment_data>> align_seqs(std::vector<std::pair<const int , const std::string>> , double , bool);
-	std::unordered_map<int,std::forward_list<Alignment_data>> align_seqs(std::vector<std::pair<const int , const std::string>> , double , bool , bool);
-	std::unordered_map<int,std::forward_list<Alignment_data>> align_seqs(std::vector<std::pair<const int , const std::string>> , double , bool , int , int, bool=false);
-	std::unordered_map<int,std::forward_list<Alignment_data>> align_seqs(std::vector<std::pair<const int , const std::string>> , double , bool , bool , int , int, bool=false);
-	std::unordered_map<int,std::forward_list<Alignment_data>> align_seqs(std::vector<std::pair<const int , const std::string>> , double , bool , std::unordered_map<std::string,std::pair<int,int>>, bool=false);
-	std::unordered_map<int,std::forward_list<Alignment_data>> align_seqs(std::vector<std::pair<const int , const std::string>> , double , bool , bool , std::unordered_map<std::string,std::pair<int,int>>, bool=false);
-	void align_seqs( std::string , std::vector<std::pair<const int , const std::string>> , double , bool );
-	void align_seqs( std::string , std::vector<std::pair<const int , const std::string>> , double , bool , bool );
-	void align_seqs( std::string , std::vector<std::pair<const int , const std::string>> , double , bool , int , int, bool=false);
-	void align_seqs( std::string , std::vector<std::pair<const int , const std::string>> , double , bool , bool , int , int, bool=false);
-	void align_seqs( std::string , std::vector<std::pair<const int , const std::string>> , double , bool , std::unordered_map<std::string,std::pair<int,int>>, bool=false);
-	void align_seqs( std::string , std::vector<std::pair<const int , const std::string>> , double , bool , bool , std::unordered_map<std::string,std::pair<int,int>>, bool=false);
+    // Multiple sequences alignments methods
+    std::unordered_map<int, std::forward_list<Alignment_data>>
+    align_seqs(std::vector<std::pair<const int, const std::string>>, double, bool);
+    std::unordered_map<int, std::forward_list<Alignment_data>>
+    align_seqs(std::vector<std::pair<const int, const std::string>>, double, bool, bool);
+    std::unordered_map<int, std::forward_list<Alignment_data>>
+    align_seqs(std::vector<std::pair<const int, const std::string>>, double, bool, int, int, bool = false);
+    std::unordered_map<int, std::forward_list<Alignment_data>>
+    align_seqs(std::vector<std::pair<const int, const std::string>>, double, bool, bool, int, int, bool = false);
+    std::unordered_map<int, std::forward_list<Alignment_data>>
+    align_seqs(std::vector<std::pair<const int, const std::string>>, double, bool,
+               std::unordered_map<std::string, std::pair<int, int>>, bool = false);
+    std::unordered_map<int, std::forward_list<Alignment_data>>
+    align_seqs(std::vector<std::pair<const int, const std::string>>, double, bool, bool,
+               std::unordered_map<std::string, std::pair<int, int>>, bool = false);
+    void align_seqs(std::string, std::vector<std::pair<const int, const std::string>>, double, bool);
+    void align_seqs(std::string, std::vector<std::pair<const int, const std::string>>, double, bool, bool);
+    void align_seqs(std::string, std::vector<std::pair<const int, const std::string>>, double, bool, int, int,
+                    bool = false);
+    void align_seqs(std::string, std::vector<std::pair<const int, const std::string>>, double, bool, bool, int, int,
+                    bool = false);
+    void align_seqs(std::string, std::vector<std::pair<const int, const std::string>>, double, bool,
+                    std::unordered_map<std::string, std::pair<int, int>>, bool = false);
+    void align_seqs(std::string, std::vector<std::pair<const int, const std::string>>, double, bool, bool,
+                    std::unordered_map<std::string, std::pair<int, int>>, bool = false);
 
-	//I/O related methods
-	void write_alignments_seq_csv(std::string , std::unordered_map<int,std::forward_list<Alignment_data>>);
-	std::unordered_map<int,std::forward_list<Alignment_data>> read_alignments_seq_csv(std::string , double , bool);
+    //I/O related methods
+    void write_alignments_seq_csv(std::string, std::unordered_map<int, std::forward_list<Alignment_data>>);
+    std::unordered_map<int, std::forward_list<Alignment_data>> read_alignments_seq_csv(std::string, double, bool);
 
-	void set_genomic_sequences(std::vector< std::pair<std::string,std::string> >);
-	int incorporate_in_dels( std::string& , std::string& , const std::forward_list<int> , const std::forward_list<int> , int );
-
+    void set_genomic_sequences(std::vector<std::pair<std::string, std::string>>);
+    int incorporate_in_dels(std::string &, std::string &, const std::forward_list<int>, const std::forward_list<int>,
+                            int);
 
 private:
-	std::forward_list<std::pair<std::string,std::string>> nt_genomic_sequences;
-	std::forward_list<std::pair<std::string,Int_Str>> int_genomic_sequences;
-	Matrix<double> substitution_matrix;
-	int gap_penalty;
-	Gene_class gene;
-	bool local_align;
-	bool flip_seqs;
-	void sw_align_common(const Int_Str& ,const Int_Str& ,const int,const int , Matrix<double>& , Matrix<int>& , Matrix<int>& , Matrix<int>& , std::vector<int>& ,  std::vector<int>& , std::vector<int>&);
-	std::list<std::pair<int,Alignment_data>> sw_align(const Int_Str& ,const Int_Str& , double , bool , int , int);
-	std::unordered_map<std::string,std::pair<int,int>> build_genomic_bounds_map(int,int) const;
-
+    std::forward_list<std::pair<std::string, std::string>> nt_genomic_sequences;
+    std::forward_list<std::pair<std::string, Int_Str>> int_genomic_sequences;
+    Matrix<double> substitution_matrix;
+    int gap_penalty;
+    Gene_class gene;
+    bool local_align;
+    bool flip_seqs;
+    void sw_align_common(const Int_Str &, const Int_Str &, const int, const int, Matrix<double> &, Matrix<int> &,
+                         Matrix<int> &, Matrix<int> &, std::vector<int> &, std::vector<int> &, std::vector<int> &);
+    std::list<std::pair<int, Alignment_data>> sw_align(const Int_Str &, const Int_Str &, double, bool, int, int);
+    std::unordered_map<std::string, std::pair<int, int>> build_genomic_bounds_map(int, int) const;
 };
 
-
-CORE_EXPORT std::unordered_map<int,std::pair<std::string,std::unordered_map<Gene_class,std::vector<Alignment_data>>>> read_alignments_seq_csv(const std::string& , Gene_class , double , bool , const std::vector<std::pair<const int,const std::string>>&);
-CORE_EXPORT std::unordered_map<int,std::pair<std::string,std::unordered_map<Gene_class,std::vector<Alignment_data>>>> read_alignments_seq_csv(const std::string& , Gene_class , double , bool , const std::vector<std::pair<const int,const std::string>>&, std::unordered_map<int,std::pair<std::string,std::unordered_map<Gene_class,std::vector<Alignment_data>>>>);
-CORE_EXPORT std::unordered_map<int,std::pair<std::string,std::unordered_map<Gene_class,std::vector<Alignment_data>>>> read_alignments_seq_csv_score_range(const std::string& , Gene_class , double , bool , const std::vector<std::pair<const int,const std::string>>&);
-CORE_EXPORT std::unordered_map<int,std::pair<std::string,std::unordered_map<Gene_class,std::vector<Alignment_data>>>> read_alignments_seq_csv_score_range(const std::string &, Gene_class , double , bool , const std::vector<std::pair<const int,const std::string>>&, std::unordered_map<int,std::pair<std::string,std::unordered_map<Gene_class,std::vector<Alignment_data>>>>);
-CORE_EXPORT std::vector<std::tuple<int,std::string,std::unordered_map<Gene_class,std::vector<Alignment_data>>>> map2vect (std::unordered_map<int,std::pair<std::string,std::unordered_map<Gene_class,std::vector<Alignment_data>>>>);
-CORE_EXPORT std::forward_list<std::pair<const int,const std::string>> read_indexed_seq_csv(const std::string&);
-CORE_EXPORT std::vector<std::pair<const int , const std::string>> read_indexed_csv(const std::string &);
-CORE_EXPORT std::vector<std::pair<const int,const std::string>> read_fasta(const std::string &);
-CORE_EXPORT std::vector<std::pair<std::string,std::string>> read_genomic_fasta(const std::string &);
-CORE_EXPORT std::vector<std::pair<const int,const std::string>> read_txt(const std::string &);
-CORE_EXPORT std::unordered_map<std::string,size_t> read_gene_anchors_csv(const std::string &,std::string separator= ";");
-CORE_EXPORT std::unordered_map<std::string,std::pair<int,int>> read_template_specific_offset_csv(const std::string &,std::string separator= ";");
-CORE_EXPORT void write_indexed_seq_csv(const std::string& , const std::vector<std::pair<const int,const std::string>>&);
+CORE_EXPORT std::unordered_map<int, std::pair<std::string, std::unordered_map<Gene_class, std::vector<Alignment_data>>>>
+read_alignments_seq_csv(const std::string &, Gene_class, double, bool,
+                        const std::vector<std::pair<const int, const std::string>> &);
+CORE_EXPORT std::unordered_map<int, std::pair<std::string, std::unordered_map<Gene_class, std::vector<Alignment_data>>>>
+read_alignments_seq_csv(
+        const std::string &, Gene_class, double, bool, const std::vector<std::pair<const int, const std::string>> &,
+        std::unordered_map<int, std::pair<std::string, std::unordered_map<Gene_class, std::vector<Alignment_data>>>>);
+CORE_EXPORT std::unordered_map<int, std::pair<std::string, std::unordered_map<Gene_class, std::vector<Alignment_data>>>>
+read_alignments_seq_csv_score_range(const std::string &, Gene_class, double, bool,
+                                    const std::vector<std::pair<const int, const std::string>> &);
+CORE_EXPORT std::unordered_map<int, std::pair<std::string, std::unordered_map<Gene_class, std::vector<Alignment_data>>>>
+read_alignments_seq_csv_score_range(
+        const std::string &, Gene_class, double, bool, const std::vector<std::pair<const int, const std::string>> &,
+        std::unordered_map<int, std::pair<std::string, std::unordered_map<Gene_class, std::vector<Alignment_data>>>>);
+CORE_EXPORT std::vector<std::tuple<int, std::string, std::unordered_map<Gene_class, std::vector<Alignment_data>>>>
+        map2vect(std::unordered_map<
+                 int, std::pair<std::string, std::unordered_map<Gene_class, std::vector<Alignment_data>>>>);
+CORE_EXPORT std::forward_list<std::pair<const int, const std::string>> read_indexed_seq_csv(const std::string &);
+CORE_EXPORT std::vector<std::pair<const int, const std::string>> read_indexed_csv(const std::string &);
+CORE_EXPORT std::vector<std::pair<const int, const std::string>> read_fasta(const std::string &);
+CORE_EXPORT std::vector<std::pair<std::string, std::string>> read_genomic_fasta(const std::string &);
+CORE_EXPORT std::vector<std::pair<const int, const std::string>> read_txt(const std::string &);
+CORE_EXPORT std::unordered_map<std::string, size_t> read_gene_anchors_csv(const std::string &,
+                                                                          std::string separator = ";");
+CORE_EXPORT std::unordered_map<std::string, std::pair<int, int>>
+read_template_specific_offset_csv(const std::string &, std::string separator = ";");
+CORE_EXPORT void write_indexed_seq_csv(const std::string &,
+                                       const std::vector<std::pair<const int, const std::string>> &);
 CORE_EXPORT Int_Str nt2int(const std::string &);
-CORE_EXPORT bool comp_nt_int(const int& , const int&);
-CORE_EXPORT std::list<Int_nt> get_ambiguous_nt_list(const Int_nt&);
-CORE_EXPORT inline void write_single_seq_alignment( std::ofstream& , int , std::forward_list<Alignment_data> );
+CORE_EXPORT bool comp_nt_int(const int &, const int &);
+CORE_EXPORT std::list<Int_nt> get_ambiguous_nt_list(const Int_nt &);
+CORE_EXPORT inline void write_single_seq_alignment(std::ofstream &, int, std::forward_list<Alignment_data>);
 //Compare alignments (sort by score)
-CORE_EXPORT bool align_compare(Alignment_data , Alignment_data );
-CORE_EXPORT std::vector<std::pair<const int , const std::string>> sample_indexed_seq( const std::vector<std::pair<const int , const std::string>>&,const size_t);
-CORE_EXPORT Matrix<double> read_substitution_matrix(const std::string& , std::string sep=",");
-CORE_EXPORT std::tuple<bool,int,int> extract_min_max_genomic_templates_offsets(const std::unordered_map<std::string,std::pair<int,int>>& genomic_offset_bounds);
-CORE_EXPORT std::forward_list<Alignment_data> extract_best_gene_alignments(const std::forward_list<Alignment_data>&);
+CORE_EXPORT bool align_compare(Alignment_data, Alignment_data);
+CORE_EXPORT std::vector<std::pair<const int, const std::string>>
+sample_indexed_seq(const std::vector<std::pair<const int, const std::string>> &, const size_t);
+CORE_EXPORT Matrix<double> read_substitution_matrix(const std::string &, std::string sep = ",");
+CORE_EXPORT std::tuple<bool, int, int> extract_min_max_genomic_templates_offsets(
+        const std::unordered_map<std::string, std::pair<int, int>> &genomic_offset_bounds);
+CORE_EXPORT std::forward_list<Alignment_data> extract_best_gene_alignments(const std::forward_list<Alignment_data> &);
 
 /*
 	namespace substitution_matrices{
@@ -179,4 +257,3 @@ CORE_EXPORT std::forward_list<Alignment_data> extract_best_gene_alignments(const
 
 	}
 	*/
-

@@ -53,84 +53,100 @@
  *
  * By construction the Insertion event must have been explored first
  */
-class CORE_EXPORT Dinucl_markov: public Rec_Event {
+class CORE_EXPORT Dinucl_markov : public Rec_Event
+{
 public:
-	//Constructors
-	Dinucl_markov(Gene_class);//TODO should be scalable on one side easily (mono di tri quadri nucl)
-	//Destructor
-	virtual ~Dinucl_markov();
+    //Constructors
+    Dinucl_markov(Gene_class); //TODO should be scalable on one side easily (mono di tri quadri nucl)
+    //Destructor
+    virtual ~Dinucl_markov();
 
-	//Accessors
-	std::shared_ptr<Rec_Event> copy();
-	int size() const;
+    //Accessors
+    std::shared_ptr<Rec_Event> copy();
+    int size() const;
 
+    inline void
+    iterate(double &, Downstream_scenario_proba_bound_map &, const std::string &, const Int_Str &, Index_map &,
+            const std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &,
+            std::shared_ptr<Next_event_ptr> &, Marginal_array_p &, const Marginal_array_p &,
+            const std::unordered_map<Gene_class, std::vector<Alignment_data>> &, Seq_type_str_p_map &,
+            Seq_offsets_map &, std::shared_ptr<Error_rate> &, std::map<size_t, std::shared_ptr<Counter>> &,
+            const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> &,
+            Safety_bool_map &, Mismatch_vectors_map &, double &, double &);
+    void add_realization(int);
+    std::queue<int> draw_random_realization(
+            const Marginal_array_p &, std::unordered_map<Rec_Event_name, int> &,
+            const std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &,
+            std::unordered_map<Seq_type, std::string> &, std::mt19937_64 &) const;
+    void write2txt(std::ofstream &);
+    void ind_normalize(Marginal_array_p &, size_t) const;
+    void initialize_event(
+            std::unordered_set<Rec_Event_name> &,
+            const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> &,
+            const std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &,
+            Downstream_scenario_proba_bound_map &, Seq_type_str_p_map &, Safety_bool_map &, std::shared_ptr<Error_rate>,
+            Mismatch_vectors_map &, Seq_offsets_map &, Index_map &);
+    void add_to_marginals(long double, Marginal_array_p &) const;
+    void update_event_internal_probas(const Marginal_array_p &, const std::unordered_map<Rec_Event_name, int> &);
 
-	inline void iterate(double& , Downstream_scenario_proba_bound_map& , const std::string& , const Int_Str& , Index_map& , const std::unordered_map<Rec_Event_name,std::vector<std::pair<std::shared_ptr<const Rec_Event>,int>>>& , std::shared_ptr<Next_event_ptr>& , Marginal_array_p& , const Marginal_array_p& , const std::unordered_map<Gene_class , std::vector<Alignment_data>>& , Seq_type_str_p_map& , Seq_offsets_map& , std::shared_ptr<Error_rate>& , std::map<size_t,std::shared_ptr<Counter>>& , const std::unordered_map<std::tuple<Event_type,Gene_class,Seq_side>, std::shared_ptr<Rec_Event>> & , Safety_bool_map& , Mismatch_vectors_map& , double& , double&);
-	void add_realization(int);
-	std::queue<int> draw_random_realization( const Marginal_array_p& , std::unordered_map<Rec_Event_name,int>& , const std::unordered_map<Rec_Event_name,std::vector<std::pair<std::shared_ptr<const Rec_Event>,int>>>& , std::unordered_map<Seq_type , std::string>& , std::mt19937_64&)const;
-	void write2txt(std::ofstream&);
-	void ind_normalize(Marginal_array_p&,size_t) const;
-	void initialize_event( std::unordered_set<Rec_Event_name>& , const std::unordered_map<std::tuple<Event_type,Gene_class,Seq_side>, std::shared_ptr<Rec_Event>>& , const std::unordered_map<Rec_Event_name,std::vector<std::pair<std::shared_ptr<const Rec_Event>,int>>>& , Downstream_scenario_proba_bound_map& , Seq_type_str_p_map& , Safety_bool_map& , std::shared_ptr<Error_rate> , Mismatch_vectors_map&,Seq_offsets_map&,Index_map&);
-	void add_to_marginals(long double , Marginal_array_p&) const;
-	void update_event_internal_probas(const Marginal_array_p& , const std::unordered_map<Rec_Event_name,int>&);
+    double *get_updated_ptr();
+    void initialize_crude_scenario_proba_bound(
+            double &, std::forward_list<double *> &,
+            const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> &);
 
-
-	double* get_updated_ptr();
-	void initialize_crude_scenario_proba_bound(double& , std::forward_list<double*>& , const std::unordered_map<std::tuple<Event_type,Gene_class,Seq_side>, std::shared_ptr<Rec_Event>>&);
-
-	//Proba bound related computation methods
-	bool has_effect_on(Seq_type) const;
-	void iterate_initialize_Len_proba( Seq_type considered_junction ,  std::map<int,double>& length_best_proba_map ,  std::queue<std::shared_ptr<Rec_Event>>& model_queue , double& scenario_proba , const Marginal_array_p& model_parameters_point , Index_map& base_index_map , Seq_type_str_p_map& constructed_sequences , int& seq_len ) const ;
-	void initialize_Len_proba_bound(std::queue<std::shared_ptr<Rec_Event>>& model_queue , const Marginal_array_p& model_parameters_point , Index_map& base_index_map );
-
+    //Proba bound related computation methods
+    bool has_effect_on(Seq_type) const;
+    void iterate_initialize_Len_proba(Seq_type considered_junction, std::map<int, double> &length_best_proba_map,
+                                      std::queue<std::shared_ptr<Rec_Event>> &model_queue, double &scenario_proba,
+                                      const Marginal_array_p &model_parameters_point, Index_map &base_index_map,
+                                      Seq_type_str_p_map &constructed_sequences, int &seq_len) const;
+    void initialize_Len_proba_bound(std::queue<std::shared_ptr<Rec_Event>> &model_queue,
+                                    const Marginal_array_p &model_parameters_point, Index_map &base_index_map);
 
 private:
+    double *updated_upper_bound_proba =
+            nullptr; //This points to a double modified by the Insertion event given the number of insertion
+    Matrix<double> dinuc_proba_matrix;
 
-	double* updated_upper_bound_proba = nullptr; //This points to a double modified by the Insertion event given the number of insertion
-	Matrix<double> dinuc_proba_matrix;
+    int total_nucl_count;
+    //Int_Str vd_seq;//&
+    int max_vd_ins;
+    int *vd_realizations_indices = nullptr;
+    size_t vd_seq_size;
+    //Int_Str vj_seq;//&
+    int max_vj_ins;
+    int *vj_realizations_indices = nullptr;
+    size_t vj_seq_size;
+    //Int_Str dj_seq;//&
+    int max_dj_ins;
+    int *dj_realizations_indices = nullptr;
+    size_t dj_seq_size;
 
-	int total_nucl_count;
-	//Int_Str vd_seq;//&
-	int max_vd_ins;
-	int* vd_realizations_indices = nullptr;
-	size_t vd_seq_size;
-	//Int_Str vj_seq;//&
-	int max_vj_ins;
-	int* vj_realizations_indices = nullptr;
-	size_t vj_seq_size;
-	//Int_Str dj_seq;//&
-	int max_dj_ins;
-	int* dj_realizations_indices = nullptr;
-	size_t dj_seq_size;
+    Int_Str previous_seq; //&
+    size_t previous_seq_size;
+    int previous_nt_str;
+    Int_Str data_seq_substr;
 
-	Int_Str previous_seq;//&
-	size_t previous_seq_size;
-	int previous_nt_str;
-	Int_Str data_seq_substr;
+    mutable int base_index;
+    int unmutable_base_index;
+    double new_scenario_proba;
+    double proba_contribution;
+    mutable bool correct_class;
 
-	mutable int base_index;
-	int unmutable_base_index;
-	double new_scenario_proba;
-	double proba_contribution;
-	mutable bool correct_class;
+    int memory_layer_proba_map_junction_1;
+    int memory_layer_proba_map_junction_2;
 
-	int memory_layer_proba_map_junction_1;
-	int memory_layer_proba_map_junction_2;
+    //std::pair<Seq_type,Seq_side> v_5_pair = std::make_pair (V_gene_seq,Five_prime);
+    //std::pair<Seq_type,Seq_side> j_5_pair = std::make_pair (J_gene_seq,Five_prime);
 
+    //Iterate common
+    int first_nt_index;
+    int sec_nt_index;
+    int offset;
+    int realization_final_index;
 
-	//std::pair<Seq_type,Seq_side> v_5_pair = std::make_pair (V_gene_seq,Five_prime);
-	//std::pair<Seq_type,Seq_side> j_5_pair = std::make_pair (J_gene_seq,Five_prime);
-
-	//Iterate common
-	int first_nt_index;
-	int sec_nt_index;
-	int offset;
-	int realization_final_index;
-
-
-
-	inline void iterate_common( int* , int& , Int_Str& , const Marginal_array_p&);
-	inline std::queue<int> draw_random_common(const std::string& , std::string& , const Marginal_array_p& , int , std::uniform_real_distribution<double>& , std::mt19937_64&) const;
-	inline double compute_nt_freq( int , const Marginal_array_p&) const;
-
+    inline void iterate_common(int *, int &, Int_Str &, const Marginal_array_p &);
+    inline std::queue<int> draw_random_common(const std::string &, std::string &, const Marginal_array_p &, int,
+                                              std::uniform_real_distribution<double> &, std::mt19937_64 &) const;
+    inline double compute_nt_freq(int, const Marginal_array_p &) const;
 };
