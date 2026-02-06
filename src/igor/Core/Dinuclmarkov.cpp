@@ -385,7 +385,7 @@ void Dinucl_markov::ind_normalize(Marginal_array_p& marginal_array_p , size_t ba
 	}
 }
 
-void Dinucl_markov::initialize_event( unordered_set<Rec_Event_name>& processed_events , const map<tuple<Event_type,Gene_class,Seq_side>, shared_ptr<Rec_Event>>& events_map , const map<Rec_Event_name,vector<pair<shared_ptr<const Rec_Event>,int>>>& offset_map , Downstream_scenario_proba_bound_map& downstream_proba_map , Seq_type_str_p_map& constructed_sequences , Safety_bool_map& safety_set , shared_ptr<Error_rate> error_rate_p , Mismatch_vectors_map& mismatches_list,Seq_offsets_map& seq_offsets , Index_map& index_map){
+void Dinucl_markov::initialize_event( set<Rec_Event_name>& processed_events , const map<tuple<Event_type,Gene_class,Seq_side>, shared_ptr<Rec_Event>>& events_map , const map<Rec_Event_name,vector<pair<shared_ptr<const Rec_Event>,int>>>& offset_map , Downstream_scenario_proba_bound_map& downstream_proba_map , Seq_type_str_p_map& constructed_sequences , Safety_bool_map& safety_set , shared_ptr<Error_rate> error_rate_p , Mismatch_vectors_map& mismatches_list,Seq_offsets_map& seq_offsets , Index_map& index_map){
 
 	if(events_map.count(tuple<Event_type,Gene_class,Seq_side>(Insertion_t,VD_genes,Undefined_side))!=0){
 		shared_ptr<const Rec_Event> ins_vd_p = events_map.at(tuple<Event_type,Gene_class,Seq_side>(Insertion_t,VD_genes,Undefined_side));

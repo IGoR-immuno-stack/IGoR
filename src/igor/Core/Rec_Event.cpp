@@ -130,7 +130,7 @@ void Rec_Event::iterate_wrap_up(double& scenario_proba , Downstream_scenario_pro
 	}
 	else{
 
-		long double scenario_error_w_proba = error_rate_p->compare_sequences_error_prob( scenario_proba , sequence , constructed_sequences , seq_offsets , events_map , mismatches_lists , seq_max_prob_scenario , proba_threshold_factor);
+		double scenario_error_w_proba = error_rate_p->compare_sequences_error_prob( scenario_proba , sequence , constructed_sequences , seq_offsets , events_map , mismatches_lists , seq_max_prob_scenario , proba_threshold_factor);
 
 		//TODO add a monitor of the likelihood at each iteration
 
@@ -167,7 +167,7 @@ void Rec_Event::iterate_wrap_up(double& scenario_proba , Downstream_scenario_pro
 
 
 
-void Rec_Event::initialize_event( unordered_set<Rec_Event_name>& processed_events , const map<tuple<Event_type,Gene_class,Seq_side>, shared_ptr<Rec_Event>>& events_map , const map<Rec_Event_name,vector<pair<shared_ptr<const Rec_Event>,int>>>& offset_map , Downstream_scenario_proba_bound_map& downstream_proba_map , Seq_type_str_p_map& constructed_sequences , Safety_bool_map& safety_set , shared_ptr<Error_rate> error_rate_p , Mismatch_vectors_map& mismatches_list , Seq_offsets_map& seq_offsets , Index_map& index_map){
+void Rec_Event::initialize_event( set<Rec_Event_name>& processed_events , const map<tuple<Event_type,Gene_class,Seq_side>, shared_ptr<Rec_Event>>& events_map , const map<Rec_Event_name,vector<pair<shared_ptr<const Rec_Event>,int>>>& offset_map , Downstream_scenario_proba_bound_map& downstream_proba_map , Seq_type_str_p_map& constructed_sequences , Safety_bool_map& safety_set , shared_ptr<Error_rate> error_rate_p , Mismatch_vectors_map& mismatches_list , Seq_offsets_map& seq_offsets , Index_map& index_map){
 	//No action performed on the event by default if the method is not overloaded
 	//Need to call Rec_Event::initialize_event() to apply these common actions when the method is overloaded
 	current_realizations_index_vec.push_back(-1);
@@ -189,7 +189,7 @@ void Rec_Event::initialize_event( unordered_set<Rec_Event_name>& processed_event
 }
 
 void Rec_Event::ind_normalize(Marginal_array_p& marginal_array_p , size_t base_index) const{
-	long double sum_marginals = 0;
+	double sum_marginals = 0;
 	for(int i =0 ; i != this->size() ; ++i){
 		sum_marginals+= marginal_array_p[base_index + i];
 	}

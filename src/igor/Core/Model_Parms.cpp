@@ -35,7 +35,7 @@ using namespace std;
  */
 Model_Parms::Model_Parms() {
 /*	this->events = *(new list <shared_ptr<Rec_Event>>()); //FIXME nonsense new
-	this->edges = *(new unordered_map <Rec_Event_name , Adjacency_list >());*/
+	this->edges = *(new map <Rec_Event_name , Adjacency_list >());*/
 
 }
 
@@ -44,7 +44,7 @@ Model_Parms::Model_Parms() {
  */
 Model_Parms::Model_Parms(list <shared_ptr<Rec_Event>> event_list){
 	this->events = event_list;
-	//this->edges = *(new unordered_map<Rec_Event_name,Adjacency_list>()); //FIXME nonsense new
+	//this->edges = *(new map<Rec_Event_name,Adjacency_list>()); //FIXME nonsense new
 	size_t event_identifier = 0;
 	for(list<shared_ptr<Rec_Event>>::const_iterator iter = this->events.begin() ; iter != this->events.end() ; ++iter){
 		this->edges.emplace( (*iter)->get_name() , Adjacency_list());

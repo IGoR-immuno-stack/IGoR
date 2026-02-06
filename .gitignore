@@ -46,7 +46,7 @@ install*
 ## Execution Reports
 ## ###################################################################
 
-regression_reports
+regression_report*
 
 ## ###################################################################
 ## qtcreator stuff

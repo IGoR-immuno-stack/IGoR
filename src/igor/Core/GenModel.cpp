@@ -205,7 +205,7 @@ bool GenModel::infer_model(const vector<tuple<int,string,map<Gene_class , vector
 			single_thread_marginals.debug_marg_name = "single_thread_marginals";
 			single_thread_model_marginals.debug_marg_name = "single thread model marginals";
 
-			unordered_set<Rec_Event_name> init_processed_events;
+			set<Rec_Event_name> init_processed_events;
 
 			//Initialize Enum_fast_memory map and dual maps
 			Safety_bool_map safety_set(3);

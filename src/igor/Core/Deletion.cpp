@@ -175,7 +175,7 @@ void Deletion::iterate(double& scenario_proba , Downstream_scenario_proba_bound_
 			for(forward_list<Event_realization>::const_iterator iter=(*this).int_value_and_index.begin() ; iter != (*this).int_value_and_index.end() ; ++iter){
 				if((int)previous_str.size()>(*iter).value_int){ //Do not allow for deletion of the entire V
 					//TODO What about deletions going outside the read?
-					//unordered_set<Event_safety> safety_set_copy = safety_set;
+					//set<Event_safety> safety_set_copy = safety_set;
 
 					v_3_new_offset = v_3_offset - (*iter).value_int;
 
@@ -428,7 +428,7 @@ void Deletion::iterate(double& scenario_proba , Downstream_scenario_proba_bound_
 				for(forward_list<Event_realization>::const_iterator iter=(*this).int_value_and_index.begin() ; iter != (*this).int_value_and_index.end() ; ++iter){
 					if( (int) previous_str.size()>=(*iter).value_int){
 
-						//unordered_set<Event_safety> safety_set_copy = safety_set;
+						//set<Event_safety> safety_set_copy = safety_set;
 
 						d_5_new_offset = d_5_offset+(*iter).value_int;
 
@@ -681,7 +681,7 @@ void Deletion::iterate(double& scenario_proba , Downstream_scenario_proba_bound_
 				for(forward_list<Event_realization>::const_iterator iter=(*this).int_value_and_index.begin() ; iter != (*this).int_value_and_index.end() ; ++iter){
 					if((int)previous_str.size()>=(*iter).value_int){
 
-						//unordered_set<Event_safety> safety_set_copy = safety_set;
+						//set<Event_safety> safety_set_copy = safety_set;
 
 						d_3_new_offset = d_3_offset-(*iter).value_int;
 						if(dj_check){
@@ -973,7 +973,7 @@ void Deletion::iterate(double& scenario_proba , Downstream_scenario_proba_bound_
 			for(forward_list<Event_realization>::const_iterator iter=(*this).int_value_and_index.begin() ; iter != (*this).int_value_and_index.end() ; ++iter){
 				if( (int) previous_str.size()>(*iter).value_int){
 
-					//unordered_set<Event_safety> safety_set_copy = safety_set;
+					//set<Event_safety> safety_set_copy = safety_set;
 
 					j_5_new_offset = j_5_offset +(*iter).value_int;
 					if(vj_check){
@@ -1307,7 +1307,7 @@ void Deletion::iterate(double& scenario_proba , Downstream_scenario_proba_bound_
  }
 
 
- void Deletion::initialize_event( unordered_set<Rec_Event_name>& processed_events , const map<tuple<Event_type,Gene_class,Seq_side>, shared_ptr<Rec_Event>>& events_map , const map<Rec_Event_name,vector<pair<shared_ptr<const Rec_Event>,int>>>& offset_map , Downstream_scenario_proba_bound_map& downstream_proba_map , Seq_type_str_p_map& constructed_sequences , Safety_bool_map& safety_set , shared_ptr<Error_rate> error_rate_p , Mismatch_vectors_map& mismatches_list , Seq_offsets_map& seq_offsets , Index_map& index_map){
+ void Deletion::initialize_event( set<Rec_Event_name>& processed_events , const map<tuple<Event_type,Gene_class,Seq_side>, shared_ptr<Rec_Event>>& events_map , const map<Rec_Event_name,vector<pair<shared_ptr<const Rec_Event>,int>>>& offset_map , Downstream_scenario_proba_bound_map& downstream_proba_map , Seq_type_str_p_map& constructed_sequences , Safety_bool_map& safety_set , shared_ptr<Error_rate> error_rate_p , Mismatch_vectors_map& mismatches_list , Seq_offsets_map& seq_offsets , Index_map& index_map){
 
 	 //err_rate_upper_bound = error_rate_p->get_err_rate_upper_bound(); //TODO should be removed
 
