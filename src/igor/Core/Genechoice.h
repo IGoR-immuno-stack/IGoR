@@ -35,6 +35,7 @@
 #include <utility>
 #include <igor/Core/Errorrate.h>
 #include <random>
+#include <igorCoreExport.h>
 
 /**
  * \class Gene_choice Genechoice.h
@@ -46,7 +47,7 @@
  * The event realizations are explored based on the sequence alignments that were provdided to the inference.
  * Since D gene can be heavily deleted and might not be recognizable by sequence alignments, a special handling of the D gene choice exploring all D positions ranked by their likelihood has been implemented.
  */
-class Gene_choice: public Rec_Event {
+class CORE_EXPORT Gene_choice: public Rec_Event {
 	friend class Coverage_err_counter;//Grant friendship to access current gene realization and offset
 	friend class Hypermutation_global_errorrate;//Grant friendship to access current gene realization and offset
 	friend class Hypermutation_full_Nmer_errorrate;//Same

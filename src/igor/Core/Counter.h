@@ -34,7 +34,7 @@
 #include <igor/Core/Rec_Event.h>
 #include <igor/Core/IntStr.h>
 
-
+#include <igorCoreExport.h>
 
 /**
  * \class Counter Counter.h
@@ -44,7 +44,7 @@
  *
  * The Counter abstract class provides an interface to collect individual scenarios statistics and aggregate them in various ways.
  */
-class Counter {
+class CORE_EXPORT Counter {
 public:
 	Counter(const std::string& path = "/tmp/", bool last_iter = false);
 	virtual ~Counter();

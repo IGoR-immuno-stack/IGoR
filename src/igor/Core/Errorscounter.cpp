@@ -94,8 +94,8 @@ void Errors_counter::count_scenario(double scenario_seq_joint_proba , double sce
 				this->best_scenarios_vec.emplace_back(scenario_seq_joint_proba,this->scenario_n_genomic,this->scenario_n_mismatches);
 			}
 			else{
-				vector<tuple<double,size_t,size_t>>::iterator jter = this->best_scenarios_vec.begin();
-				while( (scenario_seq_joint_proba>get<0>(*jter)) and (jter != this->best_scenarios_vec.end()) ){
+				auto jter = this->best_scenarios_vec.begin();
+				while( (jter != this->best_scenarios_vec.end()) and (scenario_seq_joint_proba>get<0>(*jter)) ){
 					++jter;
 				}
 				this->best_scenarios_vec.emplace(jter , scenario_seq_joint_proba,this->scenario_n_genomic,this->scenario_n_mismatches);
@@ -125,7 +125,7 @@ void Errors_counter::count_scenario(double scenario_seq_joint_proba , double sce
 }
 
 void Errors_counter::count_sequence(double seq_likelihood , const Model_marginals& single_seq_marginals , const Model_Parms& single_seq_model_parms){
-	for(vector<tuple<double,size_t,size_t>>::iterator iter = this->best_scenarios_vec.begin() ; iter!=this->best_scenarios_vec.end() ; ++iter){
+	for(auto iter = this->best_scenarios_vec.begin() ; iter!=this->best_scenarios_vec.end() ; ++iter){
 		get<0>(*iter)/=seq_likelihood;
 		//If an exception is thrown here there is a problem upstream
 	}
@@ -166,7 +166,7 @@ void Errors_counter::dump_sequence_data(int seq_index , int iteration_n){
 	//Output individual scenarios stats
 	if(this->output_scenarios){
 		size_t counter = 1;
-		for(vector<tuple<double,size_t,size_t>>::reverse_iterator iter = this->best_scenarios_vec.rbegin() ; iter!=this->best_scenarios_vec.rend() ; ++iter){
+		for(auto iter = this->best_scenarios_vec.rbegin() ; iter!=this->best_scenarios_vec.rend() ; ++iter){
 			(*this->output_scenario_errors_file_ptr.get())<<seq_index<<";"<<counter<<";"<<get<0>(*iter)<<";"<<get<1>(*iter)<<";"<<get<2>(*iter)<<endl;
 			++counter;
 		}

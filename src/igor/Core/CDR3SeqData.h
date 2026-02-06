@@ -9,8 +9,9 @@
 #pragma once
 
 #include <string>
+#include <igorCoreExport.h>
 
-class CDR3SeqData {
+class CORE_EXPORT CDR3SeqData {
 public:
     CDR3SeqData();
     CDR3SeqData(const CDR3SeqData& orig);

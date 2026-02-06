@@ -37,6 +37,8 @@
 #include <random>
 #include <map>
 
+#include <igorCoreExport.h>
+
 /**
  * \class Insertion Insertion.h
  * \brief Insertion recombination events.
@@ -46,7 +48,7 @@
  *  The Insertion RecEvent models the distribution of junctional insertion length during the V(D)J recombination process.
  *
  */
-class Insertion: public Rec_Event {
+class CORE_EXPORT Insertion: public Rec_Event {
 public:
 	//Constructors
 	Insertion();

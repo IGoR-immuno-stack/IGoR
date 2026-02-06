@@ -41,6 +41,9 @@
 #include <iostream>
 #include <cmath>
 
+
+#include <igorCoreExport.h>
+
 //Forward declare Rec_event
 class Rec_Event;
 
@@ -54,7 +57,7 @@ class Rec_Event;
  * Errors are assessed when all RecEvent iterate have been processed (terminal leaf of the scenario tree)
  *
  */
-class Error_rate {
+class CORE_EXPORT Error_rate {
 public:
 	Error_rate();
 	virtual ~Error_rate();

@@ -39,6 +39,8 @@
 #include <igor/Core/Errorrate.h>
 #include <random>
 
+#include <igorCoreExport.h>
+
 /**
  * \class Dinucl_markov Dinucl_markov.h
  * \brief Dinucleotide insertion Markov model.
@@ -51,7 +53,7 @@
  *
  * By construction the Insertion event must have been explored first
  */
-class Dinucl_markov: public Rec_Event {
+class CORE_EXPORT Dinucl_markov: public Rec_Event {
 public:
 	//Constructors
 	Dinucl_markov(Gene_class);//TODO should be scalable on one side easily (mono di tri quadri nucl)
@@ -84,21 +86,21 @@ public:
 
 private:
 
-	double* updated_upper_bound_proba; //This points to a double modified by the Insertion event given the number of insertion
+	double* updated_upper_bound_proba = nullptr; //This points to a double modified by the Insertion event given the number of insertion
 	Matrix<double> dinuc_proba_matrix;
 
 	int total_nucl_count;
 	//Int_Str vd_seq;//&
 	int max_vd_ins;
-	int* vd_realizations_indices;
+	int* vd_realizations_indices = nullptr;
 	size_t vd_seq_size;
 	//Int_Str vj_seq;//&
 	int max_vj_ins;
-	int* vj_realizations_indices;
+	int* vj_realizations_indices = nullptr;
 	size_t vj_seq_size;
 	//Int_Str dj_seq;//&
 	int max_dj_ins;
-	int* dj_realizations_indices;
+	int* dj_realizations_indices = nullptr;
 	size_t dj_seq_size;
 
 	Int_Str previous_seq;//&

@@ -51,6 +51,7 @@
 #include <chrono>
 #include <set>
 #include <string>
+#include <filesystem>
 
 using namespace std;
 
@@ -1585,7 +1586,7 @@ int main(int argc , char* argv[]){
 		vector<pair<const int, const string>> indexed_seqlist = read_txt( string(IGOR_DATA_DIR) + "/demo/murugan_naive1_noncoding_demo_seqs.txt" ); //Could also read a FASTA file <code>read_fasta()<\code> or indexed sequences <code>read_indexed_seq_csv()<\code>
 
 		cl_path+="igor_demo/";
-		system(&("mkdir " + cl_path )[0]);
+		std::filesystem::create_directories(cl_path);
 
 		v_aligner.align_seqs( string(cl_path + "/murugan_naive1_noncoding_demo_seqs") + string("_alignments_V.csv"),indexed_seqlist,50,true,INT16_MIN,-155);
 		//v_aligner.write_alignments_seq_csv(path + string("alignments_V.csv") , v_alignments);
@@ -1736,7 +1737,7 @@ int main(int argc , char* argv[]){
 		clog<<"Infer model"<<endl;
 
 		begin_time = myclock::now();
-		system(&("mkdir " + cl_path + "run_demo")[0]);
+		std::filesystem::create_directories(cl_path+"run_demo");
 		gen_model.infer_model(sorted_alignments_vec , 4 , string(cl_path + "/run_demo/") , true ,1e-35,0.0001);
 
 		end_time= myclock::now();
@@ -1770,7 +1771,7 @@ int main(int argc , char* argv[]){
 			}
 
 			//create the directory
-			system(&("mkdir " + cl_path + "aligns")[0]);
+			std::filesystem::create_directories(cl_path + "aligns");
 
 			if(subsample_seqs){
 				try{
@@ -2078,17 +2079,17 @@ int main(int argc , char* argv[]){
 			vector<tuple<int,string,map<Gene_class,vector<Alignment_data>>>> sorted_alignments_vec = map2vect(sorted_alignments);
 
 			//create the output directory
-			system(&("mkdir " + cl_path +  batchname + "output")[0]);
+			std::filesystem::create_directories(cl_path + batchname + "output");
 
 			if(infer){
 				//create inference directory directory
-				system(&("mkdir " + cl_path +  batchname + "inference")[0]);
+				std::filesystem::create_directories(cl_path + batchname + "inference");
 				genmodel.infer_model(sorted_alignments_vec , n_iter_inference , cl_path +  batchname + "inference/" , true , likelihood_thresh_inference , viterbi_inference , proba_threshold_ratio_inference);
 			}
 
 			if(evaluate){
 				//create evaluate directory
-				system(&("mkdir " + cl_path +  batchname + "evaluate")[0]);
+				std::filesystem::create_directories(cl_path + batchname + "evaluate");
 				genmodel.infer_model(sorted_alignments_vec , 1 , cl_path +  batchname + "evaluate/" , false , likelihood_thresh_evaluate , viterbi_evaluate , proba_threshold_ratio_evaluate);
 			}
 		}
@@ -2098,7 +2099,7 @@ int main(int argc , char* argv[]){
 
 		if(generate){
 
-			system(&("mkdir " + cl_path +  batchname + "generated")[0]);
+			std::filesystem::create_directories(cl_path + batchname + "generated");
 
 			GenModel genmodel(cl_model_parms,cl_model_marginals,cl_counters_list);
 

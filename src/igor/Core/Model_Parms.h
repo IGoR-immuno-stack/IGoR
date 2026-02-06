@@ -47,6 +47,8 @@
 #include <stdexcept>
 #include <memory>
 
+#include <igorCoreExport.h>
+
 //class Rec_Event;
 
 /**
@@ -72,7 +74,7 @@ struct Adjacency_list{
  * Together with the recombination model topology it also contains the error model.
  *	This class implements various methods to extract information from the graph structure such as the order in which RecEvents must be processed provided the topological constraints.
  */
-class Model_Parms {
+class CORE_EXPORT Model_Parms {
 public:
 	Model_Parms();
 	Model_Parms(std::list<std::shared_ptr<Rec_Event>> event_list);

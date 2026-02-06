@@ -1064,7 +1064,7 @@ uint64_t Hypermutation_global_errorrate::generate_random_contributions(double ei
 	//create a seed from timer
 	typedef std::chrono::high_resolution_clock myclock;
 	myclock::time_point time = myclock::now();
-	myclock::duration dur = myclock::time_point::max() - time;
+	myclock::duration dur = (myclock::time_point::max)() - time;
 
 	//Get a random seed
 	uint64_t random_seed = draw_random_64bits_seed();
@@ -1121,21 +1121,14 @@ void Hypermutation_global_errorrate::update(){
 
 		double error_model_likelihood = 0;
 
-		//Construct the 3N+1 sized Jacobian vector
-		//double J_data[3*mutation_Nmer_size+1];
-		std::vector<double> J_data(3*mutation_Nmer_size+1);
-		for(i=0 ; i!= 3*mutation_Nmer_size+1 ; ++i){
-			J_data[i] = 0;
-		}
-		gsl_vector_view J = gsl_vector_view_array (J_data.data(), 3*mutation_Nmer_size+1);
-
-		//Construct the 3N+1 square Hessian matrix
-		//double H_data[(3*mutation_Nmer_size+1)*(3*mutation_Nmer_size+1)]; //Are gsl matrices row or column first?
-		std::vector<double> H_data((3*mutation_Nmer_size+1)*(3*mutation_Nmer_size+1));
-		for(i=0 ; i!= (3*mutation_Nmer_size+1)*(3*mutation_Nmer_size+1) ; ++i){
-			H_data[i] = 0;
-		}
-		gsl_matrix_view H = gsl_matrix_view_array (H_data.data(), 3*mutation_Nmer_size+1,3*mutation_Nmer_size+1);
+		// Construct the 3N+1 sized Jacobian vector
+		std::vector<double> J_data(3 * mutation_Nmer_size + 1, 0.0);  // initializes all to zero
+		gsl_vector_view J = gsl_vector_view_array(J_data.data(), J_data.size());
+		
+		// Construct the 3N+1 square Hessian matrix
+		size_t N = 3 * mutation_Nmer_size + 1;
+		std::vector<double> H_data(N * N, 0.0);  // initializes all to zero (row-major)
+		gsl_matrix_view H = gsl_matrix_view_array(H_data.data(), N, N);
 
 /*		for(int yyy = 0 ; yyy !=(3*mutation_Nmer_size)+1 ; ++yyy){
 			for(int zzz = 0 ; zzz !=(3*mutation_Nmer_size)+1 ; ++zzz){
@@ -1146,11 +1139,9 @@ void Hypermutation_global_errorrate::update(){
 		cout<<endl;*/
 
 		//Compute the values for the Jacobian and Hessian entries
-		//int base_4_address[mutation_Nmer_size];
-		std::vector<int> base_4_address(mutation_Nmer_size);
+		std::vector<int> base_4_address(mutation_Nmer_size,0);
 		int max_address = 0;
 		for (i=0;i!=mutation_Nmer_size;++i){
-			base_4_address[i]=0;
 			max_address += 3*adressing_vector[i];
 		}
 		max_address+=1;
@@ -1375,16 +1366,9 @@ void Hypermutation_global_errorrate::update(){
 
 double Hypermutation_global_errorrate::compute_new_model_likelihood(double alpha ,gsl_vector* update_vect_p){
 	double new_R = mu + alpha*gsl_vector_get(update_vect_p,(3*mutation_Nmer_size));
-	//int base_4_address[mutation_Nmer_size];
-	std::vector<int> base_4_address(mutation_Nmer_size);
-	//TODO construct this using bit operations?
-	//Or look at the recursive way I did it for the mismatch vectors in the error rate class
-
-	double new_sum_weights = 0;
-	//double new_ei_nucleotide_contributions [4*mutation_Nmer_size];
 	std::vector<double> new_ei_nucleotide_contributions(4*mutation_Nmer_size);
 
-	int	a;
+	int a;
 	int b;
 
 	for(a=0 ; a!=4*mutation_Nmer_size ; ++a){
@@ -1402,13 +1386,11 @@ double Hypermutation_global_errorrate::compute_new_model_likelihood(double alpha
 		}
 	}
 	//Compute the values for the Jacobian and Hessian entries
-	//int base_4_address[mutation_Nmer_size];
-	//std::vector<int> base_4_address(mutation_Nmer_size);
+	std::vector<int> base_4_address(mutation_Nmer_size,0);
 	int max_address = 0;
 
 
 	for (a=0;a!=mutation_Nmer_size;++a){
-		base_4_address[a]=0;
 		max_address += 3*adressing_vector[a];
 	}
 	max_address+=1;

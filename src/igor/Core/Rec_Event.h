@@ -30,6 +30,7 @@
 #include <igor/Core/IntStr.h>
 #include <igor/Core/Aligner.h>
 #include <igor/Core/Utils.h>
+#include <igorCoreExport.h>
 
 #include <unordered_set>
 #include <vector>
@@ -90,7 +91,7 @@ struct Event_realization {
  * The RecEvents design is key to the way IGoR explore all possible scenarios (through the iterate method) and generate sequences (through the draw_random_realization)
  *
  */
-class Rec_Event {
+class CORE_EXPORT Rec_Event {
 public:
 	Rec_Event();
 	Rec_Event(Gene_class, Seq_side );

@@ -85,7 +85,7 @@ shared_ptr<Rec_Event> Insertion::copy(){
 }
 
 
-bool Insertion::add_realization(int insertion_number){
+bool Insertion::add_realization(int insertion_number) {
 	this->Rec_Event::add_realization( Event_realization(to_string(insertion_number),insertion_number ,"",Int_Str(),this->size() ));
 	if(insertion_number>this->len_max){this->len_max = insertion_number;}
 	else if(insertion_number < this->len_min){this->len_min = insertion_number;}

@@ -920,7 +920,7 @@ uint64_t Hypermutation_full_Nmer_errorrate::generate_random_mutation_probas(doub
 	//create a seed from timer
 	typedef std::chrono::high_resolution_clock myclock;
 	myclock::time_point time = myclock::now();
-	myclock::duration dur = myclock::time_point::max() - time;
+	myclock::duration dur = (myclock::time_point::max)() - time;
 
 	//Get a random seed
 	uint64_t random_seed = draw_random_64bits_seed();

@@ -257,7 +257,7 @@ bool GenModel::infer_model(const vector<tuple<int,string,map<Gene_class , vector
 			 * Each event will access the pointer corresponding to its identifier address when calling iterate inside iterate_wrap_up
 			 * The last event will point to null pointer enabling to call the error_rate
 			 */
-			shared_ptr<Next_event_ptr> next_event_ptr_arr (new Next_event_ptr[single_thread_model_parms.get_event_list().size()]);
+			shared_ptr<Next_event_ptr> next_event_ptr_arr (new Next_event_ptr[single_thread_model_parms.get_event_list().size()],std::default_delete<Rec_Event*[]>());
 			init_single_thread_model_queue = single_thread_model_queue;
 			while(!init_single_thread_model_queue.empty()){
 				shared_ptr<Rec_Event> first_init_event = init_single_thread_model_queue.front();
@@ -324,9 +324,11 @@ bool GenModel::infer_model(const vector<tuple<int,string,map<Gene_class , vector
 
 			//Loop over sequences in parallel, using the number of threads declared previously when declaring the parallel section
 			//Use dynamic scheduling to avoid loss of time due to synchronization
-
+			auto num_seqs = sequence_util_ptr->size();// MSVC can't use iterators with openmp !
 			#pragma omp for schedule(dynamic) nowait
-			for(auto seq_it = (*sequence_util_ptr).begin() ; seq_it < (*sequence_util_ptr).end() ; ++seq_it){
+			for (auto i = 0; i < num_seqs; ++i) {
+
+				const auto& seq = (*sequence_util_ptr)[i];  // index access
 
 				single_seq_begin = chrono::system_clock::now();
 
@@ -344,7 +346,7 @@ bool GenModel::infer_model(const vector<tuple<int,string,map<Gene_class , vector
 				//double init_tmp_err_w_proba = 1;
 				double max_proba_scenario = likelihood_threshold/proba_threshold_factor;
 
-				Int_Str int_sequence = nt2int(get<1>(*seq_it));
+				Int_Str int_sequence = nt2int(get<1>(seq));
 
 				//cout<<int_sequence<<endl;
 
@@ -357,16 +359,13 @@ bool GenModel::infer_model(const vector<tuple<int,string,map<Gene_class , vector
 				 */
 				try{
 
-					// cout << first_event->get_name() << endl;
-					// cout << first_event->get_nickname() << endl;
-					// cout << first_event->get_type() << endl;
-					first_event->iterate(init_proba , downstream_proba_map , get<1>(*seq_it) , int_sequence , index_mapp , single_thread_offset_map , next_event_ptr_arr , single_seq_marginals.marginal_array_smart_p , single_thread_model_marginals.marginal_array_smart_p , get<2>(*seq_it) , constructed_sequences , seq_offsets , single_thread_err_rate , single_thread_counter_list , events_map , safety_set , mismatches_lists , max_proba_scenario , proba_threshold_factor);
+					first_event->iterate(init_proba , downstream_proba_map , get<1>(seq) , int_sequence , index_mapp , single_thread_offset_map , next_event_ptr_arr , single_seq_marginals.marginal_array_smart_p , single_thread_model_marginals.marginal_array_smart_p , get<2>(seq) , constructed_sequences , seq_offsets , single_thread_err_rate , single_thread_counter_list , events_map , safety_set , mismatches_lists , max_proba_scenario , proba_threshold_factor);
 
 				}
 
 				catch(exception& except){
 					general_logs<<"Exception caught calling iterate() on sequence:"<<endl;
-					general_logs<<get<1>(*seq_it)<<" with index "<<get<0>(*seq_it)<<endl;
+					general_logs<<get<1>(seq)<<" with index "<<get<0>(seq)<<endl;
 					general_logs<<"Exception caught after "<<single_thread_err_rate->debug_number_scenarios<<" scenarios explored"<<endl;
 					general_logs<<endl;
 					general_logs<<"Throwing exception now..."<<endl<<endl;
@@ -383,14 +382,14 @@ bool GenModel::infer_model(const vector<tuple<int,string,map<Gene_class , vector
 				{
 					++sequences_processed;
 					//Output useful infos in the log file
-					//log_file<<iteration_accomplished<<";"<<sequences_processed<<";"<<(*seq_it).first<<";"<<(*seq_it).second.at(V_gene).size()<<";"<<(*seq_it).second.at(D_gene).size()<<";"<<(*seq_it).second.at(J_gene).size()<<";"<<single_thread_err_rate->get_seq_probability()<<";"<<single_thread_err_rate->get_seq_likelihood()<<";"<<single_thread_err_rate->debug_number_scenarios<<";"<<max_proba_scenario<<endl;
-					log_file<<iteration_accomplished<<";"<<sequences_processed<<";"<<get<0>(*seq_it)<<";"<<get<1>(*seq_it)<<";"<<get<2>(*seq_it).at(V_gene).size()<<";"<<get<2>(*seq_it).at(J_gene).size()<<";"<<single_thread_err_rate->get_seq_likelihood()<<";"<<single_thread_err_rate->get_seq_mean_error_number()<<";"<<single_thread_err_rate->debug_number_scenarios<<";"<<max_proba_scenario<<";"<<seq_time.count()<<endl;
+					//log_file<<iteration_accomplished<<";"<<sequences_processed<<";"<<(seq).first<<";"<<(seq).second.at(V_gene).size()<<";"<<(seq).second.at(D_gene).size()<<";"<<(seq).second.at(J_gene).size()<<";"<<single_thread_err_rate->get_seq_probability()<<";"<<single_thread_err_rate->get_seq_likelihood()<<";"<<single_thread_err_rate->debug_number_scenarios<<";"<<max_proba_scenario<<endl;
+					log_file<<iteration_accomplished<<";"<<sequences_processed<<";"<<get<0>(seq)<<";"<<get<1>(seq)<<";"<<get<2>(seq).at(V_gene).size()<<";"<<get<2>(seq).at(J_gene).size()<<";"<<single_thread_err_rate->get_seq_likelihood()<<";"<<single_thread_err_rate->get_seq_mean_error_number()<<";"<<single_thread_err_rate->debug_number_scenarios<<";"<<max_proba_scenario<<";"<<seq_time.count()<<endl;
 				}
 				for(map<size_t,shared_ptr<Counter>>::iterator iter = single_thread_counter_list.begin() ; iter!=single_thread_counter_list.end() ; ++iter){
 					iter->second->count_sequence(single_thread_err_rate->get_seq_likelihood() , single_seq_marginals , single_thread_model_parms);
 					#pragma omp critical(dump_counters)
 					{
-						(*iter).second->dump_sequence_data(get<0>(*seq_it) , iteration_accomplished);
+						(*iter).second->dump_sequence_data(get<0>(seq) , iteration_accomplished);
 					}
 				}
 
@@ -470,7 +469,7 @@ forward_list<pair<string,queue<queue<int>>>> GenModel::generate_sequences(int nu
 	//create a seed from timer
 	typedef std::chrono::high_resolution_clock myclock;
 	myclock::time_point time = myclock::now();
-	myclock::duration dur = myclock::time_point::max() - time;
+	myclock::duration dur = (myclock::time_point::max)() - time;
 
 	//Get a random seed
 	uint64_t random_seed = draw_random_64bits_seed();
