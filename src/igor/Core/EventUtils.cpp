@@ -3,10 +3,10 @@
 
 namespace EventUtils {
 
-GeneChoiceStatus check_gene_choice(Gene_class gene,
-                                   const std::unordered_map<std::tuple<Event_type, int, Seq_side>,
-                                                            std::shared_ptr<Rec_Event>> &events_map,
-                                   const std::unordered_set<Rec_Event_name> &processed_events)
+GeneChoiceStatus check_gene_choice(
+        Gene_class gene,
+        const std::unordered_map<std::tuple<Event_type, int, Seq_side>, std::shared_ptr<Rec_Event>> &events_map,
+        const std::unordered_set<Rec_Event_name> &processed_events)
 {
 
     GeneChoiceStatus status;
@@ -25,9 +25,8 @@ GeneChoiceStatus check_gene_choice(Gene_class gene,
     return status;
 }
 
-Int_Str build_scenario_sequence(const Seq_type_str_p_map &constructed_sequences, bool has_v,
-                                bool has_d, bool has_j, bool has_vd_ins, bool has_dj_ins,
-                                bool has_vj_ins)
+Int_Str build_scenario_sequence(const Seq_type_str_p_map &constructed_sequences, bool has_v, bool has_d, bool has_j,
+                                bool has_vd_ins, bool has_dj_ins, bool has_vj_ins)
 {
 
     Int_Str scenario_resulting_sequence;
@@ -57,9 +56,9 @@ Int_Str build_scenario_sequence(const Seq_type_str_p_map &constructed_sequences,
     return scenario_resulting_sequence;
 }
 
-int get_insertion_len_max(int type_id,
-                          const std::unordered_map<std::tuple<Event_type, int, Seq_side>,
-                                                   std::shared_ptr<Rec_Event>> &events_map)
+int get_insertion_len_max(
+        int type_id,
+        const std::unordered_map<std::tuple<Event_type, int, Seq_side>, std::shared_ptr<Rec_Event>> &events_map)
 {
     auto key = std::make_tuple(Insertion_t, type_id, Undefined_side);
     if (events_map.count(key) != 0) {
@@ -68,16 +67,14 @@ int get_insertion_len_max(int type_id,
     return 0;
 }
 
-void initialize_offset_memory(
-        const std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>> &offset_vector,
-        Index_map &index_map, std::forward_list<std::tuple<int, int, int>> &memory_and_offsets)
+void initialize_offset_memory(const std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>> &offset_vector,
+                              Index_map &index_map, std::forward_list<std::tuple<int, int, int>> &memory_and_offsets)
 {
 
     for (auto iter = offset_vector.begin(); iter != offset_vector.end(); ++iter) {
         int event_identitfier = (*iter).first->get_event_identifier();
         index_map.request_memory_layer(event_identitfier);
-        memory_and_offsets.emplace_front(event_identitfier,
-                                         index_map.get_current_memory_layer(event_identitfier),
+        memory_and_offsets.emplace_front(event_identitfier, index_map.get_current_memory_layer(event_identitfier),
                                          (*iter).second);
     }
 }

@@ -33,15 +33,14 @@ using namespace std;
 
 Deletion::Deletion() : Deletion(Undefined_gene, Undefined_side) { }
 
-Deletion::Deletion(Gene_class gene, Seq_side side, std::pair<int, int> bounds)
-    : Deletion(gene, side)
+Deletion::Deletion(Gene_class gene, Seq_side side, std::pair<int, int> bounds) : Deletion(gene, side)
 {
     int min_del = bounds.first;
     int max_del = bounds.second;
     for (int i = min_del; i <= max_del; ++i) {
         string del_name = to_string(i);
         Event_realization er(del_name, i, "", Int_Str(), this->size());
-        this->event_realizations.insert({del_name, er});
+        this->event_realizations.insert({ del_name, er });
     }
 }
 
@@ -67,13 +66,11 @@ Deletion::Deletion(Gene_class gene, Seq_side side)
     this->update_event_name();
 }
 
-Deletion::Deletion(Gene_class gene, Seq_side side,
-                   unordered_map<string, Event_realization> &realizations)
+Deletion::Deletion(Gene_class gene, Seq_side side, unordered_map<string, Event_realization> &realizations)
     : Deletion(gene, side)
 {
     this->event_realizations = realizations;
-    for (unordered_map<string, Event_realization>::const_iterator iter =
-                 this->event_realizations.begin();
+    for (unordered_map<string, Event_realization>::const_iterator iter = this->event_realizations.begin();
          iter != this->event_realizations.end(); ++iter) {
         int val = (*iter).second.value_int;
         if (val > this->len_max) {
@@ -113,19 +110,17 @@ shared_ptr<Rec_Event> Deletion::copy()
     return new_deletion_p;
 }
 
-void Deletion::iterate(
-        double &scenario_proba, Downstream_scenario_proba_bound_map &downstream_proba_map,
-        const string &sequence, const Int_Str &int_sequence, Index_map &base_index_map,
-        const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>>
-                &offset_map,
-        shared_ptr<Next_event_ptr> &next_event_ptr_arr, Marginal_array_p &updated_marginals_pointer,
-        const Marginal_array_p &model_parameters_pointer,
-        const unordered_map<Gene_class, vector<Alignment_data>> &allowed_realizations,
-        Seq_type_str_p_map &constructed_sequences, Seq_offsets_map &seq_offsets,
-        shared_ptr<Error_rate> &error_rate_p, map<size_t, shared_ptr<Counter>> &counters_list,
-        const unordered_map<tuple<Event_type, int, Seq_side>, shared_ptr<Rec_Event>> &events_map,
-        Safety_bool_map &safety_set, Mismatch_vectors_map &mismatches_lists,
-        double &seq_max_prob_scenario, double &proba_threshold_factor)
+void Deletion::iterate(double &scenario_proba, Downstream_scenario_proba_bound_map &downstream_proba_map,
+                       const string &sequence, const Int_Str &int_sequence, Index_map &base_index_map,
+                       const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
+                       shared_ptr<Next_event_ptr> &next_event_ptr_arr, Marginal_array_p &updated_marginals_pointer,
+                       const Marginal_array_p &model_parameters_pointer,
+                       const unordered_map<Gene_class, vector<Alignment_data>> &allowed_realizations,
+                       Seq_type_str_p_map &constructed_sequences, Seq_offsets_map &seq_offsets,
+                       shared_ptr<Error_rate> &error_rate_p, map<size_t, shared_ptr<Counter>> &counters_list,
+                       const unordered_map<tuple<Event_type, int, Seq_side>, shared_ptr<Rec_Event>> &events_map,
+                       Safety_bool_map &safety_set, Mismatch_vectors_map &mismatches_lists,
+                       double &seq_max_prob_scenario, double &proba_threshold_factor)
 {
     int base_index = base_index_map.at(this->event_index);
     int type_id = this->sequence_type_id;
@@ -135,8 +130,7 @@ void Deletion::iterate(
     int prev_5_off = seq_offsets.at(type_id, Five_prime, memory_layer_off_fivep);
     int prev_3_off = seq_offsets.at(type_id, Three_prime, memory_layer_off_threep);
 
-    for (unordered_map<string, Event_realization>::const_iterator iter =
-                 this->event_realizations.begin();
+    for (unordered_map<string, Event_realization>::const_iterator iter = this->event_realizations.begin();
          iter != this->event_realizations.end(); ++iter) {
         int del_len = (*iter).second.value_int;
 
@@ -162,13 +156,11 @@ void Deletion::iterate(
             if (current_3_off >= ds_5_off) {
                 is_safe = false;
             } else {
-                safety_set.set_value(memory_layer_safety_downstream, true,
-                                     memory_layer_safety_downstream);
+                safety_set.set_value(memory_layer_safety_downstream, true, memory_layer_safety_downstream);
                 // Junction length check
                 int junction_len = ds_5_off - current_3_off - 1;
                 if (junction_length_best_proba_maps.count(downstream_ins_type) == 0
-                    || junction_length_best_proba_maps.at(downstream_ins_type).count(junction_len)
-                            == 0) {
+                    || junction_length_best_proba_maps.at(downstream_ins_type).count(junction_len) == 0) {
                     is_safe = false;
                 } else {
                     downstream_proba_map.set_value(
@@ -182,18 +174,15 @@ void Deletion::iterate(
             if (current_5_off <= us_3_off) {
                 is_safe = false;
             } else {
-                safety_set.set_value(memory_layer_safety_upstream, true,
-                                     memory_layer_safety_upstream);
+                safety_set.set_value(memory_layer_safety_upstream, true, memory_layer_safety_upstream);
                 // Junction length check
                 int junction_len = current_5_off - us_3_off - 1;
                 if (junction_length_best_proba_maps.count(upstream_ins_type) == 0
-                    || junction_length_best_proba_maps.at(upstream_ins_type).count(junction_len)
-                            == 0) {
+                    || junction_length_best_proba_maps.at(upstream_ins_type).count(junction_len) == 0) {
                     is_safe = false;
                 } else {
                     downstream_proba_map.set_value(
-                            upstream_ins_type,
-                            junction_length_best_proba_maps.at(upstream_ins_type).at(junction_len),
+                            upstream_ins_type, junction_length_best_proba_maps.at(upstream_ins_type).at(junction_len),
                             memory_layer_proba_map_junction_upstream);
                 }
             }
@@ -203,8 +192,7 @@ void Deletion::iterate(
             continue;
 
         double proba_contribution =
-                Rec_Event::iterate_common((*iter).second.index, base_index, base_index_map,
-                                          model_parameters_pointer);
+                Rec_Event::iterate_common((*iter).second.index, base_index, base_index_map, model_parameters_pointer);
         double new_scenario_proba = scenario_proba * proba_contribution;
 
         constructed_sequences.set_value(type_id, current_str, memory_layer_cs);
@@ -212,26 +200,22 @@ void Deletion::iterate(
         seq_offsets.set_value(type_id, Three_prime, current_3_off, memory_layer_off_threep);
 
         double scenario_upper_bound_proba = new_scenario_proba;
-        downstream_proba_map.multiply_all(scenario_upper_bound_proba,
-                                          current_downstream_proba_memory_layers.data());
+        downstream_proba_map.multiply_all(scenario_upper_bound_proba, current_downstream_proba_memory_layers.data());
 
         if (scenario_upper_bound_proba >= (seq_max_prob_scenario * proba_threshold_factor)) {
-            Rec_Event::iterate_wrap_up(
-                    new_scenario_proba, downstream_proba_map, sequence, int_sequence,
-                    base_index_map, offset_map, next_event_ptr_arr, updated_marginals_pointer,
-                    model_parameters_pointer, allowed_realizations, constructed_sequences,
-                    seq_offsets, error_rate_p, counters_list, events_map, safety_set,
-                    mismatches_lists, seq_max_prob_scenario, proba_threshold_factor);
+            Rec_Event::iterate_wrap_up(new_scenario_proba, downstream_proba_map, sequence, int_sequence, base_index_map,
+                                       offset_map, next_event_ptr_arr, updated_marginals_pointer,
+                                       model_parameters_pointer, allowed_realizations, constructed_sequences,
+                                       seq_offsets, error_rate_p, counters_list, events_map, safety_set,
+                                       mismatches_lists, seq_max_prob_scenario, proba_threshold_factor);
         }
     }
 }
 
 queue<int> Deletion::draw_random_realization(
         const Marginal_array_p &model_marginals_p, unordered_map<Rec_Event_name, int> &index_map,
-        const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>>
-                &offset_map,
-        std::unordered_map<int, std::string> &constructed_sequences,
-        std::mt19937_64 &generator) const
+        const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
+        std::unordered_map<int, std::string> &constructed_sequences, std::mt19937_64 &generator) const
 {
     uniform_real_distribution<double> distribution(0.0, 1.0);
     double rand = distribution(generator);
@@ -241,8 +225,7 @@ queue<int> Deletion::draw_random_realization(
     int type_id = this->sequence_type_id;
     string &seq = constructed_sequences[type_id];
 
-    for (unordered_map<string, Event_realization>::const_iterator iter =
-                 this->event_realizations.begin();
+    for (unordered_map<string, Event_realization>::const_iterator iter = this->event_realizations.begin();
          iter != this->event_realizations.end(); ++iter) {
         prob_count += model_marginals_p[index_map.at(this->get_name()) + (*iter).second.index];
         if (prob_count >= rand) {
@@ -262,8 +245,7 @@ queue<int> Deletion::draw_random_realization(
                 for (vector<pair<shared_ptr<const Rec_Event>, int>>::const_iterator jiter =
                              offset_map.at(this->get_name()).begin();
                      jiter != offset_map.at(this->get_name()).end(); ++jiter) {
-                    index_map.at((*jiter).first->get_name()) +=
-                            (*iter).second.index * (*jiter).second;
+                    index_map.at((*jiter).first->get_name()) += (*iter).second.index * (*jiter).second;
                 }
             }
             break;
@@ -274,23 +256,19 @@ queue<int> Deletion::draw_random_realization(
 
 void Deletion::write2txt(ofstream &outfile)
 {
-    outfile << "#Deletion;" << event_class << ";" << event_side << ";" << priority << ";"
-            << nickname << endl;
+    outfile << "#Deletion;" << event_class << ";" << event_side << ";" << priority << ";" << nickname << endl;
     for (unordered_map<string, Event_realization>::const_iterator iter = event_realizations.begin();
          iter != event_realizations.end(); ++iter) {
-        outfile << "%" << (*iter).second.name << ";" << (*iter).second .value_int<< ";"
-                << (*iter).second.index << endl;
+        outfile << "%" << (*iter).second.name << ";" << (*iter).second.value_int << ";" << (*iter).second.index << endl;
     }
 }
 
 void Deletion::initialize_event(
         unordered_set<Rec_Event_name> &processed_events,
         const unordered_map<tuple<Event_type, int, Seq_side>, shared_ptr<Rec_Event>> &events_map,
-        const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>>
-                &offset_map,
-        Downstream_scenario_proba_bound_map &downstream_proba_map,
-        Seq_type_str_p_map &constructed_sequences, Safety_bool_map &safety_set,
-        shared_ptr<Error_rate> error_rate_p, Mismatch_vectors_map &mismatches_list,
+        const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
+        Downstream_scenario_proba_bound_map &downstream_proba_map, Seq_type_str_p_map &constructed_sequences,
+        Safety_bool_map &safety_set, shared_ptr<Error_rate> error_rate_p, Mismatch_vectors_map &mismatches_list,
         Seq_offsets_map &seq_offsets, Index_map &index_map)
 {
     // 1. Determine Sequence Type ID
@@ -314,10 +292,8 @@ void Deletion::initialize_event(
 
     // 2. Neighbors
     auto &registry = get_sequence_type_registry();
-    auto upstream_neighbors =
-            registry.get_upstream_neighbors((SequenceTypeRegistry::TypeId)this->sequence_type_id);
-    auto downstream_neighbors =
-            registry.get_downstream_neighbors((SequenceTypeRegistry::TypeId)this->sequence_type_id);
+    auto upstream_neighbors = registry.get_upstream_neighbors((SequenceTypeRegistry::TypeId)this->sequence_type_id);
+    auto downstream_neighbors = registry.get_downstream_neighbors((SequenceTypeRegistry::TypeId)this->sequence_type_id);
 
     // Reset
     upstream_seq_type = -1;
@@ -330,8 +306,7 @@ void Deletion::initialize_event(
     downstream_ins_type = -1;
 
     for (const auto &neighbor : upstream_neighbors) {
-        auto status = EventUtils::check_gene_choice((Gene_class)neighbor.neighbor_type, events_map,
-                                                    processed_events);
+        auto status = EventUtils::check_gene_choice((Gene_class)neighbor.neighbor_type, events_map, processed_events);
         if (status.exists) {
             upstream_exists = true;
             upstream_seq_type = neighbor.neighbor_type;
@@ -343,8 +318,7 @@ void Deletion::initialize_event(
     }
 
     for (const auto &neighbor : downstream_neighbors) {
-        auto status = EventUtils::check_gene_choice((Gene_class)neighbor.neighbor_type, events_map,
-                                                    processed_events);
+        auto status = EventUtils::check_gene_choice((Gene_class)neighbor.neighbor_type, events_map, processed_events);
         if (status.exists) {
             downstream_exists = true;
             downstream_seq_type = neighbor.neighbor_type;
@@ -357,46 +331,39 @@ void Deletion::initialize_event(
 
     // 3. Request Memory Layers
     seq_offsets.request_memory_layer(this->sequence_type_id, Three_prime);
-    this->memory_layer_off_threep =
-            seq_offsets.get_current_memory_layer(this->sequence_type_id, Three_prime);
+    this->memory_layer_off_threep = seq_offsets.get_current_memory_layer(this->sequence_type_id, Three_prime);
 
     seq_offsets.request_memory_layer(this->sequence_type_id, Five_prime);
-    this->memory_layer_off_fivep =
-            seq_offsets.get_current_memory_layer(this->sequence_type_id, Five_prime);
+    this->memory_layer_off_fivep = seq_offsets.get_current_memory_layer(this->sequence_type_id, Five_prime);
 
     constructed_sequences.request_memory_layer(this->sequence_type_id);
     this->memory_layer_cs = constructed_sequences.get_current_memory_layer(this->sequence_type_id);
 
     if (upstream_exists) {
-        memory_layer_off_check1 =
-                seq_offsets.get_current_memory_layer(upstream_seq_type, Three_prime);
+        memory_layer_off_check1 = seq_offsets.get_current_memory_layer(upstream_seq_type, Three_prime);
         safety_set.request_memory_layer(upstream_ins_type);
         memory_layer_safety_upstream = safety_set.get_current_memory_layer(upstream_ins_type);
 
         downstream_proba_map.request_memory_layer(upstream_ins_type);
-        memory_layer_proba_map_junction_upstream =
-                downstream_proba_map.get_current_memory_layer(upstream_ins_type);
+        memory_layer_proba_map_junction_upstream = downstream_proba_map.get_current_memory_layer(upstream_ins_type);
     }
 
     if (downstream_exists) {
-        memory_layer_off_check2 =
-                seq_offsets.get_current_memory_layer(downstream_seq_type, Five_prime);
+        memory_layer_off_check2 = seq_offsets.get_current_memory_layer(downstream_seq_type, Five_prime);
         safety_set.request_memory_layer(downstream_ins_type);
         memory_layer_safety_downstream = safety_set.get_current_memory_layer(downstream_ins_type);
 
         downstream_proba_map.request_memory_layer(downstream_ins_type);
-        memory_layer_proba_map_junction =
-                downstream_proba_map.get_current_memory_layer(downstream_ins_type);
+        memory_layer_proba_map_junction = downstream_proba_map.get_current_memory_layer(downstream_ins_type);
     }
 
-    this->Rec_Event::initialize_event(processed_events, events_map, offset_map,
-                                      downstream_proba_map, constructed_sequences, safety_set,
-                                      error_rate_p, mismatches_list, seq_offsets, index_map);
+    this->Rec_Event::initialize_event(processed_events, events_map, offset_map, downstream_proba_map,
+                                      constructed_sequences, safety_set, error_rate_p, mismatches_list, seq_offsets,
+                                      index_map);
 }
 
 void Deletion::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &model_queue,
-                                          const Marginal_array_p &model_parameters_point,
-                                          Index_map &base_index_map)
+                                          const Marginal_array_p &model_parameters_point, Index_map &base_index_map)
 {
     Seq_type_str_p_map constructed_sequences(SequenceTypeRegistry::get_instance().size());
     junction_length_best_proba_maps.clear();
@@ -404,33 +371,32 @@ void Deletion::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &model_qu
     if (downstream_exists) {
         double init_proba = 1.0;
         this->Rec_Event::iterate_initialize_Len_proba(
-                downstream_ins_type, junction_length_best_proba_maps[downstream_ins_type],
-                model_queue, init_proba, model_parameters_point, base_index_map,
-                constructed_sequences);
+                downstream_ins_type, junction_length_best_proba_maps[downstream_ins_type], model_queue, init_proba,
+                model_parameters_point, base_index_map, constructed_sequences);
     }
     if (upstream_exists) {
         double init_proba = 1.0;
         this->Rec_Event::iterate_initialize_Len_proba(
-                upstream_ins_type, junction_length_best_proba_maps[upstream_ins_type], model_queue,
-                init_proba, model_parameters_point, base_index_map, constructed_sequences);
+                upstream_ins_type, junction_length_best_proba_maps[upstream_ins_type], model_queue, init_proba,
+                model_parameters_point, base_index_map, constructed_sequences);
     }
 }
 void Deletion::set_nickname(string name)
 {
     this->nickname = name;
     auto &registry = get_sequence_type_registry();
-    
+
     // Try to get type_id directly first
     int type_id = registry.try_get_type_id(this->nickname);
-    
+
     if (type_id >= 0) {
         // Type already registered, use it
         this->sequence_type_id = type_id;
     } else {
         // Check for tandem D junction deletion patterns
         // Junction deletions have names like V_3_del (standard) or VD1_3_del (tandem D)
-        if ((this->event_class == VD_genes || this->event_class == DJ_genes) &&
-            (this->nickname.find("VD") == 0 || this->nickname.find("DJ") == 0)) {
+        if ((this->event_class == VD_genes || this->event_class == DJ_genes)
+            && (this->nickname.find("VD") == 0 || this->nickname.find("DJ") == 0)) {
             // Register as a junction-specific deletion
             this->sequence_type_id = registry.register_junction_type(this->nickname);
         } else {
@@ -445,23 +411,19 @@ bool Deletion::has_effect_on(int) const
     return false; // deletion events affect something?
 }
 
-void Deletion::add_to_marginals(long double, Marginal_array_p&) const
+void Deletion::add_to_marginals(long double, Marginal_array_p &) const
 {
     // TODO: implement this if needed
 }
 
-void Deletion::iterate_initialize_Len_proba(int considered_junction,
-                                                std::map<int, double> &length_best_proba_map,
-                                                std::queue<std::shared_ptr<Rec_Event>> &model_queue,
-                                                double &scenario_proba,
-                                                const Marginal_array_p &model_parameters_point,
-                                                Index_map &base_index_map,
-                                                Seq_type_str_p_map &constructed_sequences,
-                                                int &seq_len) const
+void Deletion::iterate_initialize_Len_proba(int considered_junction, std::map<int, double> &length_best_proba_map,
+                                            std::queue<std::shared_ptr<Rec_Event>> &model_queue, double &scenario_proba,
+                                            const Marginal_array_p &model_parameters_point, Index_map &base_index_map,
+                                            Seq_type_str_p_map &constructed_sequences, int &seq_len) const
 {
     // Deletion events don't directly affect junction length probabilities
     // They influence safety constraints which are handled elsewhere
-    Rec_Event::iterate_initialize_Len_proba_wrap_up(considered_junction, length_best_proba_map,
-                model_queue, scenario_proba, model_parameters_point,
-                base_index_map, constructed_sequences, seq_len);
+    Rec_Event::iterate_initialize_Len_proba_wrap_up(considered_junction, length_best_proba_map, model_queue,
+                                                    scenario_proba, model_parameters_point, base_index_map,
+                                                    constructed_sequences, seq_len);
 }

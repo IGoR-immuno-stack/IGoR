@@ -17,10 +17,8 @@ public:
 
     std::string type() const override { return "ErrorsCounter"; };
 
-    void count_scenario(long double, double, const std::string &, Seq_type_str_p_map &,
-                        const Seq_offsets_map &,
-                        const std::unordered_map<std::tuple<Event_type, int, Seq_side>,
-                                                 std::shared_ptr<Rec_Event>> &,
+    void count_scenario(long double, double, const std::string &, Seq_type_str_p_map &, const Seq_offsets_map &,
+                        const std::unordered_map<std::tuple<Event_type, int, Seq_side>, std::shared_ptr<Rec_Event>> &,
                         Mismatch_vectors_map &) override;
 
     void initialize_counter(const Model_Parms &, const Model_marginals &) override;
@@ -32,5 +30,5 @@ public:
 private:
     std::map<int, int> memory_layer_mismatches_map;
     size_t counter_size;
-    long double* updated_counter_pointer;
+    long double *updated_counter_pointer;
 };

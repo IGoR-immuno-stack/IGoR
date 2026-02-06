@@ -75,8 +75,7 @@ void ExtractFeatures::load_VJanchors(unordered_map<string, size_t> v_CDR3_anchor
 //}
 
 void ExtractFeatures::set_sorted_alignments(
-        unordered_map<int, pair<string, unordered_map<Gene_class, vector<Alignment_data>>>>
-                *pointer)
+        unordered_map<int, pair<string, unordered_map<Gene_class, vector<Alignment_data>>>> *pointer)
 {
     p_sorted_alignments = pointer;
 }
@@ -98,8 +97,7 @@ CDR3SeqData ExtractFeatures::extractCDR3(int seq_index)
     // V anchor  //
     ///////////////
     // Get all the V alignments corresponding to seq_index
-    vector<Alignment_data> Vec_V_Alignment_data =
-            ((*p_sorted_alignments)[seq_index].second)[V_gene];
+    vector<Alignment_data> Vec_V_Alignment_data = ((*p_sorted_alignments)[seq_index].second)[V_gene];
     // If V alignment was found then get the corresponding V CDR3 anchor
     if (Vec_V_Alignment_data.size() > 0) {
         Alignment_data v_alig = Vec_V_Alignment_data.front();
@@ -110,8 +108,7 @@ CDR3SeqData ExtractFeatures::extractCDR3(int seq_index)
     // J anchor  //
     ///////////////
     // Get all the J alignments corresponding to seq_index
-    vector<Alignment_data> Vec_J_Alignment_data =
-            ((*p_sorted_alignments)[seq_index].second)[J_gene];
+    vector<Alignment_data> Vec_J_Alignment_data = ((*p_sorted_alignments)[seq_index].second)[J_gene];
     // If V alignment was found then get the corresponding V CDR3 anchor
     if (Vec_J_Alignment_data.size() > 0) {
         Alignment_data j_alig = Vec_J_Alignment_data.front();
@@ -144,17 +141,15 @@ int ExtractFeatures::getVAnchor4Seq(string seq_str, Alignment_data v_alig)
 
     // Get the anchor from map and correct them.
     cdr3_v_gene_anch = UMap_v_CDR3_anchors[v_alig.gene_name];
-    int v_ins_correction =
-            std::count_if(v_alig.insertions.begin(), v_alig.insertions.end(),
-                          // Lambda function for condition
-                          [cdr3_v_gene_anch](int inss) { return (inss <= cdr3_v_gene_anch); });
+    int v_ins_correction = std::count_if(v_alig.insertions.begin(), v_alig.insertions.end(),
+                                         // Lambda function for condition
+                                         [cdr3_v_gene_anch](int inss) { return (inss <= cdr3_v_gene_anch); });
     cdr3_v_gene_anch = cdr3_v_gene_anch + v_ins_correction;
 
     int cdr3_v_read_anch = cdr3_v_gene_anch + v_alig.offset;
-    int dels_correction =
-            std::count_if(v_alig.deletions.begin(), v_alig.deletions.end(),
-                          // Lambda function for condition
-                          [cdr3_v_read_anch](int dels) { return (dels <= cdr3_v_read_anch); });
+    int dels_correction = std::count_if(v_alig.deletions.begin(), v_alig.deletions.end(),
+                                        // Lambda function for condition
+                                        [cdr3_v_read_anch](int dels) { return (dels <= cdr3_v_read_anch); });
     cdr3_v_read_anch = cdr3_v_read_anch + dels_correction; // ins_size before the cdr3 a
 
     return cdr3_v_read_anch;
@@ -183,17 +178,15 @@ int ExtractFeatures::getJAnchor4Seq(string seq_str, Alignment_data j_alig)
 
     // Get the anchor from map and correct them.
     cdr3_j_gene_anch = UMap_j_CDR3_anchors[j_alig.gene_name];
-    int j_ins_correction =
-            std::count_if(j_alig.insertions.begin(), j_alig.insertions.end(),
-                          // Lambda function for condition
-                          [cdr3_j_gene_anch](int inss) { return (inss <= cdr3_j_gene_anch); });
+    int j_ins_correction = std::count_if(j_alig.insertions.begin(), j_alig.insertions.end(),
+                                         // Lambda function for condition
+                                         [cdr3_j_gene_anch](int inss) { return (inss <= cdr3_j_gene_anch); });
     cdr3_j_gene_anch = cdr3_j_gene_anch + j_ins_correction;
 
     int cdr3_j_read_anch = cdr3_j_gene_anch + j_alig.offset;
-    int j_dels_correction =
-            std::count_if(j_alig.deletions.begin(), j_alig.deletions.end(),
-                          // Lambda function for condition
-                          [cdr3_j_read_anch](int dels) { return (dels <= cdr3_j_read_anch); });
+    int j_dels_correction = std::count_if(j_alig.deletions.begin(), j_alig.deletions.end(),
+                                          // Lambda function for condition
+                                          [cdr3_j_read_anch](int dels) { return (dels <= cdr3_j_read_anch); });
 
     // In order to get the phelanine or triptophan in the sequence +3.
     cdr3_j_read_anch = cdr3_j_read_anch + j_dels_correction + 3; // ins_size before the cdr3 anchor
@@ -224,8 +217,7 @@ string ExtractFeatures::generateCDR3_csv_line(CDR3SeqData cdr3InputSeq)
     } else {
         sstm << cdr3InputSeq.v_anchor << strCSVdelimiter;
         sstm << cdr3InputSeq.j_anchor << strCSVdelimiter;
-        string strCDR3 = seq_str.substr(cdr3InputSeq.v_anchor,
-                                        cdr3InputSeq.j_anchor - cdr3InputSeq.v_anchor);
+        string strCDR3 = seq_str.substr(cdr3InputSeq.v_anchor, cdr3InputSeq.j_anchor - cdr3InputSeq.v_anchor);
         sstm << strCDR3 << strCSVdelimiter;
         sstm << translate(strCDR3);
     }

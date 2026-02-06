@@ -50,8 +50,7 @@ public:
 
     bool operator==(const Int_Str &other) const
     {
-        return static_cast<const std::vector<int> &>(*this)
-                == static_cast<const std::vector<int> &>(other);
+        return static_cast<const std::vector<int> &>(*this) == static_cast<const std::vector<int> &>(other);
     }
 
     Int_Str substr(std::size_t pos = 0,

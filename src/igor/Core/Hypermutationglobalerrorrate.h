@@ -59,20 +59,16 @@ public:
     Hypermutation_global_errorrate(size_t, Gene_class, Gene_class, double);
     Hypermutation_global_errorrate(size_t, Gene_class, Gene_class, double, std::vector<double>);
     Hypermutation_global_errorrate(size_t, Gene_class, Gene_class, double, std::string);
-    Hypermutation_global_errorrate(size_t, Gene_class, Gene_class, double, std::vector<double>,
-                                   std::string);
+    Hypermutation_global_errorrate(size_t, Gene_class, Gene_class, double, std::vector<double>, std::string);
     // Hypermutation_global_errorrate(size_t,Gene_class,Gene_class, ??);
     // Constructor to read or copy the error rate
     virtual ~Hypermutation_global_errorrate();
-    double
-    compare_sequences_error_prob(double, const std::string &, Seq_type_str_p_map &,
-                                 const Seq_offsets_map &,
-                                 const std::unordered_map<std::tuple<Event_type, int, Seq_side>,
-                                                          std::shared_ptr<Rec_Event>> &,
-                                 Mismatch_vectors_map &, double &, double &);
+    double compare_sequences_error_prob(
+            double, const std::string &, Seq_type_str_p_map &, const Seq_offsets_map &,
+            const std::unordered_map<std::tuple<Event_type, int, Seq_side>, std::shared_ptr<Rec_Event>> &,
+            Mismatch_vectors_map &, double &, double &);
     void update();
-    void initialize(const std::unordered_map<std::tuple<Event_type, int, Seq_side>,
-                                             std::shared_ptr<Rec_Event>> &);
+    void initialize(const std::unordered_map<std::tuple<Event_type, int, Seq_side>, std::shared_ptr<Rec_Event>> &);
     void add_to_norm_counter();
     void clean_seq_counters();
     void clean_all_counters();
@@ -95,8 +91,7 @@ private:
     double compute_new_model_likelihood(double, gsl_vector *);
     void increment_base_10_and_4(int &, int *);
 
-    void introduce_uniform_transversion(char &, std::mt19937_64 &,
-                                        std::uniform_real_distribution<double> &) const;
+    void introduce_uniform_transversion(char &, std::mt19937_64 &, std::uniform_real_distribution<double> &) const;
 
     Gene_class learn_on;
     Gene_class apply_to;

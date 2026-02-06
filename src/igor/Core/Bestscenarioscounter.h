@@ -57,11 +57,10 @@ public:
 
     void initialize_counter(const Model_Parms &, const Model_marginals &);
 
-    void count_scenario(long double, double, const std::string &, Seq_type_str_p_map &,
-                        const Seq_offsets_map &,
-                        const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>,
-                                                 std::shared_ptr<Rec_Event>> &,
-                        Mismatch_vectors_map &);
+    void
+    count_scenario(long double, double, const std::string &, Seq_type_str_p_map &, const Seq_offsets_map &,
+                   const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> &,
+                   Mismatch_vectors_map &);
 
     void count_sequence(double, const Model_marginals &, const Model_Parms &);
 
@@ -78,8 +77,7 @@ public:
 
     std::list<int> single_scenario_mismatches_list;
 
-    std::vector<std::tuple<double, std::queue<std::vector<int>>, std::list<int>>>
-            best_scenarios_vec;
+    std::vector<std::tuple<double, std::queue<std::vector<int>>, std::list<int>>> best_scenarios_vec;
 
     std::forward_list<std::shared_ptr<const Rec_Event>> event_fw_list;
 };

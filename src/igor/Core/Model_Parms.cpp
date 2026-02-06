@@ -36,8 +36,7 @@
 
 using namespace std;
 
-namespace
-{
+namespace {
 
 /**
  * @brief Register tandem D types based on model nickname patterns.
@@ -98,8 +97,7 @@ Model_Parms::Model_Parms(list<shared_ptr<Rec_Event>> event_list)
     // this->edges = *(new unordered_map<Rec_Event_name,Adjacency_list>());
     // //FIXME nonsense new
     size_t event_identifier = 0;
-    for (list<shared_ptr<Rec_Event>>::const_iterator iter = this->events.begin();
-         iter != this->events.end(); ++iter) {
+    for (list<shared_ptr<Rec_Event>>::const_iterator iter = this->events.begin(); iter != this->events.end(); ++iter) {
         this->edges.emplace((*iter)->get_name(), Adjacency_list());
         (*iter)->set_event_identifier(event_identifier);
         ++event_identifier;
@@ -230,7 +228,7 @@ list<shared_ptr<Rec_Event>> Model_Parms::get_parents(Rec_Event_name event_name) 
     if (it == edges.end()) {
         cerr << "Error in get_parents: Key not found: " << event_name << endl;
         cerr << "Available keys in edges map:" << endl;
-        for (auto const& [key, val] : edges) {
+        for (auto const &[key, val] : edges) {
             cerr << "  " << key << endl;
         }
         throw out_of_range("Key not found in edges map");
@@ -293,8 +291,7 @@ list<shared_ptr<Rec_Event>> Model_Parms::get_ancestors(Rec_Event_name event_name
 
     // Get the considered event parent
     if (edges.count(event_name) <= 0) {
-        throw runtime_error("Model_Parms::get_parents(): event \"" + event_name
-                            + "\" does not exist in \"this\".");
+        throw runtime_error("Model_Parms::get_parents(): event \"" + event_name + "\" does not exist in \"this\".");
     }
     exploratory_list = edges.at(event_name).parents;
 
@@ -304,8 +301,7 @@ list<shared_ptr<Rec_Event>> Model_Parms::get_ancestors(Rec_Event_name event_name
         if (ancestor_set.count(exploratory_list.front()) <= 0) {
             final_list.emplace_back(exploratory_list.front());
             ancestor_set.emplace(exploratory_list.front());
-            const list<shared_ptr<Rec_Event>> &parents =
-                    edges.at(exploratory_list.front()->get_name()).parents;
+            const list<shared_ptr<Rec_Event>> &parents = edges.at(exploratory_list.front()->get_name()).parents;
             ;
             exploratory_list.insert(exploratory_list.end(), parents.begin(), parents.end());
         }
@@ -341,8 +337,7 @@ bool Model_Parms::add_edge(shared_ptr<Rec_Event> parent_point, shared_ptr<Rec_Ev
     // Check whether it is creating a cycle
     // First check the silly self-loop cycle
     if (parent_point->get_name() == child_point->get_name()) {
-        throw runtime_error("Trying to create an edge between " + parent_point->get_name()
-                            + "and itself");
+        throw runtime_error("Trying to create an edge between " + parent_point->get_name() + "and itself");
     }
 
     // Else check if the new children is an ancestor of the new parent (this would
@@ -350,8 +345,7 @@ bool Model_Parms::add_edge(shared_ptr<Rec_Event> parent_point, shared_ptr<Rec_Ev
     list<shared_ptr<Rec_Event>> parent_ancestors = this->get_ancestors(parent_point);
     for (const shared_ptr<Rec_Event> event_ptr : parent_ancestors) {
         if (child_point->get_name() == event_ptr->get_name()) {
-            throw runtime_error(child_point->get_name() + " is an ancestor of "
-                                + parent_point->get_name()
+            throw runtime_error(child_point->get_name() + " is an ancestor of " + parent_point->get_name()
                                 + " adding an edge would create a cycle in the graph, "
                                   "in Model_Parms::add_edge");
         }
@@ -384,8 +378,7 @@ bool Model_Parms::remove_edge(shared_ptr<Rec_Event> parent_point, shared_ptr<Rec
         list<shared_ptr<Rec_Event>>::iterator iter;
 
         // Remove the child from the parent's children list
-        list<shared_ptr<Rec_Event>> &children_list =
-                this->edges.at(parent_point->get_name()).children;
+        list<shared_ptr<Rec_Event>> &children_list = this->edges.at(parent_point->get_name()).children;
         for (iter = children_list.begin(); iter != children_list.end(); ++iter) {
             // Compare the pointers and stop when finding the correct one
             if ((*iter) == child_point) {
@@ -407,8 +400,8 @@ bool Model_Parms::remove_edge(shared_ptr<Rec_Event> parent_point, shared_ptr<Rec
         parents_list.erase(iter);
         return 1;
     } else {
-        throw runtime_error("Model_Parms::remove_edge(): edge between \"" + parent_point->get_name()
-                            + "\" and \"" + child_point->get_name() + "\" does not exist.");
+        throw runtime_error("Model_Parms::remove_edge(): edge between \"" + parent_point->get_name() + "\" and \""
+                            + child_point->get_name() + "\" does not exist.");
     }
 }
 
@@ -441,8 +434,8 @@ void Model_Parms::invert_edge(shared_ptr<Rec_Event> ev1_point, shared_ptr<Rec_Ev
             this->add_edge(ev2_point, ev1_point);
         } catch (exception &e) {
             // add_edge checks for cycle creation since 13/04/2017
-            cerr << "Exception caught trying to invert an edge between " + ev1_point->get_name()
-                            + " and " + ev2_point->get_name()
+            cerr << "Exception caught trying to invert an edge between " + ev1_point->get_name() + " and "
+                            + ev2_point->get_name()
                             + " in Model_Parms::invert_edge , this is most likely creating "
                               "a cycle, throwing exception now..."
                  << endl;
@@ -458,8 +451,8 @@ void Model_Parms::invert_edge(shared_ptr<Rec_Event> ev1_point, shared_ptr<Rec_Ev
             this->add_edge(ev1_point, ev2_point);
         } catch (exception &e) {
             // add_edge checks for cycle creation since 13/04/2017
-            cerr << "Exception caught trying to invert an edge between " + ev1_point->get_name()
-                            + " and " + ev2_point->get_name()
+            cerr << "Exception caught trying to invert an edge between " + ev1_point->get_name() + " and "
+                            + ev2_point->get_name()
                             + " in Model_Parms::invert_edge , this is most likely creating "
                               "a cycle, throwing exception now..."
                  << endl;
@@ -467,9 +460,8 @@ void Model_Parms::invert_edge(shared_ptr<Rec_Event> ev1_point, shared_ptr<Rec_Ev
         }
     } else {
         // else: the edge do not exist and throw an exception
-        throw runtime_error("In Model_Parms::invert_edge(): no edge exist between \""
-                            + ev1_point->get_name() + "\" and \"" + ev1_point->get_name()
-                            + "\" events in any direction");
+        throw runtime_error("In Model_Parms::invert_edge(): no edge exist between \"" + ev1_point->get_name()
+                            + "\" and \"" + ev1_point->get_name() + "\" events in any direction");
     }
 }
 
@@ -493,8 +485,7 @@ bool Model_Parms::has_edge(Rec_Event *parent_point, Rec_Event *child_point) cons
     return this->has_edge(parent_smart_p, child_smart_p);
 }
 
-bool Model_Parms::has_edge(shared_ptr<Rec_Event> parent_point,
-                           shared_ptr<Rec_Event> child_point) const
+bool Model_Parms::has_edge(shared_ptr<Rec_Event> parent_point, shared_ptr<Rec_Event> child_point) const
 {
     return this->has_edge(parent_point->get_name(), child_point->get_name());
 }
@@ -517,8 +508,7 @@ bool Model_Parms::has_edge(Rec_Event_name parent_name, Rec_Event_name child_name
 list<shared_ptr<Rec_Event>> Model_Parms::get_roots() const
 {
     list<shared_ptr<Rec_Event>> root_list = list<shared_ptr<Rec_Event>>(); // FIXME nonsense new
-    for (list<shared_ptr<Rec_Event>>::const_iterator iter = this->events.begin();
-         iter != this->events.end(); ++iter) {
+    for (list<shared_ptr<Rec_Event>>::const_iterator iter = this->events.begin(); iter != this->events.end(); ++iter) {
         if (this->edges.count((*iter)->get_name()) == 0) {
             printf("DEBUG Error in get_roots: Key not found: %s\n", (*iter)->get_name().c_str());
             fflush(stdout);
@@ -550,8 +540,8 @@ queue<shared_ptr<Rec_Event>> Model_Parms::get_model_queue() const
     // only by priority
     if (events_copy_list.size() == model_roots.size()) {
         // root list is already sorted by priority
-        for (list<shared_ptr<Rec_Event>>::const_iterator iter = model_roots.begin();
-             iter != model_roots.end(); ++iter) {
+        for (list<shared_ptr<Rec_Event>>::const_iterator iter = model_roots.begin(); iter != model_roots.end();
+             ++iter) {
             model_queue.push(*iter);
         }
         return model_queue;
@@ -564,8 +554,7 @@ queue<shared_ptr<Rec_Event>> Model_Parms::get_model_queue() const
     // Keep track of the events already added to the queue
     unordered_map<Rec_Event_name, shared_ptr<Rec_Event>> *processed_events_point =
             new unordered_map<Rec_Event_name, shared_ptr<Rec_Event>>;
-    (*processed_events_point)
-            .insert(make_pair((*model_roots.begin())->get_name(), *(model_roots.begin())));
+    (*processed_events_point).insert(make_pair((*model_roots.begin())->get_name(), *(model_roots.begin())));
     model_roots.pop_front();
 
     events_copy_list.sort(Event_comparator());
@@ -579,15 +568,15 @@ queue<shared_ptr<Rec_Event>> Model_Parms::get_model_queue() const
         if (this->edges.count((*iter)->get_name()) == 0) {
             cerr << "Error: Event name not found in edges map: " << (*iter)->get_name() << endl;
             cerr << "Available keys in edges map:" << endl;
-            for (auto const& [key, val] : this->edges) {
+            for (auto const &[key, val] : this->edges) {
                 cerr << "  " << key << endl;
             }
             throw out_of_range("Event name not found in edges map");
         }
         list<shared_ptr<Rec_Event>> event_parents = this->edges.at((*iter)->get_name()).parents;
         bool parents_processed = 1;
-        for (list<shared_ptr<Rec_Event>>::const_iterator jiter = event_parents.begin();
-             jiter != event_parents.end(); ++jiter) {
+        for (list<shared_ptr<Rec_Event>>::const_iterator jiter = event_parents.begin(); jiter != event_parents.end();
+             ++jiter) {
             if ((*processed_events_point).count((*jiter)->get_name()) == 0) {
                 parents_processed = 0;
             }
@@ -609,12 +598,10 @@ queue<shared_ptr<Rec_Event>> Model_Parms::get_model_queue() const
     return model_queue;
 }
 
-shared_ptr<Rec_Event> Model_Parms::get_event_pointer(const string &event_str,
-                                                     bool by_nickname) const
+shared_ptr<Rec_Event> Model_Parms::get_event_pointer(const string &event_str, bool by_nickname) const
 {
     // TODO find something better, might be a bottleneck
-    for (list<shared_ptr<Rec_Event>>::const_iterator iter = this->events.begin();
-         iter != this->events.end(); ++iter) {
+    for (list<shared_ptr<Rec_Event>>::const_iterator iter = this->events.begin(); iter != this->events.end(); ++iter) {
         if (by_nickname) {
             if ((*iter)->get_nickname() == event_str) {
                 return (*iter);
@@ -630,8 +617,7 @@ shared_ptr<Rec_Event> Model_Parms::get_event_pointer(const string &event_str,
                             "Model_Parms::get_event_pointer for nickname:"
                             + event_str);
     } else {
-        throw runtime_error("Event pointer not found in Model_Parms::get_event_pointer for name:"
-                            + event_str);
+        throw runtime_error("Event pointer not found in Model_Parms::get_event_pointer for name:" + event_str);
     }
 }
 
@@ -649,21 +635,17 @@ void Model_Parms::update_edge_event_name(Rec_Event_name former_name, Rec_Event_n
     }
 }
 
-const unordered_map<tuple<Event_type, int, Seq_side>, shared_ptr<Rec_Event>>
-Model_Parms::get_events_map() const
+const unordered_map<tuple<Event_type, int, Seq_side>, shared_ptr<Rec_Event>> Model_Parms::get_events_map() const
 {
     unordered_map<tuple<Event_type, int, Seq_side>, shared_ptr<Rec_Event>> events_map;
-    for (list<shared_ptr<Rec_Event>>::const_iterator iter = this->events.begin();
-         iter != this->events.end(); ++iter) {
+    for (list<shared_ptr<Rec_Event>>::const_iterator iter = this->events.begin(); iter != this->events.end(); ++iter) {
         int key_id = (*iter)->get_sequence_type_id();
         // Always add with both sequence_type_id AND event_class to be safe
-        events_map.emplace(tuple<Event_type, int, Seq_side>(
-                                   (*iter)->get_type(), key_id, (*iter)->get_side()),
-                           (*iter));
+        events_map.emplace(tuple<Event_type, int, Seq_side>((*iter)->get_type(), key_id, (*iter)->get_side()), (*iter));
         if (key_id != (*iter)->get_class()) {
-             events_map.emplace(tuple<Event_type, int, Seq_side>(
-                                   (*iter)->get_type(), (*iter)->get_class(), (*iter)->get_side()),
-                           (*iter));
+            events_map.emplace(
+                    tuple<Event_type, int, Seq_side>((*iter)->get_type(), (*iter)->get_class(), (*iter)->get_side()),
+                    (*iter));
         }
     }
     return events_map;
@@ -672,16 +654,13 @@ Model_Parms::get_events_map() const
 unordered_map<tuple<Event_type, int, Seq_side>, shared_ptr<Rec_Event>> Model_Parms::get_events_map()
 {
     unordered_map<tuple<Event_type, int, Seq_side>, shared_ptr<Rec_Event>> events_map;
-    for (list<shared_ptr<Rec_Event>>::const_iterator iter = this->events.begin();
-         iter != this->events.end(); ++iter) {
+    for (list<shared_ptr<Rec_Event>>::const_iterator iter = this->events.begin(); iter != this->events.end(); ++iter) {
         int key_id = (*iter)->get_sequence_type_id();
-        events_map.emplace(tuple<Event_type, int, Seq_side>(
-                                   (*iter)->get_type(), key_id, (*iter)->get_side()),
-                           (*iter));
+        events_map.emplace(tuple<Event_type, int, Seq_side>((*iter)->get_type(), key_id, (*iter)->get_side()), (*iter));
         if (key_id != (*iter)->get_class()) {
-             events_map.emplace(tuple<Event_type, int, Seq_side>(
-                                   (*iter)->get_type(), (*iter)->get_class(), (*iter)->get_side()),
-                           (*iter));
+            events_map.emplace(
+                    tuple<Event_type, int, Seq_side>((*iter)->get_type(), (*iter)->get_class(), (*iter)->get_side()),
+                    (*iter));
         }
     }
     return events_map;
@@ -691,16 +670,13 @@ void Model_Parms::write_model_parms(string filename)
 {
     ofstream outfile(filename);
     outfile << "@Event_list" << endl;
-    for (list<shared_ptr<Rec_Event>>::const_iterator iter = events.begin(); iter != events.end();
-         ++iter) {
+    for (list<shared_ptr<Rec_Event>>::const_iterator iter = events.begin(); iter != events.end(); ++iter) {
         (*iter)->write2txt(outfile);
     }
     outfile << "@Edges" << endl;
-    for (list<shared_ptr<Rec_Event>>::const_iterator iter = events.begin(); iter != events.end();
-         ++iter) {
+    for (list<shared_ptr<Rec_Event>>::const_iterator iter = events.begin(); iter != events.end(); ++iter) {
         list<shared_ptr<Rec_Event>> children = edges[(*iter)->get_name()].children;
-        for (list<shared_ptr<Rec_Event>>::const_iterator jiter = children.begin();
-             jiter != children.end(); ++jiter) {
+        for (list<shared_ptr<Rec_Event>>::const_iterator jiter = children.begin(); jiter != children.end(); ++jiter) {
             outfile << "%" << (*iter)->get_name() << ";" << (*jiter)->get_name() << endl;
         }
     }
@@ -723,26 +699,23 @@ void Model_Parms::read_model_parms(string filename)
             size_t semicolon_index = line_str.find(";", 0);
             string event = line_str.substr(1, semicolon_index - 1);
             size_t next_semicolon_index = line_str.find(";", semicolon_index + 1);
-            string event_class_str = line_str.substr(semicolon_index + 1,
-                                                     (next_semicolon_index - semicolon_index - 1));
+            string event_class_str = line_str.substr(semicolon_index + 1, (next_semicolon_index - semicolon_index - 1));
             Gene_class event_class;
             try {
                 event_class = str2GeneClass(event_class_str);
             } catch (exception &e) {
-                throw runtime_error("Unknown Gene_class\"" + event_class_str
-                                    + "\" in model file: \"" + filename + "\"");
+                throw runtime_error("Unknown Gene_class\"" + event_class_str + "\" in model file: \"" + filename
+                                    + "\"");
             }
 
             semicolon_index = next_semicolon_index;
             next_semicolon_index = line_str.find(";", semicolon_index + 1);
-            string event_side_str = line_str.substr(semicolon_index + 1,
-                                                    (next_semicolon_index - semicolon_index - 1));
+            string event_side_str = line_str.substr(semicolon_index + 1, (next_semicolon_index - semicolon_index - 1));
             Seq_side event_side;
             try {
                 event_side = str2SeqSide(event_side_str);
             } catch (exception &e) {
-                throw runtime_error("Unknown Seq_side\"" + event_side_str + "\" in file: \""
-                                    + filename + "\"");
+                throw runtime_error("Unknown Seq_side\"" + event_side_str + "\" in file: \"" + filename + "\"");
             }
 
             semicolon_index = next_semicolon_index;
@@ -774,8 +747,7 @@ void Model_Parms::read_model_parms(string filename)
                     int index = stoi(line_str.substr(semicolon_index + 1, string::npos));
                     event_realizations.emplace(pair<string, Event_realization>(
                             to_string(value_int),
-                            Event_realization(to_string(value_int), value_int, "", Int_Str(),
-                                              index)));
+                            Event_realization(to_string(value_int), value_int, "", Int_Str(), index)));
                     getline(infile, line_str);
                 }
                 // TODO check this for enum writing
@@ -796,15 +768,14 @@ void Model_Parms::read_model_parms(string filename)
                     int index = stoi(line_str.substr(semicolon_index + 1, string::npos));
                     event_realizations.emplace(pair<string, Event_realization>(
                             to_string(value_int),
-                            Event_realization(to_string(value_int), value_int, "", Int_Str(),
-                                              index)));
+                            Event_realization(to_string(value_int), value_int, "", Int_Str(), index)));
                     getline(infile, line_str);
                 }
                 // TODO check this for enum writing
                 // Deletion new_event = Deletion(event_class , event_side ,
                 // event_realizations);
-                shared_ptr<Deletion> new_event_p = shared_ptr<Deletion>(
-                        new Deletion(event_class, event_side, event_realizations));
+                shared_ptr<Deletion> new_event_p =
+                        shared_ptr<Deletion>(new Deletion(event_class, event_side, event_realizations));
                 new_event_p->set_priority(priority);
                 new_event_p->set_nickname(nickname);
                 this->add_event(new_event_p);
@@ -816,29 +787,26 @@ void Model_Parms::read_model_parms(string filename)
                     semicolon_index = line_str.find(";", 0);
                     string name = line_str.substr(1, semicolon_index - 1);
                     next_semicolon_index = line_str.find(";", semicolon_index + 1);
-                    string value_str = line_str.substr(
-                            semicolon_index + 1, (next_semicolon_index - semicolon_index - 1));
+                    string value_str =
+                            line_str.substr(semicolon_index + 1, (next_semicolon_index - semicolon_index - 1));
                     string test = line_str.substr(next_semicolon_index + 1, string::npos);
                     int index = stoi(line_str.substr(next_semicolon_index + 1, string::npos));
                     event_realizations.emplace(pair<string, Event_realization>(
-                            name,
-                            Event_realization(name, INT16_MAX, value_str, nt2int(value_str),
-                                              index)));
+                            name, Event_realization(name, INT16_MAX, value_str, nt2int(value_str), index)));
                     getline(infile, line_str);
                 }
                 // TODO check this for enum writing
                 // Gene_choice new_event = Gene_choice(event_class , event_side ,
                 // event_realizations);
-                shared_ptr<Gene_choice> new_event_p = shared_ptr<Gene_choice>(new Gene_choice(
-                        event_class,
-                        event_realizations)); // TODO construct event before and use add
+                shared_ptr<Gene_choice> new_event_p = shared_ptr<Gene_choice>(
+                        new Gene_choice(event_class,
+                                        event_realizations)); // TODO construct event before and use add
                 // realization instead?
                 new_event_p->set_priority(priority);
                 new_event_p->set_nickname(nickname);
                 this->add_event(new_event_p);
             } else if (event == string("DinucMarkov")) {
-                shared_ptr<Dinucl_markov> new_event_p =
-                        shared_ptr<Dinucl_markov>(new Dinucl_markov(event_class));
+                shared_ptr<Dinucl_markov> new_event_p = shared_ptr<Dinucl_markov>(new Dinucl_markov(event_class));
                 new_event_p->set_priority(priority);
                 new_event_p->set_nickname(nickname);
                 this->add_event(new_event_p);
@@ -861,18 +829,18 @@ void Model_Parms::read_model_parms(string filename)
             size_t semicolon_index = line_str.find(";", 0);
             string parent_name = line_str.substr(1, semicolon_index - 1);
             string child_name = line_str.substr(semicolon_index + 1, string::npos);
-            
+
             shared_ptr<Rec_Event> parent_p;
             try {
                 parent_p = get_event_pointer(parent_name, false);
-            } catch (exception& e) {
+            } catch (exception &e) {
                 parent_p = get_event_pointer(parent_name, true);
             }
 
             shared_ptr<Rec_Event> child_p;
             try {
                 child_p = get_event_pointer(child_name, false);
-            } catch (exception& e) {
+            } catch (exception &e) {
                 child_p = get_event_pointer(child_name, true);
             }
 
@@ -897,33 +865,29 @@ void Model_Parms::read_model_parms(string filename)
             // Get the general attributes for the hypermutation model
             // (size,learn_on,apply_on)
             size_t next_semicolon_index = line_str.find(";", semicolon_index + 1);
-            size_t mutation_Nmer_size = stoi(line_str.substr(
-                    semicolon_index + 1, (next_semicolon_index - semicolon_index - 1)));
+            size_t mutation_Nmer_size =
+                    stoi(line_str.substr(semicolon_index + 1, (next_semicolon_index - semicolon_index - 1)));
             semicolon_index = next_semicolon_index;
             next_semicolon_index = line_str.find(";", semicolon_index + 1);
             Gene_class learn_on;
             try {
-                learn_on = str2GeneClass(line_str.substr(
-                        semicolon_index + 1, (next_semicolon_index - semicolon_index - 1)));
+                learn_on = str2GeneClass(
+                        line_str.substr(semicolon_index + 1, (next_semicolon_index - semicolon_index - 1)));
             } catch (exception &e) {
                 throw runtime_error("Unknown Gene_class\""
-                                    + line_str.substr(semicolon_index + 1,
-                                                      (next_semicolon_index - semicolon_index - 1))
-                                    + "\" for Hypermutationglobalerrorrate in model file: "
-                                    + filename);
+                                    + line_str.substr(semicolon_index + 1, (next_semicolon_index - semicolon_index - 1))
+                                    + "\" for Hypermutationglobalerrorrate in model file: " + filename);
             }
             semicolon_index = next_semicolon_index;
             next_semicolon_index = line_str.find(";", semicolon_index + 1);
             Gene_class apply_on;
             try {
-                apply_on = str2GeneClass(line_str.substr(
-                        semicolon_index + 1, (next_semicolon_index - semicolon_index - 1)));
+                apply_on = str2GeneClass(
+                        line_str.substr(semicolon_index + 1, (next_semicolon_index - semicolon_index - 1)));
             } catch (exception &e) {
                 throw runtime_error("Unknown Gene_class\""
-                                    + line_str.substr(semicolon_index + 1,
-                                                      (next_semicolon_index - semicolon_index - 1))
-                                    + "\" for Hypermutationglobalerrorrate in model file: "
-                                    + filename);
+                                    + line_str.substr(semicolon_index + 1, (next_semicolon_index - semicolon_index - 1))
+                                    + "\" for Hypermutationglobalerrorrate in model file: " + filename);
             }
 
             // Get the global rate
@@ -937,50 +901,45 @@ void Model_Parms::read_model_parms(string filename)
             vector<double> ei_contributions;
             while (semicolon_index != string::npos) {
                 if (semicolon_index == 0) {
-                    ei_contributions.push_back(stod(line_str.substr(
-                            semicolon_index, (next_semicolon_index - semicolon_index))));
+                    ei_contributions.push_back(
+                            stod(line_str.substr(semicolon_index, (next_semicolon_index - semicolon_index))));
                 } else {
-                    ei_contributions.push_back(stod(line_str.substr(
-                            semicolon_index + 1, (next_semicolon_index - semicolon_index - 1))));
+                    ei_contributions.push_back(
+                            stod(line_str.substr(semicolon_index + 1, (next_semicolon_index - semicolon_index - 1))));
                 }
                 semicolon_index = next_semicolon_index;
                 next_semicolon_index = line_str.find(";", semicolon_index + 1);
             }
-            shared_ptr<Hypermutation_global_errorrate> err_rate_p =
-                    shared_ptr<Hypermutation_global_errorrate>(new Hypermutation_global_errorrate(
-                            mutation_Nmer_size, learn_on, apply_on, R, ei_contributions));
+            shared_ptr<Hypermutation_global_errorrate> err_rate_p = shared_ptr<Hypermutation_global_errorrate>(
+                    new Hypermutation_global_errorrate(mutation_Nmer_size, learn_on, apply_on, R, ei_contributions));
             this->set_error_ratep(err_rate_p);
         } else if (errrate == string("#HypermutationfullNmererrorrate")) {
             // Get the general attributes for the hypermutation model
             // (size,learn_on,apply_on)
             size_t next_semicolon_index = line_str.find(";", semicolon_index + 1);
-            size_t mutation_Nmer_size = stoi(line_str.substr(
-                    semicolon_index + 1, (next_semicolon_index - semicolon_index - 1)));
+            size_t mutation_Nmer_size =
+                    stoi(line_str.substr(semicolon_index + 1, (next_semicolon_index - semicolon_index - 1)));
             semicolon_index = next_semicolon_index;
             next_semicolon_index = line_str.find(";", semicolon_index + 1);
             Gene_class learn_on;
             try {
-                learn_on = str2GeneClass(line_str.substr(
-                        semicolon_index + 1, (next_semicolon_index - semicolon_index - 1)));
+                learn_on = str2GeneClass(
+                        line_str.substr(semicolon_index + 1, (next_semicolon_index - semicolon_index - 1)));
             } catch (exception &e) {
                 throw runtime_error("Unknown Gene_class\""
-                                    + line_str.substr(semicolon_index + 1,
-                                                      (next_semicolon_index - semicolon_index - 1))
-                                    + "\" for Hypermutationglobalerrorrate in model file: "
-                                    + filename);
+                                    + line_str.substr(semicolon_index + 1, (next_semicolon_index - semicolon_index - 1))
+                                    + "\" for Hypermutationglobalerrorrate in model file: " + filename);
             }
             semicolon_index = next_semicolon_index;
             next_semicolon_index = line_str.find(";", semicolon_index + 1);
             Gene_class apply_on;
             try {
-                apply_on = str2GeneClass(line_str.substr(
-                        semicolon_index + 1, (next_semicolon_index - semicolon_index - 1)));
+                apply_on = str2GeneClass(
+                        line_str.substr(semicolon_index + 1, (next_semicolon_index - semicolon_index - 1)));
             } catch (exception &e) {
                 throw runtime_error("Unknown Gene_class\""
-                                    + line_str.substr(semicolon_index + 1,
-                                                      (next_semicolon_index - semicolon_index - 1))
-                                    + "\" for Hypermutationglobalerrorrate in model file: "
-                                    + filename);
+                                    + line_str.substr(semicolon_index + 1, (next_semicolon_index - semicolon_index - 1))
+                                    + "\" for Hypermutationglobalerrorrate in model file: " + filename);
             }
 
             // Get the mutation probas
@@ -990,23 +949,20 @@ void Model_Parms::read_model_parms(string filename)
             vector<double> mutation_probas;
             while (semicolon_index != string::npos) {
                 if (semicolon_index == 0) {
-                    mutation_probas.push_back(stod(line_str.substr(
-                            semicolon_index, (next_semicolon_index - semicolon_index))));
+                    mutation_probas.push_back(
+                            stod(line_str.substr(semicolon_index, (next_semicolon_index - semicolon_index))));
                 } else {
-                    mutation_probas.push_back(stod(line_str.substr(
-                            semicolon_index + 1, (next_semicolon_index - semicolon_index - 1))));
+                    mutation_probas.push_back(
+                            stod(line_str.substr(semicolon_index + 1, (next_semicolon_index - semicolon_index - 1))));
                 }
                 semicolon_index = next_semicolon_index;
                 next_semicolon_index = line_str.find(";", semicolon_index + 1);
             }
-            shared_ptr<Hypermutation_full_Nmer_errorrate> err_rate_p =
-                    shared_ptr<Hypermutation_full_Nmer_errorrate>(
-                            new Hypermutation_full_Nmer_errorrate(mutation_Nmer_size, learn_on,
-                                                                  apply_on, mutation_probas));
+            shared_ptr<Hypermutation_full_Nmer_errorrate> err_rate_p = shared_ptr<Hypermutation_full_Nmer_errorrate>(
+                    new Hypermutation_full_Nmer_errorrate(mutation_Nmer_size, learn_on, apply_on, mutation_probas));
             this->set_error_ratep(err_rate_p);
         } else {
-            throw runtime_error("Unknown Error_rate type\"" + errrate
-                                + "\" in model file: " + filename);
+            throw runtime_error("Unknown Error_rate type\"" + errrate + "\" in model file: " + filename);
         }
 
     } else {
@@ -1016,8 +972,7 @@ void Model_Parms::read_model_parms(string filename)
 
 void Model_Parms::set_fixed_all_events(bool fix_bool_status)
 {
-    for (list<shared_ptr<Rec_Event>>::iterator iter = events.begin(); iter != events.end();
-         ++iter) {
+    for (list<shared_ptr<Rec_Event>>::iterator iter = events.begin(); iter != events.end(); ++iter) {
         (*iter)->fix(fix_bool_status);
     }
 }

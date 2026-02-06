@@ -49,8 +49,7 @@ Dinucl_markov::Dinucl_markov(Gene_class gene, Seq_side side)
     this->update_event_name();
 }
 
-Dinucl_markov::Dinucl_markov(Gene_class gene, Seq_side side,
-                             unordered_map<string, Event_realization> &realizations)
+Dinucl_markov::Dinucl_markov(Gene_class gene, Seq_side side, unordered_map<string, Event_realization> &realizations)
     : Dinucl_markov(gene, side)
 {
     this->event_realizations = realizations;
@@ -81,18 +80,17 @@ shared_ptr<Rec_Event> Dinucl_markov::copy()
 }
 
 void Dinucl_markov::iterate(
-        double &scenario_proba, Downstream_scenario_proba_bound_map &downstream_proba_map,
-        const string &sequence, const Int_Str &int_sequence, Index_map &base_index_map,
-        const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>>
-                &offset_map,
+        double &scenario_proba, Downstream_scenario_proba_bound_map &downstream_proba_map, const string &sequence,
+        const Int_Str &int_sequence, Index_map &base_index_map,
+        const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
         shared_ptr<Next_event_ptr> &next_event_ptr_arr, Marginal_array_p &updated_marginals_pointer,
         const Marginal_array_p &model_parameters_pointer,
         const unordered_map<Gene_class, vector<Alignment_data>> &allowed_realizations,
-        Seq_type_str_p_map &constructed_sequences, Seq_offsets_map &seq_offsets,
-        shared_ptr<Error_rate> &error_rate_p, map<size_t, shared_ptr<Counter>> &counters_list,
+        Seq_type_str_p_map &constructed_sequences, Seq_offsets_map &seq_offsets, shared_ptr<Error_rate> &error_rate_p,
+        map<size_t, shared_ptr<Counter>> &counters_list,
         const unordered_map<tuple<Event_type, int, Seq_side>, shared_ptr<Rec_Event>> &events_map,
-        Safety_bool_map &safety_set, Mismatch_vectors_map &mismatches_lists,
-        double &seq_max_prob_scenario, double &proba_threshold_factor)
+        Safety_bool_map &safety_set, Mismatch_vectors_map &mismatches_lists, double &seq_max_prob_scenario,
+        double &proba_threshold_factor)
 {
     int base_index = base_index_map.at(this->event_index);
     int type_id = this->sequence_type_id;
@@ -128,8 +126,7 @@ void Dinucl_markov::iterate(
         double new_scenario_proba = scenario_proba * proba;
         double scenario_upper_bound_proba = new_scenario_proba;
 
-        downstream_proba_map.multiply_all(scenario_upper_bound_proba,
-                                          current_downstream_proba_memory_layers.data());
+        downstream_proba_map.multiply_all(scenario_upper_bound_proba, current_downstream_proba_memory_layers.data());
 
         if (scenario_upper_bound_proba >= (seq_max_prob_scenario * proba_threshold_factor)) {
             // Update constructed sequence with actual nucleotides
@@ -139,19 +136,17 @@ void Dinucl_markov::iterate(
             }
             constructed_sequences.set_value(type_id, real_ins_str, memory_layer_cs);
 
-            Rec_Event::iterate_wrap_up(
-                    new_scenario_proba, downstream_proba_map, sequence, int_sequence,
-                    base_index_map, offset_map, next_event_ptr_arr, updated_marginals_pointer,
-                    model_parameters_pointer, allowed_realizations, constructed_sequences,
-                    seq_offsets, error_rate_p, counters_list, events_map, safety_set,
-                    mismatches_lists, seq_max_prob_scenario, proba_threshold_factor);
+            Rec_Event::iterate_wrap_up(new_scenario_proba, downstream_proba_map, sequence, int_sequence, base_index_map,
+                                       offset_map, next_event_ptr_arr, updated_marginals_pointer,
+                                       model_parameters_pointer, allowed_realizations, constructed_sequences,
+                                       seq_offsets, error_rate_p, counters_list, events_map, safety_set,
+                                       mismatches_lists, seq_max_prob_scenario, proba_threshold_factor);
         }
     }
 }
 
-void Dinucl_markov::add_to_marginals(long double scenario_proba,
-                                    Marginal_array_p &updated_marginals, const Int_Str &int_sequence,
-                                    Seq_offsets_map &seq_offsets) const
+void Dinucl_markov::add_to_marginals(long double scenario_proba, Marginal_array_p &updated_marginals,
+                                     const Int_Str &int_sequence, Seq_offsets_map &seq_offsets) const
 {
     int us_3_off = seq_offsets.at(upstream_seq_type, Three_prime, memory_layer_off_threep);
     int ds_5_off = seq_offsets.at(downstream_seq_type, Five_prime, memory_layer_off_fivep);
@@ -176,10 +171,8 @@ void Dinucl_markov::add_to_marginals(long double scenario_proba,
 
 queue<int> Dinucl_markov::draw_random_realization(
         const Marginal_array_p &model_marginals_p, unordered_map<Rec_Event_name, int> &index_map,
-        const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>>
-                &offset_map,
-        std::unordered_map<int, std::string> &constructed_sequences,
-        std::mt19937_64 &generator) const
+        const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
+        std::unordered_map<int, std::string> &constructed_sequences, std::mt19937_64 &generator) const
 {
     queue<int> realization_queue;
     int type_id = this->sequence_type_id;
@@ -190,7 +183,7 @@ queue<int> Dinucl_markov::draw_random_realization(
     // For now, let's assume it's the last nucleotide of the upstream sequence
     // This is a bit simplified for Tandem D
     int prev_nt_int = 0; // Default to A
-    
+
     // In generation, constructed_sequences should have the upstream sequence
     // But we need to know which one is upstream.
     // This part of IGoR's generation is usually handled by knowing the order of events.
@@ -206,7 +199,8 @@ queue<int> Dinucl_markov::draw_random_realization(
             realization_name += int2nt(prev_nt_int);
             realization_name += int2nt(current_nt_int);
 
-            prob_count += model_marginals_p[index_map.at(this->get_name()) + this->event_realizations.at(realization_name).index];
+            prob_count += model_marginals_p[index_map.at(this->get_name())
+                                            + this->event_realizations.at(realization_name).index];
             if (prob_count >= rand) {
                 ins_seq[i] = int2nt(current_nt_int);
                 realization_queue.push(this->event_realizations.at(realization_name).index);
@@ -217,8 +211,8 @@ queue<int> Dinucl_markov::draw_random_realization(
         }
         if (!found) {
             // Fallback
-             ins_seq[i] = 'A';
-             prev_nt_int = 0;
+            ins_seq[i] = 'A';
+            prev_nt_int = 0;
         }
     }
 
@@ -227,20 +221,17 @@ queue<int> Dinucl_markov::draw_random_realization(
 
 void Dinucl_markov::write2txt(ofstream &outfile)
 {
-    outfile << "#DinucMarkov;" << event_class << ";" << event_side << ";" << priority << ";"
-            << nickname << endl;
-    // DinucMarkov doesn't usually write realizations to txt in this way in IGoR, 
+    outfile << "#DinucMarkov;" << event_class << ";" << event_side << ";" << priority << ";" << nickname << endl;
+    // DinucMarkov doesn't usually write realizations to txt in this way in IGoR,
     // it's usually a matrix. But let's keep it consistent.
 }
 
 void Dinucl_markov::initialize_event(
         unordered_set<Rec_Event_name> &processed_events,
         const unordered_map<tuple<Event_type, int, Seq_side>, shared_ptr<Rec_Event>> &events_map,
-        const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>>
-                &offset_map,
-        Downstream_scenario_proba_bound_map &downstream_proba_map,
-        Seq_type_str_p_map &constructed_sequences, Safety_bool_map &safety_set,
-        shared_ptr<Error_rate> error_rate_p, Mismatch_vectors_map &mismatches_list,
+        const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
+        Downstream_scenario_proba_bound_map &downstream_proba_map, Seq_type_str_p_map &constructed_sequences,
+        Safety_bool_map &safety_set, shared_ptr<Error_rate> error_rate_p, Mismatch_vectors_map &mismatches_list,
         Seq_offsets_map &seq_offsets, Index_map &index_map)
 {
     // 1. Determine Sequence Type ID (the junction)
@@ -263,15 +254,13 @@ void Dinucl_markov::initialize_event(
 
     // 2. Neighbors
     auto &registry = get_sequence_type_registry();
-    auto neighbors = registry.get_neighbors_for_junction(
-            (SequenceTypeRegistry::TypeId)this->sequence_type_id);
+    auto neighbors = registry.get_neighbors_for_junction((SequenceTypeRegistry::TypeId)this->sequence_type_id);
 
     upstream_exists = false;
     downstream_exists = false;
 
     for (const auto &neighbor : neighbors) {
-        auto status = EventUtils::check_gene_choice((Gene_class)neighbor.neighbor_type, events_map,
-                                                    processed_events);
+        auto status = EventUtils::check_gene_choice((Gene_class)neighbor.neighbor_type, events_map, processed_events);
         if (status.exists) {
             if (neighbor.is_upstream) {
                 upstream_exists = true;
@@ -288,17 +277,15 @@ void Dinucl_markov::initialize_event(
     this->memory_layer_cs = constructed_sequences.get_current_memory_layer(this->sequence_type_id);
 
     if (upstream_exists) {
-        memory_layer_off_threep =
-                seq_offsets.get_current_memory_layer(upstream_seq_type, Three_prime);
+        memory_layer_off_threep = seq_offsets.get_current_memory_layer(upstream_seq_type, Three_prime);
     }
     if (downstream_exists) {
-        memory_layer_off_fivep =
-                seq_offsets.get_current_memory_layer(downstream_seq_type, Five_prime);
+        memory_layer_off_fivep = seq_offsets.get_current_memory_layer(downstream_seq_type, Five_prime);
     }
 
-    this->Rec_Event::initialize_event(processed_events, events_map, offset_map,
-                                      downstream_proba_map, constructed_sequences, safety_set,
-                                      error_rate_p, mismatches_list, seq_offsets, index_map);
+    this->Rec_Event::initialize_event(processed_events, events_map, offset_map, downstream_proba_map,
+                                      constructed_sequences, safety_set, error_rate_p, mismatches_list, seq_offsets,
+                                      index_map);
 }
 void Dinucl_markov::set_nickname(string name)
 {
@@ -310,19 +297,15 @@ void Dinucl_markov::set_nickname(string name)
     }
 }
 
-void Dinucl_markov::iterate_initialize_Len_proba(
-        int considered_junction,
-        std::map<int, double> &length_best_proba_map,
-        std::queue<std::shared_ptr<Rec_Event>> &model_queue,
-        double &scenario_proba,
-        const Marginal_array_p &model_parameters_point,
-        Index_map &base_index_map,
-        Seq_type_str_p_map &constructed_sequences,
-        int &seq_len) const
+void Dinucl_markov::iterate_initialize_Len_proba(int considered_junction, std::map<int, double> &length_best_proba_map,
+                                                 std::queue<std::shared_ptr<Rec_Event>> &model_queue,
+                                                 double &scenario_proba, const Marginal_array_p &model_parameters_point,
+                                                 Index_map &base_index_map, Seq_type_str_p_map &constructed_sequences,
+                                                 int &seq_len) const
 {
     // TODO: implement for Tandem D
     // For now, just call wrap_up with current parameters
-    Rec_Event::iterate_initialize_Len_proba_wrap_up(considered_junction, length_best_proba_map,
-                model_queue, scenario_proba, model_parameters_point,
-                base_index_map, constructed_sequences, seq_len);
+    Rec_Event::iterate_initialize_Len_proba_wrap_up(considered_junction, length_best_proba_map, model_queue,
+                                                    scenario_proba, model_parameters_point, base_index_map,
+                                                    constructed_sequences, seq_len);
 }

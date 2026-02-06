@@ -53,10 +53,8 @@ public:
 
     void initialize_counter(const Model_Parms &, const Model_marginals &);
 
-    void count_scenario(long double, double, const std::string &, Seq_type_str_p_map &,
-                        const Seq_offsets_map &,
-                        const std::unordered_map<std::tuple<Event_type, int, Seq_side>,
-                                                 std::shared_ptr<Rec_Event>> &,
+    void count_scenario(long double, double, const std::string &, Seq_type_str_p_map &, const Seq_offsets_map &,
+                        const std::unordered_map<std::tuple<Event_type, int, Seq_side>, std::shared_ptr<Rec_Event>> &,
                         Mismatch_vectors_map &);
 
     void dump_sequence_data(int, int);

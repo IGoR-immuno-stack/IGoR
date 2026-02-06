@@ -47,8 +47,7 @@ Error_rate::~Error_rate()
     // TODO Auto-generated destructor stub
 }
 
-void Error_rate::initialize(
-        const unordered_map<tuple<Event_type, int, Seq_side>, shared_ptr<Rec_Event>> &events_map)
+void Error_rate::initialize(const unordered_map<tuple<Event_type, int, Seq_side>, shared_ptr<Rec_Event>> &events_map)
 {
     // Do nothing
     // This method is called if no other method is supplied in the instantiated
@@ -83,8 +82,7 @@ double Error_rate::get_seq_mean_error_number() const
 void add_to_err_rate(Error_rate *err_p1, Error_rate *err_p2)
 {
     if (err_p1->type() != err_p2->type()) {
-        throw invalid_argument("Cannot add error_rate of type " + err_p1->type() + " and "
-                               + err_p2->type());
+        throw invalid_argument("Cannot add error_rate of type " + err_p1->type() + " and " + err_p2->type());
     } else {
         err_p1->add_checked(err_p2);
         return;

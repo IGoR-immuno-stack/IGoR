@@ -59,8 +59,7 @@ Single_error_rate &Single_error_rate::operator+=(Single_error_rate err_r)
 
 shared_ptr<Error_rate> Single_error_rate::copy() const
 {
-    shared_ptr<Single_error_rate> copy_err_r =
-            shared_ptr<Single_error_rate>(new Single_error_rate(this->model_rate));
+    shared_ptr<Single_error_rate> copy_err_r = shared_ptr<Single_error_rate>(new Single_error_rate(this->model_rate));
     copy_err_r->updated = this->updated;
     return copy_err_r;
 }
@@ -75,8 +74,7 @@ const double &Single_error_rate::get_err_rate_upper_bound(size_t n_errors, size_
     if (n_errors > this->max_err || n_error_free > this->max_noerr) {
         // Need to increase the matrix size (anyway the matrix is at very most
         // read_len^2
-        this->build_upper_bound_matrix(max(this->max_err, n_errors + 10),
-                                       max(this->max_noerr, n_error_free + 10));
+        this->build_upper_bound_matrix(max(this->max_err, n_errors + 10), max(this->max_noerr, n_error_free + 10));
     }
 
     return this->upper_bound_proba_mat(n_errors, n_error_free);
@@ -105,11 +103,10 @@ void Single_error_rate::build_upper_bound_matrix(size_t m, size_t n)
 }
 
 double Single_error_rate::compare_sequences_error_prob(
-        double scenario_probability, const string &original_sequence,
-        Seq_type_str_p_map &constructed_sequences, const Seq_offsets_map &seq_offsets,
+        double scenario_probability, const string &original_sequence, Seq_type_str_p_map &constructed_sequences,
+        const Seq_offsets_map &seq_offsets,
         const unordered_map<tuple<Event_type, int, Seq_side>, shared_ptr<Rec_Event>> &events_map,
-        Mismatch_vectors_map &mismatches_lists, double &seq_max_prob_scenario,
-        double &proba_threshold_factor)
+        Mismatch_vectors_map &mismatches_lists, double &seq_max_prob_scenario, double &proba_threshold_factor)
 {
     number_errors = 0;
     genomic_nucl = 0;
@@ -119,7 +116,7 @@ double Single_error_rate::compare_sequences_error_prob(
     const auto &types = SequenceTypeRegistry::get_instance().get_all_types();
     for (const auto &type_info : types) {
         int id = type_info.id;
-        
+
         // We only care about genomic segments (V, D, J).
         // Junction segments (insertions) don't have errors in IGoR's model.
         if (SequenceTypeRegistry::get_instance().is_junction_type(id)) {
@@ -129,7 +126,7 @@ double Single_error_rate::compare_sequences_error_prob(
         if (constructed_sequences.exist(id)) {
             Int_Str &seq = (constructed_sequences.at(id));
             genomic_nucl += seq.size();
-            
+
             if (mismatches_lists.exist(id)) {
                 vector<int> &mismatch_list = *mismatches_lists.at(id);
                 number_errors += mismatch_list.size();
@@ -141,9 +138,10 @@ double Single_error_rate::compare_sequences_error_prob(
     // model rate is low, the probability will be truncated to 0 if it gets below
     // ± 2.225,073,858,507,201,4 · 10-308 with double precision
 
-    long double scenario_new_proba_ld = (long double)scenario_probability * pow((long double)model_rate / 3, number_errors)
+    long double scenario_new_proba_ld = (long double)scenario_probability
+            * pow((long double)model_rate / 3, number_errors)
             * pow((long double)1 - model_rate, genomic_nucl - number_errors);
-    
+
     scenario_new_proba = (double)scenario_new_proba_ld;
     if (scenario_new_proba_ld >= (long double)seq_max_prob_scenario * proba_threshold_factor) {
         // if genomic nucl != 0 ?
@@ -231,8 +229,7 @@ queue<int> Single_error_rate::generate_errors(string &generated_seq, mt19937_64 
     return errors_indices;
 }
 
-int Single_error_rate::subseq_compare_err_num(const string &original_sequence,
-                                              const string &constructed_sequence)
+int Single_error_rate::subseq_compare_err_num(const string &original_sequence, const string &constructed_sequence)
 {
     int number_errors = 0;
 

@@ -88,12 +88,11 @@ Model_marginals &Model_marginals::invert_edge(Rec_Event_name ev1_name, Rec_Event
         parent_ptr = model_parms.get_event_pointer(ev2_name);
         child_ptr = model_parms.get_event_pointer(ev1_name);
     } else {
-        throw runtime_error("Model_marginals::invert_edge() : the edge between \"" + ev1_name
-                            + "\" and \"" + ev2_name + "\" does not exist");
+        throw runtime_error("Model_marginals::invert_edge() : the edge between \"" + ev1_name + "\" and \"" + ev2_name
+                            + "\" does not exist");
     }
 
-    const unordered_map<Rec_Event_name, int> orig_marginals_index_map =
-            this->get_index_map(model_parms);
+    const unordered_map<Rec_Event_name, int> orig_marginals_index_map = this->get_index_map(model_parms);
     const unordered_map<Rec_Event_name, list<pair<shared_ptr<const Rec_Event>, int>>>
             orig_marginals_inverse_offset_map = this->get_inverse_offset_map(model_parms);
 
@@ -122,12 +121,10 @@ Model_marginals &Model_marginals::invert_edge(Rec_Event_name ev1_name, Rec_Event
         child_kept_dependencies.emplace(event_ptr->get_name());
     }
     child_kept_dependencies.emplace(
-            child_ptr
-                    ->get_name()); //Add the child in order to get an array of the correct size directly
+            child_ptr->get_name()); //Add the child in order to get an array of the correct size directly
 
-    pair<list<pair<Rec_Event_name, size_t>>, shared_ptr<long double>>
-            marginalized_parent_probabilities = compute_event_marginal_probability(
-                    parent_ptr->get_name(), child_kept_dependencies, model_parms);
+    pair<list<pair<Rec_Event_name, size_t>>, shared_ptr<long double>> marginalized_parent_probabilities =
+            compute_event_marginal_probability(parent_ptr->get_name(), child_kept_dependencies, model_parms);
 
     /*cout<<"Model_marginals::invert_edge()"<<endl;
 	size_t tmp_size = 1;
@@ -163,8 +160,7 @@ Model_marginals &Model_marginals::invert_edge(Rec_Event_name ev1_name, Rec_Event
     child_dependencies_order_list.emplace_back(child_ptr->get_name(), child_ptr->size());
     //Now add dimensions in the correct order
     for (const pair<shared_ptr<const Rec_Event>, int> &inv_offset : sorted_inv_offset_list) {
-        child_dependencies_order_list.emplace_back(inv_offset.first->get_name(),
-                                                   inv_offset.first->size());
+        child_dependencies_order_list.emplace_back(inv_offset.first->get_name(), inv_offset.first->size());
     }
 
     //Align the arrays
@@ -205,21 +201,18 @@ Model_marginals &Model_marginals::invert_edge(Rec_Event_name ev1_name, Rec_Event
     for (const shared_ptr<Rec_Event> event_ptr : parent_parents) {
         parent_kept_dependencies.emplace(event_ptr->get_name());
     }
-    pair<list<pair<Rec_Event_name, size_t>>, shared_ptr<long double>>
-            marginalized_child_probabilities = compute_event_marginal_probability(
-                    child_ptr->get_name(), parent_kept_dependencies, model_parms);
+    pair<list<pair<Rec_Event_name, size_t>>, shared_ptr<long double>> marginalized_child_probabilities =
+            compute_event_marginal_probability(child_ptr->get_name(), parent_kept_dependencies, model_parms);
     //By removing the dependence on the former parent we lose one dimension and we thus add it by hand
     //Compute the total size
     size_t new_child_array_size = parent_ptr->size();
     for (pair<Rec_Event_name, size_t> ev_name_size : marginalized_child_probabilities.first) {
         new_child_array_size *= ev_name_size.second;
     }
-    shared_ptr<long double> marginalized_child_proba_expanded_arr(
-            new long double[new_child_array_size]);
+    shared_ptr<long double> marginalized_child_proba_expanded_arr(new long double[new_child_array_size]);
     for (size_t i = 0; i != new_child_array_size; ++i) {
         marginalized_child_proba_expanded_arr.get()[i] =
-                marginalized_child_probabilities.second
-                        .get()[i % (new_child_array_size / parent_ptr->size())];
+                marginalized_child_probabilities.second.get()[i % (new_child_array_size / parent_ptr->size())];
     }
     marginalized_child_probabilities.first.emplace_back(parent_ptr->get_name(), parent_ptr->size());
     marginalized_child_probabilities.second = marginalized_child_proba_expanded_arr;
@@ -237,9 +230,8 @@ Model_marginals &Model_marginals::invert_edge(Rec_Event_name ev1_name, Rec_Event
 
     //Now compute the marginal distribution keeping the parent dependence
     parent_kept_dependencies.emplace(parent_ptr->get_name());
-    pair<list<pair<Rec_Event_name, size_t>>, shared_ptr<long double>>
-            marginalized_child_g_parent_probabilities = compute_event_marginal_probability(
-                    child_ptr->get_name(), parent_kept_dependencies, model_parms);
+    pair<list<pair<Rec_Event_name, size_t>>, shared_ptr<long double>> marginalized_child_g_parent_probabilities =
+            compute_event_marginal_probability(child_ptr->get_name(), parent_kept_dependencies, model_parms);
 
     /*cout<<"Marginalized child given parent: "<<endl;
 	size_t tmp_sizzze = 1;
@@ -257,8 +249,7 @@ Model_marginals &Model_marginals::invert_edge(Rec_Event_name ev1_name, Rec_Event
     //cout<<"New parent array:"<<endl;
     for (size_t i = 0; i != new_child_array_size; ++i) {
         new_parent_array.get()[i] =
-                this->marginal_array_smart_p
-                        .get()[parent_index + i % (new_child_array_size / child_ptr->size())];
+                this->marginal_array_smart_p.get()[parent_index + i % (new_child_array_size / child_ptr->size())];
         //cout<<new_parent_array.get()[i]<<",";
     }
     //cout<<endl;
@@ -273,26 +264,23 @@ Model_marginals &Model_marginals::invert_edge(Rec_Event_name ev1_name, Rec_Event
     parents_dependencies_order_list.emplace_back(parent_ptr->get_name(), parent_ptr->size());
     //Now add dimensions in the correct order
     for (const pair<shared_ptr<const Rec_Event>, int> &inv_offset : sorted_inv_offset_list) {
-        parents_dependencies_order_list.emplace_back(inv_offset.first->get_name(),
-                                                     inv_offset.first->size());
+        parents_dependencies_order_list.emplace_back(inv_offset.first->get_name(), inv_offset.first->size());
     }
     //And add the extra dimension
     parents_dependencies_order_list.emplace_back(child_ptr->get_name(), child_ptr->size());
 
     //Order everything (according to the new ordering in model parms)
     model_parms.invert_edge(ev1_name, ev2_name);
-    const unordered_map<Rec_Event_name, int> new_marginals_index_map =
-            this->get_index_map(model_parms);
-    const unordered_map<Rec_Event_name, list<pair<shared_ptr<const Rec_Event>, int>>>
-            new_marginals_inverse_offset_map = this->get_inverse_offset_map(model_parms);
+    const unordered_map<Rec_Event_name, int> new_marginals_index_map = this->get_index_map(model_parms);
+    const unordered_map<Rec_Event_name, list<pair<shared_ptr<const Rec_Event>, int>>> new_marginals_inverse_offset_map =
+            this->get_inverse_offset_map(model_parms);
 
     //Create the ordering list to do so
     list<pair<Rec_Event_name, size_t>> final_new_child_ordering_list;
     final_new_child_ordering_list.emplace_back(parent_ptr->get_name(), parent_ptr->size());
     //Now add dimensions in the correct order
     for (const pair<shared_ptr<const Rec_Event>, int> &inv_offset : sorted_inv_offset_list) {
-        final_new_child_ordering_list.emplace_back(inv_offset.first->get_name(),
-                                                   inv_offset.first->size());
+        final_new_child_ordering_list.emplace_back(inv_offset.first->get_name(), inv_offset.first->size());
     }
     final_new_child_ordering_list.emplace_back(child_ptr->get_name(), child_ptr->size());
 
@@ -356,8 +344,7 @@ Model_marginals &Model_marginals::invert_edge(Rec_Event_name ev1_name, Rec_Event
             int former_event_index = orig_marginals_index_map.at(event_ptr->get_name());
             int new_event_index = new_marginals_index_map.at(event_ptr->get_name());
             for (size_t i = 0; i != tmp_event_size; ++i) {
-                new_marginal_array[new_event_index + i] =
-                        this->marginal_array_smart_p[former_event_index + i];
+                new_marginal_array[new_event_index + i] = this->marginal_array_smart_p[former_event_index + i];
             }
         }
     }
@@ -386,8 +373,7 @@ size_t Model_marginals::compute_size(const Model_Parms &model_parms)
     unordered_map<Rec_Event_name, Adjacency_list> edges = model_parms.get_edges();
 
     size_t array_size = 0;
-    for (list<shared_ptr<Rec_Event>>::const_iterator iter = events.begin(); iter != events.end();
-         ++iter) {
+    for (list<shared_ptr<Rec_Event>>::const_iterator iter = events.begin(); iter != events.end(); ++iter) {
 
         int event_size = this->get_event_size((*iter), model_parms);
 
@@ -399,8 +385,7 @@ size_t Model_marginals::compute_size(const Model_Parms &model_parms)
 /*
  *
  */
-size_t Model_marginals::get_event_size(shared_ptr<const Rec_Event> event_p,
-                                       const Model_Parms &model_parms) const
+size_t Model_marginals::get_event_size(shared_ptr<const Rec_Event> event_p, const Model_Parms &model_parms) const
 {
     size_t event_size = event_p->size();
     unordered_map<Rec_Event_name, Adjacency_list> edges = model_parms.get_edges();
@@ -408,15 +393,15 @@ size_t Model_marginals::get_event_size(shared_ptr<const Rec_Event> event_p,
     if (it == edges.end()) {
         cerr << "Error in get_event_size: Key not found in edges map: " << event_p->get_name() << endl;
         cerr << "Available keys in edges map:" << endl;
-        for (auto const& [key, val] : edges) {
+        for (auto const &[key, val] : edges) {
             cerr << "  " << key << endl;
         }
         throw out_of_range("Key not found in edges map");
     }
     list<shared_ptr<Rec_Event>> parents_list = it->second.parents;
 
-    for (list<shared_ptr<Rec_Event>>::const_iterator jiter = parents_list.begin();
-         jiter != parents_list.end(); ++jiter) {
+    for (list<shared_ptr<Rec_Event>>::const_iterator jiter = parents_list.begin(); jiter != parents_list.end();
+         ++jiter) {
         event_size *= (*(*jiter)).size();
     }
 
@@ -433,37 +418,33 @@ size_t Model_marginals::get_event_size(shared_ptr<const Rec_Event> event_p,
  * should return a list of offsets (maybe it would be better to return the event sizes) and corresponding events
  */
 pair<list<pair<Rec_Event_name, size_t>>, shared_ptr<long double>>
-Model_marginals::compute_event_marginal_probability(Rec_Event_name event_name,
-                                                    const Model_Parms &model_parms) const
+Model_marginals::compute_event_marginal_probability(Rec_Event_name event_name, const Model_Parms &model_parms) const
 {
     return this->compute_event_marginal_probability(event_name, set<Rec_Event_name>(), model_parms);
 }
 
 pair<list<pair<Rec_Event_name, size_t>>, shared_ptr<long double>>
-Model_marginals::compute_event_marginal_probability(
-        Rec_Event_name event_name, const set<Rec_Event_name> &kept_dependencies_list,
-        const Model_Parms &model_parms) const
+Model_marginals::compute_event_marginal_probability(Rec_Event_name event_name,
+                                                    const set<Rec_Event_name> &kept_dependencies_list,
+                                                    const Model_Parms &model_parms) const
 {
     const unordered_map<Rec_Event_name, int> index_map = this->get_index_map(model_parms);
     const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> offset_map =
             this->get_offsets_map(model_parms);
-    const unordered_map<Rec_Event_name, list<pair<shared_ptr<const Rec_Event>, int>>>
-            inverse_offset_map = this->get_inverse_offset_map(model_parms);
-    return this->compute_event_marginal_probability(event_name, kept_dependencies_list, model_parms,
-                                                    index_map, offset_map, inverse_offset_map);
+    const unordered_map<Rec_Event_name, list<pair<shared_ptr<const Rec_Event>, int>>> inverse_offset_map =
+            this->get_inverse_offset_map(model_parms);
+    return this->compute_event_marginal_probability(event_name, kept_dependencies_list, model_parms, index_map,
+                                                    offset_map, inverse_offset_map);
 }
 
 /**
  * This piece of code is quite dirty, i strongly apologize for it
  */
-pair<list<pair<Rec_Event_name, size_t>>, shared_ptr<long double>>
-Model_marginals::compute_event_marginal_probability(
-        Rec_Event_name event_name, const set<Rec_Event_name> &kept_dependencies_list,
-        const Model_Parms &model_parms, const unordered_map<Rec_Event_name, int> &index_map,
-        const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>>
-                &offset_map,
-        const unordered_map<Rec_Event_name, list<pair<shared_ptr<const Rec_Event>, int>>>
-                &inverse_offset_map) const
+pair<list<pair<Rec_Event_name, size_t>>, shared_ptr<long double>> Model_marginals::compute_event_marginal_probability(
+        Rec_Event_name event_name, const set<Rec_Event_name> &kept_dependencies_list, const Model_Parms &model_parms,
+        const unordered_map<Rec_Event_name, int> &index_map,
+        const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
+        const unordered_map<Rec_Event_name, list<pair<shared_ptr<const Rec_Event>, int>>> &inverse_offset_map) const
 {
 
     //First get the event pointer, size and index
@@ -503,15 +484,13 @@ Model_marginals::compute_event_marginal_probability(
 
         //Simply copy the values in the array (the number of times required by the kept dependencies)
         for (size_t i = 0; i != new_array_size; ++i) {
-            marginal_proba_ptr.get()[i] =
-                    this->marginal_array_smart_p[event_index + (i % event_size)];
+            marginal_proba_ptr.get()[i] = this->marginal_array_smart_p[event_index + (i % event_size)];
         }
         //Emplace Event order
         dependencies_order_list.emplace_back(event_name, event_size);
         for (Rec_Event_name ev_name : kept_dependencies_list) {
             if (ev_name != event_name) {
-                dependencies_order_list.emplace_back(
-                        ev_name, model_parms.get_event_pointer(ev_name)->size());
+                dependencies_order_list.emplace_back(ev_name, model_parms.get_event_pointer(ev_name)->size());
             }
         }
     } else {
@@ -538,8 +517,7 @@ Model_marginals::compute_event_marginal_probability(
         //Disclaimer: this is going to be quite ugly and should be rewritten //TODO
 
         //First copy a list containing the inverse offsets and sort it
-        list<pair<shared_ptr<const Rec_Event>, int>> sorted_inv_offset_list =
-                inverse_offset_map.at(event_name);
+        list<pair<shared_ptr<const Rec_Event>, int>> sorted_inv_offset_list = inverse_offset_map.at(event_name);
         sorted_inv_offset_list.sort(inverse_offset_comparator());
 
         /*cout<<"Inverse offset list: ";
@@ -551,8 +529,7 @@ Model_marginals::compute_event_marginal_probability(
         //Now add dimensions in the correct order
         for (const pair<shared_ptr<const Rec_Event>, int> &inv_offset : sorted_inv_offset_list) {
 
-            dependencies_order_list.emplace_back(inv_offset.first->get_name(),
-                                                 inv_offset.first->size());
+            dependencies_order_list.emplace_back(inv_offset.first->get_name(), inv_offset.first->size());
             marginal_event_size *= inv_offset.first->size();
 
             if (tmp_kept_dependencies_utility.count(inv_offset.first->get_name()) > 0) {
@@ -562,8 +539,7 @@ Model_marginals::compute_event_marginal_probability(
 
         //Now append kept dependencies that are not parents or the event itself as extra dimensions
         for (Rec_Event_name kept_dep_name : tmp_kept_dependencies_utility) {
-            dependencies_order_list.emplace_back(
-                    kept_dep_name, model_parms.get_event_pointer(kept_dep_name)->size());
+            dependencies_order_list.emplace_back(kept_dep_name, model_parms.get_event_pointer(kept_dep_name)->size());
             marginal_event_size *= model_parms.get_event_pointer(kept_dep_name)->size();
         }
 
@@ -603,10 +579,9 @@ Model_marginals::compute_event_marginal_probability(
         for (shared_ptr<Rec_Event> parent_event : parents_list) {
 
             //Compute the marginal parent proba
-            pair<list<pair<Rec_Event_name, size_t>>, shared_ptr<long double>>
-                    parent_marginal_proba = compute_event_marginal_probability(
-                            parent_event->get_name(), new_kept_dependencies_list, model_parms,
-                            index_map, offset_map, inverse_offset_map);
+            pair<list<pair<Rec_Event_name, size_t>>, shared_ptr<long double>> parent_marginal_proba =
+                    compute_event_marginal_probability(parent_event->get_name(), new_kept_dependencies_list,
+                                                       model_parms, index_map, offset_map, inverse_offset_map);
 
             /*cout<<"Marginalized parent order: ";
 			for(auto zzzz : parent_marginal_proba.first){
@@ -670,12 +645,10 @@ Model_marginals::compute_event_marginal_probability(
 
         //Now re-organize the joint in order to have all necessary dimensions before marginalized ones
         list<pair<Rec_Event_name, size_t>> final_dimensions_order_list;
-        final_dimensions_order_list.emplace_back(
-                event_name, event_size); //Put the considered event in first position
+        final_dimensions_order_list.emplace_back(event_name, event_size); //Put the considered event in first position
         for (Rec_Event_name ev_name : kept_dependencies_list) {
             if (ev_name != event_name) {
-                final_dimensions_order_list.emplace_back(
-                        ev_name, model_parms.get_event_pointer(ev_name)->size());
+                final_dimensions_order_list.emplace_back(ev_name, model_parms.get_event_pointer(ev_name)->size());
             }
         }
         pair<list<pair<Rec_Event_name, size_t>>, shared_ptr<long double>> tmp_pair =
@@ -755,8 +728,7 @@ Model_marginals &Model_marginals::operator=(const Model_marginals &other)
 Model_marginals &Model_marginals::operator+=(Model_marginals marginals)
 {
     if (this->marginal_arr_size != marginals.marginal_arr_size) {
-        throw invalid_argument(
-                "Model_marginals must have the same size in : Model_marginals::operator+=");
+        throw invalid_argument("Model_marginals must have the same size in : Model_marginals::operator+=");
     } else {
         for (size_t i = 0; i != this->marginal_arr_size; ++i) {
             this->marginal_array_smart_p[i] += marginals.marginal_array_smart_p[i];
@@ -768,8 +740,7 @@ Model_marginals &Model_marginals::operator+=(Model_marginals marginals)
 Model_marginals &Model_marginals::operator-=(Model_marginals marginals)
 {
     if (this->marginal_arr_size != marginals.marginal_arr_size) {
-        throw invalid_argument(
-                "Model_marginals must have the same size in : Model_marginals::operator+=");
+        throw invalid_argument("Model_marginals must have the same size in : Model_marginals::operator+=");
     } else {
         for (size_t i = 0; i != this->marginal_arr_size; ++i) {
             this->marginal_array_smart_p[i] -= marginals.marginal_array_smart_p[i];
@@ -798,8 +769,7 @@ Model_marginals::get_inverse_offset_map(const Model_Parms &model_parms) const
 }
 
 unordered_map<Rec_Event_name, list<pair<shared_ptr<const Rec_Event>, int>>>
-Model_marginals::get_inverse_offset_map(const Model_Parms &model_parms,
-                                        queue<shared_ptr<Rec_Event>> model_queue) const
+Model_marginals::get_inverse_offset_map(const Model_Parms &model_parms, queue<shared_ptr<Rec_Event>> model_queue) const
 {
     //Stack to keep track of the events processed and their order
     stack<shared_ptr<Rec_Event>> *model_stack_p = new stack<shared_ptr<Rec_Event>>;
@@ -817,12 +787,10 @@ Model_marginals::get_inverse_offset_map(const Model_Parms &model_parms,
             unordered_map<Rec_Event_name, shared_ptr<Rec_Event>> *related_events_map_p =
                     new unordered_map<Rec_Event_name,
                                       shared_ptr<Rec_Event>>; //stores all the related events
-            unordered_map<Rec_Event_name, shared_ptr<Rec_Event>> related_events_map =
-                    *related_events_map_p;
+            unordered_map<Rec_Event_name, shared_ptr<Rec_Event>> related_events_map = *related_events_map_p;
 
             if (!model_parms.get_parents(current_event_point).empty()) {
-                list<shared_ptr<Rec_Event>> event_parents =
-                        model_parms.get_parents(current_event_point);
+                list<shared_ptr<Rec_Event>> event_parents = model_parms.get_parents(current_event_point);
 
                 for (list<shared_ptr<Rec_Event>>::const_iterator iter = event_parents.begin();
                      iter != event_parents.end(); ++iter) {
@@ -837,8 +805,7 @@ Model_marginals::get_inverse_offset_map(const Model_Parms &model_parms,
 
             while (!model_stack_copy.empty()) {
                 if (related_events_map.count(model_stack_copy.top()->get_name()) > 0) {
-                    invert_offset_map.at(ev_name)
-                            .push_back(make_pair(model_stack_copy.top(), offset));
+                    invert_offset_map.at(ev_name).push_back(make_pair(model_stack_copy.top(), offset));
                     offset *= (*model_stack_copy.top()).size();
                 }
                 model_stack_copy.pop();
@@ -869,8 +836,7 @@ Model_marginals::get_offsets_map(const Model_Parms &model_parms) const
 }
 
 unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>>
-Model_marginals::get_offsets_map(const Model_Parms &model_parms,
-                                 queue<shared_ptr<Rec_Event>> model_queue) const
+Model_marginals::get_offsets_map(const Model_Parms &model_parms, queue<shared_ptr<Rec_Event>> model_queue) const
 {
 
     unordered_map<Rec_Event_name, list<pair<shared_ptr<const Rec_Event>, int>>> invert_offset_map =
@@ -880,11 +846,10 @@ Model_marginals::get_offsets_map(const Model_Parms &model_parms,
     unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>>
             offset_map; // = *(new unordered_map<Rec_Event_name,list<pair<shared_ptr<const Rec_Event>,int>>>);
 
-    for (unordered_map<Rec_Event_name, list<pair<shared_ptr<const Rec_Event>, int>>>::const_iterator
-                 iter = invert_offset_map.begin();
+    for (unordered_map<Rec_Event_name, list<pair<shared_ptr<const Rec_Event>, int>>>::const_iterator iter =
+                 invert_offset_map.begin();
          iter != invert_offset_map.end(); ++iter) {
-        for (list<pair<shared_ptr<const Rec_Event>, int>>::const_iterator jiter =
-                     (*iter).second.begin();
+        for (list<pair<shared_ptr<const Rec_Event>, int>>::const_iterator jiter = (*iter).second.begin();
              jiter != (*iter).second.end(); ++jiter) {
             /*if(offset_map.count( (*jiter).first->get_name() ) == 0){
 				offset_map.emplace( (*jiter).first->get_name() , *(new list<pair<shared_ptr<const Rec_Event>,int>>) );
@@ -897,16 +862,14 @@ Model_marginals::get_offsets_map(const Model_Parms &model_parms,
     return offset_map;
 }
 
-unordered_map<Rec_Event_name, int>
-Model_marginals::get_index_map(const Model_Parms &model_parms) const
+unordered_map<Rec_Event_name, int> Model_marginals::get_index_map(const Model_Parms &model_parms) const
 {
     queue<shared_ptr<Rec_Event>> model_queue = model_parms.get_model_queue();
     return get_index_map(model_parms, model_queue);
 }
 
-unordered_map<Rec_Event_name, int>
-Model_marginals::get_index_map(const Model_Parms &model_parms,
-                               queue<shared_ptr<Rec_Event>> model_queue) const
+unordered_map<Rec_Event_name, int> Model_marginals::get_index_map(const Model_Parms &model_parms,
+                                                                  queue<shared_ptr<Rec_Event>> model_queue) const
 {
     int index = 0;
     stack<shared_ptr<Rec_Event>> *model_stack_p = new stack<shared_ptr<Rec_Event>>;
@@ -922,8 +885,8 @@ Model_marginals::get_index_map(const Model_Parms &model_parms,
 
         list<shared_ptr<Rec_Event>> parents_list = model_parms.get_parents(current_event_point->get_name());
         if (!parents_list.empty()) {
-            for (list<shared_ptr<Rec_Event>>::const_iterator iter = parents_list.begin();
-                 iter != parents_list.end(); ++iter) {
+            for (list<shared_ptr<Rec_Event>>::const_iterator iter = parents_list.begin(); iter != parents_list.end();
+                 ++iter) {
                 event_size *= (*iter)->size();
             }
         }
@@ -941,8 +904,7 @@ Model_marginals::get_index_map(const Model_Parms &model_parms,
  * This method normalizes the marginal array so that each probability sums to 1.
  */
 void Model_marginals::normalize(
-        unordered_map<Rec_Event_name, list<pair<shared_ptr<const Rec_Event>, int>>>
-                inverse_offset_map,
+        unordered_map<Rec_Event_name, list<pair<shared_ptr<const Rec_Event>, int>>> inverse_offset_map,
         unordered_map<Rec_Event_name, int> index_map, queue<shared_ptr<Rec_Event>> model_queue)
 {
     while (!model_queue.empty()) {
@@ -954,8 +916,9 @@ void Model_marginals::normalize(
         } else {
             auto it_inv = inverse_offset_map.find(current_event_point->get_name());
             if (it_inv == inverse_offset_map.end()) {
-                 cerr << "Error in normalize: Key not found in inverse_offset_map: " << current_event_point->get_name() << endl;
-                 throw out_of_range("Key not found in inverse_offset_map");
+                cerr << "Error in normalize: Key not found in inverse_offset_map: " << current_event_point->get_name()
+                     << endl;
+                throw out_of_range("Key not found in inverse_offset_map");
             }
             related_events = it_inv->second;
         }
@@ -965,16 +928,16 @@ void Model_marginals::normalize(
             cerr << "Error in normalize: Key not found: " << current_event_point->get_name() << endl;
             throw out_of_range("Key not found in index_map");
         }
-        
+
         iterate_normalize(current_event_point, related_events, it->second, 0);
 
         model_queue.pop();
     }
 }
 
-void Model_marginals::iterate_normalize(
-        shared_ptr<const Rec_Event> current_event_point,
-        list<pair<shared_ptr<const Rec_Event>, int>> &related_events, int index, int current_offset)
+void Model_marginals::iterate_normalize(shared_ptr<const Rec_Event> current_event_point,
+                                        list<pair<shared_ptr<const Rec_Event>, int>> &related_events, int index,
+                                        int current_offset)
 {
 
     if (related_events.empty()) {
@@ -1004,13 +967,11 @@ void Model_marginals::iterate_normalize(
     }
 }
 
-void Model_marginals::copy_fixed_events_marginals(
-        const Model_marginals &source_marginals, const Model_Parms &parms,
-        const unordered_map<Rec_Event_name, int> &index_map)
+void Model_marginals::copy_fixed_events_marginals(const Model_marginals &source_marginals, const Model_Parms &parms,
+                                                  const unordered_map<Rec_Event_name, int> &index_map)
 {
     list<shared_ptr<Rec_Event>> events = parms.get_event_list();
-    for (list<shared_ptr<Rec_Event>>::const_iterator iter = events.begin(); iter != events.end();
-         ++iter) {
+    for (list<shared_ptr<Rec_Event>>::const_iterator iter = events.begin(); iter != events.end(); ++iter) {
         if ((*iter)->is_fixed()) {
             size_t event_size = this->get_event_size((*iter), parms);
             size_t first_index = index_map.at((*iter)->get_name());
@@ -1099,9 +1060,8 @@ void Model_marginals::flatten(shared_ptr<const Rec_Event> event, const Model_Par
  * //TODO recode this in order to be able to set several realizations probas at the same time
  * //FIXME if the supplied new value is 1.0 there will be a zero division issue (this could be fixed by fixing all others to 0 instead of trying to set the supplied one to 1)
  */
-void Model_marginals::set_realization_proba(string realization_name,
-                                            shared_ptr<const Rec_Event> event_ptr, double new_value,
-                                            const Model_Parms &model_parms)
+void Model_marginals::set_realization_proba(string realization_name, shared_ptr<const Rec_Event> event_ptr,
+                                            double new_value, const Model_Parms &model_parms)
 {
     if ((new_value < 0) or (new_value > 1)) {
         throw runtime_error("Invalid new probability value \"" + to_string(new_value)
@@ -1115,8 +1075,8 @@ void Model_marginals::set_realization_proba(string realization_name,
 
     //Get the realization index
     if (event_ptr->get_realizations_map().count(realization_name) <= 0) {
-        throw runtime_error("Unknown realization \"" + realization_name + "\" for event "
-                            + event_ptr->get_name() + " in Model_marginals::set_realization_proba");
+        throw runtime_error("Unknown realization \"" + realization_name + "\" for event " + event_ptr->get_name()
+                            + " in Model_marginals::set_realization_proba");
     }
     const Event_realization event_real = event_ptr->get_realizations_map().at(realization_name);
     const size_t &real_index = event_real.index;
@@ -1147,8 +1107,7 @@ void Model_marginals::set_realization_proba(string realization_name,
     auto inverse_offset_map = this->get_inverse_offset_map(model_parms);
     list<pair<shared_ptr<const Rec_Event>, int>> related_events;
     if (inverse_offset_map.count(event_ptr->get_name()) == 0) {
-        related_events = list<
-                pair<shared_ptr<const Rec_Event>, int>>(); //TODO change this to prevent memory leak
+        related_events = list<pair<shared_ptr<const Rec_Event>, int>>(); //TODO change this to prevent memory leak
     } else {
         related_events = inverse_offset_map.at(event_ptr->get_name());
     }
@@ -1172,12 +1131,10 @@ void Model_marginals::write2txt(string filename, const Model_Parms &model_parms)
         outfile << "@" << current_event_p->get_nickname() << endl;
         outfile << "$Dim[";
         //if(!processed_events.empty()){
-        list<pair<shared_ptr<const Rec_Event>, int>> inv_offset_list =
-                inv_offset_map[current_event_p->get_name()];
+        list<pair<shared_ptr<const Rec_Event>, int>> inv_offset_list = inv_offset_map[current_event_p->get_name()];
         if (!inv_offset_list.empty()) {
             inv_offset_list.sort(offset_comp());
-            for (list<pair<shared_ptr<const Rec_Event>, int>>::const_iterator jiter =
-                         inv_offset_list.begin();
+            for (list<pair<shared_ptr<const Rec_Event>, int>>::const_iterator jiter = inv_offset_list.begin();
                  jiter != inv_offset_list.end(); ++jiter) {
                 outfile << (*jiter).first->size() << ",";
             }
@@ -1186,29 +1143,27 @@ void Model_marginals::write2txt(string filename, const Model_Parms &model_parms)
         outfile << current_event_p->size() << "]" << endl;
         list<string> empty_str_list = list<string>();
 
-        write2txt_iteration(inv_offset_list.begin(), inv_offset_list.end(),
-                            index_map[current_event_p->get_name()], outfile, current_event_p,
-                            empty_str_list);
+        write2txt_iteration(inv_offset_list.begin(), inv_offset_list.end(), index_map[current_event_p->get_name()],
+                            outfile, current_event_p, empty_str_list);
         model_queue.pop();
     }
 }
 
-void Model_marginals::write2txt_iteration(
-        list<pair<shared_ptr<const Rec_Event>, int>>::const_iterator iter,
-        const list<pair<shared_ptr<const Rec_Event>, int>>::const_iterator iter_end, int index,
-        ofstream &outfile, shared_ptr<Rec_Event> current_event_p, list<string> &header)
+void Model_marginals::write2txt_iteration(list<pair<shared_ptr<const Rec_Event>, int>>::const_iterator iter,
+                                          const list<pair<shared_ptr<const Rec_Event>, int>>::const_iterator iter_end,
+                                          int index, ofstream &outfile, shared_ptr<Rec_Event> current_event_p,
+                                          list<string> &header)
 {
 
     if (iter != iter_end) {
         for (int i = 0; i != (*iter).first->size(); ++i) {
             list<string> header_copy = header;
-            header_copy.push_back(string("[") + (*iter).first->get_nickname() + string(",")
-                                  + to_string(i) + string("]"));
+            header_copy.push_back(string("[") + (*iter).first->get_nickname() + string(",") + to_string(i)
+                                  + string("]"));
             int new_index = index + i * (*iter).second;
             list<pair<shared_ptr<const Rec_Event>, int>>::const_iterator iter_copy = iter;
             ++iter_copy;
-            write2txt_iteration(iter_copy, iter_end, new_index, outfile, current_event_p,
-                                header_copy);
+            write2txt_iteration(iter_copy, iter_end, new_index, outfile, current_event_p, header_copy);
         }
     } else {
         outfile << "#";
@@ -1255,10 +1210,9 @@ void Model_marginals::txt2marginals(string filename, const Model_Parms &parms)
     }
     size_t current_marginals_size = this->compute_size(parms);
     if (size_counter != current_marginals_size) {
-        throw runtime_error(
-                "Marginals contained in file \"" + filename
-                + "\" and supplied Model_Parms do not match in size. Make sure the Bayesian "
-                  "Network structure/event realizations  and the marginals are coherent.");
+        throw runtime_error("Marginals contained in file \"" + filename
+                            + "\" and supplied Model_Parms do not match in size. Make sure the Bayesian "
+                              "Network structure/event realizations  and the marginals are coherent.");
     }
 
     //Now read the actual marginals values
@@ -1271,8 +1225,8 @@ void Model_marginals::txt2marginals(string filename, const Model_Parms &parms)
             ++index;
             while (semicolon_index != string::npos) {
                 size_t next_comma_index = line_str.find(",", (semicolon_index + 1));
-                this->marginal_array_smart_p[index] = stod(line_str.substr(
-                        (semicolon_index + 1), (next_comma_index - semicolon_index - 1)));
+                this->marginal_array_smart_p[index] =
+                        stod(line_str.substr((semicolon_index + 1), (next_comma_index - semicolon_index - 1)));
                 semicolon_index = next_comma_index;
                 ++index;
             }
@@ -1293,9 +1247,8 @@ void Model_marginals::txt2marginals(string filename, const Model_Parms &parms)
  * A utility function to swap the order of the events on a marginal array (used to marginalize and invert edges)
  * This is used to further align the marginals and combine them
  */
-void swap_events_order(
-        const Rec_Event_name event_1, const Rec_Event_name event_2,
-        pair<list<pair<Rec_Event_name, size_t>>, shared_ptr<long double>> &swapped_marginals)
+void swap_events_order(const Rec_Event_name event_1, const Rec_Event_name event_2,
+                       pair<list<pair<Rec_Event_name, size_t>>, shared_ptr<long double>> &swapped_marginals)
 {
     //First get the positions of the events
     size_t event_1_position = 0;
@@ -1341,8 +1294,7 @@ void swap_events_order(
 
     //Make sure both events were found
     if (not(event_1_found and event_2_found)) {
-        throw runtime_error(event_1 + " and " + event_2
-                            + " not found on the array, in swap_events_order()");
+        throw runtime_error(event_1 + " and " + event_2 + " not found on the array, in swap_events_order()");
     }
 
     //In case event 1 and 2 were the same events, no change
@@ -1416,9 +1368,8 @@ void swap_events_order(
 /**
  * \bug Will invalidate iterators to the swapped marginals
  */
-void swap_neighboring_events_order(
-        const Rec_Event_name event_1, const Rec_Event_name event_2,
-        pair<list<pair<Rec_Event_name, size_t>>, shared_ptr<long double>> &swapped_marginals)
+void swap_neighboring_events_order(const Rec_Event_name event_1, const Rec_Event_name event_2,
+                                   pair<list<pair<Rec_Event_name, size_t>>, shared_ptr<long double>> &swapped_marginals)
 {
     size_t event_1_offset;
     size_t event_1_new_offset;
@@ -1464,8 +1415,7 @@ void swap_neighboring_events_order(
             //current_offset*=iter->second;
         }
 
-        current_offset *=
-                iter->second; //Need to get the total array size, thus loop over all realizations
+        current_offset *= iter->second; //Need to get the total array size, thus loop over all realizations
         //cout<<iter->first<<",";
     }
     //cout<<endl;
@@ -1477,8 +1427,7 @@ void swap_neighboring_events_order(
         ++event_2_iterator;
 
         if (event_2_iterator->first != event_2) {
-            throw runtime_error(event_1 + " and " + event_2
-                                + " are not neighbors, in swap_neighboring_events_order()");
+            throw runtime_error(event_1 + " and " + event_2 + " are not neighbors, in swap_neighboring_events_order()");
         }
         event_1_new_offset = event_1_offset * event_2_iterator->second;
         event_2_offset = event_1_offset * event_1_iterator->second;
@@ -1490,8 +1439,7 @@ void swap_neighboring_events_order(
         ++event_1_iterator;
 
         if (event_1_iterator->first != event_1) {
-            throw runtime_error(event_1 + " and " + event_2
-                                + " are not neighbors, in swap_neighboring_events_order()");
+            throw runtime_error(event_1 + " and " + event_2 + " are not neighbors, in swap_neighboring_events_order()");
         }
         event_2_new_offset = event_2_offset * event_1_iterator->second;
         event_1_offset = event_2_offset * event_2_iterator->second;
@@ -1506,14 +1454,13 @@ void swap_neighboring_events_order(
             new long double
                     [current_offset]); //Current offset is the total size of the array after looping over all events
 
-    for (size_t i = 0; i != current_offset;
-         ++i) { //Current offset has been used to compute the total size of the array
+    for (size_t i = 0; i != current_offset; ++i) { //Current offset has been used to compute the total size of the array
         if (event_1_found) {
             //event 1 used to have
         }
         size_t small_offset = min(event_1_new_offset, event_2_new_offset);
-        size_t big_offset = max(event_1_new_offset * event_1_iterator->second,
-                                event_2_new_offset * event_2_iterator->second);
+        size_t big_offset =
+                max(event_1_new_offset * event_1_iterator->second, event_2_new_offset * event_2_iterator->second);
         /*
 		 * Now invert the marginals
 		 * (i/former_offset)%size corresponds to the realization index
@@ -1521,10 +1468,11 @@ void swap_neighboring_events_order(
 		 * big offset denotes the offset of stuff depending on the two events (higher dimensions)
 		 *
 		 */
-        new_array_ptr.get()[(i / big_offset) * big_offset
-                            + ((i / event_1_offset) % event_1_iterator->second) * event_1_new_offset
-                            + ((i / event_2_offset) % event_2_iterator->second) * event_2_new_offset
-                            + i % small_offset] = swapped_marginals.second.get()[i];
+        new_array_ptr
+                .get()[(i / big_offset) * big_offset
+                       + ((i / event_1_offset) % event_1_iterator->second) * event_1_new_offset
+                       + ((i / event_2_offset) % event_2_iterator->second) * event_2_new_offset + i % small_offset] =
+                swapped_marginals.second.get()[i];
     }
 
     //The STL does not provide a function to swap two elements positions
@@ -1572,9 +1520,8 @@ void swap_neighboring_events_order(
  * Note that the implementation is probably not efficient but at least remains simple
  * Can align marginals with higher number of dimensions than the reference
  */
-void align_marginal_array(
-        const list<pair<Rec_Event_name, size_t>> &reference_marginals_order,
-        pair<list<pair<Rec_Event_name, size_t>>, shared_ptr<long double>> &aligned_marginals)
+void align_marginal_array(const list<pair<Rec_Event_name, size_t>> &reference_marginals_order,
+                          pair<list<pair<Rec_Event_name, size_t>>, shared_ptr<long double>> &aligned_marginals)
 {
 
     ////////////////////////////////////////////////////
@@ -1593,8 +1540,7 @@ void align_marginal_array(
         throw runtime_error("Aligned marginals have less dimensions than the reference marginals "
                             "in align_marginal_array()");
     }
-    list<pair<Rec_Event_name, size_t>>::const_iterator reference_iterator =
-            reference_marginals_order.cbegin();
+    list<pair<Rec_Event_name, size_t>>::const_iterator reference_iterator = reference_marginals_order.cbegin();
     size_t counter = 0;
     while (reference_iterator != reference_marginals_order.cend()) {
         //Swap the reference event directly at the right position

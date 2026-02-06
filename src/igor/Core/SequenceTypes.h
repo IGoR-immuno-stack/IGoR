@@ -53,7 +53,7 @@ public:
     // For tandem D support
     TypeId register_d_gene(int d_index); // D1, D2, etc.
     TypeId register_d_insertion(int from_d, int to_d); // D1D2_ins
-    
+
     // For tandem D junctions
     TypeId register_junction_type(const std::string &name);
     TypeId register_junction_type(const std::string &name, TypeId upstream, TypeId downstream);
@@ -82,7 +82,8 @@ public:
     TypeId get_junction_upstream(TypeId junction_type) const;
     TypeId get_junction_downstream(TypeId junction_type) const;
 
-    struct JunctionNeighbor {
+    struct JunctionNeighbor
+    {
         TypeId neighbor_type;
         bool is_upstream;
     };
@@ -92,7 +93,8 @@ public:
     int try_get_type_id(const std::string &name) const;
 
     // Direct access to internal structures for iteration
-    struct TypeInfo {
+    struct TypeInfo
+    {
         TypeId id;
         std::string name;
         bool is_gene;

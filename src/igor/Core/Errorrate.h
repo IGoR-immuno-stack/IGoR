@@ -61,21 +61,18 @@ class Error_rate
 public:
     Error_rate();
     virtual ~Error_rate();
-    virtual double
-    compare_sequences_error_prob(double, const std::string &, Seq_type_str_p_map &,
-                                 const Seq_offsets_map &,
-                                 const std::unordered_map<std::tuple<Event_type, int, Seq_side>,
-                                                          std::shared_ptr<Rec_Event>> &,
-                                 Mismatch_vectors_map &, double &, double &) = 0;
+    virtual double compare_sequences_error_prob(
+            double, const std::string &, Seq_type_str_p_map &, const Seq_offsets_map &,
+            const std::unordered_map<std::tuple<Event_type, int, Seq_side>, std::shared_ptr<Rec_Event>> &,
+            Mismatch_vectors_map &, double &, double &) = 0;
     virtual void update() = 0;
-    virtual void initialize(const std::unordered_map<std::tuple<Event_type, int, Seq_side>,
-                                                     std::shared_ptr<Rec_Event>> &);
+    virtual void
+    initialize(const std::unordered_map<std::tuple<Event_type, int, Seq_side>, std::shared_ptr<Rec_Event>> &);
     bool is_updated() const { return updated; }
     void update_value(bool update_status) { updated = update_status; };
     virtual void add_to_norm_counter() = 0;
     virtual void clean_seq_counters() = 0;
-    void norm_weights_by_seq_likelihood(Marginal_array_p &, const size_t,
-                                        const double seq_weight = 1);
+    void norm_weights_by_seq_likelihood(Marginal_array_p &, const size_t, const double seq_weight = 1);
     virtual void write2txt(std::ofstream &) = 0;
     virtual std::shared_ptr<Error_rate> copy() const = 0;
     virtual std::string type() const = 0;

@@ -117,15 +117,15 @@ SequenceTypeRegistry::TypeId SequenceTypeRegistry::register_junction_type(const 
     return id;
 }
 
-SequenceTypeRegistry::TypeId SequenceTypeRegistry::register_junction_type(const std::string &name, TypeId upstream, TypeId downstream)
+SequenceTypeRegistry::TypeId SequenceTypeRegistry::register_junction_type(const std::string &name, TypeId upstream,
+                                                                          TypeId downstream)
 {
     TypeId id = register_junction_type(name);
     junction_endpoints_[id] = { upstream, downstream };
     return id;
 }
 
-std::vector<SequenceTypeRegistry::NeighborInfo>
-SequenceTypeRegistry::get_upstream_neighbors(TypeId type_id) const
+std::vector<SequenceTypeRegistry::NeighborInfo> SequenceTypeRegistry::get_upstream_neighbors(TypeId type_id) const
 {
     if (upstream_neighbors_.count(type_id)) {
         return upstream_neighbors_.at(type_id);
@@ -133,8 +133,7 @@ SequenceTypeRegistry::get_upstream_neighbors(TypeId type_id) const
     return {};
 }
 
-std::vector<SequenceTypeRegistry::NeighborInfo>
-SequenceTypeRegistry::get_downstream_neighbors(TypeId type_id) const
+std::vector<SequenceTypeRegistry::NeighborInfo> SequenceTypeRegistry::get_downstream_neighbors(TypeId type_id) const
 {
     if (downstream_neighbors_.count(type_id)) {
         return downstream_neighbors_.at(type_id);
@@ -178,8 +177,7 @@ SequenceTypeRegistry::TypeId SequenceTypeRegistry::get_junction_upstream(TypeId 
     return static_cast<TypeId>(-1);
 }
 
-SequenceTypeRegistry::TypeId
-SequenceTypeRegistry::get_junction_downstream(TypeId junction_type) const
+SequenceTypeRegistry::TypeId SequenceTypeRegistry::get_junction_downstream(TypeId junction_type) const
 {
     if (junction_endpoints_.count(junction_type)) {
         return junction_endpoints_.at(junction_type).second;

@@ -151,8 +151,7 @@ vector<pair<string, string>> read_genomic_fasta(string filename)
                         letter++;
                     }
                 }
-                seq_name_str.erase(
-                        seq_name_str.begin()); //Get rid of the '>' at the beginning of the line
+                seq_name_str.erase(seq_name_str.begin()); //Get rid of the '>' at the beginning of the line
                 sequence_vect.push_back(pair<string, string>(seq_name_str, seq_str));
             }
             seq_name_str = temp_str;
@@ -238,35 +237,31 @@ vector<pair<const int, const string>> read_indexed_csv(string filename)
 /**
  * \overload
  */
-forward_list<Alignment_data> Aligner::align_seq(string nt_seq, double score_threshold,
-                                                bool best_align_only, int min_offset,
-                                                int max_offset, bool rev_offset_frame /*=false*/)
+forward_list<Alignment_data> Aligner::align_seq(string nt_seq, double score_threshold, bool best_align_only,
+                                                int min_offset, int max_offset, bool rev_offset_frame /*=false*/)
 {
     //Create a map of offset bounds and call align_seq overloads
     //This is not very elegant, however this function will probably not be called anymore except for aligning a single sequence.
-    return align_seq(nt_seq, score_threshold, best_align_only,
-                     build_genomic_bounds_map(min_offset, max_offset), rev_offset_frame);
-}
-/**
- * \overload
- */
-forward_list<Alignment_data> Aligner::align_seq(string nt_seq, double score_threshold,
-                                                bool best_align_only, int min_offset,
-                                                int max_offset, set<string> restricted_genomic_list,
-                                                bool rev_offset_frame /*=false*/)
-{
-    //Create a map of offset bounds and call align_seq overloads
-    //This is not very elegant, however this function will probably not be called anymore except for aligning a single sequence.
-    return align_seq(nt_seq, score_threshold, best_align_only,
-                     build_genomic_bounds_map(min_offset, max_offset), restricted_genomic_list,
+    return align_seq(nt_seq, score_threshold, best_align_only, build_genomic_bounds_map(min_offset, max_offset),
                      rev_offset_frame);
 }
 /**
  * \overload
  */
-forward_list<Alignment_data> Aligner::align_seq(string nt_seq, double score_threshold,
-                                                bool best_align_only, bool best_gene_only,
-                                                int min_offset, int max_offset,
+forward_list<Alignment_data> Aligner::align_seq(string nt_seq, double score_threshold, bool best_align_only,
+                                                int min_offset, int max_offset, set<string> restricted_genomic_list,
+                                                bool rev_offset_frame /*=false*/)
+{
+    //Create a map of offset bounds and call align_seq overloads
+    //This is not very elegant, however this function will probably not be called anymore except for aligning a single sequence.
+    return align_seq(nt_seq, score_threshold, best_align_only, build_genomic_bounds_map(min_offset, max_offset),
+                     restricted_genomic_list, rev_offset_frame);
+}
+/**
+ * \overload
+ */
+forward_list<Alignment_data> Aligner::align_seq(string nt_seq, double score_threshold, bool best_align_only,
+                                                bool best_gene_only, int min_offset, int max_offset,
                                                 bool rev_offset_frame /*=false*/)
 {
     //Create a map of offset bounds and call align_seq overloads
@@ -277,25 +272,21 @@ forward_list<Alignment_data> Aligner::align_seq(string nt_seq, double score_thre
 /**
  * \overload
  */
-forward_list<Alignment_data> Aligner::align_seq(string nt_seq, double score_threshold,
-                                                bool best_align_only, bool best_gene_only,
-                                                int min_offset, int max_offset,
-                                                set<string> restricted_genomic_list,
-                                                bool rev_offset_frame /*=false*/)
+forward_list<Alignment_data> Aligner::align_seq(string nt_seq, double score_threshold, bool best_align_only,
+                                                bool best_gene_only, int min_offset, int max_offset,
+                                                set<string> restricted_genomic_list, bool rev_offset_frame /*=false*/)
 {
     //Create a map of offset bounds and call align_seq overloads
     //This is not very elegant, however this function will probably not be called anymore except for aligning a single sequence.
     return align_seq(nt_seq, score_threshold, best_align_only, best_gene_only,
-                     build_genomic_bounds_map(min_offset, max_offset), restricted_genomic_list,
-                     rev_offset_frame);
+                     build_genomic_bounds_map(min_offset, max_offset), restricted_genomic_list, rev_offset_frame);
 }
 /**
  *  \overload
  */
-forward_list<Alignment_data>
-Aligner::align_seq(string nt_seq, double score_threshold, bool best_align_only,
-                   unordered_map<string, pair<int, int>> genomic_offset_bounds,
-                   bool rev_offset_frame /*=false*/)
+forward_list<Alignment_data> Aligner::align_seq(string nt_seq, double score_threshold, bool best_align_only,
+                                                unordered_map<string, pair<int, int>> genomic_offset_bounds,
+                                                bool rev_offset_frame /*=false*/)
 {
     // Call the align seq function enforcing alignments for all genes to be passed
     return align_seq(nt_seq, score_threshold, best_align_only, false, genomic_offset_bounds,
@@ -304,27 +295,26 @@ Aligner::align_seq(string nt_seq, double score_threshold, bool best_align_only,
 /**
  *  \overload
  */
-forward_list<Alignment_data>
-Aligner::align_seq(string nt_seq, double score_threshold, bool best_align_only,
-                   unordered_map<string, pair<int, int>> genomic_offset_bounds,
-                   set<string> restricted_genomic_list, bool rev_offset_frame /*=false*/)
+forward_list<Alignment_data> Aligner::align_seq(string nt_seq, double score_threshold, bool best_align_only,
+                                                unordered_map<string, pair<int, int>> genomic_offset_bounds,
+                                                set<string> restricted_genomic_list, bool rev_offset_frame /*=false*/)
 {
     // Call the align seq function enforcing alignments for all genes to be passed
-    return align_seq(nt_seq, score_threshold, best_align_only, false, genomic_offset_bounds,
-                     restricted_genomic_list, rev_offset_frame /*=false*/);
+    return align_seq(nt_seq, score_threshold, best_align_only, false, genomic_offset_bounds, restricted_genomic_list,
+                     rev_offset_frame /*=false*/);
 }
 
-forward_list<Alignment_data>
-Aligner::align_seq(string nt_seq, double score_threshold, bool best_align_only, bool best_gene_only,
-                   unordered_map<string, pair<int, int>> genomic_offset_bounds,
-                   bool rev_offset_frame /*=false*/)
+forward_list<Alignment_data> Aligner::align_seq(string nt_seq, double score_threshold, bool best_align_only,
+                                                bool best_gene_only,
+                                                unordered_map<string, pair<int, int>> genomic_offset_bounds,
+                                                bool rev_offset_frame /*=false*/)
 {
     set<string> all_genomic_names;
     for (pair<string, string> genomic_template : this->nt_genomic_sequences) {
         all_genomic_names.emplace(genomic_template.first);
     }
-    return align_seq(nt_seq, score_threshold, best_align_only, best_gene_only,
-                     genomic_offset_bounds, all_genomic_names, rev_offset_frame /*=false*/);
+    return align_seq(nt_seq, score_threshold, best_align_only, best_gene_only, genomic_offset_bounds, all_genomic_names,
+                     rev_offset_frame /*=false*/);
 }
 
 /**
@@ -345,10 +335,10 @@ Aligner::align_seq(string nt_seq, double score_threshold, bool best_align_only, 
  * There is also a possibility to pass these offsets reversed (i.e defined from the last nucleotide of the target) in case it is more handy (e.g alignement of CDR3 sequences or J/C primer sequencing).
  *
  */
-forward_list<Alignment_data>
-Aligner::align_seq(string nt_seq, double score_threshold, bool best_align_only, bool best_gene_only,
-                   unordered_map<string, pair<int, int>> genomic_offset_bounds,
-                   set<string> restricted_genomic_list, bool rev_offset_frame /*=false*/)
+forward_list<Alignment_data> Aligner::align_seq(string nt_seq, double score_threshold, bool best_align_only,
+                                                bool best_gene_only,
+                                                unordered_map<string, pair<int, int>> genomic_offset_bounds,
+                                                set<string> restricted_genomic_list, bool rev_offset_frame /*=false*/)
 {
     int min_offset;
     int max_offset;
@@ -368,31 +358,28 @@ Aligner::align_seq(string nt_seq, double score_threshold, bool best_align_only, 
                 cerr << "Exception caught trying to fetch template specific offset bounds in "
                         "Aligner::align_seq"
                      << endl;
-                throw runtime_error("Missing genomic offset bounds for genomic template \""
-                                    + iter->first + "\"");
+                throw runtime_error("Missing genomic offset bounds for genomic template \"" + iter->first + "\"");
             }
 
             // Reverse the offset if necessary (e.g for J CDR3 alignment or sequencing from J primer)
-            min_offset += (rev_offset_frame)
-                    ? seqlen - 1
-                    : 0; //seqlen-1 correspond to the index of the last nt of the sequence
+            min_offset += (rev_offset_frame) ? seqlen - 1
+                                             : 0; //seqlen-1 correspond to the index of the last nt of the sequence
             max_offset += (rev_offset_frame) ? seqlen - 1 : 0;
 
             list<pair<int, Alignment_data>> alignments;
             try {
-                alignments = this->sw_align(int_seq, (*iter).second, score_threshold,
-                                            best_align_only, min_offset, max_offset);
+                alignments = this->sw_align(int_seq, (*iter).second, score_threshold, best_align_only, min_offset,
+                                            max_offset);
             } catch (exception &e) {
                 cerr << endl;
-                cerr << "Exception caught calling sw_align() on genomic template:" << (*iter).first
-                     << endl;
+                cerr << "Exception caught calling sw_align() on genomic template:" << (*iter).first << endl;
                 throw e;
             }
             //TODO quick and dirty fix for D genes alignments
             //alignment.second.gene_name = (*iter).first;
             //alignment_list.push_front(alignment.second);
-            for (list<pair<int, Alignment_data>>::iterator jiter = alignments.begin();
-                 jiter != alignments.end(); jiter++) {
+            for (list<pair<int, Alignment_data>>::iterator jiter = alignments.begin(); jiter != alignments.end();
+                 jiter++) {
                 (*jiter).second.gene_name = (*iter).first;
                 alignment_list.push_front((*jiter).second);
             }
@@ -411,11 +398,10 @@ Aligner::align_seq(string nt_seq, double score_threshold, bool best_align_only, 
  * Align sequences and hold them in memory
  */
 unordered_map<int, forward_list<Alignment_data>>
-Aligner::align_seqs(vector<pair<const int, const string>> sequence_list, double score_threshold,
-                    bool best_align_only)
+Aligner::align_seqs(vector<pair<const int, const string>> sequence_list, double score_threshold, bool best_align_only)
 {
-    unordered_map<int, forward_list<Alignment_data>> alignment_map = align_seqs(
-            sequence_list, score_threshold, best_align_only, false, INT16_MIN, INT16_MAX);
+    unordered_map<int, forward_list<Alignment_data>> alignment_map =
+            align_seqs(sequence_list, score_threshold, best_align_only, false, INT16_MIN, INT16_MAX);
     return alignment_map;
 }
 
@@ -423,11 +409,11 @@ Aligner::align_seqs(vector<pair<const int, const string>> sequence_list, double 
  * Align sequences and hold them in memory
  */
 unordered_map<int, forward_list<Alignment_data>>
-Aligner::align_seqs(vector<pair<const int, const string>> sequence_list, double score_threshold,
-                    bool best_align_only, bool best_gene_only)
+Aligner::align_seqs(vector<pair<const int, const string>> sequence_list, double score_threshold, bool best_align_only,
+                    bool best_gene_only)
 {
-    unordered_map<int, forward_list<Alignment_data>> alignment_map = align_seqs(
-            sequence_list, score_threshold, best_align_only, best_gene_only, INT16_MIN, INT16_MAX);
+    unordered_map<int, forward_list<Alignment_data>> alignment_map =
+            align_seqs(sequence_list, score_threshold, best_align_only, best_gene_only, INT16_MIN, INT16_MAX);
     return alignment_map;
 }
 
@@ -435,19 +421,17 @@ Aligner::align_seqs(vector<pair<const int, const string>> sequence_list, double 
  * \brief A function performing alignment of all genomic templates against all provided sequences. Alignments are stored in memory.
  */
 unordered_map<int, forward_list<Alignment_data>>
-Aligner::align_seqs(vector<pair<const int, const string>> sequence_list, double score_threshold,
-                    bool best_align_only, int min_offset, int max_offset,
-                    bool rev_offset_frame /*=false*/)
+Aligner::align_seqs(vector<pair<const int, const string>> sequence_list, double score_threshold, bool best_align_only,
+                    int min_offset, int max_offset, bool rev_offset_frame /*=false*/)
 {
-    unordered_map<int, forward_list<Alignment_data>> alignment_map = align_seqs(
-            sequence_list, score_threshold, best_align_only, false, min_offset, max_offset);
+    unordered_map<int, forward_list<Alignment_data>> alignment_map =
+            align_seqs(sequence_list, score_threshold, best_align_only, false, min_offset, max_offset);
     return alignment_map;
 }
 
 unordered_map<int, forward_list<Alignment_data>>
-Aligner::align_seqs(vector<pair<const int, const string>> sequence_list, double score_threshold,
-                    bool best_align_only, bool best_gene_only, int min_offset, int max_offset,
-                    bool rev_offset_frame /*=false*/)
+Aligner::align_seqs(vector<pair<const int, const string>> sequence_list, double score_threshold, bool best_align_only,
+                    bool best_gene_only, int min_offset, int max_offset, bool rev_offset_frame /*=false*/)
 {
     unordered_map<int, forward_list<Alignment_data>> alignment_map =
             align_seqs(sequence_list, score_threshold, best_align_only, best_gene_only,
@@ -456,14 +440,11 @@ Aligner::align_seqs(vector<pair<const int, const string>> sequence_list, double 
 }
 
 unordered_map<int, forward_list<Alignment_data>>
-Aligner::align_seqs(vector<pair<const int, const string>> sequence_list, double score_threshold,
-                    bool best_align_only,
-                    unordered_map<string, pair<int, int>> genomic_offset_bounds,
-                    bool rev_offset_frame /*=false*/)
+Aligner::align_seqs(vector<pair<const int, const string>> sequence_list, double score_threshold, bool best_align_only,
+                    unordered_map<string, pair<int, int>> genomic_offset_bounds, bool rev_offset_frame /*=false*/)
 {
     unordered_map<int, forward_list<Alignment_data>> alignment_map =
-            align_seqs(sequence_list, score_threshold, best_align_only, false,
-                       genomic_offset_bounds, rev_offset_frame);
+            align_seqs(sequence_list, score_threshold, best_align_only, false, genomic_offset_bounds, rev_offset_frame);
     return alignment_map;
 }
 
@@ -471,9 +452,8 @@ Aligner::align_seqs(vector<pair<const int, const string>> sequence_list, double 
  * \brief A function performing alignment of all genomic templates against all provided sequences. Alignments are stored in memory.
  */
 unordered_map<int, forward_list<Alignment_data>>
-Aligner::align_seqs(vector<pair<const int, const string>> sequence_list, double score_threshold,
-                    bool best_align_only, bool best_gene_only,
-                    unordered_map<string, pair<int, int>> genomic_offset_bounds,
+Aligner::align_seqs(vector<pair<const int, const string>> sequence_list, double score_threshold, bool best_align_only,
+                    bool best_gene_only, unordered_map<string, pair<int, int>> genomic_offset_bounds,
                     bool rev_offset_frame /*=false*/)
 {
     unordered_map<int, forward_list<Alignment_data>>
@@ -489,13 +469,12 @@ Aligner::align_seqs(vector<pair<const int, const string>> sequence_list, double 
 */
 
 //Declare parallel loop using OpenMP 3.1 standards
-#pragma omp parallel for schedule(dynamic) \
-        shared(processed_seq_number, alignment_map) //num_threads(1)
+#pragma omp parallel for schedule(dynamic) shared(processed_seq_number, alignment_map) //num_threads(1)
     for (vector<pair<const int, const string>>::const_iterator seq_it = sequence_list.begin();
          seq_it < sequence_list.end(); seq_it++) {
         forward_list<Alignment_data> seq_alignments =
-                align_seq((*seq_it).second, score_threshold, best_align_only, best_gene_only,
-                          genomic_offset_bounds, rev_offset_frame);
+                align_seq((*seq_it).second, score_threshold, best_align_only, best_gene_only, genomic_offset_bounds,
+                          rev_offset_frame);
 #pragma omp critical(emplace_seq_alignments)
         {
             alignment_map.emplace((*seq_it).first, seq_alignments);
@@ -507,8 +486,8 @@ Aligner::align_seqs(vector<pair<const int, const string>> sequence_list, double 
 //Output current progress to cerr
 #pragma omp critical(show_progress_align)
             {
-                show_progress_bar(cerr, processed_seq_number / total_number_seqs,
-                                  to_string(this->gene) + " alignments", 50);
+                show_progress_bar(cerr, processed_seq_number / total_number_seqs, to_string(this->gene) + " alignments",
+                                  50);
             }
         }
     }
@@ -518,9 +497,8 @@ Aligner::align_seqs(vector<pair<const int, const string>> sequence_list, double 
 /**
  * \overload
  */
-void Aligner::align_seqs(string filename, vector<pair<const int, const string>> sequence_list,
-                         double score_threshold, bool best_align_only, int min_offset,
-                         int max_offset, bool rev_offset_frame /*=false*/)
+void Aligner::align_seqs(string filename, vector<pair<const int, const string>> sequence_list, double score_threshold,
+                         bool best_align_only, int min_offset, int max_offset, bool rev_offset_frame /*=false*/)
 {
     return this->align_seqs(filename, sequence_list, score_threshold, best_align_only, false,
                             build_genomic_bounds_map(min_offset, max_offset), rev_offset_frame);
@@ -529,25 +507,23 @@ void Aligner::align_seqs(string filename, vector<pair<const int, const string>> 
 /**
  * \overload
  */
-void Aligner::align_seqs(string filename, vector<pair<const int, const string>> sequence_list,
-                         double score_threshold, bool best_align_only, bool best_gene_only,
-                         int min_offset, int max_offset, bool rev_offset_frame /*=false*/)
+void Aligner::align_seqs(string filename, vector<pair<const int, const string>> sequence_list, double score_threshold,
+                         bool best_align_only, bool best_gene_only, int min_offset, int max_offset,
+                         bool rev_offset_frame /*=false*/)
 {
-    return this->align_seqs(filename, sequence_list, score_threshold, best_align_only,
-                            best_gene_only, build_genomic_bounds_map(min_offset, max_offset),
-                            rev_offset_frame);
+    return this->align_seqs(filename, sequence_list, score_threshold, best_align_only, best_gene_only,
+                            build_genomic_bounds_map(min_offset, max_offset), rev_offset_frame);
 }
 
 /**
  * \overload
  */
-void Aligner::align_seqs(string filename, vector<pair<const int, const string>> sequence_list,
-                         double score_threshold, bool best_align_only,
-                         unordered_map<string, pair<int, int>> genomic_offset_bounds,
+void Aligner::align_seqs(string filename, vector<pair<const int, const string>> sequence_list, double score_threshold,
+                         bool best_align_only, unordered_map<string, pair<int, int>> genomic_offset_bounds,
                          bool rev_offset_frame /*=false*/)
 {
-    return this->align_seqs(filename, sequence_list, score_threshold, best_align_only, false,
-                            genomic_offset_bounds, rev_offset_frame);
+    return this->align_seqs(filename, sequence_list, score_threshold, best_align_only, false, genomic_offset_bounds,
+                            rev_offset_frame);
 }
 
 /**
@@ -572,10 +548,9 @@ void Aligner::align_seqs(string filename, vector<pair<const int, const string>> 
  *
  * \bug Summary file creation might not work on Windows systems
  */
-void Aligner::align_seqs(string filename, vector<pair<const int, const string>> sequence_list,
-                         double score_threshold, bool best_align_only, bool best_gene_only,
-                         unordered_map<string, pair<int, int>> genomic_offset_bounds,
-                         bool rev_offset_frame /*=false*/)
+void Aligner::align_seqs(string filename, vector<pair<const int, const string>> sequence_list, double score_threshold,
+                         bool best_align_only, bool best_gene_only,
+                         unordered_map<string, pair<int, int>> genomic_offset_bounds, bool rev_offset_frame /*=false*/)
 {
 
     unordered_map<int, forward_list<Alignment_data>>
@@ -586,16 +561,14 @@ void Aligner::align_seqs(string filename, vector<pair<const int, const string>> 
                               fstream::out | fstream::app); //Opens the file in append mode
 
     //Check if all templates have the same min and max offsets and compute min and max over all of them.
-    tuple<bool, int, int> min_max_offsets =
-            extract_min_max_genomic_templates_offsets(genomic_offset_bounds);
+    tuple<bool, int, int> min_max_offsets = extract_min_max_genomic_templates_offsets(genomic_offset_bounds);
 
     // Start chronometer and get dates and time
     chrono::system_clock::time_point begin_time = chrono::system_clock::now();
     std::time_t tt;
     tt = chrono::system_clock::to_time_t(begin_time);
 
-    align_infos_file << endl
-                     << "================================================================" << endl;
+    align_infos_file << endl << "================================================================" << endl;
     align_infos_file << "Alignments in file: " << filename << endl;
     align_infos_file << "Date: " << ctime(&tt) << endl;
     align_infos_file << "Score threshold = " << score_threshold << endl;
@@ -625,14 +598,13 @@ void Aligner::align_seqs(string filename, vector<pair<const int, const string>> 
 */
 
 //Declare parallel loop using OpenMP 3.1 standards
-#pragma omp parallel for schedule(dynamic) \
-        shared(processed_seq_number, alignment_map) //num_threads(1)
+#pragma omp parallel for schedule(dynamic) shared(processed_seq_number, alignment_map) //num_threads(1)
     for (vector<pair<const int, const string>>::const_iterator seq_it = sequence_list.begin();
          seq_it < sequence_list.end(); seq_it++) {
         try {
             forward_list<Alignment_data> seq_alignments =
-                    align_seq((*seq_it).second, score_threshold, best_align_only, best_gene_only,
-                              genomic_offset_bounds, rev_offset_frame);
+                    align_seq((*seq_it).second, score_threshold, best_align_only, best_gene_only, genomic_offset_bounds,
+                              rev_offset_frame);
 
 #pragma omp critical(emplace_seq_alignments)
             {
@@ -668,31 +640,28 @@ void Aligner::align_seqs(string filename, vector<pair<const int, const string>> 
 /*
  * Align sequences and write them on disk on the fly (avoids memory issues)
  */
-void Aligner::align_seqs(string filename, vector<pair<const int, const string>> sequence_list,
-                         double score_threshold, bool best_align_only)
+void Aligner::align_seqs(string filename, vector<pair<const int, const string>> sequence_list, double score_threshold,
+                         bool best_align_only)
 {
-    this->align_seqs(filename, sequence_list, score_threshold, best_align_only, INT16_MIN,
-                     INT16_MAX);
+    this->align_seqs(filename, sequence_list, score_threshold, best_align_only, INT16_MIN, INT16_MAX);
 }
 /*
  * Align sequences and write them on disk on the fly (avoids memory issues)
  */
-void Aligner::align_seqs(string filename, vector<pair<const int, const string>> sequence_list,
-                         double score_threshold, bool best_align_only, bool best_gene_only)
+void Aligner::align_seqs(string filename, vector<pair<const int, const string>> sequence_list, double score_threshold,
+                         bool best_align_only, bool best_gene_only)
 {
-    this->align_seqs(filename, sequence_list, score_threshold, best_align_only, best_gene_only,
-                     INT16_MIN, INT16_MAX);
+    this->align_seqs(filename, sequence_list, score_threshold, best_align_only, best_gene_only, INT16_MIN, INT16_MAX);
 }
 
 /**
  * \brief A small function to automatically build a hashmap containing genomic offset bounds from fixed bounds over genomic templates.
  */
-std::unordered_map<std::string, std::pair<int, int>>
-Aligner::build_genomic_bounds_map(int min_offset, int max_offset) const
+std::unordered_map<std::string, std::pair<int, int>> Aligner::build_genomic_bounds_map(int min_offset,
+                                                                                       int max_offset) const
 {
     unordered_map<string, pair<int, int>> genomic_offset_bounds;
-    for (forward_list<pair<string, Int_Str>>::const_iterator iter =
-                 this->int_genomic_sequences.begin();
+    for (forward_list<pair<string, Int_Str>>::const_iterator iter = this->int_genomic_sequences.begin();
          iter != this->int_genomic_sequences.end(); ++iter) {
         genomic_offset_bounds.emplace(iter->first, make_pair(min_offset, max_offset));
     }
@@ -721,15 +690,14 @@ void write_indexed_seq_csv(string filename, vector<pair<const int, const string>
  * @insertions: list of int coma separated surrounded by curly braces
  * @deletions: list of int coma separated surrounded by curly braces
  */
-void Aligner::write_alignments_seq_csv(
-        string filename, unordered_map<int, forward_list<Alignment_data>> indexed_alignments)
+void Aligner::write_alignments_seq_csv(string filename,
+                                       unordered_map<int, forward_list<Alignment_data>> indexed_alignments)
 {
     ofstream outfile(filename);
     outfile << "seq_index" << ";" << "gene_name" << ";" << "score" << ";" << "offset" << ";"
             << "insertions" << ";" << "deletions" << ";" << "mismatches" << ";" << "length" << endl;
 
-    for (unordered_map<int, forward_list<Alignment_data>>::const_iterator iter =
-                 indexed_alignments.begin();
+    for (unordered_map<int, forward_list<Alignment_data>>::const_iterator iter = indexed_alignments.begin();
          iter != indexed_alignments.end(); ++iter) {
         write_single_seq_alignment(outfile, (*iter).first, (*iter).second);
     }
@@ -738,15 +706,13 @@ void Aligner::write_alignments_seq_csv(
 /*
  * This method writes the alignments for one sequence in the given stream
  */
-void write_single_seq_alignment(ofstream &outfile, int seq_index,
-                                forward_list<Alignment_data> seq_alignments)
+void write_single_seq_alignment(ofstream &outfile, int seq_index, forward_list<Alignment_data> seq_alignments)
 {
-    for (forward_list<Alignment_data>::const_iterator jiter = seq_alignments.begin();
-         jiter != seq_alignments.end(); ++jiter) {
-        outfile << seq_index << ";" << (*jiter).gene_name << ";" << (*jiter).score << ";"
-                << (*jiter).offset << ";{";
-        for (forward_list<int>::const_iterator kiter = (*jiter).insertions.begin();
-             kiter != (*jiter).insertions.end(); ++kiter) {
+    for (forward_list<Alignment_data>::const_iterator jiter = seq_alignments.begin(); jiter != seq_alignments.end();
+         ++jiter) {
+        outfile << seq_index << ";" << (*jiter).gene_name << ";" << (*jiter).score << ";" << (*jiter).offset << ";{";
+        for (forward_list<int>::const_iterator kiter = (*jiter).insertions.begin(); kiter != (*jiter).insertions.end();
+             ++kiter) {
             if (kiter == (*jiter).insertions.begin()) {
                 outfile << (*kiter);
             } else {
@@ -754,8 +720,8 @@ void write_single_seq_alignment(ofstream &outfile, int seq_index,
             }
         }
         outfile << "};{";
-        for (forward_list<int>::const_iterator kiter = (*jiter).deletions.begin();
-             kiter != (*jiter).deletions.end(); ++kiter) {
+        for (forward_list<int>::const_iterator kiter = (*jiter).deletions.begin(); kiter != (*jiter).deletions.end();
+             ++kiter) {
             if (kiter == (*jiter).deletions.begin()) {
                 outfile << (*kiter);
             } else {
@@ -763,16 +729,16 @@ void write_single_seq_alignment(ofstream &outfile, int seq_index,
             }
         }
         outfile << "};{"; //<<endl;
-        for (vector<int>::const_iterator kiter = (*jiter).mismatches.begin();
-             kiter != (*jiter).mismatches.end(); ++kiter) {
+        for (vector<int>::const_iterator kiter = (*jiter).mismatches.begin(); kiter != (*jiter).mismatches.end();
+             ++kiter) {
             if (kiter == (*jiter).mismatches.begin()) {
                 outfile << (*kiter);
             } else {
                 outfile << "," << (*kiter);
             }
         }
-        outfile << "};" << (*jiter).align_length << ";" << (*jiter).five_p_offset << ";"
-                << (*jiter).three_p_offset << endl;
+        outfile << "};" << (*jiter).align_length << ";" << (*jiter).five_p_offset << ";" << (*jiter).three_p_offset
+                << endl;
     }
 }
 
@@ -792,8 +758,8 @@ forward_list<pair<const int, const string>> read_indexed_seq_csv(string filename
     getline(infile, line_str);
     while (getline(infile, line_str)) {
         size_t scolon_index = line_str.find(';');
-        indexed_seq_list.push_front(pair<const int, const string>(
-                stoi(line_str.substr(0, scolon_index)), line_str.erase(0, (scolon_index + 1))));
+        indexed_seq_list.push_front(pair<const int, const string>(stoi(line_str.substr(0, scolon_index)),
+                                                                  line_str.erase(0, (scolon_index + 1))));
     }
     return indexed_seq_list;
 }
@@ -802,8 +768,8 @@ forward_list<pair<const int, const string>> read_indexed_seq_csv(string filename
  * This method reads the alignment data from a given file (@filename).
  * The structure of the file is assumed to be the same as the one created by the Aligner::write_alignments_seq_csv method
  */
-unordered_map<int, vector<Alignment_data>>
-read_alignments_seq_csv(string filename, double score_threshold, bool allow_in_dels)
+unordered_map<int, vector<Alignment_data>> read_alignments_seq_csv(string filename, double score_threshold,
+                                                                   bool allow_in_dels)
 {
     ifstream infile(filename);
     if (!infile) {
@@ -840,17 +806,16 @@ read_alignments_seq_csv(string filename, double score_threshold, bool allow_in_d
         {
             //Get the index of insertions from comma separated integers surrounded by curly braces
 
-            string ins_substr = line_str.substr(
-                    (off_sep + 2),
-                    (ins_sep - off_sep - 3)); //get rid of curly braces at the same time
+            string ins_substr = line_str.substr((off_sep + 2),
+                                                (ins_sep - off_sep - 3)); //get rid of curly braces at the same time
 
             size_t comma_index = ins_substr.find(',');
             if (comma_index != string::npos) {
                 insertions.push_front(stoi(ins_substr.substr(0, (comma_index))));
                 while (comma_index != string::npos) {
                     size_t next_comma_index = ins_substr.find(',', (comma_index + 1));
-                    insertions.push_front(stoi(ins_substr.substr(
-                            (comma_index + 1), (next_comma_index - comma_index - 1))));
+                    insertions.push_front(
+                            stoi(ins_substr.substr((comma_index + 1), (next_comma_index - comma_index - 1))));
                     comma_index = next_comma_index;
                 }
             } else {
@@ -863,17 +828,16 @@ read_alignments_seq_csv(string filename, double score_threshold, bool allow_in_d
         {
             //Same with deletions
 
-            string del_substr = line_str.substr(
-                    (ins_sep + 2),
-                    (del_sep - ins_sep - 3)); //get rid of curly braces at the same time
+            string del_substr = line_str.substr((ins_sep + 2),
+                                                (del_sep - ins_sep - 3)); //get rid of curly braces at the same time
 
             size_t comma_index = del_substr.find(',');
             if (comma_index != string::npos) {
                 deletions.push_front(stoi(del_substr.substr(0, (comma_index))));
                 while (comma_index != string::npos) {
                     size_t next_comma_index = del_substr.find(',', (comma_index + 1));
-                    deletions.push_front(stoi(del_substr.substr(
-                            (comma_index + 1), (next_comma_index - comma_index - 1))));
+                    deletions.push_front(
+                            stoi(del_substr.substr((comma_index + 1), (next_comma_index - comma_index - 1))));
                     comma_index = next_comma_index;
                 }
             } else {
@@ -898,13 +862,12 @@ read_alignments_seq_csv(string filename, double score_threshold, bool allow_in_d
             string mismatch_substr;
             if (mism_sep == string::npos) {
                 //TODO remove this, this ensure compatibility with previous versions
-                mismatch_substr = line_str.substr(
-                        (del_sep + 2),
-                        (line_str.size() - del_sep - 3)); //get rid of curly braces at the same time
+                mismatch_substr =
+                        line_str.substr((del_sep + 2),
+                                        (line_str.size() - del_sep - 3)); //get rid of curly braces at the same time
             } else {
-                mismatch_substr = line_str.substr(
-                        (del_sep + 2),
-                        (mism_sep - del_sep - 3)); //get rid of curly braces at the same time
+                mismatch_substr = line_str.substr((del_sep + 2),
+                                                  (mism_sep - del_sep - 3)); //get rid of curly braces at the same time
             }
 
             size_t comma_index = mismatch_substr.find(',');
@@ -912,8 +875,8 @@ read_alignments_seq_csv(string filename, double score_threshold, bool allow_in_d
                 mismatches.push_back(stoi(mismatch_substr.substr(0, (comma_index))));
                 while (comma_index != string::npos) {
                     size_t next_comma_index = mismatch_substr.find(',', (comma_index + 1));
-                    mismatches.push_back(stoi(mismatch_substr.substr(
-                            (comma_index + 1), (next_comma_index - comma_index - 1))));
+                    mismatches.push_back(
+                            stoi(mismatch_substr.substr((comma_index + 1), (next_comma_index - comma_index - 1))));
                     comma_index = next_comma_index;
                 }
             } else {
@@ -925,30 +888,26 @@ read_alignments_seq_csv(string filename, double score_threshold, bool allow_in_d
             //FIXME read alignment length
         }
 
-        indexed_alignments[index].push_back(Alignment_data(gene_name, offset, INT16_MIN, insertions,
-                                                           deletions, mismatches, score));
+        indexed_alignments[index].push_back(
+                Alignment_data(gene_name, offset, INT16_MIN, insertions, deletions, mismatches, score));
     }
     return indexed_alignments;
 }
 
 unordered_map<int, pair<string, unordered_map<Gene_class, vector<Alignment_data>>>>
-read_alignments_seq_csv(string filename, Gene_class aligned_gene, double score_threshold,
-                        bool allow_in_dels, vector<pair<const int, const string>> indexed_sequences)
+read_alignments_seq_csv(string filename, Gene_class aligned_gene, double score_threshold, bool allow_in_dels,
+                        vector<pair<const int, const string>> indexed_sequences)
 {
-    unordered_map<int, pair<string, unordered_map<Gene_class, vector<Alignment_data>>>>
-            sorted_alignments;
-    sorted_alignments =
-            read_alignments_seq_csv(filename, aligned_gene, score_threshold, allow_in_dels,
-                                    indexed_sequences, sorted_alignments);
+    unordered_map<int, pair<string, unordered_map<Gene_class, vector<Alignment_data>>>> sorted_alignments;
+    sorted_alignments = read_alignments_seq_csv(filename, aligned_gene, score_threshold, allow_in_dels,
+                                                indexed_sequences, sorted_alignments);
     return sorted_alignments;
 }
 
-unordered_map<int, pair<string, unordered_map<Gene_class, vector<Alignment_data>>>>
-read_alignments_seq_csv(
+unordered_map<int, pair<string, unordered_map<Gene_class, vector<Alignment_data>>>> read_alignments_seq_csv(
         string filename, Gene_class aligned_gene, double score_threshold, bool allow_in_dels,
         vector<pair<const int, const string>> indexed_sequences,
-        unordered_map<int, pair<string, unordered_map<Gene_class, vector<Alignment_data>>>>
-                sorted_alignments)
+        unordered_map<int, pair<string, unordered_map<Gene_class, vector<Alignment_data>>>> sorted_alignments)
 {
     unordered_map<int, vector<Alignment_data>> alignments =
             read_alignments_seq_csv(filename, score_threshold, allow_in_dels);
@@ -962,33 +921,27 @@ read_alignments_seq_csv(
 }
 
 unordered_map<int, pair<string, unordered_map<Gene_class, vector<Alignment_data>>>>
-read_alignments_seq_csv_score_range(string filename, Gene_class aligned_gene, double score_range,
-                                    bool allow_in_dels,
+read_alignments_seq_csv_score_range(string filename, Gene_class aligned_gene, double score_range, bool allow_in_dels,
                                     vector<pair<const int, const string>> indexed_sequences)
 {
-    unordered_map<int, pair<string, unordered_map<Gene_class, vector<Alignment_data>>>>
-            sorted_alignments;
-    sorted_alignments =
-            read_alignments_seq_csv_score_range(filename, aligned_gene, score_range, allow_in_dels,
-                                                indexed_sequences, sorted_alignments);
+    unordered_map<int, pair<string, unordered_map<Gene_class, vector<Alignment_data>>>> sorted_alignments;
+    sorted_alignments = read_alignments_seq_csv_score_range(filename, aligned_gene, score_range, allow_in_dels,
+                                                            indexed_sequences, sorted_alignments);
     return sorted_alignments;
 }
 
-unordered_map<int, pair<string, unordered_map<Gene_class, vector<Alignment_data>>>>
-read_alignments_seq_csv_score_range(
+unordered_map<int, pair<string, unordered_map<Gene_class, vector<Alignment_data>>>> read_alignments_seq_csv_score_range(
         string filename, Gene_class aligned_gene, double score_range, bool allow_in_dels,
         vector<pair<const int, const string>> indexed_sequences,
-        unordered_map<int, pair<string, unordered_map<Gene_class, vector<Alignment_data>>>>
-                sorted_alignments)
+        unordered_map<int, pair<string, unordered_map<Gene_class, vector<Alignment_data>>>> sorted_alignments)
 {
-    unordered_map<int, vector<Alignment_data>> alignments =
-            read_alignments_seq_csv(filename, 0, allow_in_dels);
+    unordered_map<int, vector<Alignment_data>> alignments = read_alignments_seq_csv(filename, 0, allow_in_dels);
     for (vector<pair<const int, const string>>::const_iterator seq_it = indexed_sequences.begin();
          seq_it != indexed_sequences.end(); ++seq_it) {
         vector<Alignment_data> &seq_alignments = alignments[(*seq_it).first];
         double max_score = -1;
-        for (vector<Alignment_data>::const_iterator align_it = seq_alignments.begin();
-             align_it != seq_alignments.end(); ++align_it) {
+        for (vector<Alignment_data>::const_iterator align_it = seq_alignments.begin(); align_it != seq_alignments.end();
+             ++align_it) {
             if ((*align_it).score > max_score) {
                 max_score = (*align_it).score;
             }
@@ -1007,15 +960,13 @@ read_alignments_seq_csv_score_range(
 }
 
 vector<tuple<int, string, unordered_map<Gene_class, vector<Alignment_data>>>>
-map2vect(unordered_map<int, pair<string, unordered_map<Gene_class, vector<Alignment_data>>>>
-                 alignments_map)
+map2vect(unordered_map<int, pair<string, unordered_map<Gene_class, vector<Alignment_data>>>> alignments_map)
 {
     vector<tuple<int, string, unordered_map<Gene_class, vector<Alignment_data>>>> alignmets_vect;
-    for (unordered_map<int, pair<string, unordered_map<Gene_class, vector<Alignment_data>>>>::
-                 const_iterator seq_it = alignments_map.begin();
+    for (unordered_map<int, pair<string, unordered_map<Gene_class, vector<Alignment_data>>>>::const_iterator seq_it =
+                 alignments_map.begin();
          seq_it != alignments_map.end(); ++seq_it) {
-        alignmets_vect.emplace_back((*seq_it).first, (*seq_it).second.first,
-                                    (*seq_it).second.second);
+        alignmets_vect.emplace_back((*seq_it).first, (*seq_it).second.first, (*seq_it).second.second);
     }
     return alignmets_vect;
 }
@@ -1024,8 +975,8 @@ void Aligner::set_genomic_sequences(vector<pair<string, string>> nt_genomic_seq)
 {
     this->nt_genomic_sequences = *(new forward_list<pair<string, string>>);
     this->int_genomic_sequences = *(new forward_list<pair<string, Int_Str>>);
-    for (vector<pair<string, string>>::const_iterator iter = nt_genomic_seq.begin();
-         iter != nt_genomic_seq.end(); ++iter) {
+    for (vector<pair<string, string>>::const_iterator iter = nt_genomic_seq.begin(); iter != nt_genomic_seq.end();
+         ++iter) {
         nt_genomic_sequences.emplace_front((*iter).first, (*iter).second);
         int_genomic_sequences.emplace_front((*iter).first, nt2int((*iter).second));
     }
@@ -1087,8 +1038,8 @@ Int_Str nt2int(string nt_sequence)
         } else {
             cerr << "print:" << nt_sequence << endl;
             cerr << i << endl;
-            throw runtime_error("Unknown nucleotide: " + to_string(nt_sequence[i]) + "in string "
-                                + nt_sequence + "in Aligner::nt2int");
+            throw runtime_error("Unknown nucleotide: " + to_string(nt_sequence[i]) + "in string " + nt_sequence
+                                + "in Aligner::nt2int");
         }
     }
     return int_seq;
@@ -1259,26 +1210,22 @@ bool comp_nt_int(const int &nt_1, const int &nt_2)
                 }
                 break;
             case int_B:
-                if (nt_2
-                    != int_A) { //Of course this is in the hope that nt_2 is in the correct range of int
+                if (nt_2 != int_A) { //Of course this is in the hope that nt_2 is in the correct range of int
                     return true;
                 }
                 break;
             case int_D:
-                if (nt_2
-                    != int_C) { //Of course this is in the hope that nt_2 is in the correct range of int
+                if (nt_2 != int_C) { //Of course this is in the hope that nt_2 is in the correct range of int
                     return true;
                 }
                 break;
             case int_H:
-                if (nt_2
-                    != int_G) { //Of course this is in the hope that nt_2 is in the correct range of int
+                if (nt_2 != int_G) { //Of course this is in the hope that nt_2 is in the correct range of int
                     return true;
                 }
                 break;
             case int_V:
-                if (nt_2
-                    != int_T) { //Of course this is in the hope that nt_2 is in the correct range of int
+                if (nt_2 != int_T) { //Of course this is in the hope that nt_2 is in the correct range of int
                     return true;
                 }
                 break;
@@ -1286,8 +1233,7 @@ bool comp_nt_int(const int &nt_1, const int &nt_2)
                 return true;
                 break;
             default:
-                throw runtime_error("Unknown nucleotide index: " + to_string(nt_1)
-                                    + "in comp_nt_int()");
+                throw runtime_error("Unknown nucleotide index: " + to_string(nt_1) + "in comp_nt_int()");
             }
             return false;
         }
@@ -1300,43 +1246,37 @@ list<Int_nt> get_ambiguous_nt_list(const Int_nt &ambiguous_nt)
 {
     list<Int_nt> nt_list;
 
-    if ((ambiguous_nt == int_A) or (ambiguous_nt == int_C) or (ambiguous_nt == int_G)
-        or (ambiguous_nt == int_T)) {
+    if ((ambiguous_nt == int_A) or (ambiguous_nt == int_C) or (ambiguous_nt == int_G) or (ambiguous_nt == int_T)) {
         nt_list.emplace_back(ambiguous_nt);
     } else {
         bool any_true = false;
         //Add an A for all cases implying an A	(do not add a break to allow for execution of other cases and possibly add more letters to the list)
-        if ((ambiguous_nt == int_R) or (ambiguous_nt == int_W) or (ambiguous_nt == int_M)
-            or (ambiguous_nt == int_D) or (ambiguous_nt == int_H) or (ambiguous_nt == int_V)
-            or (ambiguous_nt == int_N)) {
+        if ((ambiguous_nt == int_R) or (ambiguous_nt == int_W) or (ambiguous_nt == int_M) or (ambiguous_nt == int_D)
+            or (ambiguous_nt == int_H) or (ambiguous_nt == int_V) or (ambiguous_nt == int_N)) {
             nt_list.emplace_back(int_A);
             any_true = true;
         }
         //Same for C
-        if ((ambiguous_nt == int_Y) or (ambiguous_nt == int_S) or (ambiguous_nt == int_M)
-            or (ambiguous_nt == int_B) or (ambiguous_nt == int_H) or (ambiguous_nt == int_V)
-            or (ambiguous_nt == int_N)) {
+        if ((ambiguous_nt == int_Y) or (ambiguous_nt == int_S) or (ambiguous_nt == int_M) or (ambiguous_nt == int_B)
+            or (ambiguous_nt == int_H) or (ambiguous_nt == int_V) or (ambiguous_nt == int_N)) {
             nt_list.emplace_back(int_C);
             any_true = true;
         }
         //Same for G
-        if ((ambiguous_nt == int_R) or (ambiguous_nt == int_S) or (ambiguous_nt == int_K)
-            or (ambiguous_nt == int_B) or (ambiguous_nt == int_D) or (ambiguous_nt == int_V)
-            or (ambiguous_nt == int_N)) {
+        if ((ambiguous_nt == int_R) or (ambiguous_nt == int_S) or (ambiguous_nt == int_K) or (ambiguous_nt == int_B)
+            or (ambiguous_nt == int_D) or (ambiguous_nt == int_V) or (ambiguous_nt == int_N)) {
             nt_list.emplace_back(int_G);
             any_true = true;
         }
         //Same for T
-        if ((ambiguous_nt == int_Y) or (ambiguous_nt == int_W) or (ambiguous_nt == int_K)
-            or (ambiguous_nt == int_B) or (ambiguous_nt == int_D) or (ambiguous_nt == int_H)
-            or (ambiguous_nt == int_N)) {
+        if ((ambiguous_nt == int_Y) or (ambiguous_nt == int_W) or (ambiguous_nt == int_K) or (ambiguous_nt == int_B)
+            or (ambiguous_nt == int_D) or (ambiguous_nt == int_H) or (ambiguous_nt == int_N)) {
             nt_list.emplace_back(int_T);
             any_true = true;
         }
 
         if (not any_true) {
-            throw runtime_error("Unknown nucleotide index: " + to_string(ambiguous_nt)
-                                + "in get_ambiguous_nt_list()");
+            throw runtime_error("Unknown nucleotide index: " + to_string(ambiguous_nt) + "in get_ambiguous_nt_list()");
         }
     }
     return nt_list;
@@ -1345,15 +1285,14 @@ list<Int_nt> get_ambiguous_nt_list(const Int_nt &ambiguous_nt)
 /*
  * Randomly sample N indexed sequences from a given vector of indexed sequences
  */
-vector<pair<const int, const string>>
-sample_indexed_seq(vector<pair<const int, const string>> indexed_seqs, const size_t sample_size)
+vector<pair<const int, const string>> sample_indexed_seq(vector<pair<const int, const string>> indexed_seqs,
+                                                         const size_t sample_size)
 {
 
     //Return an error if trying to sample more than the number of available sequences
     if (sample_size > indexed_seqs.size()) {
-        throw std::runtime_error("Trying to sample " + to_string(sample_size)
-                                 + " sequences in a pool of " + to_string(indexed_seqs.size())
-                                 + " sequences in sample_indexed_seq()");
+        throw std::runtime_error("Trying to sample " + to_string(sample_size) + " sequences in a pool of "
+                                 + to_string(indexed_seqs.size()) + " sequences in sample_indexed_seq()");
     }
 
     //Create seed for random generator
@@ -1371,23 +1310,20 @@ sample_indexed_seq(vector<pair<const int, const string>> indexed_seqs, const siz
     vector<pair<int, string>> indexed_seqs_copy(indexed_seqs.begin(), indexed_seqs.end());
 
     shuffle(indexed_seqs_copy.begin(), indexed_seqs_copy.end(), generator);
-    return vector<pair<const int, const string>>(indexed_seqs_copy.begin(),
-                                                 indexed_seqs_copy.begin() + sample_size);
+    return vector<pair<const int, const string>>(indexed_seqs_copy.begin(), indexed_seqs_copy.begin() + sample_size);
 }
 
-void Aligner::sw_align_common(const Int_Str &int_data_sequence, const Int_Str &int_genomic_sequence,
-                              const int i, const int j, Matrix<double> &score_matrix,
-                              Matrix<int> &row_memory_matrix, Matrix<int> &col_memory_matrix,
-                              Matrix<int> &alignment_numb_tracker, vector<int> &max_score,
-                              vector<int> &max_row_coord, vector<int> &max_col_coord)
+void Aligner::sw_align_common(const Int_Str &int_data_sequence, const Int_Str &int_genomic_sequence, const int i,
+                              const int j, Matrix<double> &score_matrix, Matrix<int> &row_memory_matrix,
+                              Matrix<int> &col_memory_matrix, Matrix<int> &alignment_numb_tracker,
+                              vector<int> &max_score, vector<int> &max_row_coord, vector<int> &max_col_coord)
 {
     int genomic_gap_score = score_matrix(i, j - 1) - gap_penalty;
     int data_gap_score = score_matrix(i - 1, j) - gap_penalty;
-    int subs_score = score_matrix(i - 1, j - 1)
-            + substitution_matrix(int_data_sequence.at(i), int_genomic_sequence.at(j));
+    int subs_score =
+            score_matrix(i - 1, j - 1) + substitution_matrix(int_data_sequence.at(i), int_genomic_sequence.at(j));
 
-    if ((subs_score >= data_gap_score) & (subs_score >= genomic_gap_score)
-        & ((subs_score > 0) | (!local_align))) {
+    if ((subs_score >= data_gap_score) & (subs_score >= genomic_gap_score) & ((subs_score > 0) | (!local_align))) {
         score_matrix(i, j) = subs_score;
         row_memory_matrix(i, j) = 1;
         col_memory_matrix(i, j) = 1;
@@ -1438,10 +1374,9 @@ void Aligner::sw_align_common(const Int_Str &int_data_sequence, const Int_Str &i
  * Alignment_data: comprises offset, insertions and deletions locations.
  * Note: the gene_name field of the Alignment_data object is left blank and should be completed in a higher level method
  */
-list<pair<int, Alignment_data>> Aligner::sw_align(const Int_Str &int_data_sequence,
-                                                  const Int_Str &int_genomic_sequence,
-                                                  double score_threshold, bool best_only,
-                                                  int min_offset, int max_offset)
+list<pair<int, Alignment_data>> Aligner::sw_align(const Int_Str &int_data_sequence, const Int_Str &int_genomic_sequence,
+                                                  double score_threshold, bool best_only, int min_offset,
+                                                  int max_offset)
 {
 
     Int_Str int_data_sequence_copy = int_data_sequence;
@@ -1523,20 +1458,18 @@ list<pair<int, Alignment_data>> Aligner::sw_align(const Int_Str &int_data_sequen
             //If all the rows have been explored
             for (int i = 1; i != n_rows; ++i) {
                 //Explore next missing column
-                sw_align_common(int_data_sequence_copy, int_genomic_sequence_copy, i,
-                                explored_col_coord - 1, score_matrix, row_memory_matrix,
-                                col_memory_matrix, alignment_numb_tracker, max_score, max_row_coord,
-                                max_col_coord);
+                sw_align_common(int_data_sequence_copy, int_genomic_sequence_copy, i, explored_col_coord - 1,
+                                score_matrix, row_memory_matrix, col_memory_matrix, alignment_numb_tracker, max_score,
+                                max_row_coord, max_col_coord);
             }
 
         } else if (explored_col_coord == n_cols) {
             //If all colmuns have been explored
             for (int j = 1; j != n_cols; ++j) {
                 //Explore next missing row
-                sw_align_common(int_data_sequence_copy, int_genomic_sequence_copy,
-                                explored_row_coord - 1, j, score_matrix, row_memory_matrix,
-                                col_memory_matrix, alignment_numb_tracker, max_score, max_row_coord,
-                                max_col_coord);
+                sw_align_common(int_data_sequence_copy, int_genomic_sequence_copy, explored_row_coord - 1, j,
+                                score_matrix, row_memory_matrix, col_memory_matrix, alignment_numb_tracker, max_score,
+                                max_row_coord, max_col_coord);
             }
             if (!last_column_explored) {
                 last_column_explored = true;
@@ -1546,21 +1479,19 @@ list<pair<int, Alignment_data>> Aligner::sw_align(const Int_Str &int_data_sequen
             int j = 1;
 
             while ((i != explored_row_coord) & (j != explored_col_coord)) {
-                sw_align_common(int_data_sequence_copy, int_genomic_sequence_copy, i,
-                                explored_col_coord, score_matrix, row_memory_matrix,
-                                col_memory_matrix, alignment_numb_tracker, max_score, max_row_coord,
+                sw_align_common(int_data_sequence_copy, int_genomic_sequence_copy, i, explored_col_coord, score_matrix,
+                                row_memory_matrix, col_memory_matrix, alignment_numb_tracker, max_score, max_row_coord,
                                 max_col_coord);
                 ++i;
-                sw_align_common(int_data_sequence_copy, int_genomic_sequence_copy,
-                                explored_row_coord, j, score_matrix, row_memory_matrix,
-                                col_memory_matrix, alignment_numb_tracker, max_score, max_row_coord,
+                sw_align_common(int_data_sequence_copy, int_genomic_sequence_copy, explored_row_coord, j, score_matrix,
+                                row_memory_matrix, col_memory_matrix, alignment_numb_tracker, max_score, max_row_coord,
                                 max_col_coord);
                 ++j;
             }
             //Fill last angle of the square
-            sw_align_common(int_data_sequence_copy, int_genomic_sequence_copy, explored_row_coord,
-                            explored_col_coord, score_matrix, row_memory_matrix, col_memory_matrix,
-                            alignment_numb_tracker, max_score, max_row_coord, max_col_coord);
+            sw_align_common(int_data_sequence_copy, int_genomic_sequence_copy, explored_row_coord, explored_col_coord,
+                            score_matrix, row_memory_matrix, col_memory_matrix, alignment_numb_tracker, max_score,
+                            max_row_coord, max_col_coord);
         }
 
         if ((explored_row_coord == n_rows) & (explored_col_coord == n_cols)) {
@@ -1647,12 +1578,10 @@ list<pair<int, Alignment_data>> Aligner::sw_align(const Int_Str &int_data_sequen
                 if ((row_memory_matrix(i, j) == 0) && (col_memory_matrix(i, j) == 0)) {
                     end_of_alignment = true;
                 } else if (row_memory_matrix(i, j) == 0) {
-                    deletions.push_front(flip_factor * j
-                                         + flip_mis * int_genomic_sequence_copy.size());
+                    deletions.push_front(flip_factor * j + flip_mis * int_genomic_sequence_copy.size());
                 } //TODO check the behavior of this and how to handle in-dels
                 else if (col_memory_matrix(i, j) == 0) {
-                    insertions.push_front(flip_factor * i
-                                          + flip_mis * int_data_sequence_copy.size());
+                    insertions.push_front(flip_factor * i + flip_mis * int_data_sequence_copy.size());
                 }
                 int i_temp = i;
                 i -= row_memory_matrix(i_temp, j);
@@ -1661,8 +1590,7 @@ list<pair<int, Alignment_data>> Aligner::sw_align(const Int_Str &int_data_sequen
             }
 
             size_t begin_align_offset = flip_factor * i + flip_mis * int_data_sequence_copy.size();
-            end_align_offset =
-                    flip_factor * end_align_offset + flip_mis * int_data_sequence_copy.size();
+            end_align_offset = flip_factor * end_align_offset + flip_mis * int_data_sequence_copy.size();
 
             //Offset is the place where the first letter of the genomic sequence aligns
             //if the alignment does not start from the beginning need to extrapolate
@@ -1719,8 +1647,7 @@ list<pair<int, Alignment_data>> Aligner::sw_align(const Int_Str &int_data_sequen
                         if (count(deletions.begin(), deletions.end(), gen_ind) != 0) {
                             //The considered genomic nucleotide is deleted
                             ++gen_ind;
-                        } else if (count(insertions.begin(), insertions.end(), dat_ind + offset)
-                                   != 0) {
+                        } else if (count(insertions.begin(), insertions.end(), dat_ind + offset) != 0) {
                             //The considered data nucleotide is an insertion
                             ++dat_ind;
                         } else {
@@ -1737,8 +1664,8 @@ list<pair<int, Alignment_data>> Aligner::sw_align(const Int_Str &int_data_sequen
                 }
                 seq_alignments_results.emplace_back(pair<int, Alignment_data>(
                         max_score[align],
-                        Alignment_data(offset, begin_align_offset, end_align_offset, align_length,
-                                       insertions, deletions, mismatches, max_score[align])));
+                        Alignment_data(offset, begin_align_offset, end_align_offset, align_length, insertions,
+                                       deletions, mismatches, max_score[align])));
             }
         }
     }
@@ -1806,8 +1733,7 @@ unordered_map<string, size_t> read_gene_anchors_csv(string filename, string sep)
 /**
  * \brief A dumb function to read CSV template specific offset bounds
  */
-unordered_map<string, pair<int, int>> read_template_specific_offset_csv(string filename,
-                                                                        string sep /*= ";"*/)
+unordered_map<string, pair<int, int>> read_template_specific_offset_csv(string filename, string sep /*= ";"*/)
 {
     ifstream infile(filename);
     if (!infile) {
@@ -1847,9 +1773,8 @@ unordered_map<string, pair<int, int>> read_template_specific_offset_csv(string f
 
             first_line = false;
         }
-        template_bounds_map.emplace(
-                separated_strings.at(0),
-                make_pair(stoi(separated_strings.at(1)), stoi(separated_strings.at(2))));
+        template_bounds_map.emplace(separated_strings.at(0),
+                                    make_pair(stoi(separated_strings.at(1)), stoi(separated_strings.at(2))));
     }
 
     return template_bounds_map;
@@ -1875,9 +1800,8 @@ Matrix<double> read_substitution_matrix(const string &filename, string sep /*=",
         if (first_line) {
             line_size = line_vect.size();
             if ((line_size != 4) and (line_size != 15)) {
-                throw runtime_error(
-                        "Substitution matrix should be 4*4 (A,C,G,T) or 15*15 "
-                        "(A,C,G,T,R,Y,K,M,S,W,B,D,H,V,N) in read_substitution_matrix()");
+                throw runtime_error("Substitution matrix should be 4*4 (A,C,G,T) or 15*15 "
+                                    "(A,C,G,T,R,Y,K,M,S,W,B,D,H,V,N) in read_substitution_matrix()");
             }
             first_line = false;
         }
@@ -1904,8 +1828,8 @@ Matrix<double> read_substitution_matrix(const string &filename, string sep /*=",
  * \param [in] genomic_offset_bounds A hash map containing offsets lower and upper bounds for each genomic template. Keys of the map are the genomic templates names.
  * \return A three component tuple: first: boolean true if offsets are template specific (not all the same for all templates, second and third the min and max offsets over all templates.
  */
-tuple<bool, int, int> extract_min_max_genomic_templates_offsets(
-        const unordered_map<string, pair<int, int>> &genomic_offset_bounds)
+tuple<bool, int, int>
+extract_min_max_genomic_templates_offsets(const unordered_map<string, pair<int, int>> &genomic_offset_bounds)
 {
     //Compute min and max offsets over all genomic templates and check if they are constant.
     int min_offset = INT32_MAX;
@@ -1940,8 +1864,7 @@ tuple<bool, int, int> extract_min_max_genomic_templates_offsets(
  * \param [in] all_aligns A forward list containing alignments for several genes/alleles.
  * \return A forward list containing only alignments of the best gene/allele candidate.
  */
-forward_list<Alignment_data>
-extract_best_gene_alignments(const forward_list<Alignment_data> &all_aligns)
+forward_list<Alignment_data> extract_best_gene_alignments(const forward_list<Alignment_data> &all_aligns)
 {
     //Find gene/allele whose alignments has best score
     set<string> best_genes_names;
@@ -1968,12 +1891,18 @@ extract_best_gene_alignments(const forward_list<Alignment_data> &all_aligns)
     }
     return best_gene_aligns;
 }
-char int2nt(int nt_int) {
+char int2nt(int nt_int)
+{
     switch (nt_int) {
-        case 0: return 'A';
-        case 1: return 'C';
-        case 2: return 'G';
-        case 3: return 'T';
-        default: return 'N';
+    case 0:
+        return 'A';
+    case 1:
+        return 'C';
+    case 2:
+        return 'G';
+    case 3:
+        return 'T';
+    default:
+        return 'N';
     }
 }

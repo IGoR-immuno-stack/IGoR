@@ -55,28 +55,25 @@ GenModel::~GenModel()
 }
 
 bool GenModel::infer_model(
-        const vector<tuple<int, string, unordered_map<Gene_class, vector<Alignment_data>>>>
-                &sequences,
-        const int iterations, const std::string path, bool fast_iter,
-        double likelihood_threshold /*=1e-25*/, bool viterbi_like /*false*/)
+        const vector<tuple<int, string, unordered_map<Gene_class, vector<Alignment_data>>>> &sequences,
+        const int iterations, const std::string path, bool fast_iter, double likelihood_threshold /*=1e-25*/,
+        bool viterbi_like /*false*/)
 {
-    return this->infer_model(sequences, iterations, path, fast_iter, likelihood_threshold,
-                             viterbi_like, 0.001, INFINITY);
+    return this->infer_model(sequences, iterations, path, fast_iter, likelihood_threshold, viterbi_like, 0.001,
+                             INFINITY);
 }
 
 bool GenModel::infer_model(
-        const vector<tuple<int, string, unordered_map<Gene_class, vector<Alignment_data>>>>
-                &sequences,
-        const int iterations, const std::string path, bool fast_iter,
-        double likelihood_threshold, double proba_threshold_factor)
+        const vector<tuple<int, string, unordered_map<Gene_class, vector<Alignment_data>>>> &sequences,
+        const int iterations, const std::string path, bool fast_iter, double likelihood_threshold,
+        double proba_threshold_factor)
 {
     return this->infer_model(sequences, iterations, path, fast_iter, likelihood_threshold, false,
                              proba_threshold_factor, INFINITY);
 }
 
 bool GenModel::infer_model(
-        const vector<tuple<int, string, unordered_map<Gene_class, vector<Alignment_data>>>>
-                &sequences,
+        const vector<tuple<int, string, unordered_map<Gene_class, vector<Alignment_data>>>> &sequences,
         const int iterations, const string path, bool fast_iter /*=true*/,
         double likelihood_threshold /*=1e-25 by default*/, bool viterbi_like /*=false*/,
         double proba_threshold_factor /*=0.001 by default*/,
@@ -104,9 +101,8 @@ bool GenModel::infer_model(
     likelihood_file << "iteration;mean_log_Likelihood;n_seq" << endl;
 
     queue<shared_ptr<Rec_Event>> model_queue = model_parms.get_model_queue();
-    unordered_map<Rec_Event_name, int> index_map =
-            model_marginals.get_index_map(model_parms, model_queue);
-    
+    unordered_map<Rec_Event_name, int> index_map = model_marginals.get_index_map(model_parms, model_queue);
+
     unordered_map<Rec_Event_name, list<pair<shared_ptr<const Rec_Event>, int>>> inv_offset_map =
             model_marginals.get_inverse_offset_map(model_parms, model_queue);
     int iteration_accomplished = 0;
@@ -164,8 +160,7 @@ bool GenModel::infer_model(
             general_logs << name << "\t";
         }
         general_logs << endl;
-        general_logs << "Error model updated: " << model_parms.get_err_rate_p()->is_updated()
-                     << endl;
+        general_logs << "Error model updated: " << model_parms.get_err_rate_p()->is_updated() << endl;
     }
 
     // Write initial condition to file
@@ -177,8 +172,8 @@ bool GenModel::infer_model(
    * This is to make sure that the counter copies do not create new files each
    * time
    */
-    for (map<size_t, shared_ptr<Counter>>::const_iterator iter = counters_list.begin();
-         iter != counters_list.end(); ++iter) {
+    for (map<size_t, shared_ptr<Counter>>::const_iterator iter = counters_list.begin(); iter != counters_list.end();
+         ++iter) {
         (*iter).second->initialize_counter(model_parms, model_marginals);
     }
 
@@ -194,12 +189,10 @@ bool GenModel::infer_model(
         // Initialize counters for the log file
         size_t sequences_processed = 0;
 
-        const vector<tuple<int, string, unordered_map<Gene_class, vector<Alignment_data>>>>
-                *sequence_util_ptr;
+        const vector<tuple<int, string, unordered_map<Gene_class, vector<Alignment_data>>>> *sequence_util_ptr;
 
         // Take only best alignments if fast_iter
-        vector<tuple<int, string, unordered_map<Gene_class, vector<Alignment_data>>>>
-                fast_iter_sequences;
+        vector<tuple<int, string, unordered_map<Gene_class, vector<Alignment_data>>>> fast_iter_sequences;
         if (fast_iter && iteration_accomplished == 0 && !sequences.empty()) {
             fast_iter_sequences = sequences;
             for (unordered_map<Gene_class, vector<Alignment_data>>::const_iterator gc_align_iter =
@@ -216,30 +209,24 @@ bool GenModel::infer_model(
 
         cerr << "Performing Evaluate/Inference iteration " << iteration_accomplished + 1 << endl;
 
-#pragma omp parallel shared(new_marginals, error_rate_copy, sequences_processed, \
-                                    sequence_util_ptr, sequences)                \
+#pragma omp parallel shared(new_marginals, error_rate_copy, sequences_processed, sequence_util_ptr, sequences) \
         firstprivate(model_queue, proba_threshold_factor)
         {
             // Make single thread copies of objects for thread safety
             Model_Parms single_thread_model_parms(model_parms);
-            queue<shared_ptr<Rec_Event>> single_thread_model_queue =
-                    single_thread_model_parms.get_model_queue();
+            queue<shared_ptr<Rec_Event>> single_thread_model_queue = single_thread_model_parms.get_model_queue();
             unordered_map<Rec_Event_name, int> single_thread_index_map =
-                    model_marginals.get_index_map(single_thread_model_parms,
-                                                  single_thread_model_queue);
+                    model_marginals.get_index_map(single_thread_model_parms, single_thread_model_queue);
             Model_marginals single_thread_model_marginals(model_marginals);
             Model_marginals single_thread_marginals(single_thread_model_parms);
-            shared_ptr<Error_rate> single_thread_err_rate =
-                    single_thread_model_parms.get_err_rate_p();
+            shared_ptr<Error_rate> single_thread_err_rate = single_thread_model_parms.get_err_rate_p();
             unordered_map<tuple<Event_type, int, Seq_side>, shared_ptr<Rec_Event>> events_map =
                     single_thread_model_parms.get_events_map();
             map<size_t, shared_ptr<Counter>> single_thread_counter_list;
-            for (map<size_t, shared_ptr<Counter>>::const_iterator iter =
-                         this->counters_list.begin();
+            for (map<size_t, shared_ptr<Counter>>::const_iterator iter = this->counters_list.begin();
                  iter != this->counters_list.end(); ++iter) {
                 // Copy only relevant counters for this iteration
-                if ((not(*iter).second->is_last_iter_only())
-                    or (iteration_accomplished == iterations - 1)) {
+                if ((not(*iter).second->is_last_iter_only()) or (iteration_accomplished == iterations - 1)) {
                     single_thread_counter_list.emplace((*iter).first, (*iter).second->copy());
                 }
             }
@@ -248,14 +235,12 @@ bool GenModel::infer_model(
 
             // Initialize Enum_fast_memory map and dual maps
             Safety_bool_map safety_set(SequenceTypeRegistry::get_instance().size());
-            Seq_type_str_p_map constructed_sequences(
-                    SequenceTypeRegistry::get_instance().size()); // Dynamic size
+            Seq_type_str_p_map constructed_sequences(SequenceTypeRegistry::get_instance().size()); // Dynamic size
             Mismatch_vectors_map mismatches_lists(SequenceTypeRegistry::get_instance().size());
             Seq_offsets_map seq_offsets(SequenceTypeRegistry::get_instance().size(), 3);
 
             // Initialize downstream probas to 1
-            Downstream_scenario_proba_bound_map downstream_proba_map(
-                    SequenceTypeRegistry::get_instance().size());
+            Downstream_scenario_proba_bound_map downstream_proba_map(SequenceTypeRegistry::get_instance().size());
             downstream_proba_map.init_first_layer(1.0);
 
             list<shared_ptr<Rec_Event>> events_list = single_thread_model_parms.get_event_list();
@@ -266,32 +251,31 @@ bool GenModel::infer_model(
                  event_iter != events_list.end(); ++event_iter) {
                 int event_index = (*event_iter)->get_event_identifier();
                 index_mapp.request_memory_layer(event_index);
-                
+
                 auto it = single_thread_index_map.find((*event_iter)->get_name());
                 if (it == single_thread_index_map.end()) {
-                    cerr << "!!! GenModel.cpp: Key not found in single_thread_index_map: " << (*event_iter)->get_name() << " !!!" << endl;
+                    cerr << "!!! GenModel.cpp: Key not found in single_thread_index_map: " << (*event_iter)->get_name()
+                         << " !!!" << endl;
                     cerr << "Available keys:" << endl;
-                    for (auto const& [k, v] : single_thread_index_map) cerr << "  " << k << endl;
+                    for (auto const &[k, v] : single_thread_index_map)
+                        cerr << "  " << k << endl;
                     throw out_of_range("Key not found in single_thread_index_map");
                 }
                 index_mapp.set_value(event_index, it->second, 0);
 
                 // Get events probability upper bounds
-                size_t event_size = single_thread_model_marginals.get_event_size(
-                        (*event_iter), single_thread_model_parms);
+                size_t event_size =
+                        single_thread_model_marginals.get_event_size((*event_iter), single_thread_model_parms);
 
                 (*event_iter)->set_event_marginal_size(event_size);
                 (*event_iter)
-                        ->set_crude_upper_bound_proba(
-                                it->second, event_size,
-                                single_thread_model_marginals.marginal_array_smart_p);
+                        ->set_crude_upper_bound_proba(it->second, event_size,
+                                                      single_thread_model_marginals.marginal_array_smart_p);
             }
 
             queue<shared_ptr<Rec_Event>> init_single_thread_model_queue = single_thread_model_queue;
-            unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>>
-                    single_thread_offset_map =
-                            model_marginals.get_offsets_map(single_thread_model_parms,
-                                                            single_thread_model_queue);
+            unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> single_thread_offset_map =
+                    model_marginals.get_offsets_map(single_thread_model_parms, single_thread_model_queue);
 
             stack<shared_ptr<Rec_Event>> init_single_thread_stack;
 
@@ -301,10 +285,9 @@ bool GenModel::infer_model(
                 init_single_thread_stack.push(first_init_event);
                 init_single_thread_model_queue.pop();
                 (*first_init_event)
-                        .initialize_event(init_processed_events, events_map,
-                                          single_thread_offset_map, downstream_proba_map,
-                                          constructed_sequences, safety_set, single_thread_err_rate,
-                                          mismatches_lists, seq_offsets, index_mapp);
+                        .initialize_event(init_processed_events, events_map, single_thread_offset_map,
+                                          downstream_proba_map, constructed_sequences, safety_set,
+                                          single_thread_err_rate, mismatches_lists, seq_offsets, index_mapp);
                 (*first_init_event).set_viterbi_run(viterbi_like);
             }
 
@@ -327,11 +310,9 @@ bool GenModel::infer_model(
             single_thread_err_rate->set_viterbi_run(viterbi_like);
 
             // Initialize Counters
-            for (map<size_t, shared_ptr<Counter>>::iterator iter =
-                         single_thread_counter_list.begin();
+            for (map<size_t, shared_ptr<Counter>>::iterator iter = single_thread_counter_list.begin();
                  iter != single_thread_counter_list.end(); ++iter) {
-                (*iter).second->initialize_counter(single_thread_model_parms,
-                                                   single_thread_marginals);
+                (*iter).second->initialize_counter(single_thread_model_parms, single_thread_marginals);
             }
 #pragma omp single nowait
             {
@@ -342,19 +323,18 @@ bool GenModel::infer_model(
             forward_list<double *> updated_proba_list;
             while (!init_single_thread_stack.empty()) {
                 shared_ptr<Rec_Event> last_proba_init_event = init_single_thread_stack.top();
-                queue<shared_ptr<Rec_Event>> tmp_init_proba_single_thread_model_queue =
-                        single_thread_model_queue;
+                queue<shared_ptr<Rec_Event>> tmp_init_proba_single_thread_model_queue = single_thread_model_queue;
                 init_single_thread_stack.pop();
                 while (tmp_init_proba_single_thread_model_queue.front() != last_proba_init_event) {
                     tmp_init_proba_single_thread_model_queue.pop();
                 }
                 tmp_init_proba_single_thread_model_queue.pop();
-                last_proba_init_event->initialize_crude_scenario_proba_bound(
-                        downstream_proba_bound, updated_proba_list, events_map);
+                last_proba_init_event->initialize_crude_scenario_proba_bound(downstream_proba_bound, updated_proba_list,
+                                                                             events_map);
 
-                last_proba_init_event->initialize_Len_proba_bound(
-                        tmp_init_proba_single_thread_model_queue,
-                        single_thread_model_marginals.marginal_array_smart_p, index_mapp);
+                last_proba_init_event->initialize_Len_proba_bound(tmp_init_proba_single_thread_model_queue,
+                                                                  single_thread_model_marginals.marginal_array_smart_p,
+                                                                  index_mapp);
             }
 #pragma omp single nowait
             {
@@ -366,8 +346,7 @@ bool GenModel::infer_model(
             init_single_thread_model_queue = single_thread_model_queue;
             while (!init_single_thread_model_queue.empty()) {
                 init_single_thread_model_queue.front()->update_event_internal_probas(
-                        single_thread_model_marginals.marginal_array_smart_p,
-                        single_thread_index_map);
+                        single_thread_model_marginals.marginal_array_smart_p, single_thread_index_map);
                 init_single_thread_model_queue.pop();
             }
 
@@ -376,7 +355,7 @@ bool GenModel::infer_model(
 
 #pragma omp for schedule(dynamic) nowait
             for (size_t i = 0; i < (*sequence_util_ptr).size(); ++i) {
-                const auto& seq_it = (*sequence_util_ptr).at(i);
+                const auto &seq_it = (*sequence_util_ptr).at(i);
 
                 single_seq_begin = chrono::system_clock::now();
 
@@ -397,59 +376,49 @@ bool GenModel::infer_model(
                 try {
 
                     first_event->iterate(
-                            init_proba, downstream_proba_map, get<1>(seq_it), int_sequence,
-                            index_mapp, single_thread_offset_map, next_event_ptr_arr,
-                            single_seq_marginals.marginal_array_smart_p,
-                            single_thread_model_marginals.marginal_array_smart_p,
-                            get<2>(seq_it), constructed_sequences, seq_offsets,
-                            single_thread_err_rate, single_thread_counter_list, events_map,
-                            safety_set, mismatches_lists, max_proba_scenario,
-                            proba_threshold_factor);
+                            init_proba, downstream_proba_map, get<1>(seq_it), int_sequence, index_mapp,
+                            single_thread_offset_map, next_event_ptr_arr, single_seq_marginals.marginal_array_smart_p,
+                            single_thread_model_marginals.marginal_array_smart_p, get<2>(seq_it), constructed_sequences,
+                            seq_offsets, single_thread_err_rate, single_thread_counter_list, events_map, safety_set,
+                            mismatches_lists, max_proba_scenario, proba_threshold_factor);
 
                 } catch (exception &e) {
 #pragma omp critical
                     {
-                        cerr << "Exception caught during scenario exploration: " << e.what()
-                             << endl;
+                        cerr << "Exception caught during scenario exploration: " << e.what() << endl;
                         cerr << "Sequence index: " << get<0>(seq_it) << endl;
                         cerr << "Sequence: " << get<1>(seq_it) << endl;
                     }
                 }
 
-                single_seq_marginals.normalize(inv_offset_map, single_thread_index_map,
-                                               single_thread_model_queue);
-                single_seq_marginals.copy_fixed_events_marginals(
-                        single_thread_model_marginals, single_thread_model_parms,
-                        single_thread_index_map);
+                single_seq_marginals.normalize(inv_offset_map, single_thread_index_map, single_thread_model_queue);
+                single_seq_marginals.copy_fixed_events_marginals(single_thread_model_marginals,
+                                                                 single_thread_model_parms, single_thread_index_map);
 
-                single_thread_err_rate->norm_weights_by_seq_likelihood(
-                        single_seq_marginals.marginal_array_smart_p,
-                        single_seq_marginals.get_length());
+                single_thread_err_rate->norm_weights_by_seq_likelihood(single_seq_marginals.marginal_array_smart_p,
+                                                                       single_seq_marginals.get_length());
                 seq_time = chrono::system_clock::now() - single_seq_begin;
 #pragma omp critical(dump_seq_info)
                 {
                     ++sequences_processed;
-                    log_file << iteration_accomplished << ";" << sequences_processed << ";"
-                             << get<0>(seq_it) << ";" << get<1>(seq_it) << ";"
-                             << get<2>(seq_it).size() << ";"
+                    log_file << iteration_accomplished << ";" << sequences_processed << ";" << get<0>(seq_it) << ";"
+                             << get<1>(seq_it) << ";" << get<2>(seq_it).size() << ";"
                              << single_thread_err_rate->get_seq_likelihood() << ";"
                              << single_thread_err_rate->get_seq_mean_error_number() << ";"
-                             << single_thread_err_rate->debug_number_scenarios << ";"
-                             << max_proba_scenario << ";" << seq_time.count() << endl;
+                             << single_thread_err_rate->debug_number_scenarios << ";" << max_proba_scenario << ";"
+                             << seq_time.count() << endl;
                 }
-                for (map<size_t, shared_ptr<Counter>>::iterator iter =
-                             single_thread_counter_list.begin();
+                for (map<size_t, shared_ptr<Counter>>::iterator iter = single_thread_counter_list.begin();
                      iter != single_thread_counter_list.end(); ++iter) {
-                    iter->second->count_sequence(single_thread_err_rate->get_seq_likelihood(),
-                                                 single_seq_marginals, single_thread_model_parms);
+                    iter->second->count_sequence(single_thread_err_rate->get_seq_likelihood(), single_seq_marginals,
+                                                 single_thread_model_parms);
 #pragma omp critical(dump_counters)
                     {
                         (*iter).second->dump_sequence_data(get<0>(seq_it), iteration_accomplished);
                     }
                 }
 
-                if (single_thread_err_rate->get_seq_mean_error_number()
-                    <= mean_number_seq_err_thresh) {
+                if (single_thread_err_rate->get_seq_mean_error_number() <= mean_number_seq_err_thresh) {
                     // Add weighed errors to the normalized error counter
                     single_thread_err_rate->add_to_norm_counter();
 
@@ -476,16 +445,15 @@ bool GenModel::infer_model(
             {
                 new_marginals += single_thread_marginals;
                 add_to_err_rate(error_rate_copy.get(), single_thread_err_rate.get());
-                for (map<size_t, shared_ptr<Counter>>::iterator iter =
-                             single_thread_counter_list.begin();
+                for (map<size_t, shared_ptr<Counter>>::iterator iter = single_thread_counter_list.begin();
                      iter != single_thread_counter_list.end(); ++iter) {
                     counters_list.at((*iter).first)->add_to_counter((*iter).second);
                 }
             }
         }
 
-        for (map<size_t, shared_ptr<Counter>>::const_iterator iter = counters_list.begin();
-             iter != counters_list.end(); ++iter) {
+        for (map<size_t, shared_ptr<Counter>>::const_iterator iter = counters_list.begin(); iter != counters_list.end();
+             ++iter) {
             (*iter).second->dump_data_summary(iteration_accomplished);
         }
 
@@ -496,16 +464,13 @@ bool GenModel::infer_model(
         error_rate_copy->update();
         this->model_parms.set_error_ratep(error_rate_copy);
         new_marginals.normalize(inv_offset_map, index_map, model_queue);
-        new_marginals.copy_fixed_events_marginals(this->model_marginals, this->model_parms,
-                                                  index_map);
+        new_marginals.copy_fixed_events_marginals(this->model_marginals, this->model_parms, index_map);
         this->model_marginals = new_marginals;
         ++iteration_accomplished;
 
         this->model_marginals.write2txt(
-                path + string("iteration_") + to_string(iteration_accomplished) + string(".txt"),
-                this->model_parms);
-        this->model_parms.write_model_parms(path + string("iteration_")
-                                            + to_string(iteration_accomplished)
+                path + string("iteration_") + to_string(iteration_accomplished) + string(".txt"), this->model_parms);
+        this->model_parms.write_model_parms(path + string("iteration_") + to_string(iteration_accomplished)
                                             + string("_parms.txt"));
 
         // Close current iteration progress bar
@@ -519,20 +484,17 @@ bool GenModel::infer_model(
 }
 
 vector<tuple<int, string, unordered_map<Gene_class, vector<Alignment_data>>>>
-get_best_aligns(
-        const vector<tuple<int, string, unordered_map<Gene_class, vector<Alignment_data>>>>
-                &sequences,
-        Gene_class gc)
+get_best_aligns(const vector<tuple<int, string, unordered_map<Gene_class, vector<Alignment_data>>>> &sequences,
+                Gene_class gc)
 {
-    vector<tuple<int, string, unordered_map<Gene_class, vector<Alignment_data>>>> best_aligns =
-            sequences;
+    vector<tuple<int, string, unordered_map<Gene_class, vector<Alignment_data>>>> best_aligns = sequences;
     for (auto &seq : best_aligns) {
         auto &align_map = get<2>(seq);
         if (align_map.count(gc) > 0 && !align_map.at(gc).empty()) {
             auto &aligns = align_map.at(gc);
-            auto best_it = max_element(
-                    aligns.begin(), aligns.end(),
-                    [](const Alignment_data &a, const Alignment_data &b) { return a.score < b.score; });
+            auto best_it =
+                    max_element(aligns.begin(), aligns.end(),
+                                [](const Alignment_data &a, const Alignment_data &b) { return a.score < b.score; });
             Alignment_data best_align = *best_it;
             aligns.clear();
             aligns.push_back(best_align);
@@ -548,22 +510,21 @@ GenModel::generate_sequences(int n_seq, bool output_realizations)
     std::mt19937_64 generator(std::chrono::system_clock::now().time_since_epoch().count());
 
     queue<shared_ptr<Rec_Event>> model_queue = model_parms.get_model_queue();
-    unordered_map<Rec_Event_name, int> index_map =
-            model_marginals.get_index_map(model_parms, model_queue);
+    unordered_map<Rec_Event_name, int> index_map = model_marginals.get_index_map(model_parms, model_queue);
     unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> offset_map =
             model_marginals.get_offsets_map(model_parms, model_queue);
 
     for (int i = 0; i < n_seq; ++i) {
-        sequences.emplace_front(generate_unique_sequence(model_queue, index_map, offset_map,
-                                                         generator, output_realizations));
+        sequences.emplace_front(
+                generate_unique_sequence(model_queue, index_map, offset_map, generator, output_realizations));
     }
 
     return sequences;
 }
 
 void GenModel::generate_sequences(int n_seq, bool output_realizations, string seq_file_path, string real_file_path,
-                                  list<pair<gen_seq_trans, shared_ptr<void>>> transformations,
-                                  bool output_only_func, int seed)
+                                  list<pair<gen_seq_trans, shared_ptr<void>>> transformations, bool output_only_func,
+                                  int seed)
 {
     std::mt19937_64 generator;
     if (seed == -1) {
@@ -573,8 +534,7 @@ void GenModel::generate_sequences(int n_seq, bool output_realizations, string se
     }
 
     queue<shared_ptr<Rec_Event>> model_queue = model_parms.get_model_queue();
-    unordered_map<Rec_Event_name, int> index_map =
-            model_marginals.get_index_map(model_parms, model_queue);
+    unordered_map<Rec_Event_name, int> index_map = model_marginals.get_index_map(model_parms, model_queue);
     unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> offset_map =
             model_marginals.get_offsets_map(model_parms, model_queue);
 
@@ -593,8 +553,8 @@ void GenModel::generate_sequences(int n_seq, bool output_realizations, string se
     }
 
     for (int i = 0; i < n_seq; ++i) {
-        pair<string, queue<queue<int>>> seq_and_real = generate_unique_sequence(
-                model_queue, index_map, offset_map, generator, output_realizations);
+        pair<string, queue<queue<int>>> seq_and_real =
+                generate_unique_sequence(model_queue, index_map, offset_map, generator, output_realizations);
         seq_file << i << ";" << seq_and_real.first << endl;
         if (output_realizations) {
             real_file << i;
@@ -622,8 +582,7 @@ void GenModel::generate_sequences(int n_seq, bool output_realizations, string se
 
 pair<string, queue<queue<int>>> GenModel::generate_unique_sequence(
         queue<shared_ptr<Rec_Event>> model_queue, unordered_map<Rec_Event_name, int> index_map,
-        const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>>
-                &offset_map,
+        const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
         mt19937_64 &generator, bool output_realizations)
 {
     queue<queue<int>> realizations;
@@ -632,9 +591,8 @@ pair<string, queue<queue<int>>> GenModel::generate_unique_sequence(
     while (!model_queue.empty()) {
         shared_ptr<Rec_Event> event = model_queue.front();
         model_queue.pop();
-        queue<int> event_real = event->draw_random_realization(
-                model_marginals.marginal_array_smart_p, index_map, offset_map,
-                constructed_sequences, generator);
+        queue<int> event_real = event->draw_random_realization(model_marginals.marginal_array_smart_p, index_map,
+                                                               offset_map, constructed_sequences, generator);
         if (output_realizations) {
             realizations.push(event_real);
         }
@@ -650,10 +608,11 @@ pair<string, queue<queue<int>>> GenModel::generate_unique_sequence(
         if (constructed_sequences.count(current)) {
             final_seq += constructed_sequences.at(current);
         }
-        
+
         auto downstream = SequenceTypeRegistry::get_instance().get_downstream_neighbors(current);
-        if (downstream.empty()) break;
-        
+        if (downstream.empty())
+            break;
+
         // Follow the first path (standard for linear recombination)
         // If there's a junction, add it too
         if (downstream[0].junction_type != (SequenceTypeRegistry::TypeId)-1) {
@@ -680,20 +639,24 @@ bool GenModel::readtxt()
     return true;
 }
 
-void GenModel::write_seq2txt(std::string path, std::forward_list<std::string> sequences) {
+void GenModel::write_seq2txt(std::string path, std::forward_list<std::string> sequences)
+{
     // Dummy
 }
 
 void GenModel::write_seq_real2txt(std::string path, std::string batch_name,
-                            std::forward_list<std::pair<std::string, std::queue<std::queue<int>>>> sequences) {
+                                  std::forward_list<std::pair<std::string, std::queue<std::queue<int>>>> sequences)
+{
     // Dummy
 }
 
-bool GenModel::load_genmodel() {
+bool GenModel::load_genmodel()
+{
     return true;
 }
 
 void output_CDR3_gen_data(size_t i, std::pair<std::string, std::queue<std::queue<int>>> seq_and_real,
-                          std::shared_ptr<void> func_data) {
+                          std::shared_ptr<void> func_data)
+{
     // Dummy
 }

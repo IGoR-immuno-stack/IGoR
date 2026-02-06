@@ -49,12 +49,10 @@ public:
     Single_error_rate();
     Single_error_rate(double);
     virtual ~Single_error_rate();
-    double
-    compare_sequences_error_prob(double, const std::string &, Seq_type_str_p_map &,
-                                 const Seq_offsets_map &,
-                                 const std::unordered_map<std::tuple<Event_type, int, Seq_side>,
-                                                          std::shared_ptr<Rec_Event>> &,
-                                 Mismatch_vectors_map &, double &, double &);
+    double compare_sequences_error_prob(
+            double, const std::string &, Seq_type_str_p_map &, const Seq_offsets_map &,
+            const std::unordered_map<std::tuple<Event_type, int, Seq_side>, std::shared_ptr<Rec_Event>> &,
+            Mismatch_vectors_map &, double &, double &);
     void update();
     void add_to_norm_counter();
     void clean_seq_counters();

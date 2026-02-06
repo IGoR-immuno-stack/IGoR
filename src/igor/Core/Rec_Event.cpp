@@ -53,8 +53,7 @@ Rec_Event::Rec_Event(Gene_class gene, Seq_side side)
 {
 } // FIXME why does this exist? anyway fix initilization
 
-Rec_Event::Rec_Event(Gene_class gene, Seq_side side,
-                     unordered_map<string, Event_realization> &realizations)
+Rec_Event::Rec_Event(Gene_class gene, Seq_side side, unordered_map<string, Event_realization> &realizations)
     : Rec_Event(gene, side)
 {
     this->event_realizations = realizations;
@@ -96,8 +95,7 @@ bool Rec_Event::operator==(const Rec_Event &other) const
         return 0;
     if (this->event_realizations.size() != other.event_realizations.size())
         return 0;
-    for (unordered_map<string, Event_realization>::const_iterator iter =
-                 this->event_realizations.begin();
+    for (unordered_map<string, Event_realization>::const_iterator iter = this->event_realizations.begin();
          iter != this->event_realizations.end(); ++iter) {
         if (other.event_realizations.count((*iter).first) != 1)
             return 0;
@@ -107,8 +105,8 @@ bool Rec_Event::operator==(const Rec_Event &other) const
 
 void Rec_Event::update_event_name()
 {
-    this->name = string() + this->type + string("_") + this->event_class + string("_")
-            + this->event_side + string("_prio") + to_string(priority);
+    this->name = string() + this->type + string("_") + this->event_class + string("_") + this->event_side
+            + string("_prio") + to_string(priority);
 }
 
 void Rec_Event::add_realization(const Event_realization &realization)
@@ -151,20 +149,18 @@ double Rec_Event::iterate_common(int realization_index, int base_index, Index_ma
 }
 
 void Rec_Event::iterate_wrap_up(
-        double &scenario_proba, Downstream_scenario_proba_bound_map &downstream_proba_map,
-        const std::string &sequence, const Int_Str &int_sequence, Index_map &index_map,
-        const std::unordered_map<Rec_Event_name,
-                                 std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>>
+        double &scenario_proba, Downstream_scenario_proba_bound_map &downstream_proba_map, const std::string &sequence,
+        const Int_Str &int_sequence, Index_map &index_map,
+        const std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>>
                 &offset_map,
-        std::shared_ptr<Next_event_ptr> &next_event_ptr_arr,
-        Marginal_array_p &updated_marginal_array_p, const Marginal_array_p &model_parameters_point,
+        std::shared_ptr<Next_event_ptr> &next_event_ptr_arr, Marginal_array_p &updated_marginal_array_p,
+        const Marginal_array_p &model_parameters_point,
         const std::unordered_map<Gene_class, std::vector<Alignment_data>> &allowed_realizations,
         Seq_type_str_p_map &constructed_sequences, Seq_offsets_map &seq_offsets,
         std::shared_ptr<Error_rate> &error_rate_p, map<size_t, shared_ptr<Counter>> &counters_list,
-        const std::unordered_map<std::tuple<Event_type, int, Seq_side>, std::shared_ptr<Rec_Event>>
-                &events_map,
-        Safety_bool_map &safety_set, Mismatch_vectors_map &mismatches_lists,
-        double &seq_max_prob_scenario, double &proba_threshold_factor)
+        const std::unordered_map<std::tuple<Event_type, int, Seq_side>, std::shared_ptr<Rec_Event>> &events_map,
+        Safety_bool_map &safety_set, Mismatch_vectors_map &mismatches_lists, double &seq_max_prob_scenario,
+        double &proba_threshold_factor)
 {
 
     /*			if(seq_offsets.count(make_pair(J_gene_seq,
@@ -187,16 +183,15 @@ void Rec_Event::iterate_wrap_up(
         // TODO consider adding a threshold for too low probability events(if
         // necessary)
         next_event_ptr_arr.get()[this->event_index]->iterate(
-                scenario_proba, downstream_proba_map, sequence, int_sequence, index_map, offset_map,
-                next_event_ptr_arr, updated_marginal_array_p, model_parameters_point,
-                allowed_realizations, constructed_sequences, seq_offsets, error_rate_p,
-                counters_list, events_map, safety_set, mismatches_lists, seq_max_prob_scenario,
-                proba_threshold_factor);
+                scenario_proba, downstream_proba_map, sequence, int_sequence, index_map, offset_map, next_event_ptr_arr,
+                updated_marginal_array_p, model_parameters_point, allowed_realizations, constructed_sequences,
+                seq_offsets, error_rate_p, counters_list, events_map, safety_set, mismatches_lists,
+                seq_max_prob_scenario, proba_threshold_factor);
 
     } else {
         long double scenario_error_w_proba = error_rate_p->compare_sequences_error_prob(
-                scenario_proba, sequence, constructed_sequences, seq_offsets, events_map,
-                mismatches_lists, seq_max_prob_scenario, proba_threshold_factor);
+                scenario_proba, sequence, constructed_sequences, seq_offsets, events_map, mismatches_lists,
+                seq_max_prob_scenario, proba_threshold_factor);
 
         // TODO add a monitor of the likelihood at each iteration
 
@@ -220,18 +215,15 @@ void Rec_Event::iterate_wrap_up(
 
             for (std::map<size_t, std::shared_ptr<Counter>>::iterator iter = counters_list.begin();
                  iter != counters_list.end(); ++iter) {
-                (*iter).second->count_scenario(scenario_error_w_proba, scenario_proba, sequence,
-                                               constructed_sequences, seq_offsets, events_map,
-                                               mismatches_lists);
+                (*iter).second->count_scenario(scenario_error_w_proba, scenario_proba, sequence, constructed_sequences,
+                                               seq_offsets, events_map, mismatches_lists);
             }
 
-            for (std::unordered_map<std::tuple<Event_type, int, Seq_side>,
-                                    std::shared_ptr<Rec_Event>>::const_iterator iter =
-                         events_map.begin();
+            for (std::unordered_map<std::tuple<Event_type, int, Seq_side>, std::shared_ptr<Rec_Event>>::const_iterator
+                         iter = events_map.begin();
                  iter != events_map.end(); iter++) {
                 if (!(*iter).second->is_fixed()) {
-                    (*iter).second->add_to_marginals(scenario_error_w_proba,
-                                                     updated_marginal_array_p);
+                    (*iter).second->add_to_marginals(scenario_error_w_proba, updated_marginal_array_p);
                 }
             }
         }
@@ -241,11 +233,9 @@ void Rec_Event::iterate_wrap_up(
 void Rec_Event::initialize_event(
         unordered_set<Rec_Event_name> &processed_events,
         const unordered_map<tuple<Event_type, int, Seq_side>, shared_ptr<Rec_Event>> &events_map,
-        const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>>
-                &offset_map,
-        Downstream_scenario_proba_bound_map &downstream_proba_map,
-        Seq_type_str_p_map &constructed_sequences, Safety_bool_map &safety_set,
-        shared_ptr<Error_rate> error_rate_p, Mismatch_vectors_map &mismatches_list,
+        const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
+        Downstream_scenario_proba_bound_map &downstream_proba_map, Seq_type_str_p_map &constructed_sequences,
+        Safety_bool_map &safety_set, shared_ptr<Error_rate> error_rate_p, Mismatch_vectors_map &mismatches_list,
         Seq_offsets_map &seq_offsets, Index_map &index_map)
 {
     // No action performed on the event by default if the method is not overloaded
@@ -254,16 +244,13 @@ void Rec_Event::initialize_event(
     current_realizations_index_vec.push_back(-1);
 
     if (offset_map.count(this->get_name()) != 0) {
-        const vector<pair<shared_ptr<const Rec_Event>, int>> &offset_vector =
-                offset_map.at(this->get_name());
-        for (vector<pair<shared_ptr<const Rec_Event>, int>>::const_iterator iter =
-                     offset_vector.begin();
+        const vector<pair<shared_ptr<const Rec_Event>, int>> &offset_vector = offset_map.at(this->get_name());
+        for (vector<pair<shared_ptr<const Rec_Event>, int>>::const_iterator iter = offset_vector.begin();
              iter != offset_vector.end(); ++iter) {
             // Request memory layer
             int event_identitfier = (*iter).first->get_event_identifier();
             index_map.request_memory_layer(event_identitfier);
-            memory_and_offsets.emplace_front(event_identitfier,
-                                             index_map.get_current_memory_layer(event_identitfier),
+            memory_and_offsets.emplace_front(event_identitfier, index_map.get_current_memory_layer(event_identitfier),
                                              (*iter).second);
         }
     }
@@ -288,8 +275,7 @@ void Rec_Event::ind_normalize(Marginal_array_p &marginal_array_p, size_t base_in
     }
 }
 
-void Rec_Event::set_crude_upper_bound_proba(size_t base_index, size_t event_size,
-                                            Marginal_array_p &marginal_array_p)
+void Rec_Event::set_crude_upper_bound_proba(size_t base_index, size_t event_size, Marginal_array_p &marginal_array_p)
 {
 
     double max_proba = 0;
@@ -357,18 +343,14 @@ void Rec_Event::compute_crude_upper_bound_scenario_proba(double &tmp_err_w_proba
     }
 }
 
-void Rec_Event::iterate_initialize_Len_proba(int considered_junction,
-                                             std::map<int, double> &length_best_proba_map,
+void Rec_Event::iterate_initialize_Len_proba(int considered_junction, std::map<int, double> &length_best_proba_map,
                                              std::queue<std::shared_ptr<Rec_Event>> &model_queue,
-                                             double &scenario_proba,
-                                             const Marginal_array_p &model_parameters_point,
-                                             Index_map &base_index_map,
-                                             Seq_type_str_p_map &constructed_sequences) const
+                                             double &scenario_proba, const Marginal_array_p &model_parameters_point,
+                                             Index_map &base_index_map, Seq_type_str_p_map &constructed_sequences) const
 {
     int seq_len = 0;
-    this->iterate_initialize_Len_proba(considered_junction, length_best_proba_map, model_queue,
-                                       scenario_proba, model_parameters_point, base_index_map,
-                                       constructed_sequences, seq_len);
+    this->iterate_initialize_Len_proba(considered_junction, length_best_proba_map, model_queue, scenario_proba,
+                                       model_parameters_point, base_index_map, constructed_sequences, seq_len);
 }
 
 /*
@@ -379,11 +361,13 @@ void Rec_Event::iterate_initialize_Len_proba(int considered_junction,
  * TODO constructed sequences should not be used but it is useful to compute the
  * dinucl contribution
  */
-void Rec_Event::iterate_initialize_Len_proba_wrap_up(
-        int considered_junction, std::map<int, double> &length_best_proba_map,
-        std::queue<std::shared_ptr<Rec_Event>> model_queue, double scenario_proba,
-        const Marginal_array_p &model_parameters_point, Index_map &base_index_map,
-        Seq_type_str_p_map &constructed_sequences, int seq_len) const
+void Rec_Event::iterate_initialize_Len_proba_wrap_up(int considered_junction,
+                                                     std::map<int, double> &length_best_proba_map,
+                                                     std::queue<std::shared_ptr<Rec_Event>> model_queue,
+                                                     double scenario_proba,
+                                                     const Marginal_array_p &model_parameters_point,
+                                                     Index_map &base_index_map,
+                                                     Seq_type_str_p_map &constructed_sequences, int seq_len) const
 {
 
     if (not model_queue.empty()) {
@@ -392,9 +376,9 @@ void Rec_Event::iterate_initialize_Len_proba_wrap_up(
         // TODO fix this and find a way not to loop over all events
         // if(next_event_p->has_effect_on(considered_junction)){
         //  Explore realizations of this event
-        next_event_p->iterate_initialize_Len_proba(
-                considered_junction, length_best_proba_map, model_queue, scenario_proba,
-                model_parameters_point, base_index_map, constructed_sequences, seq_len);
+        next_event_p->iterate_initialize_Len_proba(considered_junction, length_best_proba_map, model_queue,
+                                                   scenario_proba, model_parameters_point, base_index_map,
+                                                   constructed_sequences, seq_len);
         //}
         // else{
         // If this event has no effect on the junction skip it using a recursive

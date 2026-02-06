@@ -46,8 +46,7 @@
 #include <memory>
 
 //Make typedef for the function pointers
-typedef void (*gen_seq_trans)(size_t, std::pair<std::string, std::queue<std::queue<int>>>,
-                              std::shared_ptr<void>);
+typedef void (*gen_seq_trans)(size_t, std::pair<std::string, std::queue<std::queue<int>>>, std::shared_ptr<void>);
 
 /**
  * Hardcode a data structure for the function extracting CDR3s in generated sequences
@@ -69,16 +68,12 @@ struct gen_CDR3_data
     bool output_productive = false;
 
     gen_CDR3_data(const std::unordered_map<std::string, size_t> &v_anchors_indices,
-                  const std::unordered_map<std::string, Event_realization> &v_reals,
-                  size_t v_event_pos,
+                  const std::unordered_map<std::string, Event_realization> &v_reals, size_t v_event_pos,
                   const std::unordered_map<std::string, size_t> &j_anchors_indices,
-                  const std::unordered_map<std::string, Event_realization> &j_reals,
-                  size_t j_event_pos,
+                  const std::unordered_map<std::string, Event_realization> &j_reals, size_t j_event_pos,
                   std::shared_ptr<std::ostream> output_stream_ptr =
                           std::shared_ptr<std::ostream>(&std::cout, null_delete<std::ostream>()))
-        : v_event_queue_position(v_event_pos),
-          j_event_queue_position(j_event_pos),
-          output_stream(output_stream_ptr)
+        : v_event_queue_position(v_event_pos), j_event_queue_position(j_event_pos), output_stream(output_stream_ptr)
     {
 
         //First get all V anchors
@@ -87,16 +82,14 @@ struct gen_CDR3_data
             size_t v_anchor_index;
             if (v_anchors_indices.count(v_real.second.name) > 0) {
                 v_anchor_index = v_anchors_indices.at(v_real.second.name);
-                v_anchors.emplace(
-                        v_real.second.index,
-                        std::make_tuple(v_real.second.name, v_anchor_index,
-                                        v_real.second.value_str.size(),
-                                        v_real.second.value_str.substr(v_anchor_index, 3)));
+                v_anchors.emplace(v_real.second.index,
+                                  std::make_tuple(v_real.second.name, v_anchor_index, v_real.second.value_str.size(),
+                                                  v_real.second.value_str.substr(v_anchor_index, 3)));
             } else {
                 v_anchor_index = 0;
-                v_anchors.emplace(v_real.second.index,
-                                  std::make_tuple(v_real.second.name, v_anchor_index,
-                                                  v_real.second.value_str.size(), ""));
+                v_anchors.emplace(
+                        v_real.second.index,
+                        std::make_tuple(v_real.second.name, v_anchor_index, v_real.second.value_str.size(), ""));
             }
         }
 
@@ -106,16 +99,14 @@ struct gen_CDR3_data
             size_t j_anchor_index;
             if (j_anchors_indices.count(j_real.second.name) > 0) {
                 j_anchor_index = j_anchors_indices.at(j_real.second.name);
-                j_anchors.emplace(
-                        j_real.second.index,
-                        std::make_tuple(j_real.second.name, j_anchor_index,
-                                        j_real.second.value_str.size(),
-                                        j_real.second.value_str.substr(j_anchor_index, 3)));
+                j_anchors.emplace(j_real.second.index,
+                                  std::make_tuple(j_real.second.name, j_anchor_index, j_real.second.value_str.size(),
+                                                  j_real.second.value_str.substr(j_anchor_index, 3)));
             } else {
                 j_anchor_index = std::string::npos;
-                j_anchors.emplace(j_real.second.index,
-                                  std::make_tuple(j_real.second.name, j_anchor_index,
-                                                  j_real.second.value_str.size(), ""));
+                j_anchors.emplace(
+                        j_real.second.index,
+                        std::make_tuple(j_real.second.name, j_anchor_index, j_real.second.value_str.size(), ""));
             }
         }
 
@@ -155,34 +146,28 @@ class GenModel
 public:
     GenModel(const Model_Parms &);
     GenModel(const Model_Parms &, const Model_marginals &);
-    GenModel(const Model_Parms &, const Model_marginals &,
-             const std::map<size_t, std::shared_ptr<Counter>> &);
+    GenModel(const Model_Parms &, const Model_marginals &, const std::map<size_t, std::shared_ptr<Counter>> &);
     virtual ~GenModel();
 
     bool infer_model(
-            const std::vector<std::tuple<
-                    int, std::string, std::unordered_map<Gene_class, std::vector<Alignment_data>>>>
+            const std::vector<std::tuple<int, std::string, std::unordered_map<Gene_class, std::vector<Alignment_data>>>>
                     &sequences,
-            const int iterations, const std::string path, bool fast_iter,
-            double likelihood_threshold = 1e-25, bool viterbi_like = false);
-    
-    bool infer_model(
-            const std::vector<std::tuple<
-                    int, std::string, std::unordered_map<Gene_class, std::vector<Alignment_data>>>>
-                    &sequences,
-            const int iterations, const std::string path, bool fast_iter,
-            double likelihood_threshold, double proba_threshold_factor);
+            const int iterations, const std::string path, bool fast_iter, double likelihood_threshold = 1e-25,
+            bool viterbi_like = false);
 
     bool infer_model(
-            const std::vector<std::tuple<
-                    int, std::string, std::unordered_map<Gene_class, std::vector<Alignment_data>>>>
+            const std::vector<std::tuple<int, std::string, std::unordered_map<Gene_class, std::vector<Alignment_data>>>>
                     &sequences,
-            const int iterations, const std::string path, bool fast_iter,
-            double likelihood_threshold, bool viterbi_like, double proba_threshold_factor,
-            double mean_number_seq_err_thresh = INFINITY);
+            const int iterations, const std::string path, bool fast_iter, double likelihood_threshold,
+            double proba_threshold_factor);
 
-    std::forward_list<std::pair<std::string, std::queue<std::queue<int>>>> generate_sequences(int,
-                                                                                              bool);
+    bool infer_model(
+            const std::vector<std::tuple<int, std::string, std::unordered_map<Gene_class, std::vector<Alignment_data>>>>
+                    &sequences,
+            const int iterations, const std::string path, bool fast_iter, double likelihood_threshold,
+            bool viterbi_like, double proba_threshold_factor, double mean_number_seq_err_thresh = INFINITY);
+
+    std::forward_list<std::pair<std::string, std::queue<std::queue<int>>>> generate_sequences(int, bool);
     void generate_sequences(int, bool, std::string, std::string,
                             std::list<std::pair<gen_seq_trans, std::shared_ptr<void>>> =
                                     std::list<std::pair<gen_seq_trans, std::shared_ptr<void>>>(),
@@ -201,17 +186,12 @@ private:
             counters_list; //Size_t is a unique identifier for the Counter(useful for adding them up)
     std::pair<std::string, std::queue<std::queue<int>>> generate_unique_sequence(
             std::queue<std::shared_ptr<Rec_Event>>, std::unordered_map<Rec_Event_name, int>,
-            const std::unordered_map<Rec_Event_name,
-                                     std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>>
-                    &,
+            const std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &,
             std::mt19937_64 &, bool = true);
 };
 
-std::vector<
-        std::tuple<int, std::string, std::unordered_map<Gene_class, std::vector<Alignment_data>>>>
-get_best_aligns(
-        const std::vector<std::tuple<
-                int, std::string, std::unordered_map<Gene_class, std::vector<Alignment_data>>>> &,
+std::vector<std::tuple<int, std::string, std::unordered_map<Gene_class, std::vector<Alignment_data>>>> get_best_aligns(
+        const std::vector<std::tuple<int, std::string, std::unordered_map<Gene_class, std::vector<Alignment_data>>>> &,
         Gene_class);
 
 void output_CDR3_gen_data(size_t, std::pair<std::string, std::queue<std::queue<int>>> seq_and_real,

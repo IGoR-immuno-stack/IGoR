@@ -51,6 +51,6 @@ CDR3SeqData::~CDR3SeqData() { }
 std::string CDR3SeqData::strData()
 {
     std::string delimiter = ";";
-    return std::to_string(seq_index) + delimiter + std::to_string(v_anchor) + delimiter
-            + std::to_string(j_anchor) + delimiter + CDR3nt + delimiter + CDR3aa;
+    return std::to_string(seq_index) + delimiter + std::to_string(v_anchor) + delimiter + std::to_string(j_anchor)
+            + delimiter + CDR3nt + delimiter + CDR3aa;
 }

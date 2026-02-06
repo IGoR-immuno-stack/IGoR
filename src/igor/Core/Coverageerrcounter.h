@@ -49,11 +49,10 @@ public:
 
     void initialize_counter(const Model_Parms &, const Model_marginals &);
 
-    void count_scenario(long double, double, const std::string &, Seq_type_str_p_map &,
-                        const Seq_offsets_map &,
-                        const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>,
-                                                 std::shared_ptr<Rec_Event>> &,
-                        Mismatch_vectors_map &);
+    void
+    count_scenario(long double, double, const std::string &, Seq_type_str_p_map &, const Seq_offsets_map &,
+                   const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> &,
+                   Mismatch_vectors_map &);
 
     void count_sequence(double, const Model_marginals &, const Model_Parms &);
 
@@ -65,24 +64,21 @@ public:
     std::shared_ptr<Counter> copy() const;
 
 private:
-    void allocate_coverage_and_errors_arrays(
-            size_t, const std::unordered_map<std::string, Event_realization>,
-            std::pair<size_t, double *> *&, std::pair<size_t, double *> *&,
-            std::pair<size_t, double *> *&, std::pair<size_t, double *> *&);
-    void deallocate_coverage_and_errors_arrays(
-            size_t, const std::unordered_map<std::string, Event_realization>,
-            std::pair<size_t, double *> *&, std::pair<size_t, double *> *&,
-            std::pair<size_t, double *> *&, std::pair<size_t, double *> *&);
-    void dump_cov_and_err_arrays(int, int, std::shared_ptr<std::ofstream>, size_t,
-                                 std::pair<size_t, double *> *, std::pair<size_t, double *> *);
-    void normalize_and_add_cov_and_err(double &, size_t, std::pair<size_t, double *> *,
-                                       std::pair<size_t, double *> *, std::pair<size_t, double *> *,
-                                       std::pair<size_t, double *> *);
-    void recurs_coverage_count(double scenario_seq_joint_proba, size_t N, size_t begin_bound,
-                               size_t end_bound, size_t gene_len);
+    void allocate_coverage_and_errors_arrays(size_t, const std::unordered_map<std::string, Event_realization>,
+                                             std::pair<size_t, double *> *&, std::pair<size_t, double *> *&,
+                                             std::pair<size_t, double *> *&, std::pair<size_t, double *> *&);
+    void deallocate_coverage_and_errors_arrays(size_t, const std::unordered_map<std::string, Event_realization>,
+                                               std::pair<size_t, double *> *&, std::pair<size_t, double *> *&,
+                                               std::pair<size_t, double *> *&, std::pair<size_t, double *> *&);
+    void dump_cov_and_err_arrays(int, int, std::shared_ptr<std::ofstream>, size_t, std::pair<size_t, double *> *,
+                                 std::pair<size_t, double *> *);
+    void normalize_and_add_cov_and_err(double &, size_t, std::pair<size_t, double *> *, std::pair<size_t, double *> *,
+                                       std::pair<size_t, double *> *, std::pair<size_t, double *> *);
+    void recurs_coverage_count(double scenario_seq_joint_proba, size_t N, size_t begin_bound, size_t end_bound,
+                               size_t gene_len);
     void recurs_errors_count(double scenario_seq_joint_proba, std::vector<int> &v_mismatch_list,
-                             const int **gene_offset_p, size_t N, size_t begin_bound,
-                             size_t end_bound, size_t gene_len);
+                             const int **gene_offset_p, size_t N, size_t begin_bound, size_t end_bound,
+                             size_t gene_len);
     void symmetrize_counter_array(double *, size_t, size_t, size_t);
     void symmetrize_counter_array_recurs(size_t, size_t, size_t *, double *, size_t);
 

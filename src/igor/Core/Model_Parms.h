@@ -127,8 +127,7 @@ public:
 
     std::queue<std::shared_ptr<Rec_Event>> get_model_queue() const;
 
-    std::shared_ptr<Rec_Event>
-    get_event_pointer(const Rec_Event_name &) const; // const Rec_Event*??
+    std::shared_ptr<Rec_Event> get_event_pointer(const Rec_Event_name &) const; // const Rec_Event*??
     std::shared_ptr<Rec_Event> get_event_pointer(const std::string &,
                                                  bool by_nickname) const; // const Rec_Event*??
 
@@ -144,10 +143,8 @@ public:
 
     std::unordered_map<Rec_Event_name, Adjacency_list> get_edges() const { return edges; }
 
-    const std::unordered_map<std::tuple<Event_type, int, Seq_side>, std::shared_ptr<Rec_Event>>
-    get_events_map() const;
-    std::unordered_map<std::tuple<Event_type, int, Seq_side>, std::shared_ptr<Rec_Event>>
-    get_events_map();
+    const std::unordered_map<std::tuple<Event_type, int, Seq_side>, std::shared_ptr<Rec_Event>> get_events_map() const;
+    std::unordered_map<std::tuple<Event_type, int, Seq_side>, std::shared_ptr<Rec_Event>> get_events_map();
 
     void set_error_ratep(Error_rate *Er_r)
     {
