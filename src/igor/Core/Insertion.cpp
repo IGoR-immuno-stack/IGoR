@@ -263,7 +263,7 @@ void Insertion::initialize_event(
     downstream_chosen = false;
 
     for (const auto &neighbor : neighbors) {
-        auto status = EventUtils::check_gene_choice((Gene_class)neighbor.neighbor_type, events_map,
+        auto status = EventUtils::check_gene_choice_by_type_id(neighbor.neighbor_type, events_map,
                                                     processed_events);
         if (status.exists) {
             if (neighbor.is_upstream) {

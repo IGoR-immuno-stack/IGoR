@@ -25,6 +25,29 @@ GeneChoiceStatus check_gene_choice(Gene_class gene,
     return status;
 }
 
+GeneChoiceStatus check_gene_choice_by_type_id(int type_id,
+                                   const std::unordered_map<std::tuple<Event_type, int, Seq_side>,
+                                                            std::shared_ptr<Rec_Event>> &events_map,
+                                   const std::unordered_set<Rec_Event_name> &processed_events)
+{
+    GeneChoiceStatus status;
+    status.exists = false;
+    status.chosen = false;
+    status.event_ptr = nullptr;
+
+    // Look up by type_id directly (works for both standard Gene_class values
+    // and tandem D SequenceTypeRegistry TypeIds since get_events_map() indexes by both)
+    auto key = std::make_tuple(GeneChoice_t, type_id, Undefined_side);
+    if (events_map.count(key) != 0) {
+        status.exists = true;
+        status.event_ptr = events_map.at(key);
+        if (processed_events.count(status.event_ptr->get_name()) != 0) {
+            status.chosen = true;
+        }
+    }
+    return status;
+}
+
 Int_Str build_scenario_sequence(const Seq_type_str_p_map &constructed_sequences, bool has_v,
                                 bool has_d, bool has_j, bool has_vd_ins, bool has_dj_ins,
                                 bool has_vj_ins)

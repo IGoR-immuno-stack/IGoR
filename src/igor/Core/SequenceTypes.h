@@ -47,6 +47,7 @@ public:
 
     // Dynamic type allocation
     TypeId register_type(const std::string &name);
+    void register_alias(const std::string &alias, TypeId target_id);
     TypeId get_type_id(const std::string &name) const;
     std::string get_type_name(TypeId id) const;
 

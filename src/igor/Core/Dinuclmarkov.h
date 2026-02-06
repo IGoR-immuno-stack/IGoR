@@ -68,6 +68,7 @@ public:
                                     const Marginal_array_p &model_parameters_point,
                                     Index_map &base_index_map) override {}
 
+    int size() const override;
     void set_nickname(std::string name) override;
     int get_sequence_type_id() const override { return sequence_type_id; }
 

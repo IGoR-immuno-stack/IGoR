@@ -1169,26 +1169,51 @@ void Model_marginals::write2txt(string filename, const Model_Parms &model_parms)
     //Write into the file according to the model queue order
     while (!model_queue.empty()) {
         shared_ptr<Rec_Event> current_event_p = model_queue.front();
+
+        // New format: @nickname
         outfile << "@" << current_event_p->get_nickname() << endl;
-        outfile << "$Dim[";
-        //if(!processed_events.empty()){
+
+        // New format: #FullEventName;EventType;Gene;Side
+        outfile << "#" << current_event_p->get_name()
+                << ";" << (string() + current_event_p->get_type())
+                << ";" << to_string(current_event_p->get_class())
+                << ";" << to_string(current_event_p->get_side()) << endl;
+
+        // New format: $Dim
+        outfile << "$Dim" << endl;
+
+        // New format: %event_size
+        outfile << "%" << current_event_p->size() << endl;
+
         list<pair<shared_ptr<const Rec_Event>, int>> inv_offset_list =
                 inv_offset_map[current_event_p->get_name()];
         if (!inv_offset_list.empty()) {
             inv_offset_list.sort(offset_comp());
-            for (list<pair<shared_ptr<const Rec_Event>, int>>::const_iterator jiter =
-                         inv_offset_list.begin();
-                 jiter != inv_offset_list.end(); ++jiter) {
-                outfile << (*jiter).first->size() << ",";
+            // New format: $ParentFullName,parent_size (one per parent)
+            for (const auto &parent_pair : inv_offset_list) {
+                outfile << "$" << parent_pair.first->get_name()
+                        << "," << parent_pair.first->size() << endl;
             }
+        } else {
+            // New format: $0 for unconditional events
+            outfile << "$0" << endl;
         }
-        //}
-        outfile << current_event_p->size() << "]" << endl;
-        list<string> empty_str_list = list<string>();
 
-        write2txt_iteration(inv_offset_list.begin(), inv_offset_list.end(),
-                            index_map[current_event_p->get_name()], outfile, current_event_p,
-                            empty_str_list);
+        // New format: &values (all flattened into one line)
+        size_t total_size = current_event_p->size();
+        for (const auto &parent_pair : inv_offset_list) {
+            total_size *= parent_pair.first->size();
+        }
+        int base_index = index_map[current_event_p->get_name()];
+        if (total_size > 0) {
+            outfile << "&" << marginal_array_smart_p[base_index];
+            for (size_t j = 1; j < total_size; ++j) {
+                outfile << "," << marginal_array_smart_p[base_index + j];
+            }
+            outfile << endl;
+        }
+
+        outfile << endl;  // blank line between events
         model_queue.pop();
     }
 }
@@ -1240,10 +1265,22 @@ void Model_marginals::txt2marginals(string filename, const Model_Parms &parms)
         throw runtime_error("Unknown file: " + filename);
     }
     string line_str;
+
+    // Auto-detect format: new format uses '&' for values, old format uses '%'
+    char value_prefix = '%';
+    while (getline(testfilestream, line_str)) {
+        if (!line_str.empty() && line_str[0] == '&') {
+            value_prefix = '&';
+            break;
+        }
+    }
+    testfilestream.clear();
+    testfilestream.seekg(0);
+
     //First count the marginals' size
     int size_counter = 0;
     while (getline(testfilestream, line_str)) {
-        if (line_str[0] == '%') {
+        if (!line_str.empty() && line_str[0] == value_prefix) {
             size_t semicolon_index = line_str.find(",");
             ++size_counter;
             while (semicolon_index != string::npos) {
@@ -1265,7 +1302,7 @@ void Model_marginals::txt2marginals(string filename, const Model_Parms &parms)
     ifstream infile(filename);
     int index = 0;
     while (getline(infile, line_str)) {
-        if (line_str[0] == '%') {
+        if (!line_str.empty() && line_str[0] == value_prefix) {
             size_t semicolon_index = line_str.find(",");
             this->marginal_array_smart_p[index] = stod(line_str.substr(1, (semicolon_index)));
             ++index;

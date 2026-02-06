@@ -648,7 +648,7 @@ void Gene_choice::initialize_event(
 
     // Find active upstream neighbor
     for (const auto &neighbor : upstream_neighbors) {
-        auto v_status = EventUtils::check_gene_choice((Gene_class)neighbor.neighbor_type,
+        auto v_status = EventUtils::check_gene_choice_by_type_id(neighbor.neighbor_type,
                                                       events_map, processed_events);
         if (v_status.exists) {
             active_upstream_junctions.push_back({ neighbor.neighbor_type, neighbor.junction_type });
@@ -667,7 +667,7 @@ void Gene_choice::initialize_event(
 
     // Find active downstream neighbor
     for (const auto &neighbor : downstream_neighbors) {
-        auto j_status = EventUtils::check_gene_choice((Gene_class)neighbor.neighbor_type,
+        auto j_status = EventUtils::check_gene_choice_by_type_id(neighbor.neighbor_type,
                                                       events_map, processed_events);
         if (j_status.exists) {
             active_downstream_junctions.push_back(
@@ -798,7 +798,20 @@ void Gene_choice::initialize_event(
 void Gene_choice::set_nickname(string name)
 {
     this->nickname = name;
-    // For backward compatibility, sequence_type_id is set in constructor
+    // For tandem D models, update sequence_type_id from nickname.
+    // The constructor sets sequence_type_id = Gene_class (e.g., D_gene=2),
+    // but tandem D genes need distinct IDs (D1_gene_seq, D2_gene_seq).
+    auto &registry = get_sequence_type_registry();
+    int type_id = registry.try_get_type_id(name + "_seq");
+    if (type_id >= 0) {
+        this->sequence_type_id = type_id;
+    } else {
+        // Also try the nickname directly (for aliased names)
+        type_id = registry.try_get_type_id(name);
+        if (type_id >= 0) {
+            this->sequence_type_id = type_id;
+        }
+    }
 }
 
 void Gene_choice::update_event_internal_probas(

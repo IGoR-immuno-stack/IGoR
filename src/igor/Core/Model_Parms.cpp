@@ -44,36 +44,44 @@ namespace
  *
  * Detects nicknames like "D1_gene", "D2_gene", "VD1_ins", "D1D2_ins", "D2J_ins"
  * and registers corresponding sequence types and topology connections.
+ * Idempotent: only performs registration once.
  *
  * @param nickname The event nickname to check
  */
 void register_tandem_d_types_if_needed(const std::string &nickname)
 {
+    static bool registered = false;
+    if (registered)
+        return;
+
     auto &registry = SequenceTypeRegistry::get_instance();
 
     // If we see any D1/D2 related nickname, ensure standard Tandem D types are registered.
-    // This allows them to be used as junction/neighbor types even if they haven't been
-    // fully processed in the model file yet.
-    if (nickname.find("D1") != std::string::npos || nickname.find("D2") != std::string::npos) {
-        // Register base D gene types (both with and without _seq suffix for compatibility)
-        auto d1_gene = registry.register_type("D1_gene_seq");
-        registry.register_type("D1_gene");
-        auto d2_gene = registry.register_type("D2_gene_seq");
-        registry.register_type("D2_gene");
+    if (nickname.find("D1") == std::string::npos && nickname.find("D2") == std::string::npos)
+        return;
 
-        // Register insertion types (both with and without _seq suffix for compatibility)
-        auto vd1_ins = registry.register_type("VD1_ins_seq");
-        registry.register_type("VD1_ins");
-        auto d1d2_ins = registry.register_type("D1D2_ins_seq");
-        registry.register_type("D1D2_ins");
-        auto d2j_ins = registry.register_type("D2J_ins_seq");
-        registry.register_type("D2J_ins");
+    registered = true;
 
-        // Register connections (topology)
-        registry.register_connection(SequenceTypeRegistry::V_GENE_SEQ, d1_gene, vd1_ins);
-        registry.register_connection(d1_gene, d2_gene, d1d2_ins);
-        registry.register_connection(d2_gene, SequenceTypeRegistry::J_GENE_SEQ, d2j_ins);
-    }
+    // Register _seq types (canonical, used for topology)
+    auto d1_gene = registry.register_type("D1_gene_seq");
+    auto d2_gene = registry.register_type("D2_gene_seq");
+    auto vd1_ins = registry.register_type("VD1_ins_seq");
+    auto d1d2_ins = registry.register_type("D1D2_ins_seq");
+    auto d2j_ins = registry.register_type("D2J_ins_seq");
+
+    // Register short-name aliases that resolve to the SAME IDs.
+    // This ensures Insertion/Deletion set_nickname("VD1_ins") resolves
+    // to the same TypeId as "VD1_ins_seq" (which has topology).
+    registry.register_alias("D1_gene", d1_gene);
+    registry.register_alias("D2_gene", d2_gene);
+    registry.register_alias("VD1_ins", vd1_ins);
+    registry.register_alias("D1D2_ins", d1d2_ins);
+    registry.register_alias("D2J_ins", d2j_ins);
+
+    // Register connections (topology) — only once
+    registry.register_connection(SequenceTypeRegistry::V_GENE_SEQ, d1_gene, vd1_ins);
+    registry.register_connection(d1_gene, d2_gene, d1d2_ins);
+    registry.register_connection(d2_gene, SequenceTypeRegistry::J_GENE_SEQ, d2j_ins);
 }
 
 } // anonymous namespace
@@ -625,6 +633,20 @@ shared_ptr<Rec_Event> Model_Parms::get_event_pointer(const string &event_str,
             }
         }
     }
+    // Fallback: try matching the event name without the _sizeN suffix.
+    // This supports edge references like "GeneChoice_D_gene_Undefined_side_prio5"
+    // that omit the trailing _sizeN part of the full event name.
+    if (!by_nickname) {
+        for (auto iter = this->events.begin(); iter != this->events.end(); ++iter) {
+            const string &full_name = (*iter)->get_name();
+            // Check if full_name starts with event_str and the remainder is "_size" + digits
+            if (full_name.size() > event_str.size()
+                && full_name.compare(0, event_str.size(), event_str) == 0
+                && full_name.substr(event_str.size(), 5) == "_size") {
+                return (*iter);
+            }
+        }
+    }
     if (by_nickname) {
         throw runtime_error("Event pointer not found in "
                             "Model_Parms::get_event_pointer for nickname:"
@@ -701,7 +723,7 @@ void Model_Parms::write_model_parms(string filename)
         list<shared_ptr<Rec_Event>> children = edges[(*iter)->get_name()].children;
         for (list<shared_ptr<Rec_Event>>::const_iterator jiter = children.begin();
              jiter != children.end(); ++jiter) {
-            outfile << "%" << (*iter)->get_name() << ";" << (*jiter)->get_name() << endl;
+            outfile << "%" << (*iter)->get_nickname() << ";" << (*jiter)->get_nickname() << endl;
         }
     }
     outfile << "@ErrorRate" << endl;

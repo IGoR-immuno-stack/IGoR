@@ -46,6 +46,15 @@ Dinucl_markov::Dinucl_markov(Gene_class gene, Seq_side side)
       downstream_exists(false)
 {
     this->type = Event_type::Dinuclmarkov_t;
+    // Same indexes as Aligner::nt2int
+    event_realizations.emplace(
+        "A", Event_realization("A", INT16_MAX, "A", Int_Str(), 0));
+    event_realizations.emplace(
+        "C", Event_realization("C", INT16_MAX, "C", Int_Str(), 1));
+    event_realizations.emplace(
+        "G", Event_realization("G", INT16_MAX, "G", Int_Str(), 2));
+    event_realizations.emplace(
+        "T", Event_realization("T", INT16_MAX, "T", Int_Str(), 3));
     this->update_event_name();
 }
 
@@ -186,14 +195,10 @@ queue<int> Dinucl_markov::draw_random_realization(
     string &ins_seq = constructed_sequences[type_id];
     int ins_len = ins_seq.length();
 
-    // Need to find the nucleotide upstream of the insertion
-    // For now, let's assume it's the last nucleotide of the upstream sequence
-    // This is a bit simplified for Tandem D
+    // DinucMarkov marginals are a 4x4 matrix (prev_nt x current_nt), indexed as
+    // prev_nt * 4 + current_nt. Total 16 entries per event.
+    int base_index = index_map.at(this->get_name());
     int prev_nt_int = 0; // Default to A
-    
-    // In generation, constructed_sequences should have the upstream sequence
-    // But we need to know which one is upstream.
-    // This part of IGoR's generation is usually handled by knowing the order of events.
 
     for (int i = 0; i < ins_len; ++i) {
         uniform_real_distribution<double> distribution(0.0, 1.0);
@@ -202,14 +207,12 @@ queue<int> Dinucl_markov::draw_random_realization(
         bool found = false;
 
         for (int current_nt_int = 0; current_nt_int < 4; ++current_nt_int) {
-            string realization_name = "";
-            realization_name += int2nt(prev_nt_int);
-            realization_name += int2nt(current_nt_int);
-
-            prob_count += model_marginals_p[index_map.at(this->get_name()) + this->event_realizations.at(realization_name).index];
+            // Marginals layout: prev_nt * 4 + current_nt
+            int marginal_index = base_index + prev_nt_int * 4 + current_nt_int;
+            prob_count += model_marginals_p[marginal_index];
             if (prob_count >= rand) {
                 ins_seq[i] = int2nt(current_nt_int);
-                realization_queue.push(this->event_realizations.at(realization_name).index);
+                realization_queue.push(prev_nt_int * 4 + current_nt_int);
                 prev_nt_int = current_nt_int;
                 found = true;
                 break;
@@ -270,7 +273,7 @@ void Dinucl_markov::initialize_event(
     downstream_exists = false;
 
     for (const auto &neighbor : neighbors) {
-        auto status = EventUtils::check_gene_choice((Gene_class)neighbor.neighbor_type, events_map,
+        auto status = EventUtils::check_gene_choice_by_type_id(neighbor.neighbor_type, events_map,
                                                     processed_events);
         if (status.exists) {
             if (neighbor.is_upstream) {
@@ -300,6 +303,11 @@ void Dinucl_markov::initialize_event(
                                       downstream_proba_map, constructed_sequences, safety_set,
                                       error_rate_p, mismatches_list, seq_offsets, index_map);
 }
+int Dinucl_markov::size() const
+{
+    return event_realizations.size() * event_realizations.size();
+}
+
 void Dinucl_markov::set_nickname(string name)
 {
     this->nickname = name;
@@ -307,6 +315,19 @@ void Dinucl_markov::set_nickname(string name)
     int type_id = registry.try_get_type_id(this->nickname);
     if (type_id >= 0) {
         this->sequence_type_id = type_id;
+        return;
+    }
+    // DinucMarkov shares the junction type of its corresponding Insertion.
+    // Map e.g. "VD1_dinucl" -> "VD1_ins" to resolve the type.
+    std::string suffix = "_dinucl";
+    if (this->nickname.size() > suffix.size() &&
+        this->nickname.compare(this->nickname.size() - suffix.size(), suffix.size(), suffix) == 0) {
+        std::string ins_name = this->nickname.substr(0, this->nickname.size() - suffix.size()) + "_ins";
+        type_id = registry.try_get_type_id(ins_name);
+        if (type_id >= 0) {
+            this->sequence_type_id = type_id;
+            return;
+        }
     }
 }
 

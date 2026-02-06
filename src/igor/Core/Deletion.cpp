@@ -330,7 +330,7 @@ void Deletion::initialize_event(
     downstream_ins_type = -1;
 
     for (const auto &neighbor : upstream_neighbors) {
-        auto status = EventUtils::check_gene_choice((Gene_class)neighbor.neighbor_type, events_map,
+        auto status = EventUtils::check_gene_choice_by_type_id(neighbor.neighbor_type, events_map,
                                                     processed_events);
         if (status.exists) {
             upstream_exists = true;
@@ -343,7 +343,7 @@ void Deletion::initialize_event(
     }
 
     for (const auto &neighbor : downstream_neighbors) {
-        auto status = EventUtils::check_gene_choice((Gene_class)neighbor.neighbor_type, events_map,
+        auto status = EventUtils::check_gene_choice_by_type_id(neighbor.neighbor_type, events_map,
                                                     processed_events);
         if (status.exists) {
             downstream_exists = true;
@@ -427,16 +427,23 @@ void Deletion::set_nickname(string name)
         // Type already registered, use it
         this->sequence_type_id = type_id;
     } else {
-        // Check for tandem D junction deletion patterns
-        // Junction deletions have names like V_3_del (standard) or VD1_3_del (tandem D)
-        if ((this->event_class == VD_genes || this->event_class == DJ_genes) &&
-            (this->nickname.find("VD") == 0 || this->nickname.find("DJ") == 0)) {
-            // Register as a junction-specific deletion
-            this->sequence_type_id = registry.register_junction_type(this->nickname);
-        } else {
-            // Use event_class as fallback for standard deletions
-            this->sequence_type_id = this->event_class;
+        // For tandem D deletions (e.g., "D1_5_del", "D2_3_del"),
+        // resolve to the parent gene's sequence type.
+        if (this->nickname.find("D1_") == 0) {
+            type_id = registry.try_get_type_id("D1_gene_seq");
+            if (type_id >= 0) {
+                this->sequence_type_id = type_id;
+                return;
+            }
+        } else if (this->nickname.find("D2_") == 0) {
+            type_id = registry.try_get_type_id("D2_gene_seq");
+            if (type_id >= 0) {
+                this->sequence_type_id = type_id;
+                return;
+            }
         }
+        // Use event_class as fallback for standard deletions
+        this->sequence_type_id = this->event_class;
     }
 }
 

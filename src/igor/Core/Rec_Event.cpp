@@ -108,7 +108,8 @@ bool Rec_Event::operator==(const Rec_Event &other) const
 void Rec_Event::update_event_name()
 {
     this->name = string() + this->type + string("_") + this->event_class + string("_")
-            + this->event_side + string("_prio") + to_string(priority);
+            + this->event_side + string("_prio") + to_string(priority)
+            + string("_size") + to_string(this->size());
 }
 
 void Rec_Event::add_realization(const Event_realization &realization)

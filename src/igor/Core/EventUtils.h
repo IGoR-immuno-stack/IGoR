@@ -27,6 +27,14 @@ GeneChoiceStatus check_gene_choice(Gene_class gene,
                                                             std::shared_ptr<Rec_Event>> &events_map,
                                    const std::unordered_set<Rec_Event_name> &processed_events);
 
+// Overload that accepts a type_id (SequenceTypeRegistry::TypeId) directly.
+// For tandem D models, the neighbor_type from SequenceTypeRegistry does not
+// correspond to Gene_class enum values, so we need this variant.
+GeneChoiceStatus check_gene_choice_by_type_id(int type_id,
+                                   const std::unordered_map<std::tuple<Event_type, int, Seq_side>,
+                                                            std::shared_ptr<Rec_Event>> &events_map,
+                                   const std::unordered_set<Rec_Event_name> &processed_events);
+
 Int_Str build_scenario_sequence(const Seq_type_str_p_map &constructed_sequences, bool has_v,
                                 bool has_d, bool has_j, bool has_vd_ins, bool has_dj_ins,
                                 bool has_vj_ins);

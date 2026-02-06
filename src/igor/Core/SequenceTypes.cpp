@@ -71,6 +71,12 @@ SequenceTypeRegistry::TypeId SequenceTypeRegistry::register_type(const std::stri
     return id;
 }
 
+void SequenceTypeRegistry::register_alias(const std::string &alias, TypeId target_id)
+{
+    // Map the alias name to the same ID. Does NOT allocate a new ID.
+    name_to_id_[alias] = target_id;
+}
+
 SequenceTypeRegistry::TypeId SequenceTypeRegistry::get_type_id(const std::string &name) const
 {
     if (name_to_id_.count(name)) {
