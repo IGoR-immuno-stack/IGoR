@@ -156,7 +156,7 @@ public:
 	virtual void ind_normalize(Marginal_array_p&,size_t) const;
 	virtual void initialize_event( std::unordered_set<Rec_Event_name>& , const std::map<std::tuple<Event_type,Gene_class,Seq_side>, std::shared_ptr<Rec_Event>>& , const std::map<Rec_Event_name,std::vector<std::pair<std::shared_ptr<const Rec_Event>,int>>>& , Downstream_scenario_proba_bound_map& , Seq_type_str_p_map& , Safety_bool_map&  , std::shared_ptr<Error_rate> , Mismatch_vectors_map& , Seq_offsets_map& , Index_map&);
 	virtual void initialize_crude_scenario_proba_bound(double& , std::forward_list<double*>& , const std::map<std::tuple<Event_type,Gene_class,Seq_side>, std::shared_ptr<Rec_Event>>&);
-	virtual void add_to_marginals(long double , Marginal_array_p&) const =0;
+	virtual void add_to_marginals(double , Marginal_array_p&) const =0;
 	virtual void set_crude_upper_bound_proba(size_t , size_t , Marginal_array_p&) ;
 	void set_upper_bound_proba(double);
 	double get_upper_bound_proba()const{return event_upper_bound_proba;};

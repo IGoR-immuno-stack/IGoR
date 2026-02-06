@@ -120,7 +120,7 @@ double Single_error_rate::compare_sequences_error_prob (double scenario_probabil
 	number_errors+=j_mismatch_list.size();
 
 
-	 // Here a long double is required in case a lot of errors occur and/or the model rate is low, the probability will be truncated to 0 if it gets below ± 2.225,073,858,507,201,4 · 10-308 with double precision
+	 // Here a double is required in case a lot of errors occur and/or the model rate is low, the probability will be truncated to 0 if it gets below ± 2.225,073,858,507,201,4 · 10-308 with double precision
 
 
 

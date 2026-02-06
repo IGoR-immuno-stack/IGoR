@@ -1122,18 +1122,20 @@ void Hypermutation_global_errorrate::update(){
 		double error_model_likelihood = 0;
 
 		//Construct the 3N+1 sized Jacobian vector
-		double J_data[3*mutation_Nmer_size+1];
+		//double J_data[3*mutation_Nmer_size+1];
+		std::vector<double> J_data(3*mutation_Nmer_size+1);
 		for(i=0 ; i!= 3*mutation_Nmer_size+1 ; ++i){
 			J_data[i] = 0;
 		}
-		gsl_vector_view J = gsl_vector_view_array (J_data, 3*mutation_Nmer_size+1);
+		gsl_vector_view J = gsl_vector_view_array (J_data.data(), 3*mutation_Nmer_size+1);
 
 		//Construct the 3N+1 square Hessian matrix
-		double H_data[(3*mutation_Nmer_size+1)*(3*mutation_Nmer_size+1)]; //Are gsl matrices row or column first?
+		//double H_data[(3*mutation_Nmer_size+1)*(3*mutation_Nmer_size+1)]; //Are gsl matrices row or column first?
+		std::vector<double> H_data((3*mutation_Nmer_size+1)*(3*mutation_Nmer_size+1));
 		for(i=0 ; i!= (3*mutation_Nmer_size+1)*(3*mutation_Nmer_size+1) ; ++i){
 			H_data[i] = 0;
 		}
-		gsl_matrix_view H = gsl_matrix_view_array (H_data, 3*mutation_Nmer_size+1,3*mutation_Nmer_size+1);
+		gsl_matrix_view H = gsl_matrix_view_array (H_data.data(), 3*mutation_Nmer_size+1,3*mutation_Nmer_size+1);
 
 /*		for(int yyy = 0 ; yyy !=(3*mutation_Nmer_size)+1 ; ++yyy){
 			for(int zzz = 0 ; zzz !=(3*mutation_Nmer_size)+1 ; ++zzz){
@@ -1144,7 +1146,8 @@ void Hypermutation_global_errorrate::update(){
 		cout<<endl;*/
 
 		//Compute the values for the Jacobian and Hessian entries
-		int base_4_address[mutation_Nmer_size];
+		//int base_4_address[mutation_Nmer_size];
+		std::vector<int> base_4_address(mutation_Nmer_size);
 		int max_address = 0;
 		for (i=0;i!=mutation_Nmer_size;++i){
 			base_4_address[i]=0;
@@ -1157,7 +1160,7 @@ void Hypermutation_global_errorrate::update(){
 			//double current_Nmer_P_bg = Nmer_P_BG[j];
 			double current_Nmer_P_SHM = Nmer_N_SHM[j];
 			double current_Nmer_P_bg = Nmer_N_bg[j];
-			double current_Nmer_unorm_score = compute_Nmer_unorm_score(base_4_address,ei_nucleotide_contributions);
+			double current_Nmer_unorm_score = compute_Nmer_unorm_score(base_4_address.data(),ei_nucleotide_contributions);
 			if(current_Nmer_P_bg!=0){
 				for(i=0;i!=mutation_Nmer_size;++i){
 					if(base_4_address[i]==3){
@@ -1236,7 +1239,7 @@ void Hypermutation_global_errorrate::update(){
 			}
 
 			//Update the base 10 and 4 addresses
-			this->increment_base_10_and_4(j,base_4_address);
+			this->increment_base_10_and_4(j,base_4_address.data());
 
 			error_model_likelihood+=current_Nmer_P_SHM*(log(mu)+log(current_Nmer_unorm_score) - log(3)) - current_Nmer_P_bg*log(1+mu*current_Nmer_unorm_score);
 		}
@@ -1372,7 +1375,14 @@ void Hypermutation_global_errorrate::update(){
 
 double Hypermutation_global_errorrate::compute_new_model_likelihood(double alpha ,gsl_vector* update_vect_p){
 	double new_R = mu + alpha*gsl_vector_get(update_vect_p,(3*mutation_Nmer_size));
-	double new_ei_nucleotide_contributions [4*mutation_Nmer_size];
+	//int base_4_address[mutation_Nmer_size];
+	std::vector<int> base_4_address(mutation_Nmer_size);
+	//TODO construct this using bit operations?
+	//Or look at the recursive way I did it for the mismatch vectors in the error rate class
+
+	double new_sum_weights = 0;
+	//double new_ei_nucleotide_contributions [4*mutation_Nmer_size];
+	std::vector<double> new_ei_nucleotide_contributions(4*mutation_Nmer_size);
 
 	int	a;
 	int b;
@@ -1392,7 +1402,8 @@ double Hypermutation_global_errorrate::compute_new_model_likelihood(double alpha
 		}
 	}
 	//Compute the values for the Jacobian and Hessian entries
-	int base_4_address[mutation_Nmer_size];
+	//int base_4_address[mutation_Nmer_size];
+	//std::vector<int> base_4_address(mutation_Nmer_size);
 	int max_address = 0;
 
 
@@ -1413,11 +1424,11 @@ double Hypermutation_global_errorrate::compute_new_model_likelihood(double alpha
 		//current_Nmer_P_bg = Nmer_P_BG[b];
 		current_Nmer_P_SHM = Nmer_N_SHM[b];
 		current_Nmer_P_bg = Nmer_N_bg[b];
-		current_Nmer_unorm_score = compute_Nmer_unorm_score(base_4_address,new_ei_nucleotide_contributions); //FIXME change this to chose the values of the eis and R to use
+		current_Nmer_unorm_score = compute_Nmer_unorm_score(base_4_address.data(),new_ei_nucleotide_contributions.data()); //FIXME change this to chose the values of the eis and R to use
 
 
 		//Update the base 10 and 4 addresses
-		this->increment_base_10_and_4(b,base_4_address);
+		this->increment_base_10_and_4(b,base_4_address.data());
 
 		error_model_likelihood+=current_Nmer_P_SHM*(log(new_R)+log(current_Nmer_unorm_score) - log(3)) - current_Nmer_P_bg*log(1+new_R*current_Nmer_unorm_score);
 	}

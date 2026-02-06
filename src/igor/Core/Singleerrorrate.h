@@ -70,11 +70,11 @@ private:
 
 	double model_rate;
 	double normalized_counter;
-	long double seq_weighted_er;
+	double seq_weighted_er;
 	int number_errors;
 	int genomic_nucl;
-	long double temp2;
-	long double temp;
+	double temp2;
+	double temp;
 
 
 	int subseq_compare_err_num(const std::string& , const std::string&);

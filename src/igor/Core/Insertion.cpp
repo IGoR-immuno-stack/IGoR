@@ -371,7 +371,7 @@ void Insertion::initialize_event( unordered_set<Rec_Event_name>& processed_event
 
 
 
-void Insertion::add_to_marginals(long double scenario_proba , Marginal_array_p& updated_marginals) const{
+void Insertion::add_to_marginals(double scenario_proba , Marginal_array_p& updated_marginals) const{
 	if(viterbi_run){
 		updated_marginals[this->new_index]=scenario_proba;
 	}

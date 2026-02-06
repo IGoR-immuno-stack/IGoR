@@ -357,6 +357,9 @@ bool GenModel::infer_model(const vector<tuple<int,string,map<Gene_class , vector
 				 */
 				try{
 
+					// cout << first_event->get_name() << endl;
+					// cout << first_event->get_nickname() << endl;
+					// cout << first_event->get_type() << endl;
 					first_event->iterate(init_proba , downstream_proba_map , get<1>(*seq_it) , int_sequence , index_mapp , single_thread_offset_map , next_event_ptr_arr , single_seq_marginals.marginal_array_smart_p , single_thread_model_marginals.marginal_array_smart_p , get<2>(*seq_it) , constructed_sequences , seq_offsets , single_thread_err_rate , single_thread_counter_list , events_map , safety_set , mismatches_lists , max_proba_scenario , proba_threshold_factor);
 
 				}

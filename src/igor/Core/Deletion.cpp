@@ -1550,7 +1550,7 @@ void Deletion::iterate(double& scenario_proba , Downstream_scenario_proba_bound_
  }
 
 
- void Deletion::add_to_marginals(long double scenario_proba , Marginal_array_p& updated_marginals) const{
+ void Deletion::add_to_marginals(double scenario_proba , Marginal_array_p& updated_marginals) const{
  	if(viterbi_run){
  		 updated_marginals[this->new_index]=scenario_proba;
  	}

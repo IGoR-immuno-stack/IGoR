@@ -114,7 +114,7 @@ std::string operator+(const std::string& , Seq_side );
 std::string operator+(const std::string& , Event_type );
 
 //Type used to describe the array of doubles containing the marginals values
-typedef std::unique_ptr<long double []> Marginal_array_p;
+typedef std::unique_ptr<double []> Marginal_array_p;
 
 //Type used as key for unordered map since Rec_event cannot be instantiated
 typedef std::string Rec_Event_name;
@@ -126,6 +126,8 @@ typedef Int_Str* Int_Str_ptr;
 //Typedef used for getting the next event ptr
 //typedef std::shared_ptr<Rec_Event> Next_event_ptr; //Does not work for some reason
 typedef Rec_Event* Next_event_ptr;
+
+constexpr size_t BEST_SCENARIOS_COUNTER = 0;
 
 /**
  * \brief Declare a null_delete function

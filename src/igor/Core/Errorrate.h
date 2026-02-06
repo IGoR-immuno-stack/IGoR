@@ -84,12 +84,12 @@ public:
 
 protected:
 	bool updated;
-	long double model_log_likelihood;
+	double model_log_likelihood;
 	int number_seq;
-	long double seq_likelihood;
+	double seq_likelihood;
 	double seq_mean_error_number;
-	long double scenario_new_proba;//TODO rename this guy
-	long double seq_probability; //Probability of generating one sequence without taking errors into account
+	double scenario_new_proba;//TODO rename this guy
+	double seq_probability; //Probability of generating one sequence without taking errors into account
 	bool viterbi_run;
 	Matrix<double> upper_bound_proba_mat; //Store the value of the error cost of i errors and j no errors
 	size_t max_err;

@@ -365,7 +365,7 @@ double Dinucl_markov::compute_nt_freq(int index , const Marginal_array_p& model_
 void Dinucl_markov::ind_normalize(Marginal_array_p& marginal_array_p , size_t base_index) const{
 	size_t numb_realizations = this->event_realizations.size();
 	for(size_t i = 0 ; i != numb_realizations ; ++i){
-		long double sum_marginals = 0;
+		double sum_marginals = 0;
 		for(size_t j=0 ; j != numb_realizations ; ++j){
 			sum_marginals += marginal_array_p[base_index + i*numb_realizations + j];
 		}
@@ -428,7 +428,7 @@ void Dinucl_markov::initialize_event( unordered_set<Rec_Event_name>& processed_e
 /**
  * \bug Will only count realizations of unambiguous nucleotides (realization indices>=0 since they are set to -1 in iterate_common)
  */
-void Dinucl_markov::add_to_marginals(long double scenario_proba , Marginal_array_p& updated_marginals) const{
+void Dinucl_markov::add_to_marginals(double scenario_proba , Marginal_array_p& updated_marginals) const{
 	if(viterbi_run){
 		for(size_t i=0 ; i!=this->event_marginal_size ; ++i){
 			updated_marginals[unmutable_base_index + i] = 0;

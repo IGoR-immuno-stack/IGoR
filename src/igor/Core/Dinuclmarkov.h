@@ -69,7 +69,7 @@ public:
 	void write2txt(std::ofstream&);
 	void ind_normalize(Marginal_array_p&,size_t) const;
 	void initialize_event( std::unordered_set<Rec_Event_name>& , const std::map<std::tuple<Event_type,Gene_class,Seq_side>, std::shared_ptr<Rec_Event>>& , const std::map<Rec_Event_name,std::vector<std::pair<std::shared_ptr<const Rec_Event>,int>>>& , Downstream_scenario_proba_bound_map& , Seq_type_str_p_map& , Safety_bool_map& , std::shared_ptr<Error_rate> , Mismatch_vectors_map&,Seq_offsets_map&,Index_map&);
-	void add_to_marginals(long double , Marginal_array_p&) const;
+	void add_to_marginals(double , Marginal_array_p&) const;
 	void update_event_internal_probas(const Marginal_array_p& , const std::map<Rec_Event_name,int>&);
 
 

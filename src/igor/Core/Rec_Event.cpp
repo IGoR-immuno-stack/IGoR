@@ -104,65 +104,43 @@ int Rec_Event::get_event_identifier() const {
 }
 
 
-void Rec_Event::iterate_wrap_up(double& scenario_proba , Downstream_scenario_proba_bound_map& downstream_proba_map , const std::string& sequence , const Int_Str& int_sequence , Index_map& index_map , const std::map<Rec_Event_name,std::vector<std::pair<std::shared_ptr<const Rec_Event>,int>>>& offset_map , std::shared_ptr<Next_event_ptr>& next_event_ptr_arr  , Marginal_array_p& updated_marginal_array_p , const Marginal_array_p& model_parameters_point ,const std::map<Gene_class , std::vector<Alignment_data>>& allowed_realizations , Seq_type_str_p_map& constructed_sequences  , Seq_offsets_map& seq_offsets , std::shared_ptr<Error_rate>& error_rate_p , map<size_t,shared_ptr<Counter>>& counters_list ,const std::map<std::tuple<Event_type,Gene_class,Seq_side>, std::shared_ptr<Rec_Event>>& events_map  , Safety_bool_map& safety_set , Mismatch_vectors_map& mismatches_lists , double& seq_max_prob_scenario , double& proba_threshold_factor){
+void Rec_Event::iterate_wrap_up(double& scenario_proba, Downstream_scenario_proba_bound_map& downstream_proba_bound_map, const std::string& sequence, const Int_Str& int_sequence, Index_map& index_map, const std::map<Rec_Event_name,std::vector<std::pair<std::shared_ptr<const Rec_Event>,int>>>& map_of_events, std::shared_ptr<Next_event_ptr>& next_event_ptr_str, Marginal_array_p& updated_marginal_array_p, const Marginal_array_p& pdf_marginal_array_p, const std::map<Gene_class , std::vector<Alignment_data>>& alignments, Seq_type_str_p_map& constructed_sequences, Seq_offsets_map& seq_offsets, std::shared_ptr<Error_rate>& error_rate_p, std::map<size_t,std::shared_ptr<Counter>>& counters_list, const std::map<std::tuple<Event_type,Gene_class,Seq_side>, std::shared_ptr<Rec_Event>>& events_map, Safety_bool_map& safety_bool_map, Mismatch_vectors_map& mismatch_vectors_map, double& seq_likelihood, double& model_log_likelihood){
 
 
-/*			if(seq_offsets.count(make_pair(J_gene_seq, Three_prime))!=0){
+	double scenario_error_w_proba = error_rate_p->compare_sequences_error_prob(scenario_proba, sequence, constructed_sequences,seq_offsets,events_map,mismatch_vectors_map, seq_likelihood, model_log_likelihood);
+	scenario_error_w_proba *= scenario_proba;
 
-					int offset3=seq_offsets.at(make_pair(J_gene_seq, Three_prime));
-					int offset5=seq_offsets.at(make_pair(J_gene_seq, Five_prime));
-					if(offset5==0){
-						cout<<"problem"<<endl;
-					}
-					if(offset3==0){
-						cout<<"big_problem"<<endl;
-					}
+	//Check for 0 proba
+	if(scenario_error_w_proba==0){return;}
 
-	 		  }*/
-
-
-	if(next_event_ptr_arr.get()[this->event_index]){ //Tests whether the next event pointer is null
-			//Recursive call to iterate
-			//TODO consider adding a threshold for too low probability events(if necessary)
-		next_event_ptr_arr.get()[this->event_index]->iterate(scenario_proba , downstream_proba_map , sequence , int_sequence , index_map , offset_map , next_event_ptr_arr , updated_marginal_array_p , model_parameters_point , allowed_realizations , constructed_sequences  , seq_offsets , error_rate_p , counters_list , events_map , safety_set , mismatches_lists , seq_max_prob_scenario , proba_threshold_factor);
-
-
+	//Update the marginals
+	std::shared_ptr<const Rec_Event> parent_event_p = map_of_events.at(this->name).at(0).first;//TODO check this line
+	//Loop over the events
+	//while(parent_event_p!=nullptr){
+	while(true){
+		parent_event_p->add_to_marginals(scenario_error_w_proba,updated_marginal_array_p);
+		if(parent_event_p->get_name() == "root" or parent_event_p->get_name() == "Root"){break;}
+		//parent_event_p = map_of_events.at(parent_event_p->event_name).at(0).first;
+		parent_event_p = events_map.at(std::tuple<Event_type,Gene_class,Seq_side>(parent_event_p->get_type(),parent_event_p->get_class(),parent_event_p->get_side()));
 	}
-	else{
 
-		long double scenario_error_w_proba = error_rate_p->compare_sequences_error_prob( scenario_proba , sequence , constructed_sequences , seq_offsets , events_map , mismatches_lists , seq_max_prob_scenario , proba_threshold_factor);
 
-		//TODO add a monitor of the likelihood at each iteration
+	//Add to the counters
+	for(std::map<size_t,std::shared_ptr<Counter>>::iterator iter=counters_list.begin(); iter!=counters_list.end(); ++iter){
+		iter->second->count_scenario(scenario_proba,scenario_error_w_proba,sequence,constructed_sequences,seq_offsets,events_map,mismatch_vectors_map);
+	}
 
-		//TODO implement sequence comparison in the error rate class
-		//log_file<<scenario_error_w_proba<<endl;
-		//Add the full recombination scenario probability to the marginals
-		/*for(forward_list<int*>::const_iterator iter = write_index_list.begin() ; iter!=write_index_list.end() ; iter++){
-			updated_marginal_array_p[*(*iter)] += scenario_error_w_proba;
-			if(((*iter)==2865) & (!constructed_sequences.at(VD_ins_seq).empty())){
-				cout<<"error"<<endl;
-			}
-			if(((*iter)==2896) & (!constructed_sequences.at(DJ_ins_seq).empty())){
-				cout<<"error"<<endl;
-			}
-		}*/
 
-		if(scenario_error_w_proba>=seq_max_prob_scenario*proba_threshold_factor){
-			if(scenario_error_w_proba>seq_max_prob_scenario){seq_max_prob_scenario=scenario_error_w_proba;}
+	seq_likelihood+=scenario_error_w_proba;
 
-			for(std::map<size_t,std::shared_ptr<Counter>>::iterator iter = counters_list.begin() ; iter != counters_list.end() ; ++iter){
-				(*iter).second->count_scenario(scenario_error_w_proba ,scenario_proba , sequence , constructed_sequences , seq_offsets , events_map , mismatches_lists );
-			}
-
-			for(std::map<std::tuple<Event_type,Gene_class,Seq_side>, std::shared_ptr<Rec_Event>>::const_iterator iter = events_map.begin() ; iter != events_map.end() ; iter++){
-				if(!(*iter).second->is_fixed()){
-					(*iter).second->add_to_marginals(scenario_error_w_proba , updated_marginal_array_p);
-				}
-			}
+	if (counters_list.count(BEST_SCENARIOS_COUNTER) > 0){
+		double proba = error_rate_p->compare_sequences_error_prob(scenario_proba, sequence, constructed_sequences,seq_offsets,events_map,mismatch_vectors_map, seq_likelihood, model_log_likelihood);
+		if (proba > 0) {
+			model_log_likelihood+=scenario_error_w_proba*log10(scenario_error_w_proba);
 		}
-
-
 	}
+
+
 }
 
 
@@ -189,7 +167,7 @@ void Rec_Event::initialize_event( unordered_set<Rec_Event_name>& processed_event
 }
 
 void Rec_Event::ind_normalize(Marginal_array_p& marginal_array_p , size_t base_index) const{
-	long double sum_marginals = 0;
+	double sum_marginals = 0;
 	for(int i =0 ; i != this->size() ; ++i){
 		sum_marginals+= marginal_array_p[base_index + i];
 	}
