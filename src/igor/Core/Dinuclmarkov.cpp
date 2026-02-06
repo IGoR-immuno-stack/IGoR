@@ -49,7 +49,14 @@ Dinucl_markov::Dinucl_markov(Gene_class gene): Rec_Event()  ,  total_nucl_count(
 
 Dinucl_markov::~Dinucl_markov() {
 	// TODO delete realization indices
-	delete updated_upper_bound_proba;
+	if (updated_upper_bound_proba)
+		delete updated_upper_bound_proba;
+    if (vd_realizations_indices)
+		delete[] vd_realizations_indices;
+    if (vj_realizations_indices)
+		delete[] vj_realizations_indices;
+    if (dj_realizations_indices)
+		delete[] dj_realizations_indices;
 }
 
 shared_ptr<Rec_Event> Dinucl_markov::copy(){

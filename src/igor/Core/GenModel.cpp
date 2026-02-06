@@ -257,7 +257,7 @@ bool GenModel::infer_model(const vector<tuple<int,string,unordered_map<Gene_clas
 			 * Each event will access the pointer corresponding to its identifier address when calling iterate inside iterate_wrap_up
 			 * The last event will point to null pointer enabling to call the error_rate
 			 */
-			shared_ptr<Next_event_ptr> next_event_ptr_arr (new Next_event_ptr[single_thread_model_parms.get_event_list().size()]);
+			shared_ptr<Next_event_ptr> next_event_ptr_arr (new Next_event_ptr[single_thread_model_parms.get_event_list().size()],std::default_delete<Rec_Event*[]>());
 			init_single_thread_model_queue = single_thread_model_queue;
 			while(!init_single_thread_model_queue.empty()){
 				shared_ptr<Rec_Event> first_init_event = init_single_thread_model_queue.front();
@@ -644,7 +644,7 @@ void GenModel::write_seq_real2txt(string filename_ind_seq , string filename_ind_
 	outfile_ind_real<<endl;
 
 	size_t index = 0;
-	for(forward_list<pair<string,queue<queue<int>>>>::const_iterator iter = seq_and_realizations.begin() ; iter != seq_and_realizations.end() ; iter++){
+	for(forward_list<pair<string,queue<queue<int>>>>::const_iterator iter = seq_and_realizations.begin() ; iter != seq_and_realizations.end() ; ++iter){
 		outfile_ind_seq<<index<<";"<<(*iter).first<<endl;
 		outfile_ind_real<<index;
 		queue<queue<int>> realizations = (*iter).second;
@@ -700,8 +700,8 @@ void output_CDR3_gen_data(size_t seq_index, std::pair<std::string , std::queue<s
 	gen_CDR3_data* func_data_cast = static_cast<gen_CDR3_data*>(func_data.get());
 
 
-	tuple<string,size_t,size_t,string>* v_gene_anchors;
-	tuple<string,size_t,size_t,string>* j_gene_anchors;
+	tuple<string,size_t,size_t,string>* v_gene_anchors = nullptr;
+	tuple<string,size_t,size_t,string>* j_gene_anchors = nullptr;
 
 	size_t i = 0;
 	while( (i!=max(func_data_cast->v_event_queue_position,func_data_cast->j_event_queue_position)+1)

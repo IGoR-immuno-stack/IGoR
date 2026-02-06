@@ -81,7 +81,7 @@ private:
 	Gene_class count_on;
 	bool dump_individual_seqs;
 	size_t record_Npoint_occurence;
-	size_t* positions;
+	size_t* positions = nullptr;
 
 	//Normalized coverage and error counters
 	//# V D and J possible realizations and events

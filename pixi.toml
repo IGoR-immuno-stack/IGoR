@@ -1,10 +1,10 @@
 [workspace]
 authors = ["Erwan Demairy <Erwan.Demairy@inria.fr>"]
 channels = ["conda-forge"]
+preview = ["pixi-build"]
 name = "igor"
 platforms = ["linux-64", "osx-arm64", "osx-64", "win-64"]
 version = "0.1.0"
-preview = ["pixi-build"]
 
 [dependencies]
 cmake = "*"
@@ -23,7 +23,7 @@ valgrind = "*"
 
 [tasks]
 clean = "rm -fr build && rm -fr build_cov"
-configure = "cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release  -DCMAKE_CXX_SCAN_FOR_MODULES=OFF"
+configure = "cmake -S . -B build -G Ninja"
 configure_coverage = "cmake -S . -B build_cov -DBUILD_DOC_DOXYGEN=ON -DENABLE_COVERAGE=ON  -DCMAKE_CXX_SCAN_FOR_MODULES=OFF"
 build = {cmd="cmake --build build --parallel", depends-on = "configure"}
 build_coverage = {cmd="cmake --build build_cov -j8", depends-on = "configure_coverage"}
@@ -33,6 +33,10 @@ test_align = { cmd = "scripts/tests/test_align.sh", depends-on = ["build"] }
 benchmark = { cmd = "scripts/tests/benchmark_run.sh", depends-on = ["build"] }
 doc = "cmake --build build --target doc"
 coverage = {cmd="llvm-profdata merge -sparse build_cov/tst/default.profraw -o default.profdata && llvm-cov show build_cov/bin/igor_tests -instr-profile=default.profdata -format=html -output-dir=htmlcov", depends-on = "build_coverage"}
+submodule-update = "git submodule update --init --recursive"
+
+[target.win-64.tasks]
+configure = "cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release"
 
 [target.linux.tasks]
 memcheck = {cmd="ctest --test-dir build -T memcheck --timeout 240 -C Release --output-junit ../ctest-memcheck-junit.xml", depends-on = "build"}
@@ -75,3 +79,6 @@ catch2 = "3.*"
 
 [package.run-dependencies]
 gsl = "*"
+
+[target.linux-64.dependencies]
+valgrind = ">=3.26.0,<4"

@@ -73,7 +73,7 @@ Aligner::~Aligner() {
 /*
  * This method reads sequences in a fasta file and return a vector of indexed sequences
  */
-vector<pair<const int, const string>> read_fasta(string filename){
+vector<pair<const int, const string>> read_fasta(const string &filename){
 	//TODO Check for \r,\n\s stuff
 	ifstream infile(filename);
 	if(!infile){
@@ -116,7 +116,7 @@ vector<pair<const int, const string>> read_fasta(string filename){
 /*
  * This method reads genomic templates from fasta files
  */
-vector<pair<string,string>> read_genomic_fasta(string filename){
+vector<pair<string,string>> read_genomic_fasta(const string &filename){
 	ifstream infile(filename);
 		if(!infile){
 			throw runtime_error("File not found: "+filename);
@@ -127,9 +127,9 @@ vector<pair<string,string>> read_genomic_fasta(string filename){
 		int seq_count = -1;
 		vector<pair<string,std::string>> sequence_vect;
 
-		while (getline(infile,temp_str)){
-			if(temp_str[temp_str.size()-1] == '\r'){
-				temp_str.erase(temp_str.size()-1);
+		while (getline(infile, temp_str)) {
+			if(!temp_str.empty() && temp_str.back() == '\r'){
+				temp_str.pop_back();
 			}
 			if(temp_str[0] == '>'){
 
@@ -140,14 +140,14 @@ vector<pair<string,string>> read_genomic_fasta(string filename){
 					string::iterator letter = seq_str.begin();
 					while(letter != seq_str.end()){
 						if( (*letter) =='.'){
-							seq_str.erase(letter);
+							letter = seq_str.erase(letter);
 						}
 						else if((*letter)=='\r'){
 							//TODO Remove line return in sequences files in a proper way
 							seq_str.erase(letter);
 							break;
 						}
-						else{letter++;}
+						else{++letter;}
 					}
 					seq_name_str.erase(seq_name_str.begin()); //Get rid of the '>' at the beginning of the line
 					sequence_vect.push_back(pair<string ,string> (seq_name_str , seq_str));
@@ -169,14 +169,14 @@ vector<pair<string,string>> read_genomic_fasta(string filename){
 			while(letter != seq_str.end()){
 
 				if( (*letter) =='.'){
-					seq_str.erase(letter);
+					letter = seq_str.erase(letter);
 				}
 				else if((*letter)=='\r'){
 					//TODO Remove line return in sequences files in a proper way
 					seq_str.erase(letter);
 					break;
 				}
-				else{letter++;}
+				else{++letter;}
 			}
 			seq_name_str.erase(seq_name_str.begin());
 			sequence_vect.push_back(pair<string ,string> (seq_name_str , seq_str));
@@ -188,7 +188,7 @@ vector<pair<string,string>> read_genomic_fasta(string filename){
 /*
  * This method reads a file with one sequence per line and returns a vector of indexed sequences
  */
-vector<pair<const int , const string>> read_txt(string filename){
+vector<pair<const int , const string>> read_txt(const string &filename){
 	ifstream infile(filename);
 	if(!infile){
 		throw runtime_error("File not found: "+filename);
@@ -214,7 +214,7 @@ vector<pair<const int , const string>> read_txt(string filename){
  * This methods reads a file containing at each line the index of the sequence a semicolon and the actual sequence
  * @return : vector of indexed sequences vector<pair<const int , const string>>
  */
-vector<pair<const int , const string>> read_indexed_csv(string filename){
+vector<pair<const int , const string>> read_indexed_csv(const string &filename){
 	ifstream infile(filename);
 	if(!infile){
 		throw runtime_error("File not found: "+filename);
@@ -313,7 +313,7 @@ forward_list<Alignment_data> Aligner::align_seq(string nt_seq , double score_thr
 	size_t seqlen=int_seq.size();
 	forward_list<Alignment_data> alignment_list;// = *(new forward_list<Alignment_data>());
 
-	for(forward_list<pair<string,Int_Str>>::const_iterator iter = int_genomic_sequences.begin() ; iter != int_genomic_sequences.end() ; iter++){
+	for(forward_list<pair<string,Int_Str>>::const_iterator iter = int_genomic_sequences.begin() ; iter != int_genomic_sequences.end() ; ++iter){
 		//If the gene must be aligned
 		if(restricted_genomic_list.count((*iter).first)>0){
 			// Extract min and max offset information from the offset bounds map
@@ -342,7 +342,7 @@ forward_list<Alignment_data> Aligner::align_seq(string nt_seq , double score_thr
 			//TODO quick and dirty fix for D genes alignments
 			//alignment.second.gene_name = (*iter).first;
 			//alignment_list.push_front(alignment.second);
-			for(list<pair<int,Alignment_data>>::iterator jiter = alignments.begin() ; jiter != alignments.end() ; jiter++){
+			for(list<pair<int,Alignment_data>>::iterator jiter = alignments.begin() ; jiter != alignments.end() ; ++jiter){
 				(*jiter).second.gene_name = (*iter).first;
 				alignment_list.push_front((*jiter).second);
 			}
@@ -596,10 +596,10 @@ std::unordered_map<std::string,std::pair<int,int>> Aligner::build_genomic_bounds
  * @seq_index
  * @sequence
  */
-void write_indexed_seq_csv(string filename , vector<pair<const int,const string>> indexed_seq_list){
+void write_indexed_seq_csv(const string &filename , const vector<pair<const int,const string>>& indexed_seq_list){
 	ofstream outfile(filename);
 	outfile<<"seq_index"<<";"<<"sequence"<<endl;
-	for(vector<pair<const int,const string>>::const_iterator iter = indexed_seq_list.begin() ; iter!=indexed_seq_list.end() ; iter++){
+	for(vector<pair<const int,const string>>::const_iterator iter = indexed_seq_list.begin() ; iter!=indexed_seq_list.end() ; ++iter){
 		outfile << (*iter).first<<";"<<(*iter).second<<endl;
 	}
 }
@@ -672,7 +672,7 @@ forward_list<pair<const int , const string>> read_indexed_seq_csv(string filenam
  * This method reads the alignment data from a given file (@filename).
  * The structure of the file is assumed to be the same as the one created by the Aligner::write_alignments_seq_csv method
  */
-unordered_map<int,vector<Alignment_data>> read_alignments_seq_csv(string filename , double score_threshold , bool allow_in_dels ){
+unordered_map<int,vector<Alignment_data>> read_alignments_seq_csv(const string &filename , double score_threshold , bool allow_in_dels ){
 	ifstream infile(filename);
 	if(!infile){
 		throw runtime_error("File not found: "+filename);
@@ -799,13 +799,13 @@ unordered_map<int,vector<Alignment_data>> read_alignments_seq_csv(string filenam
 	return indexed_alignments;
 }
 
-unordered_map<int,pair<string,unordered_map<Gene_class,vector<Alignment_data>>>> read_alignments_seq_csv(string filename , Gene_class aligned_gene , double score_threshold , bool allow_in_dels , vector<pair<const int , const string>> indexed_sequences ){
+unordered_map<int,pair<string,unordered_map<Gene_class,vector<Alignment_data>>>> read_alignments_seq_csv(const string &filename , Gene_class aligned_gene , double score_threshold , bool allow_in_dels , const vector<pair<const int , const string>> &indexed_sequences ){
 	unordered_map<int,pair<string,unordered_map<Gene_class,vector<Alignment_data>>>> sorted_alignments;
 	sorted_alignments = read_alignments_seq_csv(filename , aligned_gene , score_threshold , allow_in_dels , indexed_sequences , sorted_alignments);
 	return sorted_alignments;
 }
 
-unordered_map<int,pair<string,unordered_map<Gene_class,vector<Alignment_data>>>> read_alignments_seq_csv(string filename , Gene_class aligned_gene , double score_threshold , bool allow_in_dels , vector<pair<const int , const string>> indexed_sequences , unordered_map<int,pair<string,unordered_map<Gene_class,vector<Alignment_data>>>> sorted_alignments){
+unordered_map<int,pair<string,unordered_map<Gene_class,vector<Alignment_data>>>> read_alignments_seq_csv(const string &filename , Gene_class aligned_gene , double score_threshold , bool allow_in_dels , const vector<pair<const int , const string>> &indexed_sequences , unordered_map<int,pair<string,unordered_map<Gene_class,vector<Alignment_data>>>> sorted_alignments){
 	unordered_map<int,vector<Alignment_data>> alignments = read_alignments_seq_csv(filename , score_threshold , allow_in_dels);
 	for(vector<pair<const int , const string>>::const_iterator seq_it = indexed_sequences.begin() ; seq_it != indexed_sequences.end() ; ++seq_it){
 		sorted_alignments[(*seq_it).first].second[aligned_gene] = alignments[(*seq_it).first];
@@ -815,22 +815,28 @@ unordered_map<int,pair<string,unordered_map<Gene_class,vector<Alignment_data>>>>
 	return sorted_alignments;
 }
 
-unordered_map<int,pair<string,unordered_map<Gene_class,vector<Alignment_data>>>> read_alignments_seq_csv_score_range(string filename , Gene_class aligned_gene , double score_range , bool allow_in_dels , vector<pair<const int , const string>> indexed_sequences ){
+unordered_map<int,pair<string,unordered_map<Gene_class,vector<Alignment_data>>>> read_alignments_seq_csv_score_range(const string &filename , Gene_class aligned_gene , double score_range , bool allow_in_dels , const vector<pair<const int , const string>> &indexed_sequences ){
 	unordered_map<int,pair<string,unordered_map<Gene_class,vector<Alignment_data>>>> sorted_alignments;
 	sorted_alignments = read_alignments_seq_csv_score_range(filename , aligned_gene , score_range , allow_in_dels , indexed_sequences , sorted_alignments);
 	return sorted_alignments;
 }
 
-unordered_map<int,pair<string,unordered_map<Gene_class,vector<Alignment_data>>>> read_alignments_seq_csv_score_range(string filename , Gene_class aligned_gene , double score_range , bool allow_in_dels , vector<pair<const int , const string>> indexed_sequences , unordered_map<int,pair<string,unordered_map<Gene_class,vector<Alignment_data>>>> sorted_alignments){
+unordered_map<int,pair<string,unordered_map<Gene_class,vector<Alignment_data>>>> read_alignments_seq_csv_score_range(const string &filename , Gene_class aligned_gene , double score_range , bool allow_in_dels , const vector<pair<const int , const string>> &indexed_sequences , unordered_map<int,pair<string,unordered_map<Gene_class,vector<Alignment_data>>>> sorted_alignments){
 	unordered_map<int,vector<Alignment_data>> alignments = read_alignments_seq_csv(filename , 0 , allow_in_dels);
 	for(vector<pair<const int , const string>>::const_iterator seq_it = indexed_sequences.begin() ; seq_it != indexed_sequences.end() ; ++seq_it){
 			vector<Alignment_data>& seq_alignments = alignments[(*seq_it).first];
 			double max_score = -1;
 			for(vector<Alignment_data>::const_iterator align_it = seq_alignments.begin() ; align_it != seq_alignments.end() ; ++align_it){
 				if((*align_it).score>max_score){max_score=(*align_it).score;}
-			}
-			for(vector<Alignment_data>::iterator align_it = (seq_alignments.end()-1) ; align_it != (seq_alignments.begin() -1);--align_it){
-				if((*align_it).score<(max_score-score_range)){seq_alignments.erase(align_it);}
+            }
+			// use reverse iterator
+			for(auto align_it = seq_alignments.rbegin(); align_it != seq_alignments.rend(); ){
+				if((*align_it).score < (max_score - score_range)){
+					// Convert return value of erase back to reverse_iterator
+					align_it = decltype(align_it)(seq_alignments.erase(std::next(align_it).base()));
+				} else {
+					++align_it;
+				}
 			}
 			sort(seq_alignments.begin() , seq_alignments.end() , align_compare);
 			sorted_alignments[(*seq_it).first].second[aligned_gene] = alignments[(*seq_it).first];
@@ -848,10 +854,11 @@ vector<tuple<int,string,unordered_map<Gene_class,vector<Alignment_data>>>> map2v
 }
 
 void Aligner::set_genomic_sequences(vector< pair <string,string> > nt_genomic_seq){
-	this->nt_genomic_sequences = *(new forward_list<pair<string,string>>);
-	this->int_genomic_sequences = *(new forward_list<pair<string,Int_Str>>);
+	this->nt_genomic_sequences = forward_list<pair<string,string>>();
+	this->int_genomic_sequences = forward_list<pair<string,Int_Str>>();
 	for(vector<pair<string,string>>::const_iterator iter = nt_genomic_seq.begin() ; iter != nt_genomic_seq.end() ; ++iter){
-		nt_genomic_sequences.emplace_front((*iter).first,(*iter).second);
+          nt_genomic_sequences.emplace_front((*iter).first, (*iter).second);
+
 		int_genomic_sequences.emplace_front((*iter).first , nt2int((*iter).second));
 	}
 }
@@ -873,7 +880,7 @@ int Aligner::incorporate_in_dels(string& data_seq , string& genomic_seq , const 
  * Convert nucleotide alphabet sequence into int sequence
  * Conventions are the same as nt2int matlab function
  */
-Int_Str nt2int(string nt_sequence){
+Int_Str nt2int(const string &nt_sequence){
 	Int_Str int_seq;
 	for(size_t i=0 ; i!= nt_sequence.size() ; ++i){
 		if(nt_sequence[i]=='A'){int_seq.append(int_A);}
@@ -1071,7 +1078,7 @@ list<Int_nt> get_ambiguous_nt_list(const Int_nt& ambiguous_nt){
 /*
  * Randomly sample N indexed sequences from a given vector of indexed sequences
  */
-vector<pair<const int , const string>> sample_indexed_seq(vector<pair<const int , const string>> indexed_seqs , const size_t sample_size){
+vector<pair<const int , const string>> sample_indexed_seq(const vector<pair<const int , const string>> &indexed_seqs, const size_t sample_size){
 
 	//Return an error if trying to sample more than the number of available sequences
 	if(sample_size>indexed_seqs.size()){
@@ -1295,8 +1302,8 @@ list<pair<int,Alignment_data>> Aligner::sw_align(const Int_Str& int_data_sequenc
 			//if( (!best_only) | (max_score[align]==max_align_score) ){
 
 
-				forward_list<int> insertions = *(new forward_list<int>); //TODO check this new
-				forward_list<int> deletions = *(new forward_list<int>);
+				forward_list<int> insertions;
+				forward_list<int> deletions;
 				size_t align_length = 0;
 
 				bool end_of_alignment = false;
@@ -1478,7 +1485,7 @@ bool align_compare(Alignment_data align1 , Alignment_data align2 ){
 /**
  * \brief A dumb function to read CSV anchor gene indices
  */
-unordered_map<string,size_t> read_gene_anchors_csv(string filename , string sep){
+unordered_map<string,size_t> read_gene_anchors_csv(const string &filename , string sep){
 	ifstream infile(filename);
 		if(!infile){
 			throw runtime_error("File not found: "+filename + " in read_gene_anchors_csv()");
@@ -1499,7 +1506,7 @@ unordered_map<string,size_t> read_gene_anchors_csv(string filename , string sep)
 				}
 
 				try{
-					stoi(separated_strings.at(1));
+					auto unused = stoi(separated_strings.at(1));
 				}
 				catch(exception& e){
 					throw runtime_error("Expected an integer for the second field in read_gene_anchors_csv(), received:" + separated_strings.at(1));
@@ -1516,7 +1523,7 @@ unordered_map<string,size_t> read_gene_anchors_csv(string filename , string sep)
 /**
  * \brief A dumb function to read CSV template specific offset bounds
  */
-unordered_map<string,pair<int,int>> read_template_specific_offset_csv(string filename,string sep/*= ";"*/){
+unordered_map<string,pair<int,int>> read_template_specific_offset_csv(const string &filename,string sep/*= ";"*/){
 	ifstream infile(filename);
 	if(!infile){
 		throw runtime_error("File not found: "+filename + " in read_gene_anchors_csv()");
@@ -1536,14 +1543,14 @@ unordered_map<string,pair<int,int>> read_template_specific_offset_csv(string fil
 			}
 
 			try{
-				stoi(separated_strings.at(1));
+				auto unused = stoi(separated_strings.at(1));
 			}
 			catch(exception& e){
 				throw runtime_error("Expected an integer for the min offset (second field) in read_gene_anchors_csv(), received:" + separated_strings.at(1));
 			}
 
 			try{
-				stoi(separated_strings.at(2));
+				auto unused = stoi(separated_strings.at(2));
 			}
 			catch(exception& e){
 				throw runtime_error("Expected an integer for the max offset (third field) in read_gene_anchors_csv(), received:" + separated_strings.at(2));
@@ -1571,7 +1578,7 @@ Matrix<double> read_substitution_matrix(const string& filename , string sep/*=",
 	vector<double> tmp_vect;
 	string temp_str;
 	bool first_line = true;
-	size_t line_size;
+	size_t line_size = 0;
 	while(getline(infile,temp_str)){
 		vector<string> line_vect = extract_string_fields(temp_str,sep);
 		if(first_line){
@@ -1585,11 +1592,11 @@ Matrix<double> read_substitution_matrix(const string& filename , string sep/*=",
 		if(line_vect.size()!=line_size){
 			throw runtime_error("Substitution matrix' rows length are inconsistent in input matrix for read_substitution_matrix()");
 		}
-		for(const string field: line_vect){
+		for(const string& field: line_vect){
 			tmp_vect.emplace_back(stod(field));
 		}
 	}
-	if(tmp_vect.size()/line_size != line_size){
+	if(line_size == 0 or (tmp_vect.size()/line_size != line_size)){
 		throw runtime_error("Substitution matrix' number of rows and columns are inconsistent in input matrix for read_substitution_matrix()");
 	}
 	return Matrix<double>(line_size,line_size,tmp_vect);
@@ -1649,10 +1656,8 @@ forward_list<Alignment_data> extract_best_gene_alignments(const forward_list<Ali
 			best_genes_names.emplace(alignment.gene_name);
 		}
 		else if(alignment.score==best_align_score){
-			if(best_genes_names.count(alignment.gene_name)==0){
-				//Make sure gene name is not already contained in the set before adding it
-				best_genes_names.emplace(alignment.gene_name);
-			}
+			//No need to make sure gene name is not already contained in the set before adding it, since emplace already check this
+			best_genes_names.emplace(alignment.gene_name);
 		}
 	}
 
