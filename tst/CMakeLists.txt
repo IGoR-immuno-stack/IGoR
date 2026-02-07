@@ -19,3 +19,14 @@ target_link_libraries(igor_tests PRIVATE igor::Core Catch2::Catch2WithMain)
 # Register the tests with CTest
 include(Catch)
 catch_discover_tests(igor_tests)
+
+# --- Math Tests ---
+file(GLOB MATH_TEST_SOURCES "igor/Math/*.cpp")
+
+if(MATH_TEST_SOURCES)
+    add_executable(math_tests ${MATH_TEST_SOURCES})
+    set_target_properties(math_tests PROPERTIES CXX_STANDARD 23)
+    target_link_libraries(math_tests PRIVATE igor::Math Catch2::Catch2WithMain)
+    include(Catch)
+    catch_discover_tests(math_tests)
+endif()
