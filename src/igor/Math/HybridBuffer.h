@@ -1,13 +1,5 @@
-/*
- * HybridBuffer.h
- *
- *  Created on: Feb 06, 2026
- *      Author: IGoR Agent
- */
-
 #pragma once
 
-#include <cstddef>
 #include <cstddef>
 #include <utility>
 
@@ -42,44 +34,19 @@ public:
     HybridBuffer() = default;
 
     // Owning constructor
-    explicit HybridBuffer(size_type n)
-        : data_(new T[n]), size_(n), is_owning_(true) {}
+    explicit HybridBuffer(size_type n);
 
     // Borrowing constructor
-    HybridBuffer(T* ptr, size_type n)
-        : data_(ptr), size_(n), is_owning_(false) {}
+    HybridBuffer(T* ptr, size_type n);
 
     // Destructor
-    ~HybridBuffer() {
-        if (is_owning_ && data_) {
-            delete[] data_;
-        }
-    }
+    ~HybridBuffer();
 
     // Move Constructor
-    HybridBuffer(HybridBuffer&& other) noexcept
-        : data_(other.data_), size_(other.size_), is_owning_(other.is_owning_) {
-        other.data_ = nullptr;
-        other.size_ = 0;
-        other.is_owning_ = false;
-    }
+    HybridBuffer(HybridBuffer&& other) noexcept;
 
     // Move Assignment
-    HybridBuffer& operator=(HybridBuffer&& other) noexcept {
-        if (this != &other) {
-            if (is_owning_ && data_) {
-                delete[] data_;
-            }
-            data_ = other.data_;
-            size_ = other.size_;
-            is_owning_ = other.is_owning_;
-
-            other.data_ = nullptr;
-            other.size_ = 0;
-            other.is_owning_ = false;
-        }
-        return *this;
-    }
+    HybridBuffer& operator=(HybridBuffer&& other) noexcept;
 
     // Deleted Copy Semantics
     HybridBuffer(const HybridBuffer&) = delete;
@@ -104,4 +71,6 @@ public:
     const_reference operator[](size_type pos) const { return data_[pos]; }
 };
 
-} 
+} // namespace igor::math
+
+#include "HybridBuffer.tpp"

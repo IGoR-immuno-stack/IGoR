@@ -29,7 +29,9 @@ target_sources(${PROJECT_NAME}
       ${CMAKE_CURRENT_SOURCE_DIR}
     FILES
       HybridBuffer.h
+      HybridBuffer.tpp
       Tensor.h
+      Tensor.tpp
 )
 
 target_include_directories(${PROJECT_NAME} INTERFACE
