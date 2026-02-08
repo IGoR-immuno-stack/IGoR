@@ -14,6 +14,7 @@
 // #include <concepts>
 #include <array>
 #include <cmath>
+#include <functional>
 
 namespace igor::math::linalg {
 
