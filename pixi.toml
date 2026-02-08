@@ -22,6 +22,10 @@ clang-tools = ">=19.1.7,<22"
 mdspan = "*"  # Kokkos reference implementation (GCC lacks std::mdspan)
 valgrind = "*"
 
+[target.linux-64.dependencies]
+mdspan = "*"  # Kokkos reference implementation (GCC lacks std::mdspan)
+valgrind = ">=3.26.0,<4"
+
 [tasks]
 clean = "rm -fr build && rm -fr build_cov"
 configure = "cmake -S . -B build -G Ninja"
@@ -79,9 +83,8 @@ env = { MACOSX_DEPLOYMENT_TARGET = "10.15" }
 gsl = "*"
 catch2 = "3.*"
 
+[package.target.linux.host-dependencies]
+mdspan = "*"  # Kokkos reference implementation (GCC lacks std::mdspan)
+
 [package.run-dependencies]
 gsl = "*"
-
-[target.linux-64.dependencies]
-mdspan = "*"  # Kokkos reference implementation (GCC lacks std::mdspan)
-valgrind = ">=3.26.0,<4"
