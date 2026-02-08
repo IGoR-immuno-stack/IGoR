@@ -51,7 +51,9 @@ This plan outlines the steps to implement the standalone `Math` module in IGoR, 
     *   Implement `broadcast_multiply` (convenience wrapper combining broadcast + multiply).
     *   **Test**: `tst/igor/Math/test_Linalg_Broadcast.cpp` (98 assertions).
     *   **Features**: Zero-copy broadcasting, cache-efficient, works with existing operations.
-## 4. Integration Verification
+## 4. Documentation & Integration
+*   [x] **Documentation: README.md**
+    *   Created `src/igor/Math/README.md` with features and usage examples.
 *   [ ] **Benchmarks**
     *   Create a simple benchmark comparing `Tensor` loops vs `std::vector` raw pointers.
 *   [ ] **Integration with Core** (Future)

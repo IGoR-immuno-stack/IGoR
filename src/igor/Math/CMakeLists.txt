@@ -26,15 +26,16 @@ add_library(${CMAKE_PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 target_sources(${PROJECT_NAME}
   PUBLIC FILE_SET HEADERS
     BASE_DIRS
-      ${CMAKE_CURRENT_SOURCE_DIR}
+      ${CMAKE_SOURCE_DIR}/src
     FILES
-      HybridBuffer.h
-      HybridBuffer.tpp
-      MdspanCompat.h
-      Tensor.h
-      Tensor.tpp
-      Linalg.h
-      Linalg.tpp
+      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}.h
+      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/HybridBuffer.h
+      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/HybridBuffer.tpp
+      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/Linalg.h
+      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/Linalg.tpp
+      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/MdspanCompat.h
+      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/Tensor.h
+      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/Tensor.tpp
 )
 
 target_include_directories(${PROJECT_NAME} INTERFACE
@@ -60,7 +61,7 @@ install(
   EXPORT
     ${CMAKE_PROJECT_NAME}${PROJECT_NAME}-targets
   FILE_SET HEADERS
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
   INCLUDES
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
