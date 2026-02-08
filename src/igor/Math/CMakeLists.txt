@@ -30,12 +30,24 @@ target_sources(${PROJECT_NAME}
     FILES
       HybridBuffer.h
       HybridBuffer.tpp
+      MdspanCompat.h
       Tensor.h
       Tensor.tpp
+      Linalg.h
+      Linalg.tpp
 )
 
 target_include_directories(${PROJECT_NAME} INTERFACE
   $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src>
+)
+
+## #################################################################
+## Compile Definitions
+## #################################################################
+
+# Define IGOR_MATH_DEBUG for Debug builds
+target_compile_definitions(${PROJECT_NAME} INTERFACE
+  $<$<CONFIG:Debug>:IGOR_MATH_DEBUG>
 )
 
 ## ###################################################################

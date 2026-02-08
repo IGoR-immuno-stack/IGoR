@@ -60,7 +60,7 @@ T& Tensor<T>::operator()(Indices... indices) {
             " indices but tensor has rank " + std::to_string(dims_.size())
         );
     }
-#ifdef IGOR_DEBUG
+#ifdef IGOR_MATH_DEBUG
     std::array<size_type, sizeof...(Indices)> idx{static_cast<size_type>(indices)...};
     for (size_t i = 0; i < sizeof...(Indices); ++i) {
         if (idx[i] >= dims_[i]) {
@@ -94,7 +94,7 @@ const T& Tensor<T>::operator()(Indices... indices) const {
             " indices but tensor has rank " + std::to_string(dims_.size())
         );
     }
-#ifdef IGOR_DEBUG
+#ifdef IGOR_MATH_DEBUG
     std::array<size_type, sizeof...(Indices)> idx{static_cast<size_type>(indices)...};
     for (size_t i = 0; i < sizeof...(Indices); ++i) {
         if (idx[i] >= dims_[i]) {

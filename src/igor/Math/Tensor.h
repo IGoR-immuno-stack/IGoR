@@ -7,8 +7,9 @@
 
 #pragma once
 
-#include "HybridBuffer.h"
-#include <mdspan>
+#include <igor/Math/HybridBuffer.h>
+#include <igor/Math/MdspanCompat.h>
+
 #include <vector>
 #include <numeric>
 #include <stdexcept>

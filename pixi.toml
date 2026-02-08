@@ -19,6 +19,7 @@ anaconda-client = "*"
 clang-tools = ">=19.1.7,<22"
 
 [target.linux.dependencies]
+mdspan = "*"  # Kokkos reference implementation (GCC lacks std::mdspan)
 valgrind = "*"
 
 [tasks]
@@ -82,4 +83,5 @@ catch2 = "3.*"
 gsl = "*"
 
 [target.linux-64.dependencies]
+mdspan = "*"  # Kokkos reference implementation (GCC lacks std::mdspan)
 valgrind = ">=3.26.0,<4"

@@ -7,7 +7,7 @@ This plan outlines the steps to implement the standalone `Math` module in IGoR, 
     *   Ensure `src/igor/Math/` exists.
     *   Create `tst/igor/Math/` for unit tests.
 *   [x] **Build System Configuration**
-    *   Create `src/igor/Math/CMakeLists.txt` defining a header-only library `igor_math`.
+    *   Create `src/igor/Math/CMakeLists.txt` defining a header-only library `igor::Math`.
     *   Update `src/igor/CMakeLists.txt` to include the Math subdirectory.
     *   Update `tst/CMakeLists.txt` to discover and build Math tests.
 
@@ -27,7 +27,7 @@ This plan outlines the steps to implement the standalone `Math` module in IGoR, 
     *   **Test**: `tst/igor/Math/test_Tensor.cpp` (Full API coverage).
 
 ## 3. Implementation: Algorithm Layer (Linalg)
-*   [ ] **Basic Arithmetic & Reductions (Phase 2a)**
+*   [x] **Basic Arithmetic & Reductions (Phase 2a)**
     *   File: `src/igor/Math/Linalg.h`
     *   Implement Element-wise: `add`, `subtract`, `multiply`, `divide` (on mdspan views).
     *   Implement `scale` (scalar multiplication).
