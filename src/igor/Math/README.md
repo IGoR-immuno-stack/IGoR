@@ -19,8 +19,8 @@ A high-performance C++23 N-dimensional tensor library designed for zero-copy dat
 ## ⚡ Quick Start
 
 ```cpp
-#include <igor/Math/Tensor.h>
-#include <igor/Math/Linalg.h>
+// Single include for all math functionality
+#include <igor/Math.h>
 
 using namespace igor::math;
 
@@ -112,6 +112,7 @@ The `MdspanCompat.h` header ensures consistent behavior across compilers and ope
 
 ## 🧩 Module Structure
 
+- **`Math.h`**: Umbrella header involving all math functionality.
 - **`Tensor.h/tpp`**: High-level N-dim wrapper.
 - **`Linalg.h/tpp`**: Mathematical operations (Core & Tensor overloads).
 - **`HybridBuffer.h/tpp`**: Efficient storage with small-buffer optimization.
