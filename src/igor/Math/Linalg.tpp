@@ -111,22 +111,22 @@ void reduce(In in, T& acc, Func f) {
 
 template <typename In1, typename In2, typename Out>
 void add(In1 in1, In2 in2, Out out) {
-    apply_binary(in1, in2, out, std::plus<>{});
+    apply_binary(in1, in2, out, std::plus<void>{});
 }
 
 template <typename In1, typename In2, typename Out>
 void subtract(In1 in1, In2 in2, Out out) {
-    apply_binary(in1, in2, out, std::minus<>{});
+    apply_binary(in1, in2, out, std::minus<void>{});
 }
 
 template <typename In1, typename In2, typename Out>
 void multiply(In1 in1, In2 in2, Out out) {
-    apply_binary(in1, in2, out, std::multiplies<>{});
+    apply_binary(in1, in2, out, std::multiplies<void>{});
 }
 
 template <typename In1, typename In2, typename Out>
 void divide(In1 in1, In2 in2, Out out) {
-    apply_binary(in1, in2, out, std::divides<>{});
+    apply_binary(in1, in2, out, std::divides<void>{});
 }
 
 template <typename In, typename Scalar, typename Out>
@@ -138,7 +138,7 @@ template <typename In>
 auto sum(In in) {
     using T = typename In::value_type;
     T total = 0;
-    reduce(in, total, std::plus<>{});
+    reduce(in, total, std::plus<void>{});
     return total;
 }
 
@@ -321,7 +321,7 @@ auto dot(In1 in1, In2 in2) {
     if (in1.extent(0) != in2.extent(0)) {
         throw std::invalid_argument("Dot product dimension mismatch");
     }
-    
+
     using T = typename In1::value_type;
     T sum = 0;
     for (size_t i = 0; i < in1.extent(0); ++i) {
@@ -332,17 +332,17 @@ auto dot(In1 in1, In2 in2) {
 
 template <typename In1, typename In2, typename Out>
 void matmul(In1 A, In2 B, Out C) {
-    static_assert(In1::rank() == 2 && In2::rank() == 2 && Out::rank() == 2, 
+    static_assert(In1::rank() == 2 && In2::rank() == 2 && Out::rank() == 2,
                   "Matmul requires rank 2 tensors");
-    
+
     auto M = A.extent(0);
     auto K = A.extent(1);
     auto N = B.extent(1);
-    
+
     if (B.extent(0) != K || C.extent(0) != M || C.extent(1) != N) {
         throw std::invalid_argument("Matmul dimension mismatch (Expected [M,K] x [K,N] -> [M,N])");
     }
-    
+
     // Naive Triple Loop
     for (size_t m = 0; m < M; ++m) {
         for (size_t n = 0; n < N; ++n) {
@@ -389,7 +389,7 @@ void normalize(const Tensor<T>& in, Tensor<T>& out) {
     if (in.ndim() != out.ndim()) {
         throw std::invalid_argument("Tensor rank mismatch");
     }
-    
+
     switch (in.ndim()) {
         case 1: normalize(in.template view<1>(), out.template view<1>()); break;
         case 2: normalize(in.template view<2>(), out.template view<2>()); break;
@@ -447,7 +447,7 @@ void center(const Tensor<T>& in, Tensor<T>& out) {
     if (in.ndim() != out.ndim()) {
         throw std::invalid_argument("Tensor rank mismatch");
     }
-    
+
     switch (in.ndim()) {
         case 1: center(in.template view<1>(), out.template view<1>()); break;
         case 2: center(in.template view<2>(), out.template view<2>()); break;
@@ -498,7 +498,7 @@ auto broadcast_to(
 {
     using T = typename InMdspan::element_type;
     constexpr std::size_t InRank = InMdspan::extents_type::rank();
-    
+
     static_assert(OutRank >= InRank, "Target rank must be >= Input rank");
 
     std::array<std::size_t, OutRank> new_strides;
@@ -534,10 +534,10 @@ auto broadcast_to(
     using Mapping = typename std::layout_stride::template mapping<Extents>;
 
     auto extents = detail::make_dextents_from_array(target_shape, std::make_index_sequence<OutRank>{});
-    
+
     // Layout stride mapping constructor: mapping(extents, strides)
     Mapping map(extents, new_strides);
-    
+
     return std::mdspan<T, Extents, std::layout_stride>(in.data_handle(), map);
 }
 
@@ -548,15 +548,15 @@ void broadcast_multiply(
     OutMdspan out
 ) {
     constexpr std::size_t LeftRank = LeftMdspan::extents_type::rank();
-    
+
     std::array<std::size_t, LeftRank> target_shape;
     for (size_t i = 0; i < LeftRank; ++i) {
         target_shape[i] = left.extent(i);
     }
-    
+
     // Create broadcast view
     auto right_broadcasted = broadcast_to(right, target_shape);
-    
+
     // multiply works generically on any mdspan with operator[]
     multiply(left, right_broadcasted, out);
 }
