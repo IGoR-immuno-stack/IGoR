@@ -34,19 +34,23 @@ This plan outlines the steps to implement the standalone `Math` module in IGoR, 
     *   Implement `sum` (full reduction).
     *   Implement `min`, `max`, `argmax`.
     *   **Test**: `tst/igor/Math/test_Linalg_Basic.cpp`
-*   [ ] **Probabilistic Operations (Phase 2b)**
-    *   Implement `marginalize` (multi-dimensional contraction).
-    *   Implement `normalize` (enforce sum=1 along dimensions).
-    *   Implement `outer_product` (tensor product).
-    *   **Test**: `tst/igor/Math/test_Linalg_Prob.cpp`
-*   [ ] **Log-Space & Stability (Phase 2c)**
-    *   Implement `log_add_exp`, `center` (log-sum-exp trick).
+*   [x] **Probabilistic Operations (Phase 2b)**
+    *   Implement `normalize` (sum to 1).
+    *   Implement `dot` (vector-vector).
+    *   Implement `matmul` (matrix-matrix).
+    *   **Test**: `tst/igor/Math/test_Linalg_Probabilistic.cpp`.
+*   [x] **Log-Space & Stability (Phase 2c)**
+    *   Implement `log_add_exp`.
+    *   Implement `center` (for numerical stability).
+    *   Implement `log_sum_exp` (stable reduction).
     *   Implement `log_normalize` (stable normalization).
-    *   **Test**: `tst/igor/Math/test_Linalg_Log.cpp`
-*   [ ] **Broadcasting Support (Phase 2d)**
-    *   Implement `broadcast_to` (logical view expansion).
-    *   Implement `broadcast_multiply` (vectorized probability scaling).
-
+    *   **Test**: `tst/igor/Math/test_Linalg_Probabilistic.cpp`.
+*   [x] **Broadcasting Support (Phase 2d)**
+    *   **Approach**: Minimal design using free functions only (no Tensor modifications).
+    *   Implement `broadcast_to` (creates strided view with 0-strides for broadcasting).
+    *   Implement `broadcast_multiply` (convenience wrapper combining broadcast + multiply).
+    *   **Test**: `tst/igor/Math/test_Linalg_Broadcast.cpp` (98 assertions).
+    *   **Features**: Zero-copy broadcasting, cache-efficient, works with existing operations.
 ## 4. Integration Verification
 *   [ ] **Benchmarks**
     *   Create a simple benchmark comparing `Tensor` loops vs `std::vector` raw pointers.

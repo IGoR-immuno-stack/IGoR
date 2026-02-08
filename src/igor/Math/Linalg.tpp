@@ -5,6 +5,16 @@
  *      Author: IGoR Agent
  */
 
+#pragma once
+
+#include <igor/Math/Tensor.h>
+
+#include <algorithm>
+// #include <numeric>
+// #include <concepts>
+#include <array>
+#include <cmath>
+
 namespace igor::math::linalg {
 
 namespace detail {
@@ -299,6 +309,256 @@ auto argmax(const Tensor<T>& in) {
         case 5: { auto idx = argmax(in.template view<5>()); return std::vector<size_t>(idx.begin(), idx.end()); }
         default: throw std::runtime_error("Unsupported rank");
     }
+}
+
+// -----------------------------------------------------------------------------
+// Probabilistic Operations (Phase 2b) - Core Implementations
+// -----------------------------------------------------------------------------
+
+template <typename In1, typename In2>
+auto dot(In1 in1, In2 in2) {
+    static_assert(In1::rank() == 1 && In2::rank() == 1, "Dot product requires rank 1 tensors");
+    if (in1.extent(0) != in2.extent(0)) {
+        throw std::invalid_argument("Dot product dimension mismatch");
+    }
+    
+    using T = typename In1::value_type;
+    T sum = 0;
+    for (size_t i = 0; i < in1.extent(0); ++i) {
+        sum += in1[i] * in2[i];
+    }
+    return sum;
+}
+
+template <typename In1, typename In2, typename Out>
+void matmul(In1 A, In2 B, Out C) {
+    static_assert(In1::rank() == 2 && In2::rank() == 2 && Out::rank() == 2, 
+                  "Matmul requires rank 2 tensors");
+    
+    auto M = A.extent(0);
+    auto K = A.extent(1);
+    auto N = B.extent(1);
+    
+    if (B.extent(0) != K || C.extent(0) != M || C.extent(1) != N) {
+        throw std::invalid_argument("Matmul dimension mismatch (Expected [M,K] x [K,N] -> [M,N])");
+    }
+    
+    // Naive Triple Loop
+    for (size_t m = 0; m < M; ++m) {
+        for (size_t n = 0; n < N; ++n) {
+            typename Out::value_type acc = 0;
+            for (size_t k = 0; k < K; ++k) {
+                acc += A[m, k] * B[k, n];
+            }
+            C[m, n] = acc;
+        }
+    }
+}
+
+template <typename In, typename Out>
+void normalize(In in, Out out) {
+    auto total = sum(in);
+    if (total == typename In::value_type(0)) {
+        throw std::invalid_argument("Cannot normalize: tensor sum is zero");
+    }
+    scale(in, typename In::value_type(1) / total, out);
+}
+
+// -----------------------------------------------------------------------------
+// Probabilistic Operations - Tensor Overloads
+// -----------------------------------------------------------------------------
+
+template <typename T>
+T dot(const Tensor<T>& in1, const Tensor<T>& in2) {
+    if (in1.ndim() != 1 || in2.ndim() != 1) {
+        throw std::invalid_argument("Dot product requires 1D tensors");
+    }
+    return dot(in1.template view<1>(), in2.template view<1>());
+}
+
+template <typename T>
+void matmul(const Tensor<T>& A, const Tensor<T>& B, Tensor<T>& C) {
+    if (A.ndim() != 2 || B.ndim() != 2 || C.ndim() != 2) {
+        throw std::invalid_argument("Matmul requires 2D tensors");
+    }
+    matmul(A.template view<2>(), B.template view<2>(), C.template view<2>());
+}
+
+template <typename T>
+void normalize(const Tensor<T>& in, Tensor<T>& out) {
+    if (in.ndim() != out.ndim()) {
+        throw std::invalid_argument("Tensor rank mismatch");
+    }
+    
+    switch (in.ndim()) {
+        case 1: normalize(in.template view<1>(), out.template view<1>()); break;
+        case 2: normalize(in.template view<2>(), out.template view<2>()); break;
+        case 3: normalize(in.template view<3>(), out.template view<3>()); break;
+        case 4: normalize(in.template view<4>(), out.template view<4>()); break;
+        case 5: normalize(in.template view<5>(), out.template view<5>()); break;
+        default: throw std::runtime_error("Unsupported rank (supported: 1-5)");
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Log-Space & Stability (Phase 2c) - Core Implementations
+// -----------------------------------------------------------------------------
+
+template <typename T>
+T log_add_exp(T a, T b) {
+    if (a == -std::numeric_limits<T>::infinity()) return b;
+    if (b == -std::numeric_limits<T>::infinity()) return a;
+    if (a > b) return a + std::log1p(std::exp(b - a));
+    return b + std::log1p(std::exp(a - b));
+}
+
+template <typename In, typename Out>
+void center(In in, Out out) {
+    auto m = max(in);
+    apply_unary(in, out, [m](auto x) { return x - m; });
+}
+
+template <typename In>
+auto log_sum_exp(In in) {
+    using T = typename In::value_type;
+    T m = max(in);
+    if (m == -std::numeric_limits<T>::infinity()) return m;
+
+    T sum_exp = 0;
+    reduce(in, sum_exp, [m](T acc, T val) {
+        return acc + std::exp(val - m);
+    });
+    return m + std::log(sum_exp);
+}
+
+template <typename In, typename Out>
+void log_normalize(In in, Out out) {
+    auto lse = log_sum_exp(in);
+    apply_unary(in, out, [lse](auto x) { return x - lse; });
+}
+
+
+// -----------------------------------------------------------------------------
+// Log-Space & Stability - Tensor Overloads
+// -----------------------------------------------------------------------------
+
+template <typename T>
+void center(const Tensor<T>& in, Tensor<T>& out) {
+    if (in.ndim() != out.ndim()) {
+        throw std::invalid_argument("Tensor rank mismatch");
+    }
+    
+    switch (in.ndim()) {
+        case 1: center(in.template view<1>(), out.template view<1>()); break;
+        case 2: center(in.template view<2>(), out.template view<2>()); break;
+        case 3: center(in.template view<3>(), out.template view<3>()); break;
+        case 4: center(in.template view<4>(), out.template view<4>()); break;
+        case 5: center(in.template view<5>(), out.template view<5>()); break;
+        default: throw std::runtime_error("Unsupported rank (supported: 1-5)");
+    }
+}
+
+template <typename T>
+T log_sum_exp(const Tensor<T>& in) {
+    return detail::dispatch_reduce(in, [](auto v) { return log_sum_exp(v); });
+}
+
+template <typename T>
+void log_normalize(const Tensor<T>& in, Tensor<T>& out) {
+    if (in.ndim() != out.ndim()) {
+        throw std::invalid_argument("Tensor rank mismatch");
+    }
+
+    switch (in.ndim()) {
+        case 1: log_normalize(in.template view<1>(), out.template view<1>()); break;
+        case 2: log_normalize(in.template view<2>(), out.template view<2>()); break;
+        case 3: log_normalize(in.template view<3>(), out.template view<3>()); break;
+        case 4: log_normalize(in.template view<4>(), out.template view<4>()); break;
+        case 5: log_normalize(in.template view<5>(), out.template view<5>()); break;
+        default: throw std::runtime_error("Unsupported rank (supported: 1-5)");
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Broadcasting Support (Phase 2d) - Implementations
+// -----------------------------------------------------------------------------
+
+namespace detail {
+    template <std::size_t Rank, std::size_t... Is>
+    auto make_dextents_from_array(const std::array<std::size_t, Rank>& arr, std::index_sequence<Is...>) {
+        return std::dextents<std::size_t, Rank>(arr[Is]...);
+    }
+}
+
+template<typename InMdspan, std::size_t OutRank>
+auto broadcast_to(
+    InMdspan in,
+    std::array<std::size_t, OutRank> target_shape
+) -> std::mdspan<typename InMdspan::element_type, std::dextents<std::size_t, OutRank>, std::layout_stride>
+{
+    using T = typename InMdspan::element_type;
+    constexpr std::size_t InRank = InMdspan::extents_type::rank();
+    
+    static_assert(OutRank >= InRank, "Target rank must be >= Input rank");
+
+    std::array<std::size_t, OutRank> new_strides;
+    std::fill(new_strides.begin(), new_strides.end(), 0);
+
+    int in_idx = static_cast<int>(InRank) - 1;
+    int out_idx = static_cast<int>(OutRank) - 1;
+
+    while (out_idx >= 0) {
+        if (in_idx < 0) {
+            new_strides[out_idx] = 0; // New dimension
+        }
+        else {
+            size_t in_dim = in.extent(in_idx);
+            size_t out_dim = target_shape[out_idx];
+
+            if (in_dim == out_dim) {
+                new_strides[out_idx] = in.stride(in_idx);
+                in_idx--;
+            }
+            else if (in_dim == 1) {
+                new_strides[out_idx] = 0; // Broadcast singleton
+                in_idx--;
+            }
+            else {
+                throw std::invalid_argument("Incompatible broadcast shapes");
+            }
+        }
+        out_idx--;
+    }
+
+    using Extents = std::dextents<std::size_t, OutRank>;
+    using Mapping = typename std::layout_stride::template mapping<Extents>;
+
+    auto extents = detail::make_dextents_from_array(target_shape, std::make_index_sequence<OutRank>{});
+    
+    // Layout stride mapping constructor: mapping(extents, strides)
+    Mapping map(extents, new_strides);
+    
+    return std::mdspan<T, Extents, std::layout_stride>(in.data_handle(), map);
+}
+
+template<typename LeftMdspan, typename RightMdspan, typename OutMdspan>
+void broadcast_multiply(
+    LeftMdspan left,
+    RightMdspan right,
+    OutMdspan out
+) {
+    constexpr std::size_t LeftRank = LeftMdspan::extents_type::rank();
+    
+    std::array<std::size_t, LeftRank> target_shape;
+    for (size_t i = 0; i < LeftRank; ++i) {
+        target_shape[i] = left.extent(i);
+    }
+    
+    // Create broadcast view
+    auto right_broadcasted = broadcast_to(right, target_shape);
+    
+    // multiply works generically on any mdspan with operator[]
+    multiply(left, right_broadcasted, out);
 }
 
 } // namespace igor::math::linalg
