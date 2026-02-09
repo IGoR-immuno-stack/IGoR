@@ -1308,8 +1308,7 @@ void swap_events_order(const Rec_Event_name event_1, const Rec_Event_name event_
                 break;
             }
         }
-        // FIXME: event_2_iterator is uninitialized !
-        list<pair<Rec_Event_name, size_t>>::iterator next_event_iter = event_2_iterator;
+        list<pair<Rec_Event_name, size_t>>::iterator next_event_iter = event_1_iterator;
         if (increment_factor == -1) {
             --next_event_iter;
         } else if (increment_factor == 1) {
@@ -1334,7 +1333,7 @@ void swap_events_order(const Rec_Event_name event_1, const Rec_Event_name event_
                 break;
             }
         }
-        list<pair<Rec_Event_name, size_t>>::iterator next_event_iter = event_1_iterator;
+        list<pair<Rec_Event_name, size_t>>::iterator next_event_iter = event_2_iterator;
         if (increment_factor == -1) {
             --next_event_iter;
         } else if (increment_factor == 1) {
