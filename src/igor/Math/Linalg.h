@@ -102,6 +102,29 @@ template <typename T>
 auto argmax(const Tensor<T>& in);
 
 // -----------------------------------------------------------------------------
+// Axis-Specific Operations (Phase 0.1)
+// -----------------------------------------------------------------------------
+
+/**
+ * \brief Sum tensor along specific axis
+ * Reduces rank by 1.
+ * @param in Input tensor (Rank >= 1)
+ * @param axis Axis to sum over (0-indexed)
+ * @return New Tensor with axis removed
+ */
+template <typename T>
+Tensor<T> sum_axis(const Tensor<T>& in, size_t axis);
+
+/**
+ * \brief Normalize tensor along specific axis (sum to 1 per slice)
+ * @param in Input tensor
+ * @param out Output tensor (same shape as in)
+ * @param axis Axis to normalize over
+ */
+template <typename T>
+void normalize_axis(const Tensor<T>& in, Tensor<T>& out, size_t axis);
+
+// -----------------------------------------------------------------------------
 // Probabilistic Operations (Phase 2b) - Core (mdspan)
 // -----------------------------------------------------------------------------
 

@@ -85,6 +85,40 @@ namespace detail {
         }
     };
 
+    // Helper to insert index at axis
+    template <size_t InRank, typename... Indices>
+    auto insert_axis_index(size_t axis, size_t val, Indices... idx) {
+        std::array<size_t, InRank> result;
+        std::array<size_t, InRank - 1> current = { static_cast<size_t>(idx)... };
+        
+        size_t src = 0;
+        for (size_t dst = 0; dst < InRank; ++dst) {
+            if (dst == axis) {
+                result[dst] = val;
+            } else {
+                result[dst] = current[src++];
+            }
+        }
+        return result;
+    }
+
+    // Generic Axis Operation Iterator
+    // Iterates over R-1 dimensions (skipping axis)
+    // Func: (indices...) -> void
+    template <size_t OutRank, size_t CurrentDim>
+    struct AxisIterator {
+        template <typename Shape, typename Func, typename... Indices>
+        static void apply(const Shape& shape, Func f, Indices... idx) {
+            for (size_t i = 0; i < shape[CurrentDim]; ++i) {
+                if constexpr (CurrentDim == OutRank - 1) {
+                    f(idx..., i);
+                } else {
+                    AxisIterator<OutRank, CurrentDim + 1>::apply(shape, f, idx..., i);
+                }
+            }
+        }
+    };
+
 } // namespace detail
 
 template <typename In1, typename In2, typename Out, typename Func>
@@ -308,6 +342,160 @@ auto argmax(const Tensor<T>& in) {
         case 3: { auto idx = argmax(in.template view<3>()); return std::vector<size_t>(idx.begin(), idx.end()); }
         case 4: { auto idx = argmax(in.template view<4>()); return std::vector<size_t>(idx.begin(), idx.end()); }
         case 5: { auto idx = argmax(in.template view<5>()); return std::vector<size_t>(idx.begin(), idx.end()); }
+        default: throw std::runtime_error("Unsupported rank");
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Axis-Specific Operations - Implementation
+// -----------------------------------------------------------------------------
+
+template <typename T>
+Tensor<T> sum_axis(const Tensor<T>& in, size_t axis) {
+    if (axis >= in.ndim()) {
+        throw std::invalid_argument("Axis out of bounds");
+    }
+    
+    // Calculate output shape
+    std::vector<size_t> out_shape;
+    out_shape.reserve(in.ndim() - 1);
+    for (size_t i = 0; i < in.ndim(); ++i) {
+        if (i != axis) {
+            out_shape.push_back(in.shape()[i]);
+        }
+    }
+    
+    Tensor<T> out(out_shape);
+
+    // Dispatch based on Input Rank
+    auto dispatch_sum = [&]<size_t Rank>(auto in_view) {
+        if constexpr (Rank == 1) {
+             // Rank 1 -> Scalar (represented as 0-dim tensor or just computed)
+             // But map_view<0> is not supported by standard variant switch usually
+             // Special case: summing the only axis.
+             // We'll treat out as 0-dim if possible, but Tensor<0> support is limited
+             // For now assume Rank > 1 as per plan constraints or hack around it
+             // Actually, sum(vector) -> scalar. 
+             // We'll trust In::rank constraint
+        }
+        
+        // Output Rank is Rank - 1
+        constexpr size_t OutRank = Rank - 1;
+        auto out_view = out.template view<OutRank>(); // View into output tensor
+        
+        // Shape for generic iterator (output shape)
+        std::array<size_t, OutRank> shape_arr;
+        for(size_t i=0; i<OutRank; ++i) shape_arr[i] = out_view.extent(i);
+
+        // Iterate over output dimensions
+        detail::AxisIterator<OutRank, 0>::apply(shape_arr, [&](auto... idx) {
+            // For each output position, sum along axis
+            T acc = 0;
+            size_t axis_dim = in.shape()[axis];
+            
+            for (size_t k = 0; k < axis_dim; ++k) {
+                // Construct input index
+                auto full_idx = detail::insert_axis_index<Rank>(axis, k, idx...);
+                // Apply input index
+                // We need to apply std::array as arguments to mdspan
+                // C++23 mdspan supports spans/arrays? 
+                // Or we unpack. Unpacking array to variadic is annoying.
+                // Alternative: access raw pointer with strides? No.
+                // We'll usage a helper to apply array
+                // But full_idx is std::array.
+                // Let's rely on Tensor's templated operator which accepts indices... 
+                // Wait, mdspan::operator[] takes indices.
+                // We need `std::apply`.
+                acc += std::apply([&](auto... args) { return in_view[args...]; }, full_idx);
+            }
+            out_view[idx...] = acc;
+        });
+    };
+
+    switch (in.ndim()) {
+        case 2: dispatch_sum.template operator()<2>(in.template view<2>()); break;
+        case 3: dispatch_sum.template operator()<3>(in.template view<3>()); break;
+        case 4: dispatch_sum.template operator()<4>(in.template view<4>()); break;
+        case 5: dispatch_sum.template operator()<5>(in.template view<5>()); break;
+        default: throw std::runtime_error("Unsupported rank for sum_axis (requires 2-5)");
+    }
+
+    return out;
+}
+
+template <typename T>
+void normalize_axis(const Tensor<T>& in, Tensor<T>& out, size_t axis) {
+    if (in.ndim() != out.ndim()) throw std::invalid_argument("Rank mismatch");
+    if (axis >= in.ndim()) throw std::invalid_argument("Axis out of bounds");
+
+    // Check shapes match
+    for (size_t i=0; i<in.ndim(); ++i) {
+        if (in.shape()[i] != out.shape()[i]) throw std::invalid_argument("Shape mismatch");
+    }
+
+    auto dispatch_norm = [&]<size_t Rank>(auto in_view, auto out_view) {
+        // Output shape for iterator (same as input) but we want to iterate over "base" dims
+        // We can reuse the logic: iterate over all dims EXCEPT axis
+        constexpr size_t BaseRank = Rank - 1;
+        
+        std::array<size_t, BaseRank> base_shape;
+        size_t j = 0;
+        for (size_t i=0; i<Rank; ++i) {
+            if (i != axis) base_shape[j++] = in_view.extent(i);
+        }
+
+        // Iterate over base dimensions
+        detail::AxisIterator<BaseRank, 0>::apply(base_shape, [&](auto... idx) {
+            // 1. Compute sum
+            T acc = 0;
+            size_t axis_dim = in_view.extent(axis);
+            
+            for (size_t k = 0; k < axis_dim; ++k) {
+                auto full_idx = detail::insert_axis_index<Rank>(axis, k, idx...);
+                acc += std::apply([&](auto... args) { return in_view[args...]; }, full_idx);
+            }
+            
+            // 2. Normalize
+            if (acc != 0) {
+                T scale = T(1) / acc;
+                for (size_t k = 0; k < axis_dim; ++k) {
+                    auto full_idx = detail::insert_axis_index<Rank>(axis, k, idx...);
+                    // We need to apply to OUT as well
+                    T val = std::apply([&](auto... args) { return in_view[args...]; }, full_idx);
+                    std::apply([&](auto... args) -> decltype(auto) { return out_view[args...]; }, full_idx) = val * scale;
+                }
+            } else {
+                 // Zero sum: leave as 0? or NaN? 
+                 // Usually 0 in probabilistic models
+                 for (size_t k = 0; k < axis_dim; ++k) {
+                     auto full_idx = detail::insert_axis_index<Rank>(axis, k, idx...);
+                     std::apply([&](auto... args) -> decltype(auto) { return out_view[args...]; }, full_idx) = 0;
+                 }
+            }
+        });
+    };
+
+    switch (in.ndim()) {
+        case 1: {
+            // Rank 1 special case: explicit loop easier? Or reuse logic with BaseRank=0 ??
+            // If BaseRank=0, AxisIterator should run once.
+            // Let's see if generic works.
+            // BaseRank=0. Iterator::apply(empty_shape, f).
+            // loop i=0 to shape[0] (which is invalid access).
+            // Need special handling for Rank 1?
+            // "AxisIterator" assumes OutRank > 0.
+            auto v_in = in.template view<1>();
+            auto v_out = out.template view<1>();
+            T acc = 0;
+            for(size_t i=0; i<v_in.extent(0); ++i) acc += v_in[i];
+            if(acc != 0) scale(v_in, T(1)/acc, v_out);
+            else scale(v_in, 0, v_out);
+            break;
+        }
+        case 2: dispatch_norm.template operator()<2>(in.template view<2>(), out.template view<2>()); break;
+        case 3: dispatch_norm.template operator()<3>(in.template view<3>(), out.template view<3>()); break;
+        case 4: dispatch_norm.template operator()<4>(in.template view<4>(), out.template view<4>()); break;
+        case 5: dispatch_norm.template operator()<5>(in.template view<5>(), out.template view<5>()); break;
         default: throw std::runtime_error("Unsupported rank");
     }
 }
