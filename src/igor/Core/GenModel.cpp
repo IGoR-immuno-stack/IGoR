@@ -354,7 +354,7 @@ bool GenModel::infer_model(
             chrono::duration<double> seq_time;
 
 #pragma omp for schedule(dynamic) nowait
-            for (size_t i = 0; i < (*sequence_util_ptr).size(); ++i) {
+            for (auto i = 0; i < (*sequence_util_ptr).size(); ++i) {
                 const auto &seq_it = (*sequence_util_ptr).at(i);
 
                 single_seq_begin = chrono::system_clock::now();
