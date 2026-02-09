@@ -522,7 +522,7 @@ uint64_t draw_random_64bits_seed()
         uint32_t subseed1 = rd();
         uint32_t subseed2 = rd();
         // Combine them in a single 64 bit unsigned integer using bit operations
-        uint64_t random_seed = (static_cast<uint64_t>(subseed1) << 32) | subseed2;
+        random_seed = (static_cast<uint64_t>(subseed1) << 32) | subseed2;
     } catch (exception &e) {
         cerr << "Exception caught trying to initialize random_device to generate a random seed in "
                 "draw_random_64bits_seed"
