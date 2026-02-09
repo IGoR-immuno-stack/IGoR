@@ -401,7 +401,7 @@ bool GenModel::infer_model(
                 {
                     ++sequences_processed;
                     log_file << iteration_accomplished << ";" << sequences_processed << ";" << get<0>(seq_it) << ";"
-                             << get<1>(seq_it) << ";" << get<2>(seq_it).size() << ";"
+                             << get<1>(seq_it) << ";" << get<2>(seq_it).at(V_gene).size() << ";" << get<2>(seq_it).at(J_gene).size() << ";"
                              << single_thread_err_rate->get_seq_likelihood() << ";"
                              << single_thread_err_rate->get_seq_mean_error_number() << ";"
                              << single_thread_err_rate->debug_number_scenarios << ";" << max_proba_scenario << ";"
