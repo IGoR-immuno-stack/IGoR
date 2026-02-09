@@ -95,6 +95,20 @@ Result:   All 64×25 slices see the same 12 elements
 linalg::broadcast_multiply(p_vdj.view<3>(), p_j.view<1>(), out.view<3>());
 ```
 
+### 4. Slicing
+Efficiently extract sub-tensors using the `slice` method, which returns a zero-copy `std::mdspan` view.
+
+```cpp
+// Create a 3x4 Tensor
+Tensor<double> matrix({3, 4});
+
+// Get the 2nd row (index 1) as a rank-1 view
+auto row_view = matrix.slice<2>(0, 1); 
+
+// row_view is now a 1D mdspan of length 4
+row_view[0] = 5.0; // Modifies original matrix
+```
+
 ---
 
 ## 🛠 Compatibility Layer
@@ -159,6 +173,7 @@ pixi run build
 # - Probabilistic operations
 # - Log-space stability checks
 # - Broadcasting logic verification
+# - Tensor Slicing
 ```
 
 ---

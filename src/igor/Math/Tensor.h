@@ -82,6 +82,9 @@ public:
     // Borrowing Constructor
     Tensor(T* ptr, shape_type extents);
 
+    // Borrowing Constructor (Custom Strides)
+    Tensor(T* ptr, shape_type extents, shape_type strides);
+
     // Default Constructor
     Tensor() = default;
 
@@ -129,6 +132,18 @@ public:
     const_iterator end() const { return storage_.end(); }
     const_iterator cbegin() const { return storage_.cbegin(); }
     const_iterator cend() const { return storage_.cend(); }
+
+#ifndef IGOR_NO_SUBMDSPAN
+    /**
+     * @brief Get a slice of the tensor along a dimension.
+     * Returns a Strided mdspan view of Rank-1.
+     */
+    template<std::size_t Rank>
+    auto slice(size_t dim, size_t index);
+
+    template<std::size_t Rank>
+    auto slice(size_t dim, size_t index) const;
+#endif
 };
 
 } // namespace igor::math

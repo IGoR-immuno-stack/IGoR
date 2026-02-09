@@ -228,3 +228,73 @@ auto Tensor<T>::view() const {
 }
 
 } // namespace igor::math
+
+#ifndef IGOR_NO_SUBMDSPAN
+namespace igor::math {
+
+template <typename T>
+template <std::size_t Rank>
+auto Tensor<T>::slice(size_t dim, size_t index) {
+    auto v = this->template view<Rank>();
+    
+    // Define the common return type (strided view of Rank-1)
+    using return_type = std::mdspan<T, std::dextents<size_t, Rank-1>, std::layout_stride>;
+
+    // Rank 2
+    if constexpr (Rank == 2) {
+        if (dim == 0) return return_type(std::submdspan(v, index, std::full_extent));
+        return return_type(std::submdspan(v, std::full_extent, index));
+    }
+    // Rank 3
+    else if constexpr (Rank == 3) {
+        if (dim == 0) return return_type(std::submdspan(v, index, std::full_extent, std::full_extent));
+        else if (dim == 1) return return_type(std::submdspan(v, std::full_extent, index, std::full_extent));
+        return return_type(std::submdspan(v, std::full_extent, std::full_extent, index));
+    }
+    // Rank 4
+    else if constexpr (Rank == 4) {
+        if (dim == 0) return return_type(std::submdspan(v, index, std::full_extent, std::full_extent, std::full_extent));
+        else if (dim == 1) return return_type(std::submdspan(v, std::full_extent, index, std::full_extent, std::full_extent));
+        else if (dim == 2) return return_type(std::submdspan(v, std::full_extent, std::full_extent, index, std::full_extent));
+        return return_type(std::submdspan(v, std::full_extent, std::full_extent, std::full_extent, index));
+    }
+    else {
+        static_assert(Rank <= 4, "Slicing implemented up to Rank 4");
+        return return_type(std::submdspan(v, index)); // dummy
+    }
+}
+
+template <typename T>
+template <std::size_t Rank>
+auto Tensor<T>::slice(size_t dim, size_t index) const {
+    auto v = this->template view<Rank>();
+    
+    // Define the common return type (strided view of Rank-1)
+    using return_type = std::mdspan<const T, std::dextents<size_t, Rank-1>, std::layout_stride>;
+
+    // Rank 2
+    if constexpr (Rank == 2) {
+        if (dim == 0) return return_type(std::submdspan(v, index, std::full_extent));
+        return return_type(std::submdspan(v, std::full_extent, index));
+    }
+    // Rank 3
+    else if constexpr (Rank == 3) {
+        if (dim == 0) return return_type(std::submdspan(v, index, std::full_extent, std::full_extent));
+        else if (dim == 1) return return_type(std::submdspan(v, std::full_extent, index, std::full_extent));
+        return return_type(std::submdspan(v, std::full_extent, std::full_extent, index));
+    }
+    // Rank 4
+    else if constexpr (Rank == 4) {
+        if (dim == 0) return return_type(std::submdspan(v, index, std::full_extent, std::full_extent, std::full_extent));
+        else if (dim == 1) return return_type(std::submdspan(v, std::full_extent, index, std::full_extent, std::full_extent));
+        else if (dim == 2) return return_type(std::submdspan(v, std::full_extent, std::full_extent, index, std::full_extent));
+        return return_type(std::submdspan(v, std::full_extent, std::full_extent, std::full_extent, index));
+    }
+    else {
+        static_assert(Rank <= 4, "Slicing implemented up to Rank 4");
+        return return_type(std::submdspan(v, index)); // dummy
+    }
+}
+
+} // namespace igor::math
+#endif

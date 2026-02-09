@@ -1,6 +1,6 @@
 [workspace]
 authors = ["Erwan Demairy <Erwan.Demairy@inria.fr>"]
-channels = ["conda-forge"]
+channels = ["igor-immuno", "conda-forge"]
 preview = ["pixi-build"]
 name = "igor"
 platforms = ["linux-64", "osx-arm64", "osx-64", "win-64"]
@@ -14,16 +14,15 @@ doxygen = "~=1.8"
 catch2 = "3.*"
 ninja = "*"
 anaconda-client = "*"
+mdspan = "*"  # Kokkos reference implementation
 
 [target.osx.dependencies]
 clang-tools = ">=19.1.7,<22"
 
 [target.linux.dependencies]
-mdspan = "*"  # Kokkos reference implementation (GCC lacks std::mdspan)
 valgrind = "*"
 
 [target.linux-64.dependencies]
-mdspan = "*"  # Kokkos reference implementation (GCC lacks std::mdspan)
 valgrind = ">=3.26.0,<4"
 
 [tasks]
@@ -75,16 +74,13 @@ version = "*"
 extra-args = ["-DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_SCAN_FOR_MODULES=OFF"]
 env = { MACOSX_DEPLOYMENT_TARGET = "10.15" }
 
-
 [package.build-dependencies]
 
 [package.host-dependencies]
 # Add dependencies on (header-only) libraries at compile time
 gsl = "*"
 catch2 = "3.*"
-
-[package.target.linux.host-dependencies]
-mdspan = "*"  # Kokkos reference implementation (GCC lacks std::mdspan)
+mdspan = "*"  # Kokkos reference implementation
 
 [package.run-dependencies]
 gsl = "*"

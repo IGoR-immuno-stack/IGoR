@@ -4,21 +4,16 @@
 
 /**
  * @file MdspanCompat.h
- * @brief Compatibility header for std::mdspan across different platforms.
+ * @brief Compatibility header for std::mdspan.
  *
- * - macOS/Windows: Uses standard <mdspan> (libc++ / MSVC STL)
- * - Linux (GCC): Uses Kokkos reference implementation
- *
- * After including this header, std::mdspan and std::dextents are available.
+ * Configured to prefer Kokkos reference implementation (experimental/mdspan)
+ * to ensure access to submdspan for slicing operations.
  */
 
-// Try standard <mdspan> first (Clang libc++, MSVC)
-#if __has_include(<mdspan>) && !defined(ADJOINTCHECK_FORCE_KOKKOS_MDSPAN)
-    #include <mdspan>
-
-// Fallback to Kokkos mdspan (for GCC on Linux)
-#elif __has_include(<experimental/mdspan>)
+// Prefer Kokkos mdspan (experimental) to get submdspan support
+#if __has_include(<experimental/mdspan>)
     #include <experimental/mdspan>
+    
     // Bring Kokkos mdspan into std namespace for compatibility
     namespace std {
         using ::std::experimental::mdspan;
@@ -28,11 +23,25 @@
         using ::std::experimental::layout_left;
         using ::std::experimental::layout_stride;
         using ::std::experimental::default_accessor;
+
+        // Slicing support (submdspan)
+        using ::std::experimental::submdspan;
+        using ::std::experimental::full_extent;
+        using ::std::experimental::full_extent_t;
     }
 
+// Fallback to standard <mdspan> (C++23) if Kokkos is missing
+// Note: Slicing (submdspan) might be missing here until C++26
+#elif __has_include(<mdspan>)
+    #include <mdspan>
+    
+    #ifndef IGOR_NO_SUBMDSPAN
+        #define IGOR_NO_SUBMDSPAN
+        #warning "Using standard <mdspan> which may lack submdspan. Slicing disabled."
+    #endif
+
 #else
-    #error "No mdspan implementation found. Install 'mdspan' package (conda-forge) or use a compiler with C++23 mdspan support."
+    #error "No mdspan implementation found. Install 'mdspan' package (conda-forge)."
 #endif
 
-//
 // MdspanCompat.h ends here
