@@ -286,7 +286,7 @@ protected:
     // Marginal_array_p& , const std::unordered_map<Gene_class ,
     // std::vector<Alignment_data>>& , Seq_type_str_p_map& , Seq_offsets_map&
     // ,std::shared_ptr<Error_rate>&,const
-    // std::unordered_map<std::tuple<Event_type,Gene_class,Seq_side>,const
+    // std::unordered_map<std::tuple<Event_type, int, Seq_side>,const
     // Rec_Event*>&  , Safety_bool_map& , Mismatch_vectors_map& , double& ,
     // double&);
     void iterate_wrap_up(
