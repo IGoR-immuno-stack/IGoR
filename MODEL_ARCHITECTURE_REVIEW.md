@@ -1,97 +1,137 @@
-# Model Architecture Review & Refactoring Plan
+# Math Module & Model Marginals Modernization Review
 
-## 1. Current Architecture Analysis
+## 1. Math Module Summary
 
-The current model architecture relies on three tightly coupled components:
+The **Math Module** is a high-performance, C++23-compliant library designed as the new mathematical foundation for IGoR. It provides N-dimensional tensor operations, linear algebra primitives, and zero-copy data handling, serving as a direct replacement for the legacy "giant array" and raw pointer arithmetic currently used in `Model_Marginals`.
 
-*   **`Model_Parms` (Structure)**: Defines the graph topology (DAG).
-*   **`Model_marginals` (Data)**: Stores all probability tables (Condition Probability Distributions - CPDs) in a single contiguous `double` array ("Arena Allocation").
-*   **`Error_rate` (Observation)**: Handles sequence comparison and mismatch penalization as a special-case "leaf callback".
+The module is built on three core pillars:
 
-### Identified Issues
+### Core Pillars
 
-1.  **The "Giant Array" Pattern (`Model_marginals`)**:
-    *   **Fragility**: Access requires manual pointer arithmetic (`base_index + i * distinct_offset`). A single calculation error leads to silent data corruption (reading neighbor event's data).
-    *   **Coupling**: `Rec_Event` must ask `Model_marginals` for offsets to navigate its own logical data structure.
-    *   **Opacity**: Debugging is difficult; the array is a soup of numbers without boundaries.
+1.  **`Tensor<T>` & `HybridBuffer`**
+    *   A unified container that can either **own** its memory (new allocation) or **borrow** existing memory (zero-copy view).
+    *   This allows it to wrap legacy data structures without duplication, facilitating a smooth transition.
 
-2.  **Implicit Schema**:
-    *   The "shape" of the data (dimensions of the CPDs) is implicit in the execution order of `Rec_Event::iterate`. There is no explicit object describing the tensor shape for a given event.
+2.  **`std::mdspan` Architecture**
+    *   All operations work on structural views (`std::mdspan`) rather than specific containers.
+    *   This decouples algorithms from data storage, following modern C++26 design principles (P1673).
 
-3.  **Observation as a Special Case (`Error_rate`)**:
-    *   `Error_rate` logic is invoked explicitly at the end of recursion.
-    *   **Optimization Barrier**: Mismatches cannot be evaluated until the full sequence is constructed, preventing "Early Pruning" (discarding bad branches as soon as they diverge from observation).
-    *   **Leaky Abstraction**: The core recursion loop knows about "mismatches" and "offsets", concepts that belong to the observation model, not the graph traversal.
+3.  **`Linalg` Suite**
+    *   A collection of stateless, optimized algorithms for:
+        *   **Element-wise ops**: Addition, subtraction, multiplication, division, scaling.
+        *   **Reductions**: Full tensor summation, min/max, argmax.
+        *   **Probabilistic ops**: Dot product, matrix multiplication, full tensor normalization ($\sum P = 1$).
+        *   **Log-space stability**: `log_add_exp`, `log_sum_exp`, `log_normalize` for numerically stable inference.
+        *   **Broadcasting**: Zero-copy dimension expansion via stride manipulation (NumPy-style).
 
-## 2. Proposed Architecture
+---
 
-### A. Data Layout: Split & Typed Containers
-Instead of one monolithic array, `Model_marginals` will act as a registry of **Event Tables**.
+## 2. The Link: Modernizing `Model_Marginals`
 
-*   **Structure**: `std::map<std::string, std::vector<double>> event_tables;`
-*   **Logic**: Each event owns its own contiguous block of memory. Bounds checking becomes possible.
+The `Model_Marginals` class currently suffers from high complexity due to manual memory management and "unsafe" pointer arithmetic. The Math module explicitly solves these issues, providing a path to a safer, more maintainable, and parallelizable architecture.
 
-### B. Access Pattern: Multi-Dimensional Views (`std::mdspan`)
-We will replace raw pointer arithmetic with modern C++ views.
+### Comparison: Legacy vs. Modern Approach
 
-*   **Concept**: Use `std::mdspan` (C++23) or a lightweight backport/implementation to provide a multi-dimensional view over the flat `std::vector`.
-*   **Usage**:
-    ```cpp
-    // Old
-    double p = array[base + parent_val * offset + child_val];
-    // New
-    double p = event_view(parent_val, child_val);
-    ```
+| Feature | Current `Model_Marginals` Approach | Modernized `Math` Approach |
+| :--- | :--- | :--- |
+| **Storage** | `std::unique_ptr<long double[]> marginal_array_smart_p`<br>*(A single monolithic 1D array)* | **`Tensor<long double>`**<br>*(Structured N-dimensional container with runtime rank)* |
+| **Access** | Manual index calculation:<br>`array[base + offset_i + j]` | **Direct Multi-dim Indexing**:<br>`tensor(event_idx, i, j)` or `tensor.view()` |
+| **Safety** | Raw pointer arithmetic (prone to segfaults & off-by-one errors) | **`std::mdspan` Views**<br>*(Type-safe, bounds-checked in debug, zero-overhead in release)* |
+| **Logic** | Nested `for` loops interspersed with logic | **`linalg::normalize` / `linalg::broadcast_multiply`**<br>*(Expressive, optimized standard algorithms)* |
+| **Stability** | `long double` (80-bit) dependence | **Log-Space Support**<br>*(Generic math supporting `double` with `log_add_exp`, `log_normalize`)* |
+| **Parallelization** | Single-threaded giant array | **Thread-Local Tensors**<br>*(Lock-free parallel accumulation via `operator+=`)* |
 
-### C. Unified Topology: Observation as a Node
-The "Error Rate" logic will be encapsulated into a standard Graph Node (e.g., `ObservationEvent`).
+---
 
-*   **Topology**: The graph will formally include an `ObservationEvent` as a child of the final sequence construction events.
-*   **Recursion**: The `iterate` loop naturally flows into this node. It computes the mismatch probability and returns it, just like any other probabilistic event.
-*   **Optimization**: This enables "Intermediate Observation Nodes" (e.g., checking V-gene matches immediately after V-gene choice) for massive performance gains via early connection pruning.
+## 3. Implementation Pathway
 
-### E. Algebraic Capabilities
-`Model_marginals` is not just storage; it is a mathematical object used in the EM algorithm. The refactored design must support:
+### Current Status: Math Module Complete (268 tests passing)
 
-*   **Thread-Safe Accumulation**: Efficient `operator+=` to merge thread-local arrays into global counters.
-*   **Element-wise Operations**: Normalization (scalar division) and scaling.
-*   **Tensor Arithmetic**: Support for the marginalization and product operations required by Bayesian Inversion (e.g., `invert_edge`).
+**Implemented:**
+- ✅ Tensor<T> with runtime rank (1-5 dimensions)
+- ✅ HybridBuffer with owning/borrowing semantics
+- ✅ Element-wise operations (add, subtract, multiply, divide, scale)
+- ✅ Reductions (sum, min, max, argmax)
+- ✅ Probabilistic ops (dot, matmul, normalize - full tensor only)
+- ✅ Log-space stability (log_add_exp, log_sum_exp, log_normalize)
+- ✅ Broadcasting (broadcast_to, broadcast_multiply)
 
-## 3. Refactoring Plan
+**Critical Gap for Model_Marginals Migration:**
+- ❌ **Axis-specific operations** (normalize along dimension, sum along axis)
+- ❌ **Slicing operations** (extract sub-tensors along specific dimensions)
 
+### Migration Strategy (5 Phases)
 
-This refactoring is a prerequisite for the broader `Rec_Event` modernization.
+The transition requires careful phasing due to Model_Marginals complexity (956 lines, recursive event structure):
 
-### Phase 1: Safe Storage (Internal Refactor)
-**Goal**: Break the "Giant Array" without changing external APIs significantly.
+#### **Phase 0: Fill Math Module Gaps** (2-3 weeks)
+*Pre-requisite before any migration*
 
-1.  **Modify `Model_marginals`**:
-    *   Replace `unique_ptr<double[]> marginal_array_smart_p` with `unordered_map<string, vector<double>> storage`.
-    *   Implement `get_event_data_pointer(name)` to return `vector.data()`.
-2.  **Update `Rec_Event` Initialization**:
-    *   Pass `local_ptr` (0-based) instead of `global_ptr + offset`.
-    *   Update initialization logic to request data by name.
-3.  **Validation**:
-    *   Ensure exact numerical output match with current version.
+1.  **Implement axis-specific reductions**
+    *   `sum_axis(tensor, axis)` - sum along specific dimension
+    *   `normalize_axis(tensor, out, axis)` - normalize along dimension
+    *   Critical for per-event normalization in Model_Marginals
 
-### Phase 2: Structural Descriptors & Views
-**Goal**: Explicitly define the shape of probabilities.
+2.  **Implement slicing/indexing**
+    *   `slice(tensor, dim, index)` - extract sub-tensor
+    *   Needed for navigating complex event hierarchies
 
-1.  **Define `EventShape`**:
-    *   Create a struct describing dimensions: `shape = {parent1_size, parent2_size, self_size}`.
-2.  **Integrate `mdspan` (or equivalent)**:
-    *   Update `Rec_Event::iterate` to accept a View object instead of raw pointers.
-    *   Refactor internal math to use `view(i, j, k)`.
+#### **Phase 1: Borrowing Wrapper** (1 week)
+*Zero risk - wraps existing array*
 
-### Phase 3: The "Observation Node" (Topology Change)
-**Goal**: Unify `Error_rate` into the graph.
+1.  **Create Model_marginals_v2 class**
+    *   Keep existing `marginal_array_smart_p` storage
+    *   Add `as_tensor()` method returning borrowing Tensor view
+    *   Implement new methods delegating to Math module
+    *   Old methods continue working unchanged
 
-1.  **Create `class ObservationEvent : public Rec_Event`**:
-    *   Move `compare_sequences_error_prob` logic into `ObservationEvent::iterate`.
-2.  **Update `Model_Parms`**:
-    *   Automatically append this node to the graph during model loading.
-3.  **Simplify Recursion**:
-    *   Remove `if (leaf) { error_rate->... }` from the generic traversal code.
+#### **Phase 2: Replace Storage** (2-3 weeks)
+*Structural change - high risk*
 
-## 4. Immediate Next Step
-Begin **Phase 1**: implementing the split storage in `Model_marginals`. This provides immediate safety benefits and paves the way for `mdspan` without requiring a "Big Bang" rewrite of the algorithm.
+1.  **Migrate to structured storage**
+    *   Replace giant array with `std::unordered_map<Rec_Event_name, Tensor<long double>>`
+    *   Maintain offset maps for backward compatibility
+    *   Update constructors and copy operations
+
+#### **Phase 3: Refactor Operations** (3-4 weeks)
+*Incremental replacement of logic*
+
+1.  **Simple operations first**
+    *   `operator+=` using `linalg::add`
+    *   `operator-=` using `linalg::subtract`
+    *   `add_pseudo_counts` using `linalg::scale`
+
+2.  **Complex normalization**
+    *   Replace recursive `iterate_normalize` with `linalg::normalize_axis`
+    *   Handle parent-child event dependencies
+    *   Maintain numerical equivalence
+
+#### **Phase 4: Parallelization** (2-3 weeks)
+*Performance enhancement*
+
+1.  **Thread-local accumulation**
+    *   Create thread-local `Model_marginals_v2` per thread
+    *   Parallel inference loop with OpenMP
+    *   Final reduction using `operator+=`
+
+2.  **Broadcasting optimizations**
+    *   Use `broadcast_multiply` for marginal scaling
+    *   Parallel processing of independent events
+
+#### **Phase 5: Validation** (1-2 weeks)
+*Ensure correctness*
+
+1.  **Numerical equivalence tests**
+    *   Compare v1 vs v2 on benchmark datasets
+    *   Verify marginals match within tolerance
+
+2.  **Performance benchmarking**
+    *   Measure inference throughput
+    *   Assess parallelization scaling
+
+**Total Estimated Timeline:** 3-4 months
+
+**Critical Dependencies:**
+- Phase 0 must complete before Phase 1
+- Phase 2 is high-risk and requires extensive testing
+- Phase 4 depends on Phase 3 completion
