@@ -13,6 +13,9 @@ add_executable(igor_tests ${TEST_SOURCES})
 # (Assuming igor::Core is the main library target)
 target_link_libraries(igor_tests PRIVATE igor::Core Catch2::Catch2WithMain)
 
+# Provide the project source directory so tests can locate data files
+target_compile_definitions(igor_tests PRIVATE IGOR_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+
 # Set include directories if needed
 # target_include_directories(igor_tests PRIVATE ../src/igor/Core)
 
