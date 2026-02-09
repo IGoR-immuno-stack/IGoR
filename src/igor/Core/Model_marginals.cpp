@@ -1311,8 +1311,7 @@ void swap_events_order(const Rec_Event_name event_1, const Rec_Event_name event_
                 break;
             }
         }
-        // FIXME: event_2_iterator is uninitialized !
-        list<pair<Rec_Event_name, size_t>>::iterator next_event_iter = event_2_iterator;
+        list<pair<Rec_Event_name, size_t>>::iterator next_event_iter = event_1_iterator;
         if (increment_factor == -1) {
             --next_event_iter;
         } else if (increment_factor == 1) {
@@ -1320,7 +1319,6 @@ void swap_events_order(const Rec_Event_name event_1, const Rec_Event_name event_
         } else {
             throw runtime_error("issue in swap event order");
         }
-        //swap_neighboring_events_order(event_1 , (event_1_iterator+increment_factor)->first , swapped_marginals);
         swap_neighboring_events_order(event_1, next_event_iter->first, swapped_marginals);
         event_1_position += increment_factor;
     }
@@ -1337,7 +1335,7 @@ void swap_events_order(const Rec_Event_name event_1, const Rec_Event_name event_
                 break;
             }
         }
-        list<pair<Rec_Event_name, size_t>>::iterator next_event_iter = event_1_iterator;
+        list<pair<Rec_Event_name, size_t>>::iterator next_event_iter = event_2_iterator;
         if (increment_factor == -1) {
             --next_event_iter;
         } else if (increment_factor == 1) {
@@ -1345,7 +1343,6 @@ void swap_events_order(const Rec_Event_name event_1, const Rec_Event_name event_
         } else {
             throw runtime_error("issue in swap event order");
         }
-        //swap_neighboring_events_order(event_1 , (event_2_iterator+increment_factor)->first , swapped_marginals);
         swap_neighboring_events_order(event_2, next_event_iter->first, swapped_marginals);
         event_2_position += increment_factor;
     }
