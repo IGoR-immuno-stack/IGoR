@@ -126,6 +126,9 @@ void Dinucl_markov::iterate(
         double new_scenario_proba = scenario_proba * proba;
         double scenario_upper_bound_proba = new_scenario_proba;
 
+        // Set the junction probability bound to 1.0 (the dinucleotide model doesn't constrain length)
+        downstream_proba_map.set_value(type_id, 1.0, memory_layer_proba_map_junction);
+
         downstream_proba_map.multiply_all(scenario_upper_bound_proba, current_downstream_proba_memory_layers.data());
 
         if (scenario_upper_bound_proba >= (seq_max_prob_scenario * proba_threshold_factor)) {
@@ -275,6 +278,9 @@ void Dinucl_markov::initialize_event(
     // 3. Memory layers
     constructed_sequences.request_memory_layer(this->sequence_type_id);
     this->memory_layer_cs = constructed_sequences.get_current_memory_layer(this->sequence_type_id);
+
+    downstream_proba_map.request_memory_layer(this->sequence_type_id);
+    this->memory_layer_proba_map_junction = downstream_proba_map.get_current_memory_layer(this->sequence_type_id);
 
     if (upstream_exists) {
         memory_layer_off_threep = seq_offsets.get_current_memory_layer(upstream_seq_type, Three_prime);

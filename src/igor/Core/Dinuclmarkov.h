@@ -59,7 +59,7 @@ public:
                                       Seq_type_str_p_map &constructed_sequences, int &seq_len) const override;
 
     void initialize_Len_proba_bound(std::queue<std::shared_ptr<Rec_Event>> &model_queue,
-                                    const Marginal_array_p &model_parameters_point, Index_map &base_index_map) override
+                                    const Marginal_array_p &model_parameters_point, Index_map &base_map) override
     {
     }
 
@@ -70,6 +70,7 @@ private:
     int memory_layer_off_threep;
     int memory_layer_off_fivep;
     int memory_layer_cs;
+    int memory_layer_proba_map_junction;
 
     int sequence_type_id = -1;
     int upstream_seq_type;

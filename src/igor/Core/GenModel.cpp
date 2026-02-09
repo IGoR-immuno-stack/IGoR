@@ -218,7 +218,6 @@ bool GenModel::infer_model(
             unordered_map<Rec_Event_name, int> single_thread_index_map =
                     model_marginals.get_index_map(single_thread_model_parms, single_thread_model_queue);
             Model_marginals single_thread_model_marginals(model_marginals);
-            Model_marginals single_thread_marginals(single_thread_model_parms);
             shared_ptr<Error_rate> single_thread_err_rate = single_thread_model_parms.get_err_rate_p();
             unordered_map<tuple<Event_type, int, Seq_side>, shared_ptr<Rec_Event>> events_map =
                     single_thread_model_parms.get_events_map();
@@ -312,8 +311,8 @@ bool GenModel::infer_model(
             // Initialize Counters
             for (map<size_t, shared_ptr<Counter>>::iterator iter = single_thread_counter_list.begin();
                  iter != single_thread_counter_list.end(); ++iter) {
-                (*iter).second->initialize_counter(single_thread_model_parms, single_thread_marginals);
-            }
+                (*iter).second->initialize_counter(single_thread_model_parms, single_thread_model_marginals);
+                }
 #pragma omp single nowait
             {
                 cerr << "Initializing probability bounds..." << endl;
@@ -423,7 +422,7 @@ bool GenModel::infer_model(
                     single_thread_err_rate->add_to_norm_counter();
 
                     // Add the single_seq_marginals to the single thread marginals
-                    single_thread_marginals += single_seq_marginals;
+                    single_thread_model_marginals += single_seq_marginals;
                 } else {
                     // Erase seq specific counters so that it won't contribute to the
                     // error rate
@@ -443,7 +442,7 @@ bool GenModel::infer_model(
 // Merge single thread error_rates and marginals
 #pragma omp critical(merge_marginals_and_er)
             {
-                new_marginals += single_thread_marginals;
+                new_marginals += single_thread_model_marginals;
                 add_to_err_rate(error_rate_copy.get(), single_thread_err_rate.get());
                 for (map<size_t, shared_ptr<Counter>>::iterator iter = single_thread_counter_list.begin();
                      iter != single_thread_counter_list.end(); ++iter) {

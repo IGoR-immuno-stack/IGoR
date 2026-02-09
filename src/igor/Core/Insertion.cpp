@@ -149,11 +149,20 @@ void Insertion::iterate(double &scenario_proba, Downstream_scenario_proba_bound_
 
         double proba_contribution =
                 Rec_Event::iterate_common((*iter).second.index, base_index, base_index_map, model_parameters_pointer);
+
+        if (proba_contribution == 0)
+            continue;
+
         double new_scenario_proba = scenario_proba * proba_contribution;
 
         // Fill insertions with 'N' (14) if they haven't been inferred by Dinuclmarkov yet
         Int_Str ins_str(ins_len, 14);
         constructed_sequences.set_value(type_id, ins_str, memory_layer_cs);
+
+        // Set the junction length probability bound in the downstream probability map
+        // IMPORTANT: This must be done BEFORE computing scenario_upper_bound_proba
+        downstream_proba_map.set_value(type_id, junction_length_best_proba_map.at(ins_len),
+                                       memory_layer_proba_map_junction);
 
         double scenario_upper_bound_proba = new_scenario_proba;
         downstream_proba_map.multiply_all(scenario_upper_bound_proba, current_downstream_proba_memory_layers.data());
@@ -265,6 +274,9 @@ void Insertion::initialize_event(
     constructed_sequences.request_memory_layer(this->sequence_type_id);
     this->memory_layer_cs = constructed_sequences.get_current_memory_layer(this->sequence_type_id);
 
+    downstream_proba_map.request_memory_layer(this->sequence_type_id);
+    this->memory_layer_proba_map_junction = downstream_proba_map.get_current_memory_layer(this->sequence_type_id);
+
     if (upstream_exists) {
         memory_layer_off_check1 = seq_offsets.get_current_memory_layer(upstream_seq_type, Three_prime);
     }
@@ -285,14 +297,25 @@ void Insertion::iterate_initialize_Len_proba(int considered_junction, std::map<i
 {
     if (considered_junction == this->sequence_type_id) {
         int base_index = base_index_map.at(this->event_index, 0);
+        // Debug: print first few values to see what's in model_parameters_point
+        cerr << "Insertion " << this->nickname << " base_index=" << base_index 
+             << " marginal_size=" << this->event_marginal_size << " size=" << this->size() << endl;
+        cerr << " First few values at base_index: ";
+        for (int i = 0; i < 5 && i < (int)this->event_marginal_size; ++i) {
+            cerr << model_parameters_point[base_index + i] << " ";
+        }
+        cerr << endl;
+        
         for (unordered_map<string, Event_realization>::const_iterator iter = this->event_realizations.begin();
              iter != this->event_realizations.end(); ++iter) {
             double real_max_proba = 0;
             for (size_t i = 0; i != this->event_marginal_size / this->size(); ++i) {
-                if (model_parameters_point[base_index + (*iter).second.index + i * this->size()] > real_max_proba) {
-                    real_max_proba = model_parameters_point[base_index + (*iter).second.index + i * this->size()];
+                double prob = model_parameters_point[base_index + (*iter).second.index + i * this->size()];
+                if (prob > real_max_proba) {
+                    real_max_proba = prob;
                 }
             }
+            cerr << "  len " << (*iter).second.value_int << " real_max_proba=" << real_max_proba << endl;
             Rec_Event::iterate_initialize_Len_proba_wrap_up(
                     considered_junction, length_best_proba_map, model_queue, scenario_proba * real_max_proba,
                     model_parameters_point, base_index_map, constructed_sequences, seq_len + (*iter).second.value_int);
@@ -303,6 +326,19 @@ void Insertion::iterate_initialize_Len_proba(int considered_junction, std::map<i
                                                         constructed_sequences, seq_len);
     }
 }
+
+void Insertion::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &model_queue,
+                                           const Marginal_array_p &model_parameters_point, Index_map &base_index_map)
+{
+    Seq_type_str_p_map constructed_sequences(SequenceTypeRegistry::get_instance().size());
+    junction_length_best_proba_map.clear();
+
+    double init_proba = 1.0;
+    this->Rec_Event::iterate_initialize_Len_proba(
+            this->sequence_type_id, junction_length_best_proba_map, model_queue, init_proba,
+            model_parameters_point, base_index_map, constructed_sequences);
+}
+
 void Insertion::set_nickname(string name)
 {
     this->nickname = name;

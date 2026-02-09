@@ -67,9 +67,7 @@ public:
                                       Seq_type_str_p_map &constructed_sequences, int &seq_len) const override;
 
     void initialize_Len_proba_bound(std::queue<std::shared_ptr<Rec_Event>> &model_queue,
-                                    const Marginal_array_p &model_parameters_point, Index_map &base_index_map) override
-    {
-    }
+                                    const Marginal_array_p &model_parameters_point, Index_map &base_index_map) override;
 
     void set_nickname(std::string name) override;
     int get_sequence_type_id() const override { return sequence_type_id; }
@@ -82,6 +80,7 @@ private:
     int memory_layer_off_check1;
     int memory_layer_off_check2;
     int memory_layer_cs;
+    int memory_layer_proba_map_junction;
 
     int sequence_type_id = -1;
     int upstream_seq_type;
@@ -92,4 +91,6 @@ private:
     bool downstream_chosen;
     int upstream_ins_type;
     int downstream_ins_type;
+
+    std::map<int, double> junction_length_best_proba_map;
 };
