@@ -9,6 +9,7 @@
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <igor/Math/Tensor.h>
 #include <igor/Math/Linalg.h>
+#include "TestHelpers.h"
 // #include <cmath>
 // #include <limits>
 
@@ -17,10 +18,7 @@ using Catch::Matchers::WithinAbs;
 
 TEST_CASE("broadcast_to: 1D vector to 2D matrix", "[linalg][broadcast]") {
     // Create 1D vector [10, 20, 30]
-    Tensor<double> vec({3});
-    vec(0) = 10.0;
-    vec(1) = 20.0;
-    vec(2) = 30.0;
+    auto vec = test::make_tensor<double>({3}, [](size_t i) { return (i + 1) * 10.0; });
 
     // Broadcast to 4x3 matrix
     auto vec_view = vec.view<1>();
@@ -50,16 +48,10 @@ TEST_CASE("broadcast_to: 1D vector to 2D matrix", "[linalg][broadcast]") {
 
 TEST_CASE("broadcast_multiply: P(V,D,J) * P(J)", "[linalg][broadcast]") {
     // Setup: 3D probability tensor P(V,D,J)
-    Tensor<double> p_vdj({4, 3, 5});  // Simplified from (64, 25, 12)
-    for (size_t i = 0; i < p_vdj.size(); ++i) {
-        p_vdj.data()[i] = 1.0;  // Uniform distribution
-    }
+    auto p_vdj = test::make_tensor<double>({4, 3, 5}, [](size_t) { return 1.0; });
 
     // Setup: 1D marginal P(J)
-    Tensor<double> p_j({5});
-    for (size_t j = 0; j < 5; ++j) {
-        p_j(j) = 0.1 + j * 0.1;  // [0.1, 0.2, 0.3, 0.4, 0.5]
-    }
+    auto p_j = test::make_tensor<double>({5}, [](size_t j) { return 0.1 + j * 0.1; });
 
     // Result tensor
     Tensor<double> result({4, 3, 5});
@@ -81,9 +73,12 @@ TEST_CASE("broadcast_multiply: P(V,D,J) * P(J)", "[linalg][broadcast]") {
 TEST_CASE("broadcast workflow: normalize per-column", "[linalg][broadcast]") {
     // Matrix 3x4 where each column should be normalized independently
     Tensor<double> matrix({3, 4});
-    matrix(0,0) = 1.0; matrix(0,1) = 2.0; matrix(0,2) = 1.0; matrix(0,3) = 4.0;
-    matrix(1,0) = 2.0; matrix(1,1) = 2.0; matrix(1,2) = 2.0; matrix(1,3) = 2.0;
-    matrix(2,0) = 3.0; matrix(2,1) = 2.0; matrix(2,2) = 3.0; matrix(2,3) = 2.0;
+    test::fill_2d(matrix, [](size_t i, size_t j) {
+        if (j == 0) return 1.0 + i;  // [1,2,3]
+        if (j == 1) return 2.0;       // [2,2,2]
+        if (j == 2) return 1.0 + i;   // [1,2,3]
+        return (j == 3) ? 4.0 - i : 0.0;  // [4,2,2]
+    });
 
     // Step 1: Compute column sums
     Tensor<double> col_sums({4});

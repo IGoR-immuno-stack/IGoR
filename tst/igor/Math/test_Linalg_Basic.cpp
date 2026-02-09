@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <igor/Math/Tensor.h>
 #include <igor/Math/Linalg.h>
+#include "TestHelpers.h"
 #include <vector>
 
 using namespace igor::math;
@@ -12,11 +13,8 @@ TEST_CASE("Linalg Basic Operations", "[Math][Linalg]") {
         Tensor<double> b({2, 2});
         Tensor<double> c({2, 2});
 
-        a(0, 0) = 1.0; a(0, 1) = 2.0;
-        a(1, 0) = 3.0; a(1, 1) = 4.0;
-
-        b(0, 0) = 4.0; b(0, 1) = 3.0;
-        b(1, 0) = 2.0; b(1, 1) = 1.0;
+        test::fill_2d(a, [](size_t i, size_t j) { return 1.0 + i * 2 + j; });
+        test::fill_2d(b, [](size_t i, size_t j) { return 4.0 - i * 2 - j; });
 
         // Add
         linalg::add(a.view<2>(), b.view<2>(), c.view<2>());
@@ -40,8 +38,7 @@ TEST_CASE("Linalg Basic Operations", "[Math][Linalg]") {
     }
 
     SECTION("Scale") {
-        Tensor<double> a({3});
-        a(0) = 1.0; a(1) = 2.0; a(2) = 3.0;
+        auto a = test::make_sequential<double>({3}, 1.0);
         Tensor<double> out({3});
 
         linalg::scale(a.view<1>(), 2.0, out.view<1>());
@@ -70,11 +67,8 @@ TEST_CASE("Linalg Basic Operations", "[Math][Linalg]") {
         Tensor<double> b({2, 2});
         Tensor<double> c({2, 2});
 
-        a(0, 0) = 1.0; a(0, 1) = 2.0;
-        a(1, 0) = 3.0; a(1, 1) = 4.0;
-
-        b(0, 0) = 4.0; b(0, 1) = 3.0;
-        b(1, 0) = 2.0; b(1, 1) = 1.0;
+        test::fill_2d(a, [](size_t i, size_t j) { return 1.0 + i * 2 + j; });
+        test::fill_2d(b, [](size_t i, size_t j) { return 4.0 - i * 2 - j; });
 
         // Add
         linalg::add(a, b, c);

@@ -1,24 +1,19 @@
 #include <catch2/catch_test_macros.hpp>
 #include <igor/Math/Tensor.h>
+#include <igor/Math/TensorCreation.h>
 #include <igor/Math/MdspanCompat.h>
+#include "TestHelpers.h"
 #include <iostream>
 
 using namespace igor::math;
 
 TEST_CASE("Tensor Slicing Example with submdspan", "[Math][Tensor][Example]") {
     // 1. Create a 3x4 Tensor
-    Tensor<double> tensor({3, 4});
-    
-    // Fill with data:
+    auto tensor = test::make_sequential<double>({3, 4});
+    // Data:
     // 0  1  2  3
     // 4  5  6  7
     // 8  9 10 11
-    int counter = 0;
-    for (size_t i = 0; i < 3; ++i) {
-        for (size_t j = 0; j < 4; ++j) {
-            tensor.view<2>()[i, j] = (double)counter++;
-        }
-    }
 
 #ifdef IGOR_NO_SUBMDSPAN
     WARN("submdspan not available - skipping example");
@@ -34,7 +29,7 @@ TEST_CASE("Tensor Slicing Example with submdspan", "[Math][Tensor][Example]") {
     // Verify properties of the slice
     REQUIRE(row_slice.rank() == 1);
     REQUIRE(row_slice.extent(0) == 4);
-    
+
     // Verify data correctness (should be 4, 5, 6, 7)
     REQUIRE(row_slice[0] == 4.0);
     REQUIRE(row_slice[1] == 5.0);
@@ -47,7 +42,7 @@ TEST_CASE("Tensor Slicing Example with submdspan", "[Math][Tensor][Example]") {
 
     REQUIRE(col_slice.rank() == 1);
     REQUIRE(col_slice.extent(0) == 3);
-    
+
     // Verify data (should be 2, 6, 10)
     REQUIRE(col_slice[0] == 2.0);
     REQUIRE(col_slice[1] == 6.0);
@@ -60,26 +55,24 @@ TEST_CASE("Tensor Slicing Example with submdspan", "[Math][Tensor][Example]") {
 }
 
 
-TEST_CASE("Tensor::slice", "[Math][Tensor][Slicing]") {
+TEST_CASE("tensor::slice", "[Math][Tensor][Slicing]") {
 #ifndef IGOR_NO_SUBMDSPAN
+    namespace tn = igor::math::tensor;
+
     // Setup 3x4 tensor
-    Tensor<double> tensor({3, 4});
+    auto tensor = test::make_sequential<double>({3, 4});
     // 0 1 2 3
     // 4 5 6 7
     // 8 9 10 11
-    int c = 0;
-    for(size_t i=0; i<3; ++i) 
-        for(size_t j=0; j<4; ++j) 
-            tensor.view<2>()[i, j] = (double)c++;
 
     // Test slice along dim 0 (row)
-    auto row_view = tensor.slice<2>(0, 1); // Dim 0, Index 1 -> Row 1
+    auto row_view = tn::slice<2>(tensor, 0, 1); // Dim 0, Index 1 -> Row 1
     REQUIRE(row_view.rank() == 1);
     REQUIRE(row_view.extent(0) == 4);
     REQUIRE(row_view[0] == 4.0);
 
     // Test slice along dim 1 (col)
-    auto col_view = tensor.slice<2>(1, 2); // Dim 1, Index 2 -> Col 2
+    auto col_view = tn::slice<2>(tensor, 1, 2); // Dim 1, Index 2 -> Col 2
     REQUIRE(col_view.rank() == 1);
     REQUIRE(col_view.extent(0) == 3);
     REQUIRE(col_view[0] == 2.0);

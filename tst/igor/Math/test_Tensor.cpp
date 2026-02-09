@@ -7,6 +7,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <igor/Math/Tensor.h>
+#include "TestHelpers.h"
 #include <vector>
 #include <algorithm>
 #include <iostream>
@@ -21,10 +22,7 @@ TEST_CASE("Tensor Basic Operations", "[Math][Tensor]") {
         std::vector<size_t> shape{4, 3}; // 4 rows, 3 cols
         Tensor<double> tensor(shape);
 
-        REQUIRE(tensor.size() == 12);
-        REQUIRE(tensor.ndim() == 2);
-        REQUIRE(tensor.shape()[0] == 4);
-        REQUIRE(tensor.shape()[1] == 3);
+        test::require_shape(tensor, {4, 3});
 
         // Access via variadic operator()
         tensor(1, 1) = 42.0;
@@ -43,8 +41,7 @@ TEST_CASE("Tensor Basic Operations", "[Math][Tensor]") {
 
         Tensor<int> tensor(raw.data(), shape);
 
-        REQUIRE(tensor.size() == 8);
-        REQUIRE(tensor.ndim() == 3);
+        test::require_shape(tensor, {2, 2, 2});
 
         // Modify via view<3>
         auto v = tensor.view<3>();
@@ -63,8 +60,7 @@ TEST_CASE("Tensor Basic Operations", "[Math][Tensor]") {
         // Tensor construction (Rank is distinct from type)
         Tensor<double> t(runtime_shape);
 
-        REQUIRE(t.ndim() == 2);
-        REQUIRE(t.size() == 12);
+        test::require_shape(t, {4, 3});
 
         // Access via runtime indices (std::span)
         std::vector<size_t> idx = {1, 2};
@@ -121,8 +117,7 @@ TEST_CASE("Tensor Basic Operations", "[Math][Tensor]") {
         // Create 6D tensor (exceeds variant range)
         Tensor<double> t({2, 2, 2, 2, 2, 2});
 
-        REQUIRE(t.ndim() == 6);
-        REQUIRE(t.size() == 64);
+        test::require_shape(t, {2, 2, 2, 2, 2, 2});
 
         // Variadic access falls back to manual strides
         t(0, 0, 0, 0, 0, 0) = 99.0;
@@ -146,8 +141,7 @@ TEST_CASE("Tensor Basic Operations", "[Math][Tensor]") {
 
         Tensor<double> dest = std::move(source);
 
-        REQUIRE(dest.size() == 100);
-        REQUIRE(dest.ndim() == 2);
+        test::require_shape(dest, {10, 10});
         REQUIRE(dest(5, 5) == 42.0);
 
         // Source should be in moved-from state (valid but unspecified)
@@ -166,7 +160,7 @@ TEST_CASE("Tensor Basic Operations", "[Math][Tensor]") {
         // Verify via variadic
         REQUIRE(t(0, 0) == 10.0);
         REQUIRE(t(0, 1) == 20.0);
-        
+
         // Mixed access patterns work correctly
         t({1, 0}) = 30.0;
         REQUIRE(t(1, 0) == 30.0);
@@ -194,7 +188,7 @@ TEST_CASE("Tensor Basic Operations", "[Math][Tensor]") {
     SECTION("Visitor Pattern (apply)") {
         Tensor<double> t1({10});
         Tensor<double> t2({5, 5});
-        
+
         t1(0) = 1.0;
         t2(0, 0) = 2.0;
 
@@ -214,9 +208,9 @@ TEST_CASE("Tensor Basic Operations", "[Math][Tensor]") {
 
         REQUIRE(t1.apply(sum_first) == 1.0);
         REQUIRE(t2.apply(sum_first) == 2.0);
-        
+
         // Test generic mutation (Rank 1 specific)
-        t1.apply([](auto&& v) { 
+        t1.apply([](auto&& v) {
             if constexpr (std::remove_cvref_t<decltype(v)>::rank() == 1) {
                 v[0] = 99.0;
             }
@@ -230,12 +224,12 @@ TEST_CASE("Tensor Basic Operations", "[Math][Tensor]") {
 
         // Get the variant explicitly
         auto v = t.variant();
-        
+
         bool visited = false;
         std::visit([&](auto&& view) {
             visited = true;
             using ViewType = std::remove_cvref_t<decltype(view)>;
-            
+
             // We know t is Rank 2
             if constexpr (ViewType::rank() == 2) {
                 REQUIRE(view[0, 0] == 42.0);
@@ -245,7 +239,7 @@ TEST_CASE("Tensor Basic Operations", "[Math][Tensor]") {
                 FAIL("Variant holds wrong rank view");
             }
         }, v);
-        
+
         REQUIRE(visited);
         REQUIRE(t(0, 1) == 84.0);
 
@@ -262,15 +256,8 @@ TEST_CASE("Tensor Basic Operations", "[Math][Tensor]") {
 
     SECTION("Shape and Size Info") {
         Tensor<float> t({2, 4, 3});
-        REQUIRE(t.ndim() == 3);
-        REQUIRE(t.size() == 24);
-        
-        auto s = t.shape();
-        REQUIRE(s.size() == 3);
-        REQUIRE(s[0] == 2);
-        REQUIRE(s[1] == 4);
-        REQUIRE(s[2] == 3);
-        
+        test::require_shape(t, {2, 4, 3});
+
         REQUIRE(t.data() != nullptr);
     }
 }

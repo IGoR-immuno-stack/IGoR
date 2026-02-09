@@ -2,6 +2,7 @@
 #include <catch2/catch_approx.hpp>
 #include <igor/Math/Tensor.h>
 #include <igor/Math/Linalg.h>
+#include "TestHelpers.h"
 
 
 using namespace igor::math;
@@ -13,33 +14,28 @@ TEST_CASE("Linalg Axis Operations", "[Math][Linalg][Axis]") {
         Tensor<double> t({2, 3});
         // [ 1 2 3 ]
         // [ 4 5 6 ]
-        t(0, 0) = 1.0; t(0, 1) = 2.0; t(0, 2) = 3.0;
-        t(1, 0) = 4.0; t(1, 1) = 5.0; t(1, 2) = 6.0;
+        test::fill_2d(t, [](size_t i, size_t j) { return 1.0 + i * 3 + j; });
 
         // Sum along Axis 0 (Columns) -> [5, 7, 9]
         auto sum0 = linalg::sum_axis(t, 0);
-        REQUIRE(sum0.ndim() == 1);
-        REQUIRE(sum0.shape()[0] == 3);
+        test::require_shape(sum0, {3});
         REQUIRE(sum0(0) == 5.0);
         REQUIRE(sum0(1) == 7.0);
         REQUIRE(sum0(2) == 9.0);
 
         // Sum along Axis 1 (Rows) -> [6, 15]
         auto sum1 = linalg::sum_axis(t, 1);
-        REQUIRE(sum1.ndim() == 1);
-        REQUIRE(sum1.shape()[0] == 2);
+        test::require_shape(sum1, {2});
         REQUIRE(sum1(0) == 6.0);
         REQUIRE(sum1(1) == 15.0);
     }
 
     SECTION("Sum Axis (Rank 3)") {
-        Tensor<double> t({2, 2, 2});
-        // filled with 1.0
-        for(size_t i=0; i<t.size(); ++i) t.data()[i] = 1.0 * i;
+        auto t = test::make_sequential<double>({2, 2, 2});
 
         // Sum Axis 0 -> [4, 6; 8, 10]
         auto sum0 = linalg::sum_axis(t, 0);
-        REQUIRE(sum0.ndim() == 2);
+        test::require_shape(sum0, {2, 2});
         REQUIRE(sum0(0, 0) == 4.0);
         REQUIRE(sum0(0, 1) == 6.0);
         REQUIRE(sum0(1, 0) == 8.0);
@@ -47,7 +43,7 @@ TEST_CASE("Linalg Axis Operations", "[Math][Linalg][Axis]") {
 
         // Sum Axis 1 -> [4, 6; 8, 10]
         auto sum1 = linalg::sum_axis(t, 1);
-        REQUIRE(sum1.ndim() == 2);
+        test::require_shape(sum1, {2, 2});
         REQUIRE(sum1(0, 0) == 2.0);
         REQUIRE(sum1(0, 1) == 4.0);
         REQUIRE(sum1(1, 0) == 10.0);
@@ -55,7 +51,7 @@ TEST_CASE("Linalg Axis Operations", "[Math][Linalg][Axis]") {
 
         // Sum Axis 2 -> [1, 5; 9, 13]
         auto sum2 = linalg::sum_axis(t, 2);
-        REQUIRE(sum2.ndim() == 2);
+        test::require_shape(sum2, {2, 2});
         REQUIRE(sum2(0, 0) == 1.0);
         REQUIRE(sum2(0, 1) == 5.0);
         REQUIRE(sum2(1, 0) == 9.0);
