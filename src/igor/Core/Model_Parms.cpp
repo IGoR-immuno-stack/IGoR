@@ -799,7 +799,23 @@ void Model_Parms::read_model_parms(string filename)
                 new_event_p->set_nickname(nickname);
                 this->add_event(new_event_p);
             } else if (event == string("DinucMarkov")) {
-                shared_ptr<Dinucl_markov> new_event_p = shared_ptr<Dinucl_markov>(new Dinucl_markov(event_class));
+                // Build the 16 dinucleotide-pair realizations (AA, AC, AG, AT, CA, ..., TT)
+                unordered_map<string, Event_realization> dinuc_realizations;
+                const char nucleotides[] = {'A', 'C', 'G', 'T'};
+                int idx = 0;
+                for (int prev = 0; prev < 4; ++prev) {
+                    for (int cur = 0; cur < 4; ++cur) {
+                        string dinuc_name;
+                        dinuc_name += nucleotides[prev];
+                        dinuc_name += nucleotides[cur];
+                        dinuc_realizations.emplace(
+                                dinuc_name,
+                                Event_realization(dinuc_name, idx, dinuc_name, Int_Str(), idx));
+                        ++idx;
+                    }
+                }
+                shared_ptr<Dinucl_markov> new_event_p = shared_ptr<Dinucl_markov>(
+                        new Dinucl_markov(event_class, Undefined_side, dinuc_realizations));
                 new_event_p->set_priority(priority);
                 new_event_p->set_nickname(nickname);
                 this->add_event(new_event_p);
