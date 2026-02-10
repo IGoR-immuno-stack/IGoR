@@ -48,6 +48,7 @@
 #include <limits>
 #include <map>
 #include <queue>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -205,9 +206,12 @@ static std::vector<double> compute_empirical_marginal(
         auto inner = outer.front();
         if (!inner.empty()) {
             int realization = inner.front();
-            if (realization >= 0 && realization < num_realizations) {
-                ++counts[realization];
+            if (realization < 0 || realization >= num_realizations) {
+                throw std::out_of_range(
+                        "Realization index " + std::to_string(realization) +
+                        " out of bounds [0, " + std::to_string(num_realizations) + ")");
             }
+            ++counts[realization];
         }
     }
 
