@@ -592,6 +592,8 @@ TEST_CASE("Generation marginals converge - KL divergence vs entropy",
     // ------------------------------------------------------------------
     // Map: event_queue_position → vector of (D_KL, uncovered_mass) per sample-size
     std::map<size_t, std::vector<std::pair<double, double>>> kl_traces;
+    // Map: event_queue_position → vector of empirical entropy per sample-size
+    std::map<size_t, std::vector<double>> entropy_traces;
 
     const std::vector<int> sample_sizes = {10, 100, 1000, 1000000};
 
@@ -627,10 +629,15 @@ TEST_CASE("Generation marginals converge - KL divergence vs entropy",
             double dkl = kl_divergence(ev.model_marginal, empirical, &uncovered);
             kl_traces[ev.queue_position].emplace_back(dkl, uncovered);
 
+            // Empirical entropy of the generated marginal
+            double H_emp = entropy(empirical);
+            entropy_traces[ev.queue_position].push_back(H_emp);
+
             std::cout << "  " << ev.nickname
                       << " : D_KL = " << dkl
-                      << "  (H = " << ev.H
-                      << ", uncovered = " << uncovered << ")" << std::endl;
+                      << "  H_emp = " << H_emp
+                      << "  H_theo = " << ev.H
+                      << "  uncovered = " << uncovered << std::endl;
 
             // ---- assertions ----
             // D_KL must always be finite (partial KL can be negative when
@@ -666,7 +673,48 @@ TEST_CASE("Generation marginals converge - KL divergence vs entropy",
     }
 
     // ------------------------------------------------------------------
-    // 4. Check monotonic decrease of D_KL with increasing N
+    // 4. Empirical entropy convergence to the theoretical entropy
+    // ------------------------------------------------------------------
+    // The empirical entropy H(Q) of the generated marginal should
+    // converge to the theoretical entropy H(P) of the model.  The
+    // finite-sample estimator has a known negative bias:
+    //     E[H_emp] ≈ H − (k−1) / (2·N·ln2)
+    // so we check that the difference |H_emp − H| shrinks with N.
+    // ------------------------------------------------------------------
+    std::cout << "\n=== Empirical entropy vs theoretical ==" << std::endl;
+    for (const auto &ev : event_infos) {
+        if (ev.is_dinuc_markov) continue;
+
+        const auto &htrace = entropy_traces.at(ev.queue_position);
+        if (htrace.size() >= 4) {
+            double H_emp_1M = htrace[3]; // index 3 → N=1 000 000
+            double H_theo = ev.H;
+            // The finite-sample entropy estimator has:
+            //   bias  ≈ (k−1) / (2·N·ln2)
+            //   stdev ≈ sqrt(Var[−log2 P]) / sqrt(N)
+            // We bound stdev by sqrt(H²) / sqrt(N) = H/sqrt(N) as a
+            // conservative upper estimate (Var ≤ E²).
+            // Use 5σ + 50× bias for a CI-safe tolerance.
+            double bias =
+                    50.0 * (ev.num_realizations - 1) / (2.0 * 1e6 * std::log(2.0));
+            double stdev_bound = 5.0 * H_theo / std::sqrt(1e6);
+            double tolerance = bias + stdev_bound;
+            double diff = std::abs(H_emp_1M - H_theo);
+
+            std::cout << "  " << ev.nickname
+                      << " : H_theo=" << H_theo
+                      << "  H_emp(1M)=" << H_emp_1M
+                      << "  diff=" << diff
+                      << "  tol=" << tolerance << std::endl;
+
+            // The empirical entropy should be close to theoretical;
+            // allow bias + 5σ variance, with a minimum floor.
+            CHECK(diff < (std::max)(tolerance, 1e-3));
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // 5. Check monotonic decrease of D_KL with increasing N
     // ------------------------------------------------------------------
     std::cout << "\n=== Monotonic decrease check ===" << std::endl;
     for (const auto &ev : event_infos) {
