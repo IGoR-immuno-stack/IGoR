@@ -1,0 +1,30 @@
+#pragma once
+
+#include <igor/Core/Model_marginals.h>
+#include <igor/Core/Model_Parms.h>
+#include <igor/Model/InferenceEngine.h>
+#include <igor/Model/MarginalHandler.h>
+
+#include <memory>
+#include <vector>
+
+namespace igor::core {
+
+/// Build EventDescriptor vector from Model_Parms for InferenceEngine construction
+std::vector<model::EventDescriptor> extract_event_descriptors(const Model_Parms& parms);
+
+/// Import marginal probabilities from legacy Model_marginals into InferenceEngine
+template <typename T = long double>
+void import_from_legacy(model::InferenceEngine<T>& engine,
+                       const Model_marginals& marginals,
+                       const Model_Parms& parms);
+
+/// Export marginal probabilities from InferenceEngine to legacy Model_marginals
+template <typename T = long double>
+void export_to_legacy(const model::InferenceEngine<T>& engine,
+                     Model_marginals& marginals,
+                     const Model_Parms& parms);
+
+} // namespace igor::core
+
+#include "LegacyBridge.tpp"

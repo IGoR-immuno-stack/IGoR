@@ -41,3 +41,13 @@ if(MODEL_TEST_SOURCES)
     include(Catch)
     catch_discover_tests(model_tests)
 endif()
+# --- Core Module Tests (LegacyBridge, etc.) ---
+file(GLOB CORE_MODULE_TEST_SOURCES "igor/Core/*.cpp")
+
+if(CORE_MODULE_TEST_SOURCES)
+    add_executable(core_module_tests ${CORE_MODULE_TEST_SOURCES})
+    set_target_properties(core_module_tests PROPERTIES CXX_STANDARD 23)
+    target_link_libraries(core_module_tests PRIVATE igor::Core igor::Model Catch2::Catch2WithMain)
+    include(Catch)
+    catch_discover_tests(core_module_tests)
+endif()
