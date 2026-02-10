@@ -42,11 +42,14 @@
 #include <igor/Core/Model_marginals.h>
 #include <igor/Core/Rec_Event.h>
 
+#include <algorithm>
+#include <array>
 #include <cmath>
 #include <forward_list>
 #include <iostream>
 #include <limits>
 #include <map>
+#include <numeric>
 #include <queue>
 #include <stdexcept>
 #include <string>
@@ -114,6 +117,113 @@ static double entropy(const std::vector<double> &P)
 }
 
 // ---------------------------------------------------------------------------
+// DinucMarkov entropy helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * @brief Compute the stationary distribution of a 4×4 row-stochastic
+ *        Markov transition matrix via power iteration.
+ *
+ * The transition matrix T is stored as a flat 16-element array in
+ * row-major order: T[i*4 + j] = P(j | i).
+ * Returns π such that π · T = π and Σ π_i = 1.
+ */
+static std::array<double, 4> markov_stationary_distribution(
+        const std::array<double, 16> &T,
+        int max_iter = 1000,
+        double tol = 1e-12)
+{
+    // Start with uniform distribution
+    std::array<double, 4> pi = {0.25, 0.25, 0.25, 0.25};
+    std::array<double, 4> pi_next{};
+
+    for (int iter = 0; iter < max_iter; ++iter) {
+        pi_next.fill(0.0);
+        // π_next[j] = Σ_i π[i] * T[i][j]
+        for (int j = 0; j < 4; ++j) {
+            for (int i = 0; i < 4; ++i) {
+                pi_next[j] += pi[i] * T[i * 4 + j];
+            }
+        }
+        // Normalize (should already be ~1, but guard against drift)
+        double sum = 0.0;
+        for (double v : pi_next) sum += v;
+        for (double &v : pi_next) v /= sum;
+
+        // Check convergence
+        double max_diff = 0.0;
+        for (int i = 0; i < 4; ++i) {
+            max_diff = (std::max)(max_diff, std::abs(pi_next[i] - pi[i]));
+        }
+        pi = pi_next;
+        if (max_diff < tol) break;
+    }
+    return pi;
+}
+
+/**
+ * @brief Entropy rate of a first-order Markov chain.
+ *
+ *     h = − Σ_i π_i  Σ_j T_{ij} log2(T_{ij})
+ *
+ * where π is the stationary distribution and T is the transition matrix.
+ */
+static double markov_entropy_rate(const std::array<double, 16> &T)
+{
+    auto pi = markov_stationary_distribution(T);
+    double h = 0.0;
+    for (int i = 0; i < 4; ++i) {
+        for (int j = 0; j < 4; ++j) {
+            double t = T[i * 4 + j];
+            if (t > 0.0 && pi[i] > 0.0) {
+                h -= pi[i] * t * std::log2(t);
+            }
+        }
+    }
+    return h;
+}
+
+/**
+ * @brief Combined insertion + dinucleotide entropy.
+ *
+ * Following the pygor3 entropy decomposition
+ * (see test_IgorModel_entropy in pygor3), the total entropy
+ * contribution for an insertion + dinucleotide pair is:
+ *
+ *     H_total = H(ℓ) + E[ℓ] · h
+ *
+ * where:
+ *   - H(ℓ)  = Shannon entropy of the insertion-length distribution
+ *   - E[ℓ]  = expected insertion length = Σ_ℓ ℓ · P(ℓ)
+ *   - h     = entropy rate of the dinucleotide Markov chain
+ *
+ * @param ins_marginal  Marginal probability of each insertion length
+ * @param ins_lengths   The actual length value for each insertion bin
+ * @param dinuc_T       The 4×4 transition matrix (flat, row-major)
+ * @return The combined entropy in bits
+ */
+static double insertion_dinuc_entropy(
+        const std::vector<double> &ins_marginal,
+        const std::vector<int> &ins_lengths,
+        const std::array<double, 16> &dinuc_T)
+{
+    // H(ℓ) and E[ℓ]
+    double H_len = 0.0;
+    double E_len = 0.0;
+    for (size_t i = 0; i < ins_marginal.size(); ++i) {
+        double p = ins_marginal[i];
+        if (p > 0.0) {
+            H_len -= p * std::log2(p);
+            E_len += p * ins_lengths[i];
+        }
+    }
+
+    double h = markov_entropy_rate(dinuc_T);
+
+    return H_len + E_len * h;
+}
+
+// ---------------------------------------------------------------------------
 // Test-case data structures
 // ---------------------------------------------------------------------------
 
@@ -132,6 +242,9 @@ struct EventInfo {
     bool is_dinuc_markov;               ///< skip empirical check for DinucMarkov
     std::vector<double> model_marginal; ///< P(realization) marginalised over parents
     double H;                           ///< entropy of the marginal
+    Gene_class gene_class;              ///< gene class (VD_genes, DJ_genes, VJ_genes …)
+    std::array<double, 16> dinuc_T;     ///< transition matrix (only for DinucMarkov)
+    double dinuc_entropy_rate;          ///< Markov entropy rate h (only for DinucMarkov)
 };
 
 /**
@@ -143,6 +256,7 @@ static std::vector<EventInfo> build_event_info(
 {
     std::vector<EventInfo> infos;
     auto model_queue = parms.get_model_queue();
+    auto index_map = marginals.get_index_map(parms);
     size_t pos = 0;
 
     while (!model_queue.empty()) {
@@ -155,12 +269,35 @@ static std::vector<EventInfo> build_event_info(
         info.num_realizations = ev->size();
         info.queue_position = pos;
         info.is_dinuc_markov = (ev->get_type() == Event_type::Dinuclmarkov_t);
+        info.gene_class = ev->get_class();
+        info.dinuc_T.fill(0.0);
+        info.dinuc_entropy_rate = 0.0;
 
         std::cout << "  Processing event: " << info.nickname
                   << " (is_dinuc=" << info.is_dinuc_markov
                   << ", size=" << info.num_realizations << ")" << std::endl;
 
-        if (!info.is_dinuc_markov) {
+        if (info.is_dinuc_markov) {
+            // Extract the 4×4 transition matrix from the raw marginal array.
+            // DinucMarkov has no parents so 16 values sit contiguously
+            // at index_map[name].
+            int base_idx = index_map.at(info.name);
+            for (int k = 0; k < 16; ++k) {
+                info.dinuc_T[k] =
+                        static_cast<double>(marginals.marginal_array_smart_p[base_idx + k]);
+            }
+            info.dinuc_entropy_rate = markov_entropy_rate(info.dinuc_T);
+
+            // Marginal for a DinucMarkov is the flat 16-element array;
+            // we store it for completeness but the "entropy of the
+            // marginal" is the Markov entropy rate per step, not a
+            // standard Shannon entropy.
+            info.model_marginal.resize(16, 0.0);
+            for (int k = 0; k < 16; ++k) {
+                info.model_marginal[k] = info.dinuc_T[k];
+            }
+            info.H = info.dinuc_entropy_rate;
+        } else {
             // Compute the marginal probability for this event
             auto [dims, probs] =
                     marginals.compute_event_marginal_probability(info.name, parms);
@@ -248,16 +385,85 @@ TEST_CASE("Generation marginals converge — KL divergence vs entropy",
     INFO("Model loaded, " << event_infos.size() << " events found");
     REQUIRE(event_infos.size() >= 5); // V, J, V_del, J_del, VJ_ins (+ dinuc)
 
+    // ------------------------------------------------------------------
+    // Compute combined insertion+dinucleotide entropy.
+    // Following pygor3's get_df_entropy_decomposition(), insertion events
+    // like "vj_ins" are paired with their DinucMarkov partner "vj_dinucl"
+    // (sharing the same Gene_class). The combined entropy is:
+    //     H_total = H(ℓ) + E[ℓ] · h
+    // where H(ℓ) is the insertion-length entropy, E[ℓ] the expected length,
+    // and h the Markov chain entropy rate.
+    // ------------------------------------------------------------------
+    struct InsDinucPair {
+        const EventInfo *ins_event = nullptr;
+        const EventInfo *dinuc_event = nullptr;
+        double combined_H = 0.0;
+    };
+    std::map<Gene_class, InsDinucPair> ins_dinuc_pairs;
+
+    for (const auto &ev : event_infos) {
+        if (ev.is_dinuc_markov) {
+            ins_dinuc_pairs[ev.gene_class].dinuc_event = &ev;
+        } else if (ev.nickname.find("_ins") != std::string::npos) {
+            ins_dinuc_pairs[ev.gene_class].ins_event = &ev;
+        }
+    }
+
+    for (auto &[gc, pair] : ins_dinuc_pairs) {
+        if (pair.ins_event && pair.dinuc_event) {
+            // Get insertion length values from the event's realizations
+            auto reals_map = pair.ins_event->name;
+            auto ev_ptr = model_parms.get_event_pointer(pair.ins_event->name);
+            auto realizations = ev_ptr->get_realizations_map();
+            std::vector<int> ins_lengths(pair.ins_event->num_realizations, 0);
+            for (const auto &[key, real] : realizations) {
+                ins_lengths[real.index] = real.value_int;
+            }
+
+            pair.combined_H = insertion_dinuc_entropy(
+                    pair.ins_event->model_marginal,
+                    ins_lengths,
+                    pair.dinuc_event->dinuc_T);
+        }
+    }
+
     // Print entropy decomposition (mirrors pygor3's entropy table)
     double total_entropy = 0.0;
     std::cout << "\n=== Entropy decomposition (bits) ===" << std::endl;
     for (const auto &ev : event_infos) {
-        if (!ev.is_dinuc_markov) {
+        if (ev.is_dinuc_markov) {
+            // Already accounted for via the ins+dinuc pair
+            continue;
+        }
+
+        // Check if this is an insertion event that has a DinucMarkov partner
+        auto it = ins_dinuc_pairs.find(ev.gene_class);
+        if (it != ins_dinuc_pairs.end() &&
+            it->second.ins_event == &ev &&
+            it->second.dinuc_event != nullptr)
+        {
+            double combined = it->second.combined_H;
+            std::cout << "  " << ev.nickname << " + "
+                      << it->second.dinuc_event->nickname
+                      << " : H = " << combined
+                      << "  (H_len=" << ev.H
+                      << ", E[l]*h=" << (combined - ev.H)
+                      << ", h=" << it->second.dinuc_event->dinuc_entropy_rate
+                      << ")" << std::endl;
+            total_entropy += combined;
+        } else {
             std::cout << "  " << ev.nickname << " : H = " << ev.H << std::endl;
             total_entropy += ev.H;
         }
     }
-    std::cout << "  TOTAL (non-dinuc): " << total_entropy << std::endl;
+    // Also print standalone DinucMarkov entropy rates for reference
+    for (const auto &ev : event_infos) {
+        if (ev.is_dinuc_markov) {
+            std::cout << "  (" << ev.nickname << " entropy rate h = "
+                      << ev.dinuc_entropy_rate << " bits/nt)" << std::endl;
+        }
+    }
+    std::cout << "  TOTAL: " << total_entropy << std::endl;
 
     // ------------------------------------------------------------------
     // 3. Generate sequences for increasing N and track D_KL per event
