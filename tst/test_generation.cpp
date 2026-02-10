@@ -311,10 +311,10 @@ TEST_CASE("Generation marginals converge — KL divergence vs entropy",
                 // No bound check at this sample size.
             } else if (N == 100) {
                 // Loose bound: D_KL should be within the same order as H
-                CHECK(dkl < std::max(ev.H, 1.0));
+                CHECK(dkl < (std::max)(ev.H, 1.0));
             } else if (N == 1000) {
                 // Tighter: D_KL should be at most a tenth of H
-                CHECK(dkl < std::max(ev.H, 1.0) * 0.1);
+                CHECK(dkl < (std::max)(ev.H, 1.0) * 0.1);
                 // Most of the distribution should be covered
                 CHECK(uncovered < 0.1);
             } else if (N == 1000000) {
@@ -322,7 +322,7 @@ TEST_CASE("Generation marginals converge — KL divergence vs entropy",
                 // Theoretical expectation: D_KL ≈ (k−1)/(2·N·ln2)
                 double expected_upper =
                         10.0 * (ev.num_realizations - 1) / (2.0 * N * std::log(2.0));
-                CHECK(dkl < std::max(expected_upper, 1e-3));
+                CHECK(dkl < (std::max)(expected_upper, 1e-3));
                 // At 1M samples, essentially all bins should be covered
                 CHECK(uncovered < 1e-4);
             }
