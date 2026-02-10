@@ -318,46 +318,63 @@ static std::vector<EventInfo> build_event_info(
 }
 
 /**
- * @brief Given a list of generated (sequence, realizations) pairs, compute
- *        the empirical marginal distribution for a non-DinucMarkov event.
+ * @brief Compute empirical marginal distributions for ALL non-DinucMarkov
+ *        events in a single pass over the scenario list.
  *
- * For each scenario, the realizations queue contains one inner queue per
- * event in model-queue order. For GeneChoice / Deletion / Insertion the
- * inner queue holds a single int (the realization index).
+ * Returns a map from event queue_position to its empirical marginal vector.
+ * This avoids the O(events × N) queue-copying that caused timeouts
+ * when compute_empirical_marginal was called per-event.
  */
-static std::vector<double> compute_empirical_marginal(
+static std::map<size_t, std::vector<double>> compute_all_empirical_marginals(
         const std::forward_list<std::pair<std::string, std::queue<std::queue<int>>>> &scenarios,
-        size_t event_queue_position,
-        int num_realizations,
+        const std::vector<EventInfo> &event_infos,
         size_t total_sequences)
 {
-    std::vector<size_t> counts(num_realizations, 0);
+    // Prepare per-event count arrays
+    // Only for non-DinucMarkov events
+    std::map<size_t, std::vector<size_t>> counts;
+    for (const auto &ev : event_infos) {
+        if (!ev.is_dinuc_markov) {
+            counts[ev.queue_position].assign(ev.num_realizations, 0);
+        }
+    }
 
+    // Single pass over all scenarios
     for (auto it = scenarios.begin(); it != scenarios.end(); ++it) {
-        // Copy the outer queue so we can pop to the desired position
+        // Copy the outer queue once per scenario and drain it,
+        // collecting realizations for every event in one go.
         auto outer = it->second;
-        for (size_t k = 0; k < event_queue_position; ++k) {
+        size_t pos = 0;
+        while (!outer.empty()) {
+            auto inner = outer.front();
             outer.pop();
-        }
-        // The front queue now corresponds to the event of interest
-        auto inner = outer.front();
-        if (!inner.empty()) {
-            int realization = inner.front();
-            if (realization < 0 || realization >= num_realizations) {
-                throw std::out_of_range(
-                        "Realization index " + std::to_string(realization) +
-                        " out of bounds [0, " + std::to_string(num_realizations) + ")");
+
+            auto cnt_it = counts.find(pos);
+            if (cnt_it != counts.end() && !inner.empty()) {
+                int realization = inner.front();
+                int num_real = static_cast<int>(cnt_it->second.size());
+                if (realization < 0 || realization >= num_real) {
+                    throw std::out_of_range(
+                            "Realization index " + std::to_string(realization) +
+                            " out of bounds [0, " + std::to_string(num_real) + ")");
+                }
+                ++cnt_it->second[realization];
             }
-            ++counts[realization];
+            ++pos;
         }
     }
 
-    std::vector<double> empirical(num_realizations, 0.0);
+    // Convert counts to probabilities
+    std::map<size_t, std::vector<double>> result;
     double n = static_cast<double>(total_sequences);
-    for (int i = 0; i < num_realizations; ++i) {
-        empirical[i] = static_cast<double>(counts[i]) / n;
+    for (auto &[qpos, cvec] : counts) {
+        std::vector<double> empirical(cvec.size(), 0.0);
+        for (size_t i = 0; i < cvec.size(); ++i) {
+            empirical[i] = static_cast<double>(cvec[i]) / n;
+        }
+        result[qpos] = std::move(empirical);
     }
-    return empirical;
+    return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -594,13 +611,17 @@ TEST_CASE("Generation marginals converge - KL divergence vs entropy",
 
         std::cout << "\n--- N = " << N << " ---" << std::endl;
 
+        // Compute all empirical marginals in a single pass (avoids
+        // O(events × N) queue-copying that caused CTest timeouts).
+        auto all_empiricals = compute_all_empirical_marginals(
+                scenarios, event_infos, actual_count);
+
         for (const auto &ev : event_infos) {
             if (ev.is_dinuc_markov) {
                 continue; // DinucMarkov has variable-length realizations
             }
 
-            auto empirical = compute_empirical_marginal(
-                    scenarios, ev.queue_position, ev.num_realizations, actual_count);
+            const auto &empirical = all_empiricals.at(ev.queue_position);
 
             double uncovered = 0.0;
             double dkl = kl_divergence(ev.model_marginal, empirical, &uncovered);

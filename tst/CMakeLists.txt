@@ -21,4 +21,6 @@ target_compile_definitions(igor_tests PRIVATE IGOR_SOURCE_DIR="${CMAKE_SOURCE_DI
 
 # Register the tests with CTest
 include(Catch)
-catch_discover_tests(igor_tests)
+catch_discover_tests(igor_tests
+    PROPERTIES TIMEOUT 3600  # generation test with 1M sequences needs headroom
+)
