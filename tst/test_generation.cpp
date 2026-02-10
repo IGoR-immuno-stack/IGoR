@@ -262,8 +262,8 @@ TEST_CASE("Generation marginals converge — KL divergence vs entropy",
     // ------------------------------------------------------------------
     // 3. Generate sequences for increasing N and track D_KL per event
     // ------------------------------------------------------------------
-    // Map: event_queue_position → vector of D_KL values (one per sample-size)
-    std::map<size_t, std::vector<double>> kl_traces;
+    // Map: event_queue_position → vector of (D_KL, uncovered_mass) per sample-size
+    std::map<size_t, std::vector<std::pair<double, double>>> kl_traces;
 
     const std::vector<int> sample_sizes = {10, 100, 1000, 1000000};
 
@@ -293,7 +293,7 @@ TEST_CASE("Generation marginals converge — KL divergence vs entropy",
 
             double uncovered = 0.0;
             double dkl = kl_divergence(ev.model_marginal, empirical, &uncovered);
-            kl_traces[ev.queue_position].push_back(dkl);
+            kl_traces[ev.queue_position].emplace_back(dkl, uncovered);
 
             std::cout << "  " << ev.nickname
                       << " : D_KL = " << dkl
@@ -342,13 +342,24 @@ TEST_CASE("Generation marginals converge — KL divergence vs entropy",
         // handles the case where the smaller sample happens to nail the
         // distribution exactly (D_KL ≈ 0) while the larger one is merely
         // very small.
+        //
+        // The partial KL (which skips uncovered bins) can go negative
+        // when many bins are missed at smaller N, making the comparison
+        // meaningless.  We only check monotonicity when uncovered mass
+        // at N=1k is small enough for the partial KL to be a faithful
+        // estimate of the true KL.
         if (trace.size() >= 4) {
-            double dkl_at_1k = trace[2];   // index 2 → N=1 000
-            double dkl_at_1M = trace[3];   // index 3 → N=1 000 000
+            auto [dkl_at_1k, uncov_1k] = trace[2];   // index 2 → N=1 000
+            auto [dkl_at_1M, uncov_1M] = trace[3];   // index 3 → N=1 000 000
             std::cout << "  " << ev.nickname
                       << " : D_KL(N=1k)=" << dkl_at_1k
-                      << "  D_KL(N=1M)=" << dkl_at_1M << std::endl;
-            CHECK(dkl_at_1M < dkl_at_1k + 1e-4);
+                      << "  D_KL(N=1M)=" << dkl_at_1M
+                      << "  uncov(1k)=" << uncov_1k
+                      << "  uncov(1M)=" << uncov_1M << std::endl;
+            if (uncov_1k < 0.01) {
+                // Both estimates are reliable; D_KL should decrease
+                CHECK(dkl_at_1M < dkl_at_1k + 1e-4);
+            }
         }
     }
 }
