@@ -4,7 +4,7 @@
  *        and entropy-based validation.
  *
  * Generates 10, 100, 1000, and 1'000'000 sequences from the human TCR alpha
- * model in models/human/tcr_alpha/. For each sample size, the empirical
+ * (VJ) and human TCR beta (VDJ) models. For each sample size, the empirical
  * marginal distributions of every
  * recombination event are compared to the theoretical model marginals via the
  * Kullback-Leibler divergence:
@@ -33,6 +33,10 @@
  *
  * Additionally, the sequence of D_KL values across increasing N is checked
  * for a monotonic decrease (up to a tolerance).
+ *
+ * For the TCR beta model, the computed entropy decomposition is cross-
+ * validated against the reference values from pygor3's tutorial:
+ * https://pygor3.readthedocs.io/en/latest/Tutorial.html#Entropy
  */
 
 #include <catch2/catch_test_macros.hpp>
@@ -60,13 +64,9 @@
 #error "IGOR_SOURCE_DIR must be defined (set by CMake)"
 #endif
 
-// ---------------------------------------------------------------------------
-// Paths to the human TCR alpha model
-// ---------------------------------------------------------------------------
-static const std::string MODEL_PARMS_PATH =
-        std::string(IGOR_SOURCE_DIR) + "/models/human/tcr_alpha/models/model_parms.txt";
-static const std::string MODEL_MARGINALS_PATH =
-        std::string(IGOR_SOURCE_DIR) + "/models/human/tcr_alpha/models/model_marginals.txt";
+// Model base directory
+static const std::string MODELS_DIR =
+        std::string(IGOR_SOURCE_DIR) + "/models";
 
 // ---------------------------------------------------------------------------
 // Mathematical helpers
@@ -368,22 +368,59 @@ TEST_CASE("Generation marginals converge — KL divergence vs entropy",
           "[generation]")
 {
     // ------------------------------------------------------------------
-    // 1. Load the human TCR alpha model
+    // 1. Select model to test (TCR alpha or TCR beta)
     // ------------------------------------------------------------------
+    std::string model_parms_path;
+    std::string model_marginals_path;
+    std::string model_label;
+    int min_events = 0;
+    // Reference entropy values from pygor3 for cross-validation.
+    // Keys are event nicknames; values in bits.
+    std::map<std::string, double> pygor3_reference_entropy;
+
+    SECTION("human TCR alpha (VJ)") {
+        model_parms_path     = MODELS_DIR + "/human/tcr_alpha/models/model_parms.txt";
+        model_marginals_path = MODELS_DIR + "/human/tcr_alpha/models/model_marginals.txt";
+        model_label = "human/tcr_alpha";
+        min_events = 5; // V, J, V_del, J_del, VJ_ins (+ dinuc)
+    }
+
+    SECTION("human TCR beta (VDJ)") {
+        model_parms_path     = MODELS_DIR + "/human/tcr_beta/models/model_parms.txt";
+        model_marginals_path = MODELS_DIR + "/human/tcr_beta/models/model_marginals.txt";
+        model_label = "human/tcr_beta";
+        min_events = 9; // V, J, D, 4 dels, 2 ins (+ 2 dinuc)
+        // Reference entropies from pygor3 tutorial:
+        // https://pygor3.readthedocs.io/en/latest/Tutorial.html#Entropy
+        // Insertion rows are the combined H(ℓ) + E[ℓ]·h values.
+        pygor3_reference_entropy = {
+            {"v_choice", 5.252905},
+            {"d_gene",   1.141779},
+            {"j_choice", 3.609102},
+            {"vd_ins",  14.894931},
+            {"dj_ins",  14.981991},
+            {"v_3_del",  3.147511},
+            {"d_3_del",  2.778230},
+            {"d_5_del",  3.634137},
+            {"j_5_del",  3.356340},
+        };
+    }
+
+    // ------------------------------------------------------------------
+    // 2. Load model and collect per-event metadata
+    // ------------------------------------------------------------------
+    INFO("Testing model: " << model_label);
     Model_Parms model_parms;
-    model_parms.read_model_parms(MODEL_PARMS_PATH);
+    model_parms.read_model_parms(model_parms_path);
 
     Model_marginals model_marginals(model_parms);
-    model_marginals.txt2marginals(MODEL_MARGINALS_PATH, model_parms);
+    model_marginals.txt2marginals(model_marginals_path, model_parms);
 
-    // ------------------------------------------------------------------
-    // 2. Collect per-event metadata and theoretical marginals
-    // ------------------------------------------------------------------
     std::vector<EventInfo> event_infos =
             build_event_info(model_parms, model_marginals);
 
     INFO("Model loaded, " << event_infos.size() << " events found");
-    REQUIRE(event_infos.size() >= 5); // V, J, V_del, J_del, VJ_ins (+ dinuc)
+    REQUIRE(event_infos.size() >= static_cast<size_t>(min_events));
 
     // ------------------------------------------------------------------
     // Compute combined insertion+dinucleotide entropy.
@@ -464,6 +501,74 @@ TEST_CASE("Generation marginals converge — KL divergence vs entropy",
         }
     }
     std::cout << "  TOTAL: " << total_entropy << std::endl;
+
+    // ------------------------------------------------------------------
+    // Cross-validate against pygor3 reference values (if available).
+    // The reference comes from mdl_hb.get_df_entropy_decomposition()
+    // in https://pygor3.readthedocs.io/en/latest/Tutorial.html#Entropy
+    //
+    // IMPORTANT: pygor3 decomposes the total scenario entropy as
+    //     H(scenario) = Σ_i H(X_i | Pa(X_i)),
+    // i.e. the conditional entropy of each event given its Bayesian-
+    // network parents. Our test computes the *marginal* entropy H(X_i)
+    // via compute_event_marginal_probability(). By the information-
+    // processing inequality, H(X) >= H(X|Pa), so for events WITH
+    // parents our value is an upper bound on pygor3's.
+    //
+    // For combined insertion+dinuc entropies, minor differences (~0.2
+    // bits) may arise from the dinucleotide entropy-rate formula
+    // (stationary-distribution vs first-nucleotide treatment).
+    // ------------------------------------------------------------------
+    if (!pygor3_reference_entropy.empty()) {
+        std::cout << "\n=== Cross-validation against pygor3 (" << model_label
+                  << ") ===" << std::endl;
+        for (const auto &ev : event_infos) {
+            if (ev.is_dinuc_markov) continue;
+
+            // Determine the reported entropy for this event
+            double reported_H;
+            auto it_pair = ins_dinuc_pairs.find(ev.gene_class);
+            bool is_combined_ins =
+                    it_pair != ins_dinuc_pairs.end() &&
+                    it_pair->second.ins_event == &ev &&
+                    it_pair->second.dinuc_event != nullptr;
+            if (is_combined_ins) {
+                reported_H = it_pair->second.combined_H;
+            } else {
+                reported_H = ev.H;
+            }
+
+            auto it_ref = pygor3_reference_entropy.find(ev.nickname);
+            if (it_ref != pygor3_reference_entropy.end()) {
+                double ref = it_ref->second;
+                double diff = std::abs(reported_H - ref);
+                bool has_parents = !model_parms.get_parents(ev.name).empty();
+
+                std::cout << "  " << ev.nickname
+                          << ": computed=" << reported_H
+                          << "  pygor3=" << ref
+                          << "  diff=" << diff
+                          << (has_parents ? "  (marginal; parents present)" : "")
+                          << std::endl;
+
+                if (is_combined_ins) {
+                    // Combined insertion + dinuc: small formula differences
+                    // (stationary distribution, Markov transition count)
+                    // may cause up to ~0.5 bit discrepancy.
+                    CHECK(diff < 0.5);
+                } else if (has_parents) {
+                    // Marginal entropy >= conditional entropy.
+                    // The gap is bounded by I(X; Pa), the mutual
+                    // information, typically < 1–2 bits for gene/del events.
+                    CHECK(reported_H >= ref - 0.01);
+                    CHECK(diff < 1.5);
+                } else {
+                    // Root event (no parents): marginal = conditional.
+                    CHECK(diff < 0.01);
+                }
+            }
+        }
+    }
 
     // ------------------------------------------------------------------
     // 3. Generate sequences for increasing N and track D_KL per event
