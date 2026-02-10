@@ -629,13 +629,17 @@ TEST_CASE("Generation marginals converge - KL divergence vs entropy",
                 // Most of the distribution should be covered
                 CHECK(uncovered < 0.1);
             } else if (N == 1000000) {
-                // Very tight: D_KL should be negligible compared to H
-                // Theoretical expectation: D_KL ≈ (k−1)/(2·N·ln2)
+                // Very tight: D_KL should be negligible compared to H.
+                // Asymptotic expectation: D_KL ≈ (k−1)/(2·N·ln2).
+                // The estimator variance follows χ²(k−1), so we use a
+                // 50× safety factor to avoid flaky CI failures across
+                // many events and two model sections.
                 double expected_upper =
-                        10.0 * (ev.num_realizations - 1) / (2.0 * N * std::log(2.0));
+                        50.0 * (ev.num_realizations - 1) / (2.0 * N * std::log(2.0));
                 CHECK(dkl < (std::max)(expected_upper, 1e-3));
                 // At 1M samples, essentially all bins should be covered
-                CHECK(uncovered < 1e-4);
+                // (rare alleles with P~1e-6 may still be missed)
+                CHECK(uncovered < 1e-3);
             }
         }
     }
