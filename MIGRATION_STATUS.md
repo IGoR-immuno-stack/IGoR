@@ -18,6 +18,400 @@ All implementations are backed by **comprehensive test suites** with **9,268 tot
 
 ---
 
+## Architecture Overview: Before & After
+
+### The Problem: Monolithic Flat Array (Before)
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     Model_marginals                             │
+│                                                                 │
+│  marginal_array_smart_p: unique_ptr<long double[]>              │
+│  ┌────────────────────────────────────────────────────────────┐ │
+│  │ [0...88]     [89...103]   [104...106]  [107...148]  ...    │ │
+│  │ V_choice     J_choice     D_gene       V_3_del       ...   │ │
+│  │ (89 genes)   (15 genes)   (3 genes)    (21×89 vals)  ...   │ │
+│  └────────────────────────────────────────────────────────────┘ │
+│                                                                 │
+│  Problems:                                                      │
+│  • Manual offset arithmetic (error-prone)                       │
+│  • No bounds checking (buffer overflow risk)                    │
+│  • Poor cache locality (random access patterns)                 │
+│  • No type information (all just long double)                   │
+│  • Dimensional structure lost (2D Markov → flattened 1D)        │
+│  • Which event owns index 137? Must calculate!                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Example: Accessing D gene choice conditioned on V gene #5**
+```cpp
+// Old approach - manual offset calculation
+int v_idx = 5;
+int d_idx = 2;
+int offset = offset_map["GeneChoice_D_gene"][0].second;  // Find D_gene base
+int v_offset = v_idx * 3;  // 3 D genes per V gene
+int index = offset + v_offset + d_idx;  // Final index in flat array
+marginal_array[index] += probability;  // Hope the calculation is right!
+```
+
+### The Solution: Event-Centric Handlers (After)
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    InferenceEngine<T>                           │
+│                                                                 │
+│  handlers_: unordered_map<string, unique_ptr<MarginalHandler>>  │
+│  ┌────────────────────────────────────────────────────────────┐ │
+│  │  "v_choice"  →  CategoricalHandler<T>                      │ │
+│  │                 ├─ parameters_: Tensor<T> {89}             │ │
+│  │                 └─ accumulator_: Tensor<T> {89}            │ │
+│  ├────────────────────────────────────────────────────────────┤ │
+│  │  "j_choice"  →  CategoricalHandler<T>                      │ │
+│  │                 ├─ parameters_: Tensor<T> {15}             │ │
+│  │                 └─ accumulator_: Tensor<T> {15}            │ │
+│  ├────────────────────────────────────────────────────────────┤ │
+│  │  "d_gene"    →  CategoricalHandler<T>                      │ │
+│  │                 ├─ parameters_: Tensor<T> {3, 89}          │ │
+│  │                 │   (3 D genes × 89 V genes parent dims)   │ │
+│  │                 └─ accumulator_: Tensor<T> {3, 89}         │ │
+│  ├────────────────────────────────────────────────────────────┤ │
+│  │  "vd_dinucl" →  MarkovHandler<T>                           │ │
+│  │                 ├─ parameters_: Tensor<T> {4, 4}           │ │
+│  │                 │   (FROM nucleotide × TO nucleotide)      │ │
+│  │                 └─ accumulator_: Tensor<T> {4, 4}          │ │
+│  └────────────────────────────────────────────────────────────┘ │
+│                                                                 │
+│  Benefits:                                                      │
+│  ✓ Type-safe access via handler interface                       │
+│  ✓ Automatic bounds checking (mdspan assertions)                │
+│  ✓ Cache-friendly (handlers loaded together)                    │
+│  ✓ Self-documenting (tensor shape = semantic meaning)           │
+│  ✓ Multi-dimensional structure preserved                        │
+│  ✓ Event ownership explicit (no index ambiguity)                │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Example: Same operation with handlers**
+```cpp
+// New approach - type-safe tensor access
+auto& handler = engine.get_handler<CategoricalHandler<T>>("d_gene");
+auto params = handler.parameters_view();  // mdspan<T, 2>
+params(d_idx, v_idx) += probability;  // Bounds checked, semantically clear
+```
+
+---
+
+## Refactoring Strategy: The Bridge Pattern
+
+The migration uses a **bridge architecture** to enable gradual transition without breaking existing code:
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                    Migration Architecture                        │
+│                                                                  │
+│  ┌─────────────────┐         ┌──────────────────┐                │
+│  │  Model_Parms    │         │  Model_marginals │                │
+│  │  (Bayesian net) │         │  (legacy flat    │                │
+│  │                 │         │   array)         │                │
+│  └────────┬────────┘         └────────┬─────────┘                │
+│           │                           │                          │
+│           │  extract_event_           │                          │
+│           │  descriptors()            │                          │
+│           │                           │                          │
+│           ▼                           ▼                          │
+│  ┌─────────────────────────────────────────────┐                 │
+│  │         LegacyBridge (Step 3)               │                 │
+│  │  ┌──────────────────┬──────────────────┐    │                 │
+│  │  │ import_from_     │ export_to_       │    │                 │
+│  │  │ legacy()         │ legacy()         │    │                 │
+│  │  └────────┬─────────┴──────┬───────────┘    │                 │
+│  └───────────┼────────────────┼────────────────┘                 │
+│              │                │                                  │
+│              ▼                ▼                                  │
+│  ┌─────────────────────────────────────────────┐                 │
+│  │      InferenceEngine<T> (Steps 1-2)         │                 │
+│  │                                             │                 │
+│  │  ┌──────────────────────────────────────┐   │                 │
+│  │  │  MarginalHandler (base class)        │   │                 │
+│  │  │  ├─ CategoricalHandler               │   │                 │
+│  │  │  │  (Gene choice, Deletions, Insert) │   │                 │
+│  │  │  └─ MarkovHandler                    │   │                 │
+│  │  │     (Dinucleotide transitions)       │   │                 │
+│  │  └──────────────────────────────────────┘   │                 │
+│  └─────────────────────────────────────────────┘                 │
+│                                                                  │
+│  This enables:                                                   │
+│  • Side-by-side validation (old vs new EM)                       │
+│  • Incremental migration (one event type at a time)              │
+│  • Backward compatibility (can read/write legacy files)          │
+│  • Safe testing (round-trip preserves all values)                │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Data Flow: Import/Export Process
+
+### Import: Legacy → Handlers
+
+```
+Step 1: Extract Event Metadata
+┌─────────────────┐
+│  Model_Parms    │  Bayesian network with event definitions
+│                 │  • Events in topological order
+│  get_events()   │  • Parent dependencies
+│  iterate()      │  • Size information
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────────────────────────────────────────┐
+│  extract_event_descriptors()                        │
+│                                                     │
+│  for each event in topological order:               │
+│    • name = event.get_nickname()  ("v_choice")      │
+│    • type = event.get_type()      (GeneChoice_t)    │
+│    • shape = compute dimensions from parents        │
+│    • gene_class, side metadata                      │
+│                                                     │
+│  Returns: vector<EventDescriptor>                   │
+└────────┬────────────────────────────────────────────┘
+         │
+         ▼
+┌─────────────────────────────────────────────────────┐
+│  InferenceEngine<T>(descriptors)                    │
+│                                                     │
+│  for each descriptor:                               │
+│    if (descriptor.type == Dinuclmarkov_t)           │
+│      register MarkovHandler                         │
+│    else                                             │
+│      register CategoricalHandler                    │
+│                                                     │
+│  Creates: handlers_ map with typed handlers         │
+└────────┬────────────────────────────────────────────┘
+         │
+         ▼
+
+Step 2: Copy Array Data
+┌─────────────────────────────────────────────────────┐
+│  Model_marginals                                    │
+│                                                     │
+│  marginal_array[0...3842]  ───┐                     │
+│  index_map {                   │                    │
+│    "GeneChoice_V_..." : 0      │  89 values         │
+│    "GeneChoice_J_..." : 89     │  15 values         │
+│    "GeneChoice_D_..." : 104    │  3 values          │
+│    "Deletion_V_..." : 149      │  1869 values       │
+│    ...                         │                    │
+│  }                             │                    │
+└────────┬───────────────────────┘                    │
+         │                                            │
+         ▼                                            │
+┌─────────────────────────────────────────────────────┐
+│  import_from_legacy()                               │
+│                                                     │
+│  for each handler (nickname, handler):              │
+│    1. event = parms.get_event_pointer(nickname)     │
+│    2. full_name = event.get_name()                  │
+│    3. base_idx = index_map[full_name]               │
+│    4. for i in 0..handler.size():                   │
+│         handler.params[i] = marginal_array[base+i]  │
+│         (converts long double → T)                  │
+│                                                     │
+│  Result: All handler tensors filled                 │
+└─────────────────────────────────────────────────────┘
+         │
+         ▼
+┌─────────────────────────────────────────────────────┐
+│  InferenceEngine<T> - Ready for EM                  │
+│                                                     │
+│  handlers_["v_choice"].parameters_                  │
+│    = [0.0112, 0.0112, ..., 0.0112]  (89 values)     │
+│                                                     │
+│  handlers_["vd_dinucl"].parameters_                 │
+│    = [[0.25, 0.25, 0.25, 0.25],     (4×4 matrix)    │
+│       [0.25, 0.25, 0.25, 0.25],                     │
+│       [0.25, 0.25, 0.25, 0.25],                     │
+│       [0.25, 0.25, 0.25, 0.25]]                     │
+└─────────────────────────────────────────────────────┘
+```
+
+### Export: Handlers → Legacy
+
+```
+┌─────────────────────────────────────────────────────┐
+│  InferenceEngine<T> - After EM iteration            │
+│                                                     │
+│  handlers_["v_choice"].parameters_                  │
+│  handlers_["d_gene"].parameters_                    │
+│  handlers_["vd_dinucl"].parameters_                 │
+│  ... (updated probabilities)                        │
+└────────┬────────────────────────────────────────────┘
+         │
+         ▼
+┌─────────────────────────────────────────────────────┐
+│  export_to_legacy()                                 │
+│                                                     │
+│  1. Create new Model_marginals(parms)               │
+│     (allocates flat array, zeros it out)            │
+│                                                     │
+│  2. for each handler (nickname, handler):           │
+│       • event = parms.get_event_pointer(nickname)   │
+│       • full_name = event.get_name()                │
+│       • base_idx = index_map[full_name]             │
+│       • for i in 0..handler.size():                 │
+│           marginal_array[base+i] = handler.params[i]│
+│           (converts T → long double)                │
+│                                                     │
+│  Result: Flat array reconstructed                   │
+└────────┬────────────────────────────────────────────┘
+         │
+         ▼
+┌─────────────────────────────────────────────────────┐
+│  Model_marginals - Legacy format restored           │
+│                                                     │
+│  marginal_array[0...3842]                           │
+│  • Can be written to .txt file                      │
+│  • Compatible with existing IGoR code               │
+│  • Numerically identical to input (within 1e-12)    │
+└─────────────────────────────────────────────────────┘
+```
+
+---
+
+## Handler Class Hierarchy
+
+```
+                    ┌──────────────────────────┐
+                    │  MarginalHandler<T>      │
+                    │  (Abstract base)         │
+                    │                          │
+                    │  Virtual methods:        │
+                    │  • type()                │
+                    │  • shape()               │
+                    │  • parameters()          │
+                    │  • accumulator()         │
+                    │  • accumulate(idx, w)    │
+                    │  • normalize()           │
+                    │  • reset()               │
+                    │  • write_csv()           │
+                    │  • read_csv()            │
+                    └────────────┬─────────────┘
+                                 │
+                    ┌────────────┴────────────┐
+                    │                         │
+         ┌──────────▼─────────┐    ┌─────────▼──────────┐
+         │ CategoricalHandler │    │  MarkovHandler     │
+         │ <T>                │    │  <T>               │
+         │                    │    │                    │
+         │ Used for:          │    │ Used for:          │
+         │ • Gene choice      │    │ • Dinucleotide     │
+         │   (V, D, J)        │    │   Markov models    │
+         │ • Deletions        │    │                    │
+         │   (5', 3')         │    │ Shape:             │
+         │ • Insertions       │    │ [from, to,         │
+         │   (VD, DJ)         │    │  parent_dims...]   │
+         │                    │    │                    │
+         │ Shape:             │    │ Constraint:        │
+         │ [n_realizations,   │    │ Each ROW sums to 1 │
+         │  parent_dims...]   │    │ (transition probs) │
+         │                    │    │                    │
+         │ Constraint:        │    │ Normalization:     │
+         │ Sum to 1 per       │    │ P(to|from) valid   │
+         │ parent slice       │    │ probability dist   │
+         └────────────────────┘    └────────────────────┘
+
+Example tensor shapes for TRB model:
+
+CategoricalHandler "v_choice":
+  parameters_:  Tensor<T> {89}           // 89 V genes
+  accumulator_: Tensor<T> {89}
+
+CategoricalHandler "d_gene":
+  parameters_:  Tensor<T> {3, 89}        // 3 D genes × 89 V gene parents
+  accumulator_: Tensor<T> {3, 89}
+
+CategoricalHandler "v_3_del":
+  parameters_:  Tensor<T> {21, 89}       // 21 deletion lengths × 89 V genes
+  accumulator_: Tensor<T> {21, 89}
+
+MarkovHandler "vd_dinucl":
+  parameters_:  Tensor<T> {4, 4}         // 4 nucleotides FROM × 4 TO
+  accumulator_: Tensor<T> {4, 4}
+```
+
+---
+
+## Event Processing: EM Iteration Flow
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     EM Algorithm Workflow                       │
+│                                                                 │
+│  Phase 1: Expectation (E-step)                                  │
+│  ┌────────────────────────────────────────────────────────────┐ │
+│  │  For each sequence:                                        │ │
+│  │    1. Generate scenario                                    │ │
+│  │    2. Calculate scenario probability                       │ │
+│  │    3. For each event in scenario:                          │ │
+│  │         handler.accumulate(realization_idx, probability)   │ │
+│  │         // Adds weighted count to accumulator              │ │
+│  └────────────────────────────────────────────────────────────┘ │
+│                                   │                             │
+│                                   ▼                             │
+│  Phase 2: Maximization (M-step)                                 │
+│  ┌────────────────────────────────────────────────────────────┐ │
+│  │  For each handler:                                         │ │
+│  │    handler.normalize()                                     │ │
+│  │    // Convert accumulated counts to probabilities          │ │
+│  │                                                            │ │
+│  │    CategoricalHandler:                                     │ │
+│  │      for each parent slice:                                │ │
+│  │        params[:, parent] = accum[:, parent] / sum(accum)   │ │
+│  │                                                            │ │
+│  │    MarkovHandler:                                          │ │
+│  │      for each from_state:                                  │ │
+│  │        params[from, :] = accum[from, :] / sum(accum[from]) │ │
+│  └────────────────────────────────────────────────────────────┘ │
+│                                   │                             │
+│                                   ▼                             │
+│  Phase 3: Reset for next iteration                              │
+│  ┌────────────────────────────────────────────────────────────┐ │
+│  │  For each handler:                                         │ │
+│  │    handler.reset()                                         │ │
+│  │    // Zero out accumulator, keep parameters                │ │
+│  └────────────────────────────────────────────────────────────┘ │
+│                                                                 │
+│  Repeat until convergence (log-likelihood plateau)              │
+└─────────────────────────────────────────────────────────────────┘
+
+Example: Processing one sequence
+
+Sequence: CASSTGQGVYEQYF
+Scenario: V=TRBV13, D=TRBD1, J=TRBJ2-7, VD_ins=3, DJ_ins=2, ...
+
+┌─────────────────────────────────────────────────────────────┐
+│ E-step: Accumulate weighted counts                          │
+│                                                             │
+│  scenario_prob = 1e-8                                       │
+│                                                             │
+│  engine.get("v_choice").accumulate(13, 1e-8)                │
+│  //  accumulator_[13] += 1e-8                               │
+│                                                             │
+│  engine.get("d_gene").accumulate(0, v_idx=13, 1e-8)         │
+│  //  accumulator_[0, 13] += 1e-8                            │
+│                                                             │
+│  engine.get("vd_ins").accumulate(3, 1e-8)                   │
+│  //  accumulator_[3] += 1e-8                                │
+│                                                             │
+│  engine.get("vd_dinucl").accumulate(from=A, to=T, 1e-8)     │
+│  //  accumulator_[0, 3] += 1e-8  (A→T transition)           │
+│                                                             │
+│  ... (all events in scenario)                               │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
 ## Completed Components
 
 ### 1. Handler Architecture (Step 1-2)
