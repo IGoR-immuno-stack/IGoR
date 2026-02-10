@@ -405,6 +405,8 @@ public:
         //Get current memory layer at this position
         if (memory_layer_ptr[key] < max_layer) {
             ++memory_layer_ptr[key];
+            // Initialize new layer value to 1.0 (neutral for multiplication)
+            value_ptr_arr[key + memory_layer_ptr[key] * range] = V(1);
         } else {
             ++max_layer;
             V *new_value_ptr = new V[range * (max_layer + 1)];
@@ -416,6 +418,8 @@ public:
             delete[] value_ptr_arr;
             value_ptr_arr = new_value_ptr;
             ++memory_layer_ptr[key];
+            // Initialize new layer value to 1.0 (neutral for multiplication)
+            value_ptr_arr[key + memory_layer_ptr[key] * range] = V(1);
         }
     }
 
@@ -465,6 +469,15 @@ public:
                 memory_layer_ptr[i] = 0;
             }
         }
+    }
+    
+    // DEBUG: Get value at specific layer
+    V get_value_at_layer(const K &key, int layer) const
+    {
+        if (key > range - 1) {
+            throw std::out_of_range("Key out of range in get_value_at_layer");
+        }
+        return value_ptr_arr[key + layer * range];
     }
 
 protected:
