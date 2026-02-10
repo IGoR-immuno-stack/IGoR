@@ -98,19 +98,27 @@ struct EventDescriptor {
 std::vector<EventDescriptor> extract_event_descriptors(const Model_Parms& parms);
 
 // ─── Handler Interface ─────────────────────────────────────────────────
+//
+// Template parameter T is the scalar type for storage:
+//   - long double : backward compatible with legacy Marginal_array_p
+//   - double      : sufficient precision, 2x less memory, better vectorization
+//
 
+template<typename T = double>
 class MarginalHandler {
 public:
+    using scalar_type = T;
+
     virtual ~MarginalHandler() = default;
 
     // Identity
     const Rec_Event_name& name() const { return name_; }
 
     // Tensor access
-    virtual const math::Tensor<double>& parameters() const = 0;
-    virtual math::Tensor<double>& parameters() = 0;
-    virtual const math::Tensor<double>& accumulator() const = 0;
-    virtual math::Tensor<double>& accumulator() = 0;
+    virtual const math::Tensor<T>& parameters() const = 0;
+    virtual math::Tensor<T>& parameters() = 0;
+    virtual const math::Tensor<T>& accumulator() const = 0;
+    virtual math::Tensor<T>& accumulator() = 0;
 
     // EM operations
     virtual void reset_accumulator() = 0;
@@ -129,30 +137,31 @@ protected:
 
 /// Handles Gene_choice, Deletion, Insertion
 /// (any event whose M-step is: normalize accumulator to sum to 1)
-class CategoricalHandler : public MarginalHandler {
+template<typename T = double>
+class CategoricalHandler : public MarginalHandler<T> {
 public:
     CategoricalHandler(Rec_Event_name name, size_t n_realizations)
-        : MarginalHandler(std::move(name))
+        : MarginalHandler<T>(std::move(name))
         , parameters_({n_realizations})
         , accumulator_({n_realizations})
     {
-        double uniform = 1.0 / static_cast<double>(n_realizations);
+        T uniform = T(1) / static_cast<T>(n_realizations);
         std::fill(parameters_.begin(), parameters_.end(), uniform);
-        std::fill(accumulator_.begin(), accumulator_.end(), 0.0);
+        std::fill(accumulator_.begin(), accumulator_.end(), T(0));
     }
 
-    const math::Tensor<double>& parameters() const override { return parameters_; }
-    math::Tensor<double>& parameters() override { return parameters_; }
-    const math::Tensor<double>& accumulator() const override { return accumulator_; }
-    math::Tensor<double>& accumulator() override { return accumulator_; }
+    const math::Tensor<T>& parameters() const override { return parameters_; }
+    math::Tensor<T>& parameters() override { return parameters_; }
+    const math::Tensor<T>& accumulator() const override { return accumulator_; }
+    math::Tensor<T>& accumulator() override { return accumulator_; }
 
     void reset_accumulator() override {
-        std::fill(accumulator_.begin(), accumulator_.end(), 0.0);
+        std::fill(accumulator_.begin(), accumulator_.end(), T(0));
     }
 
     void maximize_likelihood() override {
-        double total = math::linalg::sum(accumulator_);
-        if (total > 1e-15) {
+        T total = math::linalg::sum(accumulator_);
+        if (total > T(1e-15)) {
             for (size_t i = 0; i < parameters_.size(); ++i) {
                 parameters_.data()[i] = accumulator_.data()[i] / total;
             }
@@ -160,7 +169,7 @@ public:
     }
 
     // Accumulate a single realization
-    void accumulate(size_t realization_index, double probability) {
+    void accumulate(size_t realization_index, T probability) {
         accumulator_(realization_index) += probability;
     }
 
@@ -168,42 +177,43 @@ public:
     void read_parameters(std::istream& in) override { /* ... */ }
 
 private:
-    math::Tensor<double> parameters_;   // [n_realizations]
-    math::Tensor<double> accumulator_;  // [n_realizations]
+    math::Tensor<T> parameters_;   // [n_realizations]
+    math::Tensor<T> accumulator_;  // [n_realizations]
 };
 
 /// Handles Dinucl_markov (insertion nucleotide identity)
 /// M-step: row-wise normalization of transition matrix
-class MarkovHandler : public MarginalHandler {
+template<typename T = double>
+class MarkovHandler : public MarginalHandler<T> {
 public:
     MarkovHandler(Rec_Event_name name, size_t n_states)
-        : MarginalHandler(std::move(name))
+        : MarginalHandler<T>(std::move(name))
         , n_states_(n_states)
         , parameters_({n_states, n_states})
         , accumulator_({n_states, n_states})
     {
-        double uniform = 1.0 / static_cast<double>(n_states);
+        T uniform = T(1) / static_cast<T>(n_states);
         std::fill(parameters_.begin(), parameters_.end(), uniform);
-        std::fill(accumulator_.begin(), accumulator_.end(), 0.0);
+        std::fill(accumulator_.begin(), accumulator_.end(), T(0));
     }
 
-    const math::Tensor<double>& parameters() const override { return parameters_; }
-    math::Tensor<double>& parameters() override { return parameters_; }
-    const math::Tensor<double>& accumulator() const override { return accumulator_; }
-    math::Tensor<double>& accumulator() override { return accumulator_; }
+    const math::Tensor<T>& parameters() const override { return parameters_; }
+    math::Tensor<T>& parameters() override { return parameters_; }
+    const math::Tensor<T>& accumulator() const override { return accumulator_; }
+    math::Tensor<T>& accumulator() override { return accumulator_; }
 
     void reset_accumulator() override {
-        std::fill(accumulator_.begin(), accumulator_.end(), 0.0);
+        std::fill(accumulator_.begin(), accumulator_.end(), T(0));
     }
 
     void maximize_likelihood() override {
         // Row-wise normalization: P(to|from) = count[from,to] / sum_to(count[from,to])
         for (size_t from = 0; from < n_states_; ++from) {
-            double row_sum = 0.0;
+            T row_sum = T(0);
             for (size_t to = 0; to < n_states_; ++to) {
                 row_sum += accumulator_(from, to);
             }
-            if (row_sum > 1e-15) {
+            if (row_sum > T(1e-15)) {
                 for (size_t to = 0; to < n_states_; ++to) {
                     parameters_(from, to) = accumulator_(from, to) / row_sum;
                 }
@@ -212,7 +222,7 @@ public:
     }
 
     // Accumulate a transition observation
-    void accumulate(size_t from_state, size_t to_state, double probability) {
+    void accumulate(size_t from_state, size_t to_state, T probability) {
         accumulator_(from_state, to_state) += probability;
     }
 
@@ -221,24 +231,27 @@ public:
 
 private:
     size_t n_states_;
-    math::Tensor<double> parameters_;   // [n_states, n_states]
-    math::Tensor<double> accumulator_;  // [n_states, n_states]
+    math::Tensor<T> parameters_;   // [n_states, n_states]
+    math::Tensor<T> accumulator_;  // [n_states, n_states]
 };
 
 // ─── Engine ────────────────────────────────────────────────────────────
 
+template<typename T = double>
 class InferenceEngine {
 public:
+    using scalar_type = T;
+
     /// Construct from existing model parameters
     explicit InferenceEngine(const Model_Parms& parms);
 
     /// Register a handler for a named event
     void register_handler(Rec_Event_name name,
-                         std::unique_ptr<MarginalHandler> handler);
+                         std::unique_ptr<MarginalHandler<T>> handler);
 
     /// Access handler by event name
-    MarginalHandler& handler(const Rec_Event_name& name);
-    const MarginalHandler& handler(const Rec_Event_name& name) const;
+    MarginalHandler<T>& handler(const Rec_Event_name& name);
+    const MarginalHandler<T>& handler(const Rec_Event_name& name) const;
 
     /// EM: Reset all accumulators
     void reset_accumulators();
@@ -258,9 +271,17 @@ public:
     const std::vector<Rec_Event_name>& event_names() const { return event_order_; }
 
 private:
-    std::unordered_map<Rec_Event_name, std::unique_ptr<MarginalHandler>> handlers_;
+    std::unordered_map<Rec_Event_name, std::unique_ptr<MarginalHandler<T>>> handlers_;
     std::vector<Rec_Event_name> event_order_;
 };
+
+// ─── Type Aliases ──────────────────────────────────────────────────────
+
+/// Legacy-compatible engine using long double (matches Marginal_array_p)
+using LegacyEngine = InferenceEngine<long double>;
+
+/// Default engine using double (better performance, sufficient precision)
+using Engine = InferenceEngine<double>;
 
 } // namespace igor::model
 ```
@@ -302,28 +323,29 @@ std::vector<EventDescriptor> extract_event_descriptors(const Model_Parms& parms)
 }
 ```
 
-#### Constructing `InferenceEngine` from `Model_Parms`
+#### Constructing `InferenceEngine<T>` from `Model_Parms`
 
 ```cpp
-InferenceEngine::InferenceEngine(const Model_Parms& parms) {
+template<typename T>
+InferenceEngine<T>::InferenceEngine(const Model_Parms& parms) {
     auto descriptors = extract_event_descriptors(parms);
 
     for (const auto& desc : descriptors) {
-        std::unique_ptr<MarginalHandler> handler;
+        std::unique_ptr<MarginalHandler<T>> handler;
 
         switch (desc.type) {
             case GeneChoice_t:
             case Deletion_t:
             case Insertion_t:
-                handler = std::make_unique<CategoricalHandler>(
+                handler = std::make_unique<CategoricalHandler<T>>(
                     desc.name, desc.shape[0]);
                 break;
             case Dinuclmarkov_t:
-                handler = std::make_unique<MarkovHandler>(
+                handler = std::make_unique<MarkovHandler<T>>(
                     desc.name, desc.shape[0]);
                 break;
             default:
-                handler = std::make_unique<CategoricalHandler>(
+                handler = std::make_unique<CategoricalHandler<T>>(
                     desc.name, desc.shape[0]);
                 break;
         }
@@ -337,8 +359,9 @@ InferenceEngine::InferenceEngine(const Model_Parms& parms) {
 
 ```cpp
 /// Export new tensors back to legacy flat array for numerical comparison
-void InferenceEngine::export_to_legacy(Model_marginals& legacy,
-                                        const Model_Parms& parms) const {
+template<typename T>
+void InferenceEngine<T>::export_to_legacy(Model_marginals& legacy,
+                                           const Model_Parms& parms) const {
     auto index_map = legacy.get_index_map(parms);
 
     for (const auto& event_name : event_order_) {
@@ -354,8 +377,9 @@ void InferenceEngine::export_to_legacy(Model_marginals& legacy,
 }
 
 /// Import from legacy flat array (e.g., after loading from file)
-void InferenceEngine::import_from_legacy(const Model_marginals& legacy,
-                                          const Model_Parms& parms) {
+template<typename T>
+void InferenceEngine<T>::import_from_legacy(const Model_marginals& legacy,
+                                             const Model_Parms& parms) {
     auto index_map = legacy.get_index_map(parms);
 
     for (const auto& event_name : event_order_) {
@@ -365,7 +389,7 @@ void InferenceEngine::import_from_legacy(const Model_marginals& legacy,
 
         for (size_t i = 0; i < params.size(); ++i) {
             params.data()[i] =
-                static_cast<double>(legacy.marginal_array_smart_p[offset + i]);
+                static_cast<T>(legacy.marginal_array_smart_p[offset + i]);
         }
     }
 }
@@ -406,59 +430,82 @@ Once the prototype validates on `develop`:
 
 ## Testing Strategy
 
-### Unit Tests (per Handler)
+### Unit Tests (per Handler, parameterized on scalar type)
 
 ```cpp
-TEST_CASE("CategoricalHandler normalize", "[model][handler]") {
-    CategoricalHandler handler("v_gene", 3);
+TEMPLATE_TEST_CASE("CategoricalHandler normalize", "[model][handler]",
+                   double, long double) {
+    CategoricalHandler<TestType> handler("v_gene", 3);
 
-    handler.accumulate(0, 10.0);
-    handler.accumulate(1, 20.0);
-    handler.accumulate(2, 30.0);
+    handler.accumulate(0, TestType(10));
+    handler.accumulate(1, TestType(20));
+    handler.accumulate(2, TestType(30));
 
     handler.maximize_likelihood();
 
-    REQUIRE_THAT(handler.parameters()(0), WithinRel(1.0/6.0, 1e-10));
-    REQUIRE_THAT(handler.parameters()(1), WithinRel(2.0/6.0, 1e-10));
-    REQUIRE_THAT(handler.parameters()(2), WithinRel(3.0/6.0, 1e-10));
+    REQUIRE_THAT(double(handler.parameters()(0)), WithinRel(1.0/6.0, 1e-10));
+    REQUIRE_THAT(double(handler.parameters()(1)), WithinRel(2.0/6.0, 1e-10));
+    REQUIRE_THAT(double(handler.parameters()(2)), WithinRel(3.0/6.0, 1e-10));
 }
 
-TEST_CASE("MarkovHandler row normalize", "[model][handler]") {
-    MarkovHandler handler("vd_dinucl", 4);
+TEMPLATE_TEST_CASE("MarkovHandler row normalize", "[model][handler]",
+                   double, long double) {
+    MarkovHandler<TestType> handler("vd_dinucl", 4);
 
-    handler.accumulate(0, 0, 10.0);  // A → A
-    handler.accumulate(0, 1, 30.0);  // A → C
+    handler.accumulate(0, 0, TestType(10));  // A → A
+    handler.accumulate(0, 1, TestType(30));  // A → C
     handler.maximize_likelihood();
 
     // Row 0 should sum to 1
-    REQUIRE_THAT(handler.parameters()(0, 0), WithinRel(0.25, 1e-10));
-    REQUIRE_THAT(handler.parameters()(0, 1), WithinRel(0.75, 1e-10));
+    REQUIRE_THAT(double(handler.parameters()(0, 0)), WithinRel(0.25, 1e-10));
+    REQUIRE_THAT(double(handler.parameters()(0, 1)), WithinRel(0.75, 1e-10));
 }
 ```
 
 ### Integration Tests
 
 ```cpp
-TEST_CASE("InferenceEngine round-trip with legacy", "[model][integration]") {
+TEST_CASE("LegacyEngine round-trip with Model_marginals", "[model][integration]") {
     // Load legacy model
     Model_Parms parms;
     parms.read_model_parms("test_model_parms.txt");
     Model_marginals legacy(parms);
     legacy.txt2marginals("test_marginals.txt", parms);
 
-    // Import into engine
-    InferenceEngine engine(parms);
+    // Import into engine (long double for exact match)
+    LegacyEngine engine(parms);
     engine.import_from_legacy(legacy, parms);
 
     // Export back
     Model_marginals roundtrip(parms);
     engine.export_to_legacy(roundtrip, parms);
 
-    // Compare
+    // Compare — should be exact match with long double
+    for (size_t i = 0; i < legacy.get_length(); ++i) {
+        REQUIRE(roundtrip.marginal_array_smart_p[i] ==
+                legacy.marginal_array_smart_p[i]);
+    }
+}
+
+TEST_CASE("Engine (double) round-trip within tolerance", "[model][integration]") {
+    Model_Parms parms;
+    parms.read_model_parms("test_model_parms.txt");
+    Model_marginals legacy(parms);
+    legacy.txt2marginals("test_marginals.txt", parms);
+
+    // Import into engine (double — may lose some precision)
+    Engine engine(parms);
+    engine.import_from_legacy(legacy, parms);
+
+    // Export back
+    Model_marginals roundtrip(parms);
+    engine.export_to_legacy(roundtrip, parms);
+
+    // Compare — within double precision tolerance
     for (size_t i = 0; i < legacy.get_length(); ++i) {
         REQUIRE_THAT(static_cast<double>(roundtrip.marginal_array_smart_p[i]),
                      WithinRel(static_cast<double>(legacy.marginal_array_smart_p[i]),
-                               1e-10));
+                               1e-15));
     }
 }
 ```
@@ -470,6 +517,8 @@ TEST_CASE("InferenceEngine round-trip with legacy", "[model][integration]") {
 - Zero accumulator → parameters unchanged.
 - Import/export round-trip preserves all values.
 - Event count matches `Model_Parms::get_event_list().size()`.
+- `LegacyEngine` round-trip is **exact** (no precision loss).
+- `Engine` (double) round-trip is within `1e-15` relative tolerance.
 
 ---
 
@@ -484,3 +533,4 @@ TEST_CASE("InferenceEngine round-trip with legacy", "[model][integration]") {
 *Last Updated: 10 February 2026*
 *Baseline: `develop` @ `83aa113` (via `feature/TensorLinalg`)*
 *Status: Draft — Prototype Phase*
+

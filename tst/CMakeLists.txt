@@ -30,3 +30,14 @@ if(MATH_TEST_SOURCES)
     include(Catch)
     catch_discover_tests(math_tests)
 endif()
+
+# --- Model Tests ---
+file(GLOB MODEL_TEST_SOURCES "igor/Model/*.cpp")
+
+if(MODEL_TEST_SOURCES)
+    add_executable(model_tests ${MODEL_TEST_SOURCES})
+    set_target_properties(model_tests PROPERTIES CXX_STANDARD 23)
+    target_link_libraries(model_tests PRIVATE igor::Model Catch2::Catch2WithMain)
+    include(Catch)
+    catch_discover_tests(model_tests)
+endif()
