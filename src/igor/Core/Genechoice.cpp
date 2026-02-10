@@ -37,7 +37,7 @@ Gene_choice::Gene_choice() : Gene_choice(Undefined_gene)
     this->update_event_name();
 }
 
-Gene_choice::Gene_choice(Gene_class gene)
+Gene_choice::Gene_choice(int gene)
     : Rec_Event(gene, Undefined_side),
       vd_check(true),
       vj_check(true),
@@ -101,7 +101,7 @@ Gene_choice::Gene_choice(Gene_class gene)
  * add_event_realization() instead unless you're sure about the index fields in
  * the Event_realizations instances
  */
-Gene_choice::Gene_choice(Gene_class gene, unordered_map<string, Event_realization> &realizations) : Gene_choice(gene)
+Gene_choice::Gene_choice(int gene, unordered_map<string, Event_realization> &realizations) : Gene_choice(gene)
 {
     this->event_realizations = realizations;
 
@@ -118,7 +118,7 @@ Gene_choice::Gene_choice(Gene_class gene, unordered_map<string, Event_realizatio
     this->update_event_name();
 }
 
-Gene_choice::Gene_choice(Gene_class gene, vector<pair<string, string>> genomic_sequences) : Gene_choice(gene)
+Gene_choice::Gene_choice(int gene, vector<pair<string, string>> genomic_sequences) : Gene_choice(gene)
 {
     this->type = Event_type::GeneChoice_t;
     for (vector<pair<string, string>>::const_iterator seq_it = genomic_sequences.begin();
@@ -192,7 +192,7 @@ void Gene_choice::iterate(
         const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
         shared_ptr<Next_event_ptr> &next_event_ptr_arr, Marginal_array_p &updated_marginals_pointer,
         const Marginal_array_p &model_parameters_pointer,
-        const unordered_map<Gene_class, vector<Alignment_data>> &allowed_realizations,
+        const unordered_map<int, vector<Alignment_data>> &allowed_realizations,
         Seq_type_str_p_map &constructed_sequences, Seq_offsets_map &seq_offsets, shared_ptr<Error_rate> &error_rate_p,
         map<size_t, shared_ptr<Counter>> &counters_list,
         const unordered_map<tuple<Event_type, int, Seq_side>, shared_ptr<Rec_Event>> &events_map,

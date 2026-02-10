@@ -33,7 +33,7 @@ using namespace std;
 
 Deletion::Deletion() : Deletion(Undefined_gene, Undefined_side) { }
 
-Deletion::Deletion(Gene_class gene, Seq_side side, std::pair<int, int> bounds) : Deletion(gene, side)
+Deletion::Deletion(int gene, Seq_side side, std::pair<int, int> bounds) : Deletion(gene, side)
 {
     int min_del = bounds.first;
     int max_del = bounds.second;
@@ -44,7 +44,7 @@ Deletion::Deletion(Gene_class gene, Seq_side side, std::pair<int, int> bounds) :
     }
 }
 
-Deletion::Deletion(Gene_class gene, Seq_side side)
+Deletion::Deletion(int gene, Seq_side side)
     : Rec_Event(gene, side),
       memory_layer_off_threep(-1),
       memory_layer_off_fivep(-1),
@@ -66,7 +66,7 @@ Deletion::Deletion(Gene_class gene, Seq_side side)
     this->update_event_name();
 }
 
-Deletion::Deletion(Gene_class gene, Seq_side side, unordered_map<string, Event_realization> &realizations)
+Deletion::Deletion(int gene, Seq_side side, unordered_map<string, Event_realization> &realizations)
     : Deletion(gene, side)
 {
     this->event_realizations = realizations;
@@ -115,7 +115,7 @@ void Deletion::iterate(double &scenario_proba, Downstream_scenario_proba_bound_m
                        const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
                        shared_ptr<Next_event_ptr> &next_event_ptr_arr, Marginal_array_p &updated_marginals_pointer,
                        const Marginal_array_p &model_parameters_pointer,
-                       const unordered_map<Gene_class, vector<Alignment_data>> &allowed_realizations,
+                       const unordered_map<int, vector<Alignment_data>> &allowed_realizations,
                        Seq_type_str_p_map &constructed_sequences, Seq_offsets_map &seq_offsets,
                        shared_ptr<Error_rate> &error_rate_p, map<size_t, shared_ptr<Counter>> &counters_list,
                        const unordered_map<tuple<Event_type, int, Seq_side>, shared_ptr<Rec_Event>> &events_map,

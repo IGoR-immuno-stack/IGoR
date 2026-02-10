@@ -9,13 +9,13 @@ using namespace std;
 
 Hypermutation_full_Nmer_errorrate::Hypermutation_full_Nmer_errorrate() : Error_rate() { }
 
-Hypermutation_full_Nmer_errorrate::Hypermutation_full_Nmer_errorrate(size_t n, Gene_class g1, Gene_class g2, double d,
+Hypermutation_full_Nmer_errorrate::Hypermutation_full_Nmer_errorrate(size_t n, int g1, int g2, double d,
                                                                      size_t s)
     : Error_rate()
 {
 }
 
-Hypermutation_full_Nmer_errorrate::Hypermutation_full_Nmer_errorrate(size_t n, Gene_class g1, Gene_class g2,
+Hypermutation_full_Nmer_errorrate::Hypermutation_full_Nmer_errorrate(size_t n, int g1, int g2,
                                                                      std::vector<double> v, size_t s)
     : Error_rate()
 {

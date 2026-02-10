@@ -669,7 +669,7 @@ protected:
 typedef Enum_fast_memory_dual_key_map<int, Seq_side, Seq_Offset> Seq_offsets_map;
 
 /*
- * Defining a hash functions for Rec_Event, Gene_class and pair<Gene_class,Seq_side>
+ * Defining a hash functions for Rec_Event, int and pair<Gene_class,Seq_side>
  */
 namespace std {
 /*
@@ -712,7 +712,7 @@ struct hash<std::pair<Gene_class, Seq_side>>
 {
     std::size_t operator()(const pair<Gene_class, Seq_side> &gene_pair) const
     {
-        return (hash<Gene_class>()(gene_pair.first) ^ (hash<int>()(gene_pair.second) << 1)) >> 1;
+        return (hash<int>()(gene_pair.first) ^ (hash<int>()(gene_pair.second) << 1)) >> 1;
     }
 };
 
@@ -722,7 +722,7 @@ struct hash<std::tuple<Event_type, Gene_class, Seq_side>>
     std::size_t operator()(const std::tuple<Event_type, Gene_class, Seq_side> &event_triplet) const
     {
         Event_type ev_type;
-        Gene_class g_class;
+        int g_class;
         Seq_side s_side;
         std::tie(ev_type, g_class, s_side) = event_triplet;
         return ((hash<int>()(ev_type) ^ (hash<int>()(g_class) << 1) >> 1) ^ (hash<int>()(s_side) << 1));

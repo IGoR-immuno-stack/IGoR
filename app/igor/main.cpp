@@ -912,7 +912,7 @@ int main(int argc, char *argv[])
                             new Best_scenarios_counter(n_record_scenarios, cl_path + "output/", true));
                     cl_counters_list.emplace(cl_counters_list.size(), best_sc_ptr);
                 } else if (string(argv[carg_i]) == "--coverage") {
-                    Gene_class chosen_gc;
+                    int chosen_gc;
                     ++carg_i;
                     try {
                         chosen_gc = str2GeneClass(string(argv[carg_i]));
@@ -1694,7 +1694,7 @@ int main(int argc, char *argv[])
 
         //Read alignments
         //vector<pair<const int, const string>> indexed_seqlist = read_indexed_csv(path+ string(argv[2]) + string("indexed_seq.csv"));
-        unordered_map<int, pair<string, unordered_map<Gene_class, vector<Alignment_data>>>> sorted_alignments =
+        unordered_map<int, pair<string, unordered_map<int, vector<Alignment_data>>>> sorted_alignments =
                 read_alignments_seq_csv_score_range(string(cl_path + "/murugan_naive1_noncoding_demo_seqs")
                                                             + string("_alignments_V.csv"),
                                                     V_gene, 55, false, indexed_seqlist); //40//35
@@ -1705,7 +1705,7 @@ int main(int argc, char *argv[])
                 string(cl_path + "/murugan_naive1_noncoding_demo_seqs") + string("_alignments_J.csv"), J_gene, 10,
                 false, indexed_seqlist, sorted_alignments); //30//20
 
-        vector<tuple<int, string, unordered_map<Gene_class, vector<Alignment_data>>>> sorted_alignments_vec =
+        vector<tuple<int, string, unordered_map<int, vector<Alignment_data>>>> sorted_alignments_vec =
                 map2vect(sorted_alignments);
 
         //Infer the model
@@ -2017,7 +2017,7 @@ int main(int argc, char *argv[])
 
             //Get CDR3 from alignments.
             if (b_feature_CDR3) {
-                unordered_map<int, pair<string, unordered_map<Gene_class, vector<Alignment_data>>>> sorted_alignments;
+                unordered_map<int, pair<string, unordered_map<int, vector<Alignment_data>>>> sorted_alignments;
                 // If alignments files are not found CDR3 will not be extracted.
                 try {
                     sorted_alignments = read_alignments_seq_csv_score_range(
@@ -2094,7 +2094,7 @@ int main(int argc, char *argv[])
                             "Exception caught trying to subsample indexed sequences before inference/evaluation:", e);
                 }
             }
-            unordered_map<int, pair<string, unordered_map<Gene_class, vector<Alignment_data>>>> sorted_alignments;
+            unordered_map<int, pair<string, unordered_map<int, vector<Alignment_data>>>> sorted_alignments;
             try {
                 sorted_alignments = read_alignments_seq_csv_score_range(
                         cl_path + "aligns/" + batchname + v_align_filename, V_gene, 55, false, indexed_seqlist);
@@ -2131,7 +2131,7 @@ int main(int argc, char *argv[])
                         e);
             }
 
-            vector<tuple<int, string, unordered_map<Gene_class, vector<Alignment_data>>>> sorted_alignments_vec =
+            vector<tuple<int, string, unordered_map<int, vector<Alignment_data>>>> sorted_alignments_vec =
                     map2vect(sorted_alignments);
 
             //create the output directory

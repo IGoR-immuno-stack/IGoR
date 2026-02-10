@@ -30,7 +30,7 @@
 using namespace std;
 
 /////Utilitaries
-ostream &operator<<(ostream &os, Gene_class gc)
+ostream &operator<<(ostream &os, int gc)
 {
     switch (gc) {
     case V_gene:
@@ -68,7 +68,7 @@ ostream &operator<<(ostream &os, Gene_class gc)
         break;
 
     default:
-        throw invalid_argument("Unknown Gene_class in operator<< ");
+        throw invalid_argument("Unknown int in operator<< ");
     }
     return os;
 }
@@ -92,7 +92,7 @@ ostream &operator<<(ostream &os, Seq_side ss)
     return os;
 }
 
-string operator+(const string &str, Gene_class gc)
+string operator+(const string &str, int gc)
 {
     string next_str;
     switch (gc) {
@@ -171,7 +171,7 @@ string operator+(const string &str, Event_type et)
 }
 
 /**
- * \brief Creates a Gene_class object from a string.
+ * \brief Creates a int object from a string.
  * \author Q.Marcou
  * \version 1.0.0
  */
@@ -201,7 +201,7 @@ Gene_class str2GeneClass(const string &str)
     } else if (str == "D2J_genes") {
         gene_class = D2J_genes;
     } else {
-        throw runtime_error("Unknown Gene_class in str2GeneClass: " + str);
+        throw runtime_error("Unknown int in str2GeneClass: " + str);
     }
     return gene_class;
 }

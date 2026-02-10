@@ -33,7 +33,7 @@ using namespace std;
 // ofstream debug_stream("/tmp/debug_stream.csv");
 
 /*Hypermutation_global_errorrate::Hypermutation_global_errorrate(size_t
-   nmer_width , Gene_class learn , Gene_class apply , double
+   nmer_width , int learn , int apply , double
    starting_flat_value): Error_rate() , mutation_Nmer_size(nmer_width) ,
    learn_on(learn) , apply_to(apply) , ei_nucleotide_contributions((new double
    [4*nmer_width])) , R(starting_flat_value) , n_v_real(0) , n_j_real(0) ,
@@ -57,7 +57,7 @@ using namespace std;
    scenario_new_proba(-1) , largest_nuc_adress(-1), tmp_int_nt(-1) ,
    Nmer_index(-1){*/
 
-Hypermutation_global_errorrate::Hypermutation_global_errorrate(size_t nmer_width, Gene_class learn, Gene_class apply,
+Hypermutation_global_errorrate::Hypermutation_global_errorrate(size_t nmer_width, int learn, int apply,
                                                                double starting_flat_value)
     : Error_rate(),
       mutation_Nmer_size(nmer_width),
@@ -182,7 +182,7 @@ Hypermutation_global_errorrate::Hypermutation_global_errorrate(size_t nmer_width
     output_Nmer_stat = false;
 }
 
-Hypermutation_global_errorrate::Hypermutation_global_errorrate(size_t nmer_width, Gene_class learn, Gene_class apply,
+Hypermutation_global_errorrate::Hypermutation_global_errorrate(size_t nmer_width, int learn, int apply,
                                                                double starting_flat_value,
                                                                vector<double> ei_contributions)
     : Hypermutation_global_errorrate(nmer_width, learn, apply, starting_flat_value)
@@ -193,21 +193,21 @@ Hypermutation_global_errorrate::Hypermutation_global_errorrate(size_t nmer_width
         }
     } else {
         throw runtime_error("Size of ei contribution vector does not match the expected size in "
-                            "Hypermutation_global_errorrate(size_t,Gene_class,Gene_class,double,"
+                            "Hypermutation_global_errorrate(size_t,int,int,double,"
                             "std::vector<double>)");
     }
 
     this->update_Nmers_proba(0, 0, 1);
 }
 
-Hypermutation_global_errorrate::Hypermutation_global_errorrate(size_t nmer_width, Gene_class learn, Gene_class apply,
+Hypermutation_global_errorrate::Hypermutation_global_errorrate(size_t nmer_width, int learn, int apply,
                                                                double starting_flat_value, string filename)
     : Hypermutation_global_errorrate(nmer_width, learn, apply, starting_flat_value)
 {
     this->set_output_Nmer_stream(filename);
 }
 
-Hypermutation_global_errorrate::Hypermutation_global_errorrate(size_t nmer_width, Gene_class learn, Gene_class apply,
+Hypermutation_global_errorrate::Hypermutation_global_errorrate(size_t nmer_width, int learn, int apply,
                                                                double starting_flat_value,
                                                                vector<double> ei_contributions, string filename)
     : Hypermutation_global_errorrate(nmer_width, learn, apply, starting_flat_value, ei_contributions)
@@ -1570,32 +1570,32 @@ void Hypermutation_global_errorrate::initialize(
     // FIXME look for previous initialization to avoid memory leak
 
     // Initialize booleans for constructed sequences
-    if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, V_gene, Undefined_side)) > 0) {
+    if (events_map.count(tuple<Event_type, int, Seq_side>(GeneChoice_t, V_gene, Undefined_side)) > 0) {
         v_gene = true;
     } else {
         v_gene = false;
     }
-    if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, D_gene, Undefined_side)) > 0) {
+    if (events_map.count(tuple<Event_type, int, Seq_side>(GeneChoice_t, D_gene, Undefined_side)) > 0) {
         d_gene = true;
     } else {
         d_gene = false;
     }
-    if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, J_gene, Undefined_side)) > 0) {
+    if (events_map.count(tuple<Event_type, int, Seq_side>(GeneChoice_t, J_gene, Undefined_side)) > 0) {
         j_gene = true;
     } else {
         j_gene = false;
     }
-    if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(Insertion_t, VJ_genes, Undefined_side)) > 0) {
+    if (events_map.count(tuple<Event_type, int, Seq_side>(Insertion_t, VJ_genes, Undefined_side)) > 0) {
         vj_ins = true;
     } else {
         vj_ins = false;
     }
-    if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(Insertion_t, VD_genes, Undefined_side)) > 0) {
+    if (events_map.count(tuple<Event_type, int, Seq_side>(Insertion_t, VD_genes, Undefined_side)) > 0) {
         vd_ins = true;
     } else {
         vd_ins = false;
     }
-    if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(Insertion_t, DJ_genes, Undefined_side)) > 0) {
+    if (events_map.count(tuple<Event_type, int, Seq_side>(Insertion_t, DJ_genes, Undefined_side)) > 0) {
         dj_ins = true;
     } else {
         dj_ins = false;

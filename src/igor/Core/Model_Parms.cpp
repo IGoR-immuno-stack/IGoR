@@ -693,7 +693,7 @@ void Model_Parms::read_model_parms(string filename)
             string event = line_str.substr(1, semicolon_index - 1);
             size_t next_semicolon_index = line_str.find(";", semicolon_index + 1);
             string event_class_str = line_str.substr(semicolon_index + 1, (next_semicolon_index - semicolon_index - 1));
-            Gene_class event_class;
+            int event_class;
             try {
                 event_class = str2GeneClass(event_class_str);
             } catch (exception &e) {
@@ -862,7 +862,7 @@ void Model_Parms::read_model_parms(string filename)
                     stoi(line_str.substr(semicolon_index + 1, (next_semicolon_index - semicolon_index - 1)));
             semicolon_index = next_semicolon_index;
             next_semicolon_index = line_str.find(";", semicolon_index + 1);
-            Gene_class learn_on;
+            int learn_on;
             try {
                 learn_on = str2GeneClass(
                         line_str.substr(semicolon_index + 1, (next_semicolon_index - semicolon_index - 1)));
@@ -873,7 +873,7 @@ void Model_Parms::read_model_parms(string filename)
             }
             semicolon_index = next_semicolon_index;
             next_semicolon_index = line_str.find(";", semicolon_index + 1);
-            Gene_class apply_on;
+            int apply_on;
             try {
                 apply_on = str2GeneClass(
                         line_str.substr(semicolon_index + 1, (next_semicolon_index - semicolon_index - 1)));
@@ -914,7 +914,7 @@ void Model_Parms::read_model_parms(string filename)
                     stoi(line_str.substr(semicolon_index + 1, (next_semicolon_index - semicolon_index - 1)));
             semicolon_index = next_semicolon_index;
             next_semicolon_index = line_str.find(";", semicolon_index + 1);
-            Gene_class learn_on;
+            int learn_on;
             try {
                 learn_on = str2GeneClass(
                         line_str.substr(semicolon_index + 1, (next_semicolon_index - semicolon_index - 1)));
@@ -925,7 +925,7 @@ void Model_Parms::read_model_parms(string filename)
             }
             semicolon_index = next_semicolon_index;
             next_semicolon_index = line_str.find(";", semicolon_index + 1);
-            Gene_class apply_on;
+            int apply_on;
             try {
                 apply_on = str2GeneClass(
                         line_str.substr(semicolon_index + 1, (next_semicolon_index - semicolon_index - 1)));

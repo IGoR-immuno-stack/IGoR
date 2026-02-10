@@ -38,7 +38,7 @@ Aligner::Aligner()
  * @gap_pen : sets the gap penalty (the gap penalty is linear)
  * @gene : Gene class of the gene aligned. V gene allows for deletions on the 3' side of the genomic template, J gene on the 5' , D gene and undefined allow deletion on both sides
  */
-Aligner::Aligner(Matrix<double> sub_mat, int gap_pen, Gene_class gene)
+Aligner::Aligner(Matrix<double> sub_mat, int gap_pen, int gene)
     : substitution_matrix(sub_mat), gap_penalty(gap_pen), gene(gene)
 {
     switch (gene) {
@@ -901,20 +901,20 @@ unordered_map<int, vector<Alignment_data>> read_alignments_seq_csv(const string 
     return indexed_alignments;
 }
 
-unordered_map<int, pair<string, unordered_map<Gene_class, vector<Alignment_data>>>>
-read_alignments_seq_csv(const string &filename, Gene_class aligned_gene, double score_threshold, bool allow_in_dels,
+unordered_map<int, pair<string, unordered_map<int, vector<Alignment_data>>>>
+read_alignments_seq_csv(const string &filename, int aligned_gene, double score_threshold, bool allow_in_dels,
                         const vector<pair<const int, const string>> &indexed_sequences)
 {
-    unordered_map<int, pair<string, unordered_map<Gene_class, vector<Alignment_data>>>> sorted_alignments;
+    unordered_map<int, pair<string, unordered_map<int, vector<Alignment_data>>>> sorted_alignments;
     sorted_alignments = read_alignments_seq_csv(filename, aligned_gene, score_threshold, allow_in_dels,
                                                 indexed_sequences, sorted_alignments);
     return sorted_alignments;
 }
 
-unordered_map<int, pair<string, unordered_map<Gene_class, vector<Alignment_data>>>> read_alignments_seq_csv(
-        const string &filename, Gene_class aligned_gene, double score_threshold, bool allow_in_dels,
+unordered_map<int, pair<string, unordered_map<int, vector<Alignment_data>>>> read_alignments_seq_csv(
+        const string &filename, int aligned_gene, double score_threshold, bool allow_in_dels,
         const vector<pair<const int, const string>> &indexed_sequences,
-        unordered_map<int, pair<string, unordered_map<Gene_class, vector<Alignment_data>>>> sorted_alignments)
+        unordered_map<int, pair<string, unordered_map<int, vector<Alignment_data>>>> sorted_alignments)
 {
     unordered_map<int, vector<Alignment_data>> alignments =
             read_alignments_seq_csv(filename, score_threshold, allow_in_dels);
@@ -927,20 +927,20 @@ unordered_map<int, pair<string, unordered_map<Gene_class, vector<Alignment_data>
     return sorted_alignments;
 }
 
-unordered_map<int, pair<string, unordered_map<Gene_class, vector<Alignment_data>>>>
-read_alignments_seq_csv_score_range(const string &filename, Gene_class aligned_gene, double score_range,
+unordered_map<int, pair<string, unordered_map<int, vector<Alignment_data>>>>
+read_alignments_seq_csv_score_range(const string &filename, int aligned_gene, double score_range,
                                     bool allow_in_dels, const vector<pair<const int, const string>> &indexed_sequences)
 {
-    unordered_map<int, pair<string, unordered_map<Gene_class, vector<Alignment_data>>>> sorted_alignments;
+    unordered_map<int, pair<string, unordered_map<int, vector<Alignment_data>>>> sorted_alignments;
     sorted_alignments = read_alignments_seq_csv_score_range(filename, aligned_gene, score_range, allow_in_dels,
                                                             indexed_sequences, sorted_alignments);
     return sorted_alignments;
 }
 
-unordered_map<int, pair<string, unordered_map<Gene_class, vector<Alignment_data>>>> read_alignments_seq_csv_score_range(
-        const string &filename, Gene_class aligned_gene, double score_range, bool allow_in_dels,
+unordered_map<int, pair<string, unordered_map<int, vector<Alignment_data>>>> read_alignments_seq_csv_score_range(
+        const string &filename, int aligned_gene, double score_range, bool allow_in_dels,
         const vector<pair<const int, const string>> &indexed_sequences,
-        unordered_map<int, pair<string, unordered_map<Gene_class, vector<Alignment_data>>>> sorted_alignments)
+        unordered_map<int, pair<string, unordered_map<int, vector<Alignment_data>>>> sorted_alignments)
 {
     unordered_map<int, vector<Alignment_data>> alignments = read_alignments_seq_csv(filename, 0, allow_in_dels);
     for (vector<pair<const int, const string>>::const_iterator seq_it = indexed_sequences.begin();
@@ -969,11 +969,11 @@ unordered_map<int, pair<string, unordered_map<Gene_class, vector<Alignment_data>
     return sorted_alignments;
 }
 
-vector<tuple<int, string, unordered_map<Gene_class, vector<Alignment_data>>>>
-map2vect(unordered_map<int, pair<string, unordered_map<Gene_class, vector<Alignment_data>>>> alignments_map)
+vector<tuple<int, string, unordered_map<int, vector<Alignment_data>>>>
+map2vect(unordered_map<int, pair<string, unordered_map<int, vector<Alignment_data>>>> alignments_map)
 {
-    vector<tuple<int, string, unordered_map<Gene_class, vector<Alignment_data>>>> alignmets_vect;
-    for (unordered_map<int, pair<string, unordered_map<Gene_class, vector<Alignment_data>>>>::const_iterator seq_it =
+    vector<tuple<int, string, unordered_map<int, vector<Alignment_data>>>> alignmets_vect;
+    for (unordered_map<int, pair<string, unordered_map<int, vector<Alignment_data>>>>::const_iterator seq_it =
                  alignments_map.begin();
          seq_it != alignments_map.end(); ++seq_it) {
         alignmets_vect.emplace_back((*seq_it).first, (*seq_it).second.first, (*seq_it).second.second);

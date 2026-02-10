@@ -55,7 +55,7 @@ GenModel::~GenModel()
 }
 
 bool GenModel::infer_model(
-        const vector<tuple<int, string, unordered_map<Gene_class, vector<Alignment_data>>>> &sequences,
+        const vector<tuple<int, string, unordered_map<int, vector<Alignment_data>>>> &sequences,
         const int iterations, const std::string path, bool fast_iter, double likelihood_threshold /*=1e-25*/,
         bool viterbi_like /*false*/)
 {
@@ -64,7 +64,7 @@ bool GenModel::infer_model(
 }
 
 bool GenModel::infer_model(
-        const vector<tuple<int, string, unordered_map<Gene_class, vector<Alignment_data>>>> &sequences,
+        const vector<tuple<int, string, unordered_map<int, vector<Alignment_data>>>> &sequences,
         const int iterations, const std::string path, bool fast_iter, double likelihood_threshold,
         double proba_threshold_factor)
 {
@@ -73,7 +73,7 @@ bool GenModel::infer_model(
 }
 
 bool GenModel::infer_model(
-        const vector<tuple<int, string, unordered_map<Gene_class, vector<Alignment_data>>>> &sequences,
+        const vector<tuple<int, string, unordered_map<int, vector<Alignment_data>>>> &sequences,
         const int iterations, const string path, bool fast_iter /*=true*/,
         double likelihood_threshold /*=1e-25 by default*/, bool viterbi_like /*=false*/,
         double proba_threshold_factor /*=0.001 by default*/,
@@ -189,16 +189,16 @@ bool GenModel::infer_model(
         // Initialize counters for the log file
         size_t sequences_processed = 0;
 
-        const vector<tuple<int, string, unordered_map<Gene_class, vector<Alignment_data>>>> *sequence_util_ptr;
+        const vector<tuple<int, string, unordered_map<int, vector<Alignment_data>>>> *sequence_util_ptr;
 
         // Take only best alignments if fast_iter
-        vector<tuple<int, string, unordered_map<Gene_class, vector<Alignment_data>>>> fast_iter_sequences;
+        vector<tuple<int, string, unordered_map<int, vector<Alignment_data>>>> fast_iter_sequences;
         if (fast_iter && iteration_accomplished == 0 && !sequences.empty()) {
             fast_iter_sequences = sequences;
-            for (unordered_map<Gene_class, vector<Alignment_data>>::const_iterator gc_align_iter =
+            for (unordered_map<int, vector<Alignment_data>>::const_iterator gc_align_iter =
                          std::get<2>(sequences.at(0)).begin();
                  gc_align_iter != std::get<2>(sequences.at(0)).end(); ++gc_align_iter) {
-                if ((*gc_align_iter).first == D_gene)
+                if ((*gc_align_iter).first == (int)D_gene)
                     continue;
                 fast_iter_sequences = get_best_aligns(fast_iter_sequences, (*gc_align_iter).first);
             }
@@ -482,11 +482,11 @@ bool GenModel::infer_model(
     return 0;
 }
 
-vector<tuple<int, string, unordered_map<Gene_class, vector<Alignment_data>>>>
-get_best_aligns(const vector<tuple<int, string, unordered_map<Gene_class, vector<Alignment_data>>>> &sequences,
-                Gene_class gc)
+vector<tuple<int, string, unordered_map<int, vector<Alignment_data>>>>
+get_best_aligns(const vector<tuple<int, string, unordered_map<int, vector<Alignment_data>>>> &sequences,
+                int gc)
 {
-    vector<tuple<int, string, unordered_map<Gene_class, vector<Alignment_data>>>> best_aligns = sequences;
+    vector<tuple<int, string, unordered_map<int, vector<Alignment_data>>>> best_aligns = sequences;
     for (auto &seq : best_aligns) {
         auto &align_map = get<2>(seq);
         if (align_map.count(gc) > 0 && !align_map.at(gc).empty()) {

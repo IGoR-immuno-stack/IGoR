@@ -18,11 +18,11 @@ class CORE_EXPORT Insertion : public Rec_Event
 {
 public:
     Insertion();
-    Insertion(Gene_class);
-    Insertion(Gene_class, std::pair<int, int>); // bounds for insertion lengths
-    Insertion(Gene_class, std::unordered_map<std::string, Event_realization> &);
-    Insertion(Gene_class, Seq_side);
-    Insertion(Gene_class, Seq_side, std::unordered_map<std::string, Event_realization> &);
+    Insertion(int);
+    Insertion(int, std::pair<int, int>); // bounds for insertion lengths
+    Insertion(int, std::unordered_map<std::string, Event_realization> &);
+    Insertion(int, Seq_side);
+    Insertion(int, Seq_side, std::unordered_map<std::string, Event_realization> &);
 
     virtual ~Insertion();
 
@@ -32,7 +32,7 @@ public:
     iterate(double &, Downstream_scenario_proba_bound_map &, const std::string &, const Int_Str &, Index_map &,
             const std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &,
             std::shared_ptr<Next_event_ptr> &, Marginal_array_p &, const Marginal_array_p &,
-            const std::unordered_map<Gene_class, std::vector<Alignment_data>> &, Seq_type_str_p_map &,
+            const std::unordered_map<int, std::vector<Alignment_data>> &, Seq_type_str_p_map &,
             Seq_offsets_map &, std::shared_ptr<Error_rate> &, std::map<size_t, std::shared_ptr<Counter>> &,
             const std::unordered_map<std::tuple<Event_type, int, Seq_side>, std::shared_ptr<Rec_Event>> &,
             Safety_bool_map &, Mismatch_vectors_map &, double &, double &) override;

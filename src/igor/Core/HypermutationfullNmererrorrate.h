@@ -12,8 +12,8 @@ class CORE_EXPORT Hypermutation_full_Nmer_errorrate : public Error_rate
 {
 public:
     Hypermutation_full_Nmer_errorrate();
-    Hypermutation_full_Nmer_errorrate(size_t, Gene_class, Gene_class, double, size_t = 0);
-    Hypermutation_full_Nmer_errorrate(size_t, Gene_class, Gene_class, std::vector<double>, size_t = 0);
+    Hypermutation_full_Nmer_errorrate(size_t, int, int, double, size_t = 0);
+    Hypermutation_full_Nmer_errorrate(size_t, int, int, std::vector<double>, size_t = 0);
     Hypermutation_full_Nmer_errorrate(std::unordered_map<int, Matrix<double>> rates_map);
     virtual ~Hypermutation_full_Nmer_errorrate();
 

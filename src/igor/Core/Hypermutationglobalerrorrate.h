@@ -58,10 +58,10 @@ class CORE_EXPORT Hypermutation_global_errorrate : public Error_rate
 {
 
 public:
-    Hypermutation_global_errorrate(size_t, Gene_class, Gene_class, double);
-    Hypermutation_global_errorrate(size_t, Gene_class, Gene_class, double, std::vector<double>);
-    Hypermutation_global_errorrate(size_t, Gene_class, Gene_class, double, std::string);
-    Hypermutation_global_errorrate(size_t, Gene_class, Gene_class, double, std::vector<double>, std::string);
+    Hypermutation_global_errorrate(size_t, int, int, double);
+    Hypermutation_global_errorrate(size_t, int, int, double, std::vector<double>);
+    Hypermutation_global_errorrate(size_t, int, int, double, std::string);
+    Hypermutation_global_errorrate(size_t, int, int, double, std::vector<double>, std::string);
     // Hypermutation_global_errorrate(size_t,Gene_class,Gene_class, ??);
     // Constructor to read or copy the error rate
     virtual ~Hypermutation_global_errorrate();
@@ -95,8 +95,8 @@ private:
 
     void introduce_uniform_transversion(char &, std::mt19937_64 &, std::uniform_real_distribution<double> &) const;
 
-    Gene_class learn_on;
-    Gene_class apply_to;
+    int learn_on;
+    int apply_to;
     size_t mutation_Nmer_size;
     // std::unique_ptr<double[]> ei_nucleotide_contributions;
     double *ei_nucleotide_contributions;

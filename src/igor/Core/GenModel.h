@@ -152,19 +152,19 @@ public:
     virtual ~GenModel();
 
     bool infer_model(
-            const std::vector<std::tuple<int, std::string, std::unordered_map<Gene_class, std::vector<Alignment_data>>>>
+            const std::vector<std::tuple<int, std::string, std::unordered_map<int, std::vector<Alignment_data>>>>
                     &sequences,
             const int iterations, const std::string path, bool fast_iter, double likelihood_threshold = 1e-25,
             bool viterbi_like = false);
 
     bool infer_model(
-            const std::vector<std::tuple<int, std::string, std::unordered_map<Gene_class, std::vector<Alignment_data>>>>
+            const std::vector<std::tuple<int, std::string, std::unordered_map<int, std::vector<Alignment_data>>>>
                     &sequences,
             const int iterations, const std::string path, bool fast_iter, double likelihood_threshold,
             double proba_threshold_factor);
 
     bool infer_model(
-            const std::vector<std::tuple<int, std::string, std::unordered_map<Gene_class, std::vector<Alignment_data>>>>
+            const std::vector<std::tuple<int, std::string, std::unordered_map<int, std::vector<Alignment_data>>>>
                     &sequences,
             const int iterations, const std::string path, bool fast_iter, double likelihood_threshold,
             bool viterbi_like, double proba_threshold_factor, double mean_number_seq_err_thresh = INFINITY);
@@ -192,9 +192,9 @@ private:
             std::mt19937_64 &, bool = true);
 };
 
-CORE_EXPORT std::vector<std::tuple<int, std::string, std::unordered_map<Gene_class, std::vector<Alignment_data>>>> get_best_aligns(
-        const std::vector<std::tuple<int, std::string, std::unordered_map<Gene_class, std::vector<Alignment_data>>>> &,
-        Gene_class);
+CORE_EXPORT std::vector<std::tuple<int, std::string, std::unordered_map<int, std::vector<Alignment_data>>>> get_best_aligns(
+        const std::vector<std::tuple<int, std::string, std::unordered_map<int, std::vector<Alignment_data>>>> &,
+        int);
 
 CORE_EXPORT void output_CDR3_gen_data(size_t, std::pair<std::string, std::queue<std::queue<int>>> seq_and_real,
                           std::shared_ptr<void> func_data);

@@ -27,22 +27,22 @@
 
 using namespace std;
 
-Coverage_err_counter::Coverage_err_counter(Gene_class count_on)
+Coverage_err_counter::Coverage_err_counter(int count_on)
     : Coverage_err_counter("/tmp/", count_on, 1, false, false)
 {
 }
 
-Coverage_err_counter::Coverage_err_counter(Gene_class count_on, bool dump_all_seq, bool last_iter_only)
+Coverage_err_counter::Coverage_err_counter(int count_on, bool dump_all_seq, bool last_iter_only)
     : Coverage_err_counter("/tmp/", count_on, 1, dump_all_seq, last_iter_only)
 {
 }
 
-Coverage_err_counter::Coverage_err_counter(string path, Gene_class count_on, bool dump_all_seq)
+Coverage_err_counter::Coverage_err_counter(string path, int count_on, bool dump_all_seq)
     : Coverage_err_counter(path, count_on, 1, dump_all_seq, false)
 {
 }
 
-Coverage_err_counter::Coverage_err_counter(string path, Gene_class count_on, size_t Npoint_count, bool dump_all_seq,
+Coverage_err_counter::Coverage_err_counter(string path, int count_on, size_t Npoint_count, bool dump_all_seq,
                                            bool last_iter_only)
     : Counter(path, last_iter_only),
       count_on(count_on),

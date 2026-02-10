@@ -41,10 +41,10 @@
 class CORE_EXPORT Coverage_err_counter : public Counter
 {
 public:
-    Coverage_err_counter(Gene_class);
-    Coverage_err_counter(Gene_class, bool, bool);
-    Coverage_err_counter(std::string, Gene_class, bool);
-    Coverage_err_counter(std::string, Gene_class, size_t, bool, bool);
+    Coverage_err_counter(int);
+    Coverage_err_counter(int, bool, bool);
+    Coverage_err_counter(std::string, int, bool);
+    Coverage_err_counter(std::string, int, size_t, bool, bool);
     virtual ~Coverage_err_counter();
 
     std::string type() const { return "CoverageErrCounter"; }; //TODO return an enum
@@ -88,7 +88,7 @@ private:
     std::shared_ptr<std::ofstream> output_cov_err_d_file_ptr;
     std::shared_ptr<std::ofstream> output_cov_err_j_file_ptr;
 
-    Gene_class count_on;
+    int count_on;
     bool dump_individual_seqs;
     size_t record_Npoint_occurence;
     size_t *positions = nullptr;

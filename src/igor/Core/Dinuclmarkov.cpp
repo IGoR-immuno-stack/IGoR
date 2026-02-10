@@ -33,9 +33,9 @@ using namespace std;
 
 Dinucl_markov::Dinucl_markov() : Dinucl_markov(Undefined_gene, Undefined_side) { }
 
-Dinucl_markov::Dinucl_markov(Gene_class gene) : Dinucl_markov(gene, Undefined_side) { }
+Dinucl_markov::Dinucl_markov(int gene) : Dinucl_markov(gene, Undefined_side) { }
 
-Dinucl_markov::Dinucl_markov(Gene_class gene, Seq_side side)
+Dinucl_markov::Dinucl_markov(int gene, Seq_side side)
     : Rec_Event(gene, side),
       memory_layer_off_threep(-1),
       memory_layer_off_fivep(-1),
@@ -49,7 +49,7 @@ Dinucl_markov::Dinucl_markov(Gene_class gene, Seq_side side)
     this->update_event_name();
 }
 
-Dinucl_markov::Dinucl_markov(Gene_class gene, Seq_side side, unordered_map<string, Event_realization> &realizations)
+Dinucl_markov::Dinucl_markov(int gene, Seq_side side, unordered_map<string, Event_realization> &realizations)
     : Dinucl_markov(gene, side)
 {
     this->event_realizations = realizations;
@@ -85,7 +85,7 @@ void Dinucl_markov::iterate(
         const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
         shared_ptr<Next_event_ptr> &next_event_ptr_arr, Marginal_array_p &updated_marginals_pointer,
         const Marginal_array_p &model_parameters_pointer,
-        const unordered_map<Gene_class, vector<Alignment_data>> &allowed_realizations,
+        const unordered_map<int, vector<Alignment_data>> &allowed_realizations,
         Seq_type_str_p_map &constructed_sequences, Seq_offsets_map &seq_offsets, shared_ptr<Error_rate> &error_rate_p,
         map<size_t, shared_ptr<Counter>> &counters_list,
         const unordered_map<tuple<Event_type, int, Seq_side>, shared_ptr<Rec_Event>> &events_map,

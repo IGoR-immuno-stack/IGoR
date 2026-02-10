@@ -53,7 +53,7 @@ public:
     unordered_map<string, size_t> UMap_v_CDR3_anchors;
     unordered_map<string, size_t> UMap_j_CDR3_anchors;
     //    vector<pair<const int, const string>> *p_indexed_seqlist;
-    unordered_map<int, pair<string, unordered_map<Gene_class, vector<Alignment_data>>>> *p_sorted_alignments;
+    unordered_map<int, pair<string, unordered_map<int, vector<Alignment_data>>>> *p_sorted_alignments;
 
     void load_VJgenomicTemplates(vector<pair<string, string>> v_genomic, vector<pair<string, string>> j_genomic);
     void load_VJanchors(string flnV_CDR3_anchors, string flnJ_CDR3_anchors);
@@ -65,7 +65,7 @@ public:
 
     //    void set_indexed_seqlist(vector<pair<const int, const string>>* pointer);
     void
-    set_sorted_alignments(unordered_map<int, pair<string, unordered_map<Gene_class, vector<Alignment_data>>>> *pointer);
+    set_sorted_alignments(unordered_map<int, pair<string, unordered_map<int, vector<Alignment_data>>>> *pointer);
 
     CDR3SeqData extractCDR3(int seq_index);
     int getVAnchor4Seq(string seq_str, Alignment_data v_alig);

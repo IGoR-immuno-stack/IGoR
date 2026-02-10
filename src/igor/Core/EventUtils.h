@@ -23,7 +23,7 @@ struct GeneChoiceStatus
 };
 
 GeneChoiceStatus check_gene_choice(
-        Gene_class gene,
+        int gene,
         const std::unordered_map<std::tuple<Event_type, int, Seq_side>, std::shared_ptr<Rec_Event>> &events_map,
         const std::unordered_set<Rec_Event_name> &processed_events);
 

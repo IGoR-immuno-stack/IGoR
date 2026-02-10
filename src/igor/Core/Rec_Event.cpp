@@ -33,7 +33,7 @@ using namespace std;
 // std::ofstream
 // log_file(std::string("/media/quentin/419a9e2c-2635-471b-baa0-58a693d04d87/data/tcr_murugan/one_seq_comp/logs.txt"));
 
-Rec_Event::Rec_Event(Gene_class gene, Seq_side side)
+Rec_Event::Rec_Event(int gene, Seq_side side)
     : priority(0),
       event_class(gene),
       event_side(side),
@@ -53,7 +53,7 @@ Rec_Event::Rec_Event(Gene_class gene, Seq_side side)
 {
 } // FIXME why does this exist? anyway fix initilization
 
-Rec_Event::Rec_Event(Gene_class gene, Seq_side side, unordered_map<string, Event_realization> &realizations)
+Rec_Event::Rec_Event(int gene, Seq_side side, unordered_map<string, Event_realization> &realizations)
     : Rec_Event(gene, side)
 {
     this->event_realizations = realizations;
@@ -105,7 +105,7 @@ bool Rec_Event::operator==(const Rec_Event &other) const
 
 void Rec_Event::update_event_name()
 {
-    this->name = string() + this->type + string("_") + this->event_class + string("_") + this->event_side
+    this->name = string() + this->type + string("_") + to_string((Gene_class)this->event_class) + string("_") + this->event_side
             + string("_prio") + to_string(priority);
 }
 
@@ -155,7 +155,7 @@ void Rec_Event::iterate_wrap_up(
                 &offset_map,
         std::shared_ptr<Next_event_ptr> &next_event_ptr_arr, Marginal_array_p &updated_marginal_array_p,
         const Marginal_array_p &model_parameters_point,
-        const std::unordered_map<Gene_class, std::vector<Alignment_data>> &allowed_realizations,
+        const std::unordered_map<int, std::vector<Alignment_data>> &allowed_realizations,
         Seq_type_str_p_map &constructed_sequences, Seq_offsets_map &seq_offsets,
         std::shared_ptr<Error_rate> &error_rate_p, map<size_t, shared_ptr<Counter>> &counters_list,
         const std::unordered_map<std::tuple<Event_type, int, Seq_side>, std::shared_ptr<Rec_Event>> &events_map,

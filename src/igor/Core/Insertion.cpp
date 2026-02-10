@@ -32,7 +32,7 @@ using namespace std;
 
 Insertion::Insertion() : Insertion(Undefined_gene, Undefined_side) { }
 
-Insertion::Insertion(Gene_class gene, std::pair<int, int> bounds) : Insertion(gene, Undefined_side)
+Insertion::Insertion(int gene, std::pair<int, int> bounds) : Insertion(gene, Undefined_side)
 {
     int min_ins = bounds.first;
     int max_ins = bounds.second;
@@ -43,14 +43,14 @@ Insertion::Insertion(Gene_class gene, std::pair<int, int> bounds) : Insertion(ge
     }
 }
 
-Insertion::Insertion(Gene_class gene) : Insertion(gene, Undefined_side) { }
+Insertion::Insertion(int gene) : Insertion(gene, Undefined_side) { }
 
-Insertion::Insertion(Gene_class gene, unordered_map<string, Event_realization> &realizations)
+Insertion::Insertion(int gene, unordered_map<string, Event_realization> &realizations)
     : Insertion(gene, Undefined_side, realizations)
 {
 }
 
-Insertion::Insertion(Gene_class gene, Seq_side side)
+Insertion::Insertion(int gene, Seq_side side)
     : Rec_Event(gene, side),
       memory_layer_off_threep(-1),
       memory_layer_off_fivep(-1),
@@ -72,7 +72,7 @@ Insertion::Insertion(Gene_class gene, Seq_side side)
     this->update_event_name();
 }
 
-Insertion::Insertion(Gene_class gene, Seq_side side, unordered_map<string, Event_realization> &realizations)
+Insertion::Insertion(int gene, Seq_side side, unordered_map<string, Event_realization> &realizations)
     : Insertion(gene, side)
 {
     this->event_realizations = realizations;
@@ -121,7 +121,7 @@ void Insertion::iterate(double &scenario_proba, Downstream_scenario_proba_bound_
                         const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
                         shared_ptr<Next_event_ptr> &next_event_ptr_arr, Marginal_array_p &updated_marginals_pointer,
                         const Marginal_array_p &model_parameters_pointer,
-                        const unordered_map<Gene_class, vector<Alignment_data>> &allowed_realizations,
+                        const unordered_map<int, vector<Alignment_data>> &allowed_realizations,
                         Seq_type_str_p_map &constructed_sequences, Seq_offsets_map &seq_offsets,
                         shared_ptr<Error_rate> &error_rate_p, map<size_t, shared_ptr<Counter>> &counters_list,
                         const unordered_map<tuple<Event_type, int, Seq_side>, shared_ptr<Rec_Event>> &events_map,

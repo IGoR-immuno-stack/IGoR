@@ -108,8 +108,8 @@ class CORE_EXPORT Rec_Event
 {
 public:
     Rec_Event();
-    Rec_Event(Gene_class, Seq_side);
-    Rec_Event(Gene_class, Seq_side, std::unordered_map<std::string, Event_realization> &);
+    Rec_Event(int, Seq_side);
+    Rec_Event(int, Seq_side, std::unordered_map<std::string, Event_realization> &);
     virtual ~Rec_Event();
     virtual std::shared_ptr<Rec_Event> copy() = 0; // TODO make it const somehow
     virtual int size() const;
@@ -171,14 +171,14 @@ public:
     iterate(double &, Downstream_scenario_proba_bound_map &, const std::string &, const Int_Str &, Index_map &,
             const std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &,
             std::shared_ptr<Next_event_ptr> &, Marginal_array_p &, const Marginal_array_p &,
-            const std::unordered_map<Gene_class, std::vector<Alignment_data>> &, Seq_type_str_p_map &,
+            const std::unordered_map<int, std::vector<Alignment_data>> &, Seq_type_str_p_map &,
             Seq_offsets_map &, std::shared_ptr<Error_rate> &, std::map<size_t, std::shared_ptr<Counter>> &,
             const std::unordered_map<std::tuple<Event_type, int, Seq_side>, std::shared_ptr<Rec_Event>> &,
             Safety_bool_map &, Mismatch_vectors_map &, double &, double &) = 0;
     bool set_priority(int);
 
     // Accessors
-    const Gene_class get_class() const { return event_class; };
+    const int get_class() const { return event_class; };
     const Seq_side get_side() const { return event_side; };
     const std::unordered_map<std::string, Event_realization> get_realizations_map() const
     {
@@ -252,7 +252,7 @@ public:
 protected:
     std::unordered_map<std::string, Event_realization> event_realizations;
     int priority;
-    Gene_class event_class;
+    int event_class;
     Seq_side event_side;
     Rec_Event_name name; // Construct the name in a smart way so that it is unique
     std::string nickname;
@@ -296,7 +296,7 @@ protected:
                     &offset_map,
             std::shared_ptr<Next_event_ptr> &next_event_ptr_arr, Marginal_array_p &updated_marginal_array_p,
             const Marginal_array_p &model_parameters_point,
-            const std::unordered_map<Gene_class, std::vector<Alignment_data>> &allowed_realizations,
+            const std::unordered_map<int, std::vector<Alignment_data>> &allowed_realizations,
             Seq_type_str_p_map &constructed_sequences, Seq_offsets_map &seq_offsets,
             std::shared_ptr<Error_rate> &error_rate_p, std::map<size_t, std::shared_ptr<Counter>> &counters_list,
             const std::unordered_map<std::tuple<Event_type, int, Seq_side>, std::shared_ptr<Rec_Event>> &events_map,
