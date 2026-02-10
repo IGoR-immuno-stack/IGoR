@@ -364,7 +364,7 @@ static std::vector<double> compute_empirical_marginal(
 // THE TEST
 // ---------------------------------------------------------------------------
 
-TEST_CASE("Generation marginals converge — KL divergence vs entropy",
+TEST_CASE("Generation marginals converge - KL divergence vs entropy",
           "[generation]")
 {
     // ------------------------------------------------------------------
