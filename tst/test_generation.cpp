@@ -41,6 +41,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <igor/Core/FastGenerator.h>
 #include <igor/Core/GenModel.h>
 #include <igor/Core/Model_Parms.h>
 #include <igor/Core/Model_marginals.h>
@@ -406,6 +407,56 @@ static std::map<size_t, std::vector<double>> compute_all_empirical_marginals(
     return result;
 }
 
+/**
+ * @brief Compute empirical marginal distributions from FastGenerator output.
+ *
+ * Overload that works with the FastGenerator's output format:
+ * vector<GeneratedSequence> where each GeneratedSequence::realizations
+ * is a vector<vector<int>>. For non-DinucMarkov events, realizations[pos]
+ * contains a single element: the realization index.
+ */
+static std::map<size_t, std::vector<double>> compute_all_empirical_marginals(
+        const std::vector<igor::fast::GeneratedSequence> &sequences,
+        const std::vector<EventInfo> &event_infos,
+        size_t total_sequences)
+{
+    // Prepare per-event count arrays (non-DinucMarkov only)
+    std::map<size_t, std::vector<size_t>> counts;
+    for (const auto &ev : event_infos) {
+        if (!ev.is_dinuc_markov) {
+            counts[ev.queue_position].assign(ev.num_realizations, 0);
+        }
+    }
+
+    // Single pass over all generated sequences
+    for (const auto &seq : sequences) {
+        for (auto &[qpos, cvec] : counts) {
+            if (qpos < seq.realizations.size() && !seq.realizations[qpos].empty()) {
+                int realization = seq.realizations[qpos][0];
+                int num_real = static_cast<int>(cvec.size());
+                if (realization < 0 || realization >= num_real) {
+                    throw std::out_of_range(
+                            "Realization index " + std::to_string(realization) +
+                            " out of bounds [0, " + std::to_string(num_real) + ")");
+                }
+                ++cvec[realization];
+            }
+        }
+    }
+
+    // Convert counts to probabilities
+    std::map<size_t, std::vector<double>> result;
+    double n = static_cast<double>(total_sequences);
+    for (auto &[qpos, cvec] : counts) {
+        std::vector<double> empirical(cvec.size(), 0.0);
+        for (size_t i = 0; i < cvec.size(); ++i) {
+            empirical[i] = static_cast<double>(cvec[i]) / n;
+        }
+        result[qpos] = std::move(empirical);
+    }
+    return result;
+}
+
 // ---------------------------------------------------------------------------
 // THE TEST
 // ---------------------------------------------------------------------------
@@ -629,6 +680,22 @@ TEST_CASE("Generation marginals converge - KL divergence vs entropy",
     // ------------------------------------------------------------------
     // 3. Generate sequences for increasing N and track D_KL per event
     // ------------------------------------------------------------------
+
+    // Update ev.H for insertion events to the full combined entropy
+    // (insertion-length + dinucleotide Markov) so that D_KL bounds and
+    // printouts reference the total information content of the pair.
+    for (auto &ev : event_infos) {
+        if (ev.is_dinuc_markov) continue;
+        auto it = ins_dinuc_pairs.find(ev.gene_class);
+        if (it != ins_dinuc_pairs.end() &&
+            it->second.ins_event &&
+            it->second.ins_event->queue_position == ev.queue_position &&
+            it->second.dinuc_event)
+        {
+            ev.H = it->second.combined_H;
+        }
+    }
+
     // Map: event_queue_position → vector of (D_KL, uncovered_mass) per sample-size
     std::map<size_t, std::vector<std::pair<double, double>>> kl_traces;
     // Map: event_queue_position → vector of empirical entropy per sample-size
@@ -636,26 +703,26 @@ TEST_CASE("Generation marginals converge - KL divergence vs entropy",
 
     const std::vector<int> sample_sizes = {10, 100, 1000, 1000000};
 
+    // Initialize FastGenerator once, reuse across all sample sizes
+    igor::fast::FastGenerator fast_gen;
+    fast_gen.initialize(model_parms, model_marginals);
+    REQUIRE(fast_gen.is_initialized());
+
     for (int N : sample_sizes) {
         INFO("Generating " << N << " sequences");
 
-        // Generate (sequences are not written to disk)
-        GenModel gen_model(model_parms, model_marginals);
-        auto scenarios = gen_model.generate_sequences(N, /*output_realizations=*/true);
+        // Generate using FastGenerator (parallel, precomputed CDFs)
+        igor::fast::FastGeneratorConfig config;
+        config.show_progress = false;
+        auto sequences = fast_gen.generate(static_cast<size_t>(N), config);
 
-        // Count how many were actually generated (forward_list has no size())
-        size_t actual_count = 0;
-        for (auto it = scenarios.begin(); it != scenarios.end(); ++it) {
-            ++actual_count;
-        }
-        REQUIRE(actual_count == static_cast<size_t>(N));
+        REQUIRE(sequences.size() == static_cast<size_t>(N));
 
         std::cout << "\n--- N = " << N << " ---" << std::endl;
 
-        // Compute all empirical marginals in a single pass (avoids
-        // O(events × N) queue-copying that caused CTest timeouts).
+        // Compute all empirical marginals in a single pass
         auto all_empiricals = compute_all_empirical_marginals(
-                scenarios, event_infos, actual_count);
+                sequences, event_infos, sequences.size());
 
         for (const auto &ev : event_infos) {
             if (ev.is_dinuc_markov) {
@@ -727,7 +794,11 @@ TEST_CASE("Generation marginals converge - KL divergence vs entropy",
         const auto &htrace = entropy_traces.at(ev.queue_position);
         if (htrace.size() >= 4) {
             double H_emp_1M = htrace[3]; // index 3 → N=1 000 000
-            double H_theo = ev.H;
+            // H_emp is the empirical entropy of the marginal distribution
+            // for this event only (e.g. insertion-length distribution),
+            // so it converges to H(model_marginal), not to the full
+            // combined entropy ev.H (which includes dinuc Markov).
+            double H_theo = entropy(ev.model_marginal);
             // The finite-sample entropy estimator has:
             //   bias  ≈ (k−1) / (2·N·ln2)
             //   stdev ≈ sqrt(Var[−log2 P]) / sqrt(N)
