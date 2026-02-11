@@ -198,9 +198,11 @@ public:
 
     //write alignments, load alignments
 
-private:
+    // Public access to model state for validation and testing
     Model_Parms model_parms;
     Model_marginals model_marginals;
+
+private:
     std::map<size_t, std::shared_ptr<Counter>>
             counters_list; //Size_t is a unique identifier for the Counter(useful for adding them up)
     std::pair<std::string, std::queue<std::queue<int>>> generate_unique_sequence(

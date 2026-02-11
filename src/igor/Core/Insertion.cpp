@@ -69,6 +69,11 @@ Insertion::Insertion(Gene_class gene)
             this->len_min = (*iter).second.value_int;
         }
     }
+    // For size-0 (fixed) events with no realizations, set len_max and len_min to 0
+    if (this->event_realizations.empty()) {
+        this->len_max = 0;
+        this->len_min = 0;
+    }
     this->update_event_name();
 }
 
@@ -84,6 +89,11 @@ Insertion::Insertion(Gene_class gene, unordered_map<string, Event_realization> &
         } else if ((*iter).second.value_int < this->len_min) {
             this->len_min = (*iter).second.value_int;
         }
+    }
+    // For size-0 (fixed) events with no realizations, set len_max and len_min to 0
+    if (this->event_realizations.empty()) {
+        this->len_max = 0;
+        this->len_min = 0;
     }
     this->update_event_name();
 }
