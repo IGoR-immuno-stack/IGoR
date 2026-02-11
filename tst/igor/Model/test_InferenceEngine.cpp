@@ -350,6 +350,79 @@ TEMPLATE_TEST_CASE("InferenceEngine for_each_handler", "[model][engine]",
     }
 }
 
+// ─── combine_accumulators Tests ────────────────────────────────────────
+
+TEMPLATE_TEST_CASE("InferenceEngine combine_accumulators", "[model][engine]",
+                   double, long double) {
+    // Main engine (will receive combined accumulators)
+    InferenceEngine<TestType> main_engine;
+    main_engine.register_handler("gene",
+        std::make_unique<CategoricalHandler<TestType>>("gene", 3));
+    main_engine.register_handler("markov",
+        std::make_unique<MarkovHandler<TestType>>("markov", 4));
+
+    // Thread 1 engine
+    InferenceEngine<TestType> thread1;
+    thread1.register_handler("gene",
+        std::make_unique<CategoricalHandler<TestType>>("gene", 3));
+    thread1.register_handler("markov",
+        std::make_unique<MarkovHandler<TestType>>("markov", 4));
+
+    // Thread 2 engine
+    InferenceEngine<TestType> thread2;
+    thread2.register_handler("gene",
+        std::make_unique<CategoricalHandler<TestType>>("gene", 3));
+    thread2.register_handler("markov",
+        std::make_unique<MarkovHandler<TestType>>("markov", 4));
+
+    // Thread 1 accumulates
+    thread1.handler("gene").accumulator()(0) = TestType(10);
+    thread1.handler("gene").accumulator()(1) = TestType(20);
+    thread1.handler("gene").accumulator()(2) = TestType(30);
+    thread1.handler("markov").accumulator()(0, 1) = TestType(50);
+
+    // Thread 2 accumulates
+    thread2.handler("gene").accumulator()(0) = TestType(5);
+    thread2.handler("gene").accumulator()(1) = TestType(15);
+    thread2.handler("gene").accumulator()(2) = TestType(25);
+    thread2.handler("markov").accumulator()(0, 1) = TestType(30);
+    thread2.handler("markov").accumulator()(0, 2) = TestType(20);
+
+    // Combine
+    main_engine.combine_accumulators(thread1);
+    main_engine.combine_accumulators(thread2);
+
+    SECTION("gene accumulators merged correctly") {
+        REQUIRE_THAT(static_cast<double>(main_engine.handler("gene").accumulator()(0)),
+                     WithinRel(15.0, 1e-10));
+        REQUIRE_THAT(static_cast<double>(main_engine.handler("gene").accumulator()(1)),
+                     WithinRel(35.0, 1e-10));
+        REQUIRE_THAT(static_cast<double>(main_engine.handler("gene").accumulator()(2)),
+                     WithinRel(55.0, 1e-10));
+    }
+
+    SECTION("markov accumulators merged correctly") {
+        REQUIRE_THAT(static_cast<double>(main_engine.handler("markov").accumulator()(0, 1)),
+                     WithinRel(80.0, 1e-10));
+        REQUIRE_THAT(static_cast<double>(main_engine.handler("markov").accumulator()(0, 2)),
+                     WithinRel(20.0, 1e-10));
+    }
+
+    SECTION("M-step after combine produces valid distributions") {
+        main_engine.update_parameters();
+
+        // Gene: 15/105, 35/105, 55/105
+        REQUIRE_THAT(static_cast<double>(main_engine.handler("gene").parameters()(0)),
+                     WithinRel(15.0 / 105.0, 1e-10));
+
+        // Markov row 0: 0/100, 80/100, 20/100, 0/100
+        REQUIRE_THAT(static_cast<double>(main_engine.handler("markov").parameters()(0, 1)),
+                     WithinRel(0.8, 1e-10));
+        REQUIRE_THAT(static_cast<double>(main_engine.handler("markov").parameters()(0, 2)),
+                     WithinRel(0.2, 1e-10));
+    }
+}
+
 // ─── Type Alias Tests ──────────────────────────────────────────────────
 
 TEST_CASE("Engine and LegacyEngine aliases compile and work", "[model][engine]") {

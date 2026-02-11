@@ -87,6 +87,14 @@ void InferenceEngine<T>::update_parameters() {
     }
 }
 
+template <typename T>
+void InferenceEngine<T>::combine_accumulators(const InferenceEngine<T>& other) {
+    for (const auto& name : event_order_) {
+        handlers_.at(name)->accumulator() += other.handler(name).accumulator();
+    }
+}
+
+
 // ─── I/O ───────────────────────────────────────────────────────────────
 
 template <typename T>

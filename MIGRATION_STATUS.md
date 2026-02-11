@@ -196,14 +196,14 @@ Step 2: Copy Array Data
 │  Model_marginals                                    │
 │                                                     │
 │  marginal_array[0...3842]  ───┐                     │
-│  index_map {                   │                    │
-│    "GeneChoice_V_..." : 0      │  89 values         │
-│    "GeneChoice_J_..." : 89     │  15 values         │
-│    "GeneChoice_D_..." : 104    │  3 values          │
-│    "Deletion_V_..." : 149      │  1869 values       │
-│    ...                         │                    │
-│  }                             │                    │
-└────────┬───────────────────────┘                    │
+│  index_map {                  │                     │
+│    "GeneChoice_V_..." : 0     │  89 values          │
+│    "GeneChoice_J_..." : 89    │  15 values          │
+│    "GeneChoice_D_..." : 104   │  3 values           │
+│    "Deletion_V_..." : 149     │  1869 values        │
+│    ...                        │                     │
+│  }                            │                     │
+└────────┬──────────────────────┘                     │
          │                                            │
          ▼                                            │
 ┌─────────────────────────────────────────────────────┐
@@ -297,8 +297,8 @@ Step 2: Copy Array Data
                     │  • read_csv()            │
                     └────────────┬─────────────┘
                                  │
-                    ┌────────────┴────────────┐
-                    │                         │
+                    ┌────────────┴───────────┐
+                    │                        │
          ┌──────────▼─────────┐    ┌─────────▼──────────┐
          │ CategoricalHandler │    │  MarkovHandler     │
          │ <T>                │    │  <T>               │

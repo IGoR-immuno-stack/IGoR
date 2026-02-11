@@ -63,6 +63,11 @@ public:
     /// Update all parameters from accumulators (M-step)
     void update_parameters();
 
+    /// Merge another engine's accumulators into this one (for parallel EM).
+    /// Both engines must have the same handlers registered in the same order.
+    void combine_accumulators(const InferenceEngine<T>& other);
+
+
     // ─── I/O ───────────────────────────────────────────────────────────
 
     /// Write all parameters to stream (in event order)

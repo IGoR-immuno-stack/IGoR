@@ -48,20 +48,24 @@ TEST_CASE("extract_event_descriptors with empty model", "[core][bridge]") {
 
 // ─── Import/Export Round-Trip Tests ────────────────────────────────────
 
-TEST_CASE("Round-trip with TRB model preserves marginals", "[core][bridge][integration][!mayfail]") {
-    // Load real TRB model
+// ─── Round-trip with Mouse TCR beta model preserves marginals ────────────────
+
+TEST_CASE("Round-trip with Mouse TCR beta model preserves marginals", "[core][bridge][integration]") {
+    // Load real Mouse TCR beta model
     Model_Parms parms;
 
     // Try to read model, skip if files don't exist
+    std::string model_path = std::string(IGOR_MODELS_DIR) + "/mouse/tcr_beta/models/model_parms.txt";
     try {
-        parms.read_model_parms("../scripts/tests/data/input/TRB_model_parms.txt");
+        parms.read_model_parms(model_path);
     } catch (...) {
-        SKIP("TRB model files not found");
+        SKIP("Mouse TCR beta model files not found at: " + model_path);
     }
 
     // Load marginals
     Model_marginals original(parms);
-    original.txt2marginals("../scripts/tests/data/input/TRB_uniform_model_marginals.txt", parms);
+    std::string marginals_path = std::string(IGOR_MODELS_DIR) + "/mouse/tcr_beta/models/model_marginals.txt";
+    original.txt2marginals(marginals_path, parms);
 
     // Extract descriptors and create engine
     auto descriptors = extract_event_descriptors(parms);
@@ -93,17 +97,16 @@ TEST_CASE("Round-trip with TRB model preserves marginals", "[core][bridge][integ
     }
 
     INFO("Maximum round-trip difference: " << max_diff);
-    // Note: Test may crash during cleanup due to a pre-existing issue in Model_marginals::txt2marginals
-    // All functional assertions pass correctly
 }
 
-TEST_CASE("Extract descriptors from TRB model", "[core][bridge][!mayfail]") {
+TEST_CASE("Extract descriptors from Mouse TCR beta model", "[core][bridge]") {
     Model_Parms parms;
 
     try {
-        parms.read_model_parms("../scripts/tests/data/input/TRB_model_parms.txt");
+        std::string model_path = std::string(IGOR_MODELS_DIR) + "/mouse/tcr_beta/models/model_parms.txt";
+        parms.read_model_parms(model_path);
     } catch (...) {
-        SKIP("TRB model files not found");
+        SKIP("Mouse TCR beta model files not found");
     }
 
     auto descriptors = extract_event_descriptors(parms);
@@ -134,21 +137,22 @@ TEST_CASE("Extract descriptors from TRB model", "[core][bridge][!mayfail]") {
         REQUIRE(desc.shape[0] > 0);
     }
 
-    // TRB model should have these core events
+    // Mouse TCR beta model should have these core events
     REQUIRE(has_v_choice);
     REQUIRE(has_d_gene);
     REQUIRE(has_j_choice);
 }
 
 TEST_CASE("Round-trip preserves uniform marginals", "[core][bridge]") {
-    // Load real TRB model
+    // Load real Mouse TCR beta model
     Model_Parms parms;
 
     // Try to read model, skip if files don't exist
     try {
-        parms.read_model_parms("../scripts/tests/data/input/TRB_model_parms.txt");
+        std::string model_path = std::string(IGOR_MODELS_DIR) + "/mouse/tcr_beta/models/model_parms.txt";
+        parms.read_model_parms(model_path);
     } catch (...) {
-        SKIP("TRB model files not found");
+        SKIP("Mouse TCR beta model files not found");
     }
 
     // Initialize with uniform marginals
@@ -192,9 +196,10 @@ TEST_CASE("Import validates event existence", "[core][bridge]") {
     // Load a real model to avoid "empty marginals" error
     Model_Parms parms;
     try {
-        parms.read_model_parms("../scripts/tests/data/input/TRB_model_parms.txt");
+        std::string model_path = std::string(IGOR_MODELS_DIR) + "/mouse/tcr_beta/models/model_parms.txt";
+        parms.read_model_parms(model_path);
     } catch (...) {
-        SKIP("TRB model files not found");
+        SKIP("Mouse TCR beta model files not found");
     }
 
     Model_marginals marginals(parms);
@@ -216,9 +221,10 @@ TEST_CASE("Export validates event existence", "[core][bridge]") {
     // Load a real model to avoid "empty marginals" error
     Model_Parms parms;
     try {
-        parms.read_model_parms("../scripts/tests/data/input/TRB_model_parms.txt");
+        std::string model_path = std::string(IGOR_MODELS_DIR) + "/mouse/tcr_beta/models/model_parms.txt";
+        parms.read_model_parms(model_path);
     } catch (...) {
-        SKIP("TRB model files not found");
+        SKIP("Mouse TCR beta model files not found");
     }
 
     Model_marginals marginals(parms);

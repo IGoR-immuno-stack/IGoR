@@ -403,19 +403,31 @@ void InferenceEngine<T>::import_from_legacy(const Model_marginals& legacy,
 
 Objective: Prove that the handler architecture works end-to-end with the standard VDJ model.
 
-**Step 1: Handlers** (target: compile + unit tests pass)
-1. Add `src/igor/Model/MarginalHandler.h` — base class + `EventDescriptor`.
-2. Add `src/igor/Model/CategoricalHandler.h` — categorical distribution handler.
-3. Add `src/igor/Model/MarkovHandler.h` — transition matrix handler.
-4. Add `tst/igor/Model/test_Handlers.cpp` — unit tests for normalize, accumulate, reset.
+**Step 1: Tensor API** ✅
+1. ~~Compound assignment operators (`+=`, `-=`, `*=`, `/=`) for tensor and scalar.~~
+2. ~~Exact equality (`==`, `!=`) and approximate comparison (`allclose`).~~
+3. ~~Deep copy semantics for `Tensor` (always owning after copy).~~
+4. ~~Unit tests: `tst/igor/Math/test_TensorOps.cpp` (820 assertions).~~
 
-**Step 2: Engine** (target: integration test passes)
-1. Add `src/igor/Model/InferenceEngine.h` + `.cpp`.
-2. Add `tst/igor/Model/test_InferenceEngine.cpp` — construct from `Model_Parms`, round-trip test.
+**Step 2: Handlers** ✅
+1. ~~`src/igor/Model/MarginalHandler.h` — base class + `EventDescriptor`.~~
+2. ~~`src/igor/Model/CategoricalHandler.h/.tpp` — categorical distribution handler.~~
+3. ~~`src/igor/Model/MarkovHandler.h/.tpp` — transition matrix handler.~~
+4. ~~`tst/igor/Model/test_Handlers.cpp` — unit tests for normalize, accumulate, reset, merge.~~
 
-**Step 3: Legacy Bridge** (target: numerical validation passes)
-1. Implement `import_from_legacy()` / `export_to_legacy()`.
-2. Load a real IGoR model (from `IGoR-models` repo), import into `InferenceEngine`, export back, compare.
+*Design note*: `MarginalHandler` has no `combine_accumulator` method — accumulator
+merging is done directly via `Tensor::operator+=` at the call site (`InferenceEngine`
+or user code). This keeps the handler interface minimal.
+
+**Step 3: Engine** ✅
+1. ~~`src/igor/Model/InferenceEngine.h/.tpp` — orchestrator.~~
+2. ~~`tst/igor/Model/test_InferenceEngine.cpp` — construction, EM cycle, I/O, handler access.~~
+3. ~~`combine_accumulators()` uses `Tensor::operator+=` directly on handler accumulator tensors.~~
+
+**Step 4: Legacy Bridge** ✅
+1. ~~`src/igor/Core/LegacyBridge.h/.tpp` — `extract_event_descriptors`, `import_from_legacy`, `export_to_legacy`.~~
+2. ~~`tst/igor/Core/test_LegacyBridge.cpp` — basic tests.~~
+3. ~~Load a real IGoR model (Mouse TCR beta), import into `InferenceEngine`, export back, compare.~~
 
 ### Post-Prototype
 
@@ -423,7 +435,45 @@ Once the prototype validates on `develop`:
 
 1. **Merge into `feature/refactoring`**: Adapt `EventDescriptor` for tandem D (`int` gene class, `SequenceTypeRegistry`).
 2. **Phase 2: Side-by-Side EM**: Run parallel EM iterations comparing both implementations.
-3. **Phase 3: Integration**: Refactor `Rec_Event::add_to_marginals()` to accept handler references.
+3. **Phase 3: Integration — Refactor `Rec_Event::add_to_marginals()`**:
+
+   **Key design point — Markov accumulation adapter**:
+
+   In the legacy code, `Dinucl_markov::add_to_marginals()` does **not** use 2D `(from, to)`
+   indexing. Instead, during `iterate_common()`, each inserted nucleotide position produces a
+   **flat realization index** (`base_index + from * 4 + to`) stored in `vd_realizations_indices[i]`.
+   Then `add_to_marginals()` iterates over all nucleotide positions in the insertion and
+   accumulates `scenario_proba` into each corresponding flat index:
+
+   ```cpp
+   // Legacy: one scenario contributes MULTIPLE transitions (one per inserted nucleotide)
+   for (size_t i = 0; i != vd_seq_size; ++i) {
+       if (vd_realizations_indices[i] >= 0) {
+           updated_marginals[vd_realizations_indices[i]] += scenario_proba;
+       }
+   }
+   ```
+
+   This is compatible with the `MarkovHandler` tensor layout because both use **row-major
+   contiguous** storage: `accumulator_.data()[from * 4 + to]` accesses the same cell as
+   `accumulator_(from, to)`. The adapter for the new system will be:
+
+   ```cpp
+   // New: same loop, but writing into the handler's tensor buffer directly
+   auto* acc = handler.accumulator().data();
+   for (size_t i = 0; i < insertion_length; ++i) {
+       int from_nt = previous_nucleotide(i);
+       int to_nt   = current_nucleotide(i);
+       if (from_nt < 4 && to_nt < 4) {
+           acc[from_nt * 4 + to_nt] += scenario_proba;
+       }
+   }
+   ```
+
+   The accumulation can only happen once the full scenario is explored (all nucleotide
+   positions assigned). This is identical to the current behavior — `add_to_marginals()`
+   is called after `iterate()` completes the scenario.
+
 4. **Phase 4: Cleanup**: Remove `Model_marginals`, finalize `InferenceEngine` as canonical.
 
 ---
@@ -437,9 +487,9 @@ TEMPLATE_TEST_CASE("CategoricalHandler normalize", "[model][handler]",
                    double, long double) {
     CategoricalHandler<TestType> handler("v_gene", 3);
 
-    handler.accumulate(0, TestType(10));
-    handler.accumulate(1, TestType(20));
-    handler.accumulate(2, TestType(30));
+    handler.accumulator()(0) = TestType(10);
+    handler.accumulator()(1) = TestType(20);
+    handler.accumulator()(2) = TestType(30);
 
     handler.maximize_likelihood();
 
@@ -452,13 +502,24 @@ TEMPLATE_TEST_CASE("MarkovHandler row normalize", "[model][handler]",
                    double, long double) {
     MarkovHandler<TestType> handler("vd_dinucl", 4);
 
-    handler.accumulate(0, 0, TestType(10));  // A → A
-    handler.accumulate(0, 1, TestType(30));  // A → C
+    handler.accumulator()(0, 0) = TestType(10);  // A → A
+    handler.accumulator()(0, 1) = TestType(30);  // A → C
     handler.maximize_likelihood();
 
     // Row 0 should sum to 1
     REQUIRE_THAT(double(handler.parameters()(0, 0)), WithinRel(0.25, 1e-10));
     REQUIRE_THAT(double(handler.parameters()(0, 1)), WithinRel(0.75, 1e-10));
+}
+
+TEMPLATE_TEST_CASE("MarkovHandler flat accumulation (legacy-compatible)", "[model][handler]",
+                   double, long double) {
+    MarkovHandler<TestType> handler("vd_dinucl", 4);
+
+    // Simulate legacy-style flat accumulation: A→T = index 3 = (0*4 + 3)
+    handler.accumulator().data()[0 * 4 + 3] += TestType(1.0);
+    // Same as handler.accumulator()(0, 3) += TestType(1.0)
+
+    REQUIRE(handler.accumulator()(0, 3) == TestType(1.0));
 }
 ```
 
@@ -473,12 +534,12 @@ TEST_CASE("LegacyEngine round-trip with Model_marginals", "[model][integration]"
     legacy.txt2marginals("test_marginals.txt", parms);
 
     // Import into engine (long double for exact match)
-    LegacyEngine engine(parms);
-    engine.import_from_legacy(legacy, parms);
+    InferenceEngine<long double> engine(extract_event_descriptors(parms));
+    import_from_legacy(engine, legacy, parms);
 
     // Export back
     Model_marginals roundtrip(parms);
-    engine.export_to_legacy(roundtrip, parms);
+    export_to_legacy(engine, roundtrip, parms);
 
     // Compare — should be exact match with long double
     for (size_t i = 0; i < legacy.get_length(); ++i) {
@@ -494,12 +555,12 @@ TEST_CASE("Engine (double) round-trip within tolerance", "[model][integration]")
     legacy.txt2marginals("test_marginals.txt", parms);
 
     // Import into engine (double — may lose some precision)
-    Engine engine(parms);
-    engine.import_from_legacy(legacy, parms);
+    InferenceEngine<double> engine(extract_event_descriptors(parms));
+    import_from_legacy(engine, legacy, parms);
 
     // Export back
     Model_marginals roundtrip(parms);
-    engine.export_to_legacy(roundtrip, parms);
+    export_to_legacy(engine, roundtrip, parms);
 
     // Compare — within double precision tolerance
     for (size_t i = 0; i < legacy.get_length(); ++i) {
@@ -517,8 +578,9 @@ TEST_CASE("Engine (double) round-trip within tolerance", "[model][integration]")
 - Zero accumulator → parameters unchanged.
 - Import/export round-trip preserves all values.
 - Event count matches `Model_Parms::get_event_list().size()`.
-- `LegacyEngine` round-trip is **exact** (no precision loss).
-- `Engine` (double) round-trip is within `1e-15` relative tolerance.
+- `InferenceEngine<long double>` round-trip is **exact** (no precision loss).
+- `InferenceEngine<double>` round-trip is within `1e-15` relative tolerance.
+- Flat accumulation `data()[from*4+to]` is identical to 2D accumulation `(from, to)`.
 
 ---
 
@@ -530,7 +592,7 @@ TEST_CASE("Engine (double) round-trip within tolerance", "[model][integration]")
 
 ---
 
-*Last Updated: 10 February 2026*
+*Last Updated: 11 February 2026*
 *Baseline: `develop` @ `83aa113` (via `feature/TensorLinalg`)*
-*Status: Draft — Prototype Phase*
+*Status: Prototype Phase — COMPLETE (All core components implemented & validated)*
 

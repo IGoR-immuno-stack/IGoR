@@ -1,17 +1,3 @@
-/*
- * MarginalHandler.h
- *
- *  Created on: Feb 10, 2026
- *
- *  Base class for marginal parameter handlers in the EM inference engine.
- *  Each handler owns a parameter tensor and an accumulator tensor,
- *  and implements the M-step logic for its event type.
- *
- *  Template parameter T is the scalar storage type:
- *    - double      : sufficient precision, better performance
- *    - long double : backward compatible with legacy Marginal_array_p
- */
-
 #pragma once
 
 #include <igor/Math/Tensor.h>
@@ -67,3 +53,4 @@ protected:
 };
 
 } // namespace igor::model
+

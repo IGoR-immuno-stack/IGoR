@@ -403,3 +403,63 @@ TEMPLATE_TEST_CASE("CategoricalHandler full EM cycle", "[model][handler]",
     }
     REQUIRE_THAT(total, WithinRel(1.0, 1e-10));
 }
+
+// ─── Accumulator merging via operator+= ────────────────────────────────
+
+TEMPLATE_TEST_CASE("CategoricalHandler accumulator merge via +=", "[model][handler]",
+                   double, long double) {
+    CategoricalHandler<TestType> main("v_gene", 3);
+    CategoricalHandler<TestType> thread1("v_gene", 3);
+    CategoricalHandler<TestType> thread2("v_gene", 3);
+
+    // Thread 1 accumulates
+    thread1.accumulator()(0) = TestType(10);
+    thread1.accumulator()(1) = TestType(20);
+    thread1.accumulator()(2) = TestType(30);
+
+    // Thread 2 accumulates
+    thread2.accumulator()(0) = TestType(5);
+    thread2.accumulator()(1) = TestType(15);
+    thread2.accumulator()(2) = TestType(25);
+
+    // Combine into main using operator+=
+    main.accumulator() += thread1.accumulator();
+    main.accumulator() += thread2.accumulator();
+
+    REQUIRE_THAT(static_cast<double>(main.accumulator()(0)),
+                 WithinRel(15.0, 1e-10));
+    REQUIRE_THAT(static_cast<double>(main.accumulator()(1)),
+                 WithinRel(35.0, 1e-10));
+    REQUIRE_THAT(static_cast<double>(main.accumulator()(2)),
+                 WithinRel(55.0, 1e-10));
+
+    // Normalize and verify
+    main.maximize_likelihood();
+    double total = 0.0;
+    for (std::size_t i = 0; i < 3; ++i) {
+        total += static_cast<double>(main.parameters()(i));
+    }
+    REQUIRE_THAT(total, WithinRel(1.0, 1e-10));
+    REQUIRE_THAT(static_cast<double>(main.parameters()(0)),
+                 WithinRel(15.0 / 105.0, 1e-10));
+}
+
+TEMPLATE_TEST_CASE("MarkovHandler accumulator merge via +=", "[model][handler]",
+                   double, long double) {
+    MarkovHandler<TestType> main("vd_dinucl", 4);
+    MarkovHandler<TestType> other("vd_dinucl", 4);
+
+    // Main accumulates A→C = 10
+    main.accumulator()(0, 1) = TestType(10);
+
+    // Other accumulates A→C = 5, A→G = 15
+    other.accumulator()(0, 1) = TestType(5);
+    other.accumulator()(0, 2) = TestType(15);
+
+    main.accumulator() += other.accumulator();
+
+    REQUIRE_THAT(static_cast<double>(main.accumulator()(0, 1)),
+                 WithinRel(15.0, 1e-10));
+    REQUIRE_THAT(static_cast<double>(main.accumulator()(0, 2)),
+                 WithinRel(15.0, 1e-10));
+}
