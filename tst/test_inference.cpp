@@ -29,6 +29,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdlib>
 #include <forward_list>
 #include <iomanip>
 #include <iostream>
@@ -46,6 +47,9 @@
 #ifndef IGOR_SOURCE_DIR
 #error "IGOR_SOURCE_DIR must be defined (set by CMake)"
 #endif
+
+// Uncomment to enable debug logging to /tmp/
+// #define DEBUG_INFERENCE_TEST
 
 // Model base directory
 static const std::string MODELS_DIR = std::string(IGOR_SOURCE_DIR) + "/models";
@@ -440,23 +444,76 @@ TEST_CASE("Inference recovers ground truth model", "[inference]")
               << " sequences" << std::endl;
     
     // ------------------------------------------------------------------
-    // 5. Initialize inference with uniform marginals
+    // 5. Set up debug logging directory (if enabled)
+    // ------------------------------------------------------------------
+    std::string inference_dir = "";  // Disable file logging by default
+    #ifdef DEBUG_INFERENCE_TEST
+    inference_dir = "/tmp/igor_inference_test_" + std::to_string(sample_size) + "/";
+    std::cout << "\n=== Debug mode enabled ===" << std::endl;
+    std::cout << "Output directory: " << inference_dir << std::endl;
+    
+    // Create directory if it doesn't exist
+    std::string mkdir_cmd = "mkdir -p " + inference_dir;
+    std::system(mkdir_cmd.c_str());
+    
+    // Write generated sequences and scenarios to file
+    std::cout << "\n=== Writing sequences and scenarios to file ===" << std::endl;
+    gen_model.write_seq_real2txt(
+        inference_dir + "generated_seqs_indexed.csv",
+        inference_dir + "generated_realizations_indexed.csv",
+        scenarios);
+    std::cout << "Wrote sequences to: " << inference_dir << "generated_seqs_indexed.csv" << std::endl;
+    std::cout << "Wrote scenarios to: " << inference_dir << "generated_realizations_indexed.csv" << std::endl;
+    #endif
+    
+    #ifdef DEBUG_INFERENCE_TEST
+    // Write alignments to file for debugging
+    std::cout << "\n=== Writing alignments to file for debugging ===" << std::endl;
+    
+    // Extract V gene alignments
+    std::unordered_map<int, std::forward_list<Alignment_data>> v_alignments;
+    for (const auto& [seq_idx, seq, aligns_map] : sequences_with_alignments) {
+        if (aligns_map.count(V_gene) > 0) {
+            std::forward_list<Alignment_data> v_list;
+            for (const auto& align : aligns_map.at(V_gene)) {
+                v_list.push_front(align);
+            }
+            v_alignments[seq_idx] = v_list;
+        }
+    }
+    
+    // Extract J gene alignments
+    std::unordered_map<int, std::forward_list<Alignment_data>> j_alignments;
+    for (const auto& [seq_idx, seq, aligns_map] : sequences_with_alignments) {
+        if (aligns_map.count(J_gene) > 0) {
+            std::forward_list<Alignment_data> j_list;
+            for (const auto& align : aligns_map.at(J_gene)) {
+                j_list.push_front(align);
+            }
+            j_alignments[seq_idx] = j_list;
+        }
+    }
+    
+    // Write using Aligner class methods
+    Aligner aligner;
+    aligner.write_alignments_seq_csv(inference_dir + "V_alignments.csv", v_alignments);
+    std::cout << "Wrote V alignments to: " << inference_dir << "V_alignments.csv" << std::endl;
+    
+    aligner.write_alignments_seq_csv(inference_dir + "J_alignments.csv", j_alignments);
+    std::cout << "Wrote J alignments to: " << inference_dir << "J_alignments.csv" << std::endl;
+    #endif
+    
+    // ------------------------------------------------------------------
+    // 6. Initialize inference with uniform marginals
     // ------------------------------------------------------------------
     std::cout << "\n=== Initializing inference ===" << std::endl;
     Model_marginals initial_marginals(truth_parms);
     initial_marginals.uniform_initialize(truth_parms);
     
     // ------------------------------------------------------------------
-    // 6. Run inference
+    // 7. Run inference
     // ------------------------------------------------------------------
     std::cout << "\n=== Running inference ===" << std::endl;
-    
-    // Optional logging directory for debugging (empty string = no file I/O)
-    std::string inference_dir = "";  // Disable file logging for tests
-    #ifdef DEBUG_INFERENCE_TEST
-    inference_dir = "/tmp/igor_inference_test_" + std::to_string(sample_size) + "/";
-    std::cout << "Debug logging to: " << inference_dir << std::endl;
-    #endif
     
     GenModel inference_model(truth_parms, initial_marginals);
     
@@ -476,7 +533,7 @@ TEST_CASE("Inference recovers ground truth model", "[inference]")
     std::cout << "Inference completed successfully" << std::endl;
     
     // ------------------------------------------------------------------
-    // 7. Use inferred marginals from GenModel object
+    // 8. Use inferred marginals from GenModel object
     //    (marginals are modified by reference during inference)
     // ------------------------------------------------------------------
     std::cout << "\n=== Using inferred marginals ===" << std::endl;
@@ -487,7 +544,7 @@ TEST_CASE("Inference recovers ground truth model", "[inference]")
     Model_marginals& inferred_marginals = initial_marginals;
     
     // ------------------------------------------------------------------
-    // 8. Compare inferred vs ground truth
+    // 9. Compare inferred vs ground truth
     // ------------------------------------------------------------------
     std::cout << "\n=== Comparing inferred model to ground truth ===" << std::endl;
     
