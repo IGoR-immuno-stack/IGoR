@@ -48,9 +48,11 @@ public:
     // Move Assignment
     HybridBuffer& operator=(HybridBuffer&& other) noexcept;
 
-    // Deleted Copy Semantics
-    HybridBuffer(const HybridBuffer&) = delete;
-    HybridBuffer& operator=(const HybridBuffer&) = delete;
+    // Copy Constructor (always deep-copies into owning memory)
+    HybridBuffer(const HybridBuffer& other);
+
+    // Copy Assignment (always deep-copies into owning memory)
+    HybridBuffer& operator=(const HybridBuffer& other);
 
     // Accessors
     pointer data() noexcept { return data_; }

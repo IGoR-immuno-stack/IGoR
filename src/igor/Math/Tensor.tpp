@@ -227,4 +227,98 @@ auto Tensor<T>::view() const {
     return make_view_const_impl<Rank>(std::make_index_sequence<Rank>{});
 }
 
+// ─── Compound Assignment Operators ─────────────────────────────────────
+
+template <typename T>
+Tensor<T>& Tensor<T>::operator+=(const Tensor<T>& rhs) {
+    T* d = data();
+    const T* s = rhs.data();
+    for (size_type i = 0, n = size(); i < n; ++i) {
+        d[i] += s[i];
+    }
+    return *this;
+}
+
+template <typename T>
+Tensor<T>& Tensor<T>::operator-=(const Tensor<T>& rhs) {
+    T* d = data();
+    const T* s = rhs.data();
+    for (size_type i = 0, n = size(); i < n; ++i) {
+        d[i] -= s[i];
+    }
+    return *this;
+}
+
+template <typename T>
+Tensor<T>& Tensor<T>::operator*=(const Tensor<T>& rhs) {
+    T* d = data();
+    const T* s = rhs.data();
+    for (size_type i = 0, n = size(); i < n; ++i) {
+        d[i] *= s[i];
+    }
+    return *this;
+}
+
+template <typename T>
+Tensor<T>& Tensor<T>::operator/=(const Tensor<T>& rhs) {
+    T* d = data();
+    const T* s = rhs.data();
+    for (size_type i = 0, n = size(); i < n; ++i) {
+        d[i] /= s[i];
+    }
+    return *this;
+}
+
+template <typename T>
+Tensor<T>& Tensor<T>::operator*=(T scalar) {
+    T* d = data();
+    for (size_type i = 0, n = size(); i < n; ++i) {
+        d[i] *= scalar;
+    }
+    return *this;
+}
+
+template <typename T>
+Tensor<T>& Tensor<T>::operator/=(T scalar) {
+    T* d = data();
+    for (size_type i = 0, n = size(); i < n; ++i) {
+        d[i] /= scalar;
+    }
+    return *this;
+}
+
+// ─── Comparison Operators ──────────────────────────────────────────────
+
+template <typename T>
+bool Tensor<T>::operator==(const Tensor<T>& rhs) const {
+    if (dims_ != rhs.dims_) return false;
+    const T* a = data();
+    const T* b = rhs.data();
+    for (size_type i = 0, n = size(); i < n; ++i) {
+        if (a[i] != b[i]) return false;
+    }
+    return true;
+}
+
+template <typename T>
+bool Tensor<T>::operator!=(const Tensor<T>& rhs) const {
+    return !(*this == rhs);
+}
+
+// ─── Free Functions ────────────────────────────────────────────────────
+
+template <typename T>
+bool allclose(const Tensor<T>& a, const Tensor<T>& b,
+              double rtol, double atol) {
+    if (a.shape() != b.shape()) return false;
+    const T* pa = a.data();
+    const T* pb = b.data();
+    for (std::size_t i = 0, n = a.size(); i < n; ++i) {
+        double diff = std::abs(static_cast<double>(pa[i]) - static_cast<double>(pb[i]));
+        double tol  = atol + rtol * std::abs(static_cast<double>(pb[i]));
+        if (diff > tol) return false;
+    }
+    return true;
+}
+
 } // namespace igor::math

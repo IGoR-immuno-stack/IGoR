@@ -18,6 +18,7 @@
 #include <variant>
 #include <array>
 #include <initializer_list>
+#include <cmath>
 
 namespace igor::math {
 
@@ -132,7 +133,45 @@ public:
     const_iterator end() const { return storage_.end(); }
     const_iterator cbegin() const { return storage_.cbegin(); }
     const_iterator cend() const { return storage_.cend(); }
+
+    // Ownership query
+    bool is_owning() const { return storage_.is_owning(); }
+
+    // ─── Compound Assignment Operators ──────────────────────────────
+    // Element-wise in-place. Flat loop, trivially vectorizable.
+
+    self_type& operator+=(const self_type& rhs);
+    self_type& operator-=(const self_type& rhs);
+    self_type& operator*=(const self_type& rhs);
+    self_type& operator/=(const self_type& rhs);
+
+    // Scalar broadcast
+    self_type& operator*=(T scalar);
+    self_type& operator/=(T scalar);
+
+    // ─── Comparison ────────────────────────────────────────────────
+    // Exact element-wise equality (shape + all values).
+
+    bool operator==(const self_type& rhs) const;
+    bool operator!=(const self_type& rhs) const;
 };
+
+// ─── Free Functions ────────────────────────────────────────────────────
+
+/**
+ * \brief Approximate element-wise equality (NumPy convention).
+ *
+ * Returns true if for all elements:
+ *   |a[i] - b[i]| <= atol + rtol * |b[i]|
+ *
+ * @param a First tensor
+ * @param b Second tensor
+ * @param rtol Relative tolerance (default: 1e-05)
+ * @param atol Absolute tolerance (default: 1e-08)
+ */
+template <typename T>
+bool allclose(const Tensor<T>& a, const Tensor<T>& b,
+              double rtol = 1e-05, double atol = 1e-08);
 
 } // namespace igor::math
 
