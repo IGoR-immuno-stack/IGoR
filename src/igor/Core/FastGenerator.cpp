@@ -504,7 +504,7 @@ void FastGenerator::apply_palindrome(std::string& seq, int num_bases, bool is_3p
         // Take last num_bases from seq, reverse complement
         size_t start = (num_bases <= static_cast<int>(seq.size()))
                        ? seq.size() - num_bases : 0;
-        size_t len = std::min(static_cast<size_t>(num_bases), seq.size());
+        size_t len = (std::min)(static_cast<size_t>(num_bases), seq.size());
         palindrome = seq.substr(start, len);
         std::reverse(palindrome.begin(), palindrome.end());
         for (char& c : palindrome) {
@@ -513,7 +513,7 @@ void FastGenerator::apply_palindrome(std::string& seq, int num_bases, bool is_3p
         seq += palindrome;
     } else {
         // Take first num_bases from seq, reverse complement, prepend
-        size_t len = std::min(static_cast<size_t>(num_bases), seq.size());
+        size_t len = (std::min)(static_cast<size_t>(num_bases), seq.size());
         palindrome = seq.substr(0, len);
         std::reverse(palindrome.begin(), palindrome.end());
         for (char& c : palindrome) {
@@ -618,7 +618,7 @@ std::vector<GeneratedSequence> FastGenerator::generate(
 
     std::atomic<size_t> completed{0};
     std::atomic<size_t> next_progress_report{0};
-    const size_t progress_interval = std::max(size_t(1000), num_sequences / 100);
+    const size_t progress_interval = (std::max)(size_t(1000), num_sequences / 100);
 
     #pragma omp parallel num_threads(num_threads)
     {
@@ -627,7 +627,7 @@ std::vector<GeneratedSequence> FastGenerator::generate(
         GeneratedSequence local_result;
 
         #pragma omp for schedule(dynamic, config.batch_size)
-        for (size_t i = 0; i < num_sequences; ++i) {
+        for (auto i = 0; i < num_sequences; ++i) {
             generate_single(rng, local_result);
 
             if (callback) {
@@ -691,7 +691,7 @@ void FastGenerator::generate_to_files(
 
     std::atomic<size_t> completed{0};
     std::atomic<size_t> next_progress_report{0};
-    const size_t progress_interval = std::max(size_t(1000), num_sequences / 100);
+    const size_t progress_interval = (std::max)(size_t(1000), num_sequences / 100);
 
     auto gen_start = std::chrono::high_resolution_clock::now();
 
@@ -702,7 +702,7 @@ void FastGenerator::generate_to_files(
         GeneratedSequence local_result;
 
         #pragma omp for schedule(static)
-        for (size_t i = 0; i < num_sequences; ++i) {
+        for (auto i = 0; i < num_sequences; ++i) {
             generate_single(rng, local_result);
             results[i] = std::move(local_result);
 
