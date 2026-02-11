@@ -238,12 +238,12 @@ static Alignment_data create_j_mock_alignment(
     const std::string& j_template = gene_templates.at(scenario.j_gene_name);
     int j_len = j_template.length();
     int j_del = scenario.j_5p_del;
-    int j_offset = sequence.length() - (j_len - j_del);
+    int j_offset = sequence.length() - j_len;
     
     // Check for mismatches only in the deleted region (5' of aligned portion)
     std::vector<int> mismatches;
     for (int i = 0; i < j_del; ++i) {
-        int seq_pos = (j_offset - j_del) + i;
+        int seq_pos = j_offset + i;
         if (seq_pos >= 0 && seq_pos < static_cast<int>(sequence.length())) {
             if (j_template[i] != sequence[seq_pos]) {
                 mismatches.push_back(seq_pos);
@@ -252,7 +252,7 @@ static Alignment_data create_j_mock_alignment(
     }
     
     Alignment_data j_align(scenario.j_gene_name, j_offset);
-    j_align.five_p_offset = j_offset;
+    j_align.five_p_offset = j_offset - j_del;
     j_align.three_p_offset = sequence.length() - 1;
     j_align.align_length = j_len - j_del;
     j_align.mismatches = mismatches;
