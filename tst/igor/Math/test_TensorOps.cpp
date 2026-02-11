@@ -108,10 +108,14 @@ TEST_CASE("Tensor self-assignment is safe", "[Math][Tensor][Copy]") {
     t(1) = 2.0;
     t(2) = 3.0;
 
+#ifdef __clang__
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wself-assign-overloaded"
+#endif
     t = t;
+#ifdef __clang__
 #pragma clang diagnostic pop
+#endif
 
     REQUIRE(t(0) == 1.0);
     REQUIRE(t(1) == 2.0);

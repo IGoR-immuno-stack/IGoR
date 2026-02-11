@@ -91,6 +91,12 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
 
+## Prevent Windows macros from interfering with C++ standard library
+if(WIN32)
+  add_compile_definitions(NOMINMAX)
+  add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
+endif()
+
 ## ###################################################################
 ## Test setup
 ## ###################################################################
