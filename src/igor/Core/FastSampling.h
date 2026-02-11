@@ -39,6 +39,8 @@
 #include <fstream>
 #include <sstream>
 
+#include <igorCoreExport.h>
+
 namespace igor {
 namespace fast {
 
@@ -50,7 +52,7 @@ namespace fast {
  * instead of O(n) linear search. For very frequent sampling, also supports
  * the alias method for O(1) sampling.
  */
-class CategoricalSampler {
+class CORE_EXPORT CategoricalSampler {
 public:
     CategoricalSampler() = default;
 
@@ -114,7 +116,7 @@ private:
         double u = dist(rng);
         // Binary search for the first CDF value >= u
         auto it = std::lower_bound(cdf_.begin(), cdf_.end(), u);
-        return std::min(static_cast<size_t>(it - cdf_.begin()), cdf_.size() - 1);
+        return (std::min)(static_cast<size_t>(it - cdf_.begin()), cdf_.size() - 1);
     }
 
     template<typename RNG>
@@ -146,7 +148,7 @@ private:
  * Stores multiple CategoricalSamplers, one for each conditioning value.
  * Optimized memory layout for cache efficiency.
  */
-class ConditionalSampler {
+class CORE_EXPORT ConditionalSampler {
 public:
     ConditionalSampler() = default;
 
@@ -205,7 +207,7 @@ private:
  * for efficient sequence generation. Replaces per-nucleotide probability
  * computation with a single lookup and sample.
  */
-class DinucleotideMarkovSampler {
+class CORE_EXPORT DinucleotideMarkovSampler {
 public:
     // Standard nucleotide indices (matching IGoR's nt2int)
     static constexpr size_t NT_A = 0;
@@ -305,7 +307,7 @@ private:
  *
  * Avoids repeated allocations during sequence generation.
  */
-class RealizationBuffer {
+class CORE_EXPORT RealizationBuffer {
 public:
     explicit RealizationBuffer(size_t max_seq_length = 1000)
         : max_length_(max_seq_length) {
@@ -358,7 +360,7 @@ private:
  * Reduces memory allocation overhead by reusing buffers across
  * sequence generation calls.
  */
-class BufferPool {
+class CORE_EXPORT BufferPool {
 public:
     explicit BufferPool(size_t pool_size = 0, size_t max_seq_length = 1000)
         : max_seq_length_(max_seq_length) {
@@ -412,7 +414,7 @@ private:
  * Batches sequence writes to reduce I/O overhead.
  * Thread-safe with batched writes to minimize contention.
  */
-class BufferedWriter {
+class CORE_EXPORT BufferedWriter {
 public:
     explicit BufferedWriter(const std::string& filename,
                            size_t buffer_size = 1024 * 1024)  // 1MB default
