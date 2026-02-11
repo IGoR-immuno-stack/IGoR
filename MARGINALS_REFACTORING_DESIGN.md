@@ -433,9 +433,130 @@ or user code). This keeps the handler interface minimal.
 
 Once the prototype validates on `develop`:
 
-1. **Merge into `feature/refactoring`**: Adapt `EventDescriptor` for tandem D (`int` gene class, `SequenceTypeRegistry`).
-2. **Phase 2: Side-by-Side EM**: Run parallel EM iterations comparing both implementations.
-3. **Phase 3: Integration — Refactor `Rec_Event::add_to_marginals()`**:
+**Phase 2: Side-by-Side EM Validation**
+
+Run parallel EM iterations comparing legacy `Model_marginals` against new `InferenceEngine`
+to ensure numerical equivalence before replacing the inference code.
+
+**Validation setup**:
+```cpp
+// Load same model in both systems
+Model_Parms parms;
+parms.read_model_parms("model_parms.txt");
+
+Model_marginals legacy(parms);
+legacy.txt2marginals("initial_marginals.txt", parms);
+
+InferenceEngine<long double> engine(parms);
+import_from_legacy(engine, legacy, parms);
+
+// Verify initial state matches
+Model_marginals exported(parms);
+export_to_legacy(engine, exported, parms);
+assert_arrays_equal(legacy.marginal_array_smart_p.get(),
+                   exported.marginal_array_smart_p.get(),
+                   legacy.get_length());
+```
+
+**EM iteration comparison**:
+```cpp
+// Process same sequence dataset through both implementations
+vector<string> sequences = load_sequences("test_data.txt");
+
+for (int iteration = 0; iteration < max_iterations; ++iteration) {
+    // LEGACY PATH
+    legacy.initialize();  // Zero accumulators
+    double legacy_likelihood = 0.0;
+
+    for (const auto& seq : sequences) {
+        auto scenarios = generate_scenarios(seq, parms);
+        for (const auto& scenario : scenarios) {
+            double prob = scenario.probability;
+            legacy_likelihood += log(prob);
+
+            // Accumulate into legacy flat array
+            for (const auto& event : scenario.events) {
+                event->add_to_marginals(legacy, parms, prob);
+            }
+        }
+    }
+    legacy.normalize(parms);  // M-step
+
+    // NEW PATH
+    engine.reset_accumulators();
+    double engine_likelihood = 0.0;
+
+    for (const auto& seq : sequences) {
+        auto scenarios = generate_scenarios(seq, parms);
+        for (const auto& scenario : scenarios) {
+            double prob = scenario.probability;
+            engine_likelihood += log(prob);
+
+            // Accumulate into handlers
+            for (const auto& event : scenario.events) {
+                accumulate_to_engine(engine, event, prob);
+            }
+        }
+    }
+    engine.update_parameters();  // M-step
+
+    // COMPARE
+    REQUIRE_THAT(engine_likelihood, WithinRel(legacy_likelihood, 1e-12));
+
+    // Export and compare all parameters
+    export_to_legacy(engine, exported, parms);
+    for (size_t i = 0; i < legacy.get_length(); ++i) {
+        REQUIRE_THAT(static_cast<double>(exported.marginal_array_smart_p[i]),
+                     WithinRel(static_cast<double>(legacy.marginal_array_smart_p[i]),
+                               1e-12));
+    }
+
+    // Check convergence (both should converge identically)
+    if (fabs(engine_likelihood - prev_likelihood) < convergence_threshold) {
+        break;
+    }
+}
+```
+
+**Adapter for event accumulation** (temporary bridge code):
+```cpp
+void accumulate_to_engine(InferenceEngine<long double>& engine,
+                         const Rec_Event* event,
+                         double probability) {
+    const auto& name = event->get_nickname();
+
+    switch (event->get_type()) {
+        case GeneChoice_t:
+        case Deletion_t:
+        case Insertion_t: {
+            auto& handler = engine.get_handler<CategoricalHandler<long double>>(name);
+            int realization = event->get_current_realization_index();
+            handler.accumulator().data()[realization] += probability;
+            break;
+        }
+        case Dinuclmarkov_t: {
+            auto& handler = engine.get_handler<MarkovHandler<long double>>(name);
+            // Get flat indices from legacy realization queue
+            const auto& indices = event->get_realization_indices();
+            for (int flat_idx : indices) {
+                if (flat_idx >= 0) {
+                    handler.accumulator().data()[flat_idx] += probability;
+                }
+            }
+            break;
+        }
+    }
+}
+```
+
+**Success criteria for Phase 2**:
+- ✅ Log-likelihood trajectories identical within `1e-12` relative tolerance
+- ✅ Parameter values match at each iteration within `1e-12`
+- ✅ Both implementations converge in same number of iterations
+- ✅ Final parameters produce identical sequence probabilities
+- ✅ Validation passes on multiple model types (TRA, TRB, IGH, IGL)
+
+**Phase 3: Integration — Refactor `Rec_Event::add_to_marginals()`**:
 
    **Key design point — Markov accumulation adapter**:
 
@@ -474,7 +595,29 @@ Once the prototype validates on `develop`:
    positions assigned). This is identical to the current behavior — `add_to_marginals()`
    is called after `iterate()` completes the scenario.
 
-4. **Phase 4: Cleanup**: Remove `Model_marginals`, finalize `InferenceEngine` as canonical.
+**Phase 4: Performance & Optimization**:
+
+   After numerical validation in Phase 2, measure and optimize:
+
+   - **Cache performance**: Handlers group related parameters → better locality than flat array
+   - **Vectorization**: Contiguous `Tensor` storage enables SIMD operations
+   - **Parallel accumulation**: Per-thread `InferenceEngine` with `combine_accumulators()`
+   - **Memory footprint**: Compare `double` vs `long double` (2x reduction with sufficient precision)
+
+   Expected improvements:
+   - 10-50% faster EM iterations (better cache hits, vectorization)
+   - 50% memory reduction if using `double` instead of `long double`
+   - Linear scaling with thread count for sequence processing
+
+**Phase 5: Cleanup & Deprecation**:
+
+   Once Phase 2-4 complete and production validation passes:
+
+   1. Mark `Model_marginals` as `[[deprecated]]`
+   2. Route all inference through `InferenceEngine`
+   3. Remove legacy flat array code and offset arithmetic
+   4. Update documentation and examples
+   5. Archive migration design documents
 
 ---
 
