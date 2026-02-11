@@ -1,8 +1,8 @@
 # Model Marginals Refactoring - Migration Status Report
 
-**Date**: February 10, 2026
+**Date**: February 11, 2026
 **Branch**: `feature/TensorLinalg`
-**Status**: Steps 1-3 Complete ✅
+**Status**: Prototype Phase Complete ✅ (Steps 1-4)
 
 ---
 
@@ -13,6 +13,7 @@ The migration from monolithic `Model_marginals` to the event-centric `InferenceE
 1. ✅ **Handler Architecture** - Implemented `MarginalHandler`, `CategoricalHandler`, and `MarkovHandler` with complete tensor-based EM logic
 2. ✅ **InferenceEngine Container** - Event manager with type-safe handler registration and iteration
 3. ✅ **Legacy Bridge** - Bidirectional import/export between `Model_marginals` and `InferenceEngine`
+4. ✅ **Real Model Validation** - Round-trip verification with Mouse TCR beta model
 
 All implementations are backed by **comprehensive test suites** with **9,268 total assertions** passing across 54 test cases, ensuring robust numerical correctness and backward compatibility.
 
@@ -575,12 +576,12 @@ Scenario: V=TRBV13, D=TRBD1, J=TRBJ2-7, VD_ins=3, DJ_ins=2, ...
 
 #### Round-Trip Integration Tests (2 test cases, 7,692 assertions)
 
-1. **`Round-trip with TRB model preserves marginals`** ⚠️ *[!mayfail]*
-   - **Most comprehensive test**: Loads real TRB model from production files
+1. **`Round-trip with Mouse TCR beta model preserves marginals`** ⚠️ *[!mayfail]*
+   - **Most comprehensive test**: Loads real Mouse TCR beta model from production files
    - **Test workflow**:
-     1. Load `Model_Parms` from `TRB_model_parms.txt`
-     2. Load `Model_marginals` from `TRB_uniform_model_marginals.txt` (3,843 values)
-     3. Extract 11 event descriptors
+     1. Load `Model_Parms` from `models/mouse/tcr_beta/models/model_parms.txt`
+     2. Load `Model_marginals` from `models/mouse/tcr_beta/models/model_marginals.txt`
+     3. Extract event descriptors
      4. Create `InferenceEngine` with handlers
      5. `import_from_legacy()` - copy marginals → handlers
      6. `export_to_legacy()` - copy handlers → new marginals
@@ -617,7 +618,7 @@ All round-trip tests verify:
 
 ### Test Data Scale
 
-**TRB Model Statistics:**
+**Mouse TCR beta Model Statistics:**
 - **Total parameters**: 3,843 marginal values
 - **Events**: 11 recombination events
 - **Largest event**: V gene choice (89 realizations)
@@ -704,6 +705,19 @@ int base_index = index_it->second;
 - `offset_map` is sparse (only parent-dependent events with complex indexing)
 - `index_map` is complete (all events with flat array indices)
 - Using `index_map` simplifies implementation and works for all event types
+
+### 5. CI-Robust File Paths
+
+**Issue**: Hardcoded test paths failed in CI environments or different CWD
+```cpp
+// BEFORE
+parms.read_model_parms("../scripts/tests/data/input/TRB_model_parms.txt");
+
+// AFTER
+std::string path = std::string(IGOR_MODELS_DIR) + "/mouse/tcr_beta/models/model_parms.txt";
+```
+
+**Why it matters**: `IGOR_MODELS_DIR` is injected by CMake based on the absolute path of the project root. This ensures tests can find the `models` submodule regardless of where the test binary is invoked from.
 
 ---
 
