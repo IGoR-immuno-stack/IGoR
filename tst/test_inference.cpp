@@ -401,7 +401,7 @@ TEST_CASE("Inference recovers ground truth model", "[inference]")
     // ------------------------------------------------------------------
     std::cout << "\n=== Generating " << sample_size << " sequences ===" << std::endl;
     GenModel gen_model(truth_parms, truth_marginals);
-    auto scenarios = gen_model.generate_sequences(sample_size, /*output_realizations=*/true);
+    auto scenarios = gen_model.generate_sequences(sample_size, /*generate_errors=*/false);
     
     // Count generated sequences
     size_t actual_count = 0;
