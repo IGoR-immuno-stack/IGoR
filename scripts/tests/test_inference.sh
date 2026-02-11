@@ -58,6 +58,11 @@ do
     cut -d';' -f 1,3-10  "$OUTDIR/${batch}_inference/inference_logs.txt" >"$tmp"
     mv "$tmp" "$OUTDIR/${batch}_inference/inference_logs.txt"
 
+    # Drop non reproducible Date and Path lines from inference_info.out
+    tmp="$(mktemp)"
+    grep -v "^Date:\|^Path:" "$OUTDIR/${batch}_inference/inference_info.out" >"$tmp" || true
+    mv "$tmp" "$OUTDIR/${batch}_inference/inference_info.out"
+
     assert_regression "$TESTREF/${batch}_inference" "$OUTDIR/${batch}_inference" "$LOGFILE"
 
     # Drop not always reproducible scenario ranks (possible likelihood ties)

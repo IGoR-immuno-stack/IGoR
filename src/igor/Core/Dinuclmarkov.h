@@ -65,6 +65,7 @@ public:
 
     void set_nickname(std::string name) override;
     int get_sequence_type_id() const override { return sequence_type_id; }
+    int size() const override { return event_realizations.size() * event_realizations.size(); }
 
 private:
     int memory_layer_off_threep;

@@ -823,6 +823,17 @@ void Model_Parms::read_model_parms(string filename)
             string parent_name = line_str.substr(1, semicolon_index - 1);
             string child_name = line_str.substr(semicolon_index + 1, string::npos);
 
+            // Strip _size suffix from edge names for backward compatibility
+            // Events may have _sizeXX suffix in edges but not in event names
+            size_t size_pos = parent_name.find("_size");
+            if (size_pos != string::npos) {
+                parent_name = parent_name.substr(0, size_pos);
+            }
+            size_pos = child_name.find("_size");
+            if (size_pos != string::npos) {
+                child_name = child_name.substr(0, size_pos);
+            }
+
             shared_ptr<Rec_Event> parent_p;
             try {
                 parent_p = get_event_pointer(parent_name, false);

@@ -30,7 +30,7 @@
 using namespace std;
 
 /////Utilitaries
-ostream &operator<<(ostream &os, int gc)
+ostream &operator<<(ostream &os, Gene_class gc)
 {
     switch (gc) {
     case V_gene:

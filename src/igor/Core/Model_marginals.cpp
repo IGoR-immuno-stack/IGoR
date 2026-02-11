@@ -389,6 +389,10 @@ size_t Model_marginals::get_event_size(shared_ptr<const Rec_Event> event_p, cons
 {
     size_t event_size = event_p->size();
     unordered_map<Rec_Event_name, Adjacency_list> edges = model_parms.get_edges();
+    
+    // DEBUG
+    cerr << "DEBUG get_event_size: event=" << event_p->get_name() << " size=" << event_size << endl;
+    
     auto it = edges.find(event_p->get_name());
     if (it == edges.end()) {
         cerr << "Error in get_event_size: Key not found in edges map: " << event_p->get_name() << endl;

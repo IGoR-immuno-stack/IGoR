@@ -281,7 +281,7 @@ queue<int> Deletion::draw_random_realization(
 
 void Deletion::write2txt(ofstream &outfile)
 {
-    outfile << "#Deletion;" << event_class << ";" << event_side << ";" << priority << ";" << nickname << endl;
+    outfile << "#Deletion;" << (Gene_class)event_class << ";" << event_side << ";" << priority << ";" << nickname << endl;
     for (unordered_map<string, Event_realization>::const_iterator iter = event_realizations.begin();
          iter != event_realizations.end(); ++iter) {
         outfile << "%" << (*iter).second.name << ";" << (*iter).second.value_int << ";" << (*iter).second.index << endl;

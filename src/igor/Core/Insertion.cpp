@@ -211,7 +211,7 @@ queue<int> Insertion::draw_random_realization(
 
 void Insertion::write2txt(ofstream &outfile)
 {
-    outfile << "#Insertion;" << event_class << ";" << event_side << ";" << priority << ";" << nickname << endl;
+    outfile << "#Insertion;" << (Gene_class)event_class << ";" << event_side << ";" << priority << ";" << nickname << endl;
     for (unordered_map<string, Event_realization>::const_iterator iter = event_realizations.begin();
          iter != event_realizations.end(); ++iter) {
         outfile << "%" << (*iter).second.name << ";" << (*iter).second.value_int << ";" << (*iter).second.index << endl;

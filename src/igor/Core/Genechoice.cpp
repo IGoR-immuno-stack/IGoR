@@ -526,7 +526,7 @@ queue<int> Gene_choice::draw_random_realization(
 }
 void Gene_choice::write2txt(ofstream &outfile)
 {
-    outfile << "#GeneChoice;" << event_class << ";" << event_side << ";" << priority << ";" << nickname << endl;
+    outfile << "#GeneChoice;" << (Gene_class)event_class << ";" << event_side << ";" << priority << ";" << nickname << endl;
     for (unordered_map<string, Event_realization>::const_iterator iter = event_realizations.begin();
          iter != event_realizations.end(); ++iter) {
         outfile << "%" << (*iter).second.name << ";" << (*iter).second.value_str << ";" << (*iter).second.index << endl;
