@@ -186,16 +186,25 @@ static double markov_entropy_rate(const std::array<double, 16> &T)
 /**
  * @brief Combined insertion + dinucleotide entropy.
  *
- * Following the pygor3 entropy decomposition
- * (see test_IgorModel_entropy in pygor3), the total entropy
- * contribution for an insertion + dinucleotide pair is:
+ * Following pygor3's get_df_Insertion_entropy_contribution() and
+ * get_conditional_entropy_dinucl_function_l_ins(), the total entropy
+ * contribution for an insertion + DinucMarkov pair is:
  *
- *     H_total = H(ℓ) + E[ℓ] · h
+ *     H_total = H(ℓ) + Σ_ℓ P(ℓ) · f(ℓ)
  *
- * where:
- *   - H(ℓ)  = Shannon entropy of the insertion-length distribution
- *   - E[ℓ]  = expected insertion length = Σ_ℓ ℓ · P(ℓ)
- *   - h     = entropy rate of the dinucleotide Markov chain
+ * where f(ℓ) is the entropy of the dinucleotide Markov chain of
+ * length ℓ, which (under the stationary-start approximation) gives:
+ *
+ *     f(ℓ=0) = H_ss           (pygor3 convention; strictly should be 0)
+ *     f(ℓ≥1) = H_ss + (ℓ−1)·h
+ *
+ * with:
+ *   - H_ss = entropy of the Markov chain's stationary distribution π
+ *   - h    = entropy rate = −Σ_i π_i Σ_j T_ij log₂ T_ij
+ *
+ * This simplifies to:
+ *
+ *     H_total = H(ℓ) + H_ss + h · [E[ℓ] − (1 − P(0))]
  *
  * @param ins_marginal  Marginal probability of each insertion length
  * @param ins_lengths   The actual length value for each insertion bin
@@ -207,20 +216,40 @@ static double insertion_dinuc_entropy(
         const std::vector<int> &ins_lengths,
         const std::array<double, 16> &dinuc_T)
 {
-    // H(ℓ) and E[ℓ]
+    // H(ℓ) = Shannon entropy of the insertion-length distribution
+    // E[ℓ] = expected insertion length
+    // P0   = P(ℓ=0)
     double H_len = 0.0;
     double E_len = 0.0;
+    double P0 = 0.0;
     for (size_t i = 0; i < ins_marginal.size(); ++i) {
         double p = ins_marginal[i];
         if (p > 0.0) {
             H_len -= p * std::log2(p);
             E_len += p * ins_lengths[i];
+            if (ins_lengths[i] == 0) P0 += p;
         }
     }
 
-    double h = markov_entropy_rate(dinuc_T);
+    // Markov chain entropy rate and stationary distribution entropy
+    auto pi = markov_stationary_distribution(dinuc_T);
+    double h = 0.0;
+    double H_ss = 0.0;
+    for (int i = 0; i < 4; ++i) {
+        if (pi[i] > 0.0) {
+            H_ss -= pi[i] * std::log2(pi[i]);
+        }
+        for (int j = 0; j < 4; ++j) {
+            double t = dinuc_T[i * 4 + j];
+            if (t > 0.0 && pi[i] > 0.0) {
+                h -= pi[i] * t * std::log2(t);
+            }
+        }
+    }
 
-    return H_len + E_len * h;
+    // pygor3 formula:
+    //   H_total = H(ℓ) + H_ss + h · [E[ℓ] − (1 − P(0))]
+    return H_len + H_ss + h * (E_len - (1.0 - P0));
 }
 
 // ---------------------------------------------------------------------------
@@ -444,9 +473,11 @@ TEST_CASE("Generation marginals converge - KL divergence vs entropy",
     // Following pygor3's get_df_entropy_decomposition(), insertion events
     // like "vj_ins" are paired with their DinucMarkov partner "vj_dinucl"
     // (sharing the same Gene_class). The combined entropy is:
-    //     H_total = H(ℓ) + E[ℓ] · h
-    // where H(ℓ) is the insertion-length entropy, E[ℓ] the expected length,
-    // and h the Markov chain entropy rate.
+    //     H_total = H(ℓ) + H_ss + h · [E[ℓ] − (1 − P(0))]
+    // where H(ℓ) is the insertion-length entropy, H_ss is the entropy of
+    // the Markov chain's stationary distribution, E[ℓ] the expected length,
+    // h the Markov chain entropy rate, and P(0) the probability of zero
+    // insertions.
     // ------------------------------------------------------------------
     struct InsDinucPair {
         const EventInfo *ins_event = nullptr;
@@ -501,7 +532,7 @@ TEST_CASE("Generation marginals converge - KL divergence vs entropy",
                       << it->second.dinuc_event->nickname
                       << " : H = " << combined
                       << "  (H_len=" << ev.H
-                      << ", E[l]*h=" << (combined - ev.H)
+                      << ", H_dinuc=" << (combined - ev.H)
                       << ", h=" << it->second.dinuc_event->dinuc_entropy_rate
                       << ")" << std::endl;
             total_entropy += combined;
@@ -532,9 +563,16 @@ TEST_CASE("Generation marginals converge - KL divergence vs entropy",
     // processing inequality, H(X) >= H(X|Pa), so for events WITH
     // parents our value is an upper bound on pygor3's.
     //
-    // For combined insertion+dinuc entropies, minor differences (~0.2
-    // bits) may arise from the dinucleotide entropy-rate formula
-    // (stationary-distribution vs first-nucleotide treatment).
+    // For combined insertion+dinuc entropies, a ~0.05 bit residual
+    // exists because pygor3's get_P_stationary_state_dinucl() uses
+    // np.linalg.eig(T) (right eigenvectors) instead of the transpose
+    // np.linalg.eig(T.T) (left eigenvectors = true stationary dist).
+    // For a row-stochastic T, the right eigenvector with eigenvalue 1
+    // is always [1,1,1,1], yielding a uniform π=[0.25,0.25,0.25,0.25]
+    // regardless of T.  This causes pygor3 to overestimate both H_ss
+    // (always 2.0 bits = log₂4) and the entropy rate h.  Our power-
+    // iteration approach computes the correct stationary distribution,
+    // so our values are more accurate than pygor3's references.
     // ------------------------------------------------------------------
     if (!pygor3_reference_entropy.empty()) {
         std::cout << "\n=== Cross-validation against pygor3 (" << model_label
@@ -569,10 +607,11 @@ TEST_CASE("Generation marginals converge - KL divergence vs entropy",
                           << std::endl;
 
                 if (is_combined_ins) {
-                    // Combined insertion + dinuc: small formula differences
-                    // (stationary distribution, Markov transition count)
-                    // may cause up to ~0.5 bit discrepancy.
-                    CHECK(diff < 0.5);
+                    // Combined insertion + dinuc: pygor3 uses a uniform
+                    // stationary distribution (bug in eig computation)
+                    // which inflates its reference by ~0.05 bits.
+                    // Our value is more accurate; allow 0.1 bit tolerance.
+                    CHECK(diff < 0.1);
                 } else if (has_parents) {
                     // Marginal entropy >= conditional entropy.
                     // The gap is bounded by I(X; Pa), the mutual
