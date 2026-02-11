@@ -397,11 +397,11 @@ public:
 
     void request_memory_layer(const K &key)
     {
-        /*std::cout<<key<<std::endl;
-			std::cout<<memory_layer_ptr[key]<<std::endl;*/
         if (key > range - 1) {
             throw std::out_of_range("Unknown key in Enum_fast_memory_map::request_memory_layer()");
         }
+        static int req_debug = 0;
+        int old_layer = memory_layer_ptr[key];
         //Get current memory layer at this position
         if (memory_layer_ptr[key] < max_layer) {
             ++memory_layer_ptr[key];
@@ -421,6 +421,11 @@ public:
             // Initialize new layer value to 1.0 (neutral for multiplication)
             value_ptr_arr[key + memory_layer_ptr[key] * range] = V(1);
         }
+        if (req_debug < 50) {
+            std::cerr << "DEBUG request_memory_layer: key=" << key 
+                      << " old_layer=" << old_layer << " new_layer=" << memory_layer_ptr[key] << std::endl;
+            req_debug++;
+        }
     }
 
     //Setters
@@ -435,6 +440,8 @@ public:
             //Setting a value at a given layer invalidate upper layers
             memory_layer_ptr[key] = memory_layer;
         } else {
+            std::cerr << "DEBUG set_value fail: key=" << key << " memory_layer=" << memory_layer 
+                      << " current_layer=" << memory_layer_ptr[key] << std::endl;
             throw std::out_of_range("Trying to access incorrect memory layer in Enum_fast_memory_map::set_value()");
         }
     }
@@ -622,6 +629,21 @@ public:
     }
 
     int get_current_memory_layer(const K1 &key1, const K2 &key2) { return memory_layer_ptr[key1 + range_key1 * key2]; }
+
+    bool exist(const K1 &key1, const K2 &key2) { return memory_layer_ptr[key1 + range_key1 * key2] > -1; }
+
+    // Check if key1 exists with any key2
+    bool exist_key1(const K1 &key1) {
+        if (key1 > range_key1 - 1) {
+            return false;
+        }
+        for (size_t key2 = 0; key2 != range_key2; ++key2) {
+            if (memory_layer_ptr[key1 + range_key1 * key2] > -1) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     void request_memory_layer(const K1 &key1, const K2 &key2)
     {

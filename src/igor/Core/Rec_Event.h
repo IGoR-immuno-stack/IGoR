@@ -309,6 +309,7 @@ struct Event_comparator
 {
     bool operator()(std::shared_ptr<const Rec_Event> event_p1, std::shared_ptr<const Rec_Event> event_p2)
     {
+        // Higher priority number = higher precedence (processed first)
         return event_p1->get_priority() > event_p2->get_priority();
     }
 };

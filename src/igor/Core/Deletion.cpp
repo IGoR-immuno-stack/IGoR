@@ -63,6 +63,15 @@ Deletion::Deletion(int gene, Seq_side side)
       downstream_ins_type(-1)
 {
     this->type = Event_type::Deletion_t;
+    
+    // Set sequence_type_id based on event_class for generation
+    if (gene == V_gene)
+        this->sequence_type_id = SequenceTypeRegistry::V_GENE_SEQ;
+    else if (gene == D_gene)
+        this->sequence_type_id = SequenceTypeRegistry::D_GENE_SEQ;
+    else if (gene == J_gene)
+        this->sequence_type_id = SequenceTypeRegistry::J_GENE_SEQ;
+    
     this->update_event_name();
 }
 
@@ -223,13 +232,29 @@ queue<int> Deletion::draw_random_realization(
     queue<int> realization_queue;
 
     int type_id = this->sequence_type_id;
+    
+    // Check if type_id is valid and exists in constructed_sequences
+    if (type_id < 0) {
+        return realization_queue;
+    }
+    if (constructed_sequences.count(type_id) == 0) {
+        return realization_queue;
+    }
+    
     string &seq = constructed_sequences[type_id];
 
     for (unordered_map<string, Event_realization>::const_iterator iter = this->event_realizations.begin();
          iter != this->event_realizations.end(); ++iter) {
+        // Check if event name is in index_map
+        if (index_map.count(this->get_name()) == 0) {
+            break;
+        }
         prob_count += model_marginals_p[index_map.at(this->get_name()) + (*iter).second.index];
         if (prob_count >= rand) {
             int del_len = (*iter).second.value_int;
+            // Take absolute value - deletion length should be positive
+            if (del_len < 0) del_len = -del_len;
+            
             if (del_len > (int)seq.length()) {
                 del_len = seq.length();
             }

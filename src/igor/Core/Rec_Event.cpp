@@ -106,7 +106,7 @@ bool Rec_Event::operator==(const Rec_Event &other) const
 void Rec_Event::update_event_name()
 {
     this->name = string() + this->type + string("_") + to_string((Gene_class)this->event_class) + string("_") + this->event_side
-            + string("_prio") + to_string(priority);
+            + string("_prio") + to_string(priority) + string("_size") + to_string(this->size());
 }
 
 void Rec_Event::add_realization(const Event_realization &realization)
@@ -373,21 +373,23 @@ void Rec_Event::iterate_initialize_Len_proba_wrap_up(int considered_junction,
     if (not model_queue.empty()) {
         std::shared_ptr<Rec_Event> next_event_p = model_queue.front();
         model_queue.pop();
-        // TODO fix this and find a way not to loop over all events
-        // if(next_event_p->has_effect_on(considered_junction)){
-        //  Explore realizations of this event
-        next_event_p->iterate_initialize_Len_proba(considered_junction, length_best_proba_map, model_queue,
-                                                   scenario_proba, model_parameters_point, base_index_map,
-                                                   constructed_sequences, seq_len);
-        //}
-        // else{
-        // If this event has no effect on the junction skip it using a recursive
-        // call
-        // next_event_p->iterate_initialize_Len_proba_wrap_up(considered_junction ,
-        // length_best_proba_map , model_queue , scenario_proba ,
-        // model_parameters_point , base_index_map , constructed_sequences ,
-        // seq_len);
-        //}
+        // Only process events that affect the considered junction
+        bool has_effect = next_event_p->has_effect_on(considered_junction);
+
+        if(has_effect){
+            // Explore realizations of this event
+            next_event_p->iterate_initialize_Len_proba(considered_junction, length_best_proba_map, model_queue,
+                                                       scenario_proba, model_parameters_point, base_index_map,
+                                                       constructed_sequences, seq_len);
+        }
+        else{
+            // If this event has no effect on the junction skip it using a recursive
+            // call
+            next_event_p->iterate_initialize_Len_proba_wrap_up(considered_junction ,
+             length_best_proba_map , model_queue , scenario_proba ,
+             model_parameters_point , base_index_map , constructed_sequences ,
+             seq_len);
+        }
     } else {
         // When all events with an effect on the junction have been processed update
         // the length-proba map

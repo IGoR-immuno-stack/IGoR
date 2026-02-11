@@ -297,14 +297,6 @@ void Insertion::iterate_initialize_Len_proba(int considered_junction, std::map<i
 {
     if (considered_junction == this->sequence_type_id) {
         int base_index = base_index_map.at(this->event_index, 0);
-        // Debug: print first few values to see what's in model_parameters_point
-        cerr << "Insertion " << this->nickname << " base_index=" << base_index 
-             << " marginal_size=" << this->event_marginal_size << " size=" << this->size() << endl;
-        cerr << " First few values at base_index: ";
-        for (int i = 0; i < 5 && i < (int)this->event_marginal_size; ++i) {
-            cerr << model_parameters_point[base_index + i] << " ";
-        }
-        cerr << endl;
         
         for (unordered_map<string, Event_realization>::const_iterator iter = this->event_realizations.begin();
              iter != this->event_realizations.end(); ++iter) {
@@ -315,7 +307,6 @@ void Insertion::iterate_initialize_Len_proba(int considered_junction, std::map<i
                     real_max_proba = prob;
                 }
             }
-            cerr << "  len " << (*iter).second.value_int << " real_max_proba=" << real_max_proba << endl;
             Rec_Event::iterate_initialize_Len_proba_wrap_up(
                     considered_junction, length_best_proba_map, model_queue, scenario_proba * real_max_proba,
                     model_parameters_point, base_index_map, constructed_sequences, seq_len + (*iter).second.value_int);

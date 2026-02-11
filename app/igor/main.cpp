@@ -1783,6 +1783,47 @@ int main(int argc, char *argv[])
                 }
             }
 
+            // Extract genomic templates from model if not provided via command line
+            if (v_genomic.empty() && custom_cl_parms) {
+                auto events_map = cl_model_parms.get_events_map();
+                auto v_key = tuple<Event_type, int, Seq_side>(GeneChoice_t, V_gene, Undefined_side);
+                if (events_map.count(v_key) > 0) {
+                    auto v_choice = dynamic_pointer_cast<Gene_choice>(events_map.at(v_key));
+                    if (v_choice) {
+                        auto realizations = v_choice->get_realizations_map();
+                        for (const auto& [name, ev_real] : realizations) {
+                            v_genomic.emplace_back(name, ev_real.value_str);
+                        }
+                    }
+                }
+            }
+            if (d_genomic.empty() && custom_cl_parms && has_D) {
+                auto events_map = cl_model_parms.get_events_map();
+                auto d_key = tuple<Event_type, int, Seq_side>(GeneChoice_t, D_gene, Undefined_side);
+                if (events_map.count(d_key) > 0) {
+                    auto d_choice = dynamic_pointer_cast<Gene_choice>(events_map.at(d_key));
+                    if (d_choice) {
+                        auto realizations = d_choice->get_realizations_map();
+                        for (const auto& [name, ev_real] : realizations) {
+                            d_genomic.emplace_back(name, ev_real.value_str);
+                        }
+                    }
+                }
+            }
+            if (j_genomic.empty() && custom_cl_parms) {
+                auto events_map = cl_model_parms.get_events_map();
+                auto j_key = tuple<Event_type, int, Seq_side>(GeneChoice_t, J_gene, Undefined_side);
+                if (events_map.count(j_key) > 0) {
+                    auto j_choice = dynamic_pointer_cast<Gene_choice>(events_map.at(j_key));
+                    if (j_choice) {
+                        auto realizations = j_choice->get_realizations_map();
+                        for (const auto& [name, ev_real] : realizations) {
+                            j_genomic.emplace_back(name, ev_real.value_str);
+                        }
+                    }
+                }
+            }
+
             if (align_v) {
                 //Performs V alignments
                 Aligner v_aligner = Aligner(v_subst_matrix, v_gap_penalty, V_gene);
