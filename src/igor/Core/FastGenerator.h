@@ -31,6 +31,8 @@
 #include <igor/Core/Errorrate.h>
 #include <igor/Core/Utils.h>
 
+#include <igorCoreExport.h>
+
 #include <vector>
 #include <string>
 #include <memory>
@@ -142,7 +144,7 @@ struct GeneratedSequence {
  * - Memory pooling and buffer reuse
  * - Batched I/O operations
  */
-class FastGenerator {
+class CORE_EXPORT FastGenerator {
 public:
     FastGenerator() = default;
 
