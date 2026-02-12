@@ -115,25 +115,68 @@ static inline std::array<double, 4> markov_stationary_distribution(
 }
 
 /**
- * @brief Entropy rate of a first-order Markov chain.
+ * @brief Cross-entropy between two first-order Markov chain transition matrices.
  *
- *     h = − Σ_i π_i  Σ_j T_{ij} log2(T_{ij})
+ *     H(P, Q) = − Σ_i π_P[i]  Σ_j P_{ij} log2(Q_{ij})
  *
- * where π is the stationary distribution and T is the transition matrix.
+ * where π_P is the stationary distribution of P (the "true" distribution),
+ * P is the true transition matrix, and Q is the predicted/inferred matrix.
+ *
+ * Uses epsilon (1e-100) for numerical stability if Q[i,j] = 0 when P[i,j] > 0.
  */
-static inline double markov_entropy_rate(const std::array<double, 16> &T)
+static inline double markov_cross_entropy(
+        const std::array<double, 16> &P,
+        const std::array<double, 16> &Q,
+        const std::array<double, 4> &pi_P)
 {
-    auto pi = markov_stationary_distribution(T);
+    constexpr double EPSILON_PROB = 1e-100;
     double h = 0.0;
     for (int i = 0; i < 4; ++i) {
+        if (pi_P[i] <= 0.0) continue;
         for (int j = 0; j < 4; ++j) {
-            double t = T[i * 4 + j];
-            if (t > 0.0 && pi[i] > 0.0) {
-                h -= pi[i] * t * std::log2(t);
+            double p = P[i * 4 + j];
+            double q = Q[i * 4 + j];
+            if (p > 0.0) {
+                // Use epsilon for numerical stability if q=0
+                if (q <= 0.0) {
+                    q = EPSILON_PROB;
+                }
+                h -= pi_P[i] * p * std::log2(q);
             }
         }
     }
     return h;
+}
+
+/**
+ * @brief Entropy rate of a first-order Markov chain.
+ *
+ *     h(P) = H(P, P) = − Σ_i π_i  Σ_j P_{ij} log2(P_{ij})
+ *
+ * where π is the stationary distribution and P is the transition matrix.
+ */
+static inline double markov_entropy_rate(const std::array<double, 16> &P)
+{
+    auto pi = markov_stationary_distribution(P);
+    return markov_cross_entropy(P, P, pi);
+}
+
+/**
+ * @brief KL divergence between two first-order Markov chain transition matrices.
+ *
+ *     D_KL(P || Q) = H(P, Q) - h(P)
+ *                  = Σ_i π_P[i] Σ_j P_{ij} log2(P_{ij} / Q_{ij})
+ *
+ * where π_P is the stationary distribution of P (the "true" distribution).
+ */
+static inline double markov_kl_divergence(
+        const std::array<double, 16> &P,
+        const std::array<double, 16> &Q)
+{
+    auto pi_P = markov_stationary_distribution(P);
+    double cross_ent = markov_cross_entropy(P, Q, pi_P);
+    double ent = markov_cross_entropy(P, P, pi_P);
+    return cross_ent - ent;
 }
 
 /**
@@ -203,6 +246,75 @@ static inline double insertion_dinuc_entropy(
     // pygor3 formula:
     //   H_total = H(ℓ) + H_ss + h · [E[ℓ] − (1 − P(0))]
     return H_len + H_ss + h * (E_len - (1.0 - P0));
+}
+
+/**
+ * @brief Cross-entropy between two insertion + dinucleotide Markov models.
+ *
+ * Computes H(P, Q) where P is the true model and Q is the predicted model.
+ * Follows the same decomposition as insertion_dinuc_entropy:
+ *
+ *     H(P, Q) = H(P_len, Q_len) + H_ss(P, Q) + h_cross(P, Q) · [E_P[ℓ] − (1 − P_P(0))]
+ *
+ * where:
+ *   - H(P_len, Q_len) = cross-entropy of insertion length distributions
+ *   - H_ss(P, Q) = cross-entropy of stationary distributions
+ *   - h_cross(P, Q) = cross-entropy rate of Markov chains
+ *
+ * @return The cross-entropy in bits
+ */
+static inline double insertion_dinuc_cross_entropy(
+        const std::vector<double> &P_ins_marginal,
+        const std::vector<double> &Q_ins_marginal,
+        const std::vector<int> &ins_lengths,
+        const std::array<double, 16> &P_dinuc_T,
+        const std::array<double, 16> &Q_dinuc_T)
+{
+    // Use tiny epsilon for numerical stability when Q has zeros
+    // This gives finite but very large penalty: log₂(1e-100) ≈ -332 bits
+    constexpr double EPSILON_PROB = 1e-100;
+    
+    // H(P_len, Q_len) = cross-entropy of insertion-length distributions
+    // E_P[ℓ] = expected insertion length under P
+    // P_P(0) = P(ℓ=0) under P
+    double H_len_cross = 0.0;
+    double E_len_P = 0.0;
+    double P0_P = 0.0;
+    for (size_t i = 0; i < P_ins_marginal.size(); ++i) {
+        double p = P_ins_marginal[i];
+        double q = Q_ins_marginal[i];
+        if (p > 0.0) {
+            // Use epsilon for numerical stability if q=0
+            if (q <= 0.0) {
+                q = EPSILON_PROB;
+            }
+            H_len_cross -= p * std::log2(q);
+            E_len_P += p * ins_lengths[i];
+            if (ins_lengths[i] == 0) P0_P += p;
+        }
+    }
+
+    // Stationary distribution cross-entropy: H(π_P, π_Q)
+    auto pi_P = markov_stationary_distribution(P_dinuc_T);
+    auto pi_Q = markov_stationary_distribution(Q_dinuc_T);
+    
+    double H_ss_cross = 0.0;
+    for (int i = 0; i < 4; ++i) {
+        if (pi_P[i] > 0.0) {
+            double q = pi_Q[i];
+            // Use epsilon for numerical stability if q=0
+            if (q <= 0.0) {
+                q = EPSILON_PROB;
+            }
+            H_ss_cross -= pi_P[i] * std::log2(q);
+        }
+    }
+
+    // Markov chain cross-entropy rate: h_cross(P, Q)
+    double h_cross = markov_cross_entropy(P_dinuc_T, Q_dinuc_T, pi_P);
+
+    // Combined cross-entropy
+    return H_len_cross + H_ss_cross + h_cross * (E_len_P - (1.0 - P0_P));
 }
 
 // ---------------------------------------------------------------------------
