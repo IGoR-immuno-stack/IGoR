@@ -857,3 +857,201 @@ TEST_CASE("Generation marginals converge - KL divergence vs entropy",
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// NEGATIVE CONTROL: Perturbed marginals must be detected
+// ---------------------------------------------------------------------------
+
+/**
+ * @brief Verify that the KL divergence test is sensitive enough to detect
+ *        model perturbations.
+ *
+ * Strategy:
+ *   1. Load the original model (parms + marginals).
+ *   2. Copy the marginals and flatten one event to a uniform distribution.
+ *   3. Generate sequences from the PERTURBED marginals.
+ *   4. Compute empirical marginals and compare against the ORIGINAL model.
+ *   5. The perturbed event must show D_KL >> 0 (well above the convergence
+ *      tolerances used in the main test), proving that the test framework
+ *      would catch an incorrect generator.
+ *
+ * A separate section is run for each event that the test perturbs.
+ */
+TEST_CASE("Perturbed marginals are detected by KL divergence",
+          "[generation]")
+{
+    std::string model_parms_path;
+    std::string model_marginals_path;
+    std::string model_label;
+    std::string perturb_nickname; // event to flatten
+
+    SECTION("human TCR alpha - flatten v_choice") {
+        model_parms_path     = MODELS_DIR + "/human/tcr_alpha/models/model_parms.txt";
+        model_marginals_path = MODELS_DIR + "/human/tcr_alpha/models/model_marginals.txt";
+        model_label = "human/tcr_alpha";
+        perturb_nickname = "v_choice";
+    }
+
+    SECTION("human TCR alpha - flatten j_choice") {
+        model_parms_path     = MODELS_DIR + "/human/tcr_alpha/models/model_parms.txt";
+        model_marginals_path = MODELS_DIR + "/human/tcr_alpha/models/model_marginals.txt";
+        model_label = "human/tcr_alpha";
+        perturb_nickname = "j_choice";
+    }
+
+    SECTION("human TCR beta - flatten v_choice") {
+        model_parms_path     = MODELS_DIR + "/human/tcr_beta/models/model_parms.txt";
+        model_marginals_path = MODELS_DIR + "/human/tcr_beta/models/model_marginals.txt";
+        model_label = "human/tcr_beta";
+        perturb_nickname = "v_choice";
+    }
+
+    SECTION("human TCR beta - flatten d_gene") {
+        model_parms_path     = MODELS_DIR + "/human/tcr_beta/models/model_parms.txt";
+        model_marginals_path = MODELS_DIR + "/human/tcr_beta/models/model_marginals.txt";
+        model_label = "human/tcr_beta";
+        perturb_nickname = "d_gene";
+    }
+
+    SECTION("human TCR beta - flatten j_choice") {
+        model_parms_path     = MODELS_DIR + "/human/tcr_beta/models/model_parms.txt";
+        model_marginals_path = MODELS_DIR + "/human/tcr_beta/models/model_marginals.txt";
+        model_label = "human/tcr_beta";
+        perturb_nickname = "j_choice";
+    }
+
+    // ------------------------------------------------------------------
+    // 1. Load original model
+    // ------------------------------------------------------------------
+    INFO("Model: " << model_label << ", perturbing: " << perturb_nickname);
+
+    Model_Parms model_parms;
+    model_parms.read_model_parms(model_parms_path);
+
+    Model_marginals original_marginals(model_parms);
+    original_marginals.txt2marginals(model_marginals_path, model_parms);
+
+    // Build event infos from the ORIGINAL model (our "truth")
+    std::vector<EventInfo> event_infos =
+            build_event_info(model_parms, original_marginals);
+
+    // Find the event to perturb
+    const EventInfo *perturbed_ev = nullptr;
+    for (const auto &ev : event_infos) {
+        if (ev.nickname == perturb_nickname) {
+            perturbed_ev = &ev;
+            break;
+        }
+    }
+    REQUIRE(perturbed_ev != nullptr);
+    REQUIRE(!perturbed_ev->is_dinuc_markov);
+
+    // Record the original marginal entropy for the perturbed event.
+    // The uniform distribution has H_uniform = log2(k).
+    // If the original is far from uniform, D_KL(P_orig || Q_uniform)
+    // will be substantial.
+    double H_original = perturbed_ev->H;
+    double H_uniform  = std::log2(static_cast<double>(perturbed_ev->num_realizations));
+    double expected_dkl_lower_bound = 0.0;
+    // D_KL(P || Q_uniform) = log2(k) − H(P) for any distribution P
+    // We expect at least this divergence when the model was actually replaced.
+    // Since we generate from Q (uniform) and measure D_KL(P || Q_emp),
+    // at large N, Q_emp ≈ Q_uniform, so D_KL(P || Q_uniform) is the target.
+    if (H_uniform > H_original) {
+        expected_dkl_lower_bound = H_uniform - H_original;
+    }
+
+    std::cout << "\n=== Perturbed marginals test: " << model_label
+              << " / " << perturb_nickname << " ===" << std::endl;
+    std::cout << "  k=" << perturbed_ev->num_realizations
+              << "  H_original=" << H_original
+              << "  H_uniform=" << H_uniform
+              << "  expected D_KL >= " << expected_dkl_lower_bound
+              << std::endl;
+
+    // ------------------------------------------------------------------
+    // 2. Create perturbed marginals: flatten the target event to uniform
+    // ------------------------------------------------------------------
+    Model_marginals perturbed_marginals(original_marginals);
+    auto ev_ptr = model_parms.get_event_pointer(perturbed_ev->name);
+    perturbed_marginals.flatten(ev_ptr, model_parms);
+
+    // Verify the perturbation actually changed something
+    {
+        auto [dims_orig, probs_orig] =
+                original_marginals.compute_event_marginal_probability(
+                        perturbed_ev->name, model_parms);
+        auto [dims_pert, probs_pert] =
+                perturbed_marginals.compute_event_marginal_probability(
+                        perturbed_ev->name, model_parms);
+
+        double max_diff = 0.0;
+        for (int i = 0; i < perturbed_ev->num_realizations; ++i) {
+            double d = std::abs(static_cast<double>(probs_orig.get()[i])
+                                - static_cast<double>(probs_pert.get()[i]));
+            max_diff = (std::max)(max_diff, d);
+        }
+        std::cout << "  Marginal max perturbation: " << max_diff << std::endl;
+        REQUIRE(max_diff > 0.001); // Flattening must change something
+    }
+
+    // ------------------------------------------------------------------
+    // 3. Generate sequences from the PERTURBED model
+    // ------------------------------------------------------------------
+    const int N = 100000; // 100k is enough to detect meaningful divergence
+
+    igor::fast::FastGenerator fast_gen;
+    fast_gen.initialize(model_parms, perturbed_marginals);
+    REQUIRE(fast_gen.is_initialized());
+
+    igor::fast::FastGeneratorConfig config;
+    config.show_progress = false;
+    auto sequences = fast_gen.generate(static_cast<size_t>(N), config);
+    REQUIRE(sequences.size() == static_cast<size_t>(N));
+
+    // ------------------------------------------------------------------
+    // 4. Compute empirical marginals and check D_KL against ORIGINAL
+    // ------------------------------------------------------------------
+    auto all_empiricals = compute_all_empirical_marginals(
+            sequences, event_infos, sequences.size());
+
+    bool found_large_dkl = false;
+    for (const auto &ev : event_infos) {
+        if (ev.is_dinuc_markov) continue;
+
+        const auto &empirical = all_empiricals.at(ev.queue_position);
+        double uncovered = 0.0;
+        double dkl = kl_divergence(ev.model_marginal, empirical, &uncovered);
+
+        std::cout << "  " << ev.nickname
+                  << " : D_KL = " << dkl
+                  << "  uncovered = " << uncovered;
+
+        if (ev.nickname == perturb_nickname) {
+            std::cout << "  *** PERTURBED ***";
+
+            // The D_KL for the perturbed event must be substantially
+            // above zero — well above the convergence tolerance used
+            // in the main test (which is ~(k−1)/(2·N·ln2) ≈ O(1e-4)).
+            //
+            // For a root event (no parents), the KL divergence between
+            // the original distribution P and the uniform Q is:
+            //   D_KL(P||Q) = log2(k) − H(P)
+            //
+            // For events with parents, flattening changes the conditional
+            // tables; the resulting marginal won't be exactly uniform,
+            // but the deviation is still detectable.
+            //
+            // We require at least 10% of the expected lower bound, or a
+            // minimum of 0.01 bits, to account for parent conditioning.
+            double threshold = (std::max)(expected_dkl_lower_bound * 0.1, 0.01);
+            CHECK(dkl > threshold);
+            found_large_dkl = (dkl > threshold);
+        }
+
+        std::cout << std::endl;
+    }
+
+    // At least the perturbed event must be detected
+    CHECK(found_large_dkl);
+}
