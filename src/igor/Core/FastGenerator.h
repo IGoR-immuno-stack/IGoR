@@ -236,14 +236,14 @@ private:
     // Generic sampling function for any event
     void sample_event(const FastEventSampler& sampler,
                      std::mt19937_64& rng,
-                     std::unordered_map<Seq_type, std::string>& sequences,
+                     std::map<Seq_type, std::string>& sequences,
                      std::vector<int>& realization,
                      SamplingContext& context) const;
 
     // Specialized sampling for dinucleotide Markov (generates insertion sequences)
     void sample_dinucl_markov(const FastEventSampler& sampler,
                              std::mt19937_64& rng,
-                             std::unordered_map<Seq_type, std::string>& sequences,
+                             std::map<Seq_type, std::string>& sequences,
                              std::vector<int>& realization,
                              SamplingContext& context) const;
 
@@ -254,23 +254,23 @@ private:
     // Apply gene choice to sequences
     void apply_gene_choice(const FastEventSampler& sampler,
                           size_t choice_idx,
-                          std::unordered_map<Seq_type, std::string>& sequences) const;
+                          std::map<Seq_type, std::string>& sequences) const;
 
     // Apply deletion to sequences
     void apply_deletion(const FastEventSampler& sampler,
                        size_t del_idx,
-                       std::unordered_map<Seq_type, std::string>& sequences) const;
+                       std::map<Seq_type, std::string>& sequences) const;
 
     // Assemble final sequence from components
     std::string assemble_sequence(
-        const std::unordered_map<Seq_type, std::string>& sequences) const;
+        const std::map<Seq_type, std::string>& sequences) const;
 
     // Apply transversions for palindromic insertions
     static void apply_palindrome(std::string& seq, int num_bases, bool is_3prime);
 
     // Member variables
     std::vector<FastEventSampler> event_samplers_;
-    std::unordered_map<std::string, size_t> event_name_to_index_;
+    std::map<std::string, size_t> event_name_to_index_;
     std::shared_ptr<Error_rate> error_rate_;
     bool has_d_gene_ = false;
     bool initialized_ = false;

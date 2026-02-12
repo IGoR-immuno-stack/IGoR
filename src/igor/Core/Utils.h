@@ -90,7 +90,7 @@ inline uint32_t portable_gethostid()
 
 #endif
 #include <stdio.h>
-#include <unordered_map>
+#include <map>
 
 class Rec_Event;
 
@@ -139,7 +139,7 @@ std::string operator+(const std::string &, Seq_side);
 std::string operator+(const std::string &, Event_type);
 
 //Type used to describe the array of doubles containing the marginals values
-typedef std::unique_ptr<long double[]> Marginal_array_p;
+typedef std::unique_ptr<double[]> Marginal_array_p;
 
 //Type used as key for unordered map since Rec_event cannot be instantiated
 typedef std::string Rec_Event_name;
@@ -283,7 +283,7 @@ std::ostream &operator<<(std::ostream &stream, const Matrix<T> &mat)
 }
 
 /*
- * This class provides a fast alternative to unordered_map<Seq_type,string*> for the constructed_sequences objects
+ * This class provides a fast alternative to map<Seq_type,string*> for the constructed_sequences objects
  * Change this and give some kind of matrix with memory levels
  * Create a 0 size at first?
  * Get rid of it in the deletions
@@ -480,7 +480,7 @@ class Seq_type_str_p_map : public Enum_fast_memory_map<Seq_type,Str_ptr>{
 };*/
 
 /*
- * This class provides a fast alternative to unordered_map<Seq_type,string*> for the constructed_sequences objects
+ * This class provides a fast alternative to map<Seq_type,string*> for the constructed_sequences objects
  * Change this and give some kind of matrix with memory levels
  * Create a 0 size at first?
  * Get rid of it in the deletions
@@ -752,6 +752,6 @@ void show_progress_bar(std::ostream &, double, const std::string &prefix_message
 void close_progress_bar(std::ostream &, const std::string &prefix_message = "", size_t progress_bar_size = 70);
 uint64_t draw_random_64bits_seed();
 
-typedef std::unordered_map<std::string, std::string> UMCodonTable;
+typedef std::map<std::string, std::string> UMCodonTable;
 
 std::string translate(const std::string &seq);

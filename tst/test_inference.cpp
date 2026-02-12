@@ -40,7 +40,7 @@
 #include <stdexcept>
 #include <string>
 #include <tuple>
-#include <unordered_map>
+#include <map>
 #include <utility>
 #include <vector>
 
@@ -199,7 +199,7 @@ static ParsedScenario parse_scenario(
 static Alignment_data create_v_mock_alignment(
         const std::string& sequence,
         const ParsedScenario& scenario,
-        const std::unordered_map<std::string, std::string>& gene_templates)
+        const std::map<std::string, std::string>& gene_templates)
 {
     const std::string& v_template = gene_templates.at(scenario.v_gene_name);
     int v_len = v_template.length();
@@ -233,7 +233,7 @@ static Alignment_data create_v_mock_alignment(
 static Alignment_data create_j_mock_alignment(
         const std::string& sequence,
         const ParsedScenario& scenario,
-        const std::unordered_map<std::string, std::string>& gene_templates)
+        const std::map<std::string, std::string>& gene_templates)
 {
     const std::string& j_template = gene_templates.at(scenario.j_gene_name);
     int j_len = j_template.length();
@@ -380,7 +380,7 @@ TEST_CASE("Inference recovers ground truth model", "[inference]")
     // ------------------------------------------------------------------
     // 2. Load gene templates
     // ------------------------------------------------------------------
-    std::unordered_map<std::string, std::string> gene_templates;
+    std::map<std::string, std::string> gene_templates;
     
     // Get V gene templates
     auto v_genomic = read_genomic_fasta(MODELS_DIR + "/human/tcr_alpha/ref_genome/genomicVs.fasta");
@@ -417,7 +417,7 @@ TEST_CASE("Inference recovers ground truth model", "[inference]")
     std::cout << "\n=== Creating mock alignments ===" << std::endl;
     
     std::vector<std::tuple<int, std::string, 
-        std::unordered_map<Gene_class, std::vector<Alignment_data>>>> 
+        std::map<Gene_class, std::vector<Alignment_data>>>> 
         sequences_with_alignments;
     
     int seq_idx = 0;
@@ -432,7 +432,7 @@ TEST_CASE("Inference recovers ground truth model", "[inference]")
         Alignment_data j_align = create_j_mock_alignment(seq, parsed, gene_templates);
         
         // Build alignment map
-        std::unordered_map<Gene_class, std::vector<Alignment_data>> aligns_map;
+        std::map<Gene_class, std::vector<Alignment_data>> aligns_map;
         aligns_map[V_gene] = {v_align};
         aligns_map[J_gene] = {j_align};
         
@@ -471,7 +471,7 @@ TEST_CASE("Inference recovers ground truth model", "[inference]")
     std::cout << "\n=== Writing alignments to file for debugging ===" << std::endl;
     
     // Extract V gene alignments
-    std::unordered_map<int, std::forward_list<Alignment_data>> v_alignments;
+    std::map<int, std::forward_list<Alignment_data>> v_alignments;
     for (const auto& [seq_idx, seq, aligns_map] : sequences_with_alignments) {
         if (aligns_map.count(V_gene) > 0) {
             std::forward_list<Alignment_data> v_list;
@@ -483,7 +483,7 @@ TEST_CASE("Inference recovers ground truth model", "[inference]")
     }
     
     // Extract J gene alignments
-    std::unordered_map<int, std::forward_list<Alignment_data>> j_alignments;
+    std::map<int, std::forward_list<Alignment_data>> j_alignments;
     for (const auto& [seq_idx, seq, aligns_map] : sequences_with_alignments) {
         if (aligns_map.count(J_gene) > 0) {
             std::forward_list<Alignment_data> j_list;

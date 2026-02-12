@@ -70,38 +70,6 @@ void CategoricalSampler::initialize(const double* probs, size_t n, bool use_alia
     }
 }
 
-void CategoricalSampler::initialize(const long double* probs, size_t n, bool use_alias) {
-    if (n == 0) {
-        probabilities_.clear();
-        cdf_.clear();
-        return;
-    }
-
-    probabilities_.resize(n);
-    for (size_t i = 0; i < n; ++i) {
-        probabilities_[i] = static_cast<double>(probs[i]);
-    }
-
-    // Normalize probabilities
-    double sum = std::accumulate(probabilities_.begin(), probabilities_.end(), 0.0);
-    if (sum > 0) {
-        for (auto& p : probabilities_) {
-            p /= sum;
-        }
-    } else {
-        // Uniform distribution if all zeros
-        double uniform = 1.0 / static_cast<double>(n);
-        std::fill(probabilities_.begin(), probabilities_.end(), uniform);
-    }
-
-    use_alias_method_ = use_alias;
-    build_cdf();
-
-    if (use_alias) {
-        build_alias();
-    }
-}
-
 void CategoricalSampler::build_cdf() {
     size_t n = probabilities_.size();
     cdf_.resize(n);
@@ -199,19 +167,6 @@ void ConditionalSampler::initialize(const double* probs, size_t num_conditions,
         samplers_.push_back(std::move(sampler));
     }
 }
-
-void ConditionalSampler::initialize(const long double* probs, size_t num_conditions,
-                                    size_t num_outcomes, bool use_alias) {
-    samplers_.clear();
-    samplers_.reserve(num_conditions);
-
-    for (size_t i = 0; i < num_conditions; ++i) {
-        CategoricalSampler sampler;
-        sampler.initialize(probs + i * num_outcomes, num_outcomes, use_alias);
-        samplers_.push_back(std::move(sampler));
-    }
-}
-
 
 //==============================================================================
 // DinucleotideMarkovSampler Implementation

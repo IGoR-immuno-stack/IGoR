@@ -57,11 +57,11 @@ public:
     virtual ~Hypermutation_full_Nmer_errorrate();
     double compare_sequences_error_prob(
             double, const std::string &, Seq_type_str_p_map &, const Seq_offsets_map &,
-            const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> &,
+            const std::map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> &,
             Mismatch_vectors_map &, double &, double &);
     void update();
     void
-    initialize(const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> &);
+    initialize(const std::map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> &);
     void add_to_norm_counter();
     void clean_seq_counters();
     void clean_all_counters();
@@ -92,13 +92,13 @@ private:
     //# V D and J possible realizations
     std::shared_ptr<Gene_choice> v_gene_event_p;
     size_t n_v_real;
-    std::unordered_map<std::string, Event_realization> v_realizations;
+    std::map<std::string, Event_realization> v_realizations;
     std::shared_ptr<Gene_choice> d_gene_event_p;
     size_t n_d_real;
-    std::unordered_map<std::string, Event_realization> d_realizations;
+    std::map<std::string, Event_realization> d_realizations;
     std::shared_ptr<Gene_choice> j_gene_event_p;
     size_t n_j_real;
-    std::unordered_map<std::string, Event_realization> j_realizations;
+    std::map<std::string, Event_realization> j_realizations;
 
     double *one_seq_Nmer_N_SHM;
     double *one_seq_Nmer_N_bg;

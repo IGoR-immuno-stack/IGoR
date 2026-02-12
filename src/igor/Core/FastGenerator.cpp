@@ -46,7 +46,7 @@ void FastGenerator::initialize(const Model_Parms& model_parms,
 
     // Get model queue and index map
     std::queue<std::shared_ptr<Rec_Event>> model_queue = model_parms.get_model_queue();
-    std::unordered_map<Rec_Event_name, int> index_map =
+    std::map<Rec_Event_name, int> index_map =
         model_marginals.get_index_map(model_parms, model_queue);
 
     // Get inverse offset map for dependencies (tells us for each event, which parents affect it)
@@ -291,7 +291,7 @@ size_t FastGenerator::compute_condition_index(
 void FastGenerator::apply_gene_choice(
     const FastEventSampler& sampler,
     size_t choice_idx,
-    std::unordered_map<Seq_type, std::string>& sequences
+    std::map<Seq_type, std::string>& sequences
 ) const {
     Seq_type seq_type;
     switch (sampler.gene_class) {
@@ -310,7 +310,7 @@ void FastGenerator::apply_gene_choice(
 void FastGenerator::apply_deletion(
     const FastEventSampler& sampler,
     size_t del_idx,
-    std::unordered_map<Seq_type, std::string>& sequences
+    std::map<Seq_type, std::string>& sequences
 ) const {
     if (del_idx >= sampler.deletion_idx_to_value.size()) {
         return;
@@ -358,7 +358,7 @@ void FastGenerator::apply_deletion(
 void FastGenerator::sample_event(
     const FastEventSampler& sampler,
     std::mt19937_64& rng,
-    std::unordered_map<Seq_type, std::string>& sequences,
+    std::map<Seq_type, std::string>& sequences,
     std::vector<int>& realization,
     SamplingContext& context
 ) const {
@@ -407,7 +407,7 @@ void FastGenerator::sample_event(
 void FastGenerator::sample_dinucl_markov(
     const FastEventSampler& sampler,
     std::mt19937_64& rng,
-    std::unordered_map<Seq_type, std::string>& sequences,
+    std::map<Seq_type, std::string>& sequences,
     std::vector<int>& realization,
     SamplingContext& context
 ) const {
@@ -525,7 +525,7 @@ void FastGenerator::apply_palindrome(std::string& seq, int num_bases, bool is_3p
 
 
 std::string FastGenerator::assemble_sequence(
-    const std::unordered_map<Seq_type, std::string>& sequences
+    const std::map<Seq_type, std::string>& sequences
 ) const {
     std::string result;
     result.reserve(500);  // Typical sequence length
@@ -558,8 +558,7 @@ std::string FastGenerator::assemble_sequence(
 void FastGenerator::generate_single(std::mt19937_64& rng, GeneratedSequence& result) const {
     result.clear();
 
-    std::unordered_map<Seq_type, std::string> sequences;
-    sequences.reserve(6);
+    std::map<Seq_type, std::string> sequences;
 
     result.realizations.reserve(event_samplers_.size());
 

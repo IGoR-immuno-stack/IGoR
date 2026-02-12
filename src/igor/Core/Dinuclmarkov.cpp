@@ -78,16 +78,17 @@ int Dinucl_markov::size() const
 void Dinucl_markov::iterate(
         double &scenario_proba, Downstream_scenario_proba_bound_map &downstream_proba_map, const string &sequence,
         const Int_Str &int_sequence, Index_map &base_index_map,
-        const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
+        const map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
         shared_ptr<Next_event_ptr> &next_event_ptr_arr, Marginal_array_p &updated_marginals_point,
         const Marginal_array_p &model_parameters_point,
-        const unordered_map<Gene_class, vector<Alignment_data>> &allowed_realizations,
+        const map<Gene_class, vector<Alignment_data>> &allowed_realizations,
         Seq_type_str_p_map &constructed_sequences, Seq_offsets_map &seq_offsets, shared_ptr<Error_rate> &error_rate_p,
         map<size_t, shared_ptr<Counter>> &counters_list,
-        const unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map,
+        const map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map,
         Safety_bool_map &safety_set, Mismatch_vectors_map &mismatches_lists, double &seq_max_prob_scenario,
         double &proba_threshold_factor)
 {
+    // cout << "Dinucl_markov " << scenario_proba << endl;
     base_index = base_index_map.at(this->event_index);
     new_scenario_proba = scenario_proba;
     proba_contribution = 1;
@@ -169,8 +170,9 @@ void Dinucl_markov::iterate(
     scenario_upper_bound_proba = new_scenario_proba;
     //Multiply all downstream probas
     downstream_proba_map.multiply_all(scenario_upper_bound_proba, current_downstream_proba_memory_layers);
-
+    cout << "173" << endl;
     if (scenario_upper_bound_proba >= (seq_max_prob_scenario * proba_threshold_factor)) {
+        cout << "175" << endl;
         iterate_wrap_up(new_scenario_proba, downstream_proba_map, sequence, int_sequence, base_index_map, offset_map,
                         next_event_ptr_arr, updated_marginals_point, model_parameters_point, allowed_realizations,
                         constructed_sequences, seq_offsets, error_rate_p, counters_list, events_map, safety_set,
@@ -179,9 +181,9 @@ void Dinucl_markov::iterate(
 }
 
 queue<int> Dinucl_markov::draw_random_realization(
-        const Marginal_array_p &model_marginals_p, unordered_map<Rec_Event_name, int> &index_map,
-        const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
-        unordered_map<Seq_type, string> &constructed_sequences, mt19937_64 &generator) const
+        const Marginal_array_p &model_marginals_p, map<Rec_Event_name, int> &index_map,
+        const map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
+        map<Seq_type, string> &constructed_sequences, mt19937_64 &generator) const
 {
 
     uniform_real_distribution<double> distribution(0.0, 1.0);
@@ -256,7 +258,7 @@ queue<int> Dinucl_markov::draw_random_common(const string &previous_seq, string 
 			}
 			*/
             int prev_nt = nt2int(previous_seq.substr(previous_seq.size() - 1, 1)).at(0);
-            for (unordered_map<string, Event_realization>::const_iterator iter = event_realizations.begin();
+            for (map<string, Event_realization>::const_iterator iter = event_realizations.begin();
                  iter != event_realizations.end(); ++iter) {
                 //prob_count += model_marginals_p[index + offset + (*iter).second.index];
                 prob_count += this->dinuc_proba_matrix(prev_nt, (*iter).second.index);
@@ -284,7 +286,7 @@ queue<int> Dinucl_markov::draw_random_common(const string &previous_seq, string 
                 rand = distribution(generator);
                 prob_count = 0;
 
-                for (unordered_map<string, Event_realization>::const_iterator iter = event_realizations.begin();
+                for (map<string, Event_realization>::const_iterator iter = event_realizations.begin();
                      iter != event_realizations.end(); ++iter) {
                     //prob_count += model_marginals_p[index + offset + (*iter).second.index];
                     prob_count += this->dinuc_proba_matrix(prev_nt, (*iter).second.index);
@@ -303,7 +305,7 @@ queue<int> Dinucl_markov::draw_random_common(const string &previous_seq, string 
 void Dinucl_markov::write2txt(ofstream &outfile)
 {
     outfile << "#DinucMarkov;" << event_class << ";" << event_side << ";" << priority << ";" << nickname << endl;
-    for (unordered_map<string, Event_realization>::const_iterator iter = event_realizations.begin();
+    for (map<string, Event_realization>::const_iterator iter = event_realizations.begin();
          iter != event_realizations.end(); ++iter) {
         outfile << "%" << (*iter).second.value_str << ";" << (*iter).second.index << endl;
     }
@@ -389,7 +391,7 @@ void Dinucl_markov::ind_normalize(Marginal_array_p &marginal_array_p, size_t bas
 {
     size_t numb_realizations = this->event_realizations.size();
     for (size_t i = 0; i != numb_realizations; ++i) {
-        long double sum_marginals = 0;
+        double sum_marginals = 0;
         for (size_t j = 0; j != numb_realizations; ++j) {
             sum_marginals += marginal_array_p[base_index + i * numb_realizations + j];
         }
@@ -402,9 +404,9 @@ void Dinucl_markov::ind_normalize(Marginal_array_p &marginal_array_p, size_t bas
 }
 
 void Dinucl_markov::initialize_event(
-        unordered_set<Rec_Event_name> &processed_events,
-        const unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map,
-        const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
+        set<Rec_Event_name> &processed_events,
+        const map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map,
+        const map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
         Downstream_scenario_proba_bound_map &downstream_proba_map, Seq_type_str_p_map &constructed_sequences,
         Safety_bool_map &safety_set, shared_ptr<Error_rate> error_rate_p, Mismatch_vectors_map &mismatches_list,
         Seq_offsets_map &seq_offsets, Index_map &index_map)
@@ -459,7 +461,7 @@ void Dinucl_markov::initialize_event(
 /**
  * \bug Will only count realizations of unambiguous nucleotides (realization indices>=0 since they are set to -1 in iterate_common)
  */
-void Dinucl_markov::add_to_marginals(long double scenario_proba, Marginal_array_p &updated_marginals) const
+void Dinucl_markov::add_to_marginals(double scenario_proba, Marginal_array_p &updated_marginals) const
 {
     if (viterbi_run) {
         for (size_t i = 0; i != this->event_marginal_size; ++i) {
@@ -495,7 +497,7 @@ void Dinucl_markov::add_to_marginals(long double scenario_proba, Marginal_array_
  * We simply take the average probability over the different possible nucleotides.
  */
 void Dinucl_markov::update_event_internal_probas(const Marginal_array_p &marginal_array,
-                                                 const unordered_map<Rec_Event_name, int> &index_map)
+                                                 const map<Rec_Event_name, int> &index_map)
 {
     Int_nt const all_nt_vals[] = { int_A, int_C, int_G, int_T, int_R, int_Y, int_K, int_M,
                                    int_S, int_W, int_B, int_D, int_H, int_V, int_N };
@@ -527,7 +529,7 @@ double *Dinucl_markov::get_updated_ptr()
 
 void Dinucl_markov::initialize_crude_scenario_proba_bound(
         double &downstream_proba_bound, forward_list<double *> &updated_proba_list,
-        const unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map)
+        const map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map)
 {
     this->scenario_downstream_upper_bound_proba = downstream_proba_bound;
     this->updated_proba_bounds_list = updated_proba_list;

@@ -52,8 +52,8 @@ public:
     void initialize_counter(const Model_Parms &, const Model_marginals &);
 
     void
-    count_scenario(long double, double, const std::string &, Seq_type_str_p_map &, const Seq_offsets_map &,
-                   const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> &,
+    count_scenario(double, double, const std::string &, Seq_type_str_p_map &, const Seq_offsets_map &,
+                   const std::map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> &,
                    Mismatch_vectors_map &);
 
     void count_sequence(double, const Model_marginals &, const Model_Parms &);
@@ -66,10 +66,10 @@ public:
     std::shared_ptr<Counter> copy() const;
 
 private:
-    void allocate_coverage_and_errors_arrays(size_t, const std::unordered_map<std::string, Event_realization>,
+    void allocate_coverage_and_errors_arrays(size_t, const std::map<std::string, Event_realization>,
                                              std::pair<size_t, double *> *&, std::pair<size_t, double *> *&,
                                              std::pair<size_t, double *> *&, std::pair<size_t, double *> *&);
-    void deallocate_coverage_and_errors_arrays(size_t, const std::unordered_map<std::string, Event_realization>,
+    void deallocate_coverage_and_errors_arrays(size_t, const std::map<std::string, Event_realization>,
                                                std::pair<size_t, double *> *&, std::pair<size_t, double *> *&,
                                                std::pair<size_t, double *> *&, std::pair<size_t, double *> *&);
     void dump_cov_and_err_arrays(int, int, std::shared_ptr<std::ofstream>, size_t, std::pair<size_t, double *> *,
@@ -97,13 +97,13 @@ private:
     //# V D and J possible realizations and events
     std::shared_ptr<Gene_choice> v_gene_event_p;
     size_t n_v_real;
-    std::unordered_map<std::string, Event_realization> v_realizations;
+    std::map<std::string, Event_realization> v_realizations;
     std::shared_ptr<Gene_choice> d_gene_event_p;
     size_t n_d_real;
-    std::unordered_map<std::string, Event_realization> d_realizations;
+    std::map<std::string, Event_realization> d_realizations;
     std::shared_ptr<Gene_choice> j_gene_event_p;
     size_t n_j_real;
-    std::unordered_map<std::string, Event_realization> j_realizations;
+    std::map<std::string, Event_realization> j_realizations;
 
     // Use C arrays (faster than maps)
     // size_t is the length of the sequence

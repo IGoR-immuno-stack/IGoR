@@ -36,7 +36,7 @@ Pgen_counter::Pgen_counter(std::string path, bool output_Pgen_estimator_only, bo
     : Counter(path),
       output_sequences(do_output_sequences),
       output_Pgen_estimator(output_Pgen_estimator_only),
-      sequence_Pgens_map(unordered_map<Int_Str, pair<double, long double>>()),
+      sequence_Pgens_map(map<Int_Str, pair<double, double>>()),
       scenario_resulting_sequence(Int_Str()),
       read_likelihood(0),
       v_gene(false),
@@ -77,7 +77,7 @@ void Pgen_counter::initialize_counter(const Model_Parms &parms, const Model_marg
         fstreams_created = true;
     }
 
-    const unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map =
+    const map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map =
             parms.get_events_map();
     //Initialize booleans for constructed sequences
     if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, V_gene, Undefined_side)) > 0) {
@@ -113,9 +113,9 @@ void Pgen_counter::initialize_counter(const Model_Parms &parms, const Model_marg
 }
 
 void Pgen_counter::count_scenario(
-        long double scenario_seq_joint_proba, double scenario_probability, const string &original_sequence,
+        double scenario_seq_joint_proba, double scenario_probability, const string &original_sequence,
         Seq_type_str_p_map &constructed_sequences, const Seq_offsets_map &seq_offsets,
-        const unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map,
+        const map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map,
         Mismatch_vectors_map &mismatches_lists)
 {
     scenario_resulting_sequence.clear();
@@ -140,11 +140,11 @@ void Pgen_counter::count_scenario(
     }
 
     if (sequence_Pgens_map.count(scenario_resulting_sequence) > 0) {
-        pair<double, long double> &Pgen_Pjoint_pair = sequence_Pgens_map[scenario_resulting_sequence];
+        pair<double, double> &Pgen_Pjoint_pair = sequence_Pgens_map[scenario_resulting_sequence];
         Pgen_Pjoint_pair.first += scenario_probability;
         Pgen_Pjoint_pair.second += scenario_seq_joint_proba;
     } else {
-        pair<double, long double> &Pgen_Pjoint_pair = sequence_Pgens_map[scenario_resulting_sequence];
+        pair<double, double> &Pgen_Pjoint_pair = sequence_Pgens_map[scenario_resulting_sequence];
         //make proper initialization
         Pgen_Pjoint_pair.first = scenario_probability;
         Pgen_Pjoint_pair.second = scenario_seq_joint_proba;
@@ -157,7 +157,7 @@ void Pgen_counter::dump_sequence_data(int seq_index, int iteration_n)
 {
 
     double log_P_gen_estimate = 0;
-    for (unordered_map<Int_Str, pair<double, long double>>::const_iterator iter = sequence_Pgens_map.begin();
+    for (map<Int_Str, pair<double, double>>::const_iterator iter = sequence_Pgens_map.begin();
          iter != sequence_Pgens_map.end(); ++iter) {
         if (output_Pgen_estimator) {
             log_P_gen_estimate += (*iter).second.second / read_likelihood * log((*iter).second.first);

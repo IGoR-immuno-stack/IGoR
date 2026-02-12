@@ -32,7 +32,7 @@
 #include <list>
 #include <forward_list>
 #include <queue>
-#include <unordered_map>
+#include <map>
 #include <set>
 #include <stack>
 #include <random>
@@ -64,9 +64,9 @@ public:
     virtual ~Model_marginals();
     size_t compute_size(const Model_Parms &);
     size_t get_event_size(std::shared_ptr<const Rec_Event>, const Model_Parms &) const;
-    std::pair<std::list<std::pair<Rec_Event_name, size_t>>, std::shared_ptr<long double>>
+    std::pair<std::list<std::pair<Rec_Event_name, size_t>>, std::shared_ptr<double>>
     compute_event_marginal_probability(Rec_Event_name, const Model_Parms &) const;
-    std::pair<std::list<std::pair<Rec_Event_name, size_t>>, std::shared_ptr<long double>>
+    std::pair<std::list<std::pair<Rec_Event_name, size_t>>, std::shared_ptr<double>>
     compute_event_marginal_probability(Rec_Event_name, const std::set<Rec_Event_name> &, const Model_Parms &) const;
 
     Model_marginals &operator=(const Model_marginals &);
@@ -74,8 +74,8 @@ public:
     Model_marginals &operator-=(Model_marginals);
     Model_marginals operator+(Model_marginals);
     Model_marginals operator-(Model_marginals);
-    void normalize(std::unordered_map<Rec_Event_name, std::list<std::pair<std::shared_ptr<const Rec_Event>, int>>>,
-                   std::unordered_map<Rec_Event_name, int>, std::queue<std::shared_ptr<Rec_Event>>);
+    void normalize(std::map<Rec_Event_name, std::list<std::pair<std::shared_ptr<const Rec_Event>, int>>>,
+                   std::map<Rec_Event_name, int>, std::queue<std::shared_ptr<Rec_Event>>);
     void uniform_initialize(const Model_Parms &);
     void null_initialize();
     void random_initialize(const Model_Parms &);
@@ -86,18 +86,18 @@ public:
     add_to_marginals(double event_proba, std::list<std::shared_ptr<Rec_Event>>,
                      Model_Parms); //FIXME drop this? pass a list of pointers instead, is this method still needed???
     void copy_fixed_events_marginals(const Model_marginals &, const Model_Parms &,
-                                     const std::unordered_map<Rec_Event_name, int> &);
-    std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>>
+                                     const std::map<Rec_Event_name, int> &);
+    std::map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>>
     get_offsets_map(const Model_Parms &) const;
-    std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>>
+    std::map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>>
     get_offsets_map(const Model_Parms &, std::queue<std::shared_ptr<Rec_Event>>) const;
-    std::unordered_map<Rec_Event_name, std::list<std::pair<std::shared_ptr<const Rec_Event>, int>>>
+    std::map<Rec_Event_name, std::list<std::pair<std::shared_ptr<const Rec_Event>, int>>>
     get_inverse_offset_map(const Model_Parms &) const;
-    std::unordered_map<Rec_Event_name, std::list<std::pair<std::shared_ptr<const Rec_Event>, int>>>
+    std::map<Rec_Event_name, std::list<std::pair<std::shared_ptr<const Rec_Event>, int>>>
     get_inverse_offset_map(const Model_Parms &, std::queue<std::shared_ptr<Rec_Event>>) const;
-    std::unordered_map<Rec_Event_name, int>
+    std::map<Rec_Event_name, int>
     get_index_map(const Model_Parms &) const; //maybe tie this to the model_marginals itself
-    std::unordered_map<Rec_Event_name, int> get_index_map(const Model_Parms &,
+    std::map<Rec_Event_name, int> get_index_map(const Model_Parms &,
                                                           std::queue<std::shared_ptr<Rec_Event>>) const;
     void write2txt(std::string, const Model_Parms &);
     void txt2marginals(std::string, const Model_Parms &);
@@ -108,15 +108,15 @@ public:
     std::string debug_marg_name;
 
     //get marginals for given parameter
-    std::unique_ptr<long double[]> marginal_array_smart_p;
+    std::unique_ptr<double[]> marginal_array_smart_p;
 
 private:
-    std::pair<std::list<std::pair<Rec_Event_name, size_t>>, std::shared_ptr<long double>>
+    std::pair<std::list<std::pair<Rec_Event_name, size_t>>, std::shared_ptr<double>>
     compute_event_marginal_probability(
             Rec_Event_name, const std::set<Rec_Event_name> &, const Model_Parms &,
-            const std::unordered_map<Rec_Event_name, int> &,
-            const std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &,
-            const std::unordered_map<Rec_Event_name, std::list<std::pair<std::shared_ptr<const Rec_Event>, int>>> &)
+            const std::map<Rec_Event_name, int> &,
+            const std::map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &,
+            const std::map<Rec_Event_name, std::list<std::pair<std::shared_ptr<const Rec_Event>, int>>> &)
             const;
     void iterate_normalize(std::shared_ptr<const Rec_Event>,
                            std::list<std::pair<std::shared_ptr<const Rec_Event>, int>> &, int, int);
@@ -136,12 +136,12 @@ struct offset_comp
     }
 };
 
-void recurs_array_copy(std::list<std::shared_ptr<Rec_Event>>::const_iterator, size_t, std::shared_ptr<long double[]>,
+void recurs_array_copy(std::list<std::shared_ptr<Rec_Event>>::const_iterator, size_t, std::shared_ptr<double[]>,
                        Marginal_array_p);
 void swap_events_order(const Rec_Event_name, const Rec_Event_name,
-                       std::pair<std::list<std::pair<Rec_Event_name, size_t>>, std::shared_ptr<long double>> &);
+                       std::pair<std::list<std::pair<Rec_Event_name, size_t>>, std::shared_ptr<double>> &);
 void swap_neighboring_events_order(
         const Rec_Event_name, const Rec_Event_name,
-        std::pair<std::list<std::pair<Rec_Event_name, size_t>>, std::shared_ptr<long double>> &);
+        std::pair<std::list<std::pair<Rec_Event_name, size_t>>, std::shared_ptr<double>> &);
 void align_marginal_array(const std::list<std::pair<Rec_Event_name, size_t>> &,
-                          std::pair<std::list<std::pair<Rec_Event_name, size_t>>, std::shared_ptr<long double>> &);
+                          std::pair<std::list<std::pair<Rec_Event_name, size_t>>, std::shared_ptr<double>> &);

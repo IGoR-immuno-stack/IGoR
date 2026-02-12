@@ -76,9 +76,9 @@ Errors_counter::~Errors_counter()
 }
 
 void Errors_counter::count_scenario(
-        long double scenario_seq_joint_proba, double scenario_probability, const string &original_sequence,
+        double scenario_seq_joint_proba, double scenario_probability, const string &original_sequence,
         Seq_type_str_p_map &constructed_sequences, const Seq_offsets_map &seq_offsets,
-        const unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map,
+        const map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map,
         Mismatch_vectors_map &mismatches_lists)
 {
 

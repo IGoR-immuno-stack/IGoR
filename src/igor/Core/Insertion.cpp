@@ -61,7 +61,7 @@ Insertion::Insertion(Gene_class gene)
       dinuc_updated_bound(NULL)
 {
     this->type = Event_type::Insertion_t;
-    for (unordered_map<string, Event_realization>::const_iterator iter = this->event_realizations.begin();
+    for (map<string, Event_realization>::const_iterator iter = this->event_realizations.begin();
          iter != this->event_realizations.end(); ++iter) {
         if ((*iter).second.value_int > this->len_max) {
             this->len_max = (*iter).second.value_int;
@@ -72,12 +72,12 @@ Insertion::Insertion(Gene_class gene)
     this->update_event_name();
 }
 
-Insertion::Insertion(Gene_class gene, unordered_map<string, Event_realization> &realizations) : Insertion(gene)
+Insertion::Insertion(Gene_class gene, map<string, Event_realization> &realizations) : Insertion(gene)
 {
     this->event_realizations = realizations;
 
     this->type = Event_type::Insertion_t;
-    for (unordered_map<string, Event_realization>::const_iterator iter = this->event_realizations.begin();
+    for (map<string, Event_realization>::const_iterator iter = this->event_realizations.begin();
          iter != this->event_realizations.end(); ++iter) {
         if ((*iter).second.value_int > this->len_max) {
             this->len_max = (*iter).second.value_int;
@@ -121,13 +121,13 @@ bool Insertion::add_realization(int insertion_number)
 
 void Insertion::iterate(double &scenario_proba, Downstream_scenario_proba_bound_map &downstream_proba_map,
                         const string &sequence, const Int_Str &int_sequence, Index_map &base_index_map,
-                        const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
+                        const map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
                         shared_ptr<Next_event_ptr> &next_event_ptr_arr, Marginal_array_p &updated_marginals_point,
                         const Marginal_array_p &model_parameters_point,
-                        const unordered_map<Gene_class, vector<Alignment_data>> &allowed_realizations,
+                        const map<Gene_class, vector<Alignment_data>> &allowed_realizations,
                         Seq_type_str_p_map &constructed_sequences, Seq_offsets_map &seq_offsets,
                         shared_ptr<Error_rate> &error_rate_p, map<size_t, shared_ptr<Counter>> &counters_list,
-                        const unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map,
+                        const map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map,
                         Safety_bool_map &safety_set, Mismatch_vectors_map &mismatches_lists,
                         double &seq_max_prob_scenario, double &proba_threshold_factor)
 {
@@ -135,6 +135,7 @@ void Insertion::iterate(double &scenario_proba, Downstream_scenario_proba_bound_
     new_scenario_proba = scenario_proba;
     proba_contribution = 1;
 
+    cout << "event_class: " << (*this).event_class << endl;
     switch ((*this).event_class) {
 
     case VD_genes: {
@@ -276,7 +277,7 @@ void Insertion::iterate(double &scenario_proba, Downstream_scenario_proba_bound_
         throw invalid_argument(std::string("Unknown gene_class for Insertion: ") + this->event_class);
         break;
     }
-
+    // cout << "279: " << (proba_contribution != 0) << endl;
     if (proba_contribution != 0) {
         //TODO new_scenario proba necessary?
         new_scenario_proba *= proba_contribution;
@@ -288,7 +289,9 @@ void Insertion::iterate(double &scenario_proba, Downstream_scenario_proba_bound_
         //Multiply all downstream probas
         downstream_proba_map.multiply_all(scenario_upper_bound_proba, current_downstream_proba_memory_layers);
 
+        
         if (scenario_upper_bound_proba >= (seq_max_prob_scenario * proba_threshold_factor)) {
+            cout << "293" << endl;
             Rec_Event::iterate_wrap_up(new_scenario_proba, downstream_proba_map, sequence, int_sequence, base_index_map,
                                        offset_map, next_event_ptr_arr, updated_marginals_point, model_parameters_point,
                                        allowed_realizations, constructed_sequences, seq_offsets, error_rate_p,
@@ -303,7 +306,7 @@ void Insertion::iterate(double &scenario_proba, Downstream_scenario_proba_bound_
  */
 inline double Insertion::iterate_common(
         double scenario_proba, int insertions, int base_index, Index_map &base_index_map,
-        const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
+        const map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
         const Marginal_array_p &model_parameters_point)
 {
 
@@ -341,15 +344,15 @@ inline double Insertion::iterate_common(
 }
 
 queue<int> Insertion::draw_random_realization(
-        const Marginal_array_p &model_marginals_p, unordered_map<Rec_Event_name, int> &index_map,
-        const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
-        unordered_map<Seq_type, string> &constructed_sequences, mt19937_64 &generator) const
+        const Marginal_array_p &model_marginals_p, map<Rec_Event_name, int> &index_map,
+        const map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
+        map<Seq_type, string> &constructed_sequences, mt19937_64 &generator) const
 {
     uniform_real_distribution<double> distribution(0.0, 1.0);
     double rand = distribution(generator);
     double prob_count = 0;
     queue<int> realization_queue;
-    for (unordered_map<string, Event_realization>::const_iterator iter = this->event_realizations.begin();
+    for (map<string, Event_realization>::const_iterator iter = this->event_realizations.begin();
          iter != this->event_realizations.end(); ++iter) {
         prob_count += model_marginals_p[index_map.at(this->get_name()) + (*iter).second.index];
         if (prob_count >= rand) {
@@ -384,16 +387,16 @@ queue<int> Insertion::draw_random_realization(
 void Insertion::write2txt(ofstream &outfile)
 {
     outfile << "#Insertion;" << event_class << ";" << event_side << ";" << priority << ";" << nickname << endl;
-    for (unordered_map<string, Event_realization>::const_iterator iter = event_realizations.begin();
+    for (map<string, Event_realization>::const_iterator iter = event_realizations.begin();
          iter != event_realizations.end(); ++iter) {
         outfile << "%" << (*iter).second.value_int << ";" << (*iter).second.index << endl;
     }
 }
 
 void Insertion::initialize_event(
-        unordered_set<Rec_Event_name> &processed_events,
-        const unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map,
-        const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
+        set<Rec_Event_name> &processed_events,
+        const map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map,
+        const map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
         Downstream_scenario_proba_bound_map &downstream_proba_map, Seq_type_str_p_map &constructed_sequences,
         Safety_bool_map &safety_set, shared_ptr<Error_rate> error_rate_p, Mismatch_vectors_map &mismatches_list,
         Seq_offsets_map &seq_offsets, Index_map &index_map)
@@ -422,7 +425,7 @@ void Insertion::initialize_event(
                                       index_map);
 }
 
-void Insertion::add_to_marginals(long double scenario_proba, Marginal_array_p &updated_marginals) const
+void Insertion::add_to_marginals(double scenario_proba, Marginal_array_p &updated_marginals) const
 {
     if (viterbi_run) {
         updated_marginals[this->new_index] = scenario_proba;
@@ -436,7 +439,7 @@ void Insertion::set_crude_upper_bound_proba(size_t base_index, size_t event_size
 
     size_t numb_realizations = this->size();
     upper_bound_per_ins.clear();
-    for (unordered_map<string, Event_realization>::const_iterator iter = this->event_realizations.begin();
+    for (map<string, Event_realization>::const_iterator iter = this->event_realizations.begin();
          iter != this->event_realizations.end(); ++iter) {
         //Get the max proba for each number of insertions
         size_t real_index = (*iter).second.index;
@@ -455,7 +458,7 @@ void Insertion::set_crude_upper_bound_proba(size_t base_index, size_t event_size
 
 void Insertion::initialize_crude_scenario_proba_bound(
         double &downstream_proba_bound, forward_list<double *> &updated_proba_list,
-        const unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map)
+        const map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map)
 {
     this->scenario_downstream_upper_bound_proba = downstream_proba_bound;
     this->updated_proba_bounds_list = updated_proba_list;
@@ -464,7 +467,7 @@ void Insertion::initialize_crude_scenario_proba_bound(
 
     //TODO remove this and correct the way ordered realization map works
     ordered_realization_map.clear();
-    for (unordered_map<string, Event_realization>::const_iterator iter = (*this).event_realizations.begin();
+    for (map<string, Event_realization>::const_iterator iter = (*this).event_realizations.begin();
          iter != (*this).event_realizations.end(); ++iter) {
         ordered_realization_map.emplace((*iter).second.value_int, (*iter).second);
     }
@@ -578,7 +581,7 @@ void Insertion::iterate_initialize_Len_proba(Seq_type considered_junction, std::
             break;
         }
 
-        for (unordered_map<string, Event_realization>::const_iterator iter = this->event_realizations.begin();
+        for (map<string, Event_realization>::const_iterator iter = this->event_realizations.begin();
              iter != this->event_realizations.end(); ++iter) {
 
             /*		//Update base index map
@@ -638,7 +641,7 @@ void Insertion::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &model_q
 
     junction_length_best_proba_map.clear();
 
-    for (unordered_map<string, Event_realization>::const_iterator iter = this->event_realizations.begin();
+    for (map<string, Event_realization>::const_iterator iter = this->event_realizations.begin();
          iter != this->event_realizations.end(); ++iter) {
         inserted_str.assign(iter->second.value_int, -1);
         constructed_sequences[seq_type] = &inserted_str;

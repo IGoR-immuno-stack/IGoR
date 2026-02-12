@@ -70,10 +70,10 @@ struct gen_CDR3_data
     bool output_aa_CDR3 = false;
     bool output_productive = false;
 
-    gen_CDR3_data(const std::unordered_map<std::string, size_t> &v_anchors_indices,
-                  const std::unordered_map<std::string, Event_realization> &v_reals, size_t v_event_pos,
-                  const std::unordered_map<std::string, size_t> &j_anchors_indices,
-                  const std::unordered_map<std::string, Event_realization> &j_reals, size_t j_event_pos,
+    gen_CDR3_data(const std::map<std::string, size_t> &v_anchors_indices,
+                  const std::map<std::string, Event_realization> &v_reals, size_t v_event_pos,
+                  const std::map<std::string, size_t> &j_anchors_indices,
+                  const std::map<std::string, Event_realization> &j_reals, size_t j_event_pos,
                   std::shared_ptr<std::ostream> output_stream_ptr =
                           std::shared_ptr<std::ostream>(&std::cout, null_delete<std::ostream>()))
         : v_event_queue_position(v_event_pos), j_event_queue_position(j_event_pos), output_stream(output_stream_ptr)
@@ -170,17 +170,17 @@ public:
     virtual ~GenModel();
 
     bool infer_model(
-            const std::vector<std::tuple<int, std::string, std::unordered_map<Gene_class, std::vector<Alignment_data>>>>
+            const std::vector<std::tuple<int, std::string, std::map<Gene_class, std::vector<Alignment_data>>>>
                     &sequences,
             const int iterations, const std::string path, bool fast_iter, double likelihood_threshold = 1e-25,
             bool viterbi_like = false);
     bool infer_model(
-            const std::vector<std::tuple<int, std::string, std::unordered_map<Gene_class, std::vector<Alignment_data>>>>
+            const std::vector<std::tuple<int, std::string, std::map<Gene_class, std::vector<Alignment_data>>>>
                     &sequences,
             const int iterations, const std::string path, bool fast_iter = true, double likelihood_threshold = 1e-25,
             double proba_threshold_factor = 0.001);
     bool infer_model(
-            const std::vector<std::tuple<int, std::string, std::unordered_map<Gene_class, std::vector<Alignment_data>>>>
+            const std::vector<std::tuple<int, std::string, std::map<Gene_class, std::vector<Alignment_data>>>>
                     &sequences,
             const int iterations, const std::string path, bool fast_iter, double likelihood_threshold,
             bool viterbi_like, double proba_threshold_factor, double mean_number_seq_err_thresh = INFINITY);
@@ -235,17 +235,17 @@ private:
             counters_list; //Size_t is a unique identifier for the Counter(useful for adding them up)
     std::unique_ptr<igor::fast::FastGenerator> fast_generator_;
     std::pair<std::string, std::queue<std::queue<int>>> generate_unique_sequence(
-            std::queue<std::shared_ptr<Rec_Event>>, std::unordered_map<Rec_Event_name, int>,
-            const std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &,
+            std::queue<std::shared_ptr<Rec_Event>>, std::map<Rec_Event_name, int>,
+            const std::map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &,
             std::mt19937_64 &, bool = true);
     Model_marginals compute_marginals(std::list<std::string> sequences);
     Model_marginals compute_seq_marginals(std::string sequence);
     Model_marginals compute_seq_marginals(std::string sequence, std::list<std::list<std::string>> allowed_scenarios);
 };
 
-CORE_EXPORT std::vector<std::tuple<int, std::string, std::unordered_map<Gene_class, std::vector<Alignment_data>>>>
+CORE_EXPORT std::vector<std::tuple<int, std::string, std::map<Gene_class, std::vector<Alignment_data>>>>
 get_best_aligns(
-        const std::vector<std::tuple<int, std::string, std::unordered_map<Gene_class, std::vector<Alignment_data>>>> &,
+        const std::vector<std::tuple<int, std::string, std::map<Gene_class, std::vector<Alignment_data>>>> &,
         Gene_class);
 
 CORE_EXPORT void output_CDR3_gen_data(size_t, std::pair<std::string, std::queue<std::queue<int>>> seq_and_real,

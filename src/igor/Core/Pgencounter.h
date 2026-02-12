@@ -27,7 +27,7 @@
 #pragma once
 
 #include <igor/Core/Counter.h>
-#include <unordered_map>
+#include <map>
 
 #include <igorCoreExport.h>
 
@@ -53,8 +53,8 @@ public:
     void initialize_counter(const Model_Parms &, const Model_marginals &);
 
     void
-    count_scenario(long double, double, const std::string &, Seq_type_str_p_map &, const Seq_offsets_map &,
-                   const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> &,
+    count_scenario(double, double, const std::string &, Seq_type_str_p_map &, const Seq_offsets_map &,
+                   const std::map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> &,
                    Mismatch_vectors_map &);
 
     void dump_sequence_data(int, int);
@@ -68,10 +68,10 @@ private:
     bool output_Pgen_estimator;
 
     std::shared_ptr<std::ofstream> output_pgen_file_ptr;
-    std::unordered_map<Int_Str, std::pair<double, long double>> sequence_Pgens_map;
+    std::map<Int_Str, std::pair<double, double>> sequence_Pgens_map;
     Int_Str scenario_resulting_sequence;
 
-    long double read_likelihood;
+    double read_likelihood;
 
     bool v_gene;
     bool d_gene;

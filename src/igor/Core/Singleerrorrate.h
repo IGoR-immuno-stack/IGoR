@@ -51,7 +51,7 @@ public:
     virtual ~Single_error_rate();
     double compare_sequences_error_prob(
             double, const std::string &, Seq_type_str_p_map &, const Seq_offsets_map &,
-            const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> &,
+            const std::map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> &,
             Mismatch_vectors_map &, double &, double &);
     void update();
     void add_to_norm_counter();
@@ -70,11 +70,11 @@ public:
 private:
     double model_rate;
     double normalized_counter;
-    long double seq_weighted_er;
+    double seq_weighted_er;
     int number_errors;
     int genomic_nucl;
-    long double temp2;
-    long double temp;
+    double temp2;
+    double temp;
 
     int subseq_compare_err_num(const std::string &, const std::string &);
     //TODO use seq likelihood to extract the likelihood of the model on the fly

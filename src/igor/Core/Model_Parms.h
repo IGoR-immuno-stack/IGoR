@@ -33,7 +33,7 @@
 #include <igor/Core/Utils.h>
 #include <igor/Core/IntStr.h>
 #include <list>
-#include <unordered_map>
+#include <map>
 #include <set>
 #include <string>
 #include <queue>
@@ -136,11 +136,11 @@ public:
     //Accessors
     std::list<std::shared_ptr<Rec_Event>> get_event_list() const { return events; }
 
-    std::unordered_map<Rec_Event_name, Adjacency_list> get_edges() const { return edges; }
+    std::map<Rec_Event_name, Adjacency_list> get_edges() const { return edges; }
 
-    const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>>
+    const std::map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>>
     get_events_map() const;
-    std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> get_events_map();
+    std::map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> get_events_map();
 
     void set_error_ratep(Error_rate *Er_r)
     {
@@ -152,6 +152,6 @@ public:
 
 private:
     std::list<std::shared_ptr<Rec_Event>> events;
-    std::unordered_map<Rec_Event_name, Adjacency_list> edges;
+    std::map<Rec_Event_name, Adjacency_list> edges;
     std::shared_ptr<Error_rate> error_rate;
 };

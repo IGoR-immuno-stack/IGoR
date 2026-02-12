@@ -72,14 +72,6 @@ public:
     void initialize(const double* probs, size_t n, bool use_alias = false);
 
     /**
-     * \brief Initialize from long double array (model marginals)
-     * \param probs Pointer to probability array
-     * \param n Number of elements
-     * \param use_alias Whether to use alias method
-     */
-    void initialize(const long double* probs, size_t n, bool use_alias = false);
-
-    /**
      * \brief Sample an index from the distribution
      * \param rng Random number generator
      * \return Sampled index
@@ -167,11 +159,6 @@ public:
      * \param use_alias Whether to use alias method
      */
     void initialize(const double* probs, size_t num_conditions, size_t num_outcomes, bool use_alias = false);
-
-    /**
-     * \brief Initialize from long double flat array
-     */
-    void initialize(const long double* probs, size_t num_conditions, size_t num_outcomes, bool use_alias = false);
 
     /**
      * \brief Sample given a conditioning value

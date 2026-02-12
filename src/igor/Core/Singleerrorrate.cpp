@@ -101,7 +101,7 @@ void Single_error_rate::build_upper_bound_matrix(size_t m, size_t n)
 double Single_error_rate::compare_sequences_error_prob(
         double scenario_probability, const string &original_sequence, Seq_type_str_p_map &constructed_sequences,
         const Seq_offsets_map &seq_offsets,
-        const unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map,
+        const map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map,
         Mismatch_vectors_map &mismatches_lists, double &seq_max_prob_scenario, double &proba_threshold_factor)
 {
     //TODO extract sequence comparision from here, implement it in Errorrate class??
@@ -130,7 +130,7 @@ double Single_error_rate::compare_sequences_error_prob(
     //number_errors+=d_mismatch_list.size();
     number_errors += j_mismatch_list.size();
 
-    // Here a long double is required in case a lot of errors occur and/or the model rate is low, the probability will be truncated to 0 if it gets below ± 2.225,073,858,507,201,4 · 10-308 with double precision
+    // Here a double is required in case a lot of errors occur and/or the model rate is low, the probability will be truncated to 0 if it gets below ± 2.225,073,858,507,201,4 · 10-308 with double precision
 
     scenario_new_proba = scenario_probability * pow(model_rate / 3, number_errors)
             * pow(1 - model_rate, genomic_nucl - number_errors);
@@ -148,6 +148,12 @@ double Single_error_rate::compare_sequences_error_prob(
             this->seq_likelihood += scenario_new_proba;
             this->seq_probability += scenario_probability;
         }
+
+        // // cout << "scenario_new_proba " << scenario_new_proba << endl;
+        // // cout << "seq_weighted_er " << seq_weighted_er << endl;
+        // cout << "scenario_probability " << scenario_probability << endl;
+        // cout << "seq_likelihood " << seq_likelihood << endl;
+        // cout << "seq_probability " << seq_probability << endl;
 
         ++debug_number_scenarios;
         return scenario_new_proba;
@@ -168,6 +174,7 @@ queue<int> Single_error_rate::generate_errors(string &generated_seq, mt19937_64 
         if (rand_err <= this->model_rate) {
             //Introduce an error
             rand_trans = distribution(generator);
+            cout << "rand_trans " << rand_trans << endl;
             errors_indices.push(index);
 
             if ((*iter) == 'A') {
@@ -233,7 +240,13 @@ int Single_error_rate::subseq_compare_err_num(const string &original_sequence, c
 void Single_error_rate::update()
 {
     if (this->is_updated()) {
+        cout << "model_rate " << model_rate << endl;
+        cout << "number_seq " << number_seq << endl;
+        cout << "normalized_counter " << normalized_counter << endl;
         model_rate = normalized_counter / number_seq;
+        cout << "model_rate " << model_rate << endl;
+        cout << "number_seq " << number_seq << endl;
+        cout << "normalized_counter " << normalized_counter << endl;
         normalized_counter = 0;
         number_seq = 0;
     }
@@ -247,6 +260,8 @@ void Single_error_rate::add_to_norm_counter()
 {
 
     if (seq_likelihood != 0) { //TODO check that the first version was not more correct
+        cout << "seq_weighted_er " << seq_weighted_er << endl;
+        cout << "seq_likelihood " << seq_likelihood << endl;
         normalized_counter += seq_weighted_er / seq_likelihood;
         model_log_likelihood += log10(seq_likelihood);
         number_seq += 1;
