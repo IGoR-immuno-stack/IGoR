@@ -317,7 +317,7 @@ static std::vector<InferenceComparison> compare_inference_to_ground_truth(
             inferred_marginal, gt_ev.model_marginal, &dummy);
         
         // Check threshold: D_KL < H / threshold_factor
-        double threshold = std::max(gt_ev.H / kl_threshold_factor, 0.01);
+        double threshold = (std::max)(gt_ev.H / kl_threshold_factor, 0.01);
         cmp.passes_threshold = (cmp.kl_divergence_forward < threshold);
         
         comparisons.push_back(cmp);
