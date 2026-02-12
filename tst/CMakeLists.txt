@@ -13,9 +13,14 @@ add_executable(igor_tests ${TEST_SOURCES})
 # (Assuming igor::Core is the main library target)
 target_link_libraries(igor_tests PRIVATE igor::Core Catch2::Catch2WithMain)
 
+# Provide the project source directory so tests can locate data files
+target_compile_definitions(igor_tests PRIVATE IGOR_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+
 # Set include directories if needed
 # target_include_directories(igor_tests PRIVATE ../src/igor/Core)
 
 # Register the tests with CTest
 include(Catch)
-catch_discover_tests(igor_tests)
+catch_discover_tests(igor_tests
+    PROPERTIES TIMEOUT 3600  # generation test with 1M sequences needs headroom
+)
