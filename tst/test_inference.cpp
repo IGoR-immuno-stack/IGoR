@@ -541,7 +541,7 @@ TEST_CASE("Inference recovers ground truth model", "[inference]")
     // The initial_marginals object now contains the inferred marginals
     // after GenModel.infer_model() completes
     Model_Parms inferred_parms = truth_parms;  // Structure is the same
-    Model_marginals& inferred_marginals = initial_marginals;
+    const Model_marginals& inferred_marginals = inference_model.get_marginals();
     
     // ------------------------------------------------------------------
     // 9. Compare inferred vs ground truth

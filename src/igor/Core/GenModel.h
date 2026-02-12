@@ -224,6 +224,7 @@ public:
     void write_seq2txt(std::string, std::forward_list<std::string>);
     void write_seq_real2txt(std::string, std::string,
                             std::forward_list<std::pair<std::string, std::queue<std::queue<int>>>>);
+    const Model_marginals get_marginals() const {return this->model_marginals;};
 
     //write alignments, load alignments
 
