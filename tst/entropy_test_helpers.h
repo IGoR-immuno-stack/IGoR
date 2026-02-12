@@ -15,10 +15,13 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <functional>
+#include <iomanip>
 #include <iostream>
 #include <map>
 #include <stdexcept>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 // ---------------------------------------------------------------------------
@@ -341,6 +344,269 @@ struct EventInfo {
 };
 
 /**
+ * @brief Pair of insertion and dinucleotide Markov events for combined entropy.
+ */
+struct InsDinucPair {
+    const EventInfo *ins_event = nullptr;
+    const EventInfo *dinuc_event = nullptr;
+    double combined_H = 0.0;
+};
+
+/**
+ * @brief Results of comparing two distributions for table display.
+ * 
+ * Generic structure used by both test_generation (theoretical vs empirical)
+ * and test_inference (ground truth vs inferred).
+ */
+struct ComparisonRow {
+    std::string event_nickname;
+    double kl_divergence = 0.0;
+    double H_reference = 0.0;      ///< H_truth or H_theoretical
+    double H_compared = 0.0;       ///< H_inferred or H_empirical
+    double uncovered_mass = 0.0;
+    bool passes = false;
+    
+    // For insertion+dinuc pairs: decomposition into components
+    bool is_insertion_dinuc_pair = false;
+    double kl_combined = 0.0;
+    double H_combined_reference = 0.0;
+    double H_combined_compared = 0.0;
+    double kl_length = 0.0;
+    double H_length_reference = 0.0;
+    double H_length_compared = 0.0;
+    double uncovered_length = 0.0;
+    bool passes_length = false;
+    double kl_dinuc = 0.0;
+    double h_dinuc_reference = 0.0;
+    double h_dinuc_compared = 0.0;
+    bool passes_combined = false;
+    bool passes_dinuc = false;
+};
+
+/**
+ * @brief Build comparison rows from event info and compared marginals.
+ * 
+ * Handles both inference (truth vs inferred) and generation (model vs empirical) cases.
+ * For insertion+dinuc pairs, shows decomposition if compute_combined_kl is true.
+ * 
+ * @param event_infos List of events with theoretical marginals
+ * @param compared_marginals Map from queue_position to compared marginal distribution
+ * @param ins_dinuc_pairs Map of insertion+dinuc pairs with combined entropy
+ * @param compared_model Optional Model_Parms/Marginals for computing combined D_KL
+ * @param compute_combined_kl If true, compute combined/dinuc D_KL (requires compared_model)
+ * @param kl_threshold_func Function to compute pass threshold from entropy
+ */
+static inline std::vector<ComparisonRow> build_comparison_rows(
+        const std::vector<EventInfo> &event_infos,
+        const std::map<size_t, std::vector<double>> &compared_marginals,
+        const std::map<Gene_class, InsDinucPair> &ins_dinuc_pairs,
+        const Model_Parms *compared_parms = nullptr,
+        const Model_marginals *compared_model = nullptr,
+        bool compute_combined_kl = false,
+        std::function<bool(double, double, int)> kl_threshold_func = nullptr)
+{
+    std::vector<ComparisonRow> rows;
+    
+    // Get index map if we need to compute combined D_KL
+    std::unordered_map<std::string, int> compared_index_map;
+    if (compute_combined_kl && compared_model && compared_parms) {
+        compared_index_map = compared_model->get_index_map(*compared_parms);
+    }
+    
+    for (const auto &ev : event_infos) {
+        if (ev.is_dinuc_markov) {
+            continue; // Skip - shown as part of insertion pairs
+        }
+        
+        const auto &compared = compared_marginals.at(ev.queue_position);
+        
+        // Compute D_KL and uncovered mass for marginal distribution
+        double uncovered = 0.0;
+        double dkl = kl_divergence(ev.model_marginal, compared, &uncovered);
+        double H_compared = entropy(compared);
+        
+        // Check if this is part of an insertion+dinuc pair
+        auto it_pair = ins_dinuc_pairs.find(ev.gene_class);
+        bool is_ins_event = it_pair != ins_dinuc_pairs.end() &&
+                            it_pair->second.ins_event &&
+                            it_pair->second.ins_event->queue_position == ev.queue_position &&
+                            it_pair->second.dinuc_event;
+        
+        ComparisonRow row;
+        row.event_nickname = ev.nickname;
+        
+        if (is_ins_event) {
+            // Insertion+dinuc pair: show decomposition
+            const auto &pair = it_pair->second;
+            row.is_insertion_dinuc_pair = true;
+            
+            // Combined row
+            row.H_combined_reference = pair.combined_H;
+            row.passes_combined = true;
+            
+            // Length component (always available)
+            row.kl_length = dkl;
+            row.H_length_reference = entropy(ev.model_marginal);
+            row.H_length_compared = H_compared;
+            row.uncovered_length = uncovered;
+            
+            // Dinuc component (theoretical)
+            row.h_dinuc_reference = pair.dinuc_event->dinuc_entropy_rate;
+            row.passes_dinuc = true;
+            
+            // Compute combined/dinuc D_KL if requested
+            if (compute_combined_kl && compared_model && compared_parms) {
+                const auto *dinuc_ev = pair.dinuc_event;
+                
+                // Get compared dinuc transition matrix
+                int dinuc_base_idx = compared_index_map.at(dinuc_ev->name);
+                std::array<double, 16> compared_dinuc_T;
+                for (int k = 0; k < 16; ++k) {
+                    compared_dinuc_T[k] = static_cast<double>(
+                            compared_model->marginal_array_smart_p[dinuc_base_idx + k]);
+                }
+                
+                // Get insertion lengths
+                auto ev_ptr = compared_parms->get_event_pointer(ev.name);
+                auto realizations = ev_ptr->get_realizations_map();
+                std::vector<int> ins_lengths(ev.num_realizations, 0);
+                for (const auto &[key, real] : realizations) {
+                    ins_lengths[real.index] = real.value_int;
+                }
+                
+                // Combined entropy for compared model
+                row.H_combined_compared = insertion_dinuc_entropy(
+                        compared, ins_lengths, compared_dinuc_T);
+                
+                // Combined D_KL
+                double combined_cross_entropy = insertion_dinuc_cross_entropy(
+                        ev.model_marginal, compared,
+                        ins_lengths, dinuc_ev->dinuc_T, compared_dinuc_T);
+                row.kl_combined = combined_cross_entropy - pair.combined_H;
+                
+                // Dinuc D_KL
+                row.kl_dinuc = markov_kl_divergence(dinuc_ev->dinuc_T, compared_dinuc_T);
+                row.h_dinuc_compared = markov_entropy_rate(compared_dinuc_T);
+            } else {
+                // Generation test: can't compute combined/dinuc D_KL
+                row.H_combined_compared = 0.0;
+                row.kl_combined = 0.0;
+                row.kl_dinuc = 0.0;
+                row.h_dinuc_compared = 0.0;
+            }
+            
+            // Apply threshold function if provided
+            if (kl_threshold_func) {
+                row.passes_length = kl_threshold_func(row.kl_length, row.H_length_reference, ev.num_realizations);
+                if (compute_combined_kl) {
+                    row.passes_combined = kl_threshold_func(row.kl_combined, row.H_combined_reference, -1);
+                    row.passes_dinuc = kl_threshold_func(row.kl_dinuc, row.h_dinuc_reference, -1);
+                }
+            } else {
+                row.passes_length = true;
+            }
+        } else {
+            // Regular event
+            row.kl_divergence = dkl;
+            row.H_reference = ev.H;
+            row.H_compared = H_compared;
+            row.uncovered_mass = uncovered;
+            
+            // Apply threshold function if provided
+            if (kl_threshold_func) {
+                row.passes = kl_threshold_func(dkl, ev.H, ev.num_realizations);
+            } else {
+                row.passes = true;
+            }
+        }
+        
+        rows.push_back(row);
+    }
+    
+    return rows;
+}
+
+/**
+ * @brief Print a formatted table of comparison results.
+ * 
+ * @param rows Vector of comparison rows to display
+ * @param reference_label Label for reference column (e.g. "H_truth" or "H_model")
+ * @param compared_label Label for compared column (e.g. "H_infer" or "H_emp")
+ */
+static inline void print_comparison_table(
+        const std::vector<ComparisonRow> &rows,
+        const std::string &reference_label = "H_ref",
+        const std::string &compared_label = "H_cmp")
+{
+    std::cout << "\nEvent                  | D_KL(R||C) | " 
+              << std::setw(7) << reference_label << " | " 
+              << std::setw(7) << compared_label << " | Uncovered | Pass" << std::endl;
+    std::cout << "---------------------- | ---------- | ------- | ------- | --------- | ----" << std::endl;
+    
+    for (const auto& row : rows) {
+        if (row.is_insertion_dinuc_pair) {
+            // Main row (empty metrics)
+            std::cout << std::left << std::setw(22) << row.event_nickname << " | "
+                      << std::fixed 
+                      << "          " << " | "
+                      << "       " << " | "
+                      << "       " << " | "
+                      << "         " << " | "
+                      << " " << std::endl;
+            // Combined row
+            std::cout << "  ├─ combined           | "
+                      << std::setprecision(4) << std::setw(10);
+            if (row.kl_combined > 0.0) {
+                std::cout << row.kl_combined;
+            } else {
+                std::cout << "-";
+            }
+            std::cout << " | " << std::setw(7) << row.H_combined_reference << " | " << std::setw(7);
+            if (row.H_combined_compared > 0.0) {
+                std::cout << row.H_combined_compared;
+            } else {
+                std::cout << "-";
+            }
+            std::cout << " | "
+                      << "         " << " | "
+                      << (row.passes_combined ? "✓" : "✗") << std::endl;
+            // Length component
+            std::cout << "  ├─ ins length         | "
+                      << std::setw(10) << row.kl_length << " | "
+                      << std::setw(7) << row.H_length_reference << " | "
+                      << std::setw(7) << row.H_length_compared << " | "
+                      << std::setw(9) << row.uncovered_length << " | "
+                      << (row.passes_length ? "✓" : "✗") << std::endl;
+            // Dinuc component
+            std::cout << "  └─ dinuc Markov (h)   | "
+                      << std::setw(10);
+            if (row.kl_dinuc > 0.0) {
+                std::cout << row.kl_dinuc;
+            } else {
+                std::cout << "-";
+            }
+            std::cout << " | " << std::setw(7) << row.h_dinuc_reference << " | " << std::setw(7);
+            if (row.h_dinuc_compared > 0.0) {
+                std::cout << row.h_dinuc_compared;
+            } else {
+                std::cout << "-";
+            }
+            std::cout << " | "
+                      << "         " << " | "
+                      << (row.passes_dinuc ? "✓" : "✗") << std::endl;
+        } else {
+            // Regular event row
+            std::cout << std::left << std::setw(22) << row.event_nickname << " | "
+                      << std::fixed << std::setprecision(4) << std::setw(10) << row.kl_divergence << " | "
+                      << std::setw(7) << row.H_reference << " | "
+                      << std::setw(7) << row.H_compared << " | "
+                      << std::setw(9) << row.uncovered_mass << " | "
+                      << (row.passes ? "✓" : "✗") << std::endl;
+        }
+    }
+}
+
+/**
  * @brief Build a vector of EventInfo for every event in the model queue.
  */
 static inline std::vector<EventInfo> build_event_info(
@@ -417,12 +683,6 @@ static inline std::vector<EventInfo> build_event_info(
 /**
  * @brief Pairing of insertion event with its DinucMarkov partner
  */
-struct InsDinucPair {
-    const EventInfo *ins_event = nullptr;
-    const EventInfo *dinuc_event = nullptr;
-    double combined_H = 0.0;
-};
-
 /**
  * @brief Compute combined insertion+dinucleotide entropy and update EventInfo.H
  * 

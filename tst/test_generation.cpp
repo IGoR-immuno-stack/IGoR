@@ -370,26 +370,39 @@ TEST_CASE("Generation marginals converge - KL divergence vs entropy",
         auto all_empiricals = compute_all_empirical_marginals(
                 sequences, event_infos, sequences.size());
 
-        for (const auto &ev : event_infos) {
-            if (ev.is_dinuc_markov) {
-                continue; // DinucMarkov has variable-length realizations
+        // Build comparison rows using helper
+        auto threshold_func = [N](double dkl, double H, int num_realizations) -> bool {
+            if (N == 10) {
+                return std::isfinite(dkl);
+            } else if (N == 100) {
+                return dkl < (std::max)(H, 1.0);
+            } else if (N == 1000) {
+                return dkl < (std::max)(H, 1.0) * 0.1;
+            } else if (N == 1000000) {
+                double expected_upper = 50.0 * (num_realizations - 1) / (2.0 * N * std::log(2.0));
+                return dkl < (std::max)(expected_upper, 1e-3);
             }
-
+            return true;
+        };
+        
+        auto rows = build_comparison_rows(
+                event_infos, all_empiricals, ins_dinuc_pairs,
+                nullptr, nullptr, false, threshold_func);
+        
+        // Print table
+        print_comparison_table(rows, "H_model", "H_emp");
+        
+        // Update traces for convergence checks
+        for (const auto &ev : event_infos) {
+            if (ev.is_dinuc_markov) continue;
+            
             const auto &empirical = all_empiricals.at(ev.queue_position);
-
             double uncovered = 0.0;
             double dkl = kl_divergence(ev.model_marginal, empirical, &uncovered);
             kl_traces[ev.queue_position].emplace_back(dkl, uncovered);
-
-            // Empirical entropy of the generated marginal
+            
             double H_emp = entropy(empirical);
             entropy_traces[ev.queue_position].push_back(H_emp);
-
-            std::cout << "  " << ev.nickname
-                      << " : D_KL = " << dkl
-                      << "  H_emp = " << H_emp
-                      << "  H_theo = " << ev.H
-                      << "  uncovered = " << uncovered << std::endl;
 
             // ---- assertions ----
             // D_KL must always be finite (partial KL can be negative when

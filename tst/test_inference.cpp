@@ -267,156 +267,75 @@ static Alignment_data create_j_mock_alignment(
 // Model comparison
 // ---------------------------------------------------------------------------
 
-struct InferenceComparison {
-    std::string event_nickname;
-    double kl_divergence_forward;   // D_KL(truth || inferred) - penalizes missing support
-    double kl_divergence_reverse;   // D_KL(inferred || truth) - penalizes impossible events
-    double entropy_truth;
-    double entropy_inferred;
-    double uncovered_mass;
-    bool passes_threshold;
-    
-    // For insertion+dinuc pairs, store decomposition
-    bool is_insertion_dinuc_pair = false;
-    double kl_combined = 0.0;       // D_KL(truth || inferred) for combined (length + dinuc)
-    double kl_dinuc = 0.0;          // D_KL(truth || inferred) for dinuc Markov chain alone
-    bool passes_combined_threshold = true;
-    bool passes_dinuc_threshold = true;
-    double H_combined_truth = 0.0;
-    double H_combined_inferred = 0.0;
-    double H_len_truth = 0.0;
-    double H_len_inferred = 0.0;
-    double h_dinuc_truth = 0.0;     // entropy rate
-    double h_dinuc_inferred = 0.0;  // entropy rate
-    std::string dinuc_nickname;
-};
-
 /**
  * @brief Compare inferred model to ground truth using KL divergence
  */
-static std::vector<InferenceComparison> compare_inference_to_ground_truth(
+static std::vector<ComparisonRow> compare_inference_to_ground_truth(
         const std::vector<EventInfo>& ground_truth_events,
         const Model_marginals& inferred_marginals,
         const Model_Parms& inferred_parms,
         double kl_threshold_factor = 10.0)
 {
-    std::vector<InferenceComparison> comparisons;
-    auto inferred_index_map = inferred_marginals.get_index_map(inferred_parms);
-    
-    // Build insertion+dinuc pairs for inferred model (same structure as truth)
-    std::map<Gene_class, InsDinucPair> inferred_ins_dinuc_pairs;
+    // Compute inferred marginals for all events
+    std::map<size_t, std::vector<double>> inferred_marginals_map;
     for (const auto& gt_ev : ground_truth_events) {
-        if (gt_ev.is_dinuc_markov) {
-            inferred_ins_dinuc_pairs[gt_ev.gene_class].dinuc_event = &gt_ev;
-        } else if (gt_ev.nickname.find("_ins") != std::string::npos) {
-            inferred_ins_dinuc_pairs[gt_ev.gene_class].ins_event = &gt_ev;
-        }
-    }
-    
-    for (const auto& gt_ev : ground_truth_events) {
-        InferenceComparison cmp;
-        cmp.event_nickname = gt_ev.nickname;
-        cmp.entropy_truth = gt_ev.H;
+        if (gt_ev.is_dinuc_markov) continue;
         
-        if (gt_ev.is_dinuc_markov) {
-            // Skip DinucMarkov events - they're shown as part of insertion pairs
-            continue;
-        }
-        
-        // Non-DinucMarkov event: standard marginal comparison
         auto [dims, inferred_probs] = 
             inferred_marginals.compute_event_marginal_probability(gt_ev.name, inferred_parms);
         
-        std::vector<double> inferred_marginal(gt_ev.num_realizations, 0.0);
+        std::vector<double> marginal(gt_ev.num_realizations, 0.0);
         for (int i = 0; i < gt_ev.num_realizations; ++i) {
-            inferred_marginal[i] = static_cast<double>(inferred_probs.get()[i]);
+            marginal[i] = static_cast<double>(inferred_probs.get()[i]);
         }
-        
-        // Check if this is an insertion event with a DinucMarkov partner
-        auto it = inferred_ins_dinuc_pairs.find(gt_ev.gene_class);
-        if (it != inferred_ins_dinuc_pairs.end() &&
-            it->second.ins_event == &gt_ev &&
-            it->second.dinuc_event != nullptr)
-        {
-            // Compute combined insertion+dinuc entropy for inferred model
-            const auto* dinuc_ev = it->second.dinuc_event;
-            
-            // Get inferred dinuc transition matrix
-            int dinuc_base_idx = inferred_index_map.at(dinuc_ev->name);
-            std::array<double, 16> inferred_dinuc_T;
-            for (int k = 0; k < 16; ++k) {
-                inferred_dinuc_T[k] = static_cast<double>(
-                        inferred_marginals.marginal_array_smart_p[dinuc_base_idx + k]);
-            }
-            
-            // Get insertion length values
-            auto ev_ptr = inferred_parms.get_event_pointer(gt_ev.name);
+        inferred_marginals_map[gt_ev.queue_position] = marginal;
+    }
+    
+    // Build insertion+dinuc pairs with combined entropy computed
+    // (reuse from ground truth events which already have combined_H)
+    std::map<Gene_class, InsDinucPair> ins_dinuc_pairs;
+    for (const auto& ev : ground_truth_events) {
+        if (ev.is_dinuc_markov) {
+            ins_dinuc_pairs[ev.gene_class].dinuc_event = &ev;
+        } else if (ev.nickname.find("_ins") != std::string::npos) {
+            ins_dinuc_pairs[ev.gene_class].ins_event = &ev;
+        }
+    }
+    
+    // Compute combined entropy for pairs
+    for (auto& [gene_class, pair] : ins_dinuc_pairs) {
+        if (pair.ins_event && pair.dinuc_event) {
+            // Get insertion lengths
+            auto ev_ptr = inferred_parms.get_event_pointer(pair.ins_event->name);
             auto realizations = ev_ptr->get_realizations_map();
-            std::vector<int> ins_lengths(gt_ev.num_realizations, 0);
+            std::vector<int> ins_lengths(pair.ins_event->num_realizations, 0);
             for (const auto &[key, real] : realizations) {
                 ins_lengths[real.index] = real.value_int;
             }
             
-            // Compute combined entropy for both models
-            double H_len_truth = entropy(gt_ev.model_marginal);
-            double H_len_inferred = entropy(inferred_marginal);
-            
-            double combined_H_truth = insertion_dinuc_entropy(
-                    gt_ev.model_marginal, ins_lengths, dinuc_ev->dinuc_T);
-            double combined_H_inferred = insertion_dinuc_entropy(
-                    inferred_marginal, ins_lengths, inferred_dinuc_T);
-            
-            // Compute combined cross-entropy and D_KL(Truth || Inferred)
-            double combined_cross_entropy = insertion_dinuc_cross_entropy(
-                    gt_ev.model_marginal, inferred_marginal,
-                    ins_lengths, dinuc_ev->dinuc_T, inferred_dinuc_T);
-            double kl_combined = combined_cross_entropy - combined_H_truth;
-            
-            // Store decomposition
-            cmp.is_insertion_dinuc_pair = true;
-            cmp.H_combined_truth = combined_H_truth;
-            cmp.H_combined_inferred = combined_H_inferred;
-            cmp.H_len_truth = H_len_truth;
-            cmp.H_len_inferred = H_len_inferred;
-            cmp.h_dinuc_truth = dinuc_ev->dinuc_entropy_rate;
-            cmp.h_dinuc_inferred = markov_entropy_rate(inferred_dinuc_T);
-            cmp.dinuc_nickname = dinuc_ev->nickname;
-            
-            // Compute D_KL(Truth || Inferred) for individual components
-            cmp.kl_combined = kl_combined;
-            cmp.kl_dinuc = markov_kl_divergence(dinuc_ev->dinuc_T, inferred_dinuc_T);
-            
-            // Check thresholds
-            double combined_threshold = (std::max)(combined_H_truth / kl_threshold_factor, 0.01);
-            cmp.passes_combined_threshold = (kl_combined < combined_threshold);
-            
-            double dinuc_threshold = (std::max)(dinuc_ev->dinuc_entropy_rate / kl_threshold_factor, 0.01);
-            cmp.passes_dinuc_threshold = (cmp.kl_dinuc < dinuc_threshold);
-            
-            // Display combined entropy
-            cmp.entropy_truth = combined_H_truth;
-            cmp.entropy_inferred = combined_H_inferred;
-        } else {
-            cmp.entropy_inferred = entropy(inferred_marginal);
+            // Compute combined entropy for ground truth
+            pair.combined_H = insertion_dinuc_entropy(
+                    pair.ins_event->model_marginal, 
+                    ins_lengths, 
+                    pair.dinuc_event->dinuc_T);
         }
-        
-        // D_KL(truth || inferred) on marginal distribution
-        cmp.kl_divergence_forward = kl_divergence(
-            gt_ev.model_marginal, inferred_marginal, &cmp.uncovered_mass);
-        
-        // D_KL(inferred || truth) - useful for symmetric view
-        double dummy;
-        cmp.kl_divergence_reverse = kl_divergence(
-            inferred_marginal, gt_ev.model_marginal, &dummy);
-        
-        // Check threshold (for insertion events, uses length entropy not combined)
-        double threshold = (std::max)(entropy(gt_ev.model_marginal) / kl_threshold_factor, 0.01);
-        cmp.passes_threshold = (cmp.kl_divergence_forward < threshold);
-        
-        comparisons.push_back(cmp);
     }
     
-    return comparisons;
+    // Threshold function for inference
+    auto threshold_func = [kl_threshold_factor](double dkl, double H, int) -> bool {
+        double threshold = (std::max)(H / kl_threshold_factor, 0.01);
+        return dkl < threshold;
+    };
+    
+    // Use helper to build comparison rows with combined D_KL computation
+    return build_comparison_rows(
+            ground_truth_events,
+            inferred_marginals_map,
+            ins_dinuc_pairs,
+            &inferred_parms,
+            &inferred_marginals,
+            true,  // compute_combined_kl
+            threshold_func);
 }
 
 // ---------------------------------------------------------------------------
@@ -638,81 +557,39 @@ TEST_CASE("Inference recovers ground truth model", "[inference]")
     // ------------------------------------------------------------------
     std::cout << "\n=== Comparing inferred model to ground truth ===" << std::endl;
     
-    auto comparisons = compare_inference_to_ground_truth(
+    auto rows = compare_inference_to_ground_truth(
         truth_events,
         inferred_marginals,
         inferred_parms,
         kl_threshold_factor);
     
-    std::cout << "\nEvent                  | D_KL(T||I) | H_truth | H_infer | Uncovered | Pass" << std::endl;
-    std::cout << "---------------------- | ---------- | ------- | ------- | --------- | ----" << std::endl;
+    print_comparison_table(rows, "H_truth", "H_infer");
     
-    for (const auto& cmp : comparisons) {
-
+    std::cout << "\n=== Inference test completed ===" << std::endl;
+    
+    // Check assertions
+    for (const auto& row : rows) {
+        INFO("Event: " << row.event_nickname);
         
-        // If this is an insertion+dinuc pair, show decomposition
-        if (cmp.is_insertion_dinuc_pair) {
-                        // Main row
-            std::cout << std::left << std::setw(22) << cmp.event_nickname << " | "
-                    << std::fixed 
-                    << "          " << " | "
-                    << "       " << " | "
-                    << "       " << " | "
-                    << "         " << " | "
-                    << (" ") << std::endl;
-            std::cout << "  ├─ combined           | "
-                      << std::setw(10) << cmp.kl_combined << " | "
-                      << std::setw(7) << cmp.H_combined_truth << " | "
-                      << std::setw(7) << cmp.H_combined_inferred << " | "
-                      << "         " << " | "
-                      << (cmp.passes_combined_threshold ? "✓" : "✗") << std::endl;
-            std::cout << "  ├─ ins length         | "
-                      << std::setw(10) << cmp.kl_divergence_forward << " | "
-                      << std::setw(7) << cmp.H_len_truth << " | "
-                      << std::setw(7) << cmp.H_len_inferred << " | "
-                      << std::setw(9) << cmp.uncovered_mass << " | "
-                      << (cmp.passes_threshold ? "✓" : "✗") << std::endl;
-            std::cout << "  └─ dinuc Markov (h)   | "
-                      << std::setw(10) << cmp.kl_dinuc << " | "
-                      << std::setw(7) << cmp.h_dinuc_truth << " | "
-                      << std::setw(7) << cmp.h_dinuc_inferred << " | "
-                      << "         " << " | "
-                      << (cmp.passes_dinuc_threshold ? "✓" : "✗") << std::endl;
+        if (row.is_insertion_dinuc_pair) {
+            INFO("  Combined (len+dinuc) - D_KL=" << row.kl_combined
+                 << ", H_truth=" << row.H_combined_reference
+                 << ", H_inferred=" << row.H_combined_compared);
+            INFO("  Ins length - D_KL=" << row.kl_length 
+                 << ", H_truth=" << row.H_length_reference 
+                 << ", H_inferred=" << row.H_length_compared);
+            INFO("  Dinuc Markov - D_KL=" << row.kl_dinuc
+                 << ", h_truth=" << row.h_dinuc_reference
+                 << ", h_inferred=" << row.h_dinuc_compared);
+            
+            CHECK(row.passes_combined);
+            CHECK(row.passes_length);
+            CHECK(row.passes_dinuc);
         } else {
-            // Main row
-            std::cout << std::left << std::setw(22) << cmp.event_nickname << " | "
-                    << std::fixed << std::setprecision(4) << std::setw(10) << cmp.kl_divergence_forward << " | "
-                    << std::setw(7) << cmp.entropy_truth << " | "
-                    << std::setw(7) << cmp.entropy_inferred << " | "
-                    << std::setw(9) << cmp.uncovered_mass << " | "
-                    << (cmp.passes_threshold ? "✓" : "✗") << std::endl;
-        }
-        
-        INFO("Event: " << cmp.event_nickname);
-        INFO("D_KL(truth||inferred) = " << cmp.kl_divergence_forward);
-        INFO("H(truth) = " << cmp.entropy_truth);
-        INFO("H(inferred) = " << cmp.entropy_inferred);
-        if (cmp.is_insertion_dinuc_pair) {
-            INFO("  Combined (len+dinuc) - D_KL=" << cmp.kl_combined
-                 << ", H_truth=" << cmp.H_combined_truth
-                 << ", H_inferred=" << cmp.H_combined_inferred
-                 << ", threshold=" << cmp.H_combined_truth / kl_threshold_factor);
-            INFO("  Ins length - D_KL=" << cmp.kl_divergence_forward 
-                 << ", H_truth=" << cmp.H_len_truth 
-                 << ", H_inferred=" << cmp.H_len_inferred
-                 << ", threshold=" << cmp.H_len_truth / kl_threshold_factor);
-            INFO("  Dinuc Markov - D_KL=" << cmp.kl_dinuc
-                 << ", h_truth=" << cmp.h_dinuc_truth
-                 << ", h_inferred=" << cmp.h_dinuc_inferred
-                 << ", threshold=" << cmp.h_dinuc_truth / kl_threshold_factor);
-        } else {
-            INFO("Threshold = " << cmp.entropy_truth / kl_threshold_factor);
-        }
-        
-        CHECK(cmp.passes_threshold);
-        if (cmp.is_insertion_dinuc_pair) {
-            CHECK(cmp.passes_combined_threshold);
-            CHECK(cmp.passes_dinuc_threshold);
+            INFO("D_KL(truth||inferred) = " << row.kl_divergence);
+            INFO("H(truth) = " << row.H_reference);
+            INFO("H(inferred) = " << row.H_compared);
+            CHECK(row.passes);
         }
     }
     
