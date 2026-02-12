@@ -243,87 +243,9 @@ TEST_CASE("Generation marginals converge - KL divergence vs entropy",
     INFO("Model loaded, " << event_infos.size() << " events found");
     REQUIRE(event_infos.size() >= static_cast<size_t>(min_events));
 
-    // ------------------------------------------------------------------
-    // Compute combined insertion+dinucleotide entropy.
-    // Following pygor3's get_df_entropy_decomposition(), insertion events
-    // like "vj_ins" are paired with their DinucMarkov partner "vj_dinucl"
-    // (sharing the same Gene_class). The combined entropy is:
-    //     H_total = H(ℓ) + H_ss + h · [E[ℓ] − (1 − P(0))]
-    // where H(ℓ) is the insertion-length entropy, H_ss is the entropy of
-    // the Markov chain's stationary distribution, E[ℓ] the expected length,
-    // h the Markov chain entropy rate, and P(0) the probability of zero
-    // insertions.
-    // ------------------------------------------------------------------
-    struct InsDinucPair {
-        const EventInfo *ins_event = nullptr;
-        const EventInfo *dinuc_event = nullptr;
-        double combined_H = 0.0;
-    };
-    std::map<Gene_class, InsDinucPair> ins_dinuc_pairs;
-
-    for (const auto &ev : event_infos) {
-        if (ev.is_dinuc_markov) {
-            ins_dinuc_pairs[ev.gene_class].dinuc_event = &ev;
-        } else if (ev.nickname.find("_ins") != std::string::npos) {
-            ins_dinuc_pairs[ev.gene_class].ins_event = &ev;
-        }
-    }
-
-    for (auto &[gc, pair] : ins_dinuc_pairs) {
-        if (pair.ins_event && pair.dinuc_event) {
-            // Get insertion length values from the event's realizations
-            auto reals_map = pair.ins_event->name;
-            auto ev_ptr = model_parms.get_event_pointer(pair.ins_event->name);
-            auto realizations = ev_ptr->get_realizations_map();
-            std::vector<int> ins_lengths(pair.ins_event->num_realizations, 0);
-            for (const auto &[key, real] : realizations) {
-                ins_lengths[real.index] = real.value_int;
-            }
-
-            pair.combined_H = insertion_dinuc_entropy(
-                    pair.ins_event->model_marginal,
-                    ins_lengths,
-                    pair.dinuc_event->dinuc_T);
-        }
-    }
-
-    // Print entropy decomposition (mirrors pygor3's entropy table)
-    double total_entropy = 0.0;
-    std::cout << "\n=== Entropy decomposition (bits) ===" << std::endl;
-    for (const auto &ev : event_infos) {
-        if (ev.is_dinuc_markov) {
-            // Already accounted for via the ins+dinuc pair
-            continue;
-        }
-
-        // Check if this is an insertion event that has a DinucMarkov partner
-        auto it = ins_dinuc_pairs.find(ev.gene_class);
-        if (it != ins_dinuc_pairs.end() &&
-            it->second.ins_event == &ev &&
-            it->second.dinuc_event != nullptr)
-        {
-            double combined = it->second.combined_H;
-            std::cout << "  " << ev.nickname << " + "
-                      << it->second.dinuc_event->nickname
-                      << " : H = " << combined
-                      << "  (H_len=" << ev.H
-                      << ", H_dinuc=" << (combined - ev.H)
-                      << ", h=" << it->second.dinuc_event->dinuc_entropy_rate
-                      << ")" << std::endl;
-            total_entropy += combined;
-        } else {
-            std::cout << "  " << ev.nickname << " : H = " << ev.H << std::endl;
-            total_entropy += ev.H;
-        }
-    }
-    // Also print standalone DinucMarkov entropy rates for reference
-    for (const auto &ev : event_infos) {
-        if (ev.is_dinuc_markov) {
-            std::cout << "  (" << ev.nickname << " entropy rate h = "
-                      << ev.dinuc_entropy_rate << " bits/nt)" << std::endl;
-        }
-    }
-    std::cout << "  TOTAL: " << total_entropy << std::endl;
+    // Compute combined insertion+dinucleotide entropy and print decomposition
+    auto ins_dinuc_pairs = compute_combined_insertion_dinuc_entropy(
+            event_infos, model_parms, /*print=*/true);
 
     // ------------------------------------------------------------------
     // Cross-validate against pygor3 reference values (if available).
@@ -482,7 +404,7 @@ TEST_CASE("Generation marginals converge - KL divergence vs entropy",
                 // Loose bound: D_KL should be within the same order as H
                 CHECK(dkl < (std::max)(ev.H, 1.0));
             } else if (N == 1000) {
-                // Tighter: D_KL should be at most a tenth of H
+    // Tighter: D_KL should be at most a tenth of H
                 CHECK(dkl < (std::max)(ev.H, 1.0) * 0.1);
                 // Most of the distribution should be covered
                 CHECK(uncovered < 0.1);
@@ -496,7 +418,7 @@ TEST_CASE("Generation marginals converge - KL divergence vs entropy",
                         50.0 * (ev.num_realizations - 1) / (2.0 * N * std::log(2.0));
                 CHECK(dkl < (std::max)(expected_upper, 1e-3));
                 // At 1M samples, essentially all bins should be covered
-                // (rare alleles with P~1e-6 may still be missed)
+// (rare alleles with P~1e-6 may still be missed)
                 CHECK(uncovered < 1e-3);
             }
         }

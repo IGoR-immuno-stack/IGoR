@@ -297,3 +297,121 @@ static inline std::vector<EventInfo> build_event_info(
     }
     return infos;
 }
+
+// ---------------------------------------------------------------------------
+// Combined insertion + dinucleotide entropy
+// ---------------------------------------------------------------------------
+
+/**
+ * @brief Pairing of insertion event with its DinucMarkov partner
+ */
+struct InsDinucPair {
+    const EventInfo *ins_event = nullptr;
+    const EventInfo *dinuc_event = nullptr;
+    double combined_H = 0.0;
+};
+
+/**
+ * @brief Compute combined insertion+dinucleotide entropy and update EventInfo.H
+ * 
+ * Following pygor3's get_df_entropy_decomposition(), insertion events
+ * like "vj_ins" are paired with their DinucMarkov partner "vj_dinucl"
+ * (sharing the same Gene_class). The combined entropy H_total is computed
+ * using insertion_dinuc_entropy() and the EventInfo.H for insertion events
+ * is updated to reflect the full combined entropy.
+ * 
+ * @param events Vector of EventInfo (modified in-place)
+ * @param parms Model parameters (to extract insertion length realizations)
+ * @param print_decomposition Whether to print entropy decomposition table
+ * @return Map of Gene_class to InsDinucPair for reference
+ */
+static inline std::map<Gene_class, InsDinucPair> 
+compute_combined_insertion_dinuc_entropy(
+        std::vector<EventInfo> &events,
+        const Model_Parms &parms,
+        bool print_decomposition = true)
+{
+    std::map<Gene_class, InsDinucPair> ins_dinuc_pairs;
+
+    // 1. Identify insertion and DinucMarkov event pairs by Gene_class
+    for (const auto &ev : events) {
+        if (ev.is_dinuc_markov) {
+            ins_dinuc_pairs[ev.gene_class].dinuc_event = &ev;
+        } else if (ev.nickname.find("_ins") != std::string::npos) {
+            ins_dinuc_pairs[ev.gene_class].ins_event = &ev;
+        }
+    }
+
+    // 2. Compute combined entropy for each pair
+    for (auto &[gc, pair] : ins_dinuc_pairs) {
+        if (pair.ins_event && pair.dinuc_event) {
+            // Get insertion length values from the event's realizations
+            auto ev_ptr = parms.get_event_pointer(pair.ins_event->name);
+            auto realizations = ev_ptr->get_realizations_map();
+            std::vector<int> ins_lengths(pair.ins_event->num_realizations, 0);
+            for (const auto &[key, real] : realizations) {
+                ins_lengths[real.index] = real.value_int;
+            }
+
+            pair.combined_H = insertion_dinuc_entropy(
+                    pair.ins_event->model_marginal,
+                    ins_lengths,
+                    pair.dinuc_event->dinuc_T);
+        }
+    }
+
+    // 3. Update EventInfo.H for insertion events to the full combined entropy
+    for (auto &ev : events) {
+        if (ev.is_dinuc_markov) continue;
+        auto it = ins_dinuc_pairs.find(ev.gene_class);
+        if (it != ins_dinuc_pairs.end() &&
+            it->second.ins_event &&
+            it->second.ins_event->queue_position == ev.queue_position &&
+            it->second.dinuc_event)
+        {
+            ev.H = it->second.combined_H;
+        }
+    }
+
+    // 4. Print entropy decomposition (mirrors pygor3's entropy table)
+    if (print_decomposition) {
+        double total_entropy = 0.0;
+        std::cout << "\n=== Entropy decomposition (bits) ===" << std::endl;
+        for (const auto &ev : events) {
+            if (ev.is_dinuc_markov) {
+                // Already accounted for via the ins+dinuc pair
+                continue;
+            }
+
+            // Check if this is an insertion event with a DinucMarkov partner
+            auto it = ins_dinuc_pairs.find(ev.gene_class);
+            if (it != ins_dinuc_pairs.end() &&
+                it->second.ins_event == &ev &&
+                it->second.dinuc_event != nullptr)
+            {
+                double combined = it->second.combined_H;
+                std::cout << "  " << ev.nickname << " + "
+                          << it->second.dinuc_event->nickname
+                          << " : H = " << combined
+                          << "  (H_len=" << entropy(ev.model_marginal)
+                          << ", H_dinuc=" << (combined - entropy(ev.model_marginal))
+                          << ", h=" << it->second.dinuc_event->dinuc_entropy_rate
+                          << ")" << std::endl;
+                total_entropy += combined;
+            } else {
+                std::cout << "  " << ev.nickname << " : H = " << ev.H << std::endl;
+                total_entropy += ev.H;
+            }
+        }
+        // Also print standalone DinucMarkov entropy rates for reference
+        for (const auto &ev : events) {
+            if (ev.is_dinuc_markov) {
+                std::cout << "  (" << ev.nickname << " entropy rate h = "
+                          << ev.dinuc_entropy_rate << " bits/nt)" << std::endl;
+            }
+        }
+        std::cout << "  TOTAL: " << total_entropy << std::endl;
+    }
+
+    return ins_dinuc_pairs;
+}
