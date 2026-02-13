@@ -36,11 +36,13 @@ namespace fast {
 // CategoricalSampler Implementation
 //==============================================================================
 
-void CategoricalSampler::initialize(const std::vector<double>& probabilities, bool use_alias) {
+void CategoricalSampler::initialize(const std::vector<double> &probabilities, bool use_alias)
+{
     initialize(probabilities.data(), probabilities.size(), use_alias);
 }
 
-void CategoricalSampler::initialize(const double* probs, size_t n, bool use_alias) {
+void CategoricalSampler::initialize(const double *probs, size_t n, bool use_alias)
+{
     if (n == 0) {
         probabilities_.clear();
         cdf_.clear();
@@ -53,7 +55,7 @@ void CategoricalSampler::initialize(const double* probs, size_t n, bool use_alia
     // Normalize probabilities
     double sum = std::accumulate(probabilities_.begin(), probabilities_.end(), 0.0);
     if (sum > 0) {
-        for (auto& p : probabilities_) {
+        for (auto &p : probabilities_) {
             p /= sum;
         }
     } else {
@@ -70,7 +72,8 @@ void CategoricalSampler::initialize(const double* probs, size_t n, bool use_alia
     }
 }
 
-void CategoricalSampler::initialize(const long double* probs, size_t n, bool use_alias) {
+void CategoricalSampler::initialize(const long double *probs, size_t n, bool use_alias)
+{
     if (n == 0) {
         probabilities_.clear();
         cdf_.clear();
@@ -85,7 +88,7 @@ void CategoricalSampler::initialize(const long double* probs, size_t n, bool use
     // Normalize probabilities
     double sum = std::accumulate(probabilities_.begin(), probabilities_.end(), 0.0);
     if (sum > 0) {
-        for (auto& p : probabilities_) {
+        for (auto &p : probabilities_) {
             p /= sum;
         }
     } else {
@@ -102,11 +105,13 @@ void CategoricalSampler::initialize(const long double* probs, size_t n, bool use
     }
 }
 
-void CategoricalSampler::build_cdf() {
+void CategoricalSampler::build_cdf()
+{
     size_t n = probabilities_.size();
     cdf_.resize(n);
 
-    if (n == 0) return;
+    if (n == 0)
+        return;
 
     cdf_[0] = probabilities_[0];
     for (size_t i = 1; i < n; ++i) {
@@ -117,10 +122,12 @@ void CategoricalSampler::build_cdf() {
     cdf_.back() = 1.0;
 }
 
-void CategoricalSampler::build_alias() {
+void CategoricalSampler::build_alias()
+{
     // Vose's Alias Method for O(1) sampling
     size_t n = probabilities_.size();
-    if (n == 0) return;
+    if (n == 0)
+        return;
 
     alias_.resize(n);
     prob_alias_.resize(n);
@@ -143,8 +150,10 @@ void CategoricalSampler::build_alias() {
 
     // Build alias table
     while (!small.empty() && !large.empty()) {
-        size_t s = small.front(); small.pop();
-        size_t l = large.front(); large.pop();
+        size_t s = small.front();
+        small.pop();
+        size_t l = large.front();
+        large.pop();
 
         prob_alias_[s] = scaled[s];
         alias_[s] = l;
@@ -160,36 +169,38 @@ void CategoricalSampler::build_alias() {
 
     // Handle remaining (due to numerical issues)
     while (!large.empty()) {
-        size_t l = large.front(); large.pop();
+        size_t l = large.front();
+        large.pop();
         prob_alias_[l] = 1.0;
         alias_[l] = l;
     }
 
     while (!small.empty()) {
-        size_t s = small.front(); small.pop();
+        size_t s = small.front();
+        small.pop();
         prob_alias_[s] = 1.0;
         alias_[s] = s;
     }
 }
 
-
 //==============================================================================
 // ConditionalSampler Implementation
 //==============================================================================
 
-void ConditionalSampler::initialize(const std::vector<std::vector<double>>& probs, bool use_alias) {
+void ConditionalSampler::initialize(const std::vector<std::vector<double>> &probs, bool use_alias)
+{
     samplers_.clear();
     samplers_.reserve(probs.size());
 
-    for (const auto& row : probs) {
+    for (const auto &row : probs) {
         CategoricalSampler sampler;
         sampler.initialize(row, use_alias);
         samplers_.push_back(std::move(sampler));
     }
 }
 
-void ConditionalSampler::initialize(const double* probs, size_t num_conditions,
-                                    size_t num_outcomes, bool use_alias) {
+void ConditionalSampler::initialize(const double *probs, size_t num_conditions, size_t num_outcomes, bool use_alias)
+{
     samplers_.clear();
     samplers_.reserve(num_conditions);
 
@@ -200,8 +211,9 @@ void ConditionalSampler::initialize(const double* probs, size_t num_conditions,
     }
 }
 
-void ConditionalSampler::initialize(const long double* probs, size_t num_conditions,
-                                    size_t num_outcomes, bool use_alias) {
+void ConditionalSampler::initialize(const long double *probs, size_t num_conditions, size_t num_outcomes,
+                                    bool use_alias)
+{
     samplers_.clear();
     samplers_.reserve(num_conditions);
 
@@ -211,14 +223,15 @@ void ConditionalSampler::initialize(const long double* probs, size_t num_conditi
         samplers_.push_back(std::move(sampler));
     }
 }
-
 
 //==============================================================================
 // DinucleotideMarkovSampler Implementation
 //==============================================================================
 
-void DinucleotideMarkovSampler::initialize(const double* dinuc_probs, size_t size) {
-    if (size == 0) return;
+void DinucleotideMarkovSampler::initialize(const double *dinuc_probs, size_t size)
+{
+    if (size == 0)
+        return;
 
     // Build conditional probability matrix
     // dinuc_probs[i * size + j] = P(next=j | prev=i)
@@ -244,9 +257,8 @@ void DinucleotideMarkovSampler::initialize(const double* dinuc_probs, size_t siz
         }
     }
 
-    conditional_sampler_.initialize(cond_probs, true);  // Use alias for O(1)
+    conditional_sampler_.initialize(cond_probs, true); // Use alias for O(1)
 }
 
-
-}  // namespace fast
-}  // namespace igor
+} // namespace fast
+} // namespace igor
