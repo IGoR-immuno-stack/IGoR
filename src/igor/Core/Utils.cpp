@@ -57,9 +57,18 @@ ostream &operator<<(ostream &os, Gene_class gc)
     case Undefined_gene:
         os << "Undefined_gene";
         break;
+    case VD1_genes:
+        os << "VD1_genes";
+        break;
+    case D1D2_genes:
+        os << "D1D2_genes";
+        break;
+    case D2J_genes:
+        os << "D2J_genes";
+        break;
 
     default:
-        throw invalid_argument("Unknown Gene_class in operator<< ");
+        throw invalid_argument("Unknown int in operator<< ");
     }
     return os;
 }
@@ -83,7 +92,7 @@ ostream &operator<<(ostream &os, Seq_side ss)
     return os;
 }
 
-string operator+(const string &str, Gene_class gc)
+string operator+(const string &str, int gc)
 {
     string next_str;
     switch (gc) {
@@ -110,6 +119,15 @@ string operator+(const string &str, Gene_class gc)
         break;
     case Undefined_gene:
         next_str = "Undefined_gene";
+        break;
+    case VD1_genes:
+        next_str = "VD1_genes";
+        break;
+    case D1D2_genes:
+        next_str = "D1D2_genes";
+        break;
+    case D2J_genes:
+        next_str = "D2J_genes";
         break;
     }
     return str + next_str;
@@ -153,7 +171,7 @@ string operator+(const string &str, Event_type et)
 }
 
 /**
- * \brief Creates a Gene_class object from a string.
+ * \brief Creates a int object from a string.
  * \author Q.Marcou
  * \version 1.0.0
  */
@@ -176,8 +194,14 @@ Gene_class str2GeneClass(const string &str)
         gene_class = VDJ_genes;
     } else if (str == "Undefined_gene") {
         gene_class = Undefined_gene;
+    } else if (str == "VD1_genes") {
+        gene_class = VD1_genes;
+    } else if (str == "D1D2_genes") {
+        gene_class = D1D2_genes;
+    } else if (str == "D2J_genes") {
+        gene_class = D2J_genes;
     } else {
-        throw runtime_error("Unknown Gene_class in str2GeneClass");
+        throw runtime_error("Unknown int in str2GeneClass: " + str);
     }
     return gene_class;
 }
@@ -206,6 +230,12 @@ string to_string(const Gene_class gc)
         return "VDJ_genes";
     case Undefined_gene:
         return "Undefined_gene";
+    case VD1_genes:
+        return "VD1_genes";
+    case D1D2_genes:
+        return "D1D2_genes";
+    case D2J_genes:
+        return "D2J_genes";
 
     default:
         throw invalid_argument("Unknown Gene_class in to_string(const Gene_class).");

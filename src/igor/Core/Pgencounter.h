@@ -5,7 +5,8 @@
  *      Author: Quentin Marcou
  *
  *  This source code is distributed as part of the IGoR software.
- *  IGoR (Inference and Generation of Repertoires) is a versatile software to analyze and model immune receptors
+ *  IGoR (Inference and Generation of Repertoires) is a versatile software to
+ analyze and model immune receptors
  *  generation, selection, mutation and all other processes.
  *   Copyright (C) 2017  Quentin Marcou
  *
@@ -29,7 +30,7 @@
 #include <igor/Core/Counter.h>
 #include <unordered_map>
 
-#include <igorCoreExport.h>
+#include <igor/Core/Export.h>
 
 /**
  * \class Pgen_counter Pgencounter.h
@@ -37,8 +38,10 @@
  * \author Q.Marcou
  * \version 1.0
  *
- * This Counter implements an estimator for the generation probability of evaluated sequences.
- * Alternatively the counter can record the probability of generation of putative ancestor (unmutated/error free) sequences and their associated posterior probability.
+ * This Counter implements an estimator for the generation probability of
+ * evaluated sequences. Alternatively the counter can record the probability of
+ * generation of putative ancestor (unmutated/error free) sequences and their
+ * associated posterior probability.
  */
 class CORE_EXPORT Pgen_counter : public Counter
 {
@@ -48,14 +51,13 @@ public:
     Pgen_counter(std::string, bool, bool do_output_sequences = false);
     virtual ~Pgen_counter();
 
-    std::string type() const { return "PgenCounter"; }; //TODO return an enum
+    std::string type() const { return "PgenCounter"; }; // TODO return an enum
 
     void initialize_counter(const Model_Parms &, const Model_marginals &);
 
-    void
-    count_scenario(long double, double, const std::string &, Seq_type_str_p_map &, const Seq_offsets_map &,
-                   const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> &,
-                   Mismatch_vectors_map &);
+    void count_scenario(long double, double, const std::string &, Seq_type_str_p_map &, const Seq_offsets_map &,
+                        const std::unordered_map<std::tuple<Event_type, int, Seq_side>, std::shared_ptr<Rec_Event>> &,
+                        Mismatch_vectors_map &);
 
     void dump_sequence_data(int, int);
 

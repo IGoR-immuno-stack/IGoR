@@ -419,7 +419,7 @@ TEST_CASE("Inference recovers ground truth model", "[inference]")
     // ------------------------------------------------------------------
     std::cout << "\n=== Creating mock alignments ===" << std::endl;
 
-    std::vector<std::tuple<int, std::string, std::unordered_map<Gene_class, std::vector<Alignment_data>>>>
+    std::vector<std::tuple<int, std::string, std::unordered_map<int, std::vector<Alignment_data>>>>
             sequences_with_alignments;
 
     int seq_idx = 0;
@@ -434,7 +434,7 @@ TEST_CASE("Inference recovers ground truth model", "[inference]")
         Alignment_data j_align = create_j_mock_alignment(seq, parsed, gene_templates);
 
         // Build alignment map
-        std::unordered_map<Gene_class, std::vector<Alignment_data>> aligns_map;
+        std::unordered_map<int, std::vector<Alignment_data>> aligns_map;
         aligns_map[V_gene] = { v_align };
         aligns_map[J_gene] = { j_align };
 

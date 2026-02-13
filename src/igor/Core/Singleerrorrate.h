@@ -5,7 +5,8 @@
  *      Author: Quentin Marcou
  *
  *  This source code is distributed as part of the IGoR software.
- *  IGoR (Inference and Generation of Repertoires) is a versatile software to analyze and model immune receptors
+ *  IGoR (Inference and Generation of Repertoires) is a versatile software to
+ analyze and model immune receptors
  *  generation, selection, mutation and all other processes.
  *   Copyright (C) 2017  Quentin Marcou
  *
@@ -30,10 +31,10 @@
 #include <igor/Core/Utils.h>
 #include <math.h>
 
-//Debug
+// Debug
 #include <iostream>
 
-#include <igorCoreExport.h>
+#include <igor/Core/Export.h>
 
 /**
  * \class Single_error_rate Singleerrorrate.h
@@ -41,7 +42,8 @@
  * \author Q.Marcou
  * \version 1.0
  *
- * Simplest instance of the ErrorRate family. Models errors/mutations as a Bernouilli process with a global rate independent of position and context.
+ * Simplest instance of the ErrorRate family. Models errors/mutations as a
+ * Bernouilli process with a global rate independent of position and context.
  */
 class CORE_EXPORT Single_error_rate : public Error_rate
 {
@@ -51,7 +53,7 @@ public:
     virtual ~Single_error_rate();
     double compare_sequences_error_prob(
             double, const std::string &, Seq_type_str_p_map &, const Seq_offsets_map &,
-            const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> &,
+            const std::unordered_map<std::tuple<Event_type, int, Seq_side>, std::shared_ptr<Rec_Event>> &,
             Mismatch_vectors_map &, double &, double &);
     void update();
     void add_to_norm_counter();
@@ -77,5 +79,5 @@ private:
     long double temp;
 
     int subseq_compare_err_num(const std::string &, const std::string &);
-    //TODO use seq likelihood to extract the likelihood of the model on the fly
+    // TODO use seq likelihood to extract the likelihood of the model on the fly
 };

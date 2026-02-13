@@ -5,7 +5,8 @@
  *      Author: Quentin Marcou
  *
  *  This source code is distributed as part of the IGoR software.
- *  IGoR (Inference and Generation of Repertoires) is a versatile software to analyze and model immune receptors
+ *  IGoR (Inference and Generation of Repertoires) is a versatile software to
+ analyze and model immune receptors
  *  generation, selection, mutation and all other processes.
  *   Copyright (C) 2017  Quentin Marcou
  *
@@ -24,6 +25,7 @@
  *
  */
 
+#include <igor/Core/EventUtils.h>
 #include <igor/Core/Pgencounter.h>
 
 using namespace std;
@@ -47,8 +49,9 @@ Pgen_counter::Pgen_counter(std::string path, bool output_Pgen_estimator_only, bo
       vj_ins(false)
 {
     if (output_Pgen_estimator and output_sequences) {
-        throw invalid_argument("Cannot set both \"output_Pgen_estimator_only\" and \"do_output_sequences\" to true. "
-                               "Pgen estimator is one line per read, otherwise every scenario sequence per read");
+        throw invalid_argument("Cannot set both \"output_Pgen_estimator_only\" and "
+                               "\"do_output_sequences\" to true. Pgen estimator is one line per read, "
+                               "otherwise every scenario sequence per read");
     }
     this->last_iter_only = true;
 }
@@ -63,7 +66,7 @@ void Pgen_counter::initialize_counter(const Model_Parms &parms, const Model_marg
     if (not fstreams_created) {
         output_pgen_file_ptr = shared_ptr<ofstream>(new ofstream);
         output_pgen_file_ptr->open(path_to_file + "Pgen_counts.csv");
-        //Create the header
+        // Create the header
         if (output_Pgen_estimator) {
             (*output_pgen_file_ptr.get()) << "seq_index;Pgen_estimate" << endl;
         } else {
@@ -77,35 +80,34 @@ void Pgen_counter::initialize_counter(const Model_Parms &parms, const Model_marg
         fstreams_created = true;
     }
 
-    const unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map =
-            parms.get_events_map();
-    //Initialize booleans for constructed sequences
-    if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, V_gene, Undefined_side)) > 0) {
+    const unordered_map<tuple<Event_type, int, Seq_side>, shared_ptr<Rec_Event>> &events_map = parms.get_events_map();
+    // Initialize booleans for constructed sequences
+    if (events_map.count(tuple<Event_type, int, Seq_side>(GeneChoice_t, V_gene, Undefined_side)) > 0) {
         v_gene = true;
     } else {
         v_gene = false;
     }
-    if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, D_gene, Undefined_side)) > 0) {
+    if (events_map.count(tuple<Event_type, int, Seq_side>(GeneChoice_t, D_gene, Undefined_side)) > 0) {
         d_gene = true;
     } else {
         d_gene = false;
     }
-    if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, J_gene, Undefined_side)) > 0) {
+    if (events_map.count(tuple<Event_type, int, Seq_side>(GeneChoice_t, J_gene, Undefined_side)) > 0) {
         j_gene = true;
     } else {
         j_gene = false;
     }
-    if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(Insertion_t, VJ_genes, Undefined_side)) > 0) {
+    if (events_map.count(tuple<Event_type, int, Seq_side>(Insertion_t, VJ_genes, Undefined_side)) > 0) {
         vj_ins = true;
     } else {
         vj_ins = false;
     }
-    if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(Insertion_t, VD_genes, Undefined_side)) > 0) {
+    if (events_map.count(tuple<Event_type, int, Seq_side>(Insertion_t, VD_genes, Undefined_side)) > 0) {
         vd_ins = true;
     } else {
         vd_ins = false;
     }
-    if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(Insertion_t, DJ_genes, Undefined_side)) > 0) {
+    if (events_map.count(tuple<Event_type, int, Seq_side>(Insertion_t, DJ_genes, Undefined_side)) > 0) {
         dj_ins = true;
     } else {
         dj_ins = false;
@@ -115,37 +117,18 @@ void Pgen_counter::initialize_counter(const Model_Parms &parms, const Model_marg
 void Pgen_counter::count_scenario(
         long double scenario_seq_joint_proba, double scenario_probability, const string &original_sequence,
         Seq_type_str_p_map &constructed_sequences, const Seq_offsets_map &seq_offsets,
-        const unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map,
+        const unordered_map<tuple<Event_type, int, Seq_side>, shared_ptr<Rec_Event>> &events_map,
         Mismatch_vectors_map &mismatches_lists)
 {
-    scenario_resulting_sequence.clear();
-    if (v_gene) {
-        scenario_resulting_sequence += (*constructed_sequences[V_gene_seq]);
-    }
-    if (d_gene) {
-        if (vd_ins) {
-            scenario_resulting_sequence += (*constructed_sequences[VD_ins_seq]);
-        }
-        scenario_resulting_sequence += (*constructed_sequences[D_gene_seq]);
-        if (dj_ins) {
-            scenario_resulting_sequence += (*constructed_sequences[DJ_ins_seq]);
-        }
-    } else {
-        if (vj_ins) {
-            scenario_resulting_sequence += (*constructed_sequences[VJ_ins_seq]);
-        }
-    }
-    if (j_gene) {
-        scenario_resulting_sequence += (*constructed_sequences[J_gene_seq]);
-    }
-
+    scenario_resulting_sequence =
+            EventUtils::build_scenario_sequence(constructed_sequences, v_gene, d_gene, j_gene, vd_ins, dj_ins, vj_ins);
     if (sequence_Pgens_map.count(scenario_resulting_sequence) > 0) {
         pair<double, long double> &Pgen_Pjoint_pair = sequence_Pgens_map[scenario_resulting_sequence];
         Pgen_Pjoint_pair.first += scenario_probability;
         Pgen_Pjoint_pair.second += scenario_seq_joint_proba;
     } else {
         pair<double, long double> &Pgen_Pjoint_pair = sequence_Pgens_map[scenario_resulting_sequence];
-        //make proper initialization
+        // make proper initialization
         Pgen_Pjoint_pair.first = scenario_probability;
         Pgen_Pjoint_pair.second = scenario_seq_joint_proba;
     }
@@ -176,7 +159,7 @@ void Pgen_counter::dump_sequence_data(int seq_index, int iteration_n)
     if (output_Pgen_estimator) {
         (*output_pgen_file_ptr.get()) << seq_index << ";" << exp(log_P_gen_estimate) << endl;
     }
-    //Reset counters
+    // Reset counters
     read_likelihood = 0.0;
     sequence_Pgens_map.clear();
 }

@@ -41,7 +41,7 @@
 
 #include <igor/Core/IntStr.h>
 
-#include <igorCoreExport.h>
+#include <igor/Core/Export.h>
 
 /**
  * \class Alignment_data Aligner.h
@@ -139,7 +139,7 @@ class CORE_EXPORT Aligner
 {
 public:
     Aligner();
-    Aligner(Matrix<double>, int, Gene_class);
+    Aligner(Matrix<double>, int, int);
     virtual ~Aligner();
 
     // Single sequence alignments methods
@@ -199,7 +199,7 @@ private:
     std::forward_list<std::pair<std::string, Int_Str>> int_genomic_sequences;
     Matrix<double> substitution_matrix;
     int gap_penalty;
-    Gene_class gene;
+    int gene;
     bool local_align;
     bool flip_seqs;
     void sw_align_common(const Int_Str &, const Int_Str &, const int, const int, Matrix<double> &, Matrix<int> &,
@@ -208,23 +208,24 @@ private:
     std::unordered_map<std::string, std::pair<int, int>> build_genomic_bounds_map(int, int) const;
 };
 
-CORE_EXPORT std::unordered_map<int, std::pair<std::string, std::unordered_map<Gene_class, std::vector<Alignment_data>>>>
-read_alignments_seq_csv(const std::string &, Gene_class, double, bool,
+CORE_EXPORT char int2nt(int);
+CORE_EXPORT std::unordered_map<int, std::pair<std::string, std::unordered_map<int, std::vector<Alignment_data>>>>
+read_alignments_seq_csv(const std::string &, int, double, bool,
                         const std::vector<std::pair<const int, const std::string>> &);
-CORE_EXPORT std::unordered_map<int, std::pair<std::string, std::unordered_map<Gene_class, std::vector<Alignment_data>>>>
+CORE_EXPORT std::unordered_map<int, std::pair<std::string, std::unordered_map<int, std::vector<Alignment_data>>>>
 read_alignments_seq_csv(
-        const std::string &, Gene_class, double, bool, const std::vector<std::pair<const int, const std::string>> &,
-        std::unordered_map<int, std::pair<std::string, std::unordered_map<Gene_class, std::vector<Alignment_data>>>>);
-CORE_EXPORT std::unordered_map<int, std::pair<std::string, std::unordered_map<Gene_class, std::vector<Alignment_data>>>>
-read_alignments_seq_csv_score_range(const std::string &, Gene_class, double, bool,
+        const std::string &, int, double, bool, const std::vector<std::pair<const int, const std::string>> &,
+        std::unordered_map<int, std::pair<std::string, std::unordered_map<int, std::vector<Alignment_data>>>>);
+CORE_EXPORT std::unordered_map<int, std::pair<std::string, std::unordered_map<int, std::vector<Alignment_data>>>>
+read_alignments_seq_csv_score_range(const std::string &, int, double, bool,
                                     const std::vector<std::pair<const int, const std::string>> &);
-CORE_EXPORT std::unordered_map<int, std::pair<std::string, std::unordered_map<Gene_class, std::vector<Alignment_data>>>>
+CORE_EXPORT std::unordered_map<int, std::pair<std::string, std::unordered_map<int, std::vector<Alignment_data>>>>
 read_alignments_seq_csv_score_range(
-        const std::string &, Gene_class, double, bool, const std::vector<std::pair<const int, const std::string>> &,
-        std::unordered_map<int, std::pair<std::string, std::unordered_map<Gene_class, std::vector<Alignment_data>>>>);
-CORE_EXPORT std::vector<std::tuple<int, std::string, std::unordered_map<Gene_class, std::vector<Alignment_data>>>>
+        const std::string &, int, double, bool, const std::vector<std::pair<const int, const std::string>> &,
+        std::unordered_map<int, std::pair<std::string, std::unordered_map<int, std::vector<Alignment_data>>>>);
+CORE_EXPORT std::vector<std::tuple<int, std::string, std::unordered_map<int, std::vector<Alignment_data>>>>
         map2vect(std::unordered_map<
-                 int, std::pair<std::string, std::unordered_map<Gene_class, std::vector<Alignment_data>>>>);
+                 int, std::pair<std::string, std::unordered_map<int, std::vector<Alignment_data>>>>);
 CORE_EXPORT std::forward_list<std::pair<const int, const std::string>> read_indexed_seq_csv(const std::string &);
 CORE_EXPORT std::vector<std::pair<const int, const std::string>> read_indexed_csv(const std::string &);
 CORE_EXPORT std::vector<std::pair<const int, const std::string>> read_fasta(const std::string &);

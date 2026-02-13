@@ -413,7 +413,7 @@ int main(int argc, char *argv[])
 
             //Check if the model contains a D gene event in order to load the alignments
             auto events_map = cl_model_parms.get_events_map();
-            if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, D_gene, Undefined_side)) > 0) {
+            if (events_map.count(tuple<Event_type, int, Seq_side>(GeneChoice_t, D_gene, Undefined_side)) > 0) {
                 has_D = true;
             }
         }
@@ -914,7 +914,7 @@ int main(int argc, char *argv[])
                             new Best_scenarios_counter(n_record_scenarios, cl_path + "output/", true));
                     cl_counters_list.emplace(cl_counters_list.size(), best_sc_ptr);
                 } else if (string(argv[carg_i]) == "--coverage") {
-                    Gene_class chosen_gc;
+                    int chosen_gc;
                     ++carg_i;
                     try {
                         chosen_gc = str2GeneClass(string(argv[carg_i]));
@@ -1253,7 +1253,7 @@ int main(int argc, char *argv[])
 
             //Check if the model contains a D gene event in order to load the alignments
             auto events_map = cl_model_parms.get_events_map();
-            if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, D_gene, Undefined_side)) > 0) {
+            if (events_map.count(tuple<Event_type, int, Seq_side>(GeneChoice_t, D_gene, Undefined_side)) > 0) {
                 has_D = true;
             }
         } catch (exception &e) {
@@ -1293,11 +1293,11 @@ int main(int argc, char *argv[])
 	 */
     if ((infer or evaluate or generate)) {
         bool any_custom_gene = false;
-        unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> tmp_events_map =
+        unordered_map<tuple<Event_type, int, Seq_side>, shared_ptr<Rec_Event>> tmp_events_map =
                 cl_model_parms.get_events_map();
         if (custom_v) {
             shared_ptr<Rec_Event> v_choice =
-                    tmp_events_map.at(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, V_gene, Undefined_side));
+                    tmp_events_map.at(tuple<Event_type, int, Seq_side>(GeneChoice_t, V_gene, Undefined_side));
             shared_ptr<Gene_choice> v_choice_gc = dynamic_pointer_cast<Gene_choice>(v_choice);
             bool any_genomic_difference = false;
             unordered_map<string, Event_realization> realization_map_copy = v_choice_gc->get_realizations_map();
@@ -1336,7 +1336,7 @@ int main(int argc, char *argv[])
         }
         if (has_D and custom_d) {
             shared_ptr<Rec_Event> d_choice =
-                    tmp_events_map.at(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, D_gene, Undefined_side));
+                    tmp_events_map.at(tuple<Event_type, int, Seq_side>(GeneChoice_t, D_gene, Undefined_side));
             shared_ptr<Gene_choice> d_choice_gc = dynamic_pointer_cast<Gene_choice>(d_choice);
             bool any_genomic_difference = false;
             unordered_map<string, Event_realization> realization_map_copy = d_choice_gc->get_realizations_map();
@@ -1375,7 +1375,7 @@ int main(int argc, char *argv[])
         }
         if (custom_j) {
             shared_ptr<Rec_Event> j_choice =
-                    tmp_events_map.at(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, J_gene, Undefined_side));
+                    tmp_events_map.at(tuple<Event_type, int, Seq_side>(GeneChoice_t, J_gene, Undefined_side));
             shared_ptr<Gene_choice> j_choice_gc = dynamic_pointer_cast<Gene_choice>(j_choice);
             bool any_genomic_difference = false;
             unordered_map<string, Event_realization> realization_map_copy = j_choice_gc->get_realizations_map();
@@ -1714,7 +1714,7 @@ int main(int argc, char *argv[])
 
         //Read alignments
         //vector<pair<const int, const string>> indexed_seqlist = read_indexed_csv(path+ string(argv[2]) + string("indexed_seq.csv"));
-        unordered_map<int, pair<string, unordered_map<Gene_class, vector<Alignment_data>>>> sorted_alignments =
+        unordered_map<int, pair<string, unordered_map<int, vector<Alignment_data>>>> sorted_alignments =
                 read_alignments_seq_csv_score_range(string(cl_path + "/murugan_naive1_noncoding_demo_seqs")
                                                             + string("_alignments_V.csv"),
                                                     V_gene, 55, false, indexed_seqlist); //40//35
@@ -1725,7 +1725,7 @@ int main(int argc, char *argv[])
                 string(cl_path + "/murugan_naive1_noncoding_demo_seqs") + string("_alignments_J.csv"), J_gene, 10,
                 false, indexed_seqlist, sorted_alignments); //30//20
 
-        vector<tuple<int, string, unordered_map<Gene_class, vector<Alignment_data>>>> sorted_alignments_vec =
+        vector<tuple<int, string, unordered_map<int, vector<Alignment_data>>>> sorted_alignments_vec =
                 map2vect(sorted_alignments);
 
         //Infer the model
@@ -1800,6 +1800,47 @@ int main(int argc, char *argv[])
                 } catch (exception &e) {
                     return terminate_IGoR_with_error_message(
                             "Exception caught trying to subsample input files sequences before alignment:", e);
+                }
+            }
+
+            // Extract genomic templates from model if not provided via command line
+            if (v_genomic.empty() && custom_cl_parms) {
+                auto events_map = cl_model_parms.get_events_map();
+                auto v_key = tuple<Event_type, int, Seq_side>(GeneChoice_t, V_gene, Undefined_side);
+                if (events_map.count(v_key) > 0) {
+                    auto v_choice = dynamic_pointer_cast<Gene_choice>(events_map.at(v_key));
+                    if (v_choice) {
+                        auto realizations = v_choice->get_realizations_map();
+                        for (const auto& [name, ev_real] : realizations) {
+                            v_genomic.emplace_back(name, ev_real.value_str);
+                        }
+                    }
+                }
+            }
+            if (d_genomic.empty() && custom_cl_parms && has_D) {
+                auto events_map = cl_model_parms.get_events_map();
+                auto d_key = tuple<Event_type, int, Seq_side>(GeneChoice_t, D_gene, Undefined_side);
+                if (events_map.count(d_key) > 0) {
+                    auto d_choice = dynamic_pointer_cast<Gene_choice>(events_map.at(d_key));
+                    if (d_choice) {
+                        auto realizations = d_choice->get_realizations_map();
+                        for (const auto& [name, ev_real] : realizations) {
+                            d_genomic.emplace_back(name, ev_real.value_str);
+                        }
+                    }
+                }
+            }
+            if (j_genomic.empty() && custom_cl_parms) {
+                auto events_map = cl_model_parms.get_events_map();
+                auto j_key = tuple<Event_type, int, Seq_side>(GeneChoice_t, J_gene, Undefined_side);
+                if (events_map.count(j_key) > 0) {
+                    auto j_choice = dynamic_pointer_cast<Gene_choice>(events_map.at(j_key));
+                    if (j_choice) {
+                        auto realizations = j_choice->get_realizations_map();
+                        for (const auto& [name, ev_real] : realizations) {
+                            j_genomic.emplace_back(name, ev_real.value_str);
+                        }
+                    }
                 }
             }
 
@@ -2037,7 +2078,7 @@ int main(int argc, char *argv[])
 
             //Get CDR3 from alignments.
             if (b_feature_CDR3) {
-                unordered_map<int, pair<string, unordered_map<Gene_class, vector<Alignment_data>>>> sorted_alignments;
+                unordered_map<int, pair<string, unordered_map<int, vector<Alignment_data>>>> sorted_alignments;
                 // If alignments files are not found CDR3 will not be extracted.
                 try {
                     sorted_alignments = read_alignments_seq_csv_score_range(
@@ -2114,7 +2155,7 @@ int main(int argc, char *argv[])
                             "Exception caught trying to subsample indexed sequences before inference/evaluation:", e);
                 }
             }
-            unordered_map<int, pair<string, unordered_map<Gene_class, vector<Alignment_data>>>> sorted_alignments;
+            unordered_map<int, pair<string, unordered_map<int, vector<Alignment_data>>>> sorted_alignments;
             try {
                 sorted_alignments = read_alignments_seq_csv_score_range(
                         cl_path + "aligns/" + batchname + v_align_filename, V_gene, 55, false, indexed_seqlist);
@@ -2151,7 +2192,7 @@ int main(int argc, char *argv[])
                         e);
             }
 
-            vector<tuple<int, string, unordered_map<Gene_class, vector<Alignment_data>>>> sorted_alignments_vec =
+            vector<tuple<int, string, unordered_map<int, vector<Alignment_data>>>> sorted_alignments_vec =
                     map2vect(sorted_alignments);
 
             //create the output directory

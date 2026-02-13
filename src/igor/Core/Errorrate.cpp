@@ -5,7 +5,8 @@
  *      Author: Quentin Marcou
  *
  *  This source code is distributed as part of the IGoR software.
- *  IGoR (Inference and Generation of Repertoires) is a versatile software to analyze and model immune receptors
+ *  IGoR (Inference and Generation of Repertoires) is a versatile software to
+ analyze and model immune receptors
  *  generation, selection, mutation and all other processes.
  *   Copyright (C) 2017  Quentin Marcou
  *
@@ -46,11 +47,11 @@ Error_rate::~Error_rate()
     // TODO Auto-generated destructor stub
 }
 
-void Error_rate::initialize(
-        const unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map)
+void Error_rate::initialize(const unordered_map<tuple<Event_type, int, Seq_side>, shared_ptr<Rec_Event>> &events_map)
 {
-    //Do nothing
-    //This method is called if no other method is supplied in the instantiated class
+    // Do nothing
+    // This method is called if no other method is supplied in the instantiated
+    // class
 }
 
 void Error_rate::norm_weights_by_seq_likelihood(Marginal_array_p &single_seq_marginal_array,
@@ -62,7 +63,7 @@ void Error_rate::norm_weights_by_seq_likelihood(Marginal_array_p &single_seq_mar
             single_seq_marginal_array[i] /= this->seq_likelihood * seq_weight;
         }
     } else {
-        //Everything should already be 0, just a debug check
+        // Everything should already be 0, just a debug check
         for (size_t i = 0; i != marginal_array_size; ++i) {
             single_seq_marginal_array[i] = 0;
         }

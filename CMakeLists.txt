@@ -114,7 +114,7 @@ include(GenerateExportHeader)
 ## Dependencies - external
 ## #################################################################
 
-find_package(GSL REQUIRED)
+find_package(GSL QUIET)
 
 if (APPLE)
   find_library(OpenMP_LIBRARY

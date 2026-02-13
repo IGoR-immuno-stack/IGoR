@@ -13,7 +13,11 @@ LANGUAGES
 add_library(${PROJECT_NAME} SHARED)
 
 generate_export_header(${PROJECT_NAME}
-  EXPORT_FILE_NAME "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_PROJECT_NAME}${PROJECT_NAME}Export.h")
+  EXPORT_FILE_NAME "${CMAKE_CURRENT_BINARY_DIR}/Export.h")
+
+configure_file(
+  "${CMAKE_CURRENT_SOURCE_DIR}/Config.h.in"
+  "${CMAKE_CURRENT_BINARY_DIR}/Config.h")
 
 set_target_properties(${PROJECT_NAME}
   PROPERTIES
@@ -28,6 +32,15 @@ add_library(${CMAKE_PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 ## #################################################################
 
 target_sources(${PROJECT_NAME}
+  PUBLIC FILE_SET HEADERS
+    BASE_DIRS
+      ${CMAKE_CURRENT_BINARY_DIR}
+    FILES
+      ${CMAKE_CURRENT_BINARY_DIR}/Export.h
+      ${CMAKE_CURRENT_BINARY_DIR}/Config.h
+)
+
+target_sources(${PROJECT_NAME}
   PRIVATE
     Aligner.cpp
     Bestscenarioscounter.cpp
@@ -38,6 +51,7 @@ target_sources(${PROJECT_NAME}
     Dinuclmarkov.cpp
     Errorrate.cpp
     Errorscounter.cpp
+    EventUtils.cpp
     ExtractFeatures.cpp
     FastGenerator.cpp
     FastSampling.cpp
@@ -51,13 +65,13 @@ target_sources(${PROJECT_NAME}
     Model_marginals.cpp
     Pgencounter.cpp
     Rec_Event.cpp
+    SequenceTypes.cpp
     Singleerrorrate.cpp
     Utils.cpp
 
   PUBLIC FILE_SET HEADERS
     BASE_DIRS
       ${CMAKE_CURRENT_SOURCE_DIR}
-      ${CMAKE_CURRENT_BINARY_DIR}
     FILES
       Aligner.h
       Bestscenarioscounter.h
@@ -66,10 +80,13 @@ target_sources(${PROJECT_NAME}
       Coverageerrcounter.h
       Deletion.h
       Dinuclmarkov.h
+      DynamicSequenceMap.h
       Errorrate.h
       Errorscounter.h
+      EventUtils.h
       ExtractFeatures.h
       FastGenerator.h
+      FastMemoryMap.h
       FastSampling.h
       GenModel.h
       Genechoice.h
@@ -83,19 +100,10 @@ target_sources(${PROJECT_NAME}
       Model_marginals.h
       Pgencounter.h
       Rec_Event.h
+      SequenceTypes.h
       Singleerrorrate.h
       Utils.h
-      ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_PROJECT_NAME}${PROJECT_NAME}Export.h
-      ${CMAKE_CURRENT_BINARY_DIR}/Config
-      ${CMAKE_CURRENT_BINARY_DIR}/Config.h
 )
-
-configure_file(
-  "${CMAKE_CURRENT_SOURCE_DIR}/Config.h.in"
-  "${CMAKE_CURRENT_BINARY_DIR}/Config.h")
-configure_file(
-  "${CMAKE_CURRENT_SOURCE_DIR}/Config.h.in"
-  "${CMAKE_CURRENT_BINARY_DIR}/Config")
 
 target_include_directories(${PROJECT_NAME} PUBLIC
   $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src>

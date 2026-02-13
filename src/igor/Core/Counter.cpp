@@ -5,7 +5,8 @@
  *      Author: Quentin Marcou
  *
  *  This source code is distributed as part of the IGoR software.
- *  IGoR (Inference and Generation of Repertoires) is a versatile software to analyze and model immune receptors
+ *  IGoR (Inference and Generation of Repertoires) is a versatile software to
+ analyze and model immune receptors
  *  generation, selection, mutation and all other processes.
  *   Copyright (C) 2017  Quentin Marcou
  *
@@ -45,21 +46,23 @@ Counter::~Counter()
     // TODO Auto-generated destructor stub
 }
 
-void Counter::count_scenario(
-        long double scenario_seq_joint_proba, double scenario_probability, const string &original_sequence,
-        Seq_type_str_p_map &constructed_sequences, const Seq_offsets_map &seq_offsets,
-        const unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map,
-        Mismatch_vectors_map &mismatches_lists)
+void Counter::count_scenario(long double scenario_seq_joint_proba, double scenario_probability,
+                             const string &original_sequence, Seq_type_str_p_map &constructed_sequences,
+                             const Seq_offsets_map &seq_offsets,
+                             const unordered_map<tuple<Event_type, int, Seq_side>, shared_ptr<Rec_Event>> &events_map,
+                             Mismatch_vectors_map &mismatches_lists)
 {
-    //Do nothing
-    //This is a virtual method in case the counter does not have anything to count at the scenario level
+    // Do nothing
+    // This is a virtual method in case the counter does not have anything to
+    // count at the scenario level
 }
 
 void Counter::count_sequence(double seq_likelihood, const Model_marginals &single_seq_marginals,
                              const Model_Parms &single_seq_model_parms)
 {
-    //Do nothing
-    //This is a virtual method in case the counter does not have anything to count at the sequence level
+    // Do nothing
+    // This is a virtual method in case the counter does not have anything to
+    // count at the sequence level
 }
 
 void Counter::add_to_counter(shared_ptr<Counter> other)
@@ -78,19 +81,19 @@ void Counter::add_to_counter(shared_ptr<Counter> other)
  */
 void Counter::dump_sequence_data(int seq_index, int iteration_n)
 {
-    //Do nothing
+    // Do nothing
 }
 
 void Counter::dump_data_summary(int iteration_n)
 {
-    //Do nothing
+    // Do nothing
 }
 
 void Counter::set_path_to_files(const string &new_path)
 {
     if (fstreams_created) {
-        throw runtime_error(
-                "Cannot change file path when file streams have already been created (in Counter::set_path_to_files)");
+        throw runtime_error("Cannot change file path when file streams have "
+                            "already been created (in Counter::set_path_to_files)");
     } else {
         this->path_to_file = new_path;
     }

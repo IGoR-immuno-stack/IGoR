@@ -80,7 +80,7 @@ void FastGenerator::initialize(const Model_Parms &model_parms, const Model_margi
 
         FastEventSampler sampler;
         sampler.type = event->get_type();
-        sampler.gene_class = event->get_class();
+        sampler.gene_class = static_cast<Gene_class>(event->get_class());
         sampler.side = event->get_side();
         sampler.name = event->get_name();
         sampler.event_index = event_idx;

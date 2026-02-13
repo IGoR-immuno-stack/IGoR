@@ -59,7 +59,7 @@ Best_scenarios_counter::~Best_scenarios_counter()
 void Best_scenarios_counter::count_scenario(
         long double scenario_seq_joint_proba, double scenario_probability, const string &original_sequence,
         Seq_type_str_p_map &constructed_sequences, const Seq_offsets_map &seq_offsets,
-        const unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map,
+        const unordered_map<tuple<Event_type, int, Seq_side>, shared_ptr<Rec_Event>> &events_map,
         Mismatch_vectors_map &mismatches_lists)
 {
 

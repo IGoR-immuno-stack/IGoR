@@ -34,7 +34,7 @@
 #include <igor/Core/Deletion.h>
 #include <igor/Core/Insertion.h>
 
-#include <igorCoreExport.h>
+#include <igor/Core/Export.h>
 
 /**
  * \class Best_scenarios_counter Bestscenarioscounter.h
@@ -61,7 +61,7 @@ public:
 
     void
     count_scenario(long double, double, const std::string &, Seq_type_str_p_map &, const Seq_offsets_map &,
-                   const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> &,
+                   const std::unordered_map<std::tuple<Event_type, int, Seq_side>, std::shared_ptr<Rec_Event>> &,
                    Mismatch_vectors_map &);
 
     void count_sequence(double, const Model_marginals &, const Model_Parms &);

@@ -248,7 +248,7 @@ static inline std::vector<EventInfo> build_event_info(const Model_Parms &parms, 
         info.num_realizations = ev->size();
         info.queue_position = pos;
         info.is_dinuc_markov = (ev->get_type() == Event_type::Dinuclmarkov_t);
-        info.gene_class = ev->get_class();
+        info.gene_class = static_cast<Gene_class>(ev->get_class());
         info.dinuc_T.fill(0.0);
         info.dinuc_entropy_rate = 0.0;
 

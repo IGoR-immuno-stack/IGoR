@@ -106,7 +106,10 @@ enum CORE_EXPORT Gene_class {
     J_gene = 4,
     VJ_genes = 5,
     VDJ_genes = 6,
-    Undefined_gene = 7
+    Undefined_gene = 7,
+    VD1_genes = 8,
+    D1D2_genes = 9,
+    D2J_genes = 10
 };
 enum Fileformat { CSV_f, FASTA_f, TXT_f, FASTQ_f };
 enum Int_nt {
@@ -132,11 +135,11 @@ CORE_EXPORT std::string to_string(const Gene_class);
 CORE_EXPORT Seq_side str2SeqSide(const std::string &);
 CORE_EXPORT std::string to_string(const Seq_side);
 
-std::ostream &operator<<(std::ostream &, Gene_class);
-std::ostream &operator<<(std::ostream &, Seq_side);
-std::string operator+(const std::string &, Gene_class);
-std::string operator+(const std::string &, Seq_side);
-std::string operator+(const std::string &, Event_type);
+CORE_EXPORT std::ostream &operator<<(std::ostream &, Gene_class);
+CORE_EXPORT std::ostream &operator<<(std::ostream &, Seq_side);
+CORE_EXPORT std::string operator+(const std::string &, Gene_class);
+CORE_EXPORT std::string operator+(const std::string &, Seq_side);
+CORE_EXPORT std::string operator+(const std::string &, Event_type);
 
 //Type used to describe the array of doubles containing the marginals values
 typedef std::unique_ptr<long double[]> Marginal_array_p;
@@ -367,6 +370,20 @@ public:
         }
     }
 
+    const V &at(const K &key) const
+    {
+        if (key > range - 1) {
+            throw std::out_of_range("Unknown key in Enum_fast_memory_map::at(const K& key)");
+        } else {
+            if (memory_layer_ptr[key] > -1) {
+                return (*(value_ptr_arr + key + memory_layer_ptr[key] * range));
+            } else {
+                throw std::out_of_range(
+                        "Trying to access uninitialized position in Enum_fast_memory_map::at(const K& key)");
+            }
+        }
+    }
+
     int get_current_memory_layer(const K &key) { return memory_layer_ptr[key]; }
 
     void get_all_current_memory_layer(int *memory_layers_recipient)
@@ -380,14 +397,16 @@ public:
 
     void request_memory_layer(const K &key)
     {
-        /*std::cout<<key<<std::endl;
-			std::cout<<memory_layer_ptr[key]<<std::endl;*/
         if (key > range - 1) {
             throw std::out_of_range("Unknown key in Enum_fast_memory_map::request_memory_layer()");
         }
+        static int req_debug = 0;
+        int old_layer = memory_layer_ptr[key];
         //Get current memory layer at this position
         if (memory_layer_ptr[key] < max_layer) {
             ++memory_layer_ptr[key];
+            // Initialize new layer value to 1.0 (neutral for multiplication)
+            value_ptr_arr[key + memory_layer_ptr[key] * range] = V(1);
         } else {
             ++max_layer;
             V *new_value_ptr = new V[range * (max_layer + 1)];
@@ -399,6 +418,13 @@ public:
             delete[] value_ptr_arr;
             value_ptr_arr = new_value_ptr;
             ++memory_layer_ptr[key];
+            // Initialize new layer value to 1.0 (neutral for multiplication)
+            value_ptr_arr[key + memory_layer_ptr[key] * range] = V(1);
+        }
+        if (req_debug < 50) {
+            std::cerr << "DEBUG request_memory_layer: key=" << key 
+                      << " old_layer=" << old_layer << " new_layer=" << memory_layer_ptr[key] << std::endl;
+            req_debug++;
         }
     }
 
@@ -414,6 +440,8 @@ public:
             //Setting a value at a given layer invalidate upper layers
             memory_layer_ptr[key] = memory_layer;
         } else {
+            std::cerr << "DEBUG set_value fail: key=" << key << " memory_layer=" << memory_layer 
+                      << " current_layer=" << memory_layer_ptr[key] << std::endl;
             throw std::out_of_range("Trying to access incorrect memory layer in Enum_fast_memory_map::set_value()");
         }
     }
@@ -449,6 +477,15 @@ public:
             }
         }
     }
+    
+    // DEBUG: Get value at specific layer
+    V get_value_at_layer(const K &key, int layer) const
+    {
+        if (key > range - 1) {
+            throw std::out_of_range("Key out of range in get_value_at_layer");
+        }
+        return value_ptr_arr[key + layer * range];
+    }
 
 protected:
     V *value_ptr_arr;
@@ -457,15 +494,15 @@ protected:
     size_t range; //= 6; //number of outcomes in Seq_type
 };
 
-typedef Enum_fast_memory_map<Seq_type, Int_Str_ptr> Seq_type_str_p_map;
+typedef Enum_fast_memory_map<int, Int_Str> Seq_type_str_p_map;
 
-typedef Enum_fast_memory_map<Event_safety, bool> Safety_bool_map;
+typedef Enum_fast_memory_map<int, bool> Safety_bool_map;
 
-typedef Enum_fast_memory_map<Seq_type, std::vector<int> *> Mismatch_vectors_map;
+typedef Enum_fast_memory_map<int, std::vector<int> *> Mismatch_vectors_map;
 
 typedef Enum_fast_memory_map<int, size_t> Index_map;
 
-typedef Enum_fast_memory_map<Seq_type, double> Downstream_scenario_proba_bound_map;
+typedef Enum_fast_memory_map<int, double> Downstream_scenario_proba_bound_map;
 
 /*
 	template<> class Enum_fast_memory_map<Seq_type ,Str_ptr>{
@@ -593,6 +630,21 @@ public:
 
     int get_current_memory_layer(const K1 &key1, const K2 &key2) { return memory_layer_ptr[key1 + range_key1 * key2]; }
 
+    bool exist(const K1 &key1, const K2 &key2) { return memory_layer_ptr[key1 + range_key1 * key2] > -1; }
+
+    // Check if key1 exists with any key2
+    bool exist_key1(const K1 &key1) {
+        if (key1 > range_key1 - 1) {
+            return false;
+        }
+        for (size_t key2 = 0; key2 != range_key2; ++key2) {
+            if (memory_layer_ptr[key1 + range_key1 * key2] > -1) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     void request_memory_layer(const K1 &key1, const K2 &key2)
     {
         /*std::cout<<key<<std::endl;
@@ -649,10 +701,10 @@ protected:
     size_t total_range;
 };
 
-typedef Enum_fast_memory_dual_key_map<Seq_type, Seq_side, Seq_Offset> Seq_offsets_map;
+typedef Enum_fast_memory_dual_key_map<int, Seq_side, Seq_Offset> Seq_offsets_map;
 
 /*
- * Defining a hash functions for Rec_Event, Gene_class and pair<Gene_class,Seq_side>
+ * Defining a hash functions for Rec_Event, int and pair<Gene_class,Seq_side>
  */
 namespace std {
 /*
@@ -695,7 +747,7 @@ struct hash<std::pair<Gene_class, Seq_side>>
 {
     std::size_t operator()(const pair<Gene_class, Seq_side> &gene_pair) const
     {
-        return (hash<Gene_class>()(gene_pair.first) ^ (hash<int>()(gene_pair.second) << 1)) >> 1;
+        return (hash<int>()(gene_pair.first) ^ (hash<int>()(gene_pair.second) << 1)) >> 1;
     }
 };
 
@@ -705,10 +757,24 @@ struct hash<std::tuple<Event_type, Gene_class, Seq_side>>
     std::size_t operator()(const std::tuple<Event_type, Gene_class, Seq_side> &event_triplet) const
     {
         Event_type ev_type;
-        Gene_class g_class;
+        int g_class;
         Seq_side s_side;
         std::tie(ev_type, g_class, s_side) = event_triplet;
         return ((hash<int>()(ev_type) ^ (hash<int>()(g_class) << 1) >> 1) ^ (hash<int>()(s_side) << 1));
+    }
+};
+
+// Hash specialization for tuple<Event_type, int, Seq_side> used in events_map
+template <>
+struct hash<std::tuple<Event_type, int, Seq_side>>
+{
+    std::size_t operator()(const std::tuple<Event_type, int, Seq_side> &event_triplet) const
+    {
+        Event_type ev_type;
+        int int_val;
+        Seq_side s_side;
+        std::tie(ev_type, int_val, s_side) = event_triplet;
+        return ((hash<int>()(ev_type) ^ (hash<int>()(int_val) << 1) >> 1) ^ (hash<int>()(s_side) << 1));
     }
 };
 
@@ -746,7 +812,7 @@ struct inverse_offset_comparator
     }
 };
 
-std::vector<std::string> extract_string_fields(const std::string &, const std::string &);
+std::vector<std::string> extract_string_fields(const std::string&, const std::string&);
 
 void show_progress_bar(std::ostream &, double, const std::string &prefix_message = "", size_t progress_bar_size = 70);
 void close_progress_bar(std::ostream &, const std::string &prefix_message = "", size_t progress_bar_size = 70);

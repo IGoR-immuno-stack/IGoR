@@ -27,7 +27,7 @@
 
 #include <igor/Core/Counter.h>
 #include <string>
-#include <igorCoreExport.h>
+#include <igor/Core/Export.h>
 
 /**
  * \class Coverage_err_counter Coverageerrcounter.h
@@ -41,10 +41,10 @@
 class CORE_EXPORT Coverage_err_counter : public Counter
 {
 public:
-    Coverage_err_counter(Gene_class);
-    Coverage_err_counter(Gene_class, bool, bool);
-    Coverage_err_counter(std::string, Gene_class, bool);
-    Coverage_err_counter(std::string, Gene_class, size_t, bool, bool);
+    Coverage_err_counter(int);
+    Coverage_err_counter(int, bool, bool);
+    Coverage_err_counter(std::string, int, bool);
+    Coverage_err_counter(std::string, int, size_t, bool, bool);
     virtual ~Coverage_err_counter();
 
     std::string type() const { return "CoverageErrCounter"; }; //TODO return an enum
@@ -53,7 +53,7 @@ public:
 
     void
     count_scenario(long double, double, const std::string &, Seq_type_str_p_map &, const Seq_offsets_map &,
-                   const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> &,
+                   const std::unordered_map<std::tuple<Event_type, int, Seq_side>, std::shared_ptr<Rec_Event>> &,
                    Mismatch_vectors_map &);
 
     void count_sequence(double, const Model_marginals &, const Model_Parms &);
@@ -88,7 +88,7 @@ private:
     std::shared_ptr<std::ofstream> output_cov_err_d_file_ptr;
     std::shared_ptr<std::ofstream> output_cov_err_j_file_ptr;
 
-    Gene_class count_on;
+    int count_on;
     bool dump_individual_seqs;
     size_t record_Npoint_occurence;
     size_t *positions = nullptr;

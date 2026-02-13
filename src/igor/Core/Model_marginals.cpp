@@ -38,8 +38,8 @@ Model_marginals::Model_marginals(const Model_Parms &model_parms)
 {
     marginal_arr_size = compute_size(model_parms);
     if (marginal_arr_size == 0) {
-        throw runtime_error("provided Model_parms imply empty marginals in Model_marginals::Model_marginals(const "
-                            "Model_Parms& model_parms)");
+        throw runtime_error("provided Model_parms imply empty marginals in "
+                            "Model_marginals::Model_marginals(const Model_Parms& model_parms)");
     }
     marginal_array_smart_p = Marginal_array_p(new long double[marginal_arr_size]);
     this->null_initialize();
@@ -103,8 +103,9 @@ Model_marginals &Model_marginals::invert_edge(Rec_Event_name ev1_name, Rec_Event
     try {
         model_parms_test_copy.invert_edge(ev1_name, ev2_name);
     } catch (exception &e) {
-        cerr << "Exception caught trying to invert an edge on a test model parms in Model_marginals::invert_edge, the "
-                "operation is most likely creating a cycle, throwing exception now..."
+        cerr << "Exception caught trying to invert an edge on a test model parms in "
+                "Model_marginals::invert_edge, the operation is most likely creating a cycle, "
+                "throwing exception now..."
              << endl;
         throw(e);
     }
@@ -387,7 +388,21 @@ size_t Model_marginals::compute_size(const Model_Parms &model_parms)
 size_t Model_marginals::get_event_size(shared_ptr<const Rec_Event> event_p, const Model_Parms &model_parms) const
 {
     size_t event_size = event_p->size();
-    list<shared_ptr<Rec_Event>> parents_list = model_parms.get_edges().at(event_p->get_name()).parents;
+    unordered_map<Rec_Event_name, Adjacency_list> edges = model_parms.get_edges();
+    
+    // DEBUG
+    cerr << "DEBUG get_event_size: event=" << event_p->get_name() << " size=" << event_size << endl;
+    
+    auto it = edges.find(event_p->get_name());
+    if (it == edges.end()) {
+        cerr << "Error in get_event_size: Key not found in edges map: " << event_p->get_name() << endl;
+        cerr << "Available keys in edges map:" << endl;
+        for (auto const &[key, val] : edges) {
+            cerr << "  " << key << endl;
+        }
+        throw out_of_range("Key not found in edges map");
+    }
+    list<shared_ptr<Rec_Event>> parents_list = it->second.parents;
 
     for (list<shared_ptr<Rec_Event>>::const_iterator jiter = parents_list.begin(); jiter != parents_list.end();
          ++jiter) {
@@ -765,11 +780,15 @@ Model_marginals::get_inverse_offset_map(const Model_Parms &model_parms, queue<sh
             unordered_map<Rec_Event_name, list<pair<shared_ptr<const Rec_Event>, int>>>();
     while (!model_queue.empty()) {
 
+        shared_ptr<Rec_Event> current_event_point = model_queue.front();
+        Rec_Event_name ev_name = current_event_point->get_name();
+        invert_offset_map.emplace(ev_name, list<pair<shared_ptr<const Rec_Event>, int>>());
+
         if (!model_stack.empty()) {
-            shared_ptr<Rec_Event> current_event_point = model_queue.front();
             //We look for all events upstream (parents)
             unordered_map<Rec_Event_name, shared_ptr<Rec_Event>> *related_events_map_p =
-                    new unordered_map<Rec_Event_name, shared_ptr<Rec_Event>>; //stores all the related events
+                    new unordered_map<Rec_Event_name,
+                                      shared_ptr<Rec_Event>>; //stores all the related events
             unordered_map<Rec_Event_name, shared_ptr<Rec_Event>> related_events_map = *related_events_map_p;
 
             if (!model_parms.get_parents(current_event_point).empty()) {
@@ -783,14 +802,12 @@ Model_marginals::get_inverse_offset_map(const Model_Parms &model_parms, queue<sh
             //Copy model stack to have a modifiable copy
             //TODO model stack might be more complicated than a simple list
             stack<shared_ptr<Rec_Event>> model_stack_copy = model_stack;
-            invert_offset_map.emplace(current_event_point->get_name(), list<pair<shared_ptr<const Rec_Event>, int>>());
 
             int offset = (*current_event_point).size();
 
             while (!model_stack_copy.empty()) {
                 if (related_events_map.count(model_stack_copy.top()->get_name()) > 0) {
-                    invert_offset_map.at(current_event_point->get_name())
-                            .push_back(make_pair(model_stack_copy.top(), offset));
+                    invert_offset_map.at(ev_name).push_back(make_pair(model_stack_copy.top(), offset));
                     offset *= (*model_stack_copy.top()).size();
                 }
                 model_stack_copy.pop();
@@ -856,7 +873,6 @@ unordered_map<Rec_Event_name, int> Model_marginals::get_index_map(const Model_Pa
 unordered_map<Rec_Event_name, int> Model_marginals::get_index_map(const Model_Parms &model_parms,
                                                                   queue<shared_ptr<Rec_Event>> model_queue) const
 {
-
     int index = 0;
     stack<shared_ptr<Rec_Event>> *model_stack_p = new stack<shared_ptr<Rec_Event>>;
     stack<shared_ptr<Rec_Event>> model_stack = *model_stack_p;
@@ -869,35 +885,7 @@ unordered_map<Rec_Event_name, int> Model_marginals::get_index_map(const Model_Pa
         shared_ptr<Rec_Event> current_event_point = model_queue.front();
         int event_size = current_event_point->size();
 
-        /*if(!model_stack.empty()){
-
-						//We look for all events upstream (parents)
-						unordered_map<Rec_Event_name,shared_ptr<Rec_Event>>* related_events_map_p = new unordered_map<Rec_Event_name,shared_ptr<Rec_Event>>; //stores all the related events
-						unordered_map<Rec_Event_name,shared_ptr<Rec_Event>> related_events_map = *related_events_map_p;
-
-						if(!model_parms.get_parents( current_event_point ).empty()){
-								list<shared_ptr<Rec_Event>> event_parents = model_parms.get_parents(current_event_point);
-
-							for(list<shared_ptr<Rec_Event>>::const_iterator iter=event_parents.end() ; iter!= event_parents.end() ; iter++){
-								related_events_map.insert(make_pair((*iter)->get_name(),*iter));
-							}
-
-						}
-						//Copy model stack to have a modifiable copy
-						//TODO model stack might be more complicated than a simple list
-						stack<shared_ptr<Rec_Event>> model_stack_copy = model_stack;
-
-
-				//Compute the event size: total size needed on the array to store informations on an event and the ones that it depends on
-				while(!model_stack_copy.empty()){
-					if(related_events_map.count(model_stack_copy.top()->get_name())!=0){
-						event_size *= model_stack_copy.top()->size();
-					}
-					model_stack_copy.pop();
-				}
-				delete related_events_map_p;
-		}*/
-        list<shared_ptr<Rec_Event>> parents_list = model_parms.get_parents(current_event_point);
+        list<shared_ptr<Rec_Event>> parents_list = model_parms.get_parents(current_event_point->get_name());
         if (!parents_list.empty()) {
             for (list<shared_ptr<Rec_Event>>::const_iterator iter = parents_list.begin(); iter != parents_list.end();
                  ++iter) {
@@ -925,14 +913,25 @@ void Model_marginals::normalize(
         shared_ptr<Rec_Event> current_event_point = model_queue.front();
         list<pair<shared_ptr<const Rec_Event>, int>> related_events;
         if (inverse_offset_map.count(current_event_point->get_name()) == 0) {
-            related_events = list<pair<shared_ptr<const Rec_Event>, int>>(); //TODO change this to prevent memory leak
+            related_events = list<pair<shared_ptr<const Rec_Event>,
+                                       int>>(); //TODO change this to prevent memory leak
         } else {
-            related_events = inverse_offset_map.at(current_event_point->get_name());
+            auto it_inv = inverse_offset_map.find(current_event_point->get_name());
+            if (it_inv == inverse_offset_map.end()) {
+                cerr << "Error in normalize: Key not found in inverse_offset_map: " << current_event_point->get_name()
+                     << endl;
+                throw out_of_range("Key not found in inverse_offset_map");
+            }
+            related_events = it_inv->second;
         }
 
-        //TODO if list not empty
-        iterate_normalize(current_event_point, related_events, index_map.at(current_event_point->get_name()), 0);
-        //delete &related_events;
+        auto it = index_map.find(current_event_point->get_name());
+        if (it == index_map.end()) {
+            cerr << "Error in normalize: Key not found: " << current_event_point->get_name() << endl;
+            throw out_of_range("Key not found in index_map");
+        }
+
+        iterate_normalize(current_event_point, related_events, it->second, 0);
 
         model_queue.pop();
     }
@@ -1178,11 +1177,13 @@ void Model_marginals::write2txt_iteration(list<pair<shared_ptr<const Rec_Event>,
         }
 
         outfile << endl;
-        outfile << "%" << marginal_array_smart_p[index];
-        for (int j = 1; j < current_event_p->size(); ++j) {
-            outfile << "," << marginal_array_smart_p[index + j];
+        if (current_event_p->size() > 0) {
+            outfile << "%" << marginal_array_smart_p[index];
+            for (int j = 1; j < current_event_p->size(); ++j) {
+                outfile << "," << marginal_array_smart_p[index + j];
+            }
+            outfile << endl;
         }
-        outfile << endl;
     }
 }
 
@@ -1209,8 +1210,8 @@ void Model_marginals::txt2marginals(string filename, const Model_Parms &parms)
     size_t current_marginals_size = this->compute_size(parms);
     if (size_counter != current_marginals_size) {
         throw runtime_error("Marginals contained in file \"" + filename
-                            + "\" and supplied Model_Parms do not match in size. Make sure the Bayesian Network "
-                              "structure/event realizations  and the marginals are coherent.");
+                            + "\" and supplied Model_Parms do not match in size. Make sure the Bayesian "
+                              "Network structure/event realizations  and the marginals are coherent.");
     }
 
     //Now read the actual marginals values
@@ -1533,8 +1534,8 @@ void align_marginal_array(const list<pair<Rec_Event_name, size_t>> &reference_ma
 	cout<<endl;*/
 
     if (reference_marginals_order.size() > aligned_marginals.first.size()) {
-        throw runtime_error(
-                "Aligned marginals have less dimensions than the reference marginals in align_marginal_array()");
+        throw runtime_error("Aligned marginals have less dimensions than the reference marginals "
+                            "in align_marginal_array()");
     }
     list<pair<Rec_Event_name, size_t>>::const_iterator reference_iterator = reference_marginals_order.cbegin();
     size_t counter = 0;

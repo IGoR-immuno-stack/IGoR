@@ -75,7 +75,7 @@ void ExtractFeatures::load_VJanchors(unordered_map<string, size_t> v_CDR3_anchor
 //}
 
 void ExtractFeatures::set_sorted_alignments(
-        unordered_map<int, pair<string, unordered_map<Gene_class, vector<Alignment_data>>>> *pointer)
+        unordered_map<int, pair<string, unordered_map<int, vector<Alignment_data>>>> *pointer)
 {
     p_sorted_alignments = pointer;
 }
