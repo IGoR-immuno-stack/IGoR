@@ -64,12 +64,11 @@
 #include <vector>
 
 #ifndef IGOR_SOURCE_DIR
-#error "IGOR_SOURCE_DIR must be defined (set by CMake)"
+#  error "IGOR_SOURCE_DIR must be defined (set by CMake)"
 #endif
 
 // Model base directory
-static const std::string MODELS_DIR =
-        std::string(IGOR_SOURCE_DIR) + "/models";
+static const std::string MODELS_DIR = std::string(IGOR_SOURCE_DIR) + "/models";
 
 /**
  * @brief Compute empirical marginal distributions for ALL non-DinucMarkov
@@ -79,10 +78,9 @@ static const std::string MODELS_DIR =
  * This avoids the O(events × N) queue-copying that caused timeouts
  * when compute_empirical_marginal was called per-event.
  */
-static std::map<size_t, std::vector<double>> compute_all_empirical_marginals(
-        const std::forward_list<std::pair<std::string, std::queue<std::queue<int>>>> &scenarios,
-        const std::vector<EventInfo> &event_infos,
-        size_t total_sequences)
+static std::map<size_t, std::vector<double>>
+compute_all_empirical_marginals(const std::forward_list<std::pair<std::string, std::queue<std::queue<int>>>> &scenarios,
+                                const std::vector<EventInfo> &event_infos, size_t total_sequences)
 {
     // Prepare per-event count arrays
     // Only for non-DinucMarkov events
@@ -108,9 +106,8 @@ static std::map<size_t, std::vector<double>> compute_all_empirical_marginals(
                 int realization = inner.front();
                 int num_real = static_cast<int>(cnt_it->second.size());
                 if (realization < 0 || realization >= num_real) {
-                    throw std::out_of_range(
-                            "Realization index " + std::to_string(realization) +
-                            " out of bounds [0, " + std::to_string(num_real) + ")");
+                    throw std::out_of_range("Realization index " + std::to_string(realization) + " out of bounds [0, "
+                                            + std::to_string(num_real) + ")");
                 }
                 ++cnt_it->second[realization];
             }
@@ -139,10 +136,9 @@ static std::map<size_t, std::vector<double>> compute_all_empirical_marginals(
  * is a vector<vector<int>>. For non-DinucMarkov events, realizations[pos]
  * contains a single element: the realization index.
  */
-static std::map<size_t, std::vector<double>> compute_all_empirical_marginals(
-        const std::vector<igor::fast::GeneratedSequence> &sequences,
-        const std::vector<EventInfo> &event_infos,
-        size_t total_sequences)
+static std::map<size_t, std::vector<double>>
+compute_all_empirical_marginals(const std::vector<igor::fast::GeneratedSequence> &sequences,
+                                const std::vector<EventInfo> &event_infos, size_t total_sequences)
 {
     // Prepare per-event count arrays (non-DinucMarkov only)
     std::map<size_t, std::vector<size_t>> counts;
@@ -159,9 +155,8 @@ static std::map<size_t, std::vector<double>> compute_all_empirical_marginals(
                 int realization = seq.realizations[qpos][0];
                 int num_real = static_cast<int>(cvec.size());
                 if (realization < 0 || realization >= num_real) {
-                    throw std::out_of_range(
-                            "Realization index " + std::to_string(realization) +
-                            " out of bounds [0, " + std::to_string(num_real) + ")");
+                    throw std::out_of_range("Realization index " + std::to_string(realization) + " out of bounds [0, "
+                                            + std::to_string(num_real) + ")");
                 }
                 ++cvec[realization];
             }
@@ -185,8 +180,7 @@ static std::map<size_t, std::vector<double>> compute_all_empirical_marginals(
 // THE TEST
 // ---------------------------------------------------------------------------
 
-TEST_CASE("Generation marginals converge - KL divergence vs entropy",
-          "[generation]")
+TEST_CASE("Generation marginals converge - KL divergence vs entropy", "[generation]")
 {
     // ------------------------------------------------------------------
     // 1. Select model to test (TCR alpha or TCR beta)
@@ -199,15 +193,17 @@ TEST_CASE("Generation marginals converge - KL divergence vs entropy",
     // Keys are event nicknames; values in bits.
     std::map<std::string, double> pygor3_reference_entropy;
 
-    SECTION("human TCR alpha (VJ)") {
-        model_parms_path     = MODELS_DIR + "/human/tcr_alpha/models/model_parms.txt";
+    SECTION("human TCR alpha (VJ)")
+    {
+        model_parms_path = MODELS_DIR + "/human/tcr_alpha/models/model_parms.txt";
         model_marginals_path = MODELS_DIR + "/human/tcr_alpha/models/model_marginals.txt";
         model_label = "human/tcr_alpha";
         min_events = 5; // V, J, V_del, J_del, VJ_ins (+ dinuc)
     }
 
-    SECTION("human TCR beta (VDJ)") {
-        model_parms_path     = MODELS_DIR + "/human/tcr_beta/models/model_parms.txt";
+    SECTION("human TCR beta (VDJ)")
+    {
+        model_parms_path = MODELS_DIR + "/human/tcr_beta/models/model_parms.txt";
         model_marginals_path = MODELS_DIR + "/human/tcr_beta/models/model_marginals.txt";
         model_label = "human/tcr_beta";
         min_events = 9; // V, J, D, 4 dels, 2 ins (+ 2 dinuc)
@@ -215,15 +211,9 @@ TEST_CASE("Generation marginals converge - KL divergence vs entropy",
         // https://pygor3.readthedocs.io/en/latest/Tutorial.html#Entropy
         // Insertion rows are the combined H(ℓ) + E[ℓ]·h values.
         pygor3_reference_entropy = {
-            {"v_choice", 5.252905},
-            {"d_gene",   1.141779},
-            {"j_choice", 3.609102},
-            {"vd_ins",  14.894931},
-            {"dj_ins",  14.981991},
-            {"v_3_del",  3.147511},
-            {"d_3_del",  2.778230},
-            {"d_5_del",  3.634137},
-            {"j_5_del",  3.356340},
+            { "v_choice", 5.252905 }, { "d_gene", 1.141779 },  { "j_choice", 3.609102 },
+            { "vd_ins", 14.894931 },  { "dj_ins", 14.981991 }, { "v_3_del", 3.147511 },
+            { "d_3_del", 2.778230 },  { "d_5_del", 3.634137 }, { "j_5_del", 3.356340 },
         };
     }
 
@@ -237,8 +227,7 @@ TEST_CASE("Generation marginals converge - KL divergence vs entropy",
     Model_marginals model_marginals(model_parms);
     model_marginals.txt2marginals(model_marginals_path, model_parms);
 
-    std::vector<EventInfo> event_infos =
-            build_event_info(model_parms, model_marginals);
+    std::vector<EventInfo> event_infos = build_event_info(model_parms, model_marginals);
 
     INFO("Model loaded, " << event_infos.size() << " events found");
     REQUIRE(event_infos.size() >= static_cast<size_t>(min_events));
@@ -254,7 +243,8 @@ TEST_CASE("Generation marginals converge - KL divergence vs entropy",
     // h the Markov chain entropy rate, and P(0) the probability of zero
     // insertions.
     // ------------------------------------------------------------------
-    struct InsDinucPair {
+    struct InsDinucPair
+    {
         const EventInfo *ins_event = nullptr;
         const EventInfo *dinuc_event = nullptr;
         double combined_H = 0.0;
@@ -280,10 +270,8 @@ TEST_CASE("Generation marginals converge - KL divergence vs entropy",
                 ins_lengths[real.index] = real.value_int;
             }
 
-            pair.combined_H = insertion_dinuc_entropy(
-                    pair.ins_event->model_marginal,
-                    ins_lengths,
-                    pair.dinuc_event->dinuc_T);
+            pair.combined_H =
+                    insertion_dinuc_entropy(pair.ins_event->model_marginal, ins_lengths, pair.dinuc_event->dinuc_T);
         }
     }
 
@@ -298,18 +286,11 @@ TEST_CASE("Generation marginals converge - KL divergence vs entropy",
 
         // Check if this is an insertion event that has a DinucMarkov partner
         auto it = ins_dinuc_pairs.find(ev.gene_class);
-        if (it != ins_dinuc_pairs.end() &&
-            it->second.ins_event == &ev &&
-            it->second.dinuc_event != nullptr)
-        {
+        if (it != ins_dinuc_pairs.end() && it->second.ins_event == &ev && it->second.dinuc_event != nullptr) {
             double combined = it->second.combined_H;
-            std::cout << "  " << ev.nickname << " + "
-                      << it->second.dinuc_event->nickname
-                      << " : H = " << combined
-                      << "  (H_len=" << ev.H
-                      << ", H_dinuc=" << (combined - ev.H)
-                      << ", h=" << it->second.dinuc_event->dinuc_entropy_rate
-                      << ")" << std::endl;
+            std::cout << "  " << ev.nickname << " + " << it->second.dinuc_event->nickname << " : H = " << combined
+                      << "  (H_len=" << ev.H << ", H_dinuc=" << (combined - ev.H)
+                      << ", h=" << it->second.dinuc_event->dinuc_entropy_rate << ")" << std::endl;
             total_entropy += combined;
         } else {
             std::cout << "  " << ev.nickname << " : H = " << ev.H << std::endl;
@@ -319,8 +300,8 @@ TEST_CASE("Generation marginals converge - KL divergence vs entropy",
     // Also print standalone DinucMarkov entropy rates for reference
     for (const auto &ev : event_infos) {
         if (ev.is_dinuc_markov) {
-            std::cout << "  (" << ev.nickname << " entropy rate h = "
-                      << ev.dinuc_entropy_rate << " bits/nt)" << std::endl;
+            std::cout << "  (" << ev.nickname << " entropy rate h = " << ev.dinuc_entropy_rate << " bits/nt)"
+                      << std::endl;
         }
     }
     std::cout << "  TOTAL: " << total_entropy << std::endl;
@@ -350,18 +331,16 @@ TEST_CASE("Generation marginals converge - KL divergence vs entropy",
     // so our values are more accurate than pygor3's references.
     // ------------------------------------------------------------------
     if (!pygor3_reference_entropy.empty()) {
-        std::cout << "\n=== Cross-validation against pygor3 (" << model_label
-                  << ") ===" << std::endl;
+        std::cout << "\n=== Cross-validation against pygor3 (" << model_label << ") ===" << std::endl;
         for (const auto &ev : event_infos) {
-            if (ev.is_dinuc_markov) continue;
+            if (ev.is_dinuc_markov)
+                continue;
 
             // Determine the reported entropy for this event
             double reported_H;
             auto it_pair = ins_dinuc_pairs.find(ev.gene_class);
-            bool is_combined_ins =
-                    it_pair != ins_dinuc_pairs.end() &&
-                    it_pair->second.ins_event == &ev &&
-                    it_pair->second.dinuc_event != nullptr;
+            bool is_combined_ins = it_pair != ins_dinuc_pairs.end() && it_pair->second.ins_event == &ev
+                    && it_pair->second.dinuc_event != nullptr;
             if (is_combined_ins) {
                 reported_H = it_pair->second.combined_H;
             } else {
@@ -374,12 +353,8 @@ TEST_CASE("Generation marginals converge - KL divergence vs entropy",
                 double diff = std::abs(reported_H - ref);
                 bool has_parents = !model_parms.get_parents(ev.name).empty();
 
-                std::cout << "  " << ev.nickname
-                          << ": computed=" << reported_H
-                          << "  pygor3=" << ref
-                          << "  diff=" << diff
-                          << (has_parents ? "  (marginal; parents present)" : "")
-                          << std::endl;
+                std::cout << "  " << ev.nickname << ": computed=" << reported_H << "  pygor3=" << ref
+                          << "  diff=" << diff << (has_parents ? "  (marginal; parents present)" : "") << std::endl;
 
                 if (is_combined_ins) {
                     // Combined insertion + dinuc: pygor3 uses a uniform
@@ -409,13 +384,11 @@ TEST_CASE("Generation marginals converge - KL divergence vs entropy",
     // (insertion-length + dinucleotide Markov) so that D_KL bounds and
     // printouts reference the total information content of the pair.
     for (auto &ev : event_infos) {
-        if (ev.is_dinuc_markov) continue;
+        if (ev.is_dinuc_markov)
+            continue;
         auto it = ins_dinuc_pairs.find(ev.gene_class);
-        if (it != ins_dinuc_pairs.end() &&
-            it->second.ins_event &&
-            it->second.ins_event->queue_position == ev.queue_position &&
-            it->second.dinuc_event)
-        {
+        if (it != ins_dinuc_pairs.end() && it->second.ins_event
+            && it->second.ins_event->queue_position == ev.queue_position && it->second.dinuc_event) {
             ev.H = it->second.combined_H;
         }
     }
@@ -425,7 +398,7 @@ TEST_CASE("Generation marginals converge - KL divergence vs entropy",
     // Map: event_queue_position → vector of empirical entropy per sample-size
     std::map<size_t, std::vector<double>> entropy_traces;
 
-    const std::vector<int> sample_sizes = {10, 100, 1000, 1000000};
+    const std::vector<int> sample_sizes = { 10, 100, 1000, 1000000 };
 
     // Initialize FastGenerator once, reuse across all sample sizes
     igor::fast::FastGenerator fast_gen;
@@ -445,8 +418,7 @@ TEST_CASE("Generation marginals converge - KL divergence vs entropy",
         std::cout << "\n--- N = " << N << " ---" << std::endl;
 
         // Compute all empirical marginals in a single pass
-        auto all_empiricals = compute_all_empirical_marginals(
-                sequences, event_infos, sequences.size());
+        auto all_empiricals = compute_all_empirical_marginals(sequences, event_infos, sequences.size());
 
         for (const auto &ev : event_infos) {
             if (ev.is_dinuc_markov) {
@@ -463,10 +435,7 @@ TEST_CASE("Generation marginals converge - KL divergence vs entropy",
             double H_emp = entropy(empirical);
             entropy_traces[ev.queue_position].push_back(H_emp);
 
-            std::cout << "  " << ev.nickname
-                      << " : D_KL = " << dkl
-                      << "  H_emp = " << H_emp
-                      << "  H_theo = " << ev.H
+            std::cout << "  " << ev.nickname << " : D_KL = " << dkl << "  H_emp = " << H_emp << "  H_theo = " << ev.H
                       << "  uncovered = " << uncovered << std::endl;
 
             // ---- assertions ----
@@ -492,8 +461,7 @@ TEST_CASE("Generation marginals converge - KL divergence vs entropy",
                 // The estimator variance follows χ²(k−1), so we use a
                 // 50× safety factor to avoid flaky CI failures across
                 // many events and two model sections.
-                double expected_upper =
-                        50.0 * (ev.num_realizations - 1) / (2.0 * N * std::log(2.0));
+                double expected_upper = 50.0 * (ev.num_realizations - 1) / (2.0 * N * std::log(2.0));
                 CHECK(dkl < (std::max)(expected_upper, 1e-3));
                 // At 1M samples, essentially all bins should be covered
                 // (rare alleles with P~1e-6 may still be missed)
@@ -513,7 +481,8 @@ TEST_CASE("Generation marginals converge - KL divergence vs entropy",
     // ------------------------------------------------------------------
     std::cout << "\n=== Empirical entropy vs theoretical ==" << std::endl;
     for (const auto &ev : event_infos) {
-        if (ev.is_dinuc_markov) continue;
+        if (ev.is_dinuc_markov)
+            continue;
 
         const auto &htrace = entropy_traces.at(ev.queue_position);
         if (htrace.size() >= 4) {
@@ -529,17 +498,13 @@ TEST_CASE("Generation marginals converge - KL divergence vs entropy",
             // We bound stdev by sqrt(H²) / sqrt(N) = H/sqrt(N) as a
             // conservative upper estimate (Var ≤ E²).
             // Use 5σ + 50× bias for a CI-safe tolerance.
-            double bias =
-                    50.0 * (ev.num_realizations - 1) / (2.0 * 1e6 * std::log(2.0));
+            double bias = 50.0 * (ev.num_realizations - 1) / (2.0 * 1e6 * std::log(2.0));
             double stdev_bound = 5.0 * H_theo / std::sqrt(1e6);
             double tolerance = bias + stdev_bound;
             double diff = std::abs(H_emp_1M - H_theo);
 
-            std::cout << "  " << ev.nickname
-                      << " : H_theo=" << H_theo
-                      << "  H_emp(1M)=" << H_emp_1M
-                      << "  diff=" << diff
-                      << "  tol=" << tolerance << std::endl;
+            std::cout << "  " << ev.nickname << " : H_theo=" << H_theo << "  H_emp(1M)=" << H_emp_1M
+                      << "  diff=" << diff << "  tol=" << tolerance << std::endl;
 
             // The empirical entropy should be close to theoretical;
             // allow bias + 5σ variance, with a minimum floor.
@@ -552,7 +517,8 @@ TEST_CASE("Generation marginals converge - KL divergence vs entropy",
     // ------------------------------------------------------------------
     std::cout << "\n=== Monotonic decrease check ===" << std::endl;
     for (const auto &ev : event_infos) {
-        if (ev.is_dinuc_markov) continue;
+        if (ev.is_dinuc_markov)
+            continue;
 
         const auto &trace = kl_traces.at(ev.queue_position);
         // Compare D_KL at N=1000 vs N=1'000'000.  Both are large enough
@@ -567,13 +533,10 @@ TEST_CASE("Generation marginals converge - KL divergence vs entropy",
         // at N=1k is small enough for the partial KL to be a faithful
         // estimate of the true KL.
         if (trace.size() >= 4) {
-            auto [dkl_at_1k, uncov_1k] = trace[2];   // index 2 → N=1 000
-            auto [dkl_at_1M, uncov_1M] = trace[3];   // index 3 → N=1 000 000
-            std::cout << "  " << ev.nickname
-                      << " : D_KL(N=1k)=" << dkl_at_1k
-                      << "  D_KL(N=1M)=" << dkl_at_1M
-                      << "  uncov(1k)=" << uncov_1k
-                      << "  uncov(1M)=" << uncov_1M << std::endl;
+            auto [dkl_at_1k, uncov_1k] = trace[2]; // index 2 → N=1 000
+            auto [dkl_at_1M, uncov_1M] = trace[3]; // index 3 → N=1 000 000
+            std::cout << "  " << ev.nickname << " : D_KL(N=1k)=" << dkl_at_1k << "  D_KL(N=1M)=" << dkl_at_1M
+                      << "  uncov(1k)=" << uncov_1k << "  uncov(1M)=" << uncov_1M << std::endl;
             if (uncov_1k < 0.01) {
                 // Both estimates are reliable; D_KL should decrease
                 CHECK(dkl_at_1M < dkl_at_1k + 1e-4);

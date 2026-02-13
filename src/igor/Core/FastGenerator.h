@@ -45,16 +45,15 @@
 namespace igor {
 namespace fast {
 
-
 /**
  * \struct EventDependency
  * \brief Describes a dependency on a parent event for conditional sampling.
  */
-struct EventDependency {
-    size_t parent_event_idx;  ///< Index of parent event in event_samplers_
-    size_t stride;            ///< Multiplier for parent's choice in condition index
+struct EventDependency
+{
+    size_t parent_event_idx; ///< Index of parent event in event_samplers_
+    size_t stride; ///< Multiplier for parent's choice in condition index
 };
-
 
 /**
  * \struct FastEventSampler
@@ -63,16 +62,17 @@ struct EventDependency {
  * Contains all data needed for fast sampling without recomputation.
  * Supports generic conditional sampling based on model structure.
  */
-struct FastEventSampler {
+struct FastEventSampler
+{
     Event_type type;
     Gene_class gene_class;
     Seq_side side;
     std::string name;
-    size_t event_index;  ///< Index of this event in the event_samplers_ vector
+    size_t event_index; ///< Index of this event in the event_samplers_ vector
 
     // Dependencies for conditional sampling (generic - works for any model)
     std::vector<EventDependency> dependencies;
-    size_t num_conditions = 1;  ///< Total number of condition combinations
+    size_t num_conditions = 1; ///< Total number of condition combinations
 
     // Generic conditional sampler (handles any dependency structure)
     ConditionalSampler sampler;
@@ -98,40 +98,36 @@ struct FastEventSampler {
     bool is_initialized = false;
 };
 
-
 /**
  * \struct SamplingContext
  * \brief Tracks sampled values during sequence generation for conditional sampling.
  *
  * Generic context that stores all sampled realization indices by event index.
  */
-struct SamplingContext {
-    std::vector<size_t> sampled_indices;  ///< Sampled index for each event
+struct SamplingContext
+{
+    std::vector<size_t> sampled_indices; ///< Sampled index for each event
 
-    void resize(size_t num_events) {
-        sampled_indices.resize(num_events, 0);
-    }
+    void resize(size_t num_events) { sampled_indices.resize(num_events, 0); }
 
-    void clear() {
-        std::fill(sampled_indices.begin(), sampled_indices.end(), 0);
-    }
+    void clear() { std::fill(sampled_indices.begin(), sampled_indices.end(), 0); }
 };
-
 
 /**
  * \struct GeneratedSequence
  * \brief Result of sequence generation.
  */
-struct GeneratedSequence {
+struct GeneratedSequence
+{
     std::string sequence;
     std::vector<std::vector<int>> realizations;
 
-    void clear() {
+    void clear()
+    {
         sequence.clear();
         realizations.clear();
     }
 };
-
 
 /**
  * \class FastGenerator
@@ -144,7 +140,8 @@ struct GeneratedSequence {
  * - Memory pooling and buffer reuse
  * - Batched I/O operations
  */
-class CORE_EXPORT FastGenerator {
+class CORE_EXPORT FastGenerator
+{
 public:
     FastGenerator() = default;
 
@@ -157,7 +154,7 @@ public:
      * \param model_parms Model parameters containing event structure
      * \param model_marginals Probability distributions for all events
      */
-    void initialize(const Model_Parms& model_parms, const Model_marginals& model_marginals);
+    void initialize(const Model_Parms &model_parms, const Model_marginals &model_marginals);
 
     /**
      * \brief Generate sequences in parallel.
@@ -168,12 +165,9 @@ public:
      * \param progress Optional progress callback
      * \return Vector of generated sequences (if no callback provided)
      */
-    std::vector<GeneratedSequence> generate(
-        size_t num_sequences,
-        const FastGeneratorConfig& config = FastGeneratorConfig(),
-        SequenceCallback callback = nullptr,
-        ProgressCallback progress = nullptr
-    );
+    std::vector<GeneratedSequence> generate(size_t num_sequences,
+                                            const FastGeneratorConfig &config = FastGeneratorConfig(),
+                                            SequenceCallback callback = nullptr, ProgressCallback progress = nullptr);
 
     /**
      * \brief Generate sequences directly to files.
@@ -186,13 +180,9 @@ public:
      * \param config Generation configuration
      * \param progress Optional progress callback
      */
-    void generate_to_files(
-        size_t num_sequences,
-        const std::string& seq_filename,
-        const std::string& real_filename,
-        const FastGeneratorConfig& config = FastGeneratorConfig(),
-        ProgressCallback progress = nullptr
-    );
+    void generate_to_files(size_t num_sequences, const std::string &seq_filename, const std::string &real_filename,
+                           const FastGeneratorConfig &config = FastGeneratorConfig(),
+                           ProgressCallback progress = nullptr);
 
     /**
      * \brief Generate a single sequence.
@@ -202,7 +192,7 @@ public:
      * \param rng Random number generator
      * \param result Output structure for the generated sequence
      */
-    void generate_single(std::mt19937_64& rng, GeneratedSequence& result) const;
+    void generate_single(std::mt19937_64 &rng, GeneratedSequence &result) const;
 
     /**
      * \brief Check if generator is initialized.
@@ -212,7 +202,8 @@ public:
     /**
      * \brief Get generation statistics.
      */
-    struct Stats {
+    struct Stats
+    {
         size_t sequences_generated = 0;
         double total_time_seconds = 0.0;
         double sequences_per_second = 0.0;
@@ -222,51 +213,39 @@ public:
 
 private:
     // Generic initialization for any event type
-    void initialize_event_sampler(FastEventSampler& sampler,
-                                  const std::shared_ptr<Rec_Event>& event,
-                                  const Marginal_array_p& marginals,
-                                  int base_index);
+    void initialize_event_sampler(FastEventSampler &sampler, const std::shared_ptr<Rec_Event> &event,
+                                  const Marginal_array_p &marginals, int base_index);
 
     // Initialize dinucleotide Markov sampler (special case)
-    void initialize_dinucl_sampler(FastEventSampler& sampler,
-                                   const std::shared_ptr<Rec_Event>& event,
-                                   const Marginal_array_p& marginals,
-                                   int base_index);
+    void initialize_dinucl_sampler(FastEventSampler &sampler, const std::shared_ptr<Rec_Event> &event,
+                                   const Marginal_array_p &marginals, int base_index);
 
     // Generic sampling function for any event
-    void sample_event(const FastEventSampler& sampler,
-                     std::mt19937_64& rng,
-                     std::unordered_map<Seq_type, std::string>& sequences,
-                     std::vector<int>& realization,
-                     SamplingContext& context) const;
+    void sample_event(const FastEventSampler &sampler, std::mt19937_64 &rng,
+                      std::unordered_map<Seq_type, std::string> &sequences, std::vector<int> &realization,
+                      SamplingContext &context) const;
 
     // Specialized sampling for dinucleotide Markov (generates insertion sequences)
-    void sample_dinucl_markov(const FastEventSampler& sampler,
-                             std::mt19937_64& rng,
-                             std::unordered_map<Seq_type, std::string>& sequences,
-                             std::vector<int>& realization,
-                             SamplingContext& context) const;
+    void sample_dinucl_markov(const FastEventSampler &sampler, std::mt19937_64 &rng,
+                              std::unordered_map<Seq_type, std::string> &sequences, std::vector<int> &realization,
+                              SamplingContext &context) const;
 
     // Compute condition index from parent choices
-    size_t compute_condition_index(const FastEventSampler& sampler,
-                                   const SamplingContext& context) const;
+    size_t compute_condition_index(const FastEventSampler &sampler, const SamplingContext &context) const;
 
     // Apply gene choice to sequences
-    void apply_gene_choice(const FastEventSampler& sampler,
-                          size_t choice_idx,
-                          std::unordered_map<Seq_type, std::string>& sequences) const;
+    void apply_gene_choice(const FastEventSampler &sampler, size_t choice_idx,
+                           std::unordered_map<Seq_type, std::string> &sequences) const;
 
     // Apply deletion to sequences
-    void apply_deletion(const FastEventSampler& sampler,
-                       size_t del_idx,
-                       std::unordered_map<Seq_type, std::string>& sequences) const;
+    void apply_deletion(const FastEventSampler &sampler, size_t del_idx,
+                        std::unordered_map<Seq_type, std::string> &sequences) const;
 
     // Assemble final sequence from components
-    std::string assemble_sequence(
-        const std::unordered_map<Seq_type, std::string>& sequences) const;
+    std::string assemble_sequence(const std::unordered_map<Seq_type, std::string> &sequences) const;
 
     // Apply transversions for palindromic insertions
-    static void apply_palindrome(std::string& seq, int num_bases, bool is_3prime);
+    static void apply_palindrome(std::string &seq, int num_bases, bool is_3prime);
 
     // Member variables
     std::vector<FastEventSampler> event_samplers_;
@@ -277,24 +256,23 @@ private:
     mutable Stats stats_;
 };
 
-
 /**
  * \brief Utility function to get optimal thread count.
  */
-inline size_t get_optimal_thread_count() {
+inline size_t get_optimal_thread_count()
+{
     size_t hw_threads = std::thread::hardware_concurrency();
     return hw_threads > 0 ? hw_threads : 4;
 }
 
-
 /**
  * \brief Utility function to draw a random seed.
  */
-inline uint64_t draw_random_seed() {
+inline uint64_t draw_random_seed()
+{
     std::random_device rd;
     return (static_cast<uint64_t>(rd()) << 32) | rd();
 }
 
-
-}  // namespace fast
-}  // namespace igor
+} // namespace fast
+} // namespace igor

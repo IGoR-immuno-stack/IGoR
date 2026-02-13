@@ -198,11 +198,8 @@ public:
      * \param seed Random seed (-1 = random)
      * \param show_progress Show progress bar
      */
-    void generate_sequences_fast(size_t num_sequences,
-                                 const std::string &seq_filename,
-                                 const std::string &real_filename,
-                                 size_t num_threads = 0,
-                                 int64_t seed = -1,
+    void generate_sequences_fast(size_t num_sequences, const std::string &seq_filename,
+                                 const std::string &real_filename, size_t num_threads = 0, int64_t seed = -1,
                                  bool show_progress = true);
 
     /**
@@ -212,8 +209,7 @@ public:
      */
     igor::fast::FastGenerator &get_fast_generator();
 
-    std::forward_list<std::pair<std::string, std::queue<std::queue<int>>>> generate_sequences(int,
-                                                                                              bool);
+    std::forward_list<std::pair<std::string, std::queue<std::queue<int>>>> generate_sequences(int, bool);
     void generate_sequences(int, bool, std::string, std::string,
                             std::list<std::pair<gen_seq_trans, std::shared_ptr<void>>> =
                                     std::list<std::pair<gen_seq_trans, std::shared_ptr<void>>>(),
@@ -224,7 +220,7 @@ public:
     void write_seq2txt(std::string, std::forward_list<std::string>);
     void write_seq_real2txt(std::string, std::string,
                             std::forward_list<std::pair<std::string, std::queue<std::queue<int>>>>);
-    const Model_marginals get_marginals() const {return this->model_marginals;};
+    const Model_marginals get_marginals() const { return this->model_marginals; };
 
     //write alignments, load alignments
 
