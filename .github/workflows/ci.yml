@@ -55,6 +55,9 @@ jobs:
         with:
           fetch-depth: 0  # for git info
 
+      - name: Initialize submodules
+        run: pixi run submodule-update
+
       - name: Configure project
         run: pixi run configure
 

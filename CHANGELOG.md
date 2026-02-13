@@ -4,6 +4,32 @@ brevity.  Much more detail can be found in the git revision history:
 
     https://github.com/qmarcou/IGoR
 
+* Unreleased
+
+  Fast parallel sequence generation
+
+  New features:
+  - Add fast parallel sequence generator (FastGenerator) with 100x+ speedup
+    using precomputed CDFs, binary search/alias method sampling, and OpenMP
+    multi-threading
+  - New CLI flags --fast and --threads N for the -generate command
+  - New sampling primitives: CategoricalSampler, ConditionalSampler,
+    DinucleotideMarkovSampler with O(1) alias and O(log n) binary search
+  - New GenModel::generate_sequences_fast() public method
+
+  Bug fixes:
+  - Fix uninitialized iterator bug in Model_marginals::swap_events_order
+    (event_1_iterator / event_2_iterator were swapped)
+
+  Tests:
+  - Add unit tests for all sampling primitives (16 test cases)
+  - Add statistical convergence tests for VJ (TCRα) and VDJ (TCRβ) models
+    using KL-divergence and entropy bounds
+  - Add inference round-trip test (generate → infer → compare)
+
+  Miscellaneous:
+  - Add submodule initialization step in CI workflow
+
 * 1.4.0 (April 11, 2020)
 
   A brief description of the release content's

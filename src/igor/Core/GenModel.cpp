@@ -659,3 +659,78 @@ void output_CDR3_gen_data(size_t i, std::pair<std::string, std::queue<std::queue
 {
     // Dummy
 }
+
+//==============================================================================
+// Fast Sequence Generation Implementation
+//==============================================================================
+
+void GenModel::generate_sequences_fast(size_t num_sequences, const string &seq_filename, const string &real_filename,
+                                       size_t num_threads, int64_t seed, bool show_progress)
+{
+
+    // Get folder path for generation info
+    string folder_path = seq_filename.substr(0, seq_filename.rfind("/") + 1);
+    ofstream generation_infos_file(folder_path + "generation_info.out", fstream::out | fstream::app);
+
+    // Log generation parameters
+    chrono::system_clock::time_point begin_time = chrono::system_clock::now();
+    std::time_t tt = chrono::system_clock::to_time_t(begin_time);
+
+    generation_infos_file << endl << "================================================================" << endl;
+    generation_infos_file << "FAST SEQUENCE GENERATION" << endl;
+    generation_infos_file << "Generated sequences in file: " << seq_filename << endl;
+    generation_infos_file << "Generated sequences realizations in file: " << real_filename << endl;
+    generation_infos_file << "Date: " << ctime(&tt) << endl;
+    generation_infos_file << "Number of sequences = " << num_sequences << endl;
+    generation_infos_file << "Number of threads = "
+                          << (num_threads == 0 ? igor::fast::get_optimal_thread_count() : num_threads) << endl;
+
+    // Initialize fast generator if needed
+    igor::fast::FastGenerator &generator = get_fast_generator();
+
+    // Configure generation
+    igor::fast::FastGeneratorConfig config;
+    config.num_threads = num_threads;
+    config.show_progress = show_progress;
+    if (seed >= 0) {
+        config.base_seed = static_cast<uint64_t>(seed);
+    } else {
+        config.base_seed = igor::fast::draw_random_seed();
+    }
+    generation_infos_file << "Seed = " << config.base_seed << endl;
+
+    // Progress callback
+    auto progress_callback = [show_progress](size_t completed, size_t total) {
+        if (show_progress) {
+            show_progress_bar(cerr, static_cast<double>(completed) / total, "Fast sequence generation", 50);
+        }
+    };
+
+    // Generate sequences
+    generator.generate_to_files(num_sequences, seq_filename, real_filename, config, progress_callback);
+
+    if (show_progress) {
+        close_progress_bar(cerr, "Fast sequence generation", 50);
+    }
+
+    // Log statistics
+    auto stats = generator.get_stats();
+    chrono::system_clock::time_point end_time = chrono::system_clock::now();
+    double elapsed = chrono::duration<double>(end_time - begin_time).count();
+
+    generation_infos_file << "Total time: " << elapsed << " seconds" << endl;
+    generation_infos_file << "Sequences per second: " << stats.sequences_per_second << endl;
+    generation_infos_file << "Bytes written: " << stats.bytes_written << endl;
+
+    cerr << "Fast generation complete: " << num_sequences << " sequences in " << elapsed << "s ("
+         << static_cast<size_t>(stats.sequences_per_second) << " seq/s)" << endl;
+}
+
+igor::fast::FastGenerator &GenModel::get_fast_generator()
+{
+    if (!fast_generator_) {
+        fast_generator_ = make_unique<igor::fast::FastGenerator>();
+        fast_generator_->initialize(model_parms, model_marginals);
+    }
+    return *fast_generator_;
+}
