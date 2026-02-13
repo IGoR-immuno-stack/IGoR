@@ -76,6 +76,29 @@ Dinucl_markov::~Dinucl_markov()
     // TODO Auto-generated destructor stub
 }
 
+/**
+ * Row-stochastic normalization for the 4×4 dinucleotide transition matrix.
+ *
+ * Unlike the base Rec_Event::ind_normalize (which divides all size() values
+ * by their global sum), DinucMarkov stores conditional probabilities
+ * P(next_nt | prev_nt).  Each row of 4 must independently sum to 1.
+ */
+void Dinucl_markov::ind_normalize(Marginal_array_p &marginal_array_p, size_t base_index) const
+{
+    size_t numb_realizations = this->event_realizations.size();
+    for (size_t i = 0; i != numb_realizations; ++i) {
+        long double sum_marginals = 0;
+        for (size_t j = 0; j != numb_realizations; ++j) {
+            sum_marginals += marginal_array_p[base_index + i * numb_realizations + j];
+        }
+        if (sum_marginals != 0) {
+            for (size_t j = 0; j != numb_realizations; ++j) {
+                marginal_array_p[base_index + i * numb_realizations + j] /= sum_marginals;
+            }
+        }
+    }
+}
+
 shared_ptr<Rec_Event> Dinucl_markov::copy()
 {
     shared_ptr<Dinucl_markov> new_dinucl_markov_p =

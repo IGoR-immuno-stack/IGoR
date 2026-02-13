@@ -63,6 +63,7 @@ public:
     {
     }
 
+    void ind_normalize(Marginal_array_p &, size_t) const override;
     void set_nickname(std::string name) override;
     int get_sequence_type_id() const override { return sequence_type_id; }
     int size() const override { return event_realizations.size() * event_realizations.size(); }
