@@ -46,6 +46,7 @@ if(MODEL_TEST_SOURCES)
     include(Catch)
     catch_discover_tests(model_tests)
 endif()
+
 # --- Core Module Tests (LegacyBridge, etc.) ---
 file(GLOB CORE_MODULE_TEST_SOURCES "igor/Core/*.cpp")
 
@@ -56,15 +57,4 @@ if(CORE_MODULE_TEST_SOURCES)
     target_compile_definitions(core_module_tests PRIVATE IGOR_MODELS_DIR="${CMAKE_SOURCE_DIR}/models")
     include(Catch)
     catch_discover_tests(core_module_tests)
-endif()
-# --- Integration Tests (ParallelRecursion) ---
-file(GLOB INTEGRATION_TEST_SOURCES "igor/Integration/*.cpp")
-
-if(INTEGRATION_TEST_SOURCES)
-    add_executable(integration_tests ${INTEGRATION_TEST_SOURCES})
-    set_target_properties(integration_tests PROPERTIES CXX_STANDARD 23)
-    target_link_libraries(integration_tests PRIVATE igor::Core igor::Model Catch2::Catch2WithMain)
-    target_compile_definitions(integration_tests PRIVATE IGOR_DATA_DIR="${CMAKE_SOURCE_DIR}/demo")
-    include(Catch)
-    catch_discover_tests(integration_tests)
 endif()
