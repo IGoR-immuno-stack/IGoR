@@ -22,6 +22,7 @@
 #include <igor/Core/Model_Parms.h>
 #include <igor/Core/Model_marginals.h>
 #include <igor/Core/Rec_Event.h>
+#include <igor/Core/Genechoice.h>
 #include <igor/Core/Aligner.h>
 
 #include "entropy_test_helpers.h"
@@ -49,10 +50,11 @@
 #endif
 
 // Uncomment to enable debug logging to /tmp/
-// #define DEBUG_INFERENCE_TEST
+#define DEBUG_INFERENCE_TEST
 
 // Model base directory
 static const std::string MODELS_DIR = std::string(IGOR_SOURCE_DIR) + "/models";
+static const std::string TEST_MODELS_DIR = std::string(IGOR_SOURCE_DIR) + "/tst/test_data/inference";
 
 // ---------------------------------------------------------------------------
 // Scenario parsing
@@ -365,6 +367,14 @@ TEST_CASE("Inference recovers ground truth model", "[inference]")
         sample_size = 10000;
         kl_threshold_factor = 20.0;  // Stricter threshold
     }
+
+    SECTION("Fixed VJ TCR beta (VDJ) - N=10000 - thorough validation") {
+        model_parms_path = TEST_MODELS_DIR + "/fixed_VJ_TRB_model_parms.txt";
+        model_marginals_path = TEST_MODELS_DIR + "/fixed_VJ_TRB_marginals.txt";
+        model_label = "human/fixed_vj_tcr_beta";
+        sample_size = 10000;
+        kl_threshold_factor = 20.0;  // Stricter threshold
+    }
     
     // ------------------------------------------------------------------
     // 1. Load ground truth model
@@ -387,23 +397,40 @@ TEST_CASE("Inference recovers ground truth model", "[inference]")
     compute_combined_insertion_dinuc_entropy(truth_events, truth_parms, /*print=*/true);
     
     // ------------------------------------------------------------------
-    // 2. Load gene templates
+    // 2. Extract gene templates from model parameters
     // ------------------------------------------------------------------
     std::unordered_map<std::string, std::string> gene_templates;
     
-    // Get V gene templates
-    auto v_genomic = read_genomic_fasta(MODELS_DIR + "/human/tcr_alpha/ref_genome/genomicVs.fasta");
-    for (const auto& [name, seq] : v_genomic) {
-        gene_templates[name] = seq;
+    // Get events map
+    auto events_map = truth_parms.get_events_map();
+    
+    // Extract V gene templates
+    auto v_gene_event = events_map.at(std::make_tuple(GeneChoice_t, V_gene, Undefined_side));
+    auto v_gene_choice = std::dynamic_pointer_cast<Gene_choice>(v_gene_event);
+    auto v_realizations = v_gene_choice->get_realizations_map();
+    for (const auto& [name, realization] : v_realizations) {
+        gene_templates[name] = realization.value_str;
     }
     
-    // Get J gene templates
-    auto j_genomic = read_genomic_fasta(MODELS_DIR + "/human/tcr_alpha/ref_genome/genomicJs.fasta");
-    for (const auto& [name, seq] : j_genomic) {
-        gene_templates[name] = seq;
+    // Extract J gene templates
+    auto j_gene_event = events_map.at(std::make_tuple(GeneChoice_t, J_gene, Undefined_side));
+    auto j_gene_choice = std::dynamic_pointer_cast<Gene_choice>(j_gene_event);
+    auto j_realizations = j_gene_choice->get_realizations_map();
+    for (const auto& [name, realization] : j_realizations) {
+        gene_templates[name] = realization.value_str;
     }
     
-    std::cout << "\nLoaded " << gene_templates.size() << " gene templates" << std::endl;
+    // Extract D gene templates if VDJ model
+    if (events_map.count(std::make_tuple(GeneChoice_t, D_gene, Undefined_side)) > 0) {
+        auto d_gene_event = events_map.at(std::make_tuple(GeneChoice_t, D_gene, Undefined_side));
+        auto d_gene_choice = std::dynamic_pointer_cast<Gene_choice>(d_gene_event);
+        auto d_realizations = d_gene_choice->get_realizations_map();
+        for (const auto& [name, realization] : d_realizations) {
+            gene_templates[name] = realization.value_str;
+        }
+    }
+    
+    std::cout << "\nExtracted " << gene_templates.size() << " gene templates from model" << std::endl;
     
     // ------------------------------------------------------------------
     // 3. Generate sequences with scenarios
@@ -473,9 +500,7 @@ TEST_CASE("Inference recovers ground truth model", "[inference]")
         scenarios);
     std::cout << "Wrote sequences to: " << inference_dir << "generated_seqs_indexed.csv" << std::endl;
     std::cout << "Wrote scenarios to: " << inference_dir << "generated_realizations_indexed.csv" << std::endl;
-    #endif
-    
-    #ifdef DEBUG_INFERENCE_TEST
+
     // Write alignments to file for debugging
     std::cout << "\n=== Writing alignments to file for debugging ===" << std::endl;
     
