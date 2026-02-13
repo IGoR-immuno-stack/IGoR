@@ -482,7 +482,7 @@ void Deletion::iterate(double &scenario_proba, Downstream_scenario_proba_bound_m
             vector<int> &d_mismatch_list = *mismatches_lists.at(D_gene_seq, memory_layer_mismatches - 1);
 
             for (forward_list<Event_realization>::const_iterator iter = (*this).int_value_and_index.begin();
-                 iter != (*this).int_value_and_index.end(); ++iter) {
+                iter != (*this).int_value_and_index.end(); ++iter) {
                 if ((int)previous_str.size() >= (*iter).value_int) {
 
                     //set<Event_safety> safety_set_copy = safety_set;

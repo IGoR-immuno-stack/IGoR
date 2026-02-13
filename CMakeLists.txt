@@ -12,6 +12,9 @@ project(igor)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake")
 
+
+set(CMAKE_C_FLAGS_DEBUG   "-g -O0" CACHE STRING "" FORCE)
+set(CMAKE_CXX_FLAGS_DEBUG "-g -O0" CACHE STRING "" FORCE)
 ## ###################################################################
 ## Version setup
 ## ###################################################################

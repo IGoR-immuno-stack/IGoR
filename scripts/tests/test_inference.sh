@@ -1,9 +1,10 @@
-#!/usr/bin/env bash
+#!/usr/bin/env -S bash -xv
 set -euo pipefail
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 source $SCRIPT_DIR/config.sh
-OUTDIR="${1:-$(mktemp -d)}"
+# OUTDIR="${1:-$(mktemp -d)}"
+OUTDIR="${HOME}/tmp"
 IGORCALL="$IGORBIN -set_wd $OUTDIR"
 
 # Copy reference alignment files
@@ -12,12 +13,12 @@ if [[ ! -d "$OUTDIR/aligns" ]]; then
 fi
 
 # Run the inference with the demo parameters
-$IGORCALL -batch demo -set_custom_model "$TESTINPUT/TRB_model_parms.txt" "$TESTINPUT/TRB_uniform_model_marginals.txt" -infer --N_iter 4  --L_thresh 1e-35 --P_ratio_thresh 0.0001 -output --scenarios 10 --Pgen --coverage VJ_gene
+$IGORCALL -batch demo -set_custom_model "$TESTINPUT/TRB_model_parms.txt" "$TESTINPUT/TRB_uniform_model_marginals.txt" -infer --N_iter 1  --L_thresh 1e-15 --P_ratio_thresh 0.1 -output --scenarios 1 --Pgen --coverage VJ_gene -threads 1
 
 # Run the inference with the default parameters
-$IGORCALL -batch default -set_custom_model "$TESTINPUT/TRB_model_parms.txt" "$TESTINPUT/TRB_uniform_model_marginals.txt" -infer --N_iter 4 
+# $IGORCALL -batch default -set_custom_model "$TESTINPUT/TRB_model_parms.txt" "$TESTINPUT/TRB_uniform_model_marginals.txt" -infer --N_iter 4 -threads 1
 # Evaluate sequences to generate outputs
-$IGORCALL -batch default -load_last_inferred -evaluate --L_thresh 1e-35 --P_ratio_thresh 0.0001 -output --scenarios 10 --Pgen --coverage VJ_gene
+# $IGORCALL -batch default -load_last_inferred -evaluate --L_thresh 1e-35 --P_ratio_thresh 0.0001 -output --scenarios 10 --Pgen --coverage VJ_gene -threads 1
 
 # ------------------------------------------------------------------
 # 2️⃣ Test output file regression

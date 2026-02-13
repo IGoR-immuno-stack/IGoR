@@ -24,6 +24,7 @@
  *
  */
 
+#include <cassert>
 #include <igor/Core/Rec_Event.h>
 #include <igor/Core/Counter.h>
 
@@ -130,7 +131,7 @@ int Rec_Event::get_event_identifier() const
 {
     return event_index;
 }
-
+static int counter = 0;
 void Rec_Event::iterate_wrap_up(
         double &scenario_proba, Downstream_scenario_proba_bound_map &downstream_proba_map, const std::string &sequence,
         const Int_Str &int_sequence, Index_map &index_map,
@@ -159,10 +160,8 @@ void Rec_Event::iterate_wrap_up(
 
 	 		  }*/
 
-              cout << "161: " << (next_event_ptr_arr.get()[this->event_index] != nullptr) << endl;
-    // assert(this->event_index >= 0 && this->event_index < );
     if (next_event_ptr_arr.get()[this->event_index]) { //Tests whether the next event pointer is null
-        // cout << "163: scenario_proba " << scenario_proba << endl;
+        cout << counter << ": " << next_event_ptr_arr.get()[this->event_index]->event_class << endl;
         //Recursive call to iterate
         //TODO consider adding a threshold for too low probability events(if necessary)
         next_event_ptr_arr.get()[this->event_index]->iterate(
@@ -171,9 +170,8 @@ void Rec_Event::iterate_wrap_up(
                 seq_offsets, error_rate_p, counters_list, events_map, safety_set, mismatches_lists,
                 seq_max_prob_scenario, proba_threshold_factor);
 
-        // cout << "172: scenario_proba " << scenario_proba << endl;
     } else {
-
+        cout << counter << ": ELSE" << endl;
         double scenario_error_w_proba = error_rate_p->compare_sequences_error_prob(
                 scenario_proba, sequence, constructed_sequences, seq_offsets, events_map, mismatches_lists,
                 seq_max_prob_scenario, proba_threshold_factor);
@@ -213,6 +211,7 @@ void Rec_Event::iterate_wrap_up(
             }
         }
     }
+    counter++;
 }
 
 void Rec_Event::initialize_event(
