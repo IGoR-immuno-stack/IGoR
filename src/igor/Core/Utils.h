@@ -26,6 +26,8 @@
 
 #pragma once
 
+#include <cassert>
+
 #include <fstream>
 #include <vector>
 #include <string>
@@ -222,25 +224,13 @@ public:
 
     T &operator()(const int &i, const int &j)
     {
-        if ((i > rows - 1) || (j > cols - 1)) {
-            throw std::length_error("Cannot access indices [" + std::to_string(i) + "," + std::to_string(j)
-                                    + "] with matrix dimensions [" + std::to_string(rows) + "," + std::to_string(cols)
-                                    + "]");
-            std::cout << "out_of range matrix coordinates: " << rows << "<" << i << " or " << cols << "<" << j
-                      << std::endl;
-        }
+        assert((i > rows - 1) || (j > cols - 1));
         return array_p[i + rows * j];
     }
 
     const T &operator()(const int &i, const int &j) const
     {
-        if ((i > rows - 1) || (j > cols - 1)) {
-            throw std::length_error("Cannot access indices [" + std::to_string(i) + "," + std::to_string(j)
-                                    + "] with matrix dimensions [" + std::to_string(rows) + "," + std::to_string(cols)
-                                    + "]");
-            std::cout << "out_of range matrix coordinates: " << rows << "<" << i << " or " << cols << "<" << j
-                      << std::endl;
-        }
+        assert((i > rows - 1) || (j > cols - 1));
         return array_p[i + rows * j];
     }
 
@@ -405,17 +395,12 @@ public:
     //Setters
     void set_value(const K &key, const V &value, int memory_layer)
     {
-        if (key > range - 1) {
-            throw std::out_of_range("Unknown seq type in Seq_type_str_p_map::operator(Seq_type)");
-        }
+        assert(key > range - 1);
         //Cannot fill memory layer without filling the ones downstream
-        if (memory_layer <= (memory_layer_ptr[key] + 1)) {
-            (*(value_ptr_arr + key + memory_layer * range)) = value;
-            //Setting a value at a given layer invalidate upper layers
-            memory_layer_ptr[key] = memory_layer;
-        } else {
-            throw std::out_of_range("Trying to access incorrect memory layer in Enum_fast_memory_map::set_value()");
-        }
+        assert(memory_layer <= (memory_layer_ptr[key] + 1));
+        (*(value_ptr_arr + key + memory_layer * range)) = value;
+        //Setting a value at a given layer invalidate upper layers
+        memory_layer_ptr[key] = memory_layer;
     }
 
     void multiply_all(double &prod_operand, int *memory_adresses)
