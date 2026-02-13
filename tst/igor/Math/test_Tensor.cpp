@@ -7,7 +7,6 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <igor/Math/Tensor.h>
-<<<<<<< HEAD
 #include "TestHelpers.h"
 #include <vector>
 #include <algorithm>
@@ -15,10 +14,6 @@
 #include <span>
 #include <numeric>     // For std::iota, std::accumulate
 #include <type_traits> // For std::remove_cvref_t
-=======
-#include <vector>
-
->>>>>>> a9fb84b (feat(math): implement Tensor class with type-erased rank and mdspan views)
 using namespace igor::math;
 
 TEST_CASE("Tensor Basic Operations", "[Math][Tensor]") {
@@ -27,14 +22,7 @@ TEST_CASE("Tensor Basic Operations", "[Math][Tensor]") {
         std::vector<size_t> shape{4, 3}; // 4 rows, 3 cols
         Tensor<double> tensor(shape);
 
-<<<<<<< HEAD
         test::require_shape(tensor, {4, 3});
-=======
-        REQUIRE(tensor.size() == 12);
-        REQUIRE(tensor.rank() == 2);
-        REQUIRE(tensor.shape()[0] == 4);
-        REQUIRE(tensor.shape()[1] == 3);
->>>>>>> a9fb84b (feat(math): implement Tensor class with type-erased rank and mdspan views)
 
         // Access via variadic operator()
         tensor(1, 1) = 42.0;
@@ -53,12 +41,7 @@ TEST_CASE("Tensor Basic Operations", "[Math][Tensor]") {
 
         Tensor<int> tensor(raw.data(), shape);
 
-<<<<<<< HEAD
         test::require_shape(tensor, {2, 2, 2});
-=======
-        REQUIRE(tensor.size() == 8);
-        REQUIRE(tensor.rank() == 3);
->>>>>>> a9fb84b (feat(math): implement Tensor class with type-erased rank and mdspan views)
 
         // Modify via view<3>
         auto v = tensor.view<3>();
@@ -77,12 +60,7 @@ TEST_CASE("Tensor Basic Operations", "[Math][Tensor]") {
         // Tensor construction (Rank is distinct from type)
         Tensor<double> t(runtime_shape);
 
-<<<<<<< HEAD
         test::require_shape(t, {4, 3});
-=======
-        REQUIRE(t.rank() == 2);
-        REQUIRE(t.size() == 12);
->>>>>>> a9fb84b (feat(math): implement Tensor class with type-erased rank and mdspan views)
 
         // Access via runtime indices (std::span)
         std::vector<size_t> idx = {1, 2};
@@ -139,12 +117,7 @@ TEST_CASE("Tensor Basic Operations", "[Math][Tensor]") {
         // Create 6D tensor (exceeds variant range)
         Tensor<double> t({2, 2, 2, 2, 2, 2});
 
-<<<<<<< HEAD
         test::require_shape(t, {2, 2, 2, 2, 2, 2});
-=======
-        REQUIRE(t.rank() == 6);
-        REQUIRE(t.size() == 64);
->>>>>>> a9fb84b (feat(math): implement Tensor class with type-erased rank and mdspan views)
 
         // Variadic access falls back to manual strides
         t(0, 0, 0, 0, 0, 0) = 99.0;
@@ -168,19 +141,13 @@ TEST_CASE("Tensor Basic Operations", "[Math][Tensor]") {
 
         Tensor<double> dest = std::move(source);
 
-<<<<<<< HEAD
         test::require_shape(dest, {10, 10});
-=======
-        REQUIRE(dest.size() == 100);
-        REQUIRE(dest.rank() == 2);
->>>>>>> a9fb84b (feat(math): implement Tensor class with type-erased rank and mdspan views)
         REQUIRE(dest(5, 5) == 42.0);
 
         // Source should be in moved-from state (valid but unspecified)
         // We can at least check it doesn't crash
         REQUIRE(source.size() == 0);
     }
-<<<<<<< HEAD
 
     SECTION("Initializer List Access") {
         Tensor<double> t({2, 2});
@@ -293,6 +260,4 @@ TEST_CASE("Tensor Basic Operations", "[Math][Tensor]") {
 
         REQUIRE(t.data() != nullptr);
     }
-=======
->>>>>>> a9fb84b (feat(math): implement Tensor class with type-erased rank and mdspan views)
 }
