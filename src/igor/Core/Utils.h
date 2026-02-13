@@ -224,13 +224,13 @@ public:
 
     T &operator()(const int &i, const int &j)
     {
-        assert((i > rows - 1) || (j > cols - 1));
+        assert((i <= rows - 1) && (j <= cols - 1));
         return array_p[i + rows * j];
     }
 
     const T &operator()(const int &i, const int &j) const
     {
-        assert((i > rows - 1) || (j > cols - 1));
+        assert((i <= rows - 1) && (j <= cols - 1));
         return array_p[i + rows * j];
     }
 
@@ -395,7 +395,7 @@ public:
     //Setters
     void set_value(const K &key, const V &value, int memory_layer)
     {
-        assert(key > range - 1);
+        assert(key <= range - 1);
         //Cannot fill memory layer without filling the ones downstream
         assert(memory_layer <= (memory_layer_ptr[key] + 1));
         (*(value_ptr_arr + key + memory_layer * range)) = value;
