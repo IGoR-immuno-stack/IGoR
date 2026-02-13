@@ -2,6 +2,7 @@
 
 #include <stdexcept>
 #include <algorithm>
+#include <cmath>
 
 namespace igor::core {
 
@@ -31,11 +32,14 @@ inline model::EventDescriptor make_event_descriptor(std::shared_ptr<const Rec_Ev
     //   - CategoricalHandler: ndim==1 for unconditional, ndim>1 for conditional
     //   - MarkovHandler:      ndim==2 for unconditional, ndim>2 for conditional
 
-    // First dimension: n_realizations (categorical) or n_states (Markov)
-    desc.shape.push_back(event->size());
-
     // For Markov: second dimension is also n_states (square transition matrix)
     if (event->get_type() == Dinuclmarkov_t) {
+        // Markov event: square matrix (n_states * n_states)
+        int n_states = static_cast<int>(std::sqrt(static_cast<double>(event->size())));
+        desc.shape.push_back(n_states); // dim 0: from state
+        desc.shape.push_back(n_states); // dim 1: to state
+    } else {
+        // Categorical event
         desc.shape.push_back(event->size());
     }
 
@@ -102,6 +106,12 @@ void import_from_legacy(model::InferenceEngine<T>& engine,
 
         // Copy values from legacy array to handler parameters
         auto& params = handler.parameters();
+
+        // Verify array bounds
+        if (static_cast<size_t>(base_index) + params.size() > marginals.get_length()) {
+             throw std::runtime_error("LegacyBridge import: Boundary check failed for event " + full_name);
+        }
+
         for (std::size_t i = 0; i < params.size(); ++i) {
             // Convert long double to T
             params.data()[i] = static_cast<T>(marginal_array[base_index + i]);
@@ -144,6 +154,12 @@ void export_to_legacy(const model::InferenceEngine<T>& engine,
 
         // Copy values from handler parameters to legacy array
         const auto& params = handler.parameters();
+
+        // Verify array bounds
+        if (static_cast<size_t>(base_index) + params.size() > marginals.get_length()) {
+             throw std::runtime_error("LegacyBridge export: Boundary check failed for event " + full_name);
+        }
+
         for (std::size_t i = 0; i < params.size(); ++i) {
             // Convert T to long double
             marginal_array[base_index + i] = static_cast<long double>(params.data()[i]);
