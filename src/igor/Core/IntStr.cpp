@@ -65,6 +65,20 @@ Int_Str Int_Str::operator+(const Int_Str &other) const
     return new_int_str;
 }
 
+void Int_Str::substr(Int_Str &new_int_str, size_t pos /*= 0*/, size_t len /*= 99999999999999*/) const
+{
+    Int_Str::const_iterator begin = this->begin() + pos;
+    Int_Str::const_iterator last;
+    if (len == npos) {
+        last = this->end();
+    } else if (pos + len >= this->size()) {
+        last = this->end();
+    } else {
+        last = begin + len;
+    }
+    new_int_str.assign(begin, last);
+}
+
 Int_Str Int_Str::substr(size_t pos /*= 0*/, size_t len /*= 99999999999999*/) const
 {
     Int_Str::const_iterator begin = this->begin() + pos;

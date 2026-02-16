@@ -293,7 +293,7 @@ void Deletion::iterate(double &scenario_proba, Downstream_scenario_proba_bound_m
                 //Positive or negative deletion (palindroms) mechanism
                 if ((*iter).value_int >= 0) {
                     //Delete the end of the V-gene (3' end)
-                    new_str = previous_str.substr(0, previous_str.size() - (*iter).value_int);
+                    previous_str.substr(new_str, 0, previous_str.size() - (*iter).value_int);
 
                     //Update the mismatch list given the deletions
                     if (!v_mismatch_list.empty()) {
@@ -327,7 +327,7 @@ void Deletion::iterate(double &scenario_proba, Downstream_scenario_proba_bound_m
                         if ((-(*iter).value_int) <= (int)previous_str.size()) {
                             //Copy the last nucleotides
                             //cout<<"# p nucl: "<<(-(*iter).second.value_int)<<endl;
-                            tmp_str = previous_str.substr(previous_str.size() + (*iter).value_int, string::npos);
+                            previous_str.substr(tmp_str, previous_str.size() + (*iter).value_int, string::npos);
                             //cout<<"tmp_str: "<<tmp_str<<endl;
                             //Reverse them
                             //TODO revise this (perhaps not a good idea to perform these operations every time)
@@ -536,7 +536,7 @@ void Deletion::iterate(double &scenario_proba, Downstream_scenario_proba_bound_m
                         //////////////////////////////////////////////////////////////////////////
 
                         //Delete the beginning of the D-gene (5' end)
-                        new_str = previous_str.substr((*iter).value_int, string::npos);
+                        previous_str.substr(new_str, (*iter).value_int, string::npos);
 
                         //Update the mismatches given the number of deleted nucleotides
                         //Discard irrelevant mismatches (assuming the vector of mismatches is ordered) given the number of deletions
@@ -567,7 +567,7 @@ void Deletion::iterate(double &scenario_proba, Downstream_scenario_proba_bound_m
                             if ((-(*iter).value_int) <= (int)previous_str.size()) {
 
                                 //Copy the first nucleotides
-                                tmp_str = previous_str.substr(0, -(*iter).value_int);
+                                previous_str.substr(tmp_str, 0, -(*iter).value_int);
 
                                 //Reverse them
                                 reverse(tmp_str.begin(), tmp_str.end());
@@ -770,7 +770,7 @@ void Deletion::iterate(double &scenario_proba, Downstream_scenario_proba_bound_m
                         //////////////////////////////////////////////////////////////////////////
 
                         //Delete the end of the D-gene (3'end)
-                        new_str = previous_str.substr(0, previous_str.size() - (*iter).value_int);
+                        previous_str.substr(new_str, 0, previous_str.size() - (*iter).value_int);
 
                         //Update mismatches list given the number of deletions
                         //Discard irrelevant mismatches (assuming the vector of mismatches is ordered) given the number of deletions
@@ -806,7 +806,7 @@ void Deletion::iterate(double &scenario_proba, Downstream_scenario_proba_bound_m
                             if ((-(*iter).value_int) <= (int)previous_str.size()) {
                                 //Copy the last nucleotides
 
-                                tmp_str = previous_str.substr(previous_str.size() + (*iter).value_int, string::npos);
+                                previous_str.substr(tmp_str, previous_str.size() + (*iter).value_int, string::npos);
 
                                 //Reverse them
                                 reverse(tmp_str.begin(), tmp_str.end());
@@ -1049,7 +1049,7 @@ void Deletion::iterate(double &scenario_proba, Downstream_scenario_proba_bound_m
                 //Positive or negative deletion (palindroms) mechanism
                 if ((*iter).value_int >= 0) {
                     //Delete the beginning of the J-gene (5' end)
-                    new_str = previous_str.substr((*iter).value_int);
+                    previous_str.substr(new_str, (*iter).value_int);
 
                     //Update mismatch list given the number of deletions
                     //Discard irrelevant mismatches (assuming the vector of mismatches is ordered) given the number of deletions
@@ -1079,7 +1079,7 @@ void Deletion::iterate(double &scenario_proba, Downstream_scenario_proba_bound_m
 
                         //Copy the first nucleotides
                         //cout<<"# p nucl: "<<(-(*iter).second.value_int)<<endl;
-                        tmp_str = previous_str.substr(0, -(*iter).value_int);
+                        previous_str.substr(tmp_str, 0, -(*iter).value_int);
                         //cout<<"tmp_str: "<<tmp_str<<endl;
                         //Reverse them
                         reverse(tmp_str.begin(), tmp_str.end());

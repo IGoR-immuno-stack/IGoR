@@ -619,7 +619,7 @@ void Gene_choice::iterate(
                         //Get mismatches between D gene and sequence
                         no_d_mismatches.clear();
                         for (int i = 0; i != d_size; ++i) {
-                            if (((d_5_off + i) >= 0) & (d_5_off + i) < int_sequence.size()) {
+                            if (((d_5_off + i) >= 0) && (d_5_off + i) < int_sequence.size()) {
                                 if (gene_seq[i] != int_sequence[d_5_off + i]) {
                                     no_d_mismatches.push_back(d_5_off + i);
                                 }
@@ -728,7 +728,7 @@ void Gene_choice::iterate(
                         //Get mismatches between D gene and sequence at the 5' most position
                         no_d_mismatches.clear();
                         for (int i = 0; i != d_size; ++i) {
-                            if (((d_5_off + i) >= 0) & (d_5_off + i) < int_sequence.size()) {
+                            if (((d_5_off + i) >= 0) && (d_5_off + i) < int_sequence.size()) {
                                 if (gene_seq[i] != int_sequence[d_5_off + i]) {
                                     no_d_mismatches.push_back(d_5_off + i);
                                 }
