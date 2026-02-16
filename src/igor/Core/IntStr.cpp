@@ -25,7 +25,6 @@
  */
 
 #include <igor/Core/IntStr.h>
-#include <algorithm>
 
 using namespace std;
 
@@ -68,17 +67,29 @@ Int_Str Int_Str::operator+(const Int_Str &other) const
 
 void Int_Str::substr(Int_Str &new_int_str, size_t pos /*= 0*/, size_t len /*= 99999999999999*/) const
 {
-    auto begin = this->begin() + pos;
-    auto end = this->end();
-    auto last = (len == npos) ? end : std::min(begin + len, end);
+    Int_Str::const_iterator begin = this->begin() + pos;
+    Int_Str::const_iterator last;
+    if (len == npos) {
+        last = this->end();
+    } else if (pos + len >= this->size()) {
+        last = this->end();
+    } else {
+        last = begin + len;
+    }
     new_int_str.assign(begin, last);
 }
 
 Int_Str Int_Str::substr(size_t pos /*= 0*/, size_t len /*= 99999999999999*/) const
 {
-    auto begin = this->begin() + pos;
-    auto end = this->end();
-    auto last = (len == npos) ? end : std::min(begin + len, end);
+    Int_Str::const_iterator begin = this->begin() + pos;
+    Int_Str::const_iterator last;
+    if (len == npos) {
+        last = this->end();
+    } else if (pos + len >= this->size()) {
+        last = this->end();
+    } else {
+        last = begin + len;
+    }
     Int_Str new_int_str;
     new_int_str.assign(begin, last);
     return new_int_str;
@@ -86,9 +97,15 @@ Int_Str Int_Str::substr(size_t pos /*= 0*/, size_t len /*= 99999999999999*/) con
 
 Int_Str &Int_Str::erase(size_t pos, size_t len)
 {
-    auto begin = this->begin() + pos;
-    auto end = this->end();
-    auto last = (len == npos) ? end : std::min(begin + len, end);
+    Int_Str::iterator begin = this->begin() + pos;
+    Int_Str::iterator last;
+    if (len == npos) {
+        last = this->end();
+    } else if (pos + len >= this->size()) {
+        last = this->end();
+    } else {
+        last = begin + len;
+    }
     this->erase(begin, last);
     return *this;
 }
