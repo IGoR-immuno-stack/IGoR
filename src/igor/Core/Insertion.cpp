@@ -326,18 +326,9 @@ inline double Insertion::iterate_common(
 		}
 	}*/
 
-    for (forward_list<tuple<int, int, int>>::const_iterator jiter = memory_and_offsets.begin();
-         jiter != memory_and_offsets.end(); ++jiter) {
-        //Get previous index for the considered event
-        previous_index = base_index_map.at(get<0>(*jiter), get<1>(*jiter) - 1);
-        //Update the index given the realization and the offset
-        previous_index += realization_index * get<2>(*jiter);
-        //Set the value
-        base_index_map.set_value(get<0>(*jiter), previous_index, get<1>(*jiter));
-    }
-
-    //Compute the probability of the scenario considering the realization (*iter) we're looking at
-    return scenario_proba * model_parameters_point[base_index + realization_index];
+    double prob = Rec_Event::iterate_common(
+        realization_index, base_index, base_index_map, model_parameters_point);
+    return scenario_proba * prob;
 }
 
 queue<int> Insertion::draw_random_realization(

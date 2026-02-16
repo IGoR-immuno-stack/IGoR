@@ -24,6 +24,7 @@
  */
 
 #include <igor/Core/Deletion.h>
+#include <igor/Core/EventUtils.h>
 
 using namespace std;
 Deletion::Deletion() : Deletion(Undefined_gene, Undefined_side)
@@ -1210,27 +1211,8 @@ void Deletion::iterate_common(
         const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
         const Marginal_array_p &model_parameters_point)
 {
-    //realization_event_index  =
-
-    /*if (offset_map.count(this->name)!=0){
-	 		for(vector<pair<const Rec_Event*,int>>::const_iterator jiter = offset_map.at(this->name).begin() ; jiter!= offset_map.at(this->name).end() ; jiter++){
-				//modify index map using offset map
-				base_index_map_copy.at((*jiter).first->get_name()) = base_index_map.at((*jiter).first->get_name()) + (*iter).second.index*(*jiter).second;
-	 		}
-	 	}*/
-
-    for (forward_list<tuple<int, int, int>>::const_iterator jiter = memory_and_offsets.begin();
-         jiter != memory_and_offsets.end(); ++jiter) {
-        //Get previous index for the considered event
-        previous_marginal_index = base_index_map.at(get<0>(*jiter), get<1>(*jiter) - 1);
-        //Update the index given the realization and the offset
-        previous_marginal_index += (*iter).index * get<2>(*jiter);
-        //Set the value
-        base_index_map.set_value(get<0>(*jiter), previous_marginal_index, get<1>(*jiter));
-    }
-
-    //Compute the probability of the scenario considering the realization (*iter) we're looking at
-    proba_contribution = (model_parameters_point[base_index + (*iter).index]);
+    proba_contribution = Rec_Event::iterate_common(
+        (*iter).index, base_index, base_index_map, model_parameters_point);
 }
 
 queue<int> Deletion::draw_random_realization(
@@ -1358,43 +1340,16 @@ void Deletion::initialize_event(
     int_value_and_index.sort(del_numb_compare);
 
     //Check V choice
-    if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, V_gene, Undefined_side)) != 0) {
-        shared_ptr<const Rec_Event> v_choice_p =
-                events_map.at(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, V_gene, Undefined_side));
-        if (processed_events.count(v_choice_p->get_name()) != 0) {
-            v_chosen = true;
-        } else {
-            v_chosen = false;
-        }
-    } else {
-        v_chosen = false;
-    }
+    auto v_status = EventUtils::check_gene_choice(V_gene, events_map, processed_events);
+    v_chosen = v_status.chosen;
 
     //Check D choice
-    if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, D_gene, Undefined_side)) != 0) {
-        shared_ptr<const Rec_Event> d_choice_p =
-                events_map.at(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, D_gene, Undefined_side));
-        if (processed_events.count(d_choice_p->get_name()) != 0) {
-            d_chosen = true;
-        } else {
-            d_chosen = false;
-        }
-    } else {
-        d_chosen = false;
-    }
+    auto d_status = EventUtils::check_gene_choice(D_gene, events_map, processed_events);
+    d_chosen = d_status.chosen;
 
     //Check J choice
-    if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, J_gene, Undefined_side)) != 0) {
-        shared_ptr<const Rec_Event> j_choice_p =
-                events_map.at(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, J_gene, Undefined_side));
-        if (processed_events.count(j_choice_p->get_name()) != 0) {
-            j_chosen = true;
-        } else {
-            j_chosen = false;
-        }
-    } else {
-        j_chosen = false;
-    }
+    auto j_status = EventUtils::check_gene_choice(J_gene, events_map, processed_events);
+    j_chosen = j_status.chosen;
 
     switch (this->event_class) {
     case V_gene:

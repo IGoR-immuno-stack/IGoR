@@ -181,6 +181,9 @@ public:
             const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> &);
     virtual void add_to_marginals(long double, Marginal_array_p &) const = 0;
     virtual void set_crude_upper_bound_proba(size_t, size_t, Marginal_array_p &);
+    double iterate_common(int realization_index, int base_index,
+                          Index_map &base_index_map,
+                          const Marginal_array_p &model_parameters);
     void set_upper_bound_proba(double);
     double get_upper_bound_proba() const { return event_upper_bound_proba; };
     virtual void update_event_internal_probas(const Marginal_array_p &,

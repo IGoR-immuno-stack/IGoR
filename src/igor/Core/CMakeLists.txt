@@ -38,6 +38,7 @@ target_sources(${PROJECT_NAME}
     Dinuclmarkov.cpp
     Errorrate.cpp
     Errorscounter.cpp
+    EventUtils.cpp
     ExtractFeatures.cpp
     FastGenerator.cpp
     FastSampling.cpp
@@ -68,6 +69,7 @@ target_sources(${PROJECT_NAME}
       Dinuclmarkov.h
       Errorrate.h
       Errorscounter.h
+      EventUtils.h
       ExtractFeatures.h
       FastGenerator.h
       FastSampling.h

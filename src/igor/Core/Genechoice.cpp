@@ -23,6 +23,7 @@
  *   along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <igor/Core/EventUtils.h>
 #include <igor/Core/Genechoice.h>
 
 using namespace std;
@@ -1009,29 +1010,9 @@ double Gene_choice::iterate_common(
         const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
         const Marginal_array_p &model_parameters)
 {
-
-    //TODO remove scenario proba as argument
-    //int gene_index = ((*this)).event_realizations.at((*iter).gene_name).index;
-    //Store the writing location for this event knowing the realization(since the queue is organized in a way that the index won't be changed for this event anymore)
-
-    /*if (offset_map.count(this->name)!=0){
-	for(vector<pair<const Rec_Event*,int>>::const_iterator jiter= offset_map.at(this->name).begin() ; jiter != offset_map.at(this->name).end() ; jiter++){			//modify index map using offset map
-			base_index_map.at((*jiter).first->get_name()) += gene_index*(*jiter).second;
-		}
-	}*/
-
-    for (forward_list<tuple<int, int, int>>::const_iterator jiter = memory_and_offsets.begin();
-         jiter != memory_and_offsets.end(); ++jiter) {
-        //Get previous index for the considered event
-        int previous_index = base_index_map.at(get<0>(*jiter), get<1>(*jiter) - 1);
-        //Update the index given the realization and the offset
-        previous_index += gene_index * get<2>(*jiter);
-        //Set the value
-        base_index_map.set_value(get<0>(*jiter), previous_index, get<1>(*jiter));
-    }
-
-    //Compute the probability of the scenario considering the realization (*iter) we're looking at
-    return scenario_proba * model_parameters[base_index + gene_index];
+    return scenario_proba * Rec_Event::iterate_common(gene_index, base_index,
+                                                      base_index_map,
+                                                      model_parameters);
 }
 
 queue<int> Gene_choice::draw_random_realization(
@@ -1094,49 +1075,19 @@ void Gene_choice::initialize_event(
 {
 
     //Check V choice
-    if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, V_gene, Undefined_side)) != 0) {
-        v_choice_exist = true;
-        shared_ptr<const Rec_Event> v_choice_p =
-                events_map.at(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, V_gene, Undefined_side));
-        if (processed_events.count(v_choice_p->get_name()) != 0) {
-            v_chosen = true;
-        } else {
-            v_chosen = false;
-        }
-    } else {
-        v_choice_exist = false;
-        v_chosen = false;
-    }
+    auto v_status = EventUtils::check_gene_choice(V_gene, events_map, processed_events);
+    v_choice_exist = v_status.exists;
+    v_chosen = v_status.chosen;
 
     //Check D choice
-    if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, D_gene, Undefined_side)) != 0) {
-        d_choice_exist = true;
-        shared_ptr<const Rec_Event> d_choice_p =
-                events_map.at(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, D_gene, Undefined_side));
-        if (processed_events.count(d_choice_p->get_name()) != 0) {
-            d_chosen = true;
-        } else {
-            d_chosen = false;
-        }
-    } else {
-        d_chosen = false;
-        d_choice_exist = false;
-    }
+    auto d_status = EventUtils::check_gene_choice(D_gene, events_map, processed_events);
+    d_choice_exist = d_status.exists;
+    d_chosen = d_status.chosen;
 
     //Check J choice
-    if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, J_gene, Undefined_side)) != 0) {
-        j_choice_exist = true;
-        shared_ptr<const Rec_Event> j_choice_p =
-                events_map.at(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, J_gene, Undefined_side));
-        if (processed_events.count(j_choice_p->get_name()) != 0) {
-            j_chosen = true;
-        } else {
-            j_chosen = false;
-        }
-    } else {
-        j_choice_exist = false;
-        j_chosen = false;
-    }
+    auto j_status = EventUtils::check_gene_choice(J_gene, events_map, processed_events);
+    j_choice_exist = j_status.exists;
+    j_chosen = j_status.chosen;
 
     switch (this->event_class) {
     case V_gene:

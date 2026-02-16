@@ -24,6 +24,7 @@
  */
 
 #include <igor/Core/Dinuclmarkov.h>
+#include <igor/Core/EventUtils.h>
 
 using namespace std;
 
@@ -410,27 +411,9 @@ void Dinucl_markov::initialize_event(
         Seq_offsets_map &seq_offsets, Index_map &index_map)
 {
 
-    if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(Insertion_t, VD_genes, Undefined_side)) != 0) {
-        shared_ptr<const Rec_Event> ins_vd_p =
-                events_map.at(tuple<Event_type, Gene_class, Seq_side>(Insertion_t, VD_genes, Undefined_side));
-        max_vd_ins = ins_vd_p->get_len_max();
-    } else {
-        max_vd_ins = 0;
-    }
-    if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(Insertion_t, VJ_genes, Undefined_side)) != 0) {
-        shared_ptr<const Rec_Event> ins_vj_p =
-                events_map.at(tuple<Event_type, Gene_class, Seq_side>(Insertion_t, VJ_genes, Undefined_side));
-        max_vj_ins = ins_vj_p->get_len_max();
-    } else {
-        max_vj_ins = 0;
-    }
-    if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(Insertion_t, DJ_genes, Undefined_side)) != 0) {
-        shared_ptr<const Rec_Event> ins_dj_p =
-                events_map.at(tuple<Event_type, Gene_class, Seq_side>(Insertion_t, DJ_genes, Undefined_side));
-        max_dj_ins = ins_dj_p->get_len_max();
-    } else {
-        max_dj_ins = 0;
-    }
+    max_vd_ins = EventUtils::get_insertion_len_max(VD_genes, events_map);
+    max_vj_ins = EventUtils::get_insertion_len_max(VJ_genes, events_map);
+    max_dj_ins = EventUtils::get_insertion_len_max(DJ_genes, events_map);
 
     if ((this->event_class == VD_genes) or (this->event_class == VDJ_genes)) {
         downstream_proba_map.request_memory_layer(VD_ins_seq);

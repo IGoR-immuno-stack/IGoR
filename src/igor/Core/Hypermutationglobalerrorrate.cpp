@@ -24,6 +24,7 @@
  *
  */
 
+#include <igor/Core/EventUtils.h>
 #include <igor/Core/Hypermutationglobalerrorrate.h>
 
 using namespace std;
@@ -336,26 +337,8 @@ double Hypermutation_global_errorrate::compare_sequences_error_prob(
     //TODO Take into account the order of mutations?
     //TODO reorganize to be more flexible in the model description
 
-    scenario_resulting_sequence.clear();
-    if (v_gene) {
-        scenario_resulting_sequence += (*constructed_sequences[V_gene_seq]);
-    }
-    if (d_gene) {
-        if (vd_ins) {
-            scenario_resulting_sequence += (*constructed_sequences[VD_ins_seq]);
-        }
-        scenario_resulting_sequence += (*constructed_sequences[D_gene_seq]);
-        if (dj_ins) {
-            scenario_resulting_sequence += (*constructed_sequences[DJ_ins_seq]);
-        }
-    } else {
-        if (vj_ins) {
-            scenario_resulting_sequence += (*constructed_sequences[VJ_ins_seq]);
-        }
-    }
-    if (j_gene) {
-        scenario_resulting_sequence += (*constructed_sequences[J_gene_seq]);
-    }
+    scenario_resulting_sequence = EventUtils::build_scenario_sequence(
+        constructed_sequences, v_gene, d_gene, j_gene, vd_ins, dj_ins, vj_ins);
 
     vector<int> &v_mismatch_list = *mismatches_lists.at(V_gene_seq);
 
