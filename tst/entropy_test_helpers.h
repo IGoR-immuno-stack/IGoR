@@ -37,8 +37,7 @@
  * results that arise from finite-sample under-coverage of rare
  * realizations in models with many bins (e.g. 103 V genes).
  */
-static inline double kl_divergence(const std::vector<double> &P,
-                                   const std::vector<double> &Q,
+static inline double kl_divergence(const std::vector<double> &P, const std::vector<double> &Q,
                                    double *uncovered_mass = nullptr)
 {
     double kl = 0.0;
@@ -84,13 +83,11 @@ static inline double entropy(const std::vector<double> &P)
  * row-major order: T[i*4 + j] = P(j | i).
  * Returns π such that π · T = π and Σ π_i = 1.
  */
-static inline std::array<double, 4> markov_stationary_distribution(
-        const std::array<double, 16> &T,
-        int max_iter = 1000,
-        double tol = 1e-12)
+static inline std::array<double, 4> markov_stationary_distribution(const std::array<double, 16> &T, int max_iter = 1000,
+                                                                   double tol = 1e-12)
 {
     // Start with uniform distribution
-    std::array<double, 4> pi = {0.25, 0.25, 0.25, 0.25};
+    std::array<double, 4> pi = { 0.25, 0.25, 0.25, 0.25 };
     std::array<double, 4> pi_next{};
 
     for (int iter = 0; iter < max_iter; ++iter) {
@@ -103,8 +100,10 @@ static inline std::array<double, 4> markov_stationary_distribution(
         }
         // Normalize (should already be ~1, but guard against drift)
         double sum = 0.0;
-        for (double v : pi_next) sum += v;
-        for (double &v : pi_next) v /= sum;
+        for (double v : pi_next)
+            sum += v;
+        for (double &v : pi_next)
+            v /= sum;
 
         // Check convergence
         double max_diff = 0.0;
@@ -112,7 +111,8 @@ static inline std::array<double, 4> markov_stationary_distribution(
             max_diff = (std::max)(max_diff, std::abs(pi_next[i] - pi[i]));
         }
         pi = pi_next;
-        if (max_diff < tol) break;
+        if (max_diff < tol)
+            break;
     }
     return pi;
 }
@@ -210,10 +210,8 @@ static inline double markov_kl_divergence(
  * @param dinuc_T       The 4×4 transition matrix (flat, row-major)
  * @return The combined entropy in bits
  */
-static inline double insertion_dinuc_entropy(
-        const std::vector<double> &ins_marginal,
-        const std::vector<int> &ins_lengths,
-        const std::array<double, 16> &dinuc_T)
+static inline double insertion_dinuc_entropy(const std::vector<double> &ins_marginal,
+                                             const std::vector<int> &ins_lengths, const std::array<double, 16> &dinuc_T)
 {
     // H(ℓ) = Shannon entropy of the insertion-length distribution
     // E[ℓ] = expected insertion length
@@ -226,7 +224,8 @@ static inline double insertion_dinuc_entropy(
         if (p > 0.0) {
             H_len -= p * std::log2(p);
             E_len += p * ins_lengths[i];
-            if (ins_lengths[i] == 0) P0 += p;
+            if (ins_lengths[i] == 0)
+                P0 += p;
         }
     }
 
@@ -330,17 +329,18 @@ static inline double insertion_dinuc_cross_entropy(
  * Stores the event's name, nickname, number of realizations,
  * its position in the model queue, and the theoretical marginal distribution.
  */
-struct EventInfo {
+struct EventInfo
+{
     Rec_Event_name name;
     std::string nickname;
     int num_realizations;
-    size_t queue_position;              ///< index in the model-queue order
-    bool is_dinuc_markov;               ///< skip empirical check for DinucMarkov
+    size_t queue_position; ///< index in the model-queue order
+    bool is_dinuc_markov; ///< skip empirical check for DinucMarkov
     std::vector<double> model_marginal; ///< P(realization) marginalised over parents
-    double H;                           ///< entropy of the marginal
-    Gene_class gene_class;              ///< gene class (VD_genes, DJ_genes, VJ_genes …)
-    std::array<double, 16> dinuc_T;     ///< transition matrix (only for DinucMarkov)
-    double dinuc_entropy_rate;          ///< Markov entropy rate h (only for DinucMarkov)
+    double H; ///< entropy of the marginal
+    Gene_class gene_class; ///< gene class (VD_genes, DJ_genes, VJ_genes …)
+    std::array<double, 16> dinuc_T; ///< transition matrix (only for DinucMarkov)
+    double dinuc_entropy_rate; ///< Markov entropy rate h (only for DinucMarkov)
 };
 
 /**
@@ -609,9 +609,7 @@ static inline void print_comparison_table(
 /**
  * @brief Build a vector of EventInfo for every event in the model queue.
  */
-static inline std::vector<EventInfo> build_event_info(
-        const Model_Parms &parms,
-        const Model_marginals &marginals)
+static inline std::vector<EventInfo> build_event_info(const Model_Parms &parms, const Model_marginals &marginals)
 {
     std::vector<EventInfo> infos;
     auto model_queue = parms.get_model_queue();
@@ -632,8 +630,7 @@ static inline std::vector<EventInfo> build_event_info(
         info.dinuc_T.fill(0.0);
         info.dinuc_entropy_rate = 0.0;
 
-        std::cout << "  Processing event: " << info.nickname
-                  << " (is_dinuc=" << info.is_dinuc_markov
+        std::cout << "  Processing event: " << info.nickname << " (is_dinuc=" << info.is_dinuc_markov
                   << ", size=" << info.num_realizations << ")" << std::endl;
 
         if (info.is_dinuc_markov) {
@@ -642,8 +639,7 @@ static inline std::vector<EventInfo> build_event_info(
             // at index_map[name].
             int base_idx = index_map.at(info.name);
             for (int k = 0; k < 16; ++k) {
-                info.dinuc_T[k] =
-                        static_cast<double>(marginals.marginal_array_smart_p[base_idx + k]);
+                info.dinuc_T[k] = static_cast<double>(marginals.marginal_array_smart_p[base_idx + k]);
             }
             info.dinuc_entropy_rate = markov_entropy_rate(info.dinuc_T);
 
@@ -658,8 +654,7 @@ static inline std::vector<EventInfo> build_event_info(
             info.H = info.dinuc_entropy_rate;
         } else {
             // Compute the marginal probability for this event
-            auto [dims, probs] =
-                    marginals.compute_event_marginal_probability(info.name, parms);
+            auto [dims, probs] = marginals.compute_event_marginal_probability(info.name, parms);
 
             // The first dimension is the event itself; the returned array
             // is already the marginal.

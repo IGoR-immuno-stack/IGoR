@@ -30,28 +30,31 @@ using Catch::Matchers::WithinAbs;
 // CategoricalSampler Tests
 //==============================================================================
 
-TEST_CASE("CategoricalSampler initialization", "[CategoricalSampler]") {
+TEST_CASE("CategoricalSampler initialization", "[CategoricalSampler]")
+{
     CategoricalSampler sampler;
-    std::vector<double> probs = {0.1, 0.2, 0.3, 0.4};
+    std::vector<double> probs = { 0.1, 0.2, 0.3, 0.4 };
     sampler.initialize(probs, false);
 
     REQUIRE(sampler.is_initialized());
     REQUIRE(sampler.size() == 4);
 }
 
-TEST_CASE("CategoricalSampler with alias method", "[CategoricalSampler]") {
+TEST_CASE("CategoricalSampler with alias method", "[CategoricalSampler]")
+{
     CategoricalSampler sampler;
-    std::vector<double> probs = {0.1, 0.2, 0.3, 0.4};
+    std::vector<double> probs = { 0.1, 0.2, 0.3, 0.4 };
     sampler.initialize(probs, true);
 
     REQUIRE(sampler.is_initialized());
     REQUIRE(sampler.size() == 4);
 }
 
-TEST_CASE("CategoricalSampler sampling distribution", "[CategoricalSampler]") {
+TEST_CASE("CategoricalSampler sampling distribution", "[CategoricalSampler]")
+{
     // Test that sampling produces the expected distribution
     CategoricalSampler sampler;
-    std::vector<double> probs = {0.1, 0.2, 0.3, 0.4};
+    std::vector<double> probs = { 0.1, 0.2, 0.3, 0.4 };
     sampler.initialize(probs, false);
 
     std::mt19937_64 rng(42);
@@ -70,11 +73,12 @@ TEST_CASE("CategoricalSampler sampling distribution", "[CategoricalSampler]") {
     }
 }
 
-TEST_CASE("CategoricalSampler alias sampling distribution", "[CategoricalSampler]") {
+TEST_CASE("CategoricalSampler alias sampling distribution", "[CategoricalSampler]")
+{
     // Test alias method produces correct distribution
     CategoricalSampler sampler;
-    std::vector<double> probs = {0.1, 0.2, 0.3, 0.4};
-    sampler.initialize(probs, true);  // Use alias
+    std::vector<double> probs = { 0.1, 0.2, 0.3, 0.4 };
+    sampler.initialize(probs, true); // Use alias
 
     std::mt19937_64 rng(42);
     std::map<size_t, int> counts;
@@ -92,9 +96,10 @@ TEST_CASE("CategoricalSampler alias sampling distribution", "[CategoricalSampler
     }
 }
 
-TEST_CASE("CategoricalSampler normalizes unnormalized", "[CategoricalSampler]") {
+TEST_CASE("CategoricalSampler normalizes unnormalized", "[CategoricalSampler]")
+{
     CategoricalSampler sampler;
-    std::vector<double> probs = {1.0, 2.0, 3.0, 4.0};  // Sum = 10
+    std::vector<double> probs = { 1.0, 2.0, 3.0, 4.0 }; // Sum = 10
     sampler.initialize(probs, false);
 
     // Should normalize to 0.1, 0.2, 0.3, 0.4
@@ -104,9 +109,10 @@ TEST_CASE("CategoricalSampler normalizes unnormalized", "[CategoricalSampler]") 
     REQUIRE_THAT(sampler.probability(3), WithinAbs(0.4, 1e-10));
 }
 
-TEST_CASE("CategoricalSampler handles all zeros", "[CategoricalSampler]") {
+TEST_CASE("CategoricalSampler handles all zeros", "[CategoricalSampler]")
+{
     CategoricalSampler sampler;
-    std::vector<double> probs = {0.0, 0.0, 0.0, 0.0};
+    std::vector<double> probs = { 0.0, 0.0, 0.0, 0.0 };
     sampler.initialize(probs, false);
 
     // Should create uniform distribution
@@ -120,24 +126,22 @@ TEST_CASE("CategoricalSampler handles all zeros", "[CategoricalSampler]") {
 // ConditionalSampler Tests
 //==============================================================================
 
-TEST_CASE("ConditionalSampler 2D initialization", "[ConditionalSampler]") {
+TEST_CASE("ConditionalSampler 2D initialization", "[ConditionalSampler]")
+{
     ConditionalSampler sampler;
-    std::vector<std::vector<double>> probs = {
-        {0.1, 0.9},
-        {0.5, 0.5},
-        {0.9, 0.1}
-    };
+    std::vector<std::vector<double>> probs = { { 0.1, 0.9 }, { 0.5, 0.5 }, { 0.9, 0.1 } };
     sampler.initialize(probs, false);
 
     REQUIRE(sampler.is_initialized());
     REQUIRE(sampler.num_conditions() == 3);
 }
 
-TEST_CASE("ConditionalSampler conditional sampling", "[ConditionalSampler]") {
+TEST_CASE("ConditionalSampler conditional sampling", "[ConditionalSampler]")
+{
     ConditionalSampler sampler;
     std::vector<std::vector<double>> probs = {
-        {0.1, 0.9},  // condition 0: heavily biased to outcome 1
-        {0.9, 0.1}   // condition 1: heavily biased to outcome 0
+        { 0.1, 0.9 }, // condition 0: heavily biased to outcome 1
+        { 0.9, 0.1 } // condition 1: heavily biased to outcome 0
     };
     sampler.initialize(probs, false);
 
@@ -169,25 +173,27 @@ TEST_CASE("ConditionalSampler conditional sampling", "[ConditionalSampler]") {
 // DinucleotideMarkovSampler Tests
 //==============================================================================
 
-TEST_CASE("DinucleotideMarkovSampler initialization", "[DinucleotideMarkovSampler]") {
+TEST_CASE("DinucleotideMarkovSampler initialization", "[DinucleotideMarkovSampler]")
+{
     DinucleotideMarkovSampler sampler;
 
     // Create a simple transition matrix (uniform)
-    std::vector<double> probs(16, 0.25);  // 4x4 matrix, uniform
+    std::vector<double> probs(16, 0.25); // 4x4 matrix, uniform
     sampler.initialize(probs.data(), 4);
 
     REQUIRE(sampler.is_initialized());
 }
 
-TEST_CASE("DinucleotideMarkovSampler sample next deterministic", "[DinucleotideMarkovSampler]") {
+TEST_CASE("DinucleotideMarkovSampler sample next deterministic", "[DinucleotideMarkovSampler]")
+{
     DinucleotideMarkovSampler sampler;
 
     // Create transition matrix where each nucleotide always produces itself
     std::vector<double> probs(16, 0.0);
-    probs[0*4 + 0] = 1.0;  // P(A|A) = 1
-    probs[1*4 + 1] = 1.0;  // P(C|C) = 1
-    probs[2*4 + 2] = 1.0;  // P(G|G) = 1
-    probs[3*4 + 3] = 1.0;  // P(T|T) = 1
+    probs[0 * 4 + 0] = 1.0; // P(A|A) = 1
+    probs[1 * 4 + 1] = 1.0; // P(C|C) = 1
+    probs[2 * 4 + 2] = 1.0; // P(G|G) = 1
+    probs[3 * 4 + 3] = 1.0; // P(T|T) = 1
     sampler.initialize(probs.data(), 4);
 
     std::mt19937_64 rng(42);
@@ -203,7 +209,8 @@ TEST_CASE("DinucleotideMarkovSampler sample next deterministic", "[DinucleotideM
     }
 }
 
-TEST_CASE("DinucleotideMarkovSampler generate sequence", "[DinucleotideMarkovSampler]") {
+TEST_CASE("DinucleotideMarkovSampler generate sequence", "[DinucleotideMarkovSampler]")
+{
     DinucleotideMarkovSampler sampler;
 
     // Uniform transitions
@@ -224,7 +231,8 @@ TEST_CASE("DinucleotideMarkovSampler generate sequence", "[DinucleotideMarkovSam
 // RealizationBuffer Tests
 //==============================================================================
 
-TEST_CASE("RealizationBuffer clear", "[RealizationBuffer]") {
+TEST_CASE("RealizationBuffer clear", "[RealizationBuffer]")
+{
     RealizationBuffer buffer(1000);
 
     buffer.v_gene_seq_ = "ACGT";
@@ -240,7 +248,8 @@ TEST_CASE("RealizationBuffer clear", "[RealizationBuffer]") {
 // BufferPool Tests
 //==============================================================================
 
-TEST_CASE("BufferPool acquire and release", "[BufferPool]") {
+TEST_CASE("BufferPool acquire and release", "[BufferPool]")
+{
     BufferPool pool(2, 1000);
 
     REQUIRE(pool.available() == 2);
@@ -266,12 +275,14 @@ TEST_CASE("BufferPool acquire and release", "[BufferPool]") {
 // Utility Function Tests
 //==============================================================================
 
-TEST_CASE("get_optimal_thread_count returns positive", "[Utility]") {
+TEST_CASE("get_optimal_thread_count returns positive", "[Utility]")
+{
     size_t threads = get_optimal_thread_count();
     REQUIRE(threads > 0);
 }
 
-TEST_CASE("draw_random_seed generates different seeds", "[Utility]") {
+TEST_CASE("draw_random_seed generates different seeds", "[Utility]")
+{
     uint64_t seed1 = draw_random_seed();
     uint64_t seed2 = draw_random_seed();
 
@@ -283,18 +294,19 @@ TEST_CASE("draw_random_seed generates different seeds", "[Utility]") {
 // Performance Comparison Test
 //==============================================================================
 
-TEST_CASE("Binary search vs alias method produce same distribution", "[Performance]") {
+TEST_CASE("Binary search vs alias method produce same distribution", "[Performance]")
+{
     // Compare sampling performance between binary search and alias method
     std::vector<double> probs(100);
     for (size_t i = 0; i < 100; ++i) {
-        probs[i] = static_cast<double>(i + 1);  // Increasing probabilities
+        probs[i] = static_cast<double>(i + 1); // Increasing probabilities
     }
 
     CategoricalSampler binary_sampler;
-    binary_sampler.initialize(probs, false);  // Binary search
+    binary_sampler.initialize(probs, false); // Binary search
 
     CategoricalSampler alias_sampler;
-    alias_sampler.initialize(probs, true);  // Alias method
+    alias_sampler.initialize(probs, true); // Alias method
 
     std::mt19937_64 rng(42);
     const int n_samples = 1000000;

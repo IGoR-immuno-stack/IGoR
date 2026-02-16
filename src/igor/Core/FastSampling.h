@@ -52,7 +52,8 @@ namespace fast {
  * instead of O(n) linear search. For very frequent sampling, also supports
  * the alias method for O(1) sampling.
  */
-class CORE_EXPORT CategoricalSampler {
+class CORE_EXPORT CategoricalSampler
+{
 public:
     CategoricalSampler() = default;
 
@@ -61,7 +62,7 @@ public:
      * \param probabilities Vector of probabilities (need not be normalized)
      * \param use_alias Whether to use alias method (O(1)) vs binary search (O(log n))
      */
-    void initialize(const std::vector<double>& probabilities, bool use_alias = false);
+    void initialize(const std::vector<double> &probabilities, bool use_alias = false);
 
     /**
      * \brief Initialize from raw array
@@ -69,7 +70,7 @@ public:
      * \param n Number of elements
      * \param use_alias Whether to use alias method
      */
-    void initialize(const double* probs, size_t n, bool use_alias = false);
+    void initialize(const double *probs, size_t n, bool use_alias = false);
 
     /**
      * \brief Initialize from long double array (model marginals)
@@ -77,15 +78,16 @@ public:
      * \param n Number of elements
      * \param use_alias Whether to use alias method
      */
-    void initialize(const long double* probs, size_t n, bool use_alias = false);
+    void initialize(const long double *probs, size_t n, bool use_alias = false);
 
     /**
      * \brief Sample an index from the distribution
      * \param rng Random number generator
      * \return Sampled index
      */
-    template<typename RNG>
-    size_t sample(RNG& rng) const {
+    template <typename RNG>
+    size_t sample(RNG &rng) const
+    {
         if (use_alias_method_) {
             return sample_alias(rng);
         }
@@ -95,9 +97,7 @@ public:
     /**
      * \brief Get the probability of a specific outcome
      */
-    double probability(size_t index) const {
-        return index < probabilities_.size() ? probabilities_[index] : 0.0;
-    }
+    double probability(size_t index) const { return index < probabilities_.size() ? probabilities_[index] : 0.0; }
 
     /**
      * \brief Get the number of categories
@@ -110,8 +110,9 @@ public:
     bool is_initialized() const { return !cdf_.empty(); }
 
 private:
-    template<typename RNG>
-    size_t sample_binary_search(RNG& rng) const {
+    template <typename RNG>
+    size_t sample_binary_search(RNG &rng) const
+    {
         std::uniform_real_distribution<double> dist(0.0, 1.0);
         double u = dist(rng);
         // Binary search for the first CDF value >= u
@@ -119,8 +120,9 @@ private:
         return (std::min)(static_cast<size_t>(it - cdf_.begin()), cdf_.size() - 1);
     }
 
-    template<typename RNG>
-    size_t sample_alias(RNG& rng) const {
+    template <typename RNG>
+    size_t sample_alias(RNG &rng) const
+    {
         std::uniform_real_distribution<double> dist(0.0, 1.0);
         std::uniform_int_distribution<size_t> int_dist(0, alias_.size() - 1);
         size_t i = int_dist(rng);
@@ -140,7 +142,6 @@ private:
     std::vector<double> prob_alias_;
 };
 
-
 /**
  * \class ConditionalSampler
  * \brief Sampler for conditional distributions P(X|Y).
@@ -148,7 +149,8 @@ private:
  * Stores multiple CategoricalSamplers, one for each conditioning value.
  * Optimized memory layout for cache efficiency.
  */
-class CORE_EXPORT ConditionalSampler {
+class CORE_EXPORT ConditionalSampler
+{
 public:
     ConditionalSampler() = default;
 
@@ -157,7 +159,7 @@ public:
      * \param probs 2D probability matrix [condition][outcome]
      * \param use_alias Whether to use alias method for sampling
      */
-    void initialize(const std::vector<std::vector<double>>& probs, bool use_alias = false);
+    void initialize(const std::vector<std::vector<double>> &probs, bool use_alias = false);
 
     /**
      * \brief Initialize from flat array with dimensions
@@ -166,12 +168,12 @@ public:
      * \param num_outcomes Number of possible outcomes per condition
      * \param use_alias Whether to use alias method
      */
-    void initialize(const double* probs, size_t num_conditions, size_t num_outcomes, bool use_alias = false);
+    void initialize(const double *probs, size_t num_conditions, size_t num_outcomes, bool use_alias = false);
 
     /**
      * \brief Initialize from long double flat array
      */
-    void initialize(const long double* probs, size_t num_conditions, size_t num_outcomes, bool use_alias = false);
+    void initialize(const long double *probs, size_t num_conditions, size_t num_outcomes, bool use_alias = false);
 
     /**
      * \brief Sample given a conditioning value
@@ -179,8 +181,9 @@ public:
      * \param rng Random number generator
      * \return Sampled outcome
      */
-    template<typename RNG>
-    size_t sample(size_t condition, RNG& rng) const {
+    template <typename RNG>
+    size_t sample(size_t condition, RNG &rng) const
+    {
         return samplers_[condition].sample(rng);
     }
 
@@ -198,7 +201,6 @@ private:
     std::vector<CategoricalSampler> samplers_;
 };
 
-
 /**
  * \class DinucleotideMarkovSampler
  * \brief Optimized sampler for dinucleotide Markov model.
@@ -207,7 +209,8 @@ private:
  * for efficient sequence generation. Replaces per-nucleotide probability
  * computation with a single lookup and sample.
  */
-class CORE_EXPORT DinucleotideMarkovSampler {
+class CORE_EXPORT DinucleotideMarkovSampler
+{
 public:
     // Standard nucleotide indices (matching IGoR's nt2int)
     static constexpr size_t NT_A = 0;
@@ -215,7 +218,7 @@ public:
     static constexpr size_t NT_G = 2;
     static constexpr size_t NT_T = 3;
     static constexpr size_t NUM_STANDARD_NT = 4;
-    static constexpr size_t NUM_ALL_NT = 15;  // Including ambiguous
+    static constexpr size_t NUM_ALL_NT = 15; // Including ambiguous
 
     DinucleotideMarkovSampler() = default;
 
@@ -224,13 +227,14 @@ public:
      * \param dinuc_probs 15x15 or 4x4 probability matrix
      * \param size Size of the matrix (4 or 15)
      */
-    void initialize(const double* dinuc_probs, size_t size);
+    void initialize(const double *dinuc_probs, size_t size);
 
     /**
      * \brief Initialize from Matrix<double> (IGoR's matrix type)
      */
-    template<typename MatrixT>
-    void initialize_from_matrix(const MatrixT& matrix) {
+    template <typename MatrixT>
+    void initialize_from_matrix(const MatrixT &matrix)
+    {
         size_t n = matrix.get_n_rows();
         std::vector<double> probs(n * n);
         for (size_t i = 0; i < n; ++i) {
@@ -247,8 +251,9 @@ public:
      * \param rng Random number generator
      * \return Next nucleotide (integer code 0-3)
      */
-    template<typename RNG>
-    int sample_next(int prev_nt, RNG& rng) const {
+    template <typename RNG>
+    int sample_next(int prev_nt, RNG &rng) const
+    {
         // Handle ambiguous nucleotides by sampling from uniform distribution
         if (prev_nt < 0 || prev_nt >= static_cast<int>(conditional_sampler_.num_conditions())) {
             std::uniform_int_distribution<int> dist(0, 3);
@@ -264,9 +269,11 @@ public:
      * \param output Output buffer for nucleotide sequence (integer codes)
      * \param rng Random number generator
      */
-    template<typename RNG>
-    void generate_sequence(int first_nt, size_t length, int* output, RNG& rng) const {
-        if (length == 0) return;
+    template <typename RNG>
+    void generate_sequence(int first_nt, size_t length, int *output, RNG &rng) const
+    {
+        if (length == 0)
+            return;
 
         int prev = first_nt;
         for (size_t i = 0; i < length; ++i) {
@@ -278,9 +285,10 @@ public:
     /**
      * \brief Generate sequence as string
      */
-    template<typename RNG>
-    std::string generate_sequence_str(int first_nt, size_t length, RNG& rng) const {
-        static const char NT_CHARS[] = {'A', 'C', 'G', 'T'};
+    template <typename RNG>
+    std::string generate_sequence_str(int first_nt, size_t length, RNG &rng) const
+    {
+        static const char NT_CHARS[] = { 'A', 'C', 'G', 'T' };
         std::string result(length, 'N');
         int prev = first_nt;
         for (size_t i = 0; i < length; ++i) {
@@ -300,17 +308,17 @@ private:
     ConditionalSampler conditional_sampler_;
 };
 
-
 /**
  * \class RealizationBuffer
  * \brief Pre-allocated buffer for storing sequence generation results.
  *
  * Avoids repeated allocations during sequence generation.
  */
-class CORE_EXPORT RealizationBuffer {
+class CORE_EXPORT RealizationBuffer
+{
 public:
-    explicit RealizationBuffer(size_t max_seq_length = 1000)
-        : max_length_(max_seq_length) {
+    explicit RealizationBuffer(size_t max_seq_length = 1000) : max_length_(max_seq_length)
+    {
         v_gene_seq_.reserve(max_length_);
         d_gene_seq_.reserve(max_length_);
         j_gene_seq_.reserve(max_length_);
@@ -318,10 +326,11 @@ public:
         dj_ins_seq_.reserve(max_length_ / 4);
         vj_ins_seq_.reserve(max_length_ / 4);
         final_seq_.reserve(max_length_);
-        realizations_.reserve(20);  // Typical number of events
+        realizations_.reserve(20); // Typical number of events
     }
 
-    void clear() {
+    void clear()
+    {
         v_gene_seq_.clear();
         d_gene_seq_.clear();
         j_gene_seq_.clear();
@@ -352,7 +361,6 @@ private:
     size_t max_length_;
 };
 
-
 /**
  * \class BufferPool
  * \brief Thread-safe pool of RealizationBuffers.
@@ -360,10 +368,11 @@ private:
  * Reduces memory allocation overhead by reusing buffers across
  * sequence generation calls.
  */
-class CORE_EXPORT BufferPool {
+class CORE_EXPORT BufferPool
+{
 public:
-    explicit BufferPool(size_t pool_size = 0, size_t max_seq_length = 1000)
-        : max_seq_length_(max_seq_length) {
+    explicit BufferPool(size_t pool_size = 0, size_t max_seq_length = 1000) : max_seq_length_(max_seq_length)
+    {
         for (size_t i = 0; i < pool_size; ++i) {
             pool_.push_back(std::make_unique<RealizationBuffer>(max_seq_length_));
         }
@@ -373,7 +382,8 @@ public:
      * \brief Acquire a buffer from the pool
      * \return Unique pointer to buffer (returns to pool on destruction)
      */
-    std::unique_ptr<RealizationBuffer> acquire() {
+    std::unique_ptr<RealizationBuffer> acquire()
+    {
         std::lock_guard<std::mutex> lock(mutex_);
         if (pool_.empty()) {
             return std::make_unique<RealizationBuffer>(max_seq_length_);
@@ -387,7 +397,8 @@ public:
     /**
      * \brief Release a buffer back to the pool
      */
-    void release(std::unique_ptr<RealizationBuffer> buffer) {
+    void release(std::unique_ptr<RealizationBuffer> buffer)
+    {
         std::lock_guard<std::mutex> lock(mutex_);
         pool_.push_back(std::move(buffer));
     }
@@ -395,7 +406,8 @@ public:
     /**
      * \brief Get pool statistics
      */
-    size_t available() const {
+    size_t available() const
+    {
         std::lock_guard<std::mutex> lock(mutex_);
         return pool_.size();
     }
@@ -406,7 +418,6 @@ private:
     size_t max_seq_length_;
 };
 
-
 /**
  * \class BufferedWriter
  * \brief Buffered I/O for sequence output.
@@ -414,22 +425,23 @@ private:
  * Batches sequence writes to reduce I/O overhead.
  * Thread-safe with batched writes to minimize contention.
  */
-class CORE_EXPORT BufferedWriter {
+class CORE_EXPORT BufferedWriter
+{
 public:
-    explicit BufferedWriter(const std::string& filename,
-                           size_t buffer_size = 1024 * 1024)  // 1MB default
-        : filename_(filename), buffer_size_(buffer_size) {
+    explicit BufferedWriter(const std::string &filename,
+                            size_t buffer_size = 1024 * 1024) // 1MB default
+        : filename_(filename), buffer_size_(buffer_size)
+    {
         buffer_.reserve(buffer_size_);
     }
 
-    ~BufferedWriter() {
-        flush();
-    }
+    ~BufferedWriter() { flush(); }
 
     /**
      * \brief Write a line to the buffer (thread-safe)
      */
-    void write_line(const std::string& line) {
+    void write_line(const std::string &line)
+    {
         std::lock_guard<std::mutex> lock(mutex_);
         buffer_ += line;
         buffer_ += '\n';
@@ -441,19 +453,21 @@ public:
     /**
      * \brief Write multiple lines at once (more efficient for batched writes)
      */
-    void write_lines(const std::vector<std::string>& lines) {
-        if (lines.empty()) return;
+    void write_lines(const std::vector<std::string> &lines)
+    {
+        if (lines.empty())
+            return;
 
         // Calculate total size
         size_t total_size = 0;
-        for (const auto& line : lines) {
-            total_size += line.size() + 1;  // +1 for newline
+        for (const auto &line : lines) {
+            total_size += line.size() + 1; // +1 for newline
         }
 
         // Build batch string
         std::string batch;
         batch.reserve(total_size);
-        for (const auto& line : lines) {
+        for (const auto &line : lines) {
             batch += line;
             batch += '\n';
         }
@@ -469,7 +483,8 @@ public:
     /**
      * \brief Write formatted sequence data
      */
-    void write_sequence(size_t index, const std::string& sequence) {
+    void write_sequence(size_t index, const std::string &sequence)
+    {
         std::ostringstream oss;
         oss << index << ";" << sequence;
         write_line(oss.str());
@@ -478,7 +493,8 @@ public:
     /**
      * \brief Flush buffer to disk
      */
-    void flush() {
+    void flush()
+    {
         std::lock_guard<std::mutex> lock(mutex_);
         flush_internal();
     }
@@ -486,13 +502,13 @@ public:
     /**
      * \brief Get number of bytes written
      */
-    size_t bytes_written() const {
-        return total_bytes_written_.load();
-    }
+    size_t bytes_written() const { return total_bytes_written_.load(); }
 
 private:
-    void flush_internal() {
-        if (buffer_.empty()) return;
+    void flush_internal()
+    {
+        if (buffer_.empty())
+            return;
 
         std::ofstream file(filename_, std::ios::app | std::ios::binary);
         if (file) {
@@ -506,36 +522,37 @@ private:
     size_t buffer_size_;
     std::string buffer_;
     std::mutex mutex_;
-    std::atomic<size_t> total_bytes_written_{0};
+    std::atomic<size_t> total_bytes_written_{ 0 };
 };
-
 
 /**
  * \struct ThreadContext
  * \brief Per-thread context for parallel sequence generation.
  */
-struct ThreadContext {
+struct ThreadContext
+{
     std::mt19937_64 rng;
     std::unique_ptr<RealizationBuffer> buffer;
 
     explicit ThreadContext(uint64_t seed, size_t max_seq_length = 1000)
-        : rng(seed), buffer(std::make_unique<RealizationBuffer>(max_seq_length)) {}
+        : rng(seed), buffer(std::make_unique<RealizationBuffer>(max_seq_length))
+    {
+    }
 };
-
 
 /**
  * \class FastGeneratorConfig
  * \brief Configuration for fast sequence generation.
  */
-struct FastGeneratorConfig {
-    size_t num_threads = 0;  // 0 = auto-detect
-    size_t batch_size = 10000;  // Sequences per batch
-    size_t buffer_pool_size = 0;  // 0 = num_threads * 2
-    size_t io_buffer_size = 1024 * 1024;  // 1MB
+struct FastGeneratorConfig
+{
+    size_t num_threads = 0; // 0 = auto-detect
+    size_t batch_size = 10000; // Sequences per batch
+    size_t buffer_pool_size = 0; // 0 = num_threads * 2
+    size_t io_buffer_size = 1024 * 1024; // 1MB
     bool show_progress = true;
-    uint64_t base_seed = 0;  // 0 = random seed
+    uint64_t base_seed = 0; // 0 = random seed
 };
-
 
 /**
  * \brief Callback type for generated sequences
@@ -543,12 +560,8 @@ struct FastGeneratorConfig {
  * \param sequence The generated sequence string
  * \param realizations Event realizations
  */
-using SequenceCallback = std::function<void(
-    size_t seq_index,
-    const std::string& sequence,
-    const std::vector<std::vector<int>>& realizations
-)>;
-
+using SequenceCallback = std::function<void(size_t seq_index, const std::string &sequence,
+                                            const std::vector<std::vector<int>> &realizations)>;
 
 /**
  * \brief Progress callback type
@@ -557,6 +570,5 @@ using SequenceCallback = std::function<void(
  */
 using ProgressCallback = std::function<void(size_t completed, size_t total)>;
 
-
-}  // namespace fast
-}  // namespace igor
+} // namespace fast
+} // namespace igor
