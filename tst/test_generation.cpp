@@ -544,3 +544,96 @@ TEST_CASE("Generation marginals converge - KL divergence vs entropy", "[generati
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// Engine-based generation validation
+// ---------------------------------------------------------------------------
+
+TEST_CASE("Engine-based generation marginals converge", "[generation][engine]")
+{
+    // ------------------------------------------------------------------
+    // 1. Select model to test
+    // ------------------------------------------------------------------
+    std::string model_parms_path;
+    std::string model_marginals_path;
+    std::string model_label;
+    int min_events = 0;
+
+    SECTION("human TCR alpha (VJ)")
+    {
+        model_parms_path = MODELS_DIR + "/human/tcr_alpha/models/model_parms.txt";
+        model_marginals_path = MODELS_DIR + "/human/tcr_alpha/models/model_marginals.txt";
+        model_label = "human/tcr_alpha";
+        min_events = 5;
+    }
+
+    SECTION("human TCR beta (VDJ)")
+    {
+        model_parms_path = MODELS_DIR + "/human/tcr_beta/models/model_parms.txt";
+        model_marginals_path = MODELS_DIR + "/human/tcr_beta/models/model_marginals.txt";
+        model_label = "human/tcr_beta";
+        min_events = 9;
+    }
+
+    // ------------------------------------------------------------------
+    // 2. Load model
+    // ------------------------------------------------------------------
+    INFO("Testing engine-based generation for model: " << model_label);
+    Model_Parms model_parms;
+    model_parms.read_model_parms(model_parms_path);
+
+    Model_marginals model_marginals(model_parms);
+    model_marginals.txt2marginals(model_marginals_path, model_parms);
+
+    std::vector<EventInfo> event_infos = build_event_info(model_parms, model_marginals);
+    REQUIRE(event_infos.size() >= static_cast<size_t>(min_events));
+
+    // ------------------------------------------------------------------
+    // 3. Generate sequences with InferenceEngine path
+    // ------------------------------------------------------------------
+    GenModel gen_model(model_parms, model_marginals);
+
+    // Use N=1000 for the engine path (slower than FastGenerator)
+    const int N = 1000;
+    const int SEED = 42;
+
+    INFO("Generating " << N << " sequences via engine path");
+    auto sequences = gen_model.generate_sequences_with_engine(N, /*output_realizations=*/true, SEED);
+
+    // Count sequences (forward_list has no size())
+    size_t count = 0;
+    for (auto it = sequences.begin(); it != sequences.end(); ++it) {
+        ++count;
+    }
+    REQUIRE(count == static_cast<size_t>(N));
+
+    // ------------------------------------------------------------------
+    // 4. Validate marginals via KL divergence
+    // ------------------------------------------------------------------
+    auto all_empiricals = compute_all_empirical_marginals(sequences, event_infos, count);
+
+    std::cout << "\n=== Engine-based generation: N = " << N << " (" << model_label << ") ===" << std::endl;
+
+    for (const auto &ev : event_infos) {
+        if (ev.is_dinuc_markov) {
+            continue; // DinucMarkov has variable-length realizations
+        }
+
+        const auto &empirical = all_empiricals.at(ev.queue_position);
+
+        double uncovered = 0.0;
+        double dkl = kl_divergence(ev.model_marginal, empirical, &uncovered);
+
+        std::cout << "  " << ev.nickname << " : D_KL = " << dkl << "  H = " << ev.H
+                  << "  uncovered = " << uncovered << std::endl;
+
+        // D_KL must be finite
+        CHECK(std::isfinite(dkl));
+
+        // At N=1000: D_KL should be at most a tenth of H
+        CHECK(dkl < (std::max)(ev.H, 1.0) * 0.1);
+
+        // Most of the distribution should be covered
+        CHECK(uncovered < 0.1);
+    }
+}

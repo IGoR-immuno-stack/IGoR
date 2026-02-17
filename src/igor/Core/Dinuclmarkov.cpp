@@ -26,6 +26,7 @@
 
 #include <igor/Core/Aligner.h>
 #include <igor/Core/Dinuclmarkov.h>
+#include <igor/Core/Model_Parms.h>
 #include <igor/Core/EventUtils.h>
 #include <igor/Core/SequenceTypes.h>
 #include <igor/Model/InferenceEngine.h>
@@ -261,6 +262,8 @@ queue<int> Dinucl_markov::draw_random_realization(
 queue<int> Dinucl_markov::draw_random_realization_with_engine(
     const igor::model::InferenceEngine<long double> &engine,
     std::unordered_map<int, std::string> &constructed_sequences,
+    std::unordered_map<std::string, std::size_t> &sampled_indices,
+    const Model_Parms &/*model_parms*/,
     std::mt19937_64 &generator) const
 {
     queue<int> realization_queue;
@@ -280,7 +283,7 @@ queue<int> Dinucl_markov::draw_random_realization_with_engine(
         }
 
         // Get the handler for this event (MarkovHandler<long double>)
-        auto& handler = engine.handler(this->get_name());
+        auto& handler = engine.handler(this->get_nickname());
 
         // Sample nucleotides sequentially using Markov transitions
         // Start with first position sampled uniformly
@@ -311,7 +314,6 @@ queue<int> Dinucl_markov::draw_random_realization_with_engine(
             }
         }
     } catch (const std::exception& e) {
-        // Fallback or rethrow
         throw std::runtime_error(
             "Failed to sample from InferenceEngine for " + this->get_name() + ": " + e.what());
     }

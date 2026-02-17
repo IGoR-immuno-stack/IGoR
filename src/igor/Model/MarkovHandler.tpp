@@ -68,7 +68,38 @@ std::size_t MarkovHandler<T>::sample(
     // parent_indices[1..n] = parent event realizations (optional)
 
     if (parent_indices.empty()) {
-        throw std::invalid_argument("Markov handler requires 'from_state' in parent_indices[0]");
+        // First nucleotide: sample from the marginal distribution
+        // computed by summing each row of the transition matrix
+        std::size_t n_states = parameters_.shape()[0];
+        std::size_t n_to_states = parameters_.shape()[1];
+
+        // Compute marginal: for each 'from' state, sum the row
+        std::vector<T> marginal(n_states, T(0));
+        for (std::size_t s = 0; s < n_states; ++s) {
+            const T* row = parameters_.data() + s * n_to_states;
+            for (std::size_t t = 0; t < n_to_states; ++t) {
+                marginal[s] += row[t];
+            }
+        }
+
+        // Normalize
+        T total = T(0);
+        for (auto v : marginal) total += v;
+        if (total > T(0)) {
+            for (auto& v : marginal) v /= total;
+        }
+
+        // Sample
+        std::uniform_real_distribution<T> dist(T(0), T(1));
+        T random_val = dist(generator);
+        T cumsum = T(0);
+        for (std::size_t s = 0; s < n_states; ++s) {
+            cumsum += marginal[s];
+            if (random_val <= cumsum) {
+                return s;
+            }
+        }
+        return n_states - 1;
     }
 
     std::size_t from_state = parent_indices[0];

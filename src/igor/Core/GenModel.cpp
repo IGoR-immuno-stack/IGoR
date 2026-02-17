@@ -635,6 +635,8 @@ pair<string, queue<queue<int>>> GenModel::generate_unique_sequence(
 {
     queue<queue<int>> realizations;
     unordered_map<int, string> constructed_sequences;
+    // Track sampled realization indices by event nickname (for parent lookups)
+    std::unordered_map<std::string, std::size_t> sampled_indices;
 
     // Iterate through events in the model in topological order
     // Get event order from model_parms
@@ -648,6 +650,8 @@ pair<string, queue<queue<int>>> GenModel::generate_unique_sequence(
         queue<int> event_real = event->draw_random_realization_with_engine(
             engine,
             constructed_sequences,
+            sampled_indices,
+            model_parms,
             generator);
 
         if (output_realizations) {

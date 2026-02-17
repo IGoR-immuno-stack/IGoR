@@ -27,6 +27,7 @@
 #include <igor/Core/Aligner.h>
 #include <igor/Core/EventUtils.h>
 #include <igor/Core/Insertion.h>
+#include <igor/Core/Model_Parms.h>
 #include <igor/Model/InferenceEngine.h>
 
 using namespace std;
@@ -214,17 +215,33 @@ queue<int> Insertion::draw_random_realization(
 queue<int> Insertion::draw_random_realization_with_engine(
     const igor::model::InferenceEngine<long double> &engine,
     std::unordered_map<int, std::string> &constructed_sequences,
+    std::unordered_map<std::string, std::size_t> &sampled_indices,
+    const Model_Parms &model_parms,
     std::mt19937_64 &generator) const
 {
     queue<int> realization_queue;
 
     try {
         // Get the handler for this event
-        auto& handler = engine.handler(this->get_name());
+        auto& handler = engine.handler(this->get_nickname());
 
-        // Sample a realization index (no parent indices for Insertion)
-        std::vector<std::size_t> parent_indices;  // Empty for unconditional events
+        // Resolve parent indices from sampled_indices
+        std::vector<std::size_t> parent_indices;
+        auto parents = model_parms.get_parents(this->get_name());
+        for (const auto& parent : parents) {
+            auto it = sampled_indices.find(parent->get_nickname());
+            if (it == sampled_indices.end()) {
+                throw std::runtime_error(
+                    "Parent event '" + parent->get_nickname() + "' not yet sampled for " + this->get_nickname());
+            }
+            parent_indices.push_back(it->second);
+        }
+
+        // Sample a realization index
         std::size_t realization_idx = handler.sample(generator, parent_indices);
+
+        // Record in sampled_indices for downstream events
+        sampled_indices[this->get_nickname()] = realization_idx;
 
         // Find the realization with this index
         for (const auto& [name, real] : this->event_realizations) {
@@ -238,7 +255,6 @@ queue<int> Insertion::draw_random_realization_with_engine(
             }
         }
     } catch (const std::exception& e) {
-        // Fallback or rethrow
         throw std::runtime_error(
             "Failed to sample from InferenceEngine for " + this->get_name() + ": " + e.what());
     }

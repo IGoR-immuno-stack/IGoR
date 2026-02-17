@@ -43,6 +43,8 @@ public:
     std::queue<int> draw_random_realization_with_engine(
             const igor::model::InferenceEngine<long double> &,
             std::unordered_map<int, std::string> &,
+            std::unordered_map<std::string, std::size_t> &,
+            const Model_Parms &,
             std::mt19937_64 &) const override;
 
     void write2txt(std::ofstream &) override;

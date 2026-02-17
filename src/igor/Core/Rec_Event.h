@@ -50,6 +50,7 @@
 #include <vector>
 
 class Counter;
+class Model_Parms;
 
 // Forward declaration: avoid circular include with GenModel
 namespace igor::model {
@@ -204,9 +205,12 @@ public:
 
     // Phase 2: New InferenceEngine-based generation (adds to legacy path without replacing)
     // Generates a realization using the new InferenceEngine<long double> with handler-based sampling
+    // sampled_indices: map from event nickname → chosen realization index (for parent lookups)
     virtual std::queue<int> draw_random_realization_with_engine(
             const igor::model::InferenceEngine<long double> &engine,
             std::unordered_map<int, std::string> &constructed_sequences,
+            std::unordered_map<std::string, std::size_t> &sampled_indices,
+            const Model_Parms &model_parms,
             std::mt19937_64 &generator) const {
         // Default implementation: throw to ensure subclasses implement it
         throw std::logic_error(
