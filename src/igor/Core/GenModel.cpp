@@ -30,6 +30,8 @@
 #include <igor/Core/GenModel.h>
 #include <igor/Core/SequenceTypes.h>
 #include <igor/Core/DynamicSequenceMap.h>
+#include <igor/Core/LegacyBridge.h>
+#include <algorithm>
 
 using namespace std;
 
@@ -625,6 +627,148 @@ pair<string, queue<queue<int>>> GenModel::generate_unique_sequence(
     return make_pair(final_seq, realizations);
 }
 
+// Phase 2: Engine-based sequence generation using InferenceEngine
+pair<string, queue<queue<int>>> GenModel::generate_unique_sequence(
+        const InferenceEngineType& engine,
+        mt19937_64 &generator,
+        bool output_realizations)
+{
+    queue<queue<int>> realizations;
+    unordered_map<int, string> constructed_sequences;
+
+    // Iterate through events in the model in topological order
+    // Get event order from model_parms
+    queue<shared_ptr<Rec_Event>> model_queue = model_parms.get_model_queue();
+
+    while (!model_queue.empty()) {
+        shared_ptr<Rec_Event> event = model_queue.front();
+        model_queue.pop();
+
+        // Call the new engine-based sampling method
+        queue<int> event_real = event->draw_random_realization_with_engine(
+            engine,
+            constructed_sequences,
+            generator);
+
+        if (output_realizations) {
+            realizations.push(event_real);
+        }
+    }
+
+    // Build the final sequence from constructed_sequences starting from V
+    // (Same logic as legacy version)
+    string final_seq = "";
+    SequenceTypeRegistry::TypeId current = SequenceTypeRegistry::V_GENE_SEQ;
+    unordered_set<SequenceTypeRegistry::TypeId> visited;
+
+    while (visited.find(current) == visited.end()) {
+        visited.insert(current);
+        if (constructed_sequences.count(current)) {
+            final_seq += constructed_sequences.at(current);
+        }
+
+        auto downstream = SequenceTypeRegistry::get_instance().get_downstream_neighbors(current);
+        if (downstream.empty())
+            break;
+
+        // Follow the first path (standard for linear recombination)
+        // If there's a junction, add it too
+        if (downstream[0].junction_type != (SequenceTypeRegistry::TypeId)-1) {
+            if (constructed_sequences.count(downstream[0].junction_type)) {
+                final_seq += constructed_sequences.at(downstream[0].junction_type);
+            }
+        }
+        current = downstream[0].neighbor_type;
+    }
+
+    return make_pair(final_seq, realizations);
+}
+
+// Phase 2: Engine-based sequence generation wrappers
+
+std::forward_list<std::pair<std::string, std::queue<std::queue<int>>>>
+GenModel::generate_sequences_with_engine(int n_seq, bool output_realizations, int seed)
+{
+    std::forward_list<std::pair<std::string, std::queue<std::queue<int>>>> sequences;
+
+    std::mt19937_64 generator;
+    if (seed == -1) {
+        generator.seed(std::chrono::system_clock::now().time_since_epoch().count());
+    } else {
+        generator.seed(seed);
+    }
+
+    // Get or build the InferenceEngine (lazy init)
+    const InferenceEngineType& engine = get_inference_engine();
+
+    for (int i = 0; i < n_seq; ++i) {
+        sequences.emplace_front(
+                generate_unique_sequence(engine, generator, output_realizations));
+    }
+
+    return sequences;
+}
+
+void GenModel::generate_sequences_with_engine(int n_seq, bool output_realizations,
+                                              string seq_file_path, string real_file_path,
+                                              list<pair<gen_seq_trans, shared_ptr<void>>> transformations,
+                                              bool output_only_func, int seed)
+{
+    std::mt19937_64 generator;
+    if (seed == -1) {
+        generator.seed(std::chrono::system_clock::now().time_since_epoch().count());
+    } else {
+        generator.seed(seed);
+    }
+
+    // Get or build the InferenceEngine (lazy init)
+    const InferenceEngineType& engine = get_inference_engine();
+
+    // Get model queue for header output
+    queue<shared_ptr<Rec_Event>> model_queue = model_parms.get_model_queue();
+
+    ofstream seq_file(seq_file_path);
+    seq_file << "seq_index;nt_sequence" << endl;
+    ofstream real_file;
+    if (output_realizations) {
+        real_file.open(real_file_path);
+        real_file << "seq_index";
+        queue<shared_ptr<Rec_Event>> tmp_queue = model_queue;
+        while (!tmp_queue.empty()) {
+            real_file << ";" << tmp_queue.front()->get_name();
+            tmp_queue.pop();
+        }
+        real_file << ";Errors" << endl;
+    }
+
+    for (int i = 0; i < n_seq; ++i) {
+        pair<string, queue<queue<int>>> seq_and_real =
+                generate_unique_sequence(engine, generator, output_realizations);
+        seq_file << i << ";" << seq_and_real.first << endl;
+        if (output_realizations) {
+            real_file << i;
+            queue<queue<int>> tmp_real = seq_and_real.second;
+            while (!tmp_real.empty()) {
+                real_file << ";(";
+                queue<int> event_real = tmp_real.front();
+                tmp_real.pop();
+                while (!event_real.empty()) {
+                    real_file << event_real.front();
+                    event_real.pop();
+                    if (!event_real.empty())
+                        real_file << ",";
+                }
+                real_file << ")";
+            }
+            real_file << endl;
+        }
+
+        for (auto const &trans : transformations) {
+            trans.first(i, seq_and_real, trans.second);
+        }
+    }
+}
+
 bool GenModel::write2txt()
 {
     this->model_marginals.write2txt("final_marginals.txt", this->model_parms);
@@ -734,3 +878,47 @@ igor::fast::FastGenerator &GenModel::get_fast_generator()
     }
     return *fast_generator_;
 }
+
+// ─── Phase 1: InferenceEngine Interface ────────────────────────────────
+
+// Forward declaration - implementation moved after helper functions
+namespace {
+std::unique_ptr<igor::model::InferenceEngine<long double>>
+build_inference_engine_long_double(const Model_Parms &parms, const Model_marginals &marginals);
+} // forward declaration
+
+GenModel::InferenceEngineType& GenModel::get_inference_engine()
+{
+    // Lazy initialization: build engine on first call
+    if (!inference_engine_) {
+        inference_engine_ = build_inference_engine_long_double(model_parms, model_marginals);
+    }
+    return *inference_engine_;
+}
+
+// ─── Phase 2: Helper Functions ─────────────────────────────────────────
+
+namespace {
+
+using EventName = std::string;
+using EventPtr = std::shared_ptr<Rec_Event>;
+
+// Build InferenceEngine<long double> from Model_Parms and Model_Marginals
+// Maps legacy flat-array marginals to new tensor-based handlers
+std::unique_ptr<igor::model::InferenceEngine<long double>>
+build_inference_engine_long_double(const Model_Parms &parms, const Model_marginals &marginals)
+{
+    // Extract event descriptors from model (handles parent dependencies correctly)
+    auto descriptors = igor::core::extract_event_descriptors(parms);
+
+    // Create InferenceEngine with descriptors (this registers all handlers internally)
+    auto engine = std::make_unique<igor::model::InferenceEngine<long double>>(descriptors);
+
+    // Populate handler parameters from legacy Model_marginals
+    // This copies data from the flat marginal array into each handler's tensor parameters
+    igor::core::import_from_legacy<long double>(*engine, marginals, parms);
+
+    return engine;
+}
+
+} // anonymous namespace

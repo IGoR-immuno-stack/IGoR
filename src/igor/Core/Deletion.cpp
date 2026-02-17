@@ -28,6 +28,7 @@
 #include <igor/Core/Deletion.h>
 #include <igor/Core/EventUtils.h>
 #include <igor/Core/SequenceTypes.h>
+#include <igor/Model/InferenceEngine.h>
 
 using namespace std;
 
@@ -63,7 +64,7 @@ Deletion::Deletion(int gene, Seq_side side)
       downstream_ins_type(-1)
 {
     this->type = Event_type::Deletion_t;
-    
+
     // Set sequence_type_id based on event_class for generation
     if (gene == V_gene)
         this->sequence_type_id = SequenceTypeRegistry::V_GENE_SEQ;
@@ -71,7 +72,7 @@ Deletion::Deletion(int gene, Seq_side side)
         this->sequence_type_id = SequenceTypeRegistry::D_GENE_SEQ;
     else if (gene == J_gene)
         this->sequence_type_id = SequenceTypeRegistry::J_GENE_SEQ;
-    
+
     this->update_event_name();
 }
 
@@ -232,7 +233,7 @@ queue<int> Deletion::draw_random_realization(
     queue<int> realization_queue;
 
     int type_id = this->sequence_type_id;
-    
+
     // Check if type_id is valid and exists in constructed_sequences
     if (type_id < 0) {
         return realization_queue;
@@ -240,7 +241,7 @@ queue<int> Deletion::draw_random_realization(
     if (constructed_sequences.count(type_id) == 0) {
         return realization_queue;
     }
-    
+
     string &seq = constructed_sequences[type_id];
 
     for (unordered_map<string, Event_realization>::const_iterator iter = this->event_realizations.begin();
@@ -254,7 +255,7 @@ queue<int> Deletion::draw_random_realization(
             int del_len = (*iter).second.value_int;
             // Take absolute value - deletion length should be positive
             if (del_len < 0) del_len = -del_len;
-            
+
             if (del_len > (int)seq.length()) {
                 del_len = seq.length();
             }
@@ -276,6 +277,60 @@ queue<int> Deletion::draw_random_realization(
             break;
         }
     }
+    return realization_queue;
+}
+
+// Phase 2: InferenceEngine-based sampling for Deletion
+queue<int> Deletion::draw_random_realization_with_engine(
+    const igor::model::InferenceEngine<long double> &engine,
+    std::unordered_map<int, std::string> &constructed_sequences,
+    std::mt19937_64 &generator) const
+{
+    queue<int> realization_queue;
+
+    try {
+        // Check if the sequence type exists
+        int type_id = this->sequence_type_id;
+        if (type_id < 0 || constructed_sequences.count(type_id) == 0) {
+            return realization_queue;  // No upstream sequence to delete from
+        }
+
+        // Get the handler for this event
+        auto& handler = engine.handler(this->get_name());
+
+        // Sample a realization index (no parent indices for Deletion)
+        std::vector<std::size_t> parent_indices;  // Empty for unconditional events
+        std::size_t realization_idx = handler.sample(generator, parent_indices);
+
+        // Find the realization with this index and apply deletion
+        string &seq = constructed_sequences[type_id];
+        for (const auto& [name, real] : this->event_realizations) {
+            if (real.index == static_cast<int>(realization_idx)) {
+                int del_len = real.value_int;
+                // Take absolute value - deletion length should be positive
+                if (del_len < 0) del_len = -del_len;
+
+                if (del_len > (int)seq.length()) {
+                    del_len = seq.length();
+                }
+
+                // Apply deletion from Five_prime or Three_prime based on event_side
+                if (this->event_side == Three_prime) {
+                    seq.resize(seq.length() - del_len);
+                } else {
+                    seq = seq.substr(del_len);
+                }
+
+                realization_queue.push(real.index);
+                break;
+            }
+        }
+    } catch (const std::exception& e) {
+        // Fallback or rethrow
+        throw std::runtime_error(
+            "Failed to sample from InferenceEngine for " + this->get_name() + ": " + e.what());
+    }
+
     return realization_queue;
 }
 

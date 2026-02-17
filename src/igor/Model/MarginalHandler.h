@@ -6,6 +6,7 @@
 #include <ostream>
 #include <istream>
 #include <vector>
+#include <random>
 
 namespace igor::model {
 
@@ -38,6 +39,27 @@ public:
     virtual math::Tensor<T>& parameters() = 0;
     virtual const math::Tensor<T>& accumulator() const = 0;
     virtual math::Tensor<T>& accumulator() = 0;
+
+    // Sampling: Draw a realization index from probability distribution
+    // parent_indices: For conditional handlers, provides parent event realization indices
+    // CRITICAL: RNG call order must match legacy implementation for equivalence testing
+    virtual std::size_t sample(
+        std::mt19937_64& generator,
+        const std::vector<std::size_t>& parent_indices = {}) const = 0;
+
+    // Batch sampling: Draw multiple realizations
+    virtual std::vector<std::size_t> sample_multiple(
+        std::mt19937_64& generator,
+        std::size_t count,
+        const std::vector<std::size_t>& parent_indices = {}) {
+        // Default implementation: call sample() count times
+        std::vector<std::size_t> results;
+        results.reserve(count);
+        for (std::size_t i = 0; i < count; ++i) {
+            results.push_back(sample(generator, parent_indices));
+        }
+        return results;
+    }
 
     // EM operations
     virtual void reset_accumulator() = 0;

@@ -27,6 +27,7 @@
 #include <igor/Core/Aligner.h>
 #include <igor/Core/EventUtils.h>
 #include <igor/Core/Insertion.h>
+#include <igor/Model/InferenceEngine.h>
 
 using namespace std;
 
@@ -209,6 +210,42 @@ queue<int> Insertion::draw_random_realization(
     return realization_queue;
 }
 
+// Phase 2: InferenceEngine-based sampling for Insertion
+queue<int> Insertion::draw_random_realization_with_engine(
+    const igor::model::InferenceEngine<long double> &engine,
+    std::unordered_map<int, std::string> &constructed_sequences,
+    std::mt19937_64 &generator) const
+{
+    queue<int> realization_queue;
+
+    try {
+        // Get the handler for this event
+        auto& handler = engine.handler(this->get_name());
+
+        // Sample a realization index (no parent indices for Insertion)
+        std::vector<std::size_t> parent_indices;  // Empty for unconditional events
+        std::size_t realization_idx = handler.sample(generator, parent_indices);
+
+        // Find the realization with this index
+        for (const auto& [name, real] : this->event_realizations) {
+            if (real.index == static_cast<int>(realization_idx)) {
+                // Create insertion sequence with sampled length
+                int ins_len = real.value_int;
+                string ins_seq(ins_len, 'N');  // Placeholder nucleotides
+                constructed_sequences[this->sequence_type_id] = ins_seq;
+                realization_queue.push(real.index);
+                break;
+            }
+        }
+    } catch (const std::exception& e) {
+        // Fallback or rethrow
+        throw std::runtime_error(
+            "Failed to sample from InferenceEngine for " + this->get_name() + ": " + e.what());
+    }
+
+    return realization_queue;
+}
+
 void Insertion::write2txt(ofstream &outfile)
 {
     outfile << "#Insertion;" << (Gene_class)event_class << ";" << event_side << ";" << priority << ";" << nickname << endl;
@@ -297,7 +334,7 @@ void Insertion::iterate_initialize_Len_proba(int considered_junction, std::map<i
 {
     if (considered_junction == this->sequence_type_id) {
         int base_index = base_index_map.at(this->event_index, 0);
-        
+
         for (unordered_map<string, Event_realization>::const_iterator iter = this->event_realizations.begin();
              iter != this->event_realizations.end(); ++iter) {
             double real_max_proba = 0;

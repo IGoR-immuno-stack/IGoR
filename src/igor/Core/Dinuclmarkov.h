@@ -40,6 +40,11 @@ public:
             const std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &,
             std::unordered_map<int, std::string> &, std::mt19937_64 &) const override;
 
+    std::queue<int> draw_random_realization_with_engine(
+            const igor::model::InferenceEngine<long double> &,
+            std::unordered_map<int, std::string> &,
+            std::mt19937_64 &) const override;
+
     void write2txt(std::ofstream &) override;
 
     void initialize_event(
@@ -79,10 +84,10 @@ private:
     int downstream_seq_type;
     bool upstream_exists;
     bool downstream_exists;
-    
+
     // Dinucleotide probability matrix (4x4 for ACGT combinations)
     double dinuc_proba_matrix[4][4] = {{0}};
-    
+
     std::queue<int> draw_random_common(const std::string &previous_seq, std::string &inserted_seq,
                                         const Marginal_array_p &model_marginals_p, int index,
                                         std::uniform_real_distribution<double> &distribution,

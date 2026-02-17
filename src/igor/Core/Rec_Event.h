@@ -51,8 +51,11 @@
 
 class Counter;
 
-// class Model_marginals; //forward declare model marginals to avoid circular
-// inclusion
+// Forward declaration: avoid circular include with GenModel
+namespace igor::model {
+template <typename T = double>
+class InferenceEngine;
+}  // namespace igor::model
 
 // value of event: struct: event identifier(name of Vgene), event
 // value(sequence), event index(custom)
@@ -198,6 +201,18 @@ public:
             const Marginal_array_p &, std::unordered_map<Rec_Event_name, int> &,
             const std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &,
             std::unordered_map<int, std::string> &, std::mt19937_64 &) const = 0;
+
+    // Phase 2: New InferenceEngine-based generation (adds to legacy path without replacing)
+    // Generates a realization using the new InferenceEngine<long double> with handler-based sampling
+    virtual std::queue<int> draw_random_realization_with_engine(
+            const igor::model::InferenceEngine<long double> &engine,
+            std::unordered_map<int, std::string> &constructed_sequences,
+            std::mt19937_64 &generator) const {
+        // Default implementation: throw to ensure subclasses implement it
+        throw std::logic_error(
+            "draw_random_realization_with_engine not implemented for event type: " + this->get_name());
+    }
+
     virtual void write2txt(std::ofstream &) = 0;
     virtual void ind_normalize(Marginal_array_p &, size_t) const;
     virtual void initialize_event(

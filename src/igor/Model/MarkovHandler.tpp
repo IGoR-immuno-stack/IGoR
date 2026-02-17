@@ -56,6 +56,66 @@ void MarkovHandler<T>::maximize_likelihood() {
     }
 }
 
+// ─── Sampling ──────────────────────────────────────────────────────────
+
+template <typename T>
+std::size_t MarkovHandler<T>::sample(
+    std::mt19937_64& generator,
+    const std::vector<std::size_t>& parent_indices) const
+{
+    // For Markov handlers, parent_indices should contain:
+    // parent_indices[0] = from_state (previous state in the sequence)
+    // parent_indices[1..n] = parent event realizations (optional)
+
+    if (parent_indices.empty()) {
+        throw std::invalid_argument("Markov handler requires 'from_state' in parent_indices[0]");
+    }
+
+    std::size_t from_state = parent_indices[0];
+    std::size_t n_to_states = parameters_.shape()[1];
+
+    if (from_state >= shape_[0]) {
+        throw std::out_of_range("from_state index out of range for " + this->name());
+    }
+
+    // Get the transition probability row for this from_state
+    // If there are more parent indices (conditional Markov with upstream dependencies),
+    // we need to slice appropriately
+    const T* transition_probs = nullptr;
+
+    if (parameters_.ndim() == 2) {
+        // No additional parents: direct row access
+        transition_probs = parameters_.data() + from_state * n_to_states;
+    } else {
+        // Multi-dimensional: slice for [from_state, :, parent1, ...]
+        // Calculate linear offset for parent indices at dimensions [2:]
+        std::size_t stride = n_to_states;
+        std::size_t offset = from_state * stride;  // from_state offset
+
+        for (int d = parameters_.ndim() - 1; d >= 2; --d) {
+            offset += parent_indices[d - 1] * stride;
+            stride *= parameters_.shape()[d];
+        }
+        transition_probs = parameters_.data() + offset;
+    }
+
+    // Sample next state using cumulative sum
+    // CRITICAL: RNG call order must match legacy implementation
+    std::uniform_real_distribution<T> dist(T(0), T(1));
+    T random_val = dist(generator);
+    T cumsum = T(0);
+
+    for (std::size_t to = 0; to < n_to_states; ++to) {
+        cumsum += transition_probs[to];
+        if (random_val <= cumsum) {
+            return to;  // Return "to" state index
+        }
+    }
+
+    // Safety fallback: return last state if rounding errors occur
+    return n_to_states - 1;
+}
+
 // ─── I/O ───────────────────────────────────────────────────────────────
 
 template <typename T>

@@ -28,6 +28,7 @@
 #include <igor/Core/Dinuclmarkov.h>
 #include <igor/Core/EventUtils.h>
 #include <igor/Core/SequenceTypes.h>
+#include <igor/Model/InferenceEngine.h>
 
 using namespace std;
 
@@ -46,14 +47,14 @@ Dinucl_markov::Dinucl_markov(int gene, Seq_side side)
       downstream_exists(false)
 {
     this->type = Event_type::Dinuclmarkov_t;
-    
+
     // Add nucleotide realizations (A, C, G, T) for dinucleotide Markov model
     // Note: DinucMarkov has 4 realizations (not 16), probabilities are in dinuc_proba_matrix
     event_realizations.emplace("A", Event_realization("A", INT16_MAX, "A", Int_Str(), 0));
     event_realizations.emplace("C", Event_realization("C", INT16_MAX, "C", Int_Str(), 1));
     event_realizations.emplace("G", Event_realization("G", INT16_MAX, "G", Int_Str(), 2));
     event_realizations.emplace("T", Event_realization("T", INT16_MAX, "T", Int_Str(), 3));
-    
+
     // Set sequence_type_id based on event_class for generation
     if (gene == VD_genes)
         this->sequence_type_id = SequenceTypeRegistry::VD_INS_SEQ;
@@ -61,7 +62,7 @@ Dinucl_markov::Dinucl_markov(int gene, Seq_side side)
         this->sequence_type_id = SequenceTypeRegistry::DJ_INS_SEQ;
     else if (gene == VJ_genes)
         this->sequence_type_id = SequenceTypeRegistry::VJ_INS_SEQ;
-    
+
     this->update_event_name();
 }
 
@@ -217,40 +218,102 @@ queue<int> Dinucl_markov::draw_random_realization(
         std::unordered_map<int, std::string> &constructed_sequences, std::mt19937_64 &generator) const
 {
     queue<int> realization_queue;
-    
+
     // Check if index_map has this event
     if (index_map.count(this->get_name()) == 0) {
         return realization_queue;
     }
-    
+
     int type_id = this->sequence_type_id;
-    
+
     // Check if sequence type is valid and exists in constructed_sequences
     if (type_id < 0 || constructed_sequences.count(type_id) == 0) {
         return realization_queue;
     }
-    
+
     string &ins_seq = constructed_sequences[type_id];
     int ins_len = ins_seq.length();
-    
+
     if (ins_len == 0) {
         return realization_queue;
     }
-    
+
     // For now, just fill with random nucleotides uniformly
     // (proper implementation would use dinuc_proba_matrix)
     const char* nts = "ACGT";
     uniform_int_distribution<int> nt_dist(0, 3);
-    
+
     for (int i = 0; i < ins_len; ++i) {
         int nt_idx = nt_dist(generator);
         ins_seq[i] = nts[nt_idx];
-        
+
         // Push the realization index
         string nt_str(1, nts[nt_idx]);
         if (this->event_realizations.count(nt_str)) {
             realization_queue.push(this->event_realizations.at(nt_str).index);
         }
+    }
+
+    return realization_queue;
+}
+
+// Phase 2: InferenceEngine-based sampling for Dinucl_markov
+queue<int> Dinucl_markov::draw_random_realization_with_engine(
+    const igor::model::InferenceEngine<long double> &engine,
+    std::unordered_map<int, std::string> &constructed_sequences,
+    std::mt19937_64 &generator) const
+{
+    queue<int> realization_queue;
+
+    try {
+        // Check if the sequence type exists
+        int type_id = this->sequence_type_id;
+        if (type_id < 0 || constructed_sequences.count(type_id) == 0) {
+            return realization_queue;
+        }
+
+        string &ins_seq = constructed_sequences[type_id];
+        int ins_len = ins_seq.length();
+
+        if (ins_len == 0) {
+            return realization_queue;
+        }
+
+        // Get the handler for this event (MarkovHandler<long double>)
+        auto& handler = engine.handler(this->get_name());
+
+        // Sample nucleotides sequentially using Markov transitions
+        // Start with first position sampled uniformly
+        // (since there's no previous state for first nucleotide)
+        std::vector<std::size_t> parent_indices;
+        std::size_t nt_state = handler.sample(generator, parent_indices);
+
+        // Map state index to nucleotide
+        const char* nts = "ACGT";
+        if (nt_state < 4) {
+            ins_seq[0] = nts[nt_state];
+            if (this->event_realizations.count(string(1, nts[nt_state]))) {
+                realization_queue.push(this->event_realizations.at(string(1, nts[nt_state])).index);
+            }
+        }
+
+        // Generate remaining nucleotides using Markov transitions
+        for (int i = 1; i < ins_len; ++i) {
+            // Parent indices: [previous_nt_state, ...]
+            parent_indices = {nt_state};
+            nt_state = handler.sample(generator, parent_indices);
+
+            if (nt_state < 4) {
+                ins_seq[i] = nts[nt_state];
+                if (this->event_realizations.count(string(1, nts[nt_state]))) {
+                    realization_queue.push(this->event_realizations.at(string(1, nts[nt_state])).index);
+                }
+            }
+        }
+    } catch (const std::exception& e) {
+        // Fallback or rethrow
+        throw std::runtime_error(
+            "Failed to sample from InferenceEngine for " + this->get_name() + ": " + e.what());
     }
 
     return realization_queue;

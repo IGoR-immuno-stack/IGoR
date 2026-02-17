@@ -35,6 +35,7 @@
 #include <igor/Core/Errorrate.h>
 #include <igor/Core/Utils.h>
 #include <igor/Core/FastGenerator.h>
+#include <igor/Model/InferenceEngine.h>
 #include <list>
 #include <map>
 #include <string>
@@ -207,9 +208,75 @@ public:
                             std::forward_list<std::pair<std::string, std::queue<std::queue<int>>>>);
     const Model_marginals get_marginals() const { return this->model_marginals; };
 
+    // Phase 1: New InferenceEngine interface with long double precision
+    // Type-safe long double handler to match Model_Marginals precision
+    using InferenceEngineType = igor::model::InferenceEngine<long double>;
+
+    /**
+     * \brief Get or lazily initialize the InferenceEngine<long double>.
+     *
+     * Builds the engine from Model_Parms and Model_Marginals on first call.
+     * Subsequent calls return the cached instance.
+     *
+     * \return Reference to the InferenceEngine<long double> instance
+     */
+    InferenceEngineType& get_inference_engine();
+
+    /**
+     * \brief Generate a unique sequence using the InferenceEngine (new path).
+     *
+     * This is the engine-based alternative to the legacy generate_unique_sequence().
+     * It uses handler.sample() for sampling instead of the legacy Rec_Event methods.
+     *
+     * \param engine The InferenceEngine<long double> to sample from
+     * \param generator Random number generator (seeded by caller)
+     * \param output_realizations If true, return realization indices for each event
+     * \return Pair of (final_sequence_string, realizations_queue)
+     */
+    std::pair<std::string, std::queue<std::queue<int>>> generate_unique_sequence(
+            const InferenceEngineType& engine,
+            std::mt19937_64& generator,
+            bool output_realizations = true);
+
+    /**
+     * \brief Generate sequences using the InferenceEngine (in-memory).
+     *
+     * Engine-based alternative to generate_sequences(int, bool).
+     * Returns a forward_list of (sequence, realizations) pairs.
+     *
+     * \param n_seq Number of sequences to generate
+     * \param output_realizations If true, include realization indices
+     * \param seed Random seed (-1 = use system clock)
+     * \return Forward list of (sequence, realizations) pairs
+     */
+    std::forward_list<std::pair<std::string, std::queue<std::queue<int>>>>
+    generate_sequences_with_engine(int n_seq, bool output_realizations, int seed = -1);
+
+    /**
+     * \brief Generate sequences using the InferenceEngine (to file).
+     *
+     * Engine-based alternative to generate_sequences(int, bool, string, string, ...).
+     * Writes sequences and optionally realizations to CSV files.
+     *
+     * \param n_seq Number of sequences to generate
+     * \param output_realizations If true, write realization indices
+     * \param seq_file_path Output file path for sequences
+     * \param real_file_path Output file path for realizations
+     * \param transformations Optional per-sequence transformations
+     * \param output_only_func If true, only apply transformations (no file output)
+     * \param seed Random seed (-1 = use system clock)
+     */
+    void generate_sequences_with_engine(
+            int n_seq, bool output_realizations,
+            std::string seq_file_path, std::string real_file_path,
+            std::list<std::pair<gen_seq_trans, std::shared_ptr<void>>> transformations =
+                    std::list<std::pair<gen_seq_trans, std::shared_ptr<void>>>(),
+            bool output_only_func = false, int seed = -1);
+
 private:
     Model_Parms model_parms;
     Model_marginals model_marginals;
+    std::unique_ptr<InferenceEngineType> inference_engine_;  // Phase 1: Lazy-initialized
 
 private:
     std::map<size_t, std::shared_ptr<Counter>>

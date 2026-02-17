@@ -28,6 +28,7 @@
 #include <igor/Core/EventUtils.h>
 #include <igor/Core/Genechoice.h>
 #include <igor/Core/SequenceTypes.h>
+#include <igor/Model/InferenceEngine.h>
 
 using namespace std;
 
@@ -524,6 +525,41 @@ queue<int> Gene_choice::draw_random_realization(
     }
     return realization_queue;
 }
+
+// Phase 2: InferenceEngine-based sampling for Gene_choice
+queue<int> Gene_choice::draw_random_realization_with_engine(
+    const igor::model::InferenceEngine<long double> &engine,
+    std::unordered_map<int, std::string> &constructed_sequences,
+    std::mt19937_64 &generator) const
+{
+    queue<int> realization_queue;
+
+    try {
+        // Get the handler for this event
+        auto& handler = engine.handler(this->get_name());
+
+        // Sample a realization index (no parent indices for Gene_choice)
+        std::vector<std::size_t> parent_indices;  // Empty for unconditional events
+        std::size_t realization_idx = handler.sample(generator, parent_indices);
+
+        // Find the realization with this index
+        for (const auto& [name, real] : this->event_realizations) {
+            if (real.index == static_cast<int>(realization_idx)) {
+                // Store the selected gene sequence
+                constructed_sequences[this->sequence_type_id] = real.value_str;
+                realization_queue.push(real.index);
+                break;
+            }
+        }
+    } catch (const std::exception& e) {
+        // Fallback to legacy method or rethrow
+        throw std::runtime_error(
+            "Failed to sample from InferenceEngine for " + this->get_name() + ": " + e.what());
+    }
+
+    return realization_queue;
+}
+
 void Gene_choice::write2txt(ofstream &outfile)
 {
     outfile << "#GeneChoice;" << (Gene_class)event_class << ";" << event_side << ";" << priority << ";" << nickname << endl;

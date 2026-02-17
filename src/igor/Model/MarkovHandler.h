@@ -44,6 +44,11 @@ public:
     void reset_accumulator() override;
     void maximize_likelihood() override;
 
+    // Sampling
+    std::size_t sample(
+        std::mt19937_64& generator,
+        const std::vector<std::size_t>& parent_indices = {}) const override;
+
     // I/O
     void write_parameters(std::ostream& out) const override;
     void read_parameters(std::istream& in) override;

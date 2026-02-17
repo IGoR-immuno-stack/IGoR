@@ -24,7 +24,7 @@
 
 namespace igor::model {
 
-template <typename T = double>
+template <typename T>
 class InferenceEngine {
 public:
     using scalar_type = T;

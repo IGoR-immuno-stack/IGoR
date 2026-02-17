@@ -46,6 +46,13 @@ public:
             const Marginal_array_p &, std::unordered_map<Rec_Event_name, int> &,
             const std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &,
             std::unordered_map<int, std::string> &, std::mt19937_64 &) const override;
+
+    // Phase 2: InferenceEngine-based generation
+    std::queue<int> draw_random_realization_with_engine(
+            const igor::model::InferenceEngine<long double> &engine,
+            std::unordered_map<int, std::string> &constructed_sequences,
+            std::mt19937_64 &generator) const override;
+
     void write2txt(std::ofstream &) override;
     void initialize_event(
             std::unordered_set<Rec_Event_name> &,

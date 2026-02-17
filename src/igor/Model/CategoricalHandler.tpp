@@ -53,6 +53,55 @@ void CategoricalHandler<T>::maximize_likelihood() {
     }
 }
 
+// ─── Sampling ──────────────────────────────────────────────────────────
+
+template <typename T>
+std::size_t CategoricalHandler<T>::sample(
+    std::mt19937_64& generator,
+    const std::vector<std::size_t>& parent_indices) const
+{
+    // Validate parent indices match tensor shape
+    if (parent_indices.size() != parameters_.ndim() - 1) {
+        throw std::invalid_argument("Parent indices count mismatch for " + this->name());
+    }
+
+    // Get the probability slice for this parent combination
+    // For unconditional (ndim() == 1), parent_indices is empty
+    const T* prob_slice = nullptr;
+    std::size_t n_realizations = parameters_.shape()[0];
+
+    if (parameters_.ndim() == 1) {
+        // No parents: direct access
+        prob_slice = parameters_.data();
+    } else {
+        // Multi-dimensional: slice access
+        // Calculate linear index for [*, parent_indices...]
+        std::size_t stride = 1;
+        std::size_t offset = 0;
+        for (int d = parameters_.ndim() - 1; d >= 1; --d) {
+            offset += parent_indices[d - 1] * stride;
+            stride *= parameters_.shape()[d];
+        }
+        prob_slice = parameters_.data() + offset * n_realizations;
+    }
+
+    // Sample using cumulative sum
+    // CRITICAL: RNG call order must match legacy implementation
+    std::uniform_real_distribution<T> dist(T(0), T(1));
+    T random_val = dist(generator);
+    T cumsum = T(0);
+
+    for (std::size_t i = 0; i < n_realizations; ++i) {
+        cumsum += prob_slice[i];
+        if (random_val <= cumsum) {
+            return i;  // Return realization index
+        }
+    }
+
+    // Safety fallback: return last realization if rounding errors occur
+    return n_realizations - 1;
+}
+
 // ─── I/O ───────────────────────────────────────────────────────────────
 
 template <typename T>
