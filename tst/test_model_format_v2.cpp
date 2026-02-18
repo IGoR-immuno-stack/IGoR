@@ -242,3 +242,50 @@ TEST_CASE("Format version detection", "[model_format]")
     std::filesystem::remove(legacy_file);
     std::filesystem::remove(v2_file);
 }
+
+// Test reading actual v2.0 format model file from models directory
+TEST_CASE("Load actual v2.0 model file from models directory", "[model_format][v2.0][integration]")
+{
+    // Get the project source directory from CMake define
+    std::string source_dir = IGOR_SOURCE_DIR;
+    std::string v2_model_path = source_dir + "/models/human/tcr_beta/models_v2/model_parms.txt";
+    
+    // Skip if model file doesn't exist (e.g., submodule not initialized)
+    if (!std::filesystem::exists(v2_model_path)) {
+        SKIP("v2.0 model file not found at " << v2_model_path << " (submodule may not be initialized)");
+    }
+    
+    // Load the v2.0 model
+    Model_Parms parms;
+    REQUIRE_NOTHROW(parms.read_model_parms(v2_model_path));
+    
+    // Verify events were loaded
+    auto events = parms.get_event_list();
+    REQUIRE(events.size() >= 10); // Should have V_choice, D_choice, J_choice, deletions, insertions, dinuc
+    
+    // Check specific events exist
+    auto v_choice = parms.get_event_pointer("v_choice", true);
+    REQUIRE(v_choice != nullptr);
+    REQUIRE(v_choice->get_type() == GeneChoice_t);
+    REQUIRE(v_choice->get_class() == V_gene);
+    REQUIRE(v_choice->get_seq_type() == "V_gene_seq");
+    
+    auto v_3_del = parms.get_event_pointer("v_3_del", true);
+    REQUIRE(v_3_del != nullptr);
+    REQUIRE(v_3_del->get_type() == Deletion_t);
+    REQUIRE(v_3_del->get_seq_type() == "V_gene_seq");
+    
+    auto vd_ins = parms.get_event_pointer("vd_ins", true);
+    REQUIRE(vd_ins != nullptr);
+    REQUIRE(vd_ins->get_type() == Insertion_t);
+    REQUIRE(vd_ins->get_seq_type() == "VD_ins_seq");
+    
+    auto vd_dinucl = parms.get_event_pointer("vd_dinucl", true);
+    REQUIRE(vd_dinucl != nullptr);
+    REQUIRE(vd_dinucl->get_type() == Dinuclmarkov_t);
+    REQUIRE(vd_dinucl->get_seq_type() == "VD_ins_seq");
+    
+    // Verify edges were loaded
+    auto edges = parms.get_edges();
+    REQUIRE(!edges.empty());
+}
