@@ -544,6 +544,11 @@ unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> Mo
 void Model_Parms::write_model_parms(string filename)
 {
     ofstream outfile(filename);
+    
+    // Determine if we need v2.0 format based on whether any seq_type conversion is needed
+    // For now, write in legacy format for backward compatibility
+    // TODO: Auto-detect when v2.0 format is required (tandem D genes, non-standard ordering)
+    
     outfile << "@Event_list" << endl;
     for (list<shared_ptr<Rec_Event>>::const_iterator iter = events.begin(); iter != events.end(); ++iter) {
         (*iter)->write2txt(outfile);
@@ -559,6 +564,53 @@ void Model_Parms::write_model_parms(string filename)
     error_rate->write2txt(outfile);
 }
 
+/**
+ * Helper function to convert legacy Gene_class to seq_type string for v2.0 format
+ */
+static std::string legacy_gene_class_to_seq_type(Gene_class gene_class, Event_type event_type)
+{
+    switch (gene_class) {
+    case V_gene:
+        return "V_gene_seq";
+    case D_gene:
+        return "D_gene_seq";
+    case J_gene:
+        return "J_gene_seq";
+    case VD_genes:
+        return "VD_ins_seq";
+    case DJ_genes:
+        return "DJ_ins_seq";
+    case VJ_genes:
+        return "VJ_ins_seq";
+    default:
+        return "Undefined_seq";
+    }
+}
+
+/**
+ * Helper function to convert v2.0 seq_type to Gene_class for internal use
+ * This ensures backward compatibility with existing code
+ */
+static Gene_class seq_type_to_gene_class(const std::string& seq_type, Event_type event_type)
+{
+    if (seq_type == "V_gene_seq") {
+        return V_gene;
+    } else if (seq_type == "D_gene_seq") {
+        return D_gene;
+    } else if (seq_type == "J_gene_seq") {
+        return J_gene;
+    } else if (seq_type == "VD_ins_seq") {
+        return VD_genes;
+    } else if (seq_type == "DJ_ins_seq") {
+        return DJ_genes;
+    } else if (seq_type == "VJ_ins_seq") {
+        return VJ_genes;
+    } else {
+        // For unknown seq_types, try to infer from the event type
+        return Undefined_gene;
+    }
+}
+
 void Model_Parms::read_model_parms(string filename)
 {
     ifstream infile(filename);
@@ -566,8 +618,39 @@ void Model_Parms::read_model_parms(string filename)
         //Throw exception
         throw runtime_error("File not found : \"" + filename + "\"");
     }
+    
     string line_str;
     getline(infile, line_str);
+    
+    // Check for version section (v2.0 format)
+    double format_version = 1.0;  // Default to legacy format
+    vector<std::string> seq_type_order;
+    
+    if (line_str == string("@Version")) {
+        getline(infile, line_str);
+        format_version = stod(line_str);
+        getline(infile, line_str);
+        
+        // Check for @Seq_type_order section
+        if (line_str == string("@Seq_type_order")) {
+            getline(infile, line_str);
+            // Parse Seq_type_order: format is [type1,type2,...]
+            if (line_str.size() > 2 && line_str[0] == '[' && line_str[line_str.size() - 1] == ']') {
+                string order_content = line_str.substr(1, line_str.size() - 2);
+                size_t pos = 0;
+                while ((pos = order_content.find(",")) != string::npos) {
+                    seq_type_order.push_back(order_content.substr(0, pos));
+                    order_content.erase(0, pos + 1);
+                }
+                if (!order_content.empty()) {
+                    seq_type_order.push_back(order_content);
+                }
+            }
+            getline(infile, line_str);
+        }
+    }
+    
+    // Now parse @Event_list section
     if (line_str == string("@Event_list")) {
         getline(infile, line_str);
         while (line_str[0] == '#') {
@@ -582,8 +665,23 @@ void Model_Parms::read_model_parms(string filename)
                 throw runtime_error("Unknown Gene_class\"" + event_class_str + "\" in model file: \"" + filename
                                     + "\"");
             }
+            
+            // For v2.0 format, check if there's a seq_type field
+            string seq_type_str;
+            size_t side_semicolon_index;
+            
+            if (format_version >= 2.0) {
+                // v2.0 format: event_type;gene_class;seq_type;seq_side;priority;nickname
+                semicolon_index = next_semicolon_index;
+                next_semicolon_index = line_str.find(";", semicolon_index + 1);
+                seq_type_str = line_str.substr(semicolon_index + 1, (next_semicolon_index - semicolon_index - 1));
+                side_semicolon_index = next_semicolon_index;
+            } else {
+                // Legacy format: event_type;gene_class;seq_side;priority;nickname
+                side_semicolon_index = next_semicolon_index;
+            }
 
-            semicolon_index = next_semicolon_index;
+            semicolon_index = side_semicolon_index;
             next_semicolon_index = line_str.find(";", semicolon_index + 1);
             string event_side_str = line_str.substr(semicolon_index + 1, (next_semicolon_index - semicolon_index - 1));
             Seq_side event_side;
@@ -607,6 +705,28 @@ void Model_Parms::read_model_parms(string filename)
             }
 
             cerr << event << " read" << endl;
+            
+            // Determine seq_type and effective gene_class for v2.0 format conversion
+            string event_seq_type = seq_type_str;
+            Gene_class effective_gene_class = event_class;
+            
+            if (format_version < 2.0) {
+                // For legacy format, infer seq_type from gene_class and event type
+                Event_type evt_type = (event == "GeneChoice") ? GeneChoice_t : 
+                    (event == "Deletion") ? Deletion_t :
+                    (event == "Insertion") ? Insertion_t : Dinuclmarkov_t;
+                event_seq_type = legacy_gene_class_to_seq_type(event_class, evt_type);
+            } else {
+                // For v2.0 format, convert seq_type to gene_class for internal use
+                Event_type evt_type = (event == "GeneChoice") ? GeneChoice_t : 
+                    (event == "Deletion") ? Deletion_t :
+                    (event == "Insertion") ? Insertion_t : Dinuclmarkov_t;
+                // For non-GeneChoice events, derive gene_class from seq_type for backward compatibility
+                if (evt_type != GeneChoice_t) {
+                    effective_gene_class = seq_type_to_gene_class(seq_type_str, evt_type);
+                }
+            }
+            
             if (event == string("Insertion")) {
                 unordered_map<string, Event_realization> event_realizations =
                         unordered_map<string, Event_realization>();
@@ -620,12 +740,12 @@ void Model_Parms::read_model_parms(string filename)
                             Event_realization(to_string(value_int), value_int, "", Int_Str(), index)));
                     getline(infile, line_str);
                 }
-                //TODO check this for enum writing
-                //Insertion new_event = Insertion(event_class , event_side , event_realizations);
+                // Use effective_gene_class for backward compatibility
                 shared_ptr<Insertion> new_event_p =
-                        shared_ptr<Insertion>(new Insertion(event_class, event_realizations));
+                        shared_ptr<Insertion>(new Insertion(effective_gene_class, event_realizations));
                 new_event_p->set_priority(priority);
                 new_event_p->set_nickname(nickname);
+                new_event_p->set_seq_type(event_seq_type);
                 this->add_event(new_event_p);
             } else if (event == string("Deletion")) {
                 unordered_map<string, Event_realization> event_realizations =
@@ -640,12 +760,12 @@ void Model_Parms::read_model_parms(string filename)
                             Event_realization(to_string(value_int), value_int, "", Int_Str(), index)));
                     getline(infile, line_str);
                 }
-                //TODO check this for enum writing
-                //Deletion new_event = Deletion(event_class , event_side , event_realizations);
+                // Use effective_gene_class for backward compatibility
                 shared_ptr<Deletion> new_event_p =
-                        shared_ptr<Deletion>(new Deletion(event_class, event_side, event_realizations));
+                        shared_ptr<Deletion>(new Deletion(effective_gene_class, event_side, event_realizations));
                 new_event_p->set_priority(priority);
                 new_event_p->set_nickname(nickname);
+                new_event_p->set_seq_type(event_seq_type);
                 this->add_event(new_event_p);
             } else if (event == string("GeneChoice")) {
                 unordered_map<string, Event_realization> event_realizations =
@@ -663,18 +783,20 @@ void Model_Parms::read_model_parms(string filename)
                             name, Event_realization(name, INT16_MAX, value_str, nt2int(value_str), index)));
                     getline(infile, line_str);
                 }
-                //TODO check this for enum writing
-                //Gene_choice new_event = Gene_choice(event_class , event_side , event_realizations);
+                // For GeneChoice, use the original event_class (not effective_gene_class) since gene_class matters for alignment
                 shared_ptr<Gene_choice> new_event_p = shared_ptr<Gene_choice>(new Gene_choice(
                         event_class,
-                        event_realizations)); //TODO construct event before and use add realization instead?
+                        event_realizations));
                 new_event_p->set_priority(priority);
                 new_event_p->set_nickname(nickname);
+                new_event_p->set_seq_type(event_seq_type);
                 this->add_event(new_event_p);
             } else if (event == string("DinucMarkov")) {
-                shared_ptr<Dinucl_markov> new_event_p = shared_ptr<Dinucl_markov>(new Dinucl_markov(event_class));
+                // Use effective_gene_class for backward compatibility
+                shared_ptr<Dinucl_markov> new_event_p = shared_ptr<Dinucl_markov>(new Dinucl_markov(effective_gene_class));
                 new_event_p->set_priority(priority);
                 new_event_p->set_nickname(nickname);
+                new_event_p->set_seq_type(event_seq_type);
                 this->add_event(new_event_p);
                 getline(infile, line_str);
                 while (line_str[0] == '%') {
