@@ -10,7 +10,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
-#include <igor/Core/LegacyBridge.h>
+#include <igor/Model/LegacyBridge.h>
 #include <igor/Core/Model_marginals.h>
 #include <igor/Core/Model_Parms.h>
 #include <igor/Model/InferenceEngine.h>
@@ -18,7 +18,6 @@
 #include <sstream>
 #include <cmath>
 
-using namespace igor::core;
 using namespace igor::model;
 using Catch::Matchers::WithinRel;
 using Catch::Matchers::WithinAbs;

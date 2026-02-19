@@ -1,6 +1,7 @@
 #pragma once
 
 #include <igor/Math/Tensor.h>
+#include <igor/Core/Typedef.h>
 
 #include <string>
 #include <ostream>
@@ -31,8 +32,13 @@ public:
 
     virtual ~MarginalHandler() = default;
 
-    // Identity
+    // ── Identity ─────────────────────────────────────────────────────────
     const std::string& name() const { return name_; }
+
+    // ── HasUid protocol (mirrors Rec_Event::uid / setUid) ────────────────
+    // Allows Adjacency<MarginalHandler<T>> and use in engine handler vectors.
+    igor::index_type uid()                      const { return uid_; }
+    void             setUid(igor::index_type id)       { uid_ = id;  }
 
     // Tensor access
     virtual const math::Tensor<T>& parameters() const = 0;
@@ -71,7 +77,8 @@ public:
 
 protected:
     explicit MarginalHandler(std::string name) : name_(std::move(name)) {}
-    std::string name_;
+    std::string      name_;
+    igor::index_type uid_ = -1;  // assigned by engine / handler registry
 };
 
 } // namespace igor::model

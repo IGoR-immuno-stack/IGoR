@@ -585,6 +585,10 @@ void Gene_choice::write2txt(ofstream &outfile)
     }
 }
 
+std::vector<std::size_t> Gene_choice::inherent_shape() const {
+    return { event_realizations.size() };
+}
+
 void Gene_choice::initialize_event(
         unordered_set<Rec_Event_name> &processed_events,
         const unordered_map<tuple<Event_type, int, Seq_side>, shared_ptr<Rec_Event>> &events_map,

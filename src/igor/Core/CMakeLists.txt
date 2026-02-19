@@ -94,14 +94,13 @@ target_sources(${PROJECT_NAME}
       Hypermutationglobalerrorrate.h
       Insertion.h
       IntStr.h
-      LegacyBridge.h
-      LegacyBridge.tpp
       Model_Parms.h
       Model_marginals.h
       Pgencounter.h
       Rec_Event.h
       SequenceTypes.h
       Singleerrorrate.h
+      Typedef.h
       Utils.h
 )
 
@@ -113,7 +112,6 @@ target_include_directories(${PROJECT_NAME} PUBLIC
 target_link_libraries(${PROJECT_NAME} 
   PUBLIC 
     GSL::gsl
-    ${CMAKE_PROJECT_NAME}::Model
 )
 if(APPLE)
   target_link_libraries(${PROJECT_NAME} PRIVATE OpenMP::OpenMP)

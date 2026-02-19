@@ -4,13 +4,16 @@
 #include <algorithm>
 #include <cmath>
 
-namespace igor::core {
+#include <igor/Model/CategoricalSamplingHandler.h>
+#include <igor/Model/MarkovSamplingHandler.h>
+
+namespace igor::model {
 
 // ─── Helper: Extract EventDescriptor from Rec_Event ────────────────────
 
-inline model::EventDescriptor make_event_descriptor(std::shared_ptr<const Rec_Event> event,
-                                                     const Model_Parms& parms) {
-    model::EventDescriptor desc;
+inline EventDescriptor make_event_descriptor(std::shared_ptr<const Rec_Event> event,
+                                             const Model_Parms& parms) {
+    EventDescriptor desc;
     // Use nickname for compatibility with Model_marginals text format
     // The marginals file uses nicknames like "v_choice" not full names
     desc.name = event->get_nickname();
@@ -55,8 +58,8 @@ inline model::EventDescriptor make_event_descriptor(std::shared_ptr<const Rec_Ev
 
 // ─── Extract EventDescriptor Vector ─────────────────────────────────────
 
-inline std::vector<model::EventDescriptor> extract_event_descriptors(const Model_Parms& parms) {
-    std::vector<model::EventDescriptor> descriptors;
+inline std::vector<EventDescriptor> extract_event_descriptors(const Model_Parms& parms) {
+    std::vector<EventDescriptor> descriptors;
 
     // Get events in topological order
     auto event_queue = parms.get_model_queue();
@@ -74,7 +77,7 @@ inline std::vector<model::EventDescriptor> extract_event_descriptors(const Model
 // ─── Import from Legacy Model_marginals ─────────────────────────────────
 
 template <typename T>
-void import_from_legacy(model::InferenceEngine<T>& engine,
+void import_from_legacy(InferenceEngine<T>& engine,
                        const Model_marginals& marginals,
                        const Model_Parms& parms) {
 
@@ -85,7 +88,7 @@ void import_from_legacy(model::InferenceEngine<T>& engine,
     const long double* marginal_array = marginals.marginal_array_smart_p.get();
 
     // Iterate through each handler in the engine
-    engine.for_each_handler([&](const std::string& name, model::MarginalHandler<T>& handler) {
+    engine.for_each_handler([&](const std::string& name, MarginalHandler<T>& handler) {
 
         // Find the event in Model_Parms by nickname (not full name)
         auto event = parms.get_event_pointer(name, true);  // true = search by nickname
@@ -122,7 +125,7 @@ void import_from_legacy(model::InferenceEngine<T>& engine,
 // ─── Export to Legacy Model_marginals ───────────────────────────────────
 
 template <typename T>
-void export_to_legacy(const model::InferenceEngine<T>& engine,
+void export_to_legacy(const InferenceEngine<T>& engine,
                      Model_marginals& marginals,
                      const Model_Parms& parms) {
 
@@ -133,7 +136,7 @@ void export_to_legacy(const model::InferenceEngine<T>& engine,
     long double* marginal_array = marginals.marginal_array_smart_p.get();
 
     // Iterate through each handler in the engine
-    engine.for_each_handler([&](const std::string& name, const model::MarginalHandler<T>& handler) {
+    engine.for_each_handler([&](const std::string& name, const MarginalHandler<T>& handler) {
 
         // Find the event in Model_Parms by nickname (not full name)
         auto event = parms.get_event_pointer(name, true);  // true = search by nickname
@@ -167,4 +170,4 @@ void export_to_legacy(const model::InferenceEngine<T>& engine,
     });
 }
 
-} // namespace igor::core
+} // namespace igor::model

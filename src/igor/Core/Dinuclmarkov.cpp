@@ -328,6 +328,10 @@ void Dinucl_markov::write2txt(ofstream &outfile)
     // it's usually a matrix. But let's keep it consistent.
 }
 
+std::vector<std::size_t> Dinucl_markov::inherent_shape() const {
+    return { 4, 4 };
+}
+
 void Dinucl_markov::initialize_event(
         unordered_set<Rec_Event_name> &processed_events,
         const unordered_map<tuple<Event_type, int, Seq_side>, shared_ptr<Rec_Event>> &events_map,

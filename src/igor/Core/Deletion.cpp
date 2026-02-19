@@ -359,6 +359,10 @@ void Deletion::write2txt(ofstream &outfile)
     }
 }
 
+std::vector<std::size_t> Deletion::inherent_shape() const {
+    return { event_realizations.size() };
+}
+
 void Deletion::initialize_event(
         unordered_set<Rec_Event_name> &processed_events,
         const unordered_map<tuple<Event_type, int, Seq_side>, shared_ptr<Rec_Event>> &events_map,

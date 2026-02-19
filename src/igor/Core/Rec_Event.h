@@ -33,6 +33,7 @@
 #include <igor/Core/SequenceTypes.h>
 #include <igor/Core/Utils.h>
 #include <igor/Core/Export.h>
+#include <igor/Core/Typedef.h>
 
 #include <forward_list>
 #include <fstream>
@@ -184,10 +185,19 @@ public:
     // Accessors
     const int get_class() const { return event_class; };
     const Seq_side get_side() const { return event_side; };
+    void set_event_class(int gc) { event_class = gc; }
+    void set_event_side(Seq_side side) { event_side = side; }
     const std::unordered_map<std::string, Event_realization> get_realizations_map() const
     {
         return event_realizations;
     };
+    
+    /**
+     * @brief Returns the intrinsic multidimensional shape of the event.
+     * Categorical events return {N} where N is the number of realizations.
+     * Markov events return {N, N} representing the state transition matrix.
+     */
+    virtual std::vector<std::size_t> inherent_shape() const = 0;
     const int get_priority() const { return priority; };
     const Rec_Event_name get_name() const { return name; };
     const std::string get_nickname() const { return nickname; };
@@ -268,7 +278,12 @@ public:
                                             const Marginal_array_p &model_parameters_point,
                                             Index_map &base_index_map) = 0;
 
+    igor::index_type uid(void) const { return m_uid; }
+    void setUid(igor::index_type uid) { m_uid = uid; }
+
 protected:
+    igor::index_type m_uid = -1;
+
     std::unordered_map<std::string, Event_realization> event_realizations;
     int priority;
     int event_class;

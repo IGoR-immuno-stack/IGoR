@@ -8,7 +8,7 @@
 #include <memory>
 #include <vector>
 
-namespace igor::core {
+namespace igor::model {
 
 /// Build EventDescriptor vector from Model_Parms for InferenceEngine construction
 std::vector<model::EventDescriptor> extract_event_descriptors(const Model_Parms& parms);
@@ -25,6 +25,6 @@ void export_to_legacy(const model::InferenceEngine<T>& engine,
                      Model_marginals& marginals,
                      const Model_Parms& parms);
 
-} // namespace igor::core
+} // namespace igor::model
 
-#include "LegacyBridge.tpp"
+#include <igor/Model/LegacyBridge.tpp>

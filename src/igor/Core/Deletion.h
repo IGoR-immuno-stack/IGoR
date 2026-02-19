@@ -61,6 +61,7 @@ public:
             std::mt19937_64 &generator) const override;
 
     void write2txt(std::ofstream &) override;
+    std::vector<std::size_t> inherent_shape() const override;
 
     void initialize_event(
             std::unordered_set<Rec_Event_name> &,
