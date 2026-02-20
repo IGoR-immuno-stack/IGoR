@@ -23,6 +23,7 @@ target_compile_definitions(igor_tests PRIVATE IGOR_SOURCE_DIR="${CMAKE_SOURCE_DI
 include(Catch)
 catch_discover_tests(igor_tests
     PROPERTIES TIMEOUT 3600  # generation test with 1M sequences needs headroom
+    DL_PATHS $<TARGET_FILE_DIR:igor_tests> $ENV{CONDA_PREFIX}/Library/bin
 )
 
 # --- Math Tests ---
@@ -33,7 +34,9 @@ if(MATH_TEST_SOURCES)
     set_target_properties(math_tests PROPERTIES CXX_STANDARD 23)
     target_link_libraries(math_tests PRIVATE igor::Math Catch2::Catch2WithMain)
     include(Catch)
-    catch_discover_tests(math_tests)
+    catch_discover_tests(math_tests
+        DL_PATHS $<TARGET_FILE_DIR:math_tests> $ENV{CONDA_PREFIX}/Library/bin
+    )
 endif()
 
 # --- Model Tests ---
@@ -45,7 +48,9 @@ if(MODEL_TEST_SOURCES)
     target_link_libraries(model_tests PRIVATE igor::Model igor::Core Catch2::Catch2WithMain)
     target_compile_definitions(model_tests PRIVATE IGOR_MODELS_DIR="${CMAKE_SOURCE_DIR}/models")
     include(Catch)
-    catch_discover_tests(model_tests)
+    catch_discover_tests(model_tests
+        DL_PATHS $<TARGET_FILE_DIR:model_tests> $ENV{CONDA_PREFIX}/Library/bin
+    )
 endif()
 
 # --- Core Module Tests (LegacyBridge, etc.) ---
@@ -57,5 +62,7 @@ if(CORE_MODULE_TEST_SOURCES)
     target_link_libraries(core_module_tests PRIVATE igor::Core igor::Model Catch2::Catch2WithMain)
     target_compile_definitions(core_module_tests PRIVATE IGOR_MODELS_DIR="${CMAKE_SOURCE_DIR}/models")
     include(Catch)
-    catch_discover_tests(core_module_tests)
+    catch_discover_tests(core_module_tests
+        DL_PATHS $<TARGET_FILE_DIR:core_module_tests> $ENV{CONDA_PREFIX}/Library/bin
+    )
 endif()
