@@ -74,6 +74,7 @@ public:
             const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> &,
             Safety_bool_map &, Mismatch_vectors_map &, double &, double &);
     void add_realization(int);
+    std::vector<std::size_t> inherent_shape() const override;
     std::queue<int> draw_random_realization(
             const Marginal_array_p &, std::unordered_map<Rec_Event_name, int> &,
             const std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &,

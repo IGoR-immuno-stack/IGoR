@@ -73,6 +73,7 @@ public:
             Safety_bool_map &, Mismatch_vectors_map &, double &, double &);
     void add_realization(int);
     bool add_realization(std::string gene_name, std::string gene_sequence);
+    std::vector<std::size_t> inherent_shape() const override;
     void set_genomic_templates(const std::vector<std::pair<std::string, std::string>> &);
     std::queue<int> draw_random_realization(
             const Marginal_array_p &, std::unordered_map<Rec_Event_name, int> &,

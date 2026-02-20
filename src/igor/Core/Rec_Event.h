@@ -31,6 +31,7 @@
 #include <igor/Core/Aligner.h>
 #include <igor/Core/Utils.h>
 #include <igorCoreExport.h>
+#include <igor/Core/Typedef.h>
 
 #include <unordered_map>
 #include <unordered_set>
@@ -48,8 +49,13 @@
 #include <map>
 
 class Counter;
-
-//class Model_marginals; //forward declare model marginals to avoid circular inclusion
+class Model_Parms;
+ 
+// Forward declaration: avoid circular include with GenModel
+namespace igor::model {
+template <typename T = double>
+class InferenceEngine;
+}  // namespace igor::model
 
 // value of event: struct: event identifier(name of Vgene), event value(sequence), event index(custom)
 /**
@@ -101,6 +107,10 @@ public:
     virtual ~Rec_Event();
     virtual std::shared_ptr<Rec_Event> copy() = 0; //TODO make it const somehow
     virtual int size() const;
+
+    igor::index_type uid(void) const { return m_uid; }
+    void setUid(igor::index_type uid) { m_uid = uid; }
+
     //TODO get rid of deletion map and chosen gene map
     /**
 	 * \brief Evaluate all Event_Realization of a RecEvent for a given sequence
@@ -196,7 +206,9 @@ public:
     virtual double *get_updated_ptr();
     void compute_crude_upper_bound_scenario_proba(double &);
     const std::vector<int> &get_current_realizations_index_vec() const { return current_realizations_index_vec; };
-
+    void add_realization(const Event_realization &);
+    virtual std::vector<std::size_t> inherent_shape() const = 0;
+    
     //Proba bound related computation methods
     virtual bool has_effect_on(Seq_type) const = 0;
     void iterate_initialize_Len_proba_wrap_up(Seq_type considered_junction,
@@ -219,6 +231,7 @@ public:
                                             Index_map &base_index_map) = 0;
 
 protected:
+    igor::index_type m_uid = -1;
     std::unordered_map<std::string, Event_realization> event_realizations;
     int priority;
     Gene_class event_class;
@@ -244,7 +257,6 @@ protected:
     int current_downstream_proba_memory_layers[6];
 
     int compare_sequences(std::string, std::string); //TODO should probably not be a member functino
-    void add_realization(const Event_realization &);
     //inline void iterate_wrap_up(double& , double& , const std::string& , const std::string& , Index_map& , const std::unordered_map<Rec_Event_name,std::vector<std::pair<const Rec_Event*,int>>>& , std::queue<Rec_Event*>  , Marginal_array_p&  , const Marginal_array_p& , const std::unordered_map<Gene_class , std::vector<Alignment_data>>& , Seq_type_str_p_map& , Seq_offsets_map& ,std::shared_ptr<Error_rate>&,const std::unordered_map<std::tuple<Event_type,Gene_class,Seq_side>,const Rec_Event*>&  , Safety_bool_map& , Mismatch_vectors_map& , double& , double&);
     void iterate_wrap_up(
             double &scenario_proba, Downstream_scenario_proba_bound_map &downstream_proba_map,

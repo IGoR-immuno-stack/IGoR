@@ -534,6 +534,10 @@ void Dinucl_markov::initialize_crude_scenario_proba_bound(
     updated_proba_list.push_front(this->updated_upper_bound_proba);
 }
 
+std::vector<std::size_t> Dinucl_markov::inherent_shape() const {
+    return { 4, 4 };
+}
+
 bool Dinucl_markov::has_effect_on(Seq_type seq_type) const
 {
     switch (this->event_class) {

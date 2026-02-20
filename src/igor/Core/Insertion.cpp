@@ -119,6 +119,10 @@ bool Insertion::add_realization(int insertion_number)
     return 0;
 }
 
+std::vector<std::size_t> Insertion::inherent_shape() const {
+    return { event_realizations.size() };
+}
+
 void Insertion::iterate(double &scenario_proba, Downstream_scenario_proba_bound_map &downstream_proba_map,
                         const string &sequence, const Int_Str &int_sequence, Index_map &base_index_map,
                         const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
