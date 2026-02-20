@@ -11,6 +11,7 @@
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
 #include <igor/Model/LegacyBridge.h>
+#include <igor/Model/Topology.h>
 #include <igor/Core/Model_marginals.h>
 #include <igor/Core/Model_Parms.h>
 #include <igor/Model/InferenceEngine.h>
@@ -261,5 +262,82 @@ TEST_CASE("Type conversion preserves precision", "[core][bridge]") {
         REQUIRE_THAT(handler.parameters()(0), WithinRel(1.0/6.0, 1e-15));
         REQUIRE_THAT(handler.parameters()(1), WithinRel(2.0/6.0, 1e-15));
         REQUIRE_THAT(handler.parameters()(2), WithinRel(3.0/6.0, 1e-15));
+    }
+}
+
+TEST_CASE("Topology <-> Model_Parms conversion", "[core][bridge][topology]") {
+    std::string model_path = std::string(IGOR_MODELS_DIR) + "/mouse/tcr_beta/models/model_parms.txt";
+    auto topo1 = igor::model::readTopology(model_path);
+    REQUIRE(topo1 != nullptr);
+
+    Model_Parms parms;
+    try {
+        parms.read_model_parms(model_path);
+    } catch (...) {
+        SKIP("Mouse TCR beta model files not found");
+    }
+
+    auto topo2 = igor::model::import_from_legacy(parms);
+    REQUIRE(topo2 != nullptr);
+    REQUIRE(topo1->size() == topo2->size());
+
+    for (const auto& ev : *topo1) {
+        auto name = ev->get_nickname();
+        INFO("Event: " << name);
+        REQUIRE(topo2->hasEvent(name));
+        
+        // Ensure uids match strictly
+        REQUIRE(ev->uid() == topo2->event(name)->uid());
+        
+        auto id1 = topo1->eventId(name);
+        auto id2 = topo2->eventId(name);
+        
+        // Check parents
+        auto parents1 = topo1->parents(id1);
+        auto parents2 = topo2->parents(id2);
+        int parents1_count = 0, parents2_count = 0;
+        for (const auto& p : parents1) parents1_count++;
+        for (const auto& p : parents2) parents2_count++;
+        REQUIRE(parents1_count == parents2_count);
+
+        auto it1_p = parents1.begin();
+        auto it2_p = parents2.begin();
+        while (it1_p != parents1.end() && it2_p != parents2.end()) {
+            REQUIRE((*it1_p)->uid() == (*it2_p)->uid());
+            ++it1_p;
+            ++it2_p;
+        }
+        
+        // Check children
+        auto children1 = topo1->children(id1);
+        auto children2 = topo2->children(id2);
+        int children1_count = 0, children2_count = 0;
+        for (const auto& c : children1) children1_count++;
+        for (const auto& c : children2) children2_count++;
+        REQUIRE(children1_count == children2_count);
+
+        auto it1_c = children1.begin();
+        auto it2_c = children2.begin();
+        while (it1_c != children1.end() && it2_c != children2.end()) {
+            REQUIRE((*it1_c)->uid() == (*it2_c)->uid());
+            ++it1_c;
+            ++it2_c;
+        }
+    }
+
+    auto parms2 = igor::model::export_to_legacy(*topo1);
+    REQUIRE(parms2 != nullptr);
+    REQUIRE(parms.get_event_list().size() == parms2->get_event_list().size());
+
+    for (const auto& ev : parms.get_event_list()) {
+        auto name = ev->get_name();
+        
+        auto parents1 = parms.get_parents(name);
+        auto parents2 = parms2->get_parents(name);
+        REQUIRE(parents1.size() == parents2.size());
+        
+        auto children1 = parms.get_children(name);
+        auto children2 = parms2->get_children(name);
+        REQUIRE(children1.size() == children2.size());
     }
 }

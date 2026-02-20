@@ -57,8 +57,7 @@ const std::vector<std::size_t>& CategoricalSamplingHandler<T>::shape(void) const
 // Mirrors the stride computation in CategoricalHandler::sample().
 
 template <typename T>
-std::size_t CategoricalSamplingHandler<T>::parentSliceOffset(
-    const std::vector<std::size_t>& parent_indices) const
+std::size_t CategoricalSamplingHandler<T>::parentSliceOffset(const std::vector<std::size_t>& parent_indices) const
 {
     if (m_shape.size() == 1) return 0;
     
@@ -83,14 +82,14 @@ std::size_t CategoricalSamplingHandler<T>::parentSliceOffset(
 template <typename T>
 void CategoricalSamplingHandler<T>::precomputeCDF(void)
 {
-    m_cdfs.resize(m_slice_count);
+    m_cdfs = math::Tensor<T>({m_slice_count, m_realization_count});
     for (std::size_t s = 0; s < m_slice_count; ++s) {
-        m_cdfs[s].resize(m_realization_count);
         const T* prob = m_parameters.data() + s * m_realization_count;
+        T* cdf_row = m_cdfs.data() + s * m_realization_count;
         T cumsum = T(0);
         for (std::size_t i = 0; i < m_realization_count; ++i) {
-            cumsum      += prob[i];
-            m_cdfs[s][i]  = cumsum;
+            cumsum     += prob[i];
+            cdf_row[i]  = cumsum;
         }
     }
 }
@@ -98,24 +97,22 @@ void CategoricalSamplingHandler<T>::precomputeCDF(void)
 // ─── Sampling ─────────────────────────────────────────────────────────────────
 
 template <typename T>
-std::size_t CategoricalSamplingHandler<T>::sample(
-    std::mt19937_64&                generator,
-    const std::vector<std::size_t>& parent_indices) const
+std::size_t CategoricalSamplingHandler<T>::sample(std::mt19937_64& generator, const std::vector<std::size_t>& parent_indices) const
 {
-    if (m_cdfs.empty()) {
+    if (m_cdfs.size() == 0) {
         throw std::logic_error(
             "CategoricalSamplingHandler \"" + this->m_name + "\": precomputeCDF() not called");
     }
 
     const std::size_t s = parentSliceOffset(parent_indices);
-    const auto& cdf = m_cdfs[s];
+    const T* cdf_row = m_cdfs.data() + s * m_realization_count;
 
     std::uniform_real_distribution<T> dist(T(0), T(1));
     const T u = dist(generator);
 
-    auto it = std::lower_bound(cdf.begin(), cdf.end(), u);
-    if (it == cdf.end()) return m_realization_count - 1;
-    return static_cast<std::size_t>(it - cdf.begin());
+    auto it = std::lower_bound(cdf_row, cdf_row + m_realization_count, u);
+    if (it == cdf_row + m_realization_count) return m_realization_count - 1;
+    return static_cast<std::size_t>(std::distance(cdf_row, it));
 }
 
 } // namespace igor::model

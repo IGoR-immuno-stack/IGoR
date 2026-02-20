@@ -39,7 +39,7 @@ concept HasUid = requires(T& t, const T& ct, igor::index_type id) {
 //
 // NodeType must satisfy HasUid.
 
-template <HasUid NodeType>
+template <HasUid NodeType, typename PtrType = std::shared_ptr<NodeType>>
 class Navigator {
 public:
     // ── Iterator ─────────────────────────────────────────────────────────────
@@ -47,12 +47,12 @@ public:
     class Iterator {
     public:
         using iterator_category = std::random_access_iterator_tag;
-        using value_type        = std::shared_ptr<NodeType>;
+        using value_type        = PtrType;
         using difference_type   = std::ptrdiff_t;
-        using pointer           = const std::shared_ptr<NodeType>*;
-        using reference         = std::shared_ptr<NodeType>;
+        using pointer           = const PtrType*;
+        using reference         = const PtrType&;
 
-        Iterator(const std::vector<std::shared_ptr<NodeType>>& nodes,
+        Iterator(const std::vector<PtrType>& nodes,
                  std::vector<igor::index_type>::const_iterator  it)
             : m_nodes(nodes), m_it(it) {}
 
@@ -86,7 +86,7 @@ public:
         bool operator>=(const Iterator& o) const { return m_it >= o.m_it; }
 
     private:
-        const std::vector<std::shared_ptr<NodeType>>& m_nodes;
+        const std::vector<PtrType>& m_nodes;
         std::vector<igor::index_type>::const_iterator  m_it;
     };
 
@@ -94,7 +94,7 @@ public:
 
     /// View over a subset of `nodes` identified by `indices`.
     /// Both references must outlive this Navigator object.
-    Navigator(const std::vector<std::shared_ptr<NodeType>>& nodes,
+    Navigator(const std::vector<PtrType>& nodes,
               const std::vector<igor::index_type>& indices)
               : m_nodes(nodes), m_indices(indices) {}
 
@@ -106,7 +106,7 @@ public:
     std::size_t size(void) const { return m_indices.size();  }
     bool        empty(void) const { return m_indices.empty(); }
 
-    std::shared_ptr<NodeType> operator[](std::size_t n) const {
+    const PtrType& operator[](std::size_t n) const {
         return m_nodes[m_indices[n]];
     }
 
@@ -114,7 +114,7 @@ public:
     const std::vector<igor::index_type>& indices(void) const { return m_indices; }
 
 private:
-    const std::vector<std::shared_ptr<NodeType>>& m_nodes;
+    const std::vector<PtrType>& m_nodes;
     const std::vector<igor::index_type>&          m_indices;
 };
 

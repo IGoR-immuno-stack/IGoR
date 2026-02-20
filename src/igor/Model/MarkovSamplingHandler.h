@@ -38,13 +38,11 @@ public:
 
     void precomputeCDF(void) override;
     
-    std::size_t sample(std::mt19937_64&                generator,
-                       const std::vector<std::size_t>& parent_indices = {}) const override;
+    std::size_t sample(std::mt19937_64& generator, const std::vector<std::size_t>& parent_indices = {}) const override;
 
-    std::vector<std::size_t> sampleSequence(
-        std::mt19937_64&                generator,
-        std::size_t                     first_state,
-        std::size_t                     n_steps,
+    std::vector<std::size_t> sampleSequence(std::mt19937_64& generator,
+        std::size_t first_state,
+        std::size_t n_steps,
         const std::vector<std::size_t>& parent_indices = {}) const override;
 
     std::size_t stateCount(void) const;
@@ -59,16 +57,14 @@ private:
     math::Tensor<T> m_parameters; // transition tensor
 
     // row_cdfs_[from * n_parent_slices_ + parent_slice][to] = CDF over to-states
-    std::vector<std::vector<T>> m_row_cdfs;
+    math::Tensor<T> m_row_cdfs;
 
     // first_cdf_[s] = CDF for first nucleotide (marginal over from_states)
     std::vector<T> m_first_cdf;
 
-    std::size_t parentSliceOffset(const std::vector<std::size_t>& parent_indices,
-                                  std::size_t start_dim = 1) const;
+    std::size_t parentSliceOffset(const std::vector<std::size_t>& parent_indices, std::size_t start_dim = 1) const;
 
-    std::size_t sampleFromCDF(std::mt19937_64& gen,
-                              const std::vector<T>& cdf) const;
+    std::size_t sampleFromCDF(std::mt19937_64& gen, const T* cdf_row, std::size_t size) const;
 };
 
 } // namespace igor::model

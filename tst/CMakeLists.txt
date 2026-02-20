@@ -38,7 +38,6 @@ endif()
 
 # --- Model Tests ---
 file(GLOB MODEL_TEST_SOURCES "igor/Model/*.cpp")
-list(REMOVE_ITEM MODEL_TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/igor/Model/test_SamplingEngine.cpp")
 
 if(MODEL_TEST_SOURCES)
     add_executable(model_tests ${MODEL_TEST_SOURCES})

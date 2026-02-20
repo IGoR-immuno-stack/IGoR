@@ -1,5 +1,6 @@
 #pragma once
 
+#include "igor/Model/SamplingEngine.h"
 #include <stdexcept>
 #include <vector>
 #include <string>
@@ -17,65 +18,14 @@ SamplingEngine<T>::SamplingEngine(std::shared_ptr<const Topology> topology)
         throw std::invalid_argument("SamplingEngine: topology must not be null");
     }
     
-    // Initialize handler storage
-    std::size_t size = m_topology->size();
-    m_handlers.resize(size);
-    
-    // Cache execution order
+    // Use the factory to automatically build the handlers with the correct shapes
+    m_handlers = sampling_handler_factory::build<T>(*m_topology);
     m_execution_order = m_topology->topologicalOrder();
-    
-    // Instantiate factory (it doesn't need topology in constructor)
-    // The factory uses static registrations.
-
-    // Automatically instantiate empty handlers for all events in topology
-    for (index_type uid = 0; uid < static_cast<index_type>(size); ++uid) {
-        // Use Topology::eventName logic (helper available inside loop)
-        // Hmm, factory takes nickname. 
-        // We can get nickname from Topology::eventName(uid)
-        std::string nickname = m_topology->eventName(uid);
-        
-        try {
-            // factory functions are in namespace scope
-            auto handler = sampling_handler_factory::create<T>(Event_type::Undefined_t, nullptr, std::vector<std::size_t>{}); 
-            // TODO: Actually instantiating the right handler needs correct type/event/shape extraction
-            // For now just fix the compilation issue by calling the namespace function correctly
-            if (handler) {
-                handler->setUid(uid);
-                m_handlers[uid] = std::move(handler);
-            }
-        } catch (const std::exception& e) {
-             // If creation fails (e.g. event structure issues), we log or rethrow?
-             // Since this is the core engine init, we should probably rethrow or ensure robust handling.
-             // Given it's auto-init, failing here means the Topology is unusable for Sampling.
-             throw; 
-        }
-    }
 }
 
 template <typename T>
-void SamplingEngine<T>::registerHandler(HandlerPtr handler) {
-    if (!handler) {
-        throw std::invalid_argument("SamplingEngine: attempt to register null handler");
-    }
-    
-    std::string name = handler->name();
-    
-    // Validate that event exists in structure
-    if (!m_topology->hasEvent(name)) {
-        throw std::invalid_argument("SamplingEngine: unknown event in topology: " + name);
-    }
-    
-    index_type uid = m_topology->eventId(name);
-    
-    // Replaces potentially auto-created handler
-    
-    // Handler UID must match Topology UID
-    handler->setUid(uid);
-    m_handlers[uid] = std::move(handler);
-}
-
-template <typename T>
-const SamplingHandler<T>& SamplingEngine<T>::handler(const std::string& name) const {
+const SamplingHandler<T>& SamplingEngine<T>::handler(const std::string& name) const 
+{
     if (!m_topology->hasEvent(name)) {
         throw std::out_of_range("SamplingEngine: event not found: " + name);
     }
@@ -87,7 +37,8 @@ const SamplingHandler<T>& SamplingEngine<T>::handler(const std::string& name) co
 }
 
 template <typename T>
-const SamplingHandler<T>& SamplingEngine<T>::handler(index_type uid) const {
+const SamplingHandler<T>& SamplingEngine<T>::handler(index_type uid) const 
+{
     if (uid >= static_cast<index_type>(m_handlers.size()) || uid < 0) {
         throw std::out_of_range("SamplingEngine: invalid handler UID: " + std::to_string(uid));
     }
@@ -98,7 +49,8 @@ const SamplingHandler<T>& SamplingEngine<T>::handler(index_type uid) const {
 }
 
 template <typename T>
-SamplingHandler<T>& SamplingEngine<T>::handler(const std::string& name) {
+SamplingHandler<T>& SamplingEngine<T>::handler(const std::string& name) 
+{
     if (!m_topology->hasEvent(name)) {
         throw std::out_of_range("SamplingEngine: event not found: " + name);
     }
@@ -110,7 +62,8 @@ SamplingHandler<T>& SamplingEngine<T>::handler(const std::string& name) {
 }
 
 template <typename T>
-SamplingHandler<T>& SamplingEngine<T>::handler(index_type uid) {
+SamplingHandler<T>& SamplingEngine<T>::handler(index_type uid) 
+{
     if (uid >= static_cast<index_type>(m_handlers.size()) || uid < 0) {
         throw std::out_of_range("SamplingEngine: invalid handler UID: " + std::to_string(uid));
     }
@@ -121,56 +74,65 @@ SamplingHandler<T>& SamplingEngine<T>::handler(index_type uid) {
 }
 
 template <typename T>
-SampledScenario SamplingEngine<T>::generate(std::mt19937_64& rng) const {
+SampledScenario SamplingEngine<T>::run(std::mt19937_64& rng) const 
+{
     // 1. Initialize Scenario (empty)
     SampledScenario result(m_topology->size());
     
     // 2. Iterate in topological order
-    for (index_type current_uid : m_execution_order) {
+    for (const auto& handler_ptr : this->orderedHandlers()) {
         
-        // Skip nodes without handlers
-        if (!m_handlers[current_uid]) {
-            throw std::logic_error("SamplingEngine: missing handler during generation for UID: " 
-                + std::to_string(current_uid));
+        // Skip nodes without handlers (though they shouldn't exist in orderedHandlers if topological order is valid, but checking here)
+        if (!handler_ptr) {
+            throw std::logic_error("SamplingEngine: missing handler during generation");
         }
         
-        const auto& current_handler = *m_handlers[current_uid];
-        std::string current_name = current_handler.name();
+        const auto& current_handler = *handler_ptr;
+        index_type current_uid = current_handler.uid();
         
         // 3. Resolve parent realizations
-        // Use Topology to get parent IDs
-        const std::vector<index_type>& parent_ids = m_topology->parentsIds(current_uid);
+        auto parents_nav = this->parents(current_uid);
         
         std::vector<std::size_t> parent_realizations;
-        parent_realizations.reserve(parent_ids.size());
+        parent_realizations.reserve(parents_nav.size());
         
-        for (index_type parent_uid : parent_ids) {
+        for (const auto& parent_ptr : parents_nav) {
             
-            // Look up parent handler to get its name (nickname)
-            if (!m_handlers[parent_uid]) {
-                 throw std::logic_error("SamplingEngine: parent handler missing for UID: " + std::to_string(parent_uid));
+            if (!parent_ptr) {
+                 throw std::logic_error("SamplingEngine: parent handler missing");
             }
-            std::string parent_key = m_handlers[parent_uid]->name();
+            index_type parent_uid = parent_ptr->uid();
             
-            if (result.index_of(parent_uid) >= result.events.size()) {
+            if (parent_uid >= static_cast<index_type>(result.events.size()) || result.events[parent_uid].indices.empty()) {
                 throw std::logic_error("SamplingEngine: parent not realized");
             }
             parent_realizations.push_back(result.index_of(parent_uid));
         }
         
         // 4. Sample
-        if (auto* markov = dynamic_cast<const MarkovSamplingHandler<T>*>(&current_handler)) {
-             // For Markov, similar logic as before
-             std::size_t val = current_handler.sample(rng, parent_realizations);
-             result.events[current_uid] = {current_uid, {val}};
-        } else {
-             // Default (Categorical)
-             std::size_t val = current_handler.sample(rng, parent_realizations);
-             result.events[current_uid] = {current_uid, {val}};
-        }
+        std::size_t val = current_handler.sample(rng, parent_realizations);
+        result.events[current_uid] = {current_uid, {val}};
     }
     
     return result;
+}
+
+template <typename T>
+auto SamplingEngine<T>::orderedHandlers() const -> OrderedList
+{
+    return OrderedList(m_handlers, m_execution_order);
+}
+
+template <typename T>
+auto SamplingEngine<T>::parents(index_type uid) const -> Adjacency_t
+{
+    return Adjacency_t(m_handlers, m_topology->parentsIds(uid));
+}
+
+template <typename T>
+auto SamplingEngine<T>::children(index_type uid) const -> Adjacency_t
+{
+    return Adjacency_t(m_handlers, m_topology->childrenIds(uid));
 }
 
 } // namespace igor::model

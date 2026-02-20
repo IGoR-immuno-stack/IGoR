@@ -142,6 +142,21 @@ TEST_CASE("Topology Algorithms", "[Model][Topology]") {
     }
 }
 
-
-
-
+TEST_CASE("Topology readTopology", "[Model][Topology]") {
+    std::string model_path = std::string(IGOR_MODELS_DIR) + "/mouse/tcr_beta/models/model_parms.txt";
+    auto topo = igor::model::readTopology(model_path);
+    REQUIRE(topo != nullptr);
+    REQUIRE(topo->size() > 0);
+    
+    REQUIRE(topo->hasEvent("v_choice"));
+    REQUIRE(topo->hasEvent("vd_ins"));
+    REQUIRE(topo->hasEvent("d_gene"));
+    REQUIRE(topo->hasEvent("dj_ins"));
+    REQUIRE(topo->hasEvent("j_choice"));
+    
+    auto v_id = topo->eventId("v_choice");
+    auto root_events = topo->roots();
+    bool v_is_root = false;
+    for (auto id : root_events) if (id == v_id) v_is_root = true;
+    REQUIRE(v_is_root);
+}

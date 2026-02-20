@@ -191,6 +191,7 @@ public:
     {
         return event_realizations;
     };
+    void add_realization(const Event_realization &);
     
     /**
      * @brief Returns the intrinsic multidimensional shape of the event.
@@ -312,7 +313,6 @@ protected:
 
     int compare_sequences(std::string,
                           std::string); // TODO should probably not be a member functino
-    void add_realization(const Event_realization &);
     // inline void iterate_wrap_up(double& , double& , const std::string& , const
     // std::string& , Index_map& , const
     // std::unordered_map<Rec_Event_name,std::vector<std::pair<const

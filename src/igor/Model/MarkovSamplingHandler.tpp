@@ -1,5 +1,6 @@
 #pragma once
 
+#include "igor/Model/MarkovSamplingHandler.h"
 #include <algorithm>
 #include <stdexcept>
 #include <typeinfo>
@@ -50,9 +51,7 @@ const std::vector<std::size_t>& MarkovSamplingHandler<T>::shape(void) const
 }
 
 template <typename T>
-std::size_t MarkovSamplingHandler<T>::parentSliceOffset(
-    const std::vector<std::size_t>& parent_indices,
-    std::size_t start_dim) const
+std::size_t MarkovSamplingHandler<T>::parentSliceOffset(const std::vector<std::size_t>& parent_indices, std::size_t start_dim) const
 {
     if (m_shape.size() <= 2) return 0;
 
@@ -70,15 +69,15 @@ std::size_t MarkovSamplingHandler<T>::parentSliceOffset(
 }
 
 template <typename T>
-void MarkovSamplingHandler<T>::precomputeCDF()
+void MarkovSamplingHandler<T>::precomputeCDF(void)
 {
     const std::size_t n_rows = m_state_count * m_parent_slice_count;
-    m_row_cdfs.resize(n_rows);
+    m_row_cdfs = math::Tensor<T>({n_rows, m_state_count});
 
     for (std::size_t from = 0; from < m_state_count; ++from) {
         for (std::size_t ps = 0; ps < m_parent_slice_count; ++ps) {
             const std::size_t row_idx = from * m_parent_slice_count + ps;
-            m_row_cdfs[row_idx].resize(m_state_count);
+            T* cdf_row = m_row_cdfs.data() + row_idx * m_state_count;
 
             const T* row_ptr = m_parameters.data()
                                + from * m_state_count * m_parent_slice_count
@@ -87,7 +86,7 @@ void MarkovSamplingHandler<T>::precomputeCDF()
             T cumsum = T(0);
             for (std::size_t to = 0; to < m_state_count; ++to) {
                 cumsum += row_ptr[to];
-                m_row_cdfs[row_idx][to] = cumsum;
+                cdf_row[to] = cumsum;
             }
         }
     }
@@ -117,28 +116,25 @@ void MarkovSamplingHandler<T>::precomputeCDF()
 }
 
 template <typename T>
-std::size_t MarkovSamplingHandler<T>::sampleFromCDF(
-    std::mt19937_64& gen, const std::vector<T>& cdf) const
+std::size_t MarkovSamplingHandler<T>::sampleFromCDF(std::mt19937_64& gen, const T* cdf_row, std::size_t size) const
 {
     std::uniform_real_distribution<T> dist(T(0), T(1));
     const T u = dist(gen);
-    auto it = std::lower_bound(cdf.begin(), cdf.end(), u);
-    if (it == cdf.end()) return cdf.size() - 1;
-    return static_cast<std::size_t>(it - cdf.begin());
+    auto it = std::lower_bound(cdf_row, cdf_row + size, u);
+    if (it == cdf_row + size) return size - 1;
+    return static_cast<std::size_t>(std::distance(cdf_row, it));
 }
 
 template <typename T>
-std::size_t MarkovSamplingHandler<T>::sample(
-    std::mt19937_64&                gen,
-    const std::vector<std::size_t>& parent_indices) const
+std::size_t MarkovSamplingHandler<T>::sample(std::mt19937_64& gen, const std::vector<std::size_t>& parent_indices) const
 {
-    if (m_row_cdfs.empty()) {
+    if (m_row_cdfs.size() == 0) {
         throw std::logic_error(
             "MarkovSamplingHandler \"" + this->m_name + "\": precomputeCDF() not called");
     }
 
     if (parent_indices.empty())
-        return sampleFromCDF(gen, m_first_cdf);
+        return sampleFromCDF(gen, m_first_cdf.data(), m_first_cdf.size());
 
     const std::size_t from_state = parent_indices[0];
     if (from_state >= m_state_count)
@@ -148,15 +144,12 @@ std::size_t MarkovSamplingHandler<T>::sample(
 
     const std::size_t ps      = parentSliceOffset(parent_indices, 1);
     const std::size_t row_idx = from_state * m_parent_slice_count + ps;
-    return sampleFromCDF(gen, m_row_cdfs[row_idx]);
+    const T* cdf_row = m_row_cdfs.data() + row_idx * m_state_count;
+    return sampleFromCDF(gen, cdf_row, m_state_count);
 }
 
 template <typename T>
-std::vector<std::size_t> MarkovSamplingHandler<T>::sampleSequence(
-    std::mt19937_64&                gen,
-    std::size_t                     first_state,
-    std::size_t                     n_steps,
-    const std::vector<std::size_t>& parent_indices) const
+std::vector<std::size_t> MarkovSamplingHandler<T>::sampleSequence(std::mt19937_64& gen, std::size_t first_state, std::size_t n_steps, const std::vector<std::size_t>& parent_indices) const
 {
     std::vector<std::size_t> chain;
     chain.reserve(n_steps + 1);

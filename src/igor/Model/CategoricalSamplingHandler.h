@@ -53,7 +53,7 @@ private:
     math::Tensor<T> m_parameters; // probability tensor
 
     // cdfs_[slice][j] = P(X <= j | parent_combination = slice)
-    std::vector<std::vector<T>> m_cdfs;
+    math::Tensor<T> m_cdfs;
 
     std::size_t parentSliceOffset(const std::vector<std::size_t>& parent_indices) const;
 };

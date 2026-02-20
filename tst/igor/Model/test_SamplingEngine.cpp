@@ -23,36 +23,27 @@ static std::unordered_map<std::string, Event_realization> create_realizations_se
     return realizations;
 }
 
-TEST_CASE("SamplingEngine construction and registration", "[SamplingEngine]") {
+TEST_CASE("SamplingEngine construction and factory builder", "[SamplingEngine]") {
     auto topology = std::make_shared<Topology>();
     
     // Create an event
-    auto event = std::make_shared<Gene_choice>(V_gene, GeneChoice_t, create_realizations_se(3));
+    std::unordered_map<std::string, Event_realization> parent_realizations1 = create_realizations_se(3);
+    auto event = std::make_shared<Gene_choice>(Undefined_gene, parent_realizations1);
     event->set_nickname("v_choice");
     
     topology->addEvent(event);
     
     SamplingEngine<double> engine(topology);
     
-    SECTION("Register valid handler") {
-        auto handler = std::make_unique<CategoricalSamplingHandler<double>>("v_choice", -1, std::vector<std::size_t>{3});
-        handler->precomputeCDF();
-        REQUIRE_NOTHROW(engine.registerHandler(std::move(handler)));
-        REQUIRE(engine.handler("v_choice").name() == std::string("CategoricalSamplingHandler_") + typeid(double).name());
+    SECTION("Handlers are automatically built") {
+        REQUIRE_NOTHROW(engine.handler("v_choice"));
+        auto& h_base = engine.handler("v_choice");
+        REQUIRE(h_base.name() == std::string("v_choice"));
+        REQUIRE(h_base.uid() == 0);
     }
     
-    SECTION("Register handler for unknown event throws") {
-        auto handler = std::make_unique<CategoricalSamplingHandler<double>>("unknown_event", -1, std::vector<std::size_t>{3});
-        REQUIRE_THROWS_AS(engine.registerHandler(std::move(handler)), std::invalid_argument);
-    }
-    
-    SECTION("Duplicate registration throws") {
-        auto h1 = std::make_unique<CategoricalSamplingHandler<double>>("v_choice", -1, std::vector<std::size_t>{3});
-        h1->precomputeCDF();
-        engine.registerHandler(std::move(h1));
-        
-        auto h2 = std::make_unique<CategoricalSamplingHandler<double>>("v_choice", -1, std::vector<std::size_t>{3});
-        REQUIRE_THROWS_AS(engine.registerHandler(std::move(h2)), std::logic_error);
+    SECTION("Accessing unknown event throws") {
+        REQUIRE_THROWS_AS(engine.handler("unknown_event"), std::out_of_range);
     }
 }
 
@@ -61,12 +52,14 @@ TEST_CASE("SamplingEngine generation (Categorical)", "[SamplingEngine]") {
     auto topology = std::make_shared<Topology>();
     
     // Parent event (size 2)
-    auto parent = std::make_shared<Gene_choice>(V_gene, GeneChoice_t, create_realizations_se(2));
+    std::unordered_map<std::string, Event_realization> parent_realizations2 = create_realizations_se(2);
+    auto parent = std::make_shared<Gene_choice>(Undefined_gene, parent_realizations2);
     parent->set_nickname("parent");
     igor::index_type parent_id = topology->addEvent(parent);
     
     // Child event (size 3)
-    auto child = std::make_shared<Gene_choice>(J_gene, GeneChoice_t, create_realizations_se(3));
+    std::unordered_map<std::string, Event_realization> child_realizations1 = create_realizations_se(3);
+    auto child = std::make_shared<Gene_choice>(Undefined_gene, child_realizations1);
     child->set_nickname("child");
     igor::index_type child_id = topology->addEvent(child);
     
@@ -75,20 +68,23 @@ TEST_CASE("SamplingEngine generation (Categorical)", "[SamplingEngine]") {
     
     SamplingEngine<double> engine(topology);
     
-    // Create & Register Parent Handler (Unconditional)
+    // Fetch & setup Parent Handler (Unconditional)
     {
-        auto h = std::make_unique<CategoricalSamplingHandler<double>>("parent", -1, std::vector<std::size_t>{2});
+        auto& h_base = engine.handler("parent");
+        auto* h = dynamic_cast<CategoricalSamplingHandler<double>*>(&h_base);
+        REQUIRE(h != nullptr);
+        
         // Set probas: 100% prob for index 1
         h->parameters().data()[0] = 0.0;
         h->parameters().data()[1] = 1.0;
         h->precomputeCDF();
-        engine.registerHandler(std::move(h));
     }
     
-    // Create & Register Child Handler (Conditional on parent)
+    // Fetch & setup Child Handler (Conditional on parent)
     {
-        // Shape: {3, 2} (3 realizations, 1 parent of size 2)
-        auto h = std::make_unique<CategoricalSamplingHandler<double>>("child", -1, std::vector<std::size_t>{3, 2});
+        auto& h_base = engine.handler("child");
+        auto* h = dynamic_cast<CategoricalSamplingHandler<double>*>(&h_base);
+        REQUIRE(h != nullptr);
         
         // If parent=0: 100% prob for child=0
         // If parent=1: 100% prob for child=2
@@ -115,11 +111,10 @@ TEST_CASE("SamplingEngine generation (Categorical)", "[SamplingEngine]") {
         p.data()[2 * 2 + 1] = 1.0;
         
         h->precomputeCDF();
-        engine.registerHandler(std::move(h));
     }
     
     std::mt19937_64 rng(42);
-    auto scenario = engine.generate(rng);
+    auto scenario = engine.run(rng);
     
     // Verification
     // Parent should be 1

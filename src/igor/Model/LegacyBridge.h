@@ -25,6 +25,14 @@ void export_to_legacy(const model::InferenceEngine<T>& engine,
                      Model_marginals& marginals,
                      const Model_Parms& parms);
 
+class Topology;
+
+/// Import the legacy Model_Parms structure into a modern Topology graph
+std::shared_ptr<Topology> import_from_legacy(const Model_Parms& legacy_model);
+
+/// Export a modern Topology graph back to a legacy Model_Parms
+std::shared_ptr<Model_Parms> export_to_legacy(const Topology& topology);
+
 } // namespace igor::model
 
 #include <igor/Model/LegacyBridge.tpp>

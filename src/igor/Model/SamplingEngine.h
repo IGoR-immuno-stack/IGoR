@@ -1,5 +1,6 @@
 #pragma once
 
+#include "igor/Model/Navigator.h"
 #include <igor/Model/SamplingHandler.h>
 #include <igor/Model/Topology.h>
 #include <igor/Model/Scenario.h>
@@ -13,11 +14,12 @@
 namespace igor::model {
 
 template <typename T = double>
-class SamplingEngine {
+class SamplingEngine 
+{
 public:
     using HandlerPtr = std::unique_ptr<SamplingHandler<T>>;
-
-    // ─── Construction ──────────────────────────────────────────────────────────
+    using Adjacency_t = Navigator<SamplingHandler<T>, HandlerPtr>;
+    using OrderedList = Navigator<SamplingHandler<T>, HandlerPtr>;
 
     /**
      * @brief Constructed with a shared Topology.
@@ -26,25 +28,8 @@ public:
      */
     explicit SamplingEngine(std::shared_ptr<const Topology> topology);
 
-    // ─── Configuration ─────────────────────────────────────────────────────────
-
-    /**
-     * @brief registerHandler
-     * Adds or replaces a sampling handler for a specific event node.
-     * Takes ownership. 
-     * Verifies that event exists in Topology and assigns its UID to the handler.
-     * Throws if handler name doesn't match any event in Topology.
-     */
-    void registerHandler(HandlerPtr handler);
-    
-    // ─── Handler Access (Mutable) ──────────────────────────────────────────────
-    
-    // Access handler by name for filling parameters (e.g. from LegacyBridge)
     SamplingHandler<T>& handler(const std::string& name);
     SamplingHandler<T>& handler(index_type uid);
-
-
-    // ─── Generation ────────────────────────────────────────────────────────────
 
     /**
      * @brief generate
@@ -52,12 +37,30 @@ public:
      * Iterates through the topology in topological order, sampling each event
      * given its parents' realized values in the current scenario.
      */
-    SampledScenario generate(std::mt19937_64& rng) const;
+    SampledScenario run(std::mt19937_64& rng) const;
     
-    // ─── Accessors ─────────────────────────────────────────────────────────────
-
     const SamplingHandler<T>& handler(const std::string& name) const;
     const SamplingHandler<T>& handler(index_type uid) const;
+
+    auto begin(void) const { return m_handlers.begin(); }
+    auto end(void) const { return m_handlers.end(); }
+    auto begin(void) { return m_handlers.begin(); }
+    auto end(void) { return m_handlers.end(); }
+
+    /**
+     * @brief Navigator over all handlers in strictly topological order.
+     */
+    OrderedList orderedHandlers(void) const;
+
+    /**
+     * @brief Navigator over the parents of a specific event.
+     */
+    Adjacency_t parents(index_type uid) const;
+
+    /**
+     * @brief Navigator over the children of a specific event.
+     */
+    Adjacency_t children(index_type uid) const;
 
 private:
     std::shared_ptr<const Topology> m_topology;
