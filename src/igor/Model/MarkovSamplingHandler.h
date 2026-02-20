@@ -26,18 +26,18 @@ namespace igor::model {
 //   // make_sampling_handler(trained_mrk_handler) does this automatically.
 
 template <typename T = double>
-class MarkovSamplingHandler final : public SamplingHandler<T> 
+class MarkovSamplingHandler : public SamplingHandler<T>
 {
 public:
     MarkovSamplingHandler(std::string name, igor::index_type uid, std::vector<std::size_t> shape);
-    
+
     ~MarkovSamplingHandler(void) = default;
 
     const math::Tensor<T>& parameters(void) const;
           math::Tensor<T>& parameters(void);
 
     void precomputeCDF(void) override;
-    
+
     std::size_t sample(std::mt19937_64& generator, const std::vector<std::size_t>& parent_indices = {}) const override;
 
     std::vector<std::size_t> sampleSequence(std::mt19937_64& generator,
@@ -49,10 +49,15 @@ public:
     std::size_t parentSliceCount(void) const;
     const std::vector<std::size_t>& shape(void) const;
 
+          T* rawData(void)       override { return m_parameters.data(); }
+    const T* rawData(void) const override { return m_parameters.data(); }
+
+    std::size_t rawDataSize(void) const override { return m_parameters.size(); }
+
 private:
     std::vector<std::size_t> m_shape;
     std::size_t m_state_count = 0;
-    std::size_t m_parent_slice_count = 1;
+    std::size_t m_parent_slice_count = 1; // product of parent dimensions
 
     math::Tensor<T> m_parameters; // transition tensor
 

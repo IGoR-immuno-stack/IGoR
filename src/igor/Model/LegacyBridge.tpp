@@ -219,4 +219,44 @@ inline std::shared_ptr<Model_Parms> export_to_legacy(const Topology& topology) {
     return parms;
 }
 
+// ─── Import Model_marginals into SamplingEngine ──────────────────────────────
+
+template <typename T>
+void import_from_legacy(SamplingEngine<T>& engine,
+                        const Model_marginals& marginals,
+                        const Topology& topology)
+{
+    // Reconstruct a Model_Parms from the topology so we can use
+    // Model_marginals::get_index_map(), which requires it.
+    auto parms = export_to_legacy(topology);
+
+    auto index_map            = marginals.get_index_map(*parms);
+    const long double* source = marginals.marginal_array_smart_p.get();
+
+    for (index_type uid = 0; uid < static_cast<index_type>(topology.size()); ++uid) {
+        // index_map is keyed by full event name, not nickname
+        const std::string full_name = topology.event(uid)->get_name();
+
+        auto it = index_map.find(full_name);
+        if (it == index_map.end()) {
+            throw std::runtime_error(
+                "import_from_legacy (SamplingEngine): no index for event '" + full_name + "'");
+        }
+        const int base_index = it->second;
+
+        SamplingHandler<T>& h = engine.handler(uid);
+
+        if (static_cast<std::size_t>(base_index) + h.rawDataSize() > marginals.get_length()) {
+            throw std::runtime_error(
+                "import_from_legacy (SamplingEngine): boundary check failed for '" + full_name + "'");
+        }
+
+        T* dest = h.rawData();
+        for (std::size_t i = 0; i < h.rawDataSize(); ++i)
+            dest[i] = static_cast<T>(source[base_index + i]);
+
+        h.precomputeCDF();
+    }
+}
+
 } // namespace igor::model

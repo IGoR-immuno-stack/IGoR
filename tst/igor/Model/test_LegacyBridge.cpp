@@ -12,6 +12,7 @@
 
 #include <igor/Model/LegacyBridge.h>
 #include <igor/Model/Topology.h>
+#include <igor/Model/SamplingEngine.h>
 #include <igor/Core/Model_marginals.h>
 #include <igor/Core/Model_Parms.h>
 #include <igor/Model/InferenceEngine.h>
@@ -285,13 +286,13 @@ TEST_CASE("Topology <-> Model_Parms conversion", "[core][bridge][topology]") {
         auto name = ev->get_nickname();
         INFO("Event: " << name);
         REQUIRE(topo2->hasEvent(name));
-        
+
         // Ensure uids match strictly
         REQUIRE(ev->uid() == topo2->event(name)->uid());
-        
+
         auto id1 = topo1->eventId(name);
         auto id2 = topo2->eventId(name);
-        
+
         // Check parents
         auto parents1 = topo1->parents(id1);
         auto parents2 = topo2->parents(id2);
@@ -307,7 +308,7 @@ TEST_CASE("Topology <-> Model_Parms conversion", "[core][bridge][topology]") {
             ++it1_p;
             ++it2_p;
         }
-        
+
         // Check children
         auto children1 = topo1->children(id1);
         auto children2 = topo2->children(id2);
@@ -331,13 +332,64 @@ TEST_CASE("Topology <-> Model_Parms conversion", "[core][bridge][topology]") {
 
     for (const auto& ev : parms.get_event_list()) {
         auto name = ev->get_name();
-        
+
         auto parents1 = parms.get_parents(name);
         auto parents2 = parms2->get_parents(name);
         REQUIRE(parents1.size() == parents2.size());
-        
+
         auto children1 = parms.get_children(name);
         auto children2 = parms2->get_children(name);
         REQUIRE(children1.size() == children2.size());
+    }
+}
+
+// ─── SamplingEngine: read_parameters vs import_from_legacy ─────────────────────
+
+TEST_CASE("read_parameters matches import_from_legacy for Mouse TCR beta",
+          "[core][bridge][SamplingEngine][integration]")
+{
+    const std::string parms_path     = std::string(IGOR_MODELS_DIR) + "/mouse/tcr_beta/models/model_parms.txt";
+    const std::string marginals_path = std::string(IGOR_MODELS_DIR) + "/mouse/tcr_beta/models/model_marginals.txt";
+
+    // 1. Read topology
+    auto topology = igor::model::read_topology(parms_path);
+    if (!topology) SKIP("Mouse TCR beta model files not found at: " + parms_path);
+
+    // 2. engine_legacy: load via Model_marginals + import_from_legacy
+    Model_Parms parms;
+    try { parms.read_model_parms(parms_path); }
+    catch (...) { SKIP("Mouse TCR beta model_parms not found at: " + parms_path); }
+
+    Model_marginals marginals(parms);
+    try { marginals.txt2marginals(marginals_path, parms); }
+    catch (...) { SKIP("Mouse TCR beta marginals not found at: " + marginals_path); }
+
+    SamplingEngine<double> engine_legacy(topology);
+    import_from_legacy(engine_legacy, marginals, *topology);
+
+    // 3. engine_direct: load directly with read_parameters
+    SamplingEngine<double> engine_direct(topology);
+    REQUIRE(read_parameters(marginals_path, engine_direct));
+
+    // 4. Every handler's raw probability tensor must match
+    REQUIRE(topology->size() > 0);
+    for (igor::index_type uid = 0;
+         uid < static_cast<igor::index_type>(topology->size());
+         ++uid)
+    {
+        const std::string name = topology->event(uid)->get_nickname();
+        INFO("Event: " << name << "  uid=" << uid);
+
+        const auto& h_leg = engine_legacy.handler(uid);
+        const auto& h_dir = engine_direct.handler(uid);
+
+        REQUIRE(h_leg.rawDataSize() == h_dir.rawDataSize());
+
+        const double* p_leg = h_leg.rawData();
+        const double* p_dir = h_dir.rawData();
+        for (std::size_t i = 0; i < h_leg.rawDataSize(); ++i) {
+            INFO("  index=" << i);
+            REQUIRE_THAT(p_dir[i], WithinAbs(p_leg[i], 1e-6));
+        }
     }
 }

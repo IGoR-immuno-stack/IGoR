@@ -16,9 +16,9 @@ CategoricalSamplingHandler<T>::CategoricalSamplingHandler(
     , m_realization_count(m_shape[0])
     , m_parameters(m_shape)        // zero-initialised — caller fills before precompute_cdf()
 {
-    m_slice_count = 1;
+    m_parent_slice_count = 1;
     for (std::size_t d = 1; d < m_shape.size(); ++d)
-        m_slice_count *= m_shape[d];
+        m_parent_slice_count *= m_shape[d];
 }
 
 template <typename T>
@@ -42,7 +42,7 @@ std::size_t CategoricalSamplingHandler<T>::realizationCount(void) const
 template <typename T>
 std::size_t CategoricalSamplingHandler<T>::parentSliceCount(void) const 
 {
-    return m_slice_count;
+    return m_parent_slice_count;
 }
 
 template <typename T>
@@ -82,8 +82,8 @@ std::size_t CategoricalSamplingHandler<T>::parentSliceOffset(const std::vector<s
 template <typename T>
 void CategoricalSamplingHandler<T>::precomputeCDF(void)
 {
-    m_cdfs = math::Tensor<T>({m_slice_count, m_realization_count});
-    for (std::size_t s = 0; s < m_slice_count; ++s) {
+    m_cdfs = math::Tensor<T>({m_parent_slice_count, m_realization_count});
+    for (std::size_t s = 0; s < m_parent_slice_count; ++s) {
         const T* prob = m_parameters.data() + s * m_realization_count;
         T* cdf_row = m_cdfs.data() + s * m_realization_count;
         T cumsum = T(0);

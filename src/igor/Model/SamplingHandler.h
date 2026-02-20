@@ -23,7 +23,7 @@ namespace igor::model {
 //   3. Call sample() / sample_sequence() as many times as needed.
 
 template <typename T = double>
-class SamplingHandler 
+class SamplingHandler
 {
 public:
     using scalar_type = T;
@@ -31,7 +31,7 @@ public:
     virtual ~SamplingHandler(void) = default;
 
     const std::string& name(void) const;
-    
+
     igor::index_type uid(void) const;
     void setUid(igor::index_type id);
 
@@ -66,6 +66,11 @@ public:
         std::size_t                     first_state,
         std::size_t                     n_steps,
         const std::vector<std::size_t>& parent_indices = {}) const;
+
+    virtual       T* rawData(void) = 0;
+    virtual const T* rawData(void) const = 0;
+
+    virtual std::size_t rawDataSize(void) const = 0;
 
 protected:
     explicit SamplingHandler(std::string name, igor::index_type uid);

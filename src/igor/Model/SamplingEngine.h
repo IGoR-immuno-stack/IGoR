@@ -73,6 +73,9 @@ private:
     std::vector<index_type> m_execution_order;
 };
 
+template <typename T>
+bool read_parameters(const std::string& filename, SamplingEngine<T>& engine);
+
 } // namespace igor::model
 
 #include <igor/Model/SamplingEngine.tpp>

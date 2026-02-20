@@ -4,6 +4,7 @@
 #include <igor/Core/Model_Parms.h>
 #include <igor/Model/InferenceEngine.h>
 #include <igor/Model/MarginalHandler.h>
+#include <igor/Model/SamplingEngine.h>
 
 #include <memory>
 #include <vector>
@@ -32,6 +33,15 @@ std::shared_ptr<Topology> import_from_legacy(const Model_Parms& legacy_model);
 
 /// Export a modern Topology graph back to a legacy Model_Parms
 std::shared_ptr<Model_Parms> export_to_legacy(const Topology& topology);
+
+/// Import marginal probabilities from legacy Model_marginals into a SamplingEngine.
+/// The engine must already be initialised with the matching Topology;
+/// only the probability tensors and CDFs are updated.
+/// A transient Model_Parms is derived from the topology internally.
+template <typename T = double>
+void import_from_legacy(SamplingEngine<T>& engine,
+                        const Model_marginals& marginals,
+                        const Topology& topology);
 
 } // namespace igor::model
 

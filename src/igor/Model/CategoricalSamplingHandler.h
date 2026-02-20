@@ -26,7 +26,7 @@ namespace igor::model {
 //   // make_sampling_handler(trained_cat_handler) does this automatically.
 
 template <typename T = double>
-class CategoricalSamplingHandler : public SamplingHandler<T> 
+class CategoricalSamplingHandler : public SamplingHandler<T>
 {
 public:
     CategoricalSamplingHandler(std::string name, igor::index_type uid, std::vector<std::size_t> shape);
@@ -37,7 +37,7 @@ public:
           math::Tensor<T>& parameters(void);
 
     void precomputeCDF(void) override;
-    
+
     std::size_t sample(std::mt19937_64&                generator,
                        const std::vector<std::size_t>& parent_indices = {}) const override;
 
@@ -45,10 +45,15 @@ public:
     std::size_t parentSliceCount(void) const;
     const std::vector<std::size_t>& shape(void) const;
 
+          T* rawData(void)       override { return m_parameters.data(); }
+    const T* rawData(void) const override { return m_parameters.data(); }
+
+    std::size_t rawDataSize(void) const override { return m_parameters.size(); }
+
 private:
     std::vector<std::size_t> m_shape; // [n_realizations, p1, p2, ...]
     std::size_t m_realization_count = 0;
-    std::size_t m_slice_count = 1; // product of parent dimensions
+    std::size_t m_parent_slice_count = 1; // product of parent dimensions
 
     math::Tensor<T> m_parameters; // probability tensor
 
