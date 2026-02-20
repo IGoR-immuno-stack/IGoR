@@ -57,6 +57,7 @@ class CORE_EXPORT Dinucl_markov : public Rec_Event
 {
 public:
     //Constructors
+    Dinucl_markov();
     Dinucl_markov(Gene_class); //TODO should be scalable on one side easily (mono di tri quadri nucl)
     //Destructor
     virtual ~Dinucl_markov();

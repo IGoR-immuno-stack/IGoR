@@ -156,6 +156,8 @@ public:
             const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> &,
             Safety_bool_map &, Mismatch_vectors_map &, double &, double &) = 0;
     bool set_priority(int);
+    void set_event_class(Gene_class gc) { event_class = gc; update_event_name(); }
+    void set_event_side(Seq_side side) { event_side = side; update_event_name(); }
 
     //Accessors
     const Gene_class get_class() const { return event_class; };
@@ -208,7 +210,7 @@ public:
     const std::vector<int> &get_current_realizations_index_vec() const { return current_realizations_index_vec; };
     void add_realization(const Event_realization &);
     virtual std::vector<std::size_t> inherent_shape() const = 0;
-    
+
     //Proba bound related computation methods
     virtual bool has_effect_on(Seq_type) const = 0;
     void iterate_initialize_Len_proba_wrap_up(Seq_type considered_junction,

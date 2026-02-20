@@ -267,7 +267,7 @@ TEST_CASE("Type conversion preserves precision", "[core][bridge]") {
 
 TEST_CASE("Topology <-> Model_Parms conversion", "[core][bridge][topology]") {
     std::string model_path = std::string(IGOR_MODELS_DIR) + "/mouse/tcr_beta/models/model_parms.txt";
-    auto topo1 = igor::model::readTopology(model_path);
+    auto topo1 = igor::model::read_topology(model_path);
     REQUIRE(topo1 != nullptr);
 
     Model_Parms parms;

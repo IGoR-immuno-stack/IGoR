@@ -59,6 +59,6 @@ private:
     std::unordered_map<std::string, index_type>  m_name_to_id;
 };
 
-std::shared_ptr<Topology> readTopology(const std::string& filename);
+std::shared_ptr<Topology> read_topology(const std::string& filename);
 
 } // namespace igor::model

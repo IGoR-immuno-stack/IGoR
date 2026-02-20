@@ -142,9 +142,9 @@ TEST_CASE("Topology Algorithms", "[Model][Topology]") {
     }
 }
 
-TEST_CASE("Topology readTopology", "[Model][Topology]") {
+TEST_CASE("Topology read_topology", "[Model][Topology]") {
     std::string model_path = std::string(IGOR_MODELS_DIR) + "/mouse/tcr_beta/models/model_parms.txt";
-    auto topo = igor::model::readTopology(model_path);
+    auto topo = igor::model::read_topology(model_path);
     REQUIRE(topo != nullptr);
     REQUIRE(topo->size() > 0);
     

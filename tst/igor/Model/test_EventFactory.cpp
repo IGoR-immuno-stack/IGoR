@@ -141,18 +141,18 @@ TEST_CASE("EventFactory - Two-Phase Init via Rec_Event API", "[factory][2phase][
 
     // Shared helper: configure common properties through the base class only.
     auto configure = [](std::shared_ptr<Rec_Event> ev,
-                        int gene_class, Seq_side side,
+                        Gene_class gene_class, Seq_side side,
                         const std::string& nick, int prio)
     {
-        ev->set_event_class(gene_class);  // Rec_Event::set_event_class
-        ev->set_event_side(side);         // Rec_Event::set_event_side
-        ev->set_nickname(nick);           // virtual — invokes derived override
-        ev->set_priority(prio);           // Rec_Event::set_priority
+        ev->set_event_class(gene_class);
+        ev->set_event_side(side);
+        ev->set_nickname(nick);
+        ev->set_priority(prio);
     };
 
     // Shared helper: assert all base-class getters.
     auto check = [](const std::shared_ptr<Rec_Event>& ev,
-                    Event_type type, int gene_class, Seq_side side,
+                    Event_type type, Gene_class gene_class, Seq_side side,
                     const std::string& nick, int prio)
     {
         CHECK(ev->get_type()     == type);
@@ -188,7 +188,6 @@ TEST_CASE("EventFactory - Two-Phase Init via Rec_Event API", "[factory][2phase][
 
         // Reference comparison (base API only)
         Gene_choice ref(V_gene);
-        ref.set_event_side(Undefined_side);
         ref.set_nickname("v_choice");
         ref.set_priority(7);
         matches(ev, ref);
@@ -205,7 +204,6 @@ TEST_CASE("EventFactory - Two-Phase Init via Rec_Event API", "[factory][2phase][
         REQUIRE(gc->get_realizations_map().size() == 2);
 
         Gene_choice ref(D_gene);
-        ref.set_event_side(Undefined_side);
         ref.set_nickname("d_gene");
         ref.set_priority(6);
         matches(ev, ref);
@@ -223,7 +221,6 @@ TEST_CASE("EventFactory - Two-Phase Init via Rec_Event API", "[factory][2phase][
         REQUIRE(gc->get_realizations_map().at("TRBJ1-1").value_str == "TGG");
 
         Gene_choice ref(J_gene);
-        ref.set_event_side(Undefined_side);
         ref.set_nickname("j_choice");
         ref.set_priority(7);
         matches(ev, ref);
@@ -287,7 +284,7 @@ TEST_CASE("EventFactory - Two-Phase Init via Rec_Event API", "[factory][2phase][
         configure(ev, VD_genes, Undefined_side, "vd_ins", 4);
         check(ev, Insertion_t, VD_genes, Undefined_side, "vd_ins", 4);
 
-        Insertion ref(VD_genes, Undefined_side);
+        Insertion ref(VD_genes);
         ref.set_nickname("vd_ins");
         ref.set_priority(4);
         matches(ev, ref);
@@ -299,7 +296,7 @@ TEST_CASE("EventFactory - Two-Phase Init via Rec_Event API", "[factory][2phase][
         configure(ev, DJ_genes, Undefined_side, "dj_ins", 2);
         check(ev, Insertion_t, DJ_genes, Undefined_side, "dj_ins", 2);
 
-        Insertion ref(DJ_genes, Undefined_side);
+        Insertion ref(DJ_genes);
         ref.set_nickname("dj_ins");
         ref.set_priority(2);
         matches(ev, ref);
@@ -313,7 +310,7 @@ TEST_CASE("EventFactory - Two-Phase Init via Rec_Event API", "[factory][2phase][
         configure(ev, VD_genes, Undefined_side, "vd_dinucl", 3);
         check(ev, Dinuclmarkov_t, VD_genes, Undefined_side, "vd_dinucl", 3);
 
-        Dinucl_markov ref(VD_genes, Undefined_side);
+        Dinucl_markov ref(VD_genes);
         ref.set_nickname("vd_dinucl");
         ref.set_priority(3);
         matches(ev, ref);
@@ -325,7 +322,7 @@ TEST_CASE("EventFactory - Two-Phase Init via Rec_Event API", "[factory][2phase][
         configure(ev, DJ_genes, Undefined_side, "dj_dinucl", 1);
         check(ev, Dinuclmarkov_t, DJ_genes, Undefined_side, "dj_dinucl", 1);
 
-        Dinucl_markov ref(DJ_genes, Undefined_side);
+        Dinucl_markov ref(DJ_genes);
         ref.set_nickname("dj_dinucl");
         ref.set_priority(1);
         matches(ev, ref);

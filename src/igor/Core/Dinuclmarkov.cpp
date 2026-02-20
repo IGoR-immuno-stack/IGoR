@@ -27,6 +27,10 @@
 
 using namespace std;
 
+Dinucl_markov::Dinucl_markov() : Dinucl_markov(Undefined_gene)
+{
+}
+
 Dinucl_markov::Dinucl_markov(Gene_class gene) : Rec_Event(), total_nucl_count(0)
 {
     this->type = Event_type::Dinuclmarkov_t;
