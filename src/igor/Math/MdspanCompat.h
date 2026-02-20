@@ -10,18 +10,10 @@
  * to ensure access to submdspan for slicing operations.
  */
 
-// On MSVC, prefer native <mdspan> (C++23) to avoid conflicts between
-// the Windows max macro and the Kokkos experimental dynamic_extent header.
-#if defined(_MSC_VER) && __has_include(<mdspan>)
-    #include <mdspan>
-
-    #ifndef IGOR_NO_SUBMDSPAN
-        #define IGOR_NO_SUBMDSPAN
-        #pragma message("Using standard <mdspan> on MSVC which may lack submdspan. Slicing disabled.")
-    #endif
-
-// Prefer Kokkos mdspan (experimental) to get submdspan support
-#elif __has_include(<experimental/mdspan>)
+// Prefer Kokkos mdspan (experimental) to get submdspan support.
+// NOTE: Requires NOMINMAX on Windows to prevent the max macro from breaking
+// std::numeric_limits<size_t>::max() inside the Kokkos dynamic_extent header.
+#if __has_include(<experimental/mdspan>)
     #include <experimental/mdspan>
     
     // Bring Kokkos mdspan into std namespace for compatibility
