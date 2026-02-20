@@ -91,6 +91,11 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
 
+if(WIN32)
+  # Prevent Windows.h min/max macros from breaking std::numeric_limits
+  add_compile_definitions(NOMINMAX)
+endif()
+
 ## ###################################################################
 ## Test setup
 ## ###################################################################
