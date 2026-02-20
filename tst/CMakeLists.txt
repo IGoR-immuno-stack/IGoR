@@ -24,6 +24,7 @@ include(Catch)
 catch_discover_tests(igor_tests
     PROPERTIES TIMEOUT 3600  # generation test with 1M sequences needs headroom
     DL_PATHS $<TARGET_FILE_DIR:igor_tests> $ENV{CONDA_PREFIX}/Library/bin
+    DISCOVERY_MODE PRE_TEST
 )
 
 # --- Math Tests ---
@@ -36,6 +37,7 @@ if(MATH_TEST_SOURCES)
     include(Catch)
     catch_discover_tests(math_tests
         DL_PATHS $<TARGET_FILE_DIR:math_tests> $ENV{CONDA_PREFIX}/Library/bin
+        DISCOVERY_MODE PRE_TEST
     )
 endif()
 
@@ -50,6 +52,7 @@ if(MODEL_TEST_SOURCES)
     include(Catch)
     catch_discover_tests(model_tests
         DL_PATHS $<TARGET_FILE_DIR:model_tests> $ENV{CONDA_PREFIX}/Library/bin
+        DISCOVERY_MODE PRE_TEST
     )
 endif()
 
@@ -64,5 +67,6 @@ if(CORE_MODULE_TEST_SOURCES)
     include(Catch)
     catch_discover_tests(core_module_tests
         DL_PATHS $<TARGET_FILE_DIR:core_module_tests> $ENV{CONDA_PREFIX}/Library/bin
+        DISCOVERY_MODE PRE_TEST
     )
 endif()
