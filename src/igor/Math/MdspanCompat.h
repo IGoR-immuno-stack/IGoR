@@ -37,7 +37,11 @@
     
     #ifndef IGOR_NO_SUBMDSPAN
         #define IGOR_NO_SUBMDSPAN
-        #warning "Using standard <mdspan> which may lack submdspan. Slicing disabled."
+        #ifdef _MSC_VER
+            #pragma message("Using standard <mdspan> which may lack submdspan. Slicing disabled.")
+        #else
+            #warning "Using standard <mdspan> which may lack submdspan. Slicing disabled."
+        #endif
     #endif
 
 #else
