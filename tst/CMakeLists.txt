@@ -23,9 +23,8 @@ file(GLOB TEST_SOURCES "*.cpp")
 
 add_executable(igor_tests ${TEST_SOURCES})
 
-# Link against the core library and Catch2
-# (Assuming igor::Core is the main library target)
-target_link_libraries(igor_tests PRIVATE igor::Core Catch2::Catch2WithMain)
+# Link against the core library, model library and Catch2
+target_link_libraries(igor_tests PRIVATE igor::Core igor::Model Catch2::Catch2WithMain)
 
 # Provide the project source directory so tests can locate data files
 target_compile_definitions(igor_tests PRIVATE IGOR_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
