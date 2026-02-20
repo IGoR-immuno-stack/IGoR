@@ -3,11 +3,12 @@
  * @brief Tests the sequence generation process using KL divergence
  *        and entropy-based validation.
  *
- * Generates 10, 100, 1000, and 1'000'000 sequences from the human TCR alpha
- * (VJ) and human TCR beta (VDJ) models. For each sample size, the empirical
- * marginal distributions of every
- * recombination event are compared to the theoretical model marginals via the
- * Kullback-Leibler divergence:
+ * Uses the modern Topology + SamplingEngine architecture to generate
+ * 10, 100, 1000, and 1'000'000 scenarios from the human TCR alpha
+ * (VJ) and human TCR beta (VDJ) models. For each sample size, the
+ * empirical marginal distributions of every recombination event are
+ * compared to the theoretical model marginals via the Kullback-Leibler
+ * divergence:
  *
  *     D_KL(P || Q) = Σ_i P(i) · log2( P(i) / Q(i) )
  *
@@ -41,8 +42,11 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-#include <igor/Core/FastGenerator.h>
-#include <igor/Core/GenModel.h>
+#include <igor/Model/LegacyBridge.h>
+#include <igor/Model/SamplingEngine.h>
+#include <igor/Model/Topology.h>
+#include <igor/Model/Scenario.h>
+
 #include <igor/Core/Model_Parms.h>
 #include <igor/Core/Model_marginals.h>
 #include <igor/Core/Rec_Event.h>
@@ -55,12 +59,11 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
-#include <forward_list>
 #include <iostream>
 #include <limits>
 #include <map>
 #include <numeric>
-#include <queue>
+#include <random>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -74,74 +77,88 @@
 static const std::string MODELS_DIR = std::string(IGOR_SOURCE_DIR) + "/models";
 
 /**
- * @brief Compute empirical marginal distributions for ALL non-DinucMarkov
- *        events in a single pass over the scenario list.
+ * @brief Build EventInfo metadata by iterating the Topology in
+ *        topological order.
  *
- * Returns a map from event queue_position to its empirical marginal vector.
- * This avoids the O(events × N) queue-copying that caused timeouts
- * when compute_empirical_marginal was called per-event.
+ * Uses the Topology's UIDs as position keys (stored in
+ * EventInfo::queue_position) so that events map directly to
+ * SampledScenario::events[uid].
+ *
+ * Theoretical marginals are still computed from the legacy
+ * Model_marginals, which is the only source that provides the
+ * marginalization over parent dimensions.
  */
-static std::map<size_t, std::vector<double>>
-compute_all_empirical_marginals(const std::forward_list<std::pair<std::string, std::queue<std::queue<int>>>> &scenarios,
-                                const std::vector<EventInfo> &event_infos, size_t total_sequences)
+static std::vector<EventInfo>
+build_event_info_from_topology(const igor::model::Topology &topology,
+                               const Model_Parms &parms,
+                               const Model_marginals &marginals)
 {
-    // Prepare per-event count arrays
-    // Only for non-DinucMarkov events
-    std::map<size_t, std::vector<size_t>> counts;
-    for (const auto &ev : event_infos) {
-        if (!ev.is_dinuc_markov) {
-            counts[ev.queue_position].assign(ev.num_realizations, 0);
-        }
-    }
+    std::vector<EventInfo> infos;
+    auto index_map = marginals.get_index_map(parms);
 
-    // Single pass over all scenarios
-    for (auto it = scenarios.begin(); it != scenarios.end(); ++it) {
-        // Copy the outer queue once per scenario and drain it,
-        // collecting realizations for every event in one go.
-        auto outer = it->second;
-        size_t pos = 0;
-        while (!outer.empty()) {
-            auto inner = outer.front();
-            outer.pop();
+    for (auto uid : topology.topologicalOrder()) {
+        auto ev = topology.event(uid);
 
-            auto cnt_it = counts.find(pos);
-            if (cnt_it != counts.end() && !inner.empty()) {
-                int realization = inner.front();
-                int num_real = static_cast<int>(cnt_it->second.size());
-                if (realization < 0 || realization >= num_real) {
-                    throw std::out_of_range("Realization index " + std::to_string(realization) + " out of bounds [0, "
-                                            + std::to_string(num_real) + ")");
-                }
-                ++cnt_it->second[realization];
+        EventInfo info;
+        info.name = ev->get_name();
+        info.nickname = ev->get_nickname();
+        info.num_realizations = ev->size();
+        info.queue_position = static_cast<size_t>(uid); // UID as key
+        info.is_dinuc_markov = (ev->get_type() == Event_type::Dinuclmarkov_t);
+        info.gene_class = ev->get_class();
+        info.dinuc_T.fill(0.0);
+        info.dinuc_entropy_rate = 0.0;
+
+        std::cout << "  Processing event: " << info.nickname
+                  << " (uid=" << uid
+                  << ", is_dinuc=" << info.is_dinuc_markov
+                  << ", size=" << info.num_realizations << ")"
+                  << std::endl;
+
+        if (info.is_dinuc_markov) {
+            int base_idx = index_map.at(info.name);
+            for (int k = 0; k < 16; ++k) {
+                info.dinuc_T[k] = static_cast<double>(
+                    marginals.marginal_array_smart_p[base_idx + k]);
             }
-            ++pos;
-        }
-    }
+            info.dinuc_entropy_rate = markov_entropy_rate(info.dinuc_T);
 
-    // Convert counts to probabilities
-    std::map<size_t, std::vector<double>> result;
-    double n = static_cast<double>(total_sequences);
-    for (auto &[qpos, cvec] : counts) {
-        std::vector<double> empirical(cvec.size(), 0.0);
-        for (size_t i = 0; i < cvec.size(); ++i) {
-            empirical[i] = static_cast<double>(cvec[i]) / n;
+            info.model_marginal.resize(16, 0.0);
+            for (int k = 0; k < 16; ++k) {
+                info.model_marginal[k] = info.dinuc_T[k];
+            }
+            info.H = info.dinuc_entropy_rate;
+        } else {
+            auto [dims, probs] =
+                marginals.compute_event_marginal_probability(info.name, parms);
+
+            info.model_marginal.resize(info.num_realizations, 0.0);
+            for (int i = 0; i < info.num_realizations; ++i) {
+                info.model_marginal[i] = static_cast<double>(probs.get()[i]);
+            }
+            info.H = entropy(info.model_marginal);
         }
-        result[qpos] = std::move(empirical);
+
+        infos.push_back(std::move(info));
     }
-    return result;
+    return infos;
 }
 
 /**
- * @brief Compute empirical marginal distributions from FastGenerator output.
+ * @brief Compute empirical marginal distributions from SampledScenario output.
  *
- * Overload that works with the FastGenerator's output format:
- * vector<GeneratedSequence> where each GeneratedSequence::realizations
- * is a vector<vector<int>>. For non-DinucMarkov events, realizations[pos]
- * contains a single element: the realization index.
+ * For each non-DinucMarkov event, counts the realization index
+ * (SampledEvent::indices[0]) across all scenarios and normalises
+ * to a probability vector.
+ *
+ * Events are keyed by their Topology UID (stored in
+ * EventInfo::queue_position).
  */
 static std::map<size_t, std::vector<double>>
-compute_all_empirical_marginals(const std::vector<igor::fast::GeneratedSequence> &sequences,
-                                const std::vector<EventInfo> &event_infos, size_t total_sequences)
+compute_all_empirical_marginals(
+    const std::vector<igor::model::SampledScenario> &scenarios,
+    const std::vector<EventInfo> &event_infos,
+    size_t total_sequences)
 {
     // Prepare per-event count arrays (non-DinucMarkov only)
     std::map<size_t, std::vector<size_t>> counts;
@@ -151,15 +168,19 @@ compute_all_empirical_marginals(const std::vector<igor::fast::GeneratedSequence>
         }
     }
 
-    // Single pass over all generated sequences
-    for (const auto &seq : sequences) {
-        for (auto &[qpos, cvec] : counts) {
-            if (qpos < seq.realizations.size() && !seq.realizations[qpos].empty()) {
-                int realization = seq.realizations[qpos][0];
+    // Single pass over all generated scenarios
+    for (const auto &scenario : scenarios) {
+        for (auto &[uid, cvec] : counts) {
+            if (uid < scenario.events.size()
+                && !scenario.events[uid].indices.empty()) {
+                auto realization =
+                    static_cast<int>(scenario.events[uid].indices[0]);
                 int num_real = static_cast<int>(cvec.size());
                 if (realization < 0 || realization >= num_real) {
-                    throw std::out_of_range("Realization index " + std::to_string(realization) + " out of bounds [0, "
-                                            + std::to_string(num_real) + ")");
+                    throw std::out_of_range(
+                        "Realization index " + std::to_string(realization)
+                        + " out of bounds [0, "
+                        + std::to_string(num_real) + ")");
                 }
                 ++cvec[realization];
             }
@@ -169,12 +190,12 @@ compute_all_empirical_marginals(const std::vector<igor::fast::GeneratedSequence>
     // Convert counts to probabilities
     std::map<size_t, std::vector<double>> result;
     double n = static_cast<double>(total_sequences);
-    for (auto &[qpos, cvec] : counts) {
+    for (auto &[uid, cvec] : counts) {
         std::vector<double> empirical(cvec.size(), 0.0);
         for (size_t i = 0; i < cvec.size(); ++i) {
             empirical[i] = static_cast<double>(cvec[i]) / n;
         }
-        result[qpos] = std::move(empirical);
+        result[uid] = std::move(empirical);
     }
     return result;
 }
@@ -242,6 +263,8 @@ compute_all_empirical_marginals(
 
 TEST_CASE("Generation marginals converge - KL divergence vs entropy", "[generation]")
 {
+    using namespace igor::model;
+
     // ------------------------------------------------------------------
     // 1. Select model to test (TCR alpha or TCR beta)
     // ------------------------------------------------------------------
@@ -278,7 +301,7 @@ TEST_CASE("Generation marginals converge - KL divergence vs entropy", "[generati
     }
 
     // ------------------------------------------------------------------
-    // 2. Load model and collect per-event metadata
+    // 2. Load legacy model, build Topology + SamplingEngine
     // ------------------------------------------------------------------
     INFO("Testing model: " << model_label);
     Model_Parms model_parms;
@@ -287,7 +310,20 @@ TEST_CASE("Generation marginals converge - KL divergence vs entropy", "[generati
     Model_marginals model_marginals(model_parms);
     model_marginals.txt2marginals(model_marginals_path, model_parms);
 
-    std::vector<EventInfo> event_infos = build_event_info(model_parms, model_marginals);
+    // Build the modern Topology graph from the legacy model
+    auto topology = import_from_legacy(model_parms);
+    REQUIRE(topology != nullptr);
+    REQUIRE(topology->size() > 0);
+
+    // Build the SamplingEngine and import marginals
+    SamplingEngine<double> engine(topology);
+    import_from_legacy(engine, model_marginals, *topology);
+
+    // ------------------------------------------------------------------
+    // 2b. Collect per-event metadata (using Topology UIDs)
+    // ------------------------------------------------------------------
+    std::vector<EventInfo> event_infos =
+        build_event_info_from_topology(*topology, model_parms, model_marginals);
 
     INFO("Model loaded, " << event_infos.size() << " events found");
     REQUIRE(event_infos.size() >= static_cast<size_t>(min_events));
@@ -322,8 +358,8 @@ TEST_CASE("Generation marginals converge - KL divergence vs entropy", "[generati
     for (auto &[gc, pair] : ins_dinuc_pairs) {
         if (pair.ins_event && pair.dinuc_event) {
             // Get insertion length values from the event's realizations
-            auto reals_map = pair.ins_event->name;
-            auto ev_ptr = model_parms.get_event_pointer(pair.ins_event->name);
+            auto ev_ptr = topology->event(
+                static_cast<igor::index_type>(pair.ins_event->queue_position));
             auto realizations = ev_ptr->get_realizations_map();
             std::vector<int> ins_lengths(pair.ins_event->num_realizations, 0);
             for (const auto &[key, real] : realizations) {
@@ -411,7 +447,8 @@ TEST_CASE("Generation marginals converge - KL divergence vs entropy", "[generati
             if (it_ref != pygor3_reference_entropy.end()) {
                 double ref = it_ref->second;
                 double diff = std::abs(reported_H - ref);
-                bool has_parents = !model_parms.get_parents(ev.name).empty();
+                bool has_parents = !topology->parentsIds(
+                    static_cast<igor::index_type>(ev.queue_position)).empty();
 
                 std::cout << "  " << ev.nickname << ": computed=" << reported_H << "  pygor3=" << ref
                           << "  diff=" << diff << (has_parents ? "  (marginal; parents present)" : "") << std::endl;
@@ -437,7 +474,7 @@ TEST_CASE("Generation marginals converge - KL divergence vs entropy", "[generati
     }
 
     // ------------------------------------------------------------------
-    // 3. Generate sequences for increasing N and track D_KL per event
+    // 3. Generate scenarios for increasing N and track D_KL per event
     // ------------------------------------------------------------------
 
     // Update ev.H for insertion events to the full combined entropy
@@ -453,9 +490,9 @@ TEST_CASE("Generation marginals converge - KL divergence vs entropy", "[generati
         }
     }
 
-    // Map: event_queue_position → vector of (D_KL, uncovered_mass) per sample-size
+    // Map: event UID → vector of (D_KL, uncovered_mass) per sample-size
     std::map<size_t, std::vector<std::pair<double, double>>> kl_traces;
-    // Map: event_queue_position → vector of empirical entropy per sample-size
+    // Map: event UID → vector of empirical entropy per sample-size
     std::map<size_t, std::vector<double>> entropy_traces;
     // FastGenerator empirical marginals at N=1M, saved for cross-validation
     // against SamplingEngine (section 6).
@@ -463,25 +500,26 @@ TEST_CASE("Generation marginals converge - KL divergence vs entropy", "[generati
 
     const std::vector<int> sample_sizes = { 10, 100, 1000, 1000000 };
 
-    // Initialize FastGenerator once, reuse across all sample sizes
-    igor::fast::FastGenerator fast_gen;
-    fast_gen.initialize(model_parms, model_marginals);
-    REQUIRE(fast_gen.is_initialized());
+    // Seed the RNG for reproducibility
+    std::mt19937_64 rng(42);
 
     for (int N : sample_sizes) {
-        INFO("Generating " << N << " sequences");
+        INFO("Generating " << N << " scenarios");
 
-        // Generate using FastGenerator (parallel, precomputed CDFs)
-        igor::fast::FastGeneratorConfig config;
-        config.show_progress = false;
-        auto sequences = fast_gen.generate(static_cast<size_t>(N), config);
+        // Generate N scenarios using SamplingEngine
+        std::vector<SampledScenario> scenarios;
+        scenarios.reserve(static_cast<size_t>(N));
+        for (int i = 0; i < N; ++i) {
+            scenarios.push_back(engine.run(rng));
+        }
 
-        REQUIRE(sequences.size() == static_cast<size_t>(N));
+        REQUIRE(scenarios.size() == static_cast<size_t>(N));
 
         std::cout << "\n--- N = " << N << " ---" << std::endl;
 
         // Compute all empirical marginals in a single pass
-        auto all_empiricals = compute_all_empirical_marginals(sequences, event_infos, sequences.size());
+        auto all_empiricals = compute_all_empirical_marginals(
+            scenarios, event_infos, scenarios.size());
 
         for (const auto &ev : event_infos) {
             if (ev.is_dinuc_markov) {
