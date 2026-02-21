@@ -18,22 +18,22 @@ everything to the legacy `Core` types (`Model_Parms`, `Model_marginals`).
 │                         │  (DAG of   │                                   │
 │                         │ Rec_Event) │                                   │
 │                         └─────┬──────┘                                   │
-│                               │  shared_ptr<const Topology>              │
-│                    ┌──────────┴──────────┐                               │
-│                    │                     │                               │
-│                    ▼                     ▼                               │
-│       ┌────────────────────┐   ┌────────────────────┐                    │
-│       │ InferenceEngine<T> │   │ SamplingEngine<T>  │                    │
-│       │                    │   │                    │                    │
-│       └───────────┬────────┘   └────────┬───────────┘                    │
-│                   │                     │                                │
-│          owns N handlers       owns N handlers                           │
-│                   │                     │                                │
-│                   ▼                     ▼                                │
-│       ┌────────────────────┐   ┌────────────────────┐                    │
-│       │ MarginalHandler<T> │   │ SamplingHandler<T> │                    │
-│       │  (abstract)        │   │  (abstract)        │                    │
-│       └───┬───────────┬────┘   └─────┬─────────┬────┘                    │
+│                               │                                          │
+│              ┌────────────────┼────────────────┐                         │
+│              │                │                │                         │
+│              ▼                ▼                ▼                         │
+│  ┌────────────────────┐ ┌────────────────────┐ ┌─────────────────────┐    │
+│  │ InferenceEngine<T> │ │ SamplingEngine<T>  │ │RecombinationModel<T>│    │
+│  │                    │ │                    │ │ (owns Topology)     │    │
+│  └───────────┬────────┘ └────────┬───────────┘ └─────────┬───────────┘    │
+│              │                   │                       │               │
+│     owns N handlers     owns N handlers          owns N Tensor<T>        │
+│              │                   │                       │               │
+│              ▼                   ▼                       ▼               │
+│  ┌────────────────────┐ ┌────────────────────┐  ┌────────────────────┐    │
+│  │ MarginalHandler<T> │ │ SamplingHandler<T> │  │    Tensor<T>       │    │
+│  │  (abstract)        │ │  (abstract)        │  │ (one per node)     │    │
+│  └───┬───────────┬────┘ └─────┬─────────┬────┘  └────────────────────┘    │
 │           │           │              │         │                         │
 │           ▼           ▼              ▼         ▼                         │
 │ ┌──────────────┐ ┌──────────┐ ┌──────────────┐ ┌──────────────┐          │
@@ -73,12 +73,13 @@ operate on it:
 | Concern | Class | Owns |
 |---|---|---|
 | Graph structure | `Topology` | `Rec_Event` nodes, adjacency lists |
+| Model weights | `RecombinationModel<T>` | `Topology` (unique), `Tensor<T>` per node |
 | Inference weights + EM | `InferenceEngine<T>` | `MarginalHandler<T>` instances |
 | Generation / sampling | `SamplingEngine<T>` | `SamplingHandler<T>` instances |
 
 Both engines receive a `shared_ptr<const Topology>` at construction and never
-mutate it. This makes the topology safely shareable between engines and across
-threads.
+mutate it. `RecombinationModel<T>` takes exclusive ownership of its `Topology`
+via `unique_ptr<const Topology>`.
 
 ### 2. Two Parallel Handler Hierarchies
 
@@ -220,27 +221,18 @@ event->set_nickname("v_choice");
 index_type uid = topology->addEvent(event);
 ```
 
-### Concept-Constrained Generic View — Navigator
+### Generic Index-Based View — Navigator
 
 `Navigator<NodeType, PtrType>` is a lightweight, non-owning **view** over a
-subset of nodes in a parallel vector. It is parameterised by a C++20 concept
-`HasUid`:
+subset of nodes in a parallel vector.
 
-```cpp
-template <typename T>
-concept HasUid = requires(T& t, const T& ct, igor::index_type id) {
-    { ct.uid()     } -> std::same_as<igor::index_type>;
-    { t.setUid(id) } -> std::same_as<void>;
-};
-```
-
-This single template serves three different node types:
+This single template serves several different node types:
 
 | Instantiation | Used by |
 |---|---|
 | `Navigator<Rec_Event>` | `Topology::parents()`, `Topology::children()` |
-| `Navigator<MarginalHandler<T>>` | (reserved for future `InferenceEngine` graph traversal) |
 | `Navigator<SamplingHandler<T>, unique_ptr<…>>` | `SamplingEngine::parents()`, `orderedHandlers()` |
+| `Navigator<Tensor<T>, Tensor<T>>` | `RecombinationModel::orderedWeights()` |
 
 A `Navigator` is constructed from a reference to the full node vector and an
 index list (parent IDs, child IDs, or topological order). It satisfies the
@@ -311,6 +303,7 @@ the modern `Model` types:
 | Inference → Legacy | `export_to_legacy(InferenceEngine, Model_marginals, Model_Parms)` |
 | Legacy → Sampling | `import_from_legacy(SamplingEngine, Model_marginals, Topology)` |
 | File → Sampling | `read_parameters(filename, SamplingEngine)` — standalone parser |
+| File → Model | `read_parameters(filename, RecombinationModel)` — standalone parser |
 
 The bridge is the **only place** where `Model` code includes `Core` headers
 such as `Model_Parms.h` and `Model_marginals.h`. Engines and handlers are
@@ -329,7 +322,7 @@ sampling result from the engine that produced it.
 | File | Role |
 |---|---|
 | `Topology.h / .cpp` | DAG of `Rec_Event` nodes; Kahn's topological sort; edge operations; `read_topology()` file parser |
-| `Navigator.h` | Generic index-based view with full random-access iterator; `HasUid` concept |
+| `Navigator.h` | Generic index-based view with full random-access iterator |
 | `MarginalHandler.h` | Abstract base for inference handlers; `EventDescriptor` struct |
 | `CategoricalHandler.h / .tpp` | Categorical distribution handler (inference): axis-0 normalisation |
 | `MarkovHandler.h / .tpp` | Markov transition matrix handler (inference): axis-1 normalisation |
@@ -338,6 +331,7 @@ sampling result from the engine that produced it.
 | `CategoricalSamplingHandler.h / .tpp` | CDF-based categorical sampler; precomputed per parent slice |
 | `MarkovSamplingHandler.h / .tpp` | Row-CDF Markov chain sampler; `sampleSequence()` for chains |
 | `SamplingEngine.h / .tpp` | Owns `SamplingHandler<T>` vector; `run()` generates a `SampledScenario`; `read_parameters()` file parser |
+| `RecombinationModel.h / .tpp` | Pairs a `Topology` (unique ownership) with one `Tensor<T>` per node; `orderedWeights()` Navigator; `read_parameters()` file parser |
 | `SamplingHandlerFactory.h / .tpp / .cpp` | Self-registering abstract factory for sampling handlers; `build<T>(Topology)` |
 | `EventFactory.h / .cpp` | Self-registering abstract factory for `Rec_Event` subclasses |
 | `Scenario.h` | `SampledEvent` and `SampledScenario` value types |
@@ -389,26 +383,6 @@ model_parms.txt ──► read_topology() ──► Topology (shared)
                                              ▼
                                       SampledScenario
 ```
-
----
-
-## HasUid Protocol
-
-The `HasUid` concept is the **structural contract** that unifies nodes across
-all layers. Any type exposing `uid() → index_type` and `setUid(index_type)`
-can be stored in a `Navigator` and indexed by a `Topology`-assigned UID.
-
-Current satisfying types:
-
-| Type | Where UID is assigned |
-|---|---|
-| `Rec_Event` | `Topology::addEvent()` |
-| `MarginalHandler<T>` | `InferenceEngine::register_handler()` |
-| `SamplingHandler<T>` | `SamplingHandlerFactory::build()` |
-
-This protocol enables the same `Navigator` template to traverse parents and
-children regardless of whether the underlying nodes are raw events, inference
-handlers, or sampling handlers.
 
 ---
 

@@ -2,27 +2,11 @@
 
 #include <igor/Core/Typedef.h>
 
-#include <concepts>
 #include <vector>
 #include <memory>
 #include <iterator>
 
 namespace igor::model {
-
-// ─── HasUid concept ──────────────────────────────────────────────────────────
-//
-// Any type used as a Topology / engine node must expose:
-//   - uid()          → igor::index_type   (current assigned index)
-//   - setUid(id)     → void               (called by Topology::addEvent / engine::add_handler)
-//
-// Rec_Event satisfies this already.
-// InferenceHandler and SamplingHandler will satisfy it once uid_ is added.
-
-template <typename T>
-concept HasUid = requires(T& t, const T& ct, igor::index_type id) {
-    { ct.uid()      } -> std::same_as<igor::index_type>;
-    { t.setUid(id)  } -> std::same_as<void>;
-};
 
 // ─── Navigator<NodeType> ─────────────────────────────────────────────────────
 //
@@ -36,10 +20,8 @@ concept HasUid = requires(T& t, const T& ct, igor::index_type id) {
 //
 //   for (auto& event : topology.parents(i))   // Navigator<Rec_Event>
 //       use(event->get_nickname(), ...);
-//
-// NodeType must satisfy HasUid.
 
-template <HasUid NodeType, typename PtrType = std::shared_ptr<NodeType>>
+template <typename NodeType, typename PtrType = std::shared_ptr<NodeType>>
 class Navigator {
 public:
     // ── Iterator ─────────────────────────────────────────────────────────────

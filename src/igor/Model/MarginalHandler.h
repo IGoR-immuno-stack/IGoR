@@ -35,7 +35,7 @@ public:
     // ── Identity ─────────────────────────────────────────────────────────
     const std::string& name() const { return name_; }
 
-    // ── HasUid protocol (mirrors Rec_Event::uid / setUid) ────────────────
+    // ── uid protocol (mirrors Rec_Event::uid / setUid) ─────────────────
     // Allows Adjacency<MarginalHandler<T>> and use in engine handler vectors.
     igor::index_type uid()                      const { return uid_; }
     void             setUid(igor::index_type id)       { uid_ = id;  }

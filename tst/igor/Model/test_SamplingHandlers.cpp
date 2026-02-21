@@ -127,7 +127,7 @@ TEST_CASE("CategoricalSamplingHandler: sampling 2D (one parent)", "[Model][Sampl
     }
 }
 
-TEST_CASE("CategoricalSamplingHandler: HasUid protocol", "[Model][Sampling][Categorical]") {
+TEST_CASE("CategoricalSamplingHandler: uid protocol", "[Model][Sampling][Categorical]") {
     CategoricalSamplingHandler<double> sh("uid_cat", -1, {2});
     REQUIRE(sh.uid() == -1);
     sh.setUid(7);
@@ -211,7 +211,7 @@ TEST_CASE("MarkovSamplingHandler: sample_sequence", "[Model][Sampling][Markov]")
     REQUIRE(chain[5] == 1);
 }
 
-TEST_CASE("MarkovSamplingHandler: HasUid protocol", "[Model][Sampling][Markov]") {
+TEST_CASE("MarkovSamplingHandler: uid protocol", "[Model][Sampling][Markov]") {
     MarkovSamplingHandler<double> sh("uid_mrk", -1, {2, 2});
     REQUIRE(sh.uid() == -1);
     sh.setUid(3);
@@ -223,44 +223,44 @@ TEST_CASE("MarkovSamplingHandler: HasUid protocol", "[Model][Sampling][Markov]")
 TEST_CASE("SamplingHandlerFactory: build from Topology", "[Model][Sampling][Factory]") {
     // 1. Create a minimal topology: Root1, Root2 -> Child -> GrandChild
     Topology topology;
-    
+
     std::unordered_map<std::string, Event_realization> root1_realizations;
     root1_realizations.emplace("R1_1", Event_realization("R1_1", 0, "R1_1", Int_Str(), 0));
     root1_realizations.emplace("R1_2", Event_realization("R1_2", 1, "R1_2", Int_Str(), 1));
     root1_realizations.emplace("R1_3", Event_realization("R1_3", 2, "R1_3", Int_Str(), 2));
-    auto root1 = std::make_shared<Gene_choice>(Undefined_gene, root1_realizations); 
+    auto root1 = std::make_shared<Gene_choice>(Undefined_gene, root1_realizations);
     root1->set_nickname("Root1");
     root1->set_priority(10); // Lower priority means it gets executed later than 5
-    
+
     std::unordered_map<std::string, Event_realization> root2_realizations;
     root2_realizations.emplace("R2_1", Event_realization("R2_1", 0, "R2_1", Int_Str(), 0));
     root2_realizations.emplace("R2_2", Event_realization("R2_2", 1, "R2_2", Int_Str(), 1));
     root2_realizations.emplace("R2_3", Event_realization("R2_3", 2, "R2_3", Int_Str(), 2));
     root2_realizations.emplace("R2_4", Event_realization("R2_4", 3, "R2_4", Int_Str(), 3));
-    auto root2 = std::make_shared<Gene_choice>(Undefined_gene, root2_realizations); 
+    auto root2 = std::make_shared<Gene_choice>(Undefined_gene, root2_realizations);
     root2->set_nickname("Root2");
     root2->set_priority(5); // Higher priority (lower number), should be ordered before Root1
-    
+
     std::unordered_map<std::string, Event_realization> child_realizations;
     child_realizations.emplace("D1", Event_realization("D1", 1, "", Int_Str(), 0));
     child_realizations.emplace("D2", Event_realization("D2", 2, "", Int_Str(), 1));
-    auto child = std::make_shared<Deletion>(Undefined_gene, Undefined_side, child_realizations);   
+    auto child = std::make_shared<Deletion>(Undefined_gene, Undefined_side, child_realizations);
     child->set_nickname("Child");
-    
+
     // We add a Dinucl_markov event just to test shape compilation for multiple event types
-    auto grandchild = std::make_shared<Dinucl_markov>(); 
+    auto grandchild = std::make_shared<Dinucl_markov>();
     grandchild->set_nickname("GrandChild");
-    
+
     igor::index_type root1_id = topology.addEvent(root1);
     igor::index_type root2_id = topology.addEvent(root2);
     igor::index_type child_id = topology.addEvent(child);
     igor::index_type grandchild_id = topology.addEvent(grandchild);
-    
+
     topology.addEdge(root1_id, child_id);
     topology.addEdge(root2_id, child_id);
     topology.addEdge(child_id, grandchild_id);
     topology.addEdge(root1_id, grandchild_id);
-    
+
     // 2. Test topological ordering based on priority
     std::vector<igor::index_type> order = topology.topologicalOrder();
     REQUIRE(order.size() == 4);
@@ -268,14 +268,14 @@ TEST_CASE("SamplingHandlerFactory: build from Topology", "[Model][Sampling][Fact
     REQUIRE(order[1] == root1_id); // priority 10
     REQUIRE(order[2] == child_id);
     REQUIRE(order[3] == grandchild_id);
-    
+
     // 3. Build handlers
     auto handlers = sampling_handler_factory::build<double>(topology);
-    
+
     REQUIRE(handlers.size() == 4);
-    
+
     // 4. Verify handlers
-    
+
     // Root1 handler: Categorical, shape {3}
     auto* h_root1 = static_cast<CategoricalSamplingHandler<double>*>(handlers[root1_id].get());
     REQUIRE(h_root1 != nullptr);
@@ -283,7 +283,7 @@ TEST_CASE("SamplingHandlerFactory: build from Topology", "[Model][Sampling][Fact
     REQUIRE(h_root1->uid() == root1_id);
     REQUIRE(h_root1->realizationCount() == 3);
     REQUIRE(h_root1->parentSliceCount() == 1);
-    
+
     // Root2 handler: Categorical, shape {4}
     auto* h_root2 = static_cast<CategoricalSamplingHandler<double>*>(handlers[root2_id].get());
     REQUIRE(h_root2 != nullptr);
@@ -291,28 +291,28 @@ TEST_CASE("SamplingHandlerFactory: build from Topology", "[Model][Sampling][Fact
     REQUIRE(h_root2->uid() == root2_id);
     REQUIRE(h_root2->realizationCount() == 4);
     REQUIRE(h_root2->parentSliceCount() == 1);
-    
+
     // Child handler: Categorical, shape {2, 3, 4} (2 self, 3 from Root1, 4 from Root2)
     auto* h_child = static_cast<CategoricalSamplingHandler<double>*>(handlers[child_id].get());
     REQUIRE(h_child != nullptr);
     REQUIRE(h_child->uid() == child_id);
     REQUIRE(h_child->realizationCount() == 2);
     REQUIRE(h_child->parentSliceCount() == 12); // 3 (Root1) * 4 (Root2) = 12
-    
+
     // Grandchild handler: Markov, shape {4, 4, 12, 3} (4x4 self from inherent_shape, 12 from Child (because Child's inherent_shape returns [2, 3, 4] if it concatenates own dim + parents dimensions? Wait, Child inherent_shape is {2}), and 3 from Root1)
     // Actually, SamplingHandlerFactory.tpp build() does:
     // shape = event->inherent_shape()
     // for parent : parents
     //    parent_shape = parent->inherent_shape()
     //    shape.insert(..., parent_shape...)
-    // So Grandchild parents are Child and Root1. 
+    // So Grandchild parents are Child and Root1.
     // Child->inherent_shape() == {2}. Root1->inherent_shape() == {3}.
     // So Grandchild shape will be {4, 4, 2, 3}.
     auto ptr = handlers[grandchild_id].get();
     REQUIRE(ptr != nullptr);
-    
+
     auto* h_grandchild = static_cast<MarkovSamplingHandler<double>*>(ptr);
-    
+
     REQUIRE(h_grandchild != nullptr);
     REQUIRE(h_grandchild->uid() == grandchild_id);
     REQUIRE(h_grandchild->stateCount() == 4);

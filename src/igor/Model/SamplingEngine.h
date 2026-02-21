@@ -14,7 +14,7 @@
 namespace igor::model {
 
 template <typename T = double>
-class SamplingEngine 
+class SamplingEngine
 {
 public:
     using HandlerPtr = std::unique_ptr<SamplingHandler<T>>;
@@ -38,7 +38,7 @@ public:
      * given its parents' realized values in the current scenario.
      */
     SampledScenario run(std::mt19937_64& rng) const;
-    
+
     const SamplingHandler<T>& handler(const std::string& name) const;
     const SamplingHandler<T>& handler(index_type uid) const;
 
@@ -64,11 +64,11 @@ public:
 
 private:
     std::shared_ptr<const Topology> m_topology;
-    
+
     // Handlers stored by UID for fast access during generation loop.
     // Size matches topology size. Nullptr if no handler registered for that node.
     std::vector<HandlerPtr> m_handlers;
-    
+
     // Cached topological order for generation loop (optimization)
     std::vector<index_type> m_execution_order;
 };
