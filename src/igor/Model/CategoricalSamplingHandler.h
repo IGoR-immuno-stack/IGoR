@@ -13,28 +13,25 @@ namespace igor::model {
 // Handler for categorical distributions (Gene_choice, Deletion, Insertion).
 // Tensor shape: [n_realizations, parent1_size, parent2_size, ...]
 //
-// ── Primary lifecycle (mirrors CategoricalHandler) ──────────────────────────
+// The handler borrows a const reference to the probability tensor stored in
+// RecombinationModel. It only owns the precomputed CDF tables.
 //
-//   auto sh = CategoricalSamplingHandler<T>(name, uid, shape);
-//   fill_from_model_marginals(sh.parameters(), marginals);   // same as MarginalHandler
+// ── Primary lifecycle ───────────────────────────────────────────────────────
+//
+//   const auto& w = model.weight(uid);          // tensor from RecombinationModel
+//   auto sh = CategoricalSamplingHandler<T>(name, uid, w);
 //   sh.precomputeCDF();
-//
-// ── Validation shortcut ──────────────────────────────────────────────────────
-//
-//   auto sh = CategoricalSamplingHandler<T>(trained_cat_handler);
-//   // parameters copied; caller must call precomputeCDF()
-//   // make_sampling_handler(trained_cat_handler) does this automatically.
+//   sh.sample(rng, parent_indices);
 
 template <typename T = double>
 class CategoricalSamplingHandler : public SamplingHandler<T>
 {
 public:
-    CategoricalSamplingHandler(std::string name, igor::index_type uid, std::vector<std::size_t> shape);
+    CategoricalSamplingHandler(std::string name, igor::index_type uid, const math::Tensor<T>& weights);
 
     ~CategoricalSamplingHandler(void) = default;
 
-    const math::Tensor<T>& parameters(void) const;
-          math::Tensor<T>& parameters(void);
+    const math::Tensor<T>& weights(void) const override;
 
     void precomputeCDF(void) override;
 
@@ -45,17 +42,11 @@ public:
     std::size_t parentSliceCount(void) const;
     const std::vector<std::size_t>& shape(void) const;
 
-          T* rawData(void)       override { return m_parameters.data(); }
-    const T* rawData(void) const override { return m_parameters.data(); }
-
-    std::size_t rawDataSize(void) const override { return m_parameters.size(); }
-
 private:
-    std::vector<std::size_t> m_shape; // [n_realizations, p1, p2, ...]
+    const math::Tensor<T>& m_weights; // borrowed from RecombinationModel
+
     std::size_t m_realization_count = 0;
     std::size_t m_parent_slice_count = 1; // product of parent dimensions
-
-    math::Tensor<T> m_parameters; // probability tensor
 
     // cdfs_[slice][j] = P(X <= j | parent_combination = slice)
     math::Tensor<T> m_cdfs;

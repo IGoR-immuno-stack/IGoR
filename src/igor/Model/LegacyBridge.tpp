@@ -6,6 +6,7 @@
 
 #include <igor/Model/CategoricalSamplingHandler.h>
 #include <igor/Model/MarkovSamplingHandler.h>
+#include <igor/Model/RecombinationModel.h>
 #include <igor/Model/Topology.h>
 #include <igor/Core/Model_Parms.h>
 #include <igor/Core/Model_marginals.h>
@@ -219,13 +220,14 @@ inline std::shared_ptr<Model_Parms> export_to_legacy(const Topology& topology) {
     return parms;
 }
 
-// ─── Import Model_marginals into SamplingEngine ──────────────────────────────
+// ─── Import Model_marginals into RecombinationModel ──────────────────────────
 
 template <typename T>
-void import_from_legacy(SamplingEngine<T>& engine,
-                        const Model_marginals& marginals,
-                        const Topology& topology)
+void import_from_legacy(RecombinationModel<T>& model,
+                        const Model_marginals& marginals)
 {
+    const auto& topology = model.topology();
+
     // Reconstruct a Model_Parms from the topology so we can use
     // Model_marginals::get_index_map(), which requires it.
     auto parms = export_to_legacy(topology);
@@ -240,22 +242,20 @@ void import_from_legacy(SamplingEngine<T>& engine,
         auto it = index_map.find(full_name);
         if (it == index_map.end()) {
             throw std::runtime_error(
-                "import_from_legacy (SamplingEngine): no index for event '" + full_name + "'");
+                "import_from_legacy (RecombinationModel): no index for event '" + full_name + "'");
         }
         const int base_index = it->second;
 
-        SamplingHandler<T>& h = engine.handler(uid);
+        auto& tensor = model.weight(uid);
 
-        if (static_cast<std::size_t>(base_index) + h.rawDataSize() > marginals.get_length()) {
+        if (static_cast<std::size_t>(base_index) + tensor.size() > marginals.get_length()) {
             throw std::runtime_error(
-                "import_from_legacy (SamplingEngine): boundary check failed for '" + full_name + "'");
+                "import_from_legacy (RecombinationModel): boundary check failed for '" + full_name + "'");
         }
 
-        T* dest = h.rawData();
-        for (std::size_t i = 0; i < h.rawDataSize(); ++i)
+        T* dest = tensor.data();
+        for (std::size_t i = 0; i < tensor.size(); ++i)
             dest[i] = static_cast<T>(source[base_index + i]);
-
-        h.precomputeCDF();
     }
 }
 

@@ -145,9 +145,9 @@ TEST_CASE("RecombinationModel read_parameters from file",
     }
 }
 
-// ─── Consistency with SamplingEngine read_parameters ─────────────────────────
+// ─── Consistency: SamplingEngine handlers borrow model tensors ───────────────
 
-TEST_CASE("RecombinationModel matches SamplingEngine read_parameters",
+TEST_CASE("SamplingEngine handlers reference RecombinationModel tensors",
           "[Model][RecombinationModel]")
 {
     const std::string parms_path =
@@ -155,40 +155,24 @@ TEST_CASE("RecombinationModel matches SamplingEngine read_parameters",
     const std::string marginals_path =
         std::string(IGOR_MODELS_DIR) + "/mouse/tcr_beta/models/model_marginals.txt";
 
-    Model_Parms parms;
-    try { parms.read_model_parms(parms_path); }
-    catch (...) { SKIP("Mouse TCR beta model_parms not found"); }
+    RecombinationModel<double> model = [&]{
+        try { return recombination_model_from_files<double>(parms_path, marginals_path); }
+        catch (...) { SKIP("Mouse TCR beta model files not found"); throw; }
+    }();
 
-    // Create two separate topologies: one for RecombinationModel, one for SamplingEngine
-    auto model_topology = import_from_legacy(parms);
-    auto engine_topology = import_from_legacy(parms);
+    auto model_ptr = std::make_shared<const RecombinationModel<double>>(std::move(model));
+    SamplingEngine<double> engine(model_ptr);
 
-    // Load via RecombinationModel
-    RecombinationModel<double> model(
-        std::make_unique<const Topology>(std::move(*model_topology)));
-    REQUIRE(read_parameters(marginals_path, model));
-
-    // Load via SamplingEngine (existing tested path)
-    SamplingEngine<double> engine(engine_topology);
-    REQUIRE(igor::model::read_parameters(marginals_path, engine));
-
-    // Compare: every tensor in the model must match the SamplingEngine handler
+    // Every handler's weights() must point to the exact same data as the model tensor
     for (index_type uid = 0;
-         uid < static_cast<index_type>(model.size()); ++uid)
+         uid < static_cast<index_type>(model_ptr->topology().size()); ++uid)
     {
-        const auto& tensor = model.weight(uid);
+        const auto& tensor = model_ptr->weight(uid);
         const auto& handler = engine.handler(uid);
 
-        INFO("Event: " << model.topology().event(uid)->get_nickname());
-        REQUIRE(tensor.size() == handler.rawDataSize());
-
-        const double* model_data  = tensor.data();
-        const double* engine_data = handler.rawData();
-
-        for (std::size_t i = 0; i < tensor.size(); ++i) {
-            INFO("  index=" << i);
-            REQUIRE(model_data[i] == engine_data[i]);
-        }
+        INFO("Event: " << model_ptr->topology().event(uid)->get_nickname());
+        REQUIRE(handler.weights().data() == tensor.data());
+        REQUIRE(handler.weights().size() == tensor.size());
     }
 }
 

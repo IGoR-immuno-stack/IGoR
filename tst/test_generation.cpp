@@ -44,6 +44,7 @@
 
 #include <igor/Model/LegacyBridge.h>
 #include <igor/Model/SamplingEngine.h>
+#include <igor/Model/RecombinationModel.h>
 #include <igor/Model/Topology.h>
 #include <igor/Model/Scenario.h>
 
@@ -52,7 +53,6 @@
 #include <igor/Core/Rec_Event.h>
 
 #include <igor/Model/Topology.h>
-#include <igor/Model/SamplingEngine.h>
 
 #include "entropy_test_helpers.h"
 
@@ -215,7 +215,6 @@ compute_all_empirical_marginals(
 static std::map<igor::index_type, std::vector<double>>
 compute_all_empirical_marginals(
     const std::vector<igor::model::SampledScenario>& scenarios,
-    const std::shared_ptr<const igor::model::Topology>& topology,
     const std::vector<EventInfo>& event_infos,
     const std::map<std::string, igor::index_type>& nick_to_uid)
 {
@@ -315,9 +314,13 @@ TEST_CASE("Generation marginals converge - KL divergence vs entropy", "[generati
     REQUIRE(topology != nullptr);
     REQUIRE(topology->size() > 0);
 
-    // Build the SamplingEngine and import marginals
-    SamplingEngine<double> engine(topology);
-    import_from_legacy(engine, model_marginals, *topology);
+    // Build the RecombinationModel and import marginals, then wrap in SamplingEngine
+    igor::model::RecombinationModel<double> model_obj(
+        std::make_unique<igor::model::Topology>(*topology));
+    import_from_legacy(model_obj, model_marginals);
+    auto model_ptr = std::make_shared<const igor::model::RecombinationModel<double>>(
+        std::move(model_obj));
+    SamplingEngine<double> engine(model_ptr);
 
     // ------------------------------------------------------------------
     // 2b. Collect per-event metadata (using Topology UIDs)
@@ -662,18 +665,20 @@ TEST_CASE("Generation marginals converge - KL divergence vs entropy", "[generati
                   << ") ===" << std::endl;
 
         // Build the modern pipeline
-        auto topology = read_topology(model_parms_path);
-        REQUIRE(topology);
-        REQUIRE(topology->size() == event_infos.size());
+        auto se_model = recombination_model_from_files<double>(
+            model_parms_path, model_marginals_path);
+        REQUIRE(se_model.topology().size() == event_infos.size());
 
-        SamplingEngine<double> engine(topology);
-        REQUIRE(read_parameters(model_marginals_path, engine));
+        auto se_model_ptr = std::make_shared<const RecombinationModel<double>>(
+            std::move(se_model));
+        SamplingEngine<double> engine(se_model_ptr);
 
         // Build nickname → UID map for cross-referencing
+        const auto& se_topology = se_model_ptr->topology();
         std::map<std::string, igor::index_type> nick_to_uid;
         for (igor::index_type uid = 0;
-             uid < static_cast<igor::index_type>(topology->size()); ++uid) {
-            nick_to_uid[topology->event(uid)->get_nickname()] = uid;
+             uid < static_cast<igor::index_type>(se_topology.size()); ++uid) {
+            nick_to_uid[se_topology.event(uid)->get_nickname()] = uid;
         }
 
         // Verify every legacy event has a matching topology node
@@ -696,7 +701,7 @@ TEST_CASE("Generation marginals converge - KL divergence vs entropy", "[generati
         std::cout << " done." << std::endl;
 
         auto se_empiricals = compute_all_empirical_marginals(
-            scenarios, topology, event_infos, nick_to_uid);
+            scenarios, event_infos, nick_to_uid);
 
         // D_KL checks and cross-validation against FastGenerator
         for (const auto &ev : event_infos) {
@@ -786,20 +791,22 @@ TEST_CASE("SamplingEngine marginals converge - modern architecture",
     REQUIRE(event_infos.size() >= static_cast<std::size_t>(min_events));
 
     // ------------------------------------------------------------------
-    // 3. Modern pipeline – Topology + SamplingEngine
+    // 3. Modern pipeline – RecombinationModel + SamplingEngine
     // ------------------------------------------------------------------
-    auto topology = read_topology(model_parms_path);
-    REQUIRE(topology);
-    REQUIRE(topology->size() == event_infos.size());
+    auto model_opt = recombination_model_from_files<double>(
+        model_parms_path, model_marginals_path);
+    REQUIRE(model_opt.topology().size() == event_infos.size());
 
-    SamplingEngine<double> engine(topology);
-    REQUIRE(read_parameters(model_marginals_path, engine));
+    auto model_ptr = std::make_shared<const RecombinationModel<double>>(
+        std::move(model_opt));
+    SamplingEngine<double> engine(model_ptr);
 
     // Build nickname → UID map for cross-referencing
+    const auto& topology = model_ptr->topology();
     std::map<std::string, igor::index_type> nick_to_uid;
     for (igor::index_type uid = 0;
-         uid < static_cast<igor::index_type>(topology->size()); ++uid) {
-        auto ev = topology->event(uid);
+         uid < static_cast<igor::index_type>(topology.size()); ++uid) {
+        auto ev = topology.event(uid);
         nick_to_uid[ev->get_nickname()] = uid;
     }
 
@@ -840,7 +847,7 @@ TEST_CASE("SamplingEngine marginals converge - modern architecture",
         std::cout << " done." << std::endl;
 
         auto empiricals = compute_all_empirical_marginals(
-            scenarios, topology, event_infos, nick_to_uid);
+            scenarios, event_infos, nick_to_uid);
 
         // ----------------------------------------------------------
         // 5. Compare empirical vs theoretical for each event

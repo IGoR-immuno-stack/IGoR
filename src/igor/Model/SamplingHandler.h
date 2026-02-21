@@ -1,5 +1,6 @@
 #pragma once
 
+#include <igor/Math/Tensor.h>
 #include <igor/Core/Typedef.h>
 
 #include <string>
@@ -14,13 +15,14 @@ namespace igor::model {
 // Abstract base for all generation handlers.
 // One instance per Topology node, owned by SamplingEngine.
 //
-// Satisfies HasUid: uid_ / uid() / setUid() mirror Rec_Event and MarginalHandler,
-// enabling Adjacency<SamplingHandler<T>> for parent traversal in SamplingEngine.
+// Each handler holds a const reference to the probability tensor stored in
+// RecombinationModel (the single source of truth). The handler only owns
+// the precomputed CDF tables needed for sampling.
 //
 // Lifecycle:
-//   1. Construct from the corresponding trained MarginalHandler<T>.
-//   2. Call precompute_cdf() once (after construction or after marginals are updated).
-//   3. Call sample() / sample_sequence() as many times as needed.
+//   1. Construct with a const reference to the model's weight tensor.
+//   2. Call precomputeCDF() once.
+//   3. Call sample() / sampleSequence() as many times as needed.
 
 template <typename T = double>
 class SamplingHandler
@@ -35,9 +37,16 @@ public:
     igor::index_type uid(void) const;
     void setUid(igor::index_type id);
 
+    // ── Weight access ─────────────────────────────────────────────────────────
+    //
+    // Returns a const reference to the probability tensor owned by
+    // RecombinationModel. The handler never copies or modifies it.
+
+    virtual const math::Tensor<T>& weights(void) const = 0;
+
     // ── CDF Precomputation ────────────────────────────────────────────────────
     //
-    // Build all CDF slices from the stored probability tensor.
+    // Build all CDF slices from the referenced probability tensor.
     // Must be called once before any sample() calls.
 
     virtual void precomputeCDF(void) = 0;
@@ -66,11 +75,6 @@ public:
         std::size_t                     first_state,
         std::size_t                     n_steps,
         const std::vector<std::size_t>& parent_indices = {}) const;
-
-    virtual       T* rawData(void) = 0;
-    virtual const T* rawData(void) const = 0;
-
-    virtual std::size_t rawDataSize(void) const = 0;
 
 protected:
     explicit SamplingHandler(std::string name, igor::index_type uid);

@@ -21,16 +21,14 @@ RecombinationModel<T>::RecombinationModel(std::unique_ptr<const Topology> topolo
         throw std::invalid_argument("RecombinationModel: topology must not be null");
     }
 
-    const auto n = static_cast<igor::index_type>(m_topology->size());
+    const auto n = m_topology->size();
     m_weights.reserve(n);
 
-    for (igor::index_type uid = 0; uid < n; ++uid) {
-        auto event = m_topology->event(uid);
-
+    for (const auto& event : *m_topology) {
         // Shape = [event_dims..., parent1_dims..., parent2_dims...]
         std::vector<std::size_t> shape = event->inherent_shape();
-        for (igor::index_type parent_uid : m_topology->parentsIds(uid)) {
-            auto parent_shape = m_topology->event(parent_uid)->inherent_shape();
+        for (const auto& parent : m_topology->parents(event->uid())) {
+            auto parent_shape = parent->inherent_shape();
             shape.insert(shape.end(), parent_shape.begin(), parent_shape.end());
         }
 

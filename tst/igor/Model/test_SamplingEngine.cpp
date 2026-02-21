@@ -2,6 +2,7 @@
 #include <catch2/matchers/catch_matchers_vector.hpp>
 
 #include <igor/Model/SamplingEngine.h>
+#include <igor/Model/RecombinationModel.h>
 #include <igor/Model/Topology.h>
 #include <igor/Model/CategoricalSamplingHandler.h>
 #include <igor/Core/Genechoice.h>
@@ -24,7 +25,7 @@ static std::unordered_map<std::string, Event_realization> create_realizations_se
 }
 
 TEST_CASE("SamplingEngine construction and factory builder", "[SamplingEngine]") {
-    auto topology = std::make_shared<Topology>();
+    auto topology = std::make_unique<Topology>();
 
     // Create an event
     std::unordered_map<std::string, Event_realization> parent_realizations1 = create_realizations_se(3);
@@ -33,7 +34,12 @@ TEST_CASE("SamplingEngine construction and factory builder", "[SamplingEngine]")
 
     topology->addEvent(event);
 
-    SamplingEngine<double> engine(topology);
+    auto model = std::make_shared<RecombinationModel<double>>(std::move(topology));
+    // Fill with uniform probabilities so precomputeCDF succeeds
+    auto& w = model->weight(0);
+    for (std::size_t i = 0; i < w.size(); ++i) w.data()[i] = 1.0 / w.size();
+
+    SamplingEngine<double> engine(model);
 
     SECTION("Handlers are automatically built") {
         REQUIRE_NOTHROW(engine.handler("v_choice"));
@@ -49,69 +55,47 @@ TEST_CASE("SamplingEngine construction and factory builder", "[SamplingEngine]")
 
 TEST_CASE("SamplingEngine generation (Categorical)", "[SamplingEngine]") {
     // Parent -> Child topology
-    auto topology = std::make_shared<Topology>();
+    auto topology = std::make_unique<Topology>();
 
     // Parent event (size 2)
     std::unordered_map<std::string, Event_realization> parent_realizations2 = create_realizations_se(2);
-    auto parent = std::make_shared<Gene_choice>(Undefined_gene, parent_realizations2);
-    parent->set_nickname("parent");
-    igor::index_type parent_id = topology->addEvent(parent);
+    auto parent_ev = std::make_shared<Gene_choice>(Undefined_gene, parent_realizations2);
+    parent_ev->set_nickname("parent");
+    igor::index_type parent_id = topology->addEvent(parent_ev);
 
     // Child event (size 3)
     std::unordered_map<std::string, Event_realization> child_realizations1 = create_realizations_se(3);
-    auto child = std::make_shared<Gene_choice>(Undefined_gene, child_realizations1);
-    child->set_nickname("child");
-    igor::index_type child_id = topology->addEvent(child);
+    auto child_ev = std::make_shared<Gene_choice>(Undefined_gene, child_realizations1);
+    child_ev->set_nickname("child");
+    igor::index_type child_id = topology->addEvent(child_ev);
 
     // Add edge
     topology->addEdge(parent_id, child_id);
 
-    SamplingEngine<double> engine(topology);
+    // Build RecombinationModel and fill tensors before constructing engine
+    auto model = std::make_shared<RecombinationModel<double>>(std::move(topology));
 
-    // Fetch & setup Parent Handler (Unconditional)
+    // Parent tensor (shape {2}): 100% prob for index 1
     {
-        auto& h_base = engine.handler("parent");
-        auto* h = dynamic_cast<CategoricalSamplingHandler<double>*>(&h_base);
-        REQUIRE(h != nullptr);
-
-        // Set probas: 100% prob for index 1
-        h->parameters().data()[0] = 0.0;
-        h->parameters().data()[1] = 1.0;
-        h->precomputeCDF();
+        auto& w = model->weight(parent_id);
+        w.data()[0] = 0.0;
+        w.data()[1] = 1.0;
     }
 
-    // Fetch & setup Child Handler (Conditional on parent)
+    // Child tensor (shape {3, 2}): conditional on parent
     {
-        auto& h_base = engine.handler("child");
-        auto* h = dynamic_cast<CategoricalSamplingHandler<double>*>(&h_base);
-        REQUIRE(h != nullptr);
+        auto& w = model->weight(child_id);
+        std::fill(w.data(), w.data() + w.size(), 0.0);
 
         // If parent=0: 100% prob for child=0
+        w.data()[0 * 2 + 0] = 1.0;
+
         // If parent=1: 100% prob for child=2
-        auto& p = h->parameters(); // size 6
-        // Flat index: child * n_parents + parent
-        // child=0, parent=0 -> idx 0 (val 1.0)
-        // child=1, parent=0 -> idx 2 (val 0.0)
-        // child=2, parent=0 -> idx 4 (val 0.0)
-
-        // child=0, parent=1 -> idx 1 (val 0.0)
-        // child=1, parent=1 -> idx 3 (val 0.0)
-        // child=2, parent=1 -> idx 5 (val 1.0)
-
-        // Using correct indexing:
-        // offset = child * product(parent_dims) + parent_offset
-        // here parent_dims=2.
-
-        std::fill(p.data(), p.data() + 6, 0.0);
-
-        // Case parent=0
-        p.data()[0 * 2 + 0] = 1.0;
-
-        // Case parent=1
-        p.data()[2 * 2 + 1] = 1.0;
-
-        h->precomputeCDF();
+        w.data()[2 * 2 + 1] = 1.0;
     }
+
+    // Construct engine — precomputes CDFs from model tensors
+    SamplingEngine<double> engine(model);
 
     std::mt19937_64 rng(42);
     auto scenario = engine.run(rng);

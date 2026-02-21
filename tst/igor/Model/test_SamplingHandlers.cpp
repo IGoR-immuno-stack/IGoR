@@ -17,6 +17,7 @@
 #include <igor/Model/MarkovSamplingHandler.h>
 #include <igor/Model/SamplingHandler.h>
 #include <igor/Model/SamplingHandlerFactory.h>
+#include <igor/Model/RecombinationModel.h>
 #include <igor/Model/Scenario.h>
 #include <igor/Model/Topology.h>
 #include <igor/Core/Genechoice.h>
@@ -31,6 +32,7 @@
 #include <vector>
 
 using namespace igor::model;
+using namespace igor::math;
 using namespace Catch;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -77,11 +79,13 @@ TEST_CASE("Scenario construction", "[Model][Sampling][Scenario]") {
 
 TEST_CASE("CategoricalSamplingHandler: construction and CDF", "[Model][Sampling][Categorical]") {
     // 1D categorical — 4 realizations, no parents
-    CategoricalSamplingHandler<double> sh("test_cat_1d", -1, {4});
+    Tensor<double> weights({4});
+    weights.data()[0] = 0.1;
+    weights.data()[1] = 0.4;
+    weights.data()[2] = 0.3;
+    weights.data()[3] = 0.2;
 
-    // Set non-uniform probabilities: [0.1, 0.4, 0.3, 0.2]
-    std::vector<double> probs = {0.1, 0.4, 0.3, 0.2};
-    for (std::size_t i = 0; i < 4; ++i) sh.parameters().data()[i] = probs[i];
+    CategoricalSamplingHandler<double> sh("test_cat_1d", -1, weights);
 
     REQUIRE(sh.realizationCount() == 4);
     REQUIRE(sh.parentSliceCount() == 1);
@@ -95,10 +99,11 @@ TEST_CASE("CategoricalSamplingHandler: construction and CDF", "[Model][Sampling]
 }
 
 TEST_CASE("CategoricalSamplingHandler: sampling 1D", "[Model][Sampling][Categorical]") {
-    CategoricalSamplingHandler<double> sh("cat_1d", -1, {4});
     std::vector<double> probs = {0.1, 0.4, 0.3, 0.2};
-    for (std::size_t i = 0; i < 4; ++i) sh.parameters().data()[i] = probs[i];
+    Tensor<double> weights({4});
+    for (std::size_t i = 0; i < 4; ++i) weights.data()[i] = probs[i];
 
+    CategoricalSamplingHandler<double> sh("cat_1d", -1, weights);
     sh.precomputeCDF();
 
     std::mt19937_64 rng(42);
@@ -109,12 +114,12 @@ TEST_CASE("CategoricalSamplingHandler: sampling 2D (one parent)", "[Model][Sampl
     // shape: [3 realizations, 2 parent states]
     // Parent 0 → probs [0.6, 0.3, 0.1]
     // Parent 1 → probs [0.2, 0.5, 0.3]
-    CategoricalSamplingHandler<double> sh("cat_2d", -1, {3, 2});
-
-    double* d = sh.parameters().data();
+    Tensor<double> weights({3, 2});
+    double* d = weights.data();
     d[0] = 0.6; d[1] = 0.3; d[2] = 0.1;  // parent=0
     d[3] = 0.2; d[4] = 0.5; d[5] = 0.3;  // parent=1
 
+    CategoricalSamplingHandler<double> sh("cat_2d", -1, weights);
     sh.precomputeCDF();
 
     std::mt19937_64 rng(123);
@@ -128,7 +133,8 @@ TEST_CASE("CategoricalSamplingHandler: sampling 2D (one parent)", "[Model][Sampl
 }
 
 TEST_CASE("CategoricalSamplingHandler: uid protocol", "[Model][Sampling][Categorical]") {
-    CategoricalSamplingHandler<double> sh("uid_cat", -1, {2});
+    Tensor<double> weights({2});
+    CategoricalSamplingHandler<double> sh("uid_cat", -1, weights);
     REQUIRE(sh.uid() == -1);
     sh.setUid(7);
     REQUIRE(sh.uid() == 7);
@@ -138,7 +144,8 @@ TEST_CASE("CategoricalSamplingHandler: uid protocol", "[Model][Sampling][Categor
 
 TEST_CASE("MarkovSamplingHandler: construction", "[Model][Sampling][Markov]") {
     // 4-state Markov, no parents
-    MarkovSamplingHandler<double> sh("test_markov", -1, {4, 4});
+    Tensor<double> weights({4, 4});
+    MarkovSamplingHandler<double> sh("test_markov", -1, weights);
 
     REQUIRE(sh.stateCount() == 4);
     REQUIRE(sh.parentSliceCount() == 1);
@@ -146,14 +153,11 @@ TEST_CASE("MarkovSamplingHandler: construction", "[Model][Sampling][Markov]") {
 }
 
 TEST_CASE("MarkovSamplingHandler: first nucleotide (uniform marginal)", "[Model][Sampling][Markov]") {
-    MarkovSamplingHandler<double> sh("uniform_markov", -1, {4, 4});
-    // Default MarkovHandler is uniform: each row sums to 1 -> uniform transition
-    // Set 0.25 to all transitions manually
-    double* d = sh.parameters().data();
-    for (std::size_t i = 0; i < 16; ++i) {
-        d[i] = 0.25;
-    }
+    Tensor<double> weights({4, 4});
+    double* d = weights.data();
+    for (std::size_t i = 0; i < 16; ++i) d[i] = 0.25;
 
+    MarkovSamplingHandler<double> sh("uniform_markov", -1, weights);
     sh.precomputeCDF();
 
     std::mt19937_64 rng(42);
@@ -166,12 +170,13 @@ TEST_CASE("MarkovSamplingHandler: transition row sampling", "[Model][Sampling][M
     // Row 0: [0.7, 0.2, 0.1]
     // Row 1: [0.1, 0.8, 0.1]
     // Row 2: [0.3, 0.3, 0.4]
-    MarkovSamplingHandler<double> sh("biased_markov", -1, {3, 3});
-    auto& p = sh.parameters();
-    p.data()[0] = 0.7; p.data()[1] = 0.2; p.data()[2] = 0.1;  // row 0
-    p.data()[3] = 0.1; p.data()[4] = 0.8; p.data()[5] = 0.1;  // row 1
-    p.data()[6] = 0.3; p.data()[7] = 0.3; p.data()[8] = 0.4;  // row 2
+    Tensor<double> weights({3, 3});
+    double* d = weights.data();
+    d[0] = 0.7; d[1] = 0.2; d[2] = 0.1;  // row 0
+    d[3] = 0.1; d[4] = 0.8; d[5] = 0.1;  // row 1
+    d[6] = 0.3; d[7] = 0.3; d[8] = 0.4;  // row 2
 
+    MarkovSamplingHandler<double> sh("biased_markov", -1, weights);
     sh.precomputeCDF();
 
     std::mt19937_64 rng(99);
@@ -191,11 +196,12 @@ TEST_CASE("MarkovSamplingHandler: sample_sequence", "[Model][Sampling][Markov]")
     // 2-state Markov: deterministic alternating
     // Row 0 → always go to 1: [0.0, 1.0]
     // Row 1 → always go to 0: [1.0, 0.0]
-    MarkovSamplingHandler<double> sh("det_markov", -1, {2, 2});
-    auto& p = sh.parameters();
-    p.data()[0] = 0.0; p.data()[1] = 1.0;
-    p.data()[2] = 1.0; p.data()[3] = 0.0;
+    Tensor<double> weights({2, 2});
+    double* d = weights.data();
+    d[0] = 0.0; d[1] = 1.0;
+    d[2] = 1.0; d[3] = 0.0;
 
+    MarkovSamplingHandler<double> sh("det_markov", -1, weights);
     sh.precomputeCDF();
 
     std::mt19937_64 rng(0);
@@ -212,7 +218,8 @@ TEST_CASE("MarkovSamplingHandler: sample_sequence", "[Model][Sampling][Markov]")
 }
 
 TEST_CASE("MarkovSamplingHandler: uid protocol", "[Model][Sampling][Markov]") {
-    MarkovSamplingHandler<double> sh("uid_mrk", -1, {2, 2});
+    Tensor<double> weights({2, 2});
+    MarkovSamplingHandler<double> sh("uid_mrk", -1, weights);
     REQUIRE(sh.uid() == -1);
     sh.setUid(3);
     REQUIRE(sh.uid() == 3);
@@ -220,9 +227,9 @@ TEST_CASE("MarkovSamplingHandler: uid protocol", "[Model][Sampling][Markov]") {
 
 // ─── SamplingHandlerFactory ───────────────────────────────────────────────────
 
-TEST_CASE("SamplingHandlerFactory: build from Topology", "[Model][Sampling][Factory]") {
+TEST_CASE("SamplingHandlerFactory: build from RecombinationModel", "[Model][Sampling][Factory]") {
     // 1. Create a minimal topology: Root1, Root2 -> Child -> GrandChild
-    Topology topology;
+    auto topology = std::make_unique<Topology>();
 
     std::unordered_map<std::string, Event_realization> root1_realizations;
     root1_realizations.emplace("R1_1", Event_realization("R1_1", 0, "R1_1", Int_Str(), 0));
@@ -230,7 +237,7 @@ TEST_CASE("SamplingHandlerFactory: build from Topology", "[Model][Sampling][Fact
     root1_realizations.emplace("R1_3", Event_realization("R1_3", 2, "R1_3", Int_Str(), 2));
     auto root1 = std::make_shared<Gene_choice>(Undefined_gene, root1_realizations);
     root1->set_nickname("Root1");
-    root1->set_priority(10); // Lower priority means it gets executed later than 5
+    root1->set_priority(10);
 
     std::unordered_map<std::string, Event_realization> root2_realizations;
     root2_realizations.emplace("R2_1", Event_realization("R2_1", 0, "R2_1", Int_Str(), 0));
@@ -239,7 +246,7 @@ TEST_CASE("SamplingHandlerFactory: build from Topology", "[Model][Sampling][Fact
     root2_realizations.emplace("R2_4", Event_realization("R2_4", 3, "R2_4", Int_Str(), 3));
     auto root2 = std::make_shared<Gene_choice>(Undefined_gene, root2_realizations);
     root2->set_nickname("Root2");
-    root2->set_priority(5); // Higher priority (lower number), should be ordered before Root1
+    root2->set_priority(5);
 
     std::unordered_map<std::string, Event_realization> child_realizations;
     child_realizations.emplace("D1", Event_realization("D1", 1, "", Int_Str(), 0));
@@ -247,30 +254,30 @@ TEST_CASE("SamplingHandlerFactory: build from Topology", "[Model][Sampling][Fact
     auto child = std::make_shared<Deletion>(Undefined_gene, Undefined_side, child_realizations);
     child->set_nickname("Child");
 
-    // We add a Dinucl_markov event just to test shape compilation for multiple event types
     auto grandchild = std::make_shared<Dinucl_markov>();
     grandchild->set_nickname("GrandChild");
 
-    igor::index_type root1_id = topology.addEvent(root1);
-    igor::index_type root2_id = topology.addEvent(root2);
-    igor::index_type child_id = topology.addEvent(child);
-    igor::index_type grandchild_id = topology.addEvent(grandchild);
+    igor::index_type root1_id = topology->addEvent(root1);
+    igor::index_type root2_id = topology->addEvent(root2);
+    igor::index_type child_id = topology->addEvent(child);
+    igor::index_type grandchild_id = topology->addEvent(grandchild);
 
-    topology.addEdge(root1_id, child_id);
-    topology.addEdge(root2_id, child_id);
-    topology.addEdge(child_id, grandchild_id);
-    topology.addEdge(root1_id, grandchild_id);
+    topology->addEdge(root1_id, child_id);
+    topology->addEdge(root2_id, child_id);
+    topology->addEdge(child_id, grandchild_id);
+    topology->addEdge(root1_id, grandchild_id);
 
     // 2. Test topological ordering based on priority
-    std::vector<igor::index_type> order = topology.topologicalOrder();
+    std::vector<igor::index_type> order = topology->topologicalOrder();
     REQUIRE(order.size() == 4);
-    REQUIRE(order[0] == root2_id); // priority 5
-    REQUIRE(order[1] == root1_id); // priority 10
+    REQUIRE(order[0] == root2_id);
+    REQUIRE(order[1] == root1_id);
     REQUIRE(order[2] == child_id);
     REQUIRE(order[3] == grandchild_id);
 
-    // 3. Build handlers
-    auto handlers = sampling_handler_factory::build<double>(topology);
+    // 3. Build RecombinationModel from the topology and then build handlers
+    RecombinationModel<double> model(std::move(topology));
+    auto handlers = sampling_handler_factory::build<double>(model);
 
     REQUIRE(handlers.size() == 4);
 
@@ -299,15 +306,8 @@ TEST_CASE("SamplingHandlerFactory: build from Topology", "[Model][Sampling][Fact
     REQUIRE(h_child->realizationCount() == 2);
     REQUIRE(h_child->parentSliceCount() == 12); // 3 (Root1) * 4 (Root2) = 12
 
-    // Grandchild handler: Markov, shape {4, 4, 12, 3} (4x4 self from inherent_shape, 12 from Child (because Child's inherent_shape returns [2, 3, 4] if it concatenates own dim + parents dimensions? Wait, Child inherent_shape is {2}), and 3 from Root1)
-    // Actually, SamplingHandlerFactory.tpp build() does:
-    // shape = event->inherent_shape()
-    // for parent : parents
-    //    parent_shape = parent->inherent_shape()
-    //    shape.insert(..., parent_shape...)
-    // So Grandchild parents are Child and Root1.
-    // Child->inherent_shape() == {2}. Root1->inherent_shape() == {3}.
-    // So Grandchild shape will be {4, 4, 2, 3}.
+    // Grandchild handler: Markov, shape {4, 4, 2, 3}
+    // inherent_shape for Dinucl_markov is {4, 4}, parents are Child (inherent {2}) and Root1 (inherent {3})
     auto ptr = handlers[grandchild_id].get();
     REQUIRE(ptr != nullptr);
 
@@ -317,6 +317,6 @@ TEST_CASE("SamplingHandlerFactory: build from Topology", "[Model][Sampling][Fact
     REQUIRE(h_grandchild->uid() == grandchild_id);
     REQUIRE(h_grandchild->stateCount() == 4);
     REQUIRE(h_grandchild->parentSliceCount() == 6); // 2 (Child) * 3 (Root1) = 6
-    REQUIRE(h_grandchild->parameters().size() == 4 * 4 * 6); // 4x4 matrix for each of the 6 parent combinations
+    REQUIRE(h_grandchild->weights().size() == 4 * 4 * 6); // 4x4 matrix for each of the 6 parent combinations
 }
 

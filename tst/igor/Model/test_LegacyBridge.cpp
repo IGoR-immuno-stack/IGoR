@@ -12,7 +12,7 @@
 
 #include <igor/Model/LegacyBridge.h>
 #include <igor/Model/Topology.h>
-#include <igor/Model/SamplingEngine.h>
+#include <igor/Model/RecombinationModel.h>
 #include <igor/Core/Model_marginals.h>
 #include <igor/Core/Model_Parms.h>
 #include <igor/Model/InferenceEngine.h>
@@ -343,19 +343,21 @@ TEST_CASE("Topology <-> Model_Parms conversion", "[core][bridge][topology]") {
     }
 }
 
-// ─── SamplingEngine: read_parameters vs import_from_legacy ─────────────────────
+// ─── RecombinationModel: read_parameters vs import_from_legacy ─────────────────
 
 TEST_CASE("read_parameters matches import_from_legacy for Mouse TCR beta",
-          "[core][bridge][SamplingEngine][integration]")
+          "[core][bridge][RecombinationModel][integration]")
 {
     const std::string parms_path     = std::string(IGOR_MODELS_DIR) + "/mouse/tcr_beta/models/model_parms.txt";
     const std::string marginals_path = std::string(IGOR_MODELS_DIR) + "/mouse/tcr_beta/models/model_marginals.txt";
 
-    // 1. Read topology
-    auto topology = igor::model::read_topology(parms_path);
-    if (!topology) SKIP("Mouse TCR beta model files not found at: " + parms_path);
+    // 1. model_direct: load via recombination_model_from_files (read_topology + read_parameters)
+    igor::model::RecombinationModel<double> model_direct = [&]{
+        try { return igor::model::recombination_model_from_files<double>(parms_path, marginals_path); }
+        catch (...) { SKIP("Mouse TCR beta model files not found at: " + parms_path); throw; }
+    }();
 
-    // 2. engine_legacy: load via Model_marginals + import_from_legacy
+    // 2. model_legacy: load via Model_marginals + import_from_legacy
     Model_Parms parms;
     try { parms.read_model_parms(parms_path); }
     catch (...) { SKIP("Mouse TCR beta model_parms not found at: " + parms_path); }
@@ -364,32 +366,30 @@ TEST_CASE("read_parameters matches import_from_legacy for Mouse TCR beta",
     try { marginals.txt2marginals(marginals_path, parms); }
     catch (...) { SKIP("Mouse TCR beta marginals not found at: " + marginals_path); }
 
-    SamplingEngine<double> engine_legacy(topology);
-    import_from_legacy(engine_legacy, marginals, *topology);
+    auto topology_legacy = igor::model::read_topology(parms_path);
+    REQUIRE(topology_legacy);
 
-    // 3. engine_direct: load directly with read_parameters
-    SamplingEngine<double> engine_direct(topology);
-    REQUIRE(read_parameters(marginals_path, engine_direct));
+    igor::model::RecombinationModel<double> model_legacy(
+        std::make_unique<igor::model::Topology>(*topology_legacy));
+    import_from_legacy(model_legacy, marginals);
 
-    // 4. Every handler's raw probability tensor must match
-    REQUIRE(topology->size() > 0);
+    // 3. Every tensor must match
+    REQUIRE(model_direct.topology().size() > 0);
     for (igor::index_type uid = 0;
-         uid < static_cast<igor::index_type>(topology->size());
+         uid < static_cast<igor::index_type>(model_direct.topology().size());
          ++uid)
     {
-        const std::string name = topology->event(uid)->get_nickname();
+        const std::string name = model_direct.topology().event(uid)->get_nickname();
         INFO("Event: " << name << "  uid=" << uid);
 
-        const auto& h_leg = engine_legacy.handler(uid);
-        const auto& h_dir = engine_direct.handler(uid);
+        const auto& t_dir = model_direct.weight(uid);
+        const auto& t_leg = model_legacy.weight(uid);
 
-        REQUIRE(h_leg.rawDataSize() == h_dir.rawDataSize());
+        REQUIRE(t_dir.size() == t_leg.size());
 
-        const double* p_leg = h_leg.rawData();
-        const double* p_dir = h_dir.rawData();
-        for (std::size_t i = 0; i < h_leg.rawDataSize(); ++i) {
+        for (std::size_t i = 0; i < t_dir.size(); ++i) {
             INFO("  index=" << i);
-            REQUIRE_THAT(p_dir[i], WithinAbs(p_leg[i], 1e-6));
+            REQUIRE_THAT(t_dir.data()[i], WithinAbs(t_leg.data()[i], 1e-6));
         }
     }
 }

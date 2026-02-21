@@ -9,27 +9,20 @@ namespace igor::model {
 
 template <typename T>
 MarkovSamplingHandler<T>::MarkovSamplingHandler(
-    std::string name, igor::index_type uid, std::vector<std::size_t> shape)
+    std::string name, igor::index_type uid, const math::Tensor<T>& weights)
     : SamplingHandler<T>(std::move(name), uid)
-    , m_shape(std::move(shape))
-    , m_state_count(m_shape[0])
-    , m_parameters(m_shape)        // zero-initialised — caller fills before precompute_cdf()
+    , m_weights(weights)
+    , m_state_count(m_weights.shape()[0])
 {
     m_parent_slice_count = 1;
-    for (std::size_t d = 2; d < m_shape.size(); ++d)
-        m_parent_slice_count *= m_shape[d];
+    for (std::size_t d = 2; d < m_weights.shape().size(); ++d)
+        m_parent_slice_count *= m_weights.shape()[d];
 }
 
 template <typename T>
-const math::Tensor<T>& MarkovSamplingHandler<T>::parameters(void) const
+const math::Tensor<T>& MarkovSamplingHandler<T>::weights(void) const
 {
-    return m_parameters;
-}
-
-template <typename T>
-math::Tensor<T>& MarkovSamplingHandler<T>::parameters(void)
-{
-    return m_parameters;
+    return m_weights;
 }
 
 template <typename T>
@@ -47,23 +40,24 @@ std::size_t MarkovSamplingHandler<T>::parentSliceCount(void) const
 template <typename T>
 const std::vector<std::size_t>& MarkovSamplingHandler<T>::shape(void) const
 {
-    return m_shape;
+    return m_weights.shape();
 }
 
 template <typename T>
 std::size_t MarkovSamplingHandler<T>::parentSliceOffset(const std::vector<std::size_t>& parent_indices, std::size_t start_dim) const
 {
-    if (m_shape.size() <= 2) return 0;
+    const auto& sh = m_weights.shape();
+    if (sh.size() <= 2) return 0;
 
     std::size_t stride = 1;
     std::size_t offset = 0;
-    for (int d = static_cast<int>(m_shape.size()) - 1;
+    for (int d = static_cast<int>(sh.size()) - 1;
          d >= static_cast<int>(start_dim) + 1; --d)
     {
         std::size_t pi_idx = static_cast<std::size_t>(d) - start_dim;
         if (pi_idx < parent_indices.size())
             offset += parent_indices[pi_idx] * stride;
-        stride *= m_shape[d];
+        stride *= sh[d];
     }
     return offset;
 }
@@ -79,7 +73,7 @@ void MarkovSamplingHandler<T>::precomputeCDF(void)
             const std::size_t row_idx = from * m_parent_slice_count + ps;
             T* cdf_row = m_row_cdfs.data() + row_idx * m_state_count;
 
-            const T* row_ptr = m_parameters.data()
+            const T* row_ptr = m_weights.data()
                                + from * m_state_count * m_parent_slice_count
                                + ps   * m_state_count;
 
@@ -95,7 +89,7 @@ void MarkovSamplingHandler<T>::precomputeCDF(void)
     std::vector<T> marginal(m_state_count, T(0));
     for (std::size_t from = 0; from < m_state_count; ++from)
         for (std::size_t ps = 0; ps < m_parent_slice_count; ++ps) {
-            const T* row_ptr = m_parameters.data()
+            const T* row_ptr = m_weights.data()
                                + from * m_state_count * m_parent_slice_count
                                + ps   * m_state_count;
             for (std::size_t to = 0; to < m_state_count; ++to)

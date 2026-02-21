@@ -2,7 +2,6 @@
 
 #include "igor/Model/Navigator.h"
 #include <igor/Model/SamplingHandler.h>
-#include <igor/Model/Topology.h>
 #include <igor/Model/Scenario.h>
 
 #include <vector>
@@ -13,6 +12,8 @@
 
 namespace igor::model {
 
+template <typename T> class RecombinationModel; // Forward declaration
+
 template <typename T = double>
 class SamplingEngine
 {
@@ -22,11 +23,15 @@ public:
     using OrderedList = Navigator<SamplingHandler<T>, HandlerPtr>;
 
     /**
-     * @brief Constructed with a shared Topology.
-     * The topology defines the graph structure and node indexing (UIDs).
-     * Automatically creates empty SamplingHandlers for all events in the topology.
+     * @brief Constructed with a shared RecombinationModel.
+     *
+     * The model provides both the topology (graph structure) and the
+     * probability tensors. Each handler borrows a const reference to its
+     * tensor in the model and precomputes its CDF tables immediately.
+     *
+     * The model must outlive the engine (shared ownership via shared_ptr).
      */
-    explicit SamplingEngine(std::shared_ptr<const Topology> topology);
+    explicit SamplingEngine(std::shared_ptr<const RecombinationModel<T>> model);
 
     SamplingHandler<T>& handler(const std::string& name);
     SamplingHandler<T>& handler(index_type uid);
@@ -62,19 +67,20 @@ public:
      */
     Adjacency_t children(index_type uid) const;
 
+    /**
+     * @brief Access the underlying RecombinationModel.
+     */
+    const RecombinationModel<T>& model(void) const { return *m_model; }
+
 private:
-    std::shared_ptr<const Topology> m_topology;
+    std::shared_ptr<const RecombinationModel<T>> m_model;
 
     // Handlers stored by UID for fast access during generation loop.
-    // Size matches topology size. Nullptr if no handler registered for that node.
     std::vector<HandlerPtr> m_handlers;
 
     // Cached topological order for generation loop (optimization)
     std::vector<index_type> m_execution_order;
 };
-
-template <typename T>
-bool read_parameters(const std::string& filename, SamplingEngine<T>& engine);
 
 } // namespace igor::model
 

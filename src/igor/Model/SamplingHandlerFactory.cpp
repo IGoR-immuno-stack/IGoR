@@ -7,8 +7,8 @@ namespace igor::model::sampling_handler_factory {
 template void register_creator<double>(Event_type, Creator<double>);
 template void register_creator<long double>(Event_type, Creator<long double>);
 
-template HandlerPtr<double> create<double>(Event_type, EventPtr, const std::vector<std::size_t>&);
-template HandlerPtr<long double> create<long double>(Event_type, EventPtr, const std::vector<std::size_t>&);
+template HandlerPtr<double> create<double>(Event_type, EventPtr, const math::Tensor<double>&);
+template HandlerPtr<long double> create<long double>(Event_type, EventPtr, const math::Tensor<long double>&);
 
 bool is_registered(Event_type type)
 {

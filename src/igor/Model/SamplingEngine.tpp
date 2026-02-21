@@ -2,36 +2,41 @@
 
 #include <igor/Model/SamplingEngine.h>
 #include <igor/Model/SamplingHandlerFactory.h>
+#include <igor/Model/RecombinationModel.h>
 
 #include <stdexcept>
-#include <fstream>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 
 namespace igor::model {
 
 template <typename T>
-SamplingEngine<T>::SamplingEngine(std::shared_ptr<const Topology> topology)
-    : m_topology(std::move(topology))
+SamplingEngine<T>::SamplingEngine(std::shared_ptr<const RecombinationModel<T>> model)
+    : m_model(std::move(model))
 {
-    if (!m_topology) {
-        throw std::invalid_argument("SamplingEngine: topology must not be null");
+    if (!m_model) {
+        throw std::invalid_argument("SamplingEngine: model must not be null");
     }
 
-    // Use the factory to automatically build the handlers with the correct shapes
-    m_handlers = sampling_handler_factory::build<T>(*m_topology);
-    m_execution_order = m_topology->topologicalOrder();
+    // Build handlers — each one borrows a const reference to its tensor in the model
+    m_handlers = sampling_handler_factory::build<T>(*m_model);
+    m_execution_order = m_model->topology().topologicalOrder();
+
+    // Precompute CDFs immediately — the model's tensors are already filled
+    for (auto& h : m_handlers) {
+        if (h) h->precomputeCDF();
+    }
 }
 
 template <typename T>
 const SamplingHandler<T>& SamplingEngine<T>::handler(const std::string& name) const
 {
-    if (!m_topology->hasEvent(name)) {
+    const auto& topo = m_model->topology();
+    if (!topo.hasEvent(name)) {
         throw std::out_of_range("SamplingEngine: event not found: " + name);
     }
-    index_type uid = m_topology->eventId(name);
+    index_type uid = topo.eventId(name);
     if (!m_handlers[uid]) {
         throw std::logic_error("SamplingEngine: no handler registered for: " + name);
     }
@@ -53,10 +58,11 @@ const SamplingHandler<T>& SamplingEngine<T>::handler(index_type uid) const
 template <typename T>
 SamplingHandler<T>& SamplingEngine<T>::handler(const std::string& name)
 {
-    if (!m_topology->hasEvent(name)) {
+    const auto& topo = m_model->topology();
+    if (!topo.hasEvent(name)) {
         throw std::out_of_range("SamplingEngine: event not found: " + name);
     }
-    index_type uid = m_topology->eventId(name);
+    index_type uid = topo.eventId(name);
     if (!m_handlers[uid]) {
         throw std::logic_error("SamplingEngine: no handler registered for: " + name);
     }
@@ -79,12 +85,11 @@ template <typename T>
 SampledScenario SamplingEngine<T>::run(std::mt19937_64& rng) const
 {
     // 1. Initialize Scenario (empty)
-    SampledScenario result(m_topology->size());
+    SampledScenario result(m_model->topology().size());
 
     // 2. Iterate in topological order
     for (const auto& handler_ptr : this->orderedHandlers()) {
 
-        // Skip nodes without handlers (though they shouldn't exist in orderedHandlers if topological order is valid, but checking here)
         if (!handler_ptr) {
             throw std::logic_error("SamplingEngine: missing handler during generation");
         }
@@ -128,94 +133,13 @@ auto SamplingEngine<T>::orderedHandlers() const -> OrderedList
 template <typename T>
 auto SamplingEngine<T>::parents(index_type uid) const -> Adjacency_t
 {
-    return Adjacency_t(m_handlers, m_topology->parentsIds(uid));
+    return Adjacency_t(m_handlers, m_model->topology().parentsIds(uid));
 }
 
 template <typename T>
 auto SamplingEngine<T>::children(index_type uid) const -> Adjacency_t
 {
-    return Adjacency_t(m_handlers, m_topology->childrenIds(uid));
-}
-
-// ─── read_parameters ─────────────────────────────────────────────────────────
-//
-// File format (model_marginals text):
-//   @nickname        – start of an event block
-//   $Dim[d1,d2,...]  – ignored (dimension annotation)
-//   #[parent,idx]    – ignored (conditioning context header)
-//   %v1,v2,v3,...    – probability values
-//
-// All %‑lines for a given event, concatenated in file order, form the exact
-// flat memory layout of the SamplingHandler's parameter tensor:
-//   [slice_0_probs..., slice_1_probs..., ...]   (m_slice_count × m_realization_count)
-// where slice ordering matches the parent-conditioning order in the topology.
-
-template <typename T>
-bool read_parameters(const std::string& filename, SamplingEngine<T>& engine)
-{
-    std::ifstream infile(filename);
-    if (!infile) return false;
-
-    // ── Pass 1: collect flat value vectors per event nickname ─────────────
-    std::unordered_map<std::string, std::vector<T>> values_by_event;
-    std::string current_event;
-    std::string line;
-
-    while (std::getline(infile, line)) {
-        if (line.empty()) continue;
-
-        switch (line[0]) {
-        case '@':
-            current_event = line.substr(1);
-            values_by_event.emplace(current_event, std::vector<T>{});
-            break;
-
-        case '%': {
-            if (current_event.empty()) break;
-            auto& vec = values_by_event[current_event];
-            // Parse comma-separated doubles starting after the '%'
-            std::size_t pos = 1;
-            while (pos < line.size()) {
-                std::size_t comma = line.find(',', pos);
-                std::string token = (comma == std::string::npos)
-                    ? line.substr(pos)
-                    : line.substr(pos, comma - pos);
-                if (!token.empty())
-                    vec.push_back(static_cast<T>(std::stod(token)));
-                if (comma == std::string::npos) break;
-                pos = comma + 1;
-            }
-            break;
-        }
-
-        default: break;  // '$', '#', or blank annotation lines
-        }
-    }
-
-    // ── Pass 2: fill handlers ─────────────────────────────────────────────
-    for (auto& handler_ptr : engine) {
-        if (!handler_ptr) continue;
-        SamplingHandler<T>& h = *handler_ptr;
-
-        auto it = values_by_event.find(h.name());
-        if (it == values_by_event.end()) {
-            throw std::runtime_error(
-                "read_parameters: event '" + h.name() + "' not found in file '" + filename + "'");
-        }
-
-        const auto& vals = it->second;
-        if (vals.size() != h.rawDataSize()) {
-            throw std::runtime_error(
-                "read_parameters: size mismatch for '" + h.name() +
-                "': file has " + std::to_string(vals.size()) +
-                " values, handler expects " + std::to_string(h.rawDataSize()));
-        }
-
-        std::copy(vals.begin(), vals.end(), h.rawData());
-        h.precomputeCDF();
-    }
-
-    return true;
+    return Adjacency_t(m_handlers, m_model->topology().childrenIds(uid));
 }
 
 } // namespace igor::model
