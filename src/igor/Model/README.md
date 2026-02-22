@@ -210,12 +210,14 @@ Why two hierarchies rather than one?
 ```cpp
 InferenceEngine<double> engine(model);
 
-// E-step preparation
+// One-call EM iteration: reset → E-step → M-step
+engine.run([&](InferenceEngine<double>& eng) {
+    // … accumulate counts into each handler's accumulator tensor …
+});
+
+// Or manually, for finer control:
 engine.resetAccumulators();
-
-// … accumulate counts into each handler's accumulator tensor …
-
-// M-step: normalise accumulators → write into model weights
+// … accumulate counts …
 engine.updateParameters();
 ```
 
@@ -473,14 +475,17 @@ model_marginals.txt ──► read_parameters() ──┘
                                     ┌──────┴──────┐
                                     │  EM Loop    │
                                     │             │
-                              resetAccumulators() │
+                              engine.run([&](auto& eng) {
+                                    │             │
+                              //  resetAccumulators()  (automatic)
                                     │             │
                               [ E-step: accumulate│counts ]
                                     │             │
-                              updateParameters()  │
+                              //  updateParameters()   (automatic)
                                     │  (normalise │accumulators
                                     │   → write   │into model)
                                     └──────┬──────┘
+                              });
                                            │
                                     Model weights updated in place.
                                     All handlers see the new values.

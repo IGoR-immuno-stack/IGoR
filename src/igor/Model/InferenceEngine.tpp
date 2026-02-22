@@ -139,4 +139,15 @@ void InferenceEngine<T>::forEachHandler(Func&& func) {
     }
 }
 
+// ─── run() ─────────────────────────────────────────────────────────────
+
+template <typename T>
+template <typename Func>
+void InferenceEngine<T>::run(Func&& eStep)
+{
+    resetAccumulators();
+    std::forward<Func>(eStep)(*this);
+    updateParameters();
+}
+
 } // namespace igor::model

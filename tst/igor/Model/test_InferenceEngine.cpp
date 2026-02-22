@@ -281,3 +281,41 @@ TEST_CASE("InferenceEngine type aliases", "[model][engine]") {
     static_assert(std::is_same_v<Engine, InferenceEngine<double>>);
     static_assert(std::is_same_v<LegacyEngine, InferenceEngine<long double>>);
 }
+
+// ─── run() ─────────────────────────────────────────────────────────────
+
+TEST_CASE("InferenceEngine run() executes reset-eStep-update cycle",
+          "[model][engine]") {
+    auto model = make_mouse_model();
+    if (!model) SKIP("Mouse TCR beta model files not found");
+
+    InferenceEngine<double> engine(model);
+
+    // Dirty an accumulator before run() — it should be reset inside run()
+    engine.handler(0).accumulator().data()[0] = 999.0;
+
+    bool e_step_called = false;
+
+    engine.run([&](InferenceEngine<double>& eng) {
+        e_step_called = true;
+
+        // Verify accumulators were already reset
+        REQUIRE(eng.handler(0).accumulator().data()[0] == 0.0);
+
+        // Simulate accumulation: put known counts into handler 0
+        auto& acc = eng.handler(0).accumulator();
+        for (std::size_t i = 0; i < acc.size(); ++i) {
+            acc.data()[i] = static_cast<double>(i + 1);
+        }
+    });
+
+    REQUIRE(e_step_called);
+
+    // After run(), the M-step should have normalised the weights
+    double sum = 0.0;
+    auto& w = model->weight(0);
+    for (std::size_t i = 0; i < w.size(); ++i) {
+        sum += w.data()[i];
+    }
+    REQUIRE_THAT(sum, WithinAbs(1.0, 1e-10));
+}

@@ -33,9 +33,9 @@ class InferenceEngine
 {
 public:
     using scalar_type = T;
-    using handler_ptr = std::unique_ptr<InferenceHandler<T>>;
-    using Adjacency_t = Navigator<InferenceHandler<T>, handler_ptr>;
-    using OrderedList = Navigator<InferenceHandler<T>, handler_ptr>;
+    using HandlerPtr = std::unique_ptr<InferenceHandler<T>>;
+    using Adjacency_t = Navigator<InferenceHandler<T>, HandlerPtr>;
+    using OrderedList = Navigator<InferenceHandler<T>, HandlerPtr>;
 
     // ─── Construction ──────────────────────────────────────────────────
 
@@ -66,6 +66,20 @@ public:
           RecombinationModel<T>& model(void);
 
     // ─── EM Operations ─────────────────────────────────────────────────
+
+    /**
+     * @brief Run one full EM iteration.
+     *
+     * Executes the three phases in order:
+     *   1. resetAccumulators()
+     *   2. eStep(*this)          — caller-provided accumulation logic
+     *   3. updateParameters()    — M-step: normalise accumulators → weights
+     *
+     * @param eStep  Callable with signature `void(InferenceEngine<T>&)`
+     *               that accumulates counts into each handler's accumulator.
+     */
+    template <typename Func>
+    void run(Func&& eStep);
 
     /// Reset all accumulators to zero (E-step preparation)
     void resetAccumulators(void);
@@ -103,7 +117,7 @@ public:
 
 private:
     std::shared_ptr<RecombinationModel<T>> m_model;
-    std::vector<handler_ptr>               m_handlers;        // indexed by topology uid
+    std::vector<HandlerPtr>                m_handlers;        // indexed by topology uid
     std::vector<igor::index_type>          m_execution_order;  // topological order
 };
 

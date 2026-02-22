@@ -35,6 +35,15 @@ SamplingEngine<T>::SamplingEngine(std::shared_ptr<RecombinationModel<T>> model)
 {}
 
 template <typename T>
+bool SamplingEngine<T>::hasHandler(const std::string& name) const
+{
+    const auto& topo = m_model->topology();
+    if (!topo.hasEvent(name)) return false;
+    index_type uid = topo.eventId(name);
+    return uid >= 0 && uid < static_cast<index_type>(m_handlers.size()) && m_handlers[uid] != nullptr;
+}
+
+template <typename T>
 const SamplingHandler<T>& SamplingEngine<T>::handler(const std::string& name) const
 {
     const auto& topo = m_model->topology();

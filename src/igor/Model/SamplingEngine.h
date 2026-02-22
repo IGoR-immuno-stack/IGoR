@@ -50,6 +50,12 @@ public:
     const SamplingHandler<T>& handler(const std::string& name) const;
     const SamplingHandler<T>& handler(index_type uid) const;
 
+    /// Check if a handler exists for the given event name
+    bool hasHandler(const std::string& name) const;
+
+    /// Number of registered handlers
+    std::size_t size(void) const { return m_handlers.size(); }
+
     auto begin(void) const { return m_handlers.begin(); }
     auto end(void) const { return m_handlers.end(); }
     auto begin(void) { return m_handlers.begin(); }
