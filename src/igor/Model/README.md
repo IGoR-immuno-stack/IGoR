@@ -262,13 +262,23 @@ Each concrete handler type registers itself at static-initialisation time via
 a `Registrar` object — no central switch statement:
 
 ```cpp
-// InferenceHandlerFactory.cpp
+// InferenceHandlerFactory.cpp — registrars for both scalar types
 static Registrar<double, CategoricalInferenceHandler<double>>
     categorical_registrar{ GeneChoice_t, Deletion_t, Insertion_t };
 
 static Registrar<double, MarkovInferenceHandler<double>>
     markov_registrar{ Dinuclmarkov_t };
+
+static Registrar<long double, CategoricalInferenceHandler<long double>>
+    categorical_registrar_ld{ GeneChoice_t, Deletion_t, Insertion_t };
+
+static Registrar<long double, MarkovInferenceHandler<long double>>
+    markov_registrar_ld{ Dinuclmarkov_t };
 ```
+
+Both `double` and `long double` instantiations are registered, so
+`InferenceEngine<double>` and `InferenceEngine<long double>` work
+out of the box.
 
 Adding a new event type requires only a new handler class and a static
 `Registrar` — no existing code is modified (open/closed principle).
