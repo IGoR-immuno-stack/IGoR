@@ -24,6 +24,12 @@ static Registrar<double, igor::model::CategoricalInferenceHandler<double>> categ
 static Registrar<double, igor::model::MarkovInferenceHandler<double>> markov_registrar{
     Dinuclmarkov_t
 };
+static Registrar<long double, igor::model::CategoricalInferenceHandler<long double>> categorical_registrar_ld{
+    GeneChoice_t, Deletion_t, Insertion_t
+};
+static Registrar<long double, igor::model::MarkovInferenceHandler<long double>> markov_registrar_ld{
+    Dinuclmarkov_t
+};
 }
 
 }
