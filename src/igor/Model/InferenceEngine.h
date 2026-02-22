@@ -4,19 +4,23 @@
  *  Created on: Feb 10, 2026
  *
  *  Central orchestrator for EM inference on marginal parameters.
- *  Owns a collection of MarginalHandler<T> instances (one per event)
+ *  Owns a collection of InferenceHandler<T> instances (one per event)
  *  and coordinates reset, accumulation, and M-step across all of them.
+ *
+ *  Each handler borrows a mutable reference to its weight tensor from the
+ *  shared RecombinationModel, so the M-step writes normalised values
+ *  directly back into the model.
  *
  *  Template parameter T is the scalar storage type (double or long double).
  */
 
 #pragma once
 
-#include <igor/Model/MarginalHandler.h>
-#include <igor/Model/CategoricalHandler.h>
-#include <igor/Model/MarkovHandler.h>
+#include <igor/Model/InferenceHandler.h>
+#include <igor/Model/Navigator.h>
+#include <igor/Model/RecombinationModel.h>
+#include <igor/Model/InferenceHandlerFactory.h>
 
-#include <unordered_map>
 #include <vector>
 #include <memory>
 #include <string>
@@ -25,73 +29,82 @@
 namespace igor::model {
 
 template <typename T>
-class InferenceEngine {
+class InferenceEngine
+{
 public:
     using scalar_type = T;
-    using handler_ptr = std::unique_ptr<MarginalHandler<T>>;
+    using handler_ptr = std::unique_ptr<InferenceHandler<T>>;
+    using Adjacency_t = Navigator<InferenceHandler<T>, handler_ptr>;
+    using OrderedList = Navigator<InferenceHandler<T>, handler_ptr>;
 
     // ─── Construction ──────────────────────────────────────────────────
 
-    /// Default constructor (empty engine, register handlers manually)
-    InferenceEngine() = default;
-
-    /// Construct from a list of EventDescriptors
-    explicit InferenceEngine(const std::vector<EventDescriptor>& descriptors);
-
-    // ─── Handler Registration ──────────────────────────────────────────
-
-    /// Register a handler for a named event. Takes ownership.
-    void register_handler(std::string name, handler_ptr handler);
+    /// Build from a shared RecombinationModel — one handler per topology node.
+    /// Handlers borrow mutable references to the model's weight tensors.
+    explicit InferenceEngine(std::shared_ptr<RecombinationModel<T>> model);
 
     // ─── Handler Access ────────────────────────────────────────────────
 
     /// Access handler by event name (throws if not found)
-    MarginalHandler<T>& handler(const std::string& name);
-    const MarginalHandler<T>& handler(const std::string& name) const;
+          InferenceHandler<T>& handler(const std::string& name);
+    const InferenceHandler<T>& handler(const std::string& name) const;
+
+    /// Access handler by topology uid
+          InferenceHandler<T>& handler(igor::index_type uid);
+    const InferenceHandler<T>& handler(igor::index_type uid) const;
 
     /// Check if a handler exists for the given event name
-    bool has_handler(const std::string& name) const;
+    bool hasHandler(const std::string& name) const;
 
     /// Number of registered handlers
-    std::size_t size() const { return event_order_.size(); }
+    std::size_t size(void) const;
+
+    // ─── Model Access ──────────────────────────────────────────────────
+
+    /// The underlying RecombinationModel
+    const RecombinationModel<T>& model(void) const;
+          RecombinationModel<T>& model(void);
 
     // ─── EM Operations ─────────────────────────────────────────────────
 
     /// Reset all accumulators to zero (E-step preparation)
-    void reset_accumulators();
+    void resetAccumulators(void);
 
     /// Update all parameters from accumulators (M-step)
-    void update_parameters();
+    void updateParameters(void);
 
     /// Merge another engine's accumulators into this one (for parallel EM).
-    /// Both engines must have the same handlers registered in the same order.
-    void combine_accumulators(const InferenceEngine<T>& other);
-
-
-    // ─── I/O ───────────────────────────────────────────────────────────
-
-    /// Write all parameters to stream (in event order)
-    void write_marginals(std::ostream& out) const;
-
-    /// Read all parameters from stream (in event order)
-    void read_marginals(std::istream& in);
+    /// Both engines must have handlers for events with the same names.
+    void combineAccumulators(const InferenceEngine<T>& other);
 
     // ─── Iteration ─────────────────────────────────────────────────────
 
-    /// Ordered event names (registration order, typically topological)
-    const std::vector<std::string>& event_names() const { return event_order_; }
+    auto begin(void) const { return m_handlers.begin(); }
+    auto end(void)   const { return m_handlers.end(); }
+    auto begin(void)       { return m_handlers.begin(); }
+    auto end(void)         { return m_handlers.end(); }
 
-    /// Iterate over all handlers (const)
-    template <typename Func>
-    void for_each_handler(Func&& func) const;
+    /// Navigator over all handlers in strictly topological order.
+    OrderedList orderedHandlers(void) const;
 
-    /// Iterate over all handlers (mutable)
+    /// Navigator over the parents of a specific event.
+    Adjacency_t parents(igor::index_type uid) const;
+
+    /// Navigator over the children of a specific event.
+    Adjacency_t children(igor::index_type uid) const;
+
+    /// Iterate over all handlers in topological order (const)
     template <typename Func>
-    void for_each_handler(Func&& func);
+    void forEachHandler(Func&& func) const;
+
+    /// Iterate over all handlers in topological order (mutable)
+    template <typename Func>
+    void forEachHandler(Func&& func);
 
 private:
-    std::unordered_map<std::string, handler_ptr> handlers_;
-    std::vector<std::string> event_order_;
+    std::shared_ptr<RecombinationModel<T>> m_model;
+    std::vector<handler_ptr>               m_handlers;        // indexed by topology uid
+    std::vector<igor::index_type>          m_execution_order;  // topological order
 };
 
 // ─── Type Aliases ──────────────────────────────────────────────────────

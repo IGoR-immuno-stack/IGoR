@@ -30,8 +30,11 @@ public:
      * tensor in the model and precomputes its CDF tables immediately.
      *
      * The model must outlive the engine (shared ownership via shared_ptr).
+     * Both const and non-const shared_ptr are accepted; the engine stores
+     * a shared_ptr<const RecombinationModel<T>> internally.
      */
     explicit SamplingEngine(std::shared_ptr<const RecombinationModel<T>> model);
+    explicit SamplingEngine(std::shared_ptr<RecombinationModel<T>> model);
 
     SamplingHandler<T>& handler(const std::string& name);
     SamplingHandler<T>& handler(index_type uid);

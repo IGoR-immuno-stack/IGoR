@@ -1,319 +1,435 @@
 # Model Module
 
 The Model module implements the modern probabilistic-graph layer of IGoR.
-It owns the **graph topology**, the **parameter tensors**, the **engines** that
-operate on them (inference, generation), and the **bridge** that connects
-everything to the legacy `Core` types (`Model_Parms`, `Model_marginals`).
+It owns the **graph topology**, the **parameter tensors**, and the **engines**
+that operate on them (inference and generation).
 
 ---
 
 ## Architecture Overview
 
 ```
-┌──────────────────────────────────────────────────────────────────────────┐
-│                           Model module                                   │
-│                                                                          │
-│                         ┌────────────┐                                   │
-│                         │  Topology  │                                   │
-│                         │  (DAG of   │                                   │
-│                         │ Rec_Event) │                                   │
-│                         └─────┬──────┘                                   │
-│                               │                                          │
-│              ┌────────────────┼────────────────┐                         │
-│              │                │                │                         │
-│              ▼                ▼                ▼                         │
-│  ┌────────────────────┐ ┌────────────────────┐ ┌─────────────────────┐    │
-│  │ InferenceEngine<T> │ │ SamplingEngine<T>  │ │RecombinationModel<T>│    │
-│  │                    │ │                    │ │ (owns Topology)     │    │
-│  └───────────┬────────┘ └────────┬───────────┘ └─────────┬───────────┘    │
-│              │                   │                       │               │
-│     owns N handlers     owns N handlers          owns N Tensor<T>        │
-│              │                   │                       │               │
-│              ▼                   ▼                       ▼               │
-│  ┌────────────────────┐ ┌────────────────────┐  ┌────────────────────┐    │
-│  │ MarginalHandler<T> │ │ SamplingHandler<T> │  │    Tensor<T>       │    │
-│  │  (abstract)        │ │  (abstract)        │  │ (one per node)     │    │
-│  └───┬───────────┬────┘ └─────┬─────────┬────┘  └────────────────────┘    │
-│           │           │              │         │                         │
-│           ▼           ▼              ▼         ▼                         │
-│ ┌──────────────┐ ┌──────────┐ ┌──────────────┐ ┌──────────────┐          │
-│ │ Categorical  │ │ Markov   │ │ Categorical  │ │   Markov     │          │
-│ │ Handler<T>   │ │Handler<T>│ │ Sampling     │ │  Sampling    │          │
-│ │              │ │          │ │ Handler<T>   │ │  Handler<T>  │          │
-│ └──────────────┘ └──────────┘ └──────────────┘ └──────────────┘          │
-│                                                                          │
-│  ┌──────────────┐  ┌───────────────────┐  ┌──────────────┐               │
-│  │  Navigator   │  │ SamplingHandler   │  │   Event      │               │
-│  │  <NodeType>  │  │ Factory           │  │   Factory    │               │
-│  └──────────────┘  └───────────────────┘  └──────────────┘               │
-│                                                                          │
-│  ┌──────────────────────────────────────────────────────────┐            │
-│  │                    LegacyBridge                          │            │
-│  │                                                          │            │
-│  │  Model_Parms  ⇄  Topology                                │            │
-│  │  Model_marginals → InferenceEngine                       │            │
-│  │  Model_marginals → SamplingEngine                        │            │
-│  └──────────────────────────────────────────────────────────┘            │
-└──────────────────────────────────────────────────────────────────────────┘
-
-       Depends on:  igor::Core  (Rec_Event, Model_Parms, Model_marginals)
-                    igor::Math  (Tensor<T>)
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                                Model module                                  │
+│                                                                              │
+│                      ┌─────────────────────────────────┐                     │
+│                      │    RecombinationModel<T>        │                     │
+│                      │                                 │                     │
+│                      │  unique_ptr<const Topology>     │                     │
+│                      │  ┌────────────┐                 │                     │
+│                      │  │  Topology  │  DAG of         │                     │
+│                      │  │            │  Rec_Event      │                     │
+│                      │  └────────────┘                 │                     │
+│                      │                                 │                     │
+│                      │  vector<Tensor<T>>  m_weights   │                     │
+│                      │  ┌────┐ ┌────┐ ┌────┐  ...      │                     │
+│                      │  │ T₀ │ │ T₁ │ │ T₂ │           │                     │
+│                      │  └──┬─┘ └──┬─┘ └──┬─┘           │                     │
+│                      │     │      │      │             │                     │
+│                      │     └──────┼──────┘             │                     │
+│                      └────────────┼────────────────────┘                     │
+│                                   │                                          │
+│          ┌─── borrow ─────────────┴───────────── borrow ─────┐               │
+│          │   Tensor<T>&                     const Tensor<T>& │               │
+│          │   (mutable)                      (immutable)      │               │
+│          ▼                                                   ▼               │
+│  ┌─────────────────────────────┐  ┌─────────────────────────────┐            │
+│  │     InferenceEngine<T>      │  │     SamplingEngine<T>       │            │
+│  │                             │  │                             │            │
+│  │  shared_ptr<                │  │  shared_ptr<const           │            │
+│  │    RecombinationModel<T>>   │  │    RecombinationModel<T>>   │            │
+│  │                             │  │                             │            │
+│  │  owns N handlers:           │  │  owns N handlers:           │            │
+│  │  ┌────────────────────────┐ │  │  ┌────────────────────────┐ │            │
+│  │  │ InferenceHandler<T>    │ │  │  │ SamplingHandler<T>     │ │            │
+│  │  │ (abstract)             │ │  │  │ (abstract)             │ │            │
+│  │  └───┬───────────┬────────┘ │  │  └───┬───────────┬────────┘ │            │
+│  │      │           │          │  │      │           │          │            │
+│  │      ▼           ▼          │  │      ▼           ▼          │            │
+│  │  ┌─────────┐ ┌──────────┐   │  │  ┌─────────┐ ┌──────────┐   │            │
+│  │  │Categori-│ │ Markov   │   │  │  │Categori-│ │ Markov   │   │            │
+│  │  │cal      │ │ Inference│   │  │  │cal      │ │ Sampling │   │            │
+│  │  │Inference│ │ Handler  │   │  │  │Sampling │ │ Handler  │   │            │
+│  │  │Handler  │ │ <T>      │   │  │  │Handler  │ │ <T>      │   │            │
+│  │  └─────────┘ └──────────┘   │  │  └─────────┘ └──────────┘   │            │
+│  └─────────────────────────────┘  └─────────────────────────────┘            │
+│                                                                              │
+│  ┌──────────────┐  ┌───────────────────┐  ┌───────────────────┐              │
+│  │  Navigator   │  │ Handler Factories │  │   Event Factory   │              │
+│  │  <NodeType>  │  │ (Sampling +       │  │                   │              │
+│  │              │  │  Inference)       │  │                   │              │
+│  └──────────────┘  └───────────────────┘  └───────────────────┘              │
+│                                                                              │
+│  ┌─────────────────────────────────────────────────────────────────┐         │
+│  │                          LegacyBridge                           │         │
+│  │  Model_Parms  ⇄  Topology                                       │         │
+│  │  Model_marginals → RecombinationModel                           │         │
+│  └─────────────────────────────────────────────────────────────────┘         │
+│                                                                              │
+│           Depends on:  igor::Core  (Rec_Event, Model_Parms, Model_marginals) │
+│                        igor::Math  (Tensor<T>)                               │
+└──────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Design Philosophy
+## Design Choices
 
-### 1. Separation of Structure and Computation
+### 1. Single Source of Truth — `RecombinationModel<T>`
 
-The **model graph** (which events exist and how they condition each other) is
-strictly separated from the **numerical engines** (inference, generation) that
-operate on it:
+All probability tensors live in one place: `RecombinationModel<T>`.
+Engines and handlers never copy these tensors — they **borrow references**
+to them. This guarantees that when the inference M-step writes normalised
+values, every component sees the update immediately.
 
-| Concern | Class | Owns |
+```
+RecombinationModel<T>
+├── unique_ptr<const Topology>        (exclusive ownership)
+├── vector<Tensor<T>> m_weights       (one per event, indexed by UID)
+│       ▲ mutable ref          ▲ const ref
+│       │                      │
+│  InferenceHandler<T>    SamplingHandler<T>
+│  (writes back during    (reads only, builds
+│   M-step)                CDF tables)
+```
+
+**Example — constructing a model from files:**
+
+```cpp
+#include <igor/Model/RecombinationModel.h>
+
+auto model = igor::model::recombination_model_from_files<double>(
+    "models/mouse_tcr_beta/model_parms.txt",
+    "models/mouse_tcr_beta/model_marginals.txt");
+
+// Access the probability tensor for a specific event
+auto& v_weights = model.weight("v_choice");
+std::cout << "V-gene tensor shape: " << v_weights.shape() << "\n";
+
+// Iterate over all weights in topological order
+for (const auto& tensor : model.orderedWeights()) {
+    std::cout << tensor.size() << " elements\n";
+}
+```
+
+### 2. Strict Ownership Hierarchy
+
+Ownership is modelled with standard smart pointers and follows a strict tree:
+
+| Owner | Owns | Via |
 |---|---|---|
-| Graph structure | `Topology` | `Rec_Event` nodes, adjacency lists |
-| Model weights | `RecombinationModel<T>` | `Topology` (unique), `Tensor<T>` per node |
-| Inference weights + EM | `InferenceEngine<T>` | `MarginalHandler<T>` instances |
-| Generation / sampling | `SamplingEngine<T>` | `SamplingHandler<T>` instances |
+| `RecombinationModel<T>` | `Topology` | `unique_ptr<const Topology>` |
+| `RecombinationModel<T>` | Weight tensors | `vector<Tensor<T>>` |
+| `SamplingEngine<T>` | `RecombinationModel` | `shared_ptr<const RecombinationModel<T>>` |
+| `SamplingEngine<T>` | Sampling handlers | `vector<unique_ptr<SamplingHandler<T>>>` |
+| `InferenceEngine<T>` | `RecombinationModel` | `shared_ptr<RecombinationModel<T>>` (mutable) |
+| `InferenceEngine<T>` | Inference handlers | `vector<unique_ptr<InferenceHandler<T>>>` |
 
-Both engines receive a `shared_ptr<const Topology>` at construction and never
-mutate it. `RecombinationModel<T>` takes exclusive ownership of its `Topology`
-via `unique_ptr<const Topology>`.
+The key asymmetry: `SamplingEngine` holds a `const` shared pointer (read-only
+access to the model), while `InferenceEngine` holds a **non-const** shared
+pointer (so the M-step can write normalised values back into the model's
+tensors through the borrowed mutable references).
 
-### 2. Two Parallel Handler Hierarchies
+**Example — sharing a model between engines:**
 
-The module deliberately provides **two independent abstract hierarchies** with
+```cpp
+auto model = std::make_shared<RecombinationModel<double>>(
+    recombination_model_from_files("model_parms.txt", "model_marginals.txt"));
+
+// Inference engine borrows mutable references
+InferenceEngine<double> inference(model);
+
+// Sampling engine borrows const references — accepts shared_ptr<RecombinationModel<T>>
+// directly, the const conversion is handled internally by the constructor.
+SamplingEngine<double> sampling(model);
+
+// After an M-step in the inference engine, the sampling engine's handlers
+// still point to the same tensors — they see the updated values.
+inference.updateParameters();
+```
+
+### 3. Borrowed-Reference Pattern
+
+Handlers never copy the probability tensors. Instead, each handler stores a
+**reference** to its tensor in the `RecombinationModel`. The handler's
+constructor receives this reference, and the handler's lifetime is tied to
+its owning engine, which in turn holds a `shared_ptr` to the model — so the
+reference is always valid.
+
+For inference handlers, the reference is mutable (`Tensor<T>&`):
+
+```cpp
+class CategoricalInferenceHandler : public InferenceHandler<T> {
+    CategoricalInferenceHandler(std::string name, index_type uid,
+                                 math::Tensor<T>& weights);  // mutable ref
+private:
+    math::Tensor<T>& m_weights;      // borrowed from RecombinationModel
+    math::Tensor<T>  m_accumulator;   // owned — only this is the handler's own state
+};
+```
+
+For sampling handlers, the reference is const (`const Tensor<T>&`):
+
+```cpp
+class CategoricalSamplingHandler : public SamplingHandler<T> {
+    CategoricalSamplingHandler(std::string name, index_type uid,
+                                const math::Tensor<T>& weights);  // const ref
+private:
+    const math::Tensor<T>& m_weights;  // borrowed, read-only
+    math::Tensor<T>        m_cdfs;     // owned — precomputed CDF tables
+};
+```
+
+### 4. Two Parallel Handler Hierarchies
+
+The module provides **two independent abstract hierarchies** with
 intentionally different APIs:
 
 | | Inference side | Sampling side |
 |---|---|---|
-| **Base class** | `MarginalHandler<T>` | `SamplingHandler<T>` |
-| **Categorical** | `CategoricalHandler<T>` | `CategoricalSamplingHandler<T>` |
-| **Markov** | `MarkovHandler<T>` | `MarkovSamplingHandler<T>` |
+| **Base class** | `InferenceHandler<T>` | `SamplingHandler<T>` |
+| **Categorical** | `CategoricalInferenceHandler<T>` | `CategoricalSamplingHandler<T>` |
+| **Markov** | `MarkovInferenceHandler<T>` | `MarkovSamplingHandler<T>` |
 
 Why two hierarchies rather than one?
 
 * **Different responsibilities.**
-  The inference handler owns a `parameters` tensor *and* an `accumulator`
-  tensor, exposes `reset_accumulator()` / `maximize_likelihood()` for the E-M
-  loop, and serialises to the legacy text format. The sampling handler owns
-  only the probability tensor plus precomputed CDF tables and exposes
+  The inference handler holds a mutable reference to the weight tensor *and*
+  owns an accumulator tensor, exposes `resetAccumulator()` /
+  `maximizeLikelihood()` for the EM loop. The sampling handler holds a const
+  reference to the weight tensor plus precomputed CDF tables and exposes
   `sample()` / `sampleSequence()`.
 
-* **Different scalar types.**
-  Inference typically runs in `long double` (to match the legacy
-  `Marginal_array_p` format), while sampling runs in `double`.
-
-* **Immutable after setup.**
+* **Different constness.**
   A `SamplingHandler` is conceptually frozen after `precomputeCDF()` is called;
-  the generation loop never writes to it. An inference handler is mutated on
-  every E-step.
+  the generation loop never writes to the model. An `InferenceHandler` is
+  mutated on every E-step and writes back during the M-step.
 
-### 3. Topology-Driven Construction via Factories
+**Example — inference handler EM cycle:**
+
+```cpp
+InferenceEngine<double> engine(model);
+
+// E-step preparation
+engine.resetAccumulators();
+
+// … accumulate counts into each handler's accumulator tensor …
+
+// M-step: normalise accumulators → write into model weights
+engine.updateParameters();
+```
+
+**Example — sampling handler generation cycle:**
+
+```cpp
+SamplingEngine<double> engine(model);
+
+std::mt19937_64 rng(42);
+auto scenario = engine.run(rng);
+
+// scenario.events[uid].indices holds the sampled values
+std::size_t v_gene_index = scenario.index_of(v_choice_uid);
+```
+
+### 5. Topology-Driven Construction via Factories
 
 No handler is created manually. Both engines delegate construction to factory
-functions that inspect the `Topology` and each event's type and shape:
+functions that inspect the `Topology` and each event's type and shape.
+
+The factory inspects each node in the topology, computes the correct tensor
+shape (`[own_dims, parent1_dims, parent2_dims, ...]`), looks up the
+registered creator for that event type, and constructs the appropriate handler:
 
 ```
-Topology  ──►  SamplingHandlerFactory::build<T>(topology)
-                   │
-                   ├─ for each node:
-                   │    shape = event.inherent_shape()
-                   │            + [parent₁.inherent_shape()…]
-                   │
-                   │    handler = factory.create<T>(event.type, event, shape)
-                   │    handler.setUid(uid)
-                   │
-                   └─ returns vector<unique_ptr<SamplingHandler<T>>>
+RecombinationModel<T>
+        │
+        ├─► inference_handler_factory::build(model)
+        │       for each topology node:
+        │           shape = event.inherent_shape() + parent_shapes
+        │           handler = create<T>(event_type, event, weight_ref)
+        │       → vector<unique_ptr<InferenceHandler<T>>>
+        │
+        └─► sampling_handler_factory::build(model)
+                for each topology node:
+                    shape = event.inherent_shape() + parent_shapes
+                    handler = create<T>(event_type, event, const_weight_ref)
+                → vector<unique_ptr<SamplingHandler<T>>>
 ```
 
-Both `EventFactory` (for `Rec_Event` construction) and
-`SamplingHandlerFactory` (for `SamplingHandler` construction) use the
-**self-registering factory** pattern described below.
-
----
-
-## Design Patterns
-
-### Strategy — Handler Polymorphism
-
-`MarginalHandler<T>` and `SamplingHandler<T>` are abstract strategy
-interfaces. The concrete strategies (`Categorical*`, `Markov*`) encapsulate
-the distribution-specific logic (normalisation axis, CDF layout, transition
-matrices) behind a uniform API.
-
-The engines iterate over handlers polymorphically and never need to know which
-distribution family an event uses:
+Each concrete handler type registers itself at static-initialisation time via
+a `Registrar` object — no central switch statement:
 
 ```cpp
-// SamplingEngine::run()
-for (auto& handler : orderedHandlers()) {
-    auto parent_reals = resolve_parents(handler->uid());
-    std::size_t val = handler->sample(rng, parent_reals);   // strategy call
-}
-```
-
-### Abstract Factory — Self-Registering Creators
-
-`SamplingHandlerFactory` and `EventFactory` implement the **Abstract Factory**
-pattern with **static self-registration**.
-
-Each concrete type registers a creator lambda at static-initialisation time:
-
-```cpp
-// SamplingHandlerFactory.cpp
-static Registrar<double, CategoricalSamplingHandler<double>>
+// InferenceHandlerFactory.cpp
+static Registrar<double, CategoricalInferenceHandler<double>>
     categorical_registrar{ GeneChoice_t, Deletion_t, Insertion_t };
 
-static Registrar<double, MarkovSamplingHandler<double>>
+static Registrar<double, MarkovInferenceHandler<double>>
     markov_registrar{ Dinuclmarkov_t };
 ```
 
-This makes the factory **open for extension**: adding a new event type
-requires only a new handler class and a static `Registrar`; no existing code
-is modified.
+Adding a new event type requires only a new handler class and a static
+`Registrar` — no existing code is modified (open/closed principle).
 
-**Example — `SamplingHandlerFactory::build()` constructs all handlers from a
-`Topology`:**
+`EventFactory` follows the same self-registering pattern for `Rec_Event`
+subclasses (`Gene_choice`, `Deletion`, `Insertion`, `Dinucl_markov`), used
+by `read_topology()` when parsing model parameter files.
 
-```cpp
-template <typename T>
-std::vector<HandlerPtr<T>> build(const Topology& topology)
-{
-    std::vector<HandlerPtr<T>> handlers(topology.size());
-
-    for (index_type uid = 0; uid < static_cast<index_type>(topology.size()); ++uid) {
-
-        auto event = topology.event(uid);
-
-        // Shape = event's own dimensions + each parent's dimensions
-        std::vector<std::size_t> shape = event->inherent_shape();
-        for (index_type parent_uid : topology.parentsIds(uid)) {
-            auto parent_shape = topology.event(parent_uid)->inherent_shape();
-            shape.insert(shape.end(), parent_shape.begin(), parent_shape.end());
-        }
-
-        // Dispatches to the registered creator for event->get_type()
-        // (CategoricalSamplingHandler or MarkovSamplingHandler)
-        auto handler = create<T>(event->get_type(), event, shape);
-        handler->setUid(uid);
-
-        handlers[uid] = std::move(handler);
-    }
-    return handlers;
-}
-```
-
-**Example — `EventFactory` self-registration and use in `read_topology()`:**
-
-```cpp
-// EventFactory.cpp  — registration at static-init time
-static Registrar<GeneChoice_t,  Gene_choice>   gene_choice_registrar;
-static Registrar<Deletion_t,    Deletion>       deletion_registrar;
-static Registrar<Insertion_t,   Insertion>       insertion_registrar;
-static Registrar<Dinuclmarkov_t, Dinucl_markov> dinucl_markov_registrar;
-
-// Topology.cpp  — called while parsing model_parms.txt
-auto event = event_factory::create(GeneChoice_t);   // returns shared_ptr<Rec_Event>
-event->set_nickname("v_choice");
-// … populate realizations …
-index_type uid = topology->addEvent(event);
-```
-
-### Generic Index-Based View — Navigator
+### 6. Navigator — Generic Index-Based View
 
 `Navigator<NodeType, PtrType>` is a lightweight, non-owning **view** over a
-subset of nodes in a parallel vector.
+subset of nodes in a parallel vector. It is constructed from a reference to
+the full node vector and an index list (parent IDs, child IDs, or topological
+order). It provides a full random-access iterator and supports range-based
+`for` loops.
 
-This single template serves several different node types:
+This single template serves four different node types:
 
 | Instantiation | Used by |
 |---|---|
 | `Navigator<Rec_Event>` | `Topology::parents()`, `Topology::children()` |
-| `Navigator<SamplingHandler<T>, unique_ptr<…>>` | `SamplingEngine::parents()`, `orderedHandlers()` |
+| `Navigator<SamplingHandler<T>, unique_ptr<…>>` | `SamplingEngine::orderedHandlers()`, `parents()`, `children()` |
+| `Navigator<InferenceHandler<T>, unique_ptr<…>>` | `InferenceEngine::orderedHandlers()`, `parents()`, `children()` |
 | `Navigator<Tensor<T>, Tensor<T>>` | `RecombinationModel::orderedWeights()` |
 
-A `Navigator` is constructed from a reference to the full node vector and an
-index list (parent IDs, child IDs, or topological order). It satisfies the
-random-access-range concept and supports range-based `for` loops.
-
-**Example — resolving parent realizations in `SamplingEngine::run()`:**
+**Example — iterating handlers in topological order:**
 
 ```cpp
-SampledScenario SamplingEngine<T>::run(std::mt19937_64& rng) const
-{
-    SampledScenario result(m_topology->size());
+InferenceEngine<double> engine(model);
 
-    // orderedHandlers() returns a Navigator over the topological order
-    for (const auto& handler_ptr : this->orderedHandlers()) {
-
-        const auto& current = *handler_ptr;
-        index_type  uid     = current.uid();
-
-        // parents(uid) returns a Navigator<SamplingHandler<T>, unique_ptr<…>>
-        // over only the parent handlers of this node
-        auto parents_nav = this->parents(uid);
-
-        std::vector<std::size_t> parent_reals;
-        parent_reals.reserve(parents_nav.size());
-
-        for (const auto& parent_ptr : parents_nav) {
-            // Each element is a const unique_ptr<SamplingHandler<T>>&
-            parent_reals.push_back(result.index_of(parent_ptr->uid()));
-        }
-
-        // Polymorphic sample: categorical or Markov, decided at runtime
-        std::size_t val = current.sample(rng, parent_reals);
-        result.events[uid] = { uid, {val} };
-    }
-    return result;
+// orderedHandlers() returns a Navigator — parents always appear before children
+for (const auto& handler_ptr : engine.orderedHandlers()) {
+    std::cout << handler_ptr->name() << "  uid=" << handler_ptr->uid() << "\n";
 }
 ```
 
-**Example — walking the `Topology` graph with `Navigator<Rec_Event>`:**
+**Example — resolving parent realizations during sampling:**
+
+```cpp
+// Inside SamplingEngine::run() — simplified
+for (const auto& handler_ptr : orderedHandlers()) {
+    auto uid = handler_ptr->uid();
+
+    // parents(uid) returns a Navigator over only the parent handlers
+    std::vector<std::size_t> parent_reals;
+    for (const auto& parent_ptr : parents(uid)) {
+        parent_reals.push_back(scenario.index_of(parent_ptr->uid()));
+    }
+
+    std::size_t val = handler_ptr->sample(rng, parent_reals);
+    scenario.events[uid] = { uid, {val} };
+}
+```
+
+**Example — walking the Topology graph:**
 
 ```cpp
 auto topology = read_topology("model_parms.txt");
 
-// Iterate over children of event 0
+// Children of event 0
 for (const auto& child : topology->children(0)) {
-    std::cout << child->get_nickname()                    // range-for works
-              << "  uid=" << child->uid() << "\n";
+    std::cout << child->get_nickname() << "\n";
 }
 
-// Random access
-auto parent_nav = topology->parents(3);
-if (!parent_nav.empty()) {
-    auto& first_parent = parent_nav[0];   // subscript operator
-    std::cout << "first parent: " << first_parent->get_nickname() << "\n";
+// Random access into parents
+auto p = topology->parents(3);
+if (!p.empty()) {
+    std::cout << "first parent: " << p[0]->get_nickname() << "\n";
 }
 ```
 
-### Adapter — LegacyBridge
+### 7. LegacyBridge — Adapter to Core Types
 
-`LegacyBridge` is a **two-way adapter** between the legacy `Core` types and
-the modern `Model` types:
+`LegacyBridge` is a set of **free functions** that convert between the legacy
+`Core` types and the modern `Model` types. It is the **only place** where
+`Model` code includes `Model_Parms.h` and `Model_marginals.h`.
 
-| Direction | Function |
-|---|---|
-| Legacy → Modern | `import_from_legacy(Model_Parms) → Topology` |
-| Modern → Legacy | `export_to_legacy(Topology) → Model_Parms` |
-| Legacy → Inference | `import_from_legacy(InferenceEngine, Model_marginals, Model_Parms)` |
-| Inference → Legacy | `export_to_legacy(InferenceEngine, Model_marginals, Model_Parms)` |
-| Legacy → Sampling | `import_from_legacy(SamplingEngine, Model_marginals, Topology)` |
-| File → Sampling | `read_parameters(filename, SamplingEngine)` — standalone parser |
-| File → Model | `read_parameters(filename, RecombinationModel)` — standalone parser |
+| Direction | Function | Purpose |
+|---|---|---|
+| Legacy → Modern | `import_from_legacy(const Model_Parms&)` | Build a `Topology` from legacy event graph |
+| Modern → Legacy | `export_to_legacy(const Topology&)` | Export a `Topology` back to `Model_Parms` |
+| Legacy → Model  | `import_from_legacy(RecombinationModel<T>&, const Model_marginals&)` | Fill tensors from legacy flat array |
 
-The bridge is the **only place** where `Model` code includes `Core` headers
-such as `Model_Parms.h` and `Model_marginals.h`. Engines and handlers are
-agnostic to the legacy flat-array representation.
+**Example — round-trip through the bridge:**
 
-### Value Object — Scenario
+```cpp
+// Legacy → Modern
+Model_Parms legacy_parms;
+// … populate legacy_parms …
+auto topology = import_from_legacy(legacy_parms);
 
-`SampledScenario` and `SampledEvent` are plain value types with no behaviour
-beyond storage and the `index_of()` convenience accessor. They decouple the
+// Modern → Legacy
+auto parms_copy = export_to_legacy(*topology);
+
+// Load marginals into a RecombinationModel
+RecombinationModel<double> model(std::move(topology));
+import_from_legacy(model, legacy_marginals);
+```
+
+### 8. Scenario — Value Objects
+
+`SampledEvent` and `SampledScenario` are plain value types that decouple the
 sampling result from the engine that produced it.
+
+```cpp
+struct SampledEvent {
+    index_type               event_id;  // topology node UID
+    std::vector<std::size_t> indices;   // sampled realization indices
+    // 1 element for categorical events, N for Markov chains
+};
+
+struct SampledScenario {
+    std::vector<SampledEvent> events;   // indexed by topology UID
+    std::size_t index_of(index_type i) const;  // shorthand for events[i].indices[0]
+};
+```
+
+**Example:**
+
+```cpp
+auto scenario = sampling_engine.run(rng);
+
+// Categorical event: single index
+std::size_t v_gene = scenario.index_of(v_choice_uid);
+
+// Markov event: full nucleotide chain
+auto& chain = scenario.events[dinucl_uid].indices;
+// chain = {first_nucleotide, nt2, nt3, ...}
+```
+
+---
+
+## Concrete Handler Details
+
+### Categorical Handlers
+
+Used for `Gene_choice`, `Deletion`, and `Insertion` events.
+
+**Tensor shape:** `[n_realizations, parent1_dim, parent2_dim, ...]`
+
+| Aspect | Inference | Sampling |
+|---|---|---|
+| **Weight ref** | mutable `Tensor<T>&` | const `Tensor<T>&` |
+| **Owned state** | `m_accumulator` (same shape) | `m_cdfs` (precomputed CDF table) |
+| **M-step** | Normalise axis 0: each column of own realizations sums to 1 per parent combination | N/A |
+| **Sampling** | N/A | Binary search on CDF row for the selected parent slice |
+| **Key method** | `maximizeLikelihood()` | `sample(rng, parent_indices)` |
+| **Accessor** | `realizationCount()` | — |
+
+### Markov Handlers
+
+Used for `Dinucl_markov` events (dinucleotide transition matrices).
+
+**Tensor shape:** `[n_states, n_states, parent1_dim, ...]` — `(from, to, parents)`
+
+| Aspect | Inference | Sampling |
+|---|---|---|
+| **Weight ref** | mutable `Tensor<T>&` | const `Tensor<T>&` |
+| **Owned state** | `m_accumulator` (same shape) | `m_row_cdfs` + `m_first_cdf` (stationary marginal) |
+| **M-step** | Normalise axis 1: each row of "to" states sums to 1 per "from" state and parent combination | N/A |
+| **Sampling** | N/A | Two modes: (1) empty parents → sample first nucleotide from marginal; (2) `parent_indices[0]` = from_state → sample next state from row CDF |
+| **Key methods** | `maximizeLikelihood()` | `sample()`, `sampleSequence(rng, first_state, n_steps, ...)` |
+| **Accessor** | `stateCount()` | — |
 
 ---
 
@@ -323,65 +439,96 @@ sampling result from the engine that produced it.
 |---|---|
 | `Topology.h / .cpp` | DAG of `Rec_Event` nodes; Kahn's topological sort; edge operations; `read_topology()` file parser |
 | `Navigator.h` | Generic index-based view with full random-access iterator |
-| `MarginalHandler.h` | Abstract base for inference handlers; `EventDescriptor` struct |
-| `CategoricalHandler.h / .tpp` | Categorical distribution handler (inference): axis-0 normalisation |
-| `MarkovHandler.h / .tpp` | Markov transition matrix handler (inference): axis-1 normalisation |
-| `InferenceEngine.h / .tpp` | Owns `MarginalHandler<T>` vector; drives E-M loop operations |
-| `SamplingHandler.h / .tpp` | Abstract base for generation handlers; `rawData()` / `rawDataSize()` API |
+| `RecombinationModel.h / .tpp` | Pairs a `Topology` (unique ownership) with one `Tensor<T>` per node; `orderedWeights()` Navigator; `read_parameters()` and `recombination_model_from_files()` |
+| `InferenceHandler.h` | Abstract base for inference handlers (mutable weight ref + accumulator) |
+| `CategoricalInferenceHandler.h / .tpp` | Categorical distribution handler (inference): axis-0 normalisation |
+| `MarkovInferenceHandler.h / .tpp` | Markov transition matrix handler (inference): axis-1 normalisation |
+| `InferenceEngine.h / .tpp` | Owns `InferenceHandler<T>` vector; drives EM loop; Navigator-based iteration |
+| `InferenceHandlerFactory.h / .tpp / .cpp` | Self-registering abstract factory for inference handlers |
+| `SamplingHandler.h / .tpp` | Abstract base for generation handlers (const weight ref + CDF tables) |
 | `CategoricalSamplingHandler.h / .tpp` | CDF-based categorical sampler; precomputed per parent slice |
 | `MarkovSamplingHandler.h / .tpp` | Row-CDF Markov chain sampler; `sampleSequence()` for chains |
-| `SamplingEngine.h / .tpp` | Owns `SamplingHandler<T>` vector; `run()` generates a `SampledScenario`; `read_parameters()` file parser |
-| `RecombinationModel.h / .tpp` | Pairs a `Topology` (unique ownership) with one `Tensor<T>` per node; `orderedWeights()` Navigator; `read_parameters()` file parser |
-| `SamplingHandlerFactory.h / .tpp / .cpp` | Self-registering abstract factory for sampling handlers; `build<T>(Topology)` |
+| `SamplingEngine.h / .tpp` | Owns `SamplingHandler<T>` vector; `run()` generates a `SampledScenario`; Navigator-based iteration |
+| `SamplingHandlerFactory.h / .tpp / .cpp` | Self-registering abstract factory for sampling handlers |
 | `EventFactory.h / .cpp` | Self-registering abstract factory for `Rec_Event` subclasses |
 | `Scenario.h` | `SampledEvent` and `SampledScenario` value types |
-| `LegacyBridge.h / .tpp` | Bidirectional adapter: `Topology ⇄ Model_Parms`, `Engine ⇄ Model_marginals` |
-| `CMakeLists.txt` | Shared library target `igor::Model`, depends on `igor::Core` and `igor::Math` |
+| `LegacyBridge.h / .tpp` | Adapter: `Topology ⇄ Model_Parms`, `Model_marginals → RecombinationModel` |
 
 ---
 
 ## Data Flow
 
-### Inference Path (Legacy-Backed)
+### Inference Path
 
 ```
-model_parms.txt ──► Model_Parms ──► extract_event_descriptors()
-                                          │
-                                          ▼
-                                    InferenceEngine<long double>
-                                          │
-model_marginals.txt ──► Model_marginals ──┘  import_from_legacy()
-                                          │
-                                    [ E-step: reset / accumulate ]
-                                    [ M-step: maximize_likelihood ]
-                                          │
-                                    export_to_legacy()
-                                          │
-                                          ▼
-                                    Model_marginals ──► model_marginals.txt
+model_parms.txt ──► read_topology() ──► Topology
+                                            │
+                                     RecombinationModel<T>
+                                            │
+model_marginals.txt ──► read_parameters() ──┘
+                                            │
+                                    InferenceEngine<T>
+                                     (handlers borrow mutable refs)
+                                           │
+                                    ┌──────┴──────┐
+                                    │  EM Loop    │
+                                    │             │
+                              resetAccumulators() │
+                                    │             │
+                              [ E-step: accumulate│counts ]
+                                    │             │
+                              updateParameters()  │
+                                    │  (normalise │accumulators
+                                    │   → write   │into model)
+                                    └──────┬──────┘
+                                           │
+                                    Model weights updated in place.
+                                    All handlers see the new values.
 ```
 
-### Generation Path (Modern)
+### Generation Path
 
 ```
-model_parms.txt ──► read_topology() ──► Topology (shared)
-                                             │
-                                   SamplingEngine<double>(topology)
-                                             │
-                                   ┌─────────┴──────────┐
-                                   │  Two loading paths  │
-                                   │                     │
-                          read_parameters()     import_from_legacy()
-                          (direct file parse)   (via Model_marginals)
-                                   │                     │
-                                   └─────────┬───────────┘
-                                             │
-                                      precomputeCDF()
-                                             │
-                                      engine.run(rng)
-                                             │
-                                             ▼
-                                      SampledScenario
+model_parms.txt ──► read_topology() ──► Topology
+                                           │
+                                    RecombinationModel<T>
+                                           │
+model_marginals.txt ──► read_parameters() ──┘
+                                           │
+                                    SamplingEngine<T>
+                                     (handlers borrow const refs,
+                                      precompute CDFs)
+                                           │
+                                    engine.run(rng)
+                                           │
+                                    ┌──────┴──────┐
+                                    │  per event  │
+                                    │  (topo      │
+                                    │   order):   │
+                                    │             │
+                                    │  resolve    │
+                                    │  parent     │
+                                    │  realizations│
+                                    │       │     │
+                                    │  sample()   │  ◄─ polymorphic
+                                    │  or sample- │     (categorical
+                                    │  Sequence() │      or Markov)
+                                    └──────┬──────┘
+                                           │
+                                           ▼
+                                    SampledScenario
+```
+
+### One-Step Model Loading
+
+```cpp
+// Convenience function that combines read_topology + read_parameters
+auto model = recombination_model_from_files<double>(
+    "model_parms.txt", "model_marginals.txt");
+
+// Both engines can be constructed directly from the model
+auto shared = std::make_shared<RecombinationModel<double>>(std::move(model));
+InferenceEngine<double> inference(shared);
 ```
 
 ---
@@ -394,3 +541,7 @@ that links publicly against `igor::Core` and `igor::Math`.
 ```
 igor::Core ◄── igor::Model ──► igor::Math
 ```
+
+Compiled sources: `EventFactory.cpp`, `InferenceHandlerFactory.cpp`,
+`SamplingHandlerFactory.cpp`, `Topology.cpp`. All other code is
+header-only (templates in `.h` / `.tpp` files).

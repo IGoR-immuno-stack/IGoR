@@ -2,130 +2,140 @@
 
 namespace igor::model {
 
-// ─── Construction from Descriptors ─────────────────────────────────────
+// ─── Construction from shared RecombinationModel ───────────────────────
 
 template <typename T>
-InferenceEngine<T>::InferenceEngine(const std::vector<EventDescriptor>& descriptors) {
-    for (const auto& desc : descriptors) {
-        handler_ptr handler;
-
-        // Event_type values from Utils.h:
-        // GeneChoice_t = 0, Insertion_t = 1, Deletion_t = 2, Dinuclmarkov_t = 3
-        switch (desc.type) {
-            case 0: // GeneChoice_t
-            case 1: // Insertion_t
-            case 2: // Deletion_t
-                handler = std::make_unique<CategoricalHandler<T>>(
-                    desc.name, desc.shape);
-                break;
-            case 3: // Dinuclmarkov_t
-                handler = std::make_unique<MarkovHandler<T>>(
-                    desc.name, desc.shape);
-                break;
-            default:
-                handler = std::make_unique<CategoricalHandler<T>>(
-                    desc.name, desc.shape);
-                break;
-        }
-
-        register_handler(desc.name, std::move(handler));
-    }
+InferenceEngine<T>::InferenceEngine(std::shared_ptr<RecombinationModel<T>> model)
+    : m_model(std::move(model))
+    , m_handlers(inference_handler_factory::build(*m_model))
+    , m_execution_order(m_model->topology().topologicalOrder())
+{
 }
 
-// ─── Handler Registration ──────────────────────────────────────────────
+// ─── Simple accessors ──────────────────────────────────────────────────
 
 template <typename T>
-void InferenceEngine<T>::register_handler(std::string name, handler_ptr handler) {
-    if (handlers_.count(name)) {
-        throw std::runtime_error(
-            "InferenceEngine: duplicate handler name '" + name + "'");
-    }
-    handlers_[name] = std::move(handler);
-    event_order_.push_back(std::move(name));
+std::size_t InferenceEngine<T>::size(void) const
+{
+    return m_handlers.size();
+}
+
+template <typename T>
+const RecombinationModel<T>& InferenceEngine<T>::model(void) const
+{
+    return *m_model;
+}
+
+template <typename T>
+RecombinationModel<T>& InferenceEngine<T>::model(void)
+{
+    return *m_model;
 }
 
 // ─── Handler Access ────────────────────────────────────────────────────
 
 template <typename T>
-MarginalHandler<T>& InferenceEngine<T>::handler(const std::string& name) {
-    auto it = handlers_.find(name);
-    if (it == handlers_.end()) {
+InferenceHandler<T>& InferenceEngine<T>::handler(const std::string& name) {
+    const auto& topology = m_model->topology();
+    auto id = topology.eventId(name);
+    if (id < 0 || id >= static_cast<igor::index_type>(m_handlers.size())) {
         throw std::runtime_error(
             "InferenceEngine: no handler named '" + name + "'");
     }
-    return *it->second;
+    return *m_handlers[id];
 }
 
 template <typename T>
-const MarginalHandler<T>& InferenceEngine<T>::handler(const std::string& name) const {
-    auto it = handlers_.find(name);
-    if (it == handlers_.end()) {
+const InferenceHandler<T>& InferenceEngine<T>::handler(const std::string& name) const {
+    const auto& topology = m_model->topology();
+    auto id = topology.eventId(name);
+    if (id < 0 || id >= static_cast<igor::index_type>(m_handlers.size())) {
         throw std::runtime_error(
             "InferenceEngine: no handler named '" + name + "'");
     }
-    return *it->second;
+    return *m_handlers[id];
 }
 
 template <typename T>
-bool InferenceEngine<T>::has_handler(const std::string& name) const {
-    return handlers_.count(name) > 0;
+InferenceHandler<T>& InferenceEngine<T>::handler(igor::index_type uid) {
+    if (uid < 0 || uid >= static_cast<igor::index_type>(m_handlers.size())) {
+        throw std::out_of_range("InferenceEngine: uid out of range");
+    }
+    return *m_handlers[uid];
+}
+
+template <typename T>
+const InferenceHandler<T>& InferenceEngine<T>::handler(igor::index_type uid) const {
+    if (uid < 0 || uid >= static_cast<igor::index_type>(m_handlers.size())) {
+        throw std::out_of_range("InferenceEngine: uid out of range");
+    }
+    return *m_handlers[uid];
+}
+
+template <typename T>
+bool InferenceEngine<T>::hasHandler(const std::string& name) const {
+    const auto& topology = m_model->topology();
+    auto id = topology.eventId(name);
+    return id >= 0 && id < static_cast<igor::index_type>(m_handlers.size());
 }
 
 // ─── EM Operations ─────────────────────────────────────────────────────
 
 template <typename T>
-void InferenceEngine<T>::reset_accumulators() {
-    for (const auto& name : event_order_) {
-        handlers_.at(name)->reset_accumulator();
+void InferenceEngine<T>::resetAccumulators() {
+    for (auto& h : m_handlers) {
+        h->resetAccumulator();
     }
 }
 
 template <typename T>
-void InferenceEngine<T>::update_parameters() {
-    for (const auto& name : event_order_) {
-        handlers_.at(name)->maximize_likelihood();
+void InferenceEngine<T>::updateParameters() {
+    for (auto& h : m_handlers) {
+        h->maximizeLikelihood();
     }
 }
 
 template <typename T>
-void InferenceEngine<T>::combine_accumulators(const InferenceEngine<T>& other) {
-    for (const auto& name : event_order_) {
-        handlers_.at(name)->accumulator() += other.handler(name).accumulator();
-    }
-}
-
-
-// ─── I/O ───────────────────────────────────────────────────────────────
-
-template <typename T>
-void InferenceEngine<T>::write_marginals(std::ostream& out) const {
-    for (const auto& name : event_order_) {
-        handlers_.at(name)->write_parameters(out);
-    }
-}
-
-template <typename T>
-void InferenceEngine<T>::read_marginals(std::istream& in) {
-    for (const auto& name : event_order_) {
-        handlers_.at(name)->read_parameters(in);
+void InferenceEngine<T>::combineAccumulators(const InferenceEngine<T>& other) {
+    for (std::size_t i = 0; i < m_handlers.size(); ++i) {
+        const auto& name = m_handlers[i]->name();
+        m_handlers[i]->accumulator() += other.handler(name).accumulator();
     }
 }
 
 // ─── Iteration ─────────────────────────────────────────────────────────
 
 template <typename T>
+auto InferenceEngine<T>::orderedHandlers(void) const -> OrderedList
+{
+    return OrderedList(m_handlers, m_execution_order);
+}
+
+template <typename T>
+auto InferenceEngine<T>::parents(igor::index_type uid) const -> Adjacency_t
+{
+    return Adjacency_t(m_handlers, m_model->topology().parentsIds(uid));
+}
+
+template <typename T>
+auto InferenceEngine<T>::children(igor::index_type uid) const -> Adjacency_t
+{
+    return Adjacency_t(m_handlers, m_model->topology().childrenIds(uid));
+}
+
+template <typename T>
 template <typename Func>
-void InferenceEngine<T>::for_each_handler(Func&& func) const {
-    for (const auto& name : event_order_) {
-        func(name, *handlers_.at(name));
+void InferenceEngine<T>::forEachHandler(Func&& func) const {
+    for (const auto& h : m_handlers) {
+        func(h->name(), *h);
     }
 }
 
 template <typename T>
 template <typename Func>
-void InferenceEngine<T>::for_each_handler(Func&& func) {
-    for (const auto& name : event_order_) {
-        func(name, *handlers_.at(name));
+void InferenceEngine<T>::forEachHandler(Func&& func) {
+    for (auto& h : m_handlers) {
+        func(h->name(), *h);
     }
 }
 

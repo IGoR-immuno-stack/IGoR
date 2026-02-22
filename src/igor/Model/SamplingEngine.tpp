@@ -30,6 +30,11 @@ SamplingEngine<T>::SamplingEngine(std::shared_ptr<const RecombinationModel<T>> m
 }
 
 template <typename T>
+SamplingEngine<T>::SamplingEngine(std::shared_ptr<RecombinationModel<T>> model)
+    : SamplingEngine(std::shared_ptr<const RecombinationModel<T>>(std::move(model)))
+{}
+
+template <typename T>
 const SamplingHandler<T>& SamplingEngine<T>::handler(const std::string& name) const
 {
     const auto& topo = m_model->topology();
