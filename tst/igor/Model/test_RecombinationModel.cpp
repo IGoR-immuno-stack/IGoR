@@ -95,7 +95,7 @@ TEST_CASE("RecombinationModel construction from Topology",
 
     SECTION("null topology throws") {
         REQUIRE_THROWS_AS(
-            RecombinationModel<double>(std::unique_ptr<const Topology>()),
+            RecombinationModel<double>(std::unique_ptr<Topology>()),
             std::invalid_argument);
     }
 }
@@ -119,7 +119,7 @@ TEST_CASE("RecombinationModel read_parameters from file",
 
     // Convert shared_ptr → unique_ptr for RecombinationModel
     RecombinationModel<double> model(
-        std::make_unique<const Topology>(std::move(*topology)));
+        std::make_unique<Topology>(std::move(*topology)));
 
     SECTION("read_parameters fills tensors correctly") {
         REQUIRE(read_parameters(marginals_path, model));
@@ -352,7 +352,7 @@ TEST_CASE("recombination_model_from_files loads a model in one step",
         auto topology2 = read_topology(parms_path);
         REQUIRE(topology2);
         RecombinationModel<double> model2(
-            std::make_unique<const Topology>(std::move(*topology2)));
+            std::make_unique<Topology>(std::move(*topology2)));
         REQUIRE(read_parameters(marginals_path, model2));
 
         REQUIRE(model.size() == model2.size());

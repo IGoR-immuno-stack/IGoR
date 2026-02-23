@@ -428,7 +428,7 @@ TEMPLATE_TEST_CASE("Model architecture: inference recovers ground truth",
     {
         auto bridge_topology = import_from_legacy(truth_parms);
         RecombinationModel<T> bridge_model(
-            std::make_unique<const Topology>(std::move(*bridge_topology)));
+            std::make_unique<Topology>(std::move(*bridge_topology)));
         import_from_legacy(bridge_model, truth_marginals);
 
         REQUIRE(bridge_model.size() == truth_model->size());
@@ -517,7 +517,7 @@ TEMPLATE_TEST_CASE("Model architecture: inference recovers ground truth",
     // Build the inference model with uniform weights
     auto infer_topology = import_from_legacy(truth_parms);
     auto infer_model = std::make_shared<RecombinationModel<T>>(
-        std::make_unique<const Topology>(std::move(*infer_topology)));
+        std::make_unique<Topology>(std::move(*infer_topology)));
 
     Model_marginals uniform_marginals(truth_parms);
     uniform_marginals.uniform_initialize(truth_parms);

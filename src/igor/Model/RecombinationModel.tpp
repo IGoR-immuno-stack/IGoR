@@ -14,7 +14,7 @@ namespace igor::model {
 // ─── Constructor ─────────────────────────────────────────────────────────────
 
 template <typename T>
-RecombinationModel<T>::RecombinationModel(std::unique_ptr<const Topology> topology)
+RecombinationModel<T>::RecombinationModel(std::unique_ptr<Topology> topology)
     : m_topology(std::move(topology))
 {
     if (!m_topology) {
@@ -182,7 +182,7 @@ RecombinationModel<T> recombination_model_from_files(
 
     // 2. Construct model (move shared_ptr content into unique_ptr)
     RecombinationModel<T> model(
-        std::make_unique<const Topology>(std::move(*topology)));
+        std::make_unique<Topology>(std::move(*topology)));
 
     // 3. Load marginals
     if (!read_parameters(file_model_marginals, model)) {

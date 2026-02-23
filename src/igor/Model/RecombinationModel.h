@@ -36,10 +36,11 @@ public:
     using OrderedList = Navigator<math::Tensor<T>, math::Tensor<T>>;
 
     /// Build from a Topology — creates zero-initialised tensors with correct shapes.
-    explicit RecombinationModel(std::unique_ptr<const Topology> topology);
+    explicit RecombinationModel(std::unique_ptr<Topology> topology);
 
     // ── Topology access ──────────────────────────────────────────────────────
 
+    Topology&       topology(void)       { return *m_topology; }
     const Topology& topology(void) const { return *m_topology; }
 
     // ── Weight access by UID ─────────────────────────────────────────────────
@@ -67,7 +68,7 @@ public:
     auto end(void)   const { return m_weights.end(); }
 
 private:
-    std::unique_ptr<const Topology> m_topology;
+    std::unique_ptr<Topology> m_topology;
     std::vector<math::Tensor<T>>     m_weights;         // indexed by topology UID
     std::vector<igor::index_type>    m_execution_order;  // cached topological order
 };

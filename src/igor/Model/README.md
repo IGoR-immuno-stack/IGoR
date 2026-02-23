@@ -15,7 +15,7 @@ that operate on them (inference and generation).
 │                      ┌─────────────────────────────────┐                     │
 │                      │    RecombinationModel<T>        │                     │
 │                      │                                 │                     │
-│                      │  unique_ptr<const Topology>     │                     │
+│                      │  unique_ptr<Topology>          │                     │
 │                      │  ┌────────────┐                 │                     │
 │                      │  │  Topology  │  DAG of         │                     │
 │                      │  │            │  Rec_Event      │                     │
@@ -84,7 +84,7 @@ values, every component sees the update immediately.
 
 ```
 RecombinationModel<T>
-├── unique_ptr<const Topology>        (exclusive ownership)
+├── unique_ptr<Topology>              (exclusive ownership)
 ├── vector<Tensor<T>> m_weights       (one per event, indexed by UID)
 │       ▲ mutable ref          ▲ const ref
 │       │                      │
@@ -118,7 +118,7 @@ Ownership is modelled with standard smart pointers and follows a strict tree:
 
 | Owner | Owns | Via |
 |---|---|---|
-| `RecombinationModel<T>` | `Topology` | `unique_ptr<const Topology>` |
+| `RecombinationModel<T>` | `Topology` | `unique_ptr<Topology>` |
 | `RecombinationModel<T>` | Weight tensors | `vector<Tensor<T>>` |
 | `SamplingEngine<T>` | `RecombinationModel` | `shared_ptr<const RecombinationModel<T>>` |
 | `SamplingEngine<T>` | Sampling handlers | `vector<unique_ptr<SamplingHandler<T>>>` |
