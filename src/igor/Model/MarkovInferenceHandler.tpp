@@ -65,6 +65,7 @@ void MarkovInferenceHandler<T>::resetAccumulator(void)
 template <typename T>
 void MarkovInferenceHandler<T>::maximizeLikelihood(void)
 {
+    //m_weights = m_accumulator;
     if (m_weights.ndim() == 2) {
         // Fast path for unconditional Markov (no parents): row-wise normalize
         std::size_t n = m_weights.shape()[0];
@@ -80,9 +81,10 @@ void MarkovInferenceHandler<T>::maximizeLikelihood(void)
             }
         }
     } else {
-        // Multi-dimensional: normalize along axis 1 (to-state)
-        // Each slice [from, *, parent1, ...] sums to 1
-        math::linalg::normalize_axis(m_accumulator, m_weights, 1);
+        // Multi-dimensional: normalize along LAST axis (to-state)
+        // Shape is [parent1, parent2, ..., from_state, to_state]
+        std::size_t to_state_axis = m_weights.ndim() - 1;
+        math::linalg::normalize_axis(m_accumulator, m_weights, to_state_axis);
     }
 }
 

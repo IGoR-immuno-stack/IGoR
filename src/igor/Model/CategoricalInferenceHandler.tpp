@@ -77,9 +77,10 @@ void CategoricalInferenceHandler<T>::maximizeLikelihood(void)
             }
         }
     } else {
-        // Multi-dimensional: normalize along axis 0
-        // Each slice [*, p1, p2, ...] sums to 1
-        math::linalg::normalize_axis(m_accumulator, m_weights, 0);
+        // Multi-dimensional: normalize along LAST axis (child dimension)
+        // Shape is [parent1, parent2, ..., child], normalize over child
+        std::size_t child_axis = m_weights.ndim() - 1;
+        math::linalg::normalize_axis(m_accumulator, m_weights, child_axis);
     }
 }
 

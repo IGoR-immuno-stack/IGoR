@@ -12,11 +12,15 @@ MarkovSamplingHandler<T>::MarkovSamplingHandler(
     std::string name, igor::index_type uid, const math::Tensor<T>& weights)
     : SamplingHandler<T>(std::move(name), uid)
     , m_weights(weights)
-    , m_state_count(m_weights.shape()[0])
+    , m_state_count(m_weights.shape()[m_weights.ndim() >= 2 ? m_weights.ndim() - 2 : 0])
 {
+    // Shape: [parent1, ..., from_state, to_state]
+    // Parent dimensions are all except last 2
     m_parent_slice_count = 1;
-    for (std::size_t d = 2; d < m_weights.shape().size(); ++d)
-        m_parent_slice_count *= m_weights.shape()[d];
+    if (m_weights.ndim() > 2) {
+        for (std::size_t d = 0; d + 2 < m_weights.shape().size(); ++d)
+            m_parent_slice_count *= m_weights.shape()[d];
+    }
 }
 
 template <typename T>
@@ -49,14 +53,17 @@ std::size_t MarkovSamplingHandler<T>::parentSliceOffset(const std::vector<std::s
     const auto& sh = m_weights.shape();
     if (sh.size() <= 2) return 0;
 
+    // For shape [parent1, parent2, ..., from_state, to_state]
+    // Parent dimensions are [0, ..., ndim-3]
+    std::size_t n_parent_dims = sh.size() - 2;
+    
+    // Row-major offset for parent dimensions only
     std::size_t stride = 1;
     std::size_t offset = 0;
-    for (int d = static_cast<int>(sh.size()) - 1;
-         d >= static_cast<int>(start_dim) + 1; --d)
-    {
-        std::size_t pi_idx = static_cast<std::size_t>(d) - start_dim;
-        if (pi_idx < parent_indices.size())
-            offset += parent_indices[pi_idx] * stride;
+    for (int d = static_cast<int>(n_parent_dims) - 1; d >= 0; --d) {
+        if (static_cast<std::size_t>(d) < parent_indices.size()) {
+            offset += parent_indices[d] * stride;
+        }
         stride *= sh[d];
     }
     return offset;
@@ -65,20 +72,25 @@ std::size_t MarkovSamplingHandler<T>::parentSliceOffset(const std::vector<std::s
 template <typename T>
 void MarkovSamplingHandler<T>::precomputeCDF(void)
 {
-    const std::size_t n_rows = m_state_count * m_parent_slice_count;
-    m_row_cdfs = math::Tensor<T>({n_rows, m_state_count});
+    // Shape: [parent1, ..., from_state, to_state]
+    // Row-major stride: to_state=1, from_state=n_to
+    const std::size_t n_from = m_state_count;
+    const std::size_t n_to = m_weights.shape().back();
+    
+    const std::size_t n_rows = n_from * m_parent_slice_count;
+    m_row_cdfs = math::Tensor<T>({n_rows, n_to});
 
-    for (std::size_t from = 0; from < m_state_count; ++from) {
-        for (std::size_t ps = 0; ps < m_parent_slice_count; ++ps) {
-            const std::size_t row_idx = from * m_parent_slice_count + ps;
-            T* cdf_row = m_row_cdfs.data() + row_idx * m_state_count;
-
-            const T* row_ptr = m_weights.data()
-                               + from * m_state_count * m_parent_slice_count
-                               + ps   * m_state_count;
-
+    for (std::size_t ps = 0; ps < m_parent_slice_count; ++ps) {
+        for (std::size_t from = 0; from < n_from; ++from) {
+            const std::size_t row_idx = ps * n_from + from;
+            T* cdf_row = m_row_cdfs.data() + row_idx * n_to;
+            
+            // In row-major [parents..., from, to]:
+            // Base offset = ps * (n_from * n_to) + from * n_to
+            const T* row_ptr = m_weights.data() + ps * n_from * n_to + from * n_to;
+            
             T cumsum = T(0);
-            for (std::size_t to = 0; to < m_state_count; ++to) {
+            for (std::size_t to = 0; to < n_to; ++to) {
                 cumsum += row_ptr[to];
                 cdf_row[to] = cumsum;
             }
@@ -86,15 +98,14 @@ void MarkovSamplingHandler<T>::precomputeCDF(void)
     }
 
     // First-nucleotide marginal
-    std::vector<T> marginal(m_state_count, T(0));
-    for (std::size_t from = 0; from < m_state_count; ++from)
-        for (std::size_t ps = 0; ps < m_parent_slice_count; ++ps) {
-            const T* row_ptr = m_weights.data()
-                               + from * m_state_count * m_parent_slice_count
-                               + ps   * m_state_count;
-            for (std::size_t to = 0; to < m_state_count; ++to)
+    std::vector<T> marginal(n_from, T(0));
+    for (std::size_t ps = 0; ps < m_parent_slice_count; ++ps) {
+        for (std::size_t from = 0; from < n_from; ++from) {
+            const T* row_ptr = m_weights.data() + ps * n_from * n_to + from * n_to;
+            for (std::size_t to = 0; to < n_to; ++to)
                 marginal[from] += row_ptr[to];
         }
+    }
 
     T total = T(0);
     for (auto v : marginal) total += v;

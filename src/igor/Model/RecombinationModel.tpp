@@ -25,12 +25,15 @@ RecombinationModel<T>::RecombinationModel(std::unique_ptr<Topology> topology)
     m_weights.reserve(n);
 
     for (const auto& event : *m_topology) {
-        // Shape = [event_dims..., parent1_dims..., parent2_dims...]
-        std::vector<std::size_t> shape = event->inherent_shape();
+        // Shape = [parent1_dims..., parent2_dims..., event_dims...]
+        // Row-major: parents first, child last
+        std::vector<std::size_t> shape;
         for (const auto& parent : m_topology->parents(event->uid())) {
             auto parent_shape = parent->inherent_shape();
             shape.insert(shape.end(), parent_shape.begin(), parent_shape.end());
         }
+        auto event_shape = event->inherent_shape();
+        shape.insert(shape.end(), event_shape.begin(), event_shape.end());
 
         m_weights.emplace_back(std::move(shape));   // zero-initialised Tensor<T>
     }

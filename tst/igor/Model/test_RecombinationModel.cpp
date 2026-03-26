@@ -66,11 +66,11 @@ TEST_CASE("RecombinationModel construction from Topology",
         REQUIRE(w.size() == 4);
     }
 
-    SECTION("conditional tensor shape is [child_realizations, parent_realizations]") {
+    SECTION("conditional tensor shape is [parent_realizations, child_realizations]") {
         const auto& w = model.weight(b);
         REQUIRE(w.ndim() == 2);
-        REQUIRE(w.shape()[0] == 3);   // ev_b has 3 realizations
-        REQUIRE(w.shape()[1] == 4);   // parent ev_a has 4 realizations
+        REQUIRE(w.shape()[0] == 4);   // parent ev_a has 4 realizations
+        REQUIRE(w.shape()[1] == 3);   // ev_b has 3 realizations
         REQUIRE(w.size() == 12);
     }
 

@@ -13,10 +13,11 @@ CategoricalSamplingHandler<T>::CategoricalSamplingHandler(
     std::string name, igor::index_type uid, const math::Tensor<T>& weights)
     : SamplingHandler<T>(std::move(name), uid)
     , m_weights(weights)
-    , m_realization_count(m_weights.shape()[0])
+    , m_realization_count(m_weights.shape().back())  // Last dimension is child
 {
+    // Parent dimensions are all except the last
     m_parent_slice_count = 1;
-    for (std::size_t d = 1; d < m_weights.shape().size(); ++d)
+    for (std::size_t d = 0; d + 1 < m_weights.shape().size(); ++d)
         m_parent_slice_count *= m_weights.shape()[d];
 }
 
@@ -54,17 +55,19 @@ std::size_t CategoricalSamplingHandler<T>::parentSliceOffset(const std::vector<s
     const auto& sh = m_weights.shape();
     if (sh.size() == 1) return 0;
 
-    if (parent_indices.size() != sh.size() - 1) {
+    std::size_t n_parent_dims = sh.size() - 1;  // Exclude last (child) dimension
+    if (parent_indices.size() != n_parent_dims) {
         throw std::invalid_argument(
             "CategoricalSamplingHandler \"" + this->m_name + "\": expected "
-            + std::to_string(sh.size() - 1) + " parent indices, got "
+            + std::to_string(n_parent_dims) + " parent indices, got "
             + std::to_string(parent_indices.size()));
     }
 
+    // Row-major offset calculation for parent dimensions [0, ..., ndim-2]
     std::size_t stride = 1;
     std::size_t offset = 0;
-    for (int d = static_cast<int>(sh.size()) - 1; d >= 1; --d) {
-        offset += parent_indices[d - 1] * stride;
+    for (int d = static_cast<int>(n_parent_dims) - 1; d >= 0; --d) {
+        offset += parent_indices[d] * stride;
         stride *= sh[d];
     }
     return offset;
