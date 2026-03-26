@@ -4,7 +4,7 @@ namespace igor::math {
 
 template <typename T>
 HybridBuffer<T>::HybridBuffer(size_type n)
-    : data_(new T[n]), size_(n), is_owning_(true) {}
+    : data_(new T[n]()), size_(n), is_owning_(true) {}  // () after new ensures zero-init
 
 template <typename T>
 HybridBuffer<T>::HybridBuffer(T* ptr, size_type n)
