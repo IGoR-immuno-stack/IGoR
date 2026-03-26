@@ -111,10 +111,10 @@ TEST_CASE("CategoricalSamplingHandler: sampling 1D", "[Model][Sampling][Categori
 }
 
 TEST_CASE("CategoricalSamplingHandler: sampling 2D (one parent)", "[Model][Sampling][Categorical]") {
-    // shape: [3 realizations, 2 parent states]
+    // shape: [2 parent states, 3 realizations]
     // Parent 0 → probs [0.6, 0.3, 0.1]
     // Parent 1 → probs [0.2, 0.5, 0.3]
-    Tensor<double> weights({3, 2});
+    Tensor<double> weights({2, 3});
     double* d = weights.data();
     d[0] = 0.6; d[1] = 0.3; d[2] = 0.1;  // parent=0
     d[3] = 0.2; d[4] = 0.5; d[5] = 0.3;  // parent=1
