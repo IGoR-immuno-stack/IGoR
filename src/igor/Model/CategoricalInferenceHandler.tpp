@@ -75,6 +75,9 @@ void CategoricalInferenceHandler<T>::maximizeLikelihood(void)
             for (std::size_t i = 0; i < m_weights.size(); ++i) {
                 m_weights.data()[i] = m_accumulator.data()[i] / total;
             }
+        } else {
+            // Zero accumulator → zero weights (matches normalize_axis behavior)
+            std::fill(m_weights.begin(), m_weights.end(), T(0));
         }
     } else {
         // Multi-dimensional: normalize along LAST axis (child dimension)

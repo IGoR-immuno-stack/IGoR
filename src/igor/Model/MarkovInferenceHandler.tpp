@@ -65,7 +65,6 @@ void MarkovInferenceHandler<T>::resetAccumulator(void)
 template <typename T>
 void MarkovInferenceHandler<T>::maximizeLikelihood(void)
 {
-    //m_weights = m_accumulator;
     if (m_weights.ndim() == 2) {
         // Fast path for unconditional Markov (no parents): row-wise normalize
         std::size_t n = m_weights.shape()[0];
@@ -77,6 +76,11 @@ void MarkovInferenceHandler<T>::maximizeLikelihood(void)
             if (row_sum > T(1e-15)) {
                 for (std::size_t to = 0; to < n; ++to) {
                     m_weights(from, to) = m_accumulator(from, to) / row_sum;
+                }
+            } else {
+                // Zero accumulator row → zero weights row (matches normalize_axis)
+                for (std::size_t to = 0; to < n; ++to) {
+                    m_weights(from, to) = T(0);
                 }
             }
         }
