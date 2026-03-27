@@ -3,7 +3,6 @@
 %M11955|TRBV20-1*01|Homo sapiens|F|V-REGION|427..719|293 nt|1| | | | |293+0=293| | |;GGTGCTGTCGTCTCTCAACATCCGAGCTGGGTTATCTGTAAGAGTGGAACCTCTGTGAAGATCGAGTGCCGTTCCCTGGACTTTCAGGCCACAACTATGTTTTGGTATCGTCAGTTCCCGAAACAGAGTCTCATGCTGATGGCAACTTCCAATGAGGGCTCCAAGGCCACATACGAGCAAGGCGTCGAGAAGGACAAGTTTCTCATCAACCATGCAAGCCTGACCTTGTCCACTCTGACAGTGACCAGTGCCCATCCTGAAGACAGCAGCTTCTACATCTGCAGTGCTAGAGA;0
 #GeneChoice;D_gene;Undefined_side;6;d_gene
 % TRBD1*01;GGGACAGGGGGC;0
-% TRBD2*02;GGGACTAGCGGGAGGG;2
 % TRBD2*01;GGGACTAGCGGGGGGG;1
 #GeneChoice;J_gene;Undefined_side;7;j_choice
 %X02987|TRBJ2-1*01|Homo sapiens|F|J-REGION|800..849|50 nt|2| | | | |50+0=50| | |;CTCCTACAATGAGCAGTTCTTCGGGCCAGGGACACGGCTCACCGTGCTAG;0
@@ -173,8 +172,8 @@
 %A;0
 @Edges
 %GeneChoice_V_gene_Undefined_side_prio7_size1;Deletion_V_gene_Three_prime_prio5_size21
-%GeneChoice_D_gene_Undefined_side_prio6_size3;Deletion_D_gene_Three_prime_prio5_size21
-%GeneChoice_D_gene_Undefined_side_prio6_size3;Deletion_D_gene_Five_prime_prio5_size21
+%GeneChoice_D_gene_Undefined_side_prio6_size2;Deletion_D_gene_Three_prime_prio5_size21
+%GeneChoice_D_gene_Undefined_side_prio6_size2;Deletion_D_gene_Five_prime_prio5_size21
 %GeneChoice_J_gene_Undefined_side_prio7_size1;Deletion_J_gene_Five_prime_prio5_size23
 %Deletion_D_gene_Five_prime_prio5_size21;Deletion_D_gene_Three_prime_prio5_size21
 @ErrorRate
