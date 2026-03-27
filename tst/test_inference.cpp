@@ -270,6 +270,55 @@ static Alignment_data create_j_mock_alignment(
 // ---------------------------------------------------------------------------
 
 /**
+ * @brief Validate a ComparisonRow using relative degradation thresholds
+ * 
+ * For regular events and insertion length:
+ *   relative_degradation = (D_KL_inferred - D_KL_sampling) / H_truth < threshold
+ * 
+ * For dinucleotide Markov (no sampling baseline):
+ *   D_KL_inferred / h_dinuc < threshold
+ * 
+ * @param row ComparisonRow to validate (passes flags are set)
+ * @param relative_kl_degradation_threshold Threshold for marginal events (e.g., 0.05 = 5%)
+ * @param relative_kl_threshold_dinuc Threshold for dinucleotide (e.g., 0.0005 = 0.05%)
+ */
+static void validate_comparison_row(
+        ComparisonRow& row,
+        double relative_kl_degradation_threshold,
+        double relative_kl_threshold_dinuc)
+{
+    if (row.is_insertion_dinuc_pair) {
+        // Length component: use relative degradation
+        if (row.kl_length_sampling_baseline >= 0.0 && row.H_length_reference > 0.0) {
+            double relative_degradation = 
+                (row.kl_length - row.kl_length_sampling_baseline) / row.H_length_reference;
+            row.passes_length = (relative_degradation < relative_kl_degradation_threshold);
+        } else {
+            row.passes_length = true;  // No baseline to validate against
+        }
+        
+        // Dinuc component: use relative threshold (no baseline)
+        if (row.kl_dinuc > 0.0 && row.h_dinuc_reference > 0.0) {
+            row.passes_dinuc = (row.kl_dinuc < relative_kl_threshold_dinuc * row.h_dinuc_reference);
+        } else {
+            row.passes_dinuc = true;
+        }
+        
+        // Combined passes if both components pass
+        row.passes_combined = row.passes_length && row.passes_dinuc;
+    } else {
+        // Regular event: use relative degradation
+        if (row.kl_sampling_baseline >= 0.0 && row.H_reference > 0.0) {
+            double relative_degradation = 
+                (row.kl_divergence - row.kl_sampling_baseline) / row.H_reference;
+            row.passes = (relative_degradation < relative_kl_degradation_threshold);
+        } else {
+            row.passes = true;  // No baseline to validate against
+        }
+    }
+}
+
+/**
  * @brief Compare inferred model to ground truth using KL divergence
  * 
  * Uses sampling baseline to evaluate inference quality:
@@ -280,7 +329,9 @@ static std::vector<ComparisonRow> compare_inference_to_ground_truth(
         const std::vector<EventInfo>& ground_truth_events,
         const Model_marginals& inferred_marginals,
         const Model_Parms& inferred_parms,
-        const std::map<size_t, double>& sampling_baseline_kl)
+        const std::map<size_t, double>& sampling_baseline_kl,
+        double relative_kl_degradation_threshold,
+        double relative_kl_threshold_dinuc)
 {
     // Compute inferred marginals for all events
     std::map<size_t, std::vector<double>> inferred_marginals_map;
@@ -327,21 +378,23 @@ static std::vector<ComparisonRow> compare_inference_to_ground_truth(
         }
     }
     
-    // Threshold function for inference - returns true initially, will validate using sampling baseline
-    auto threshold_func = [](double, double, int) -> bool {
-        return true;  // Actual validation done using sampling baseline in CHECK statements
-    };
-    
-    // Use helper to build comparison rows with combined D_KL computation
-    return build_comparison_rows(
+    // Build comparison rows with combined D_KL computation
+    auto rows = build_comparison_rows(
             ground_truth_events,
             inferred_marginals_map,
             ins_dinuc_pairs,
             &inferred_parms,
             &inferred_marginals,
             true,  // compute_combined_kl
-            threshold_func,
+            nullptr,  // No threshold function - validation done separately
             &sampling_baseline_kl);  // Pass sampling baseline for display
+    
+    // Validate each row using relative degradation thresholds
+    for (auto& row : rows) {
+        validate_comparison_row(row, relative_kl_degradation_threshold, relative_kl_threshold_dinuc);
+    }
+    
+    return rows;
 }
 
 // ---------------------------------------------------------------------------
@@ -646,12 +699,14 @@ TEST_CASE("Inference recovers ground truth model", "[inference]")
             truth_events,
             inferred_marginals,
             inferred_parms,
-            sampling_baseline_kl);
+            sampling_baseline_kl,
+            relative_kl_degradation_threshold,
+            relative_kl_threshold_dinuc_model);
         
         print_comparison_table(rows, "H_truth", "H_infer", /*show_sampling_baseline=*/true);
         
         std::cout << "\n=== Validating convergence ===" << std::endl;
-        // Check assertions using relative degradation: (D_KL_inferred - D_KL_sampling) / H_truth < threshold
+        // Check that all rows passed validation (passes flags set by validate_comparison_row)
         for (const auto& row : rows) {
             INFO("Event: " << row.event_nickname);
             
@@ -668,35 +723,36 @@ TEST_CASE("Inference recovers ground truth model", "[inference]")
                     << ", h_truth=" << row.h_dinuc_reference
                     << ", h_inferred=" << row.h_dinuc_compared);
                 
-                // Length: use relative degradation threshold
+                // Validate components (passes flags already set)
                 if (row.kl_length_sampling_baseline >= 0.0 && row.H_length_reference > 0.0) {
                     double relative_degradation = 
                         (row.kl_length - row.kl_length_sampling_baseline) / row.H_length_reference;
-                    INFO("  Relative degradation: " << (relative_degradation * 100) << "% (threshold: "
-                         << (relative_kl_degradation_threshold * 100) << "%)");
-                    CHECK(relative_degradation < relative_kl_degradation_threshold);
+                    INFO("  Length relative degradation: " << (relative_degradation * 100) 
+                         << "% (threshold: " << (relative_kl_degradation_threshold * 100) << "%)");
+                }
+                if (row.kl_dinuc > 0.0 && row.h_dinuc_reference > 0.0) {
+                    double relative_kl = row.kl_dinuc / row.h_dinuc_reference;
+                    INFO("  Dinuc relative D_KL: " << (relative_kl * 100) 
+                         << "% (threshold: " << (relative_kl_threshold_dinuc_model * 100) << "%)");
                 }
                 
-                // Dinuc: use relative threshold D_KL / h_dinuc < threshold
-                // No sampling baseline (would need empirical transition matrix)
-                // Can be strict since heavily sampled during inference
-                if (row.kl_dinuc > 0.0) {
-                    CHECK(row.kl_dinuc < relative_kl_threshold_dinuc_model*row.h_dinuc_reference);
-                }
+                CHECK(row.passes_length);
+                CHECK(row.passes_dinuc);
             } else {
                 INFO("D_KL(truth||inferred) = " << row.kl_divergence);
                 INFO("D_KL(truth||empirical) = " << row.kl_sampling_baseline);
                 INFO("H(truth) = " << row.H_reference);
                 INFO("H(inferred) = " << row.H_compared);
                 
-                // Use relative degradation: (D_KL_inferred - D_KL_sampling) / H_truth < threshold
+                // Show relative degradation for context
                 if (row.kl_sampling_baseline >= 0.0 && row.H_reference > 0.0) {
                     double relative_degradation = 
                         (row.kl_divergence - row.kl_sampling_baseline) / row.H_reference;
-                    INFO("Relative degradation: " << (relative_degradation * 100) << "% (threshold: "
-                         << (relative_kl_degradation_threshold * 100) << "%)");
-                    CHECK(relative_degradation < relative_kl_degradation_threshold);
+                    INFO("Relative degradation: " << (relative_degradation * 100) 
+                         << "% (threshold: " << (relative_kl_degradation_threshold * 100) << "%)");
                 }
+                
+                CHECK(row.passes);
             }
         }
     }
