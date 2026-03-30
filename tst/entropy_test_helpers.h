@@ -483,6 +483,10 @@ struct ComparisonRow {
     double uncovered_mass = 0.0;
     bool passes = false;
     
+    // Actual distributions for diagnostic printing
+    std::vector<double> reference_marginal;  ///< Ground truth or theoretical distribution
+    std::vector<double> compared_marginal;   ///< Inferred or empirical distribution
+    
     // Sampling baseline (for inference tests)
     double kl_sampling_baseline = -1.0;  ///< D_KL(truth || empirical), -1 if not computed
     
@@ -503,6 +507,100 @@ struct ComparisonRow {
     double h_dinuc_compared = 0.0;
     bool passes_combined = false;
     bool passes_dinuc = false;
+    
+    // Dinuc transition matrices for diagnostic printing
+    std::array<double, 16> reference_dinuc_T{};  ///< Ground truth transition matrix
+    std::array<double, 16> compared_dinuc_T{};   ///< Inferred transition matrix
+};
+
+/**
+ * @brief Print distribution comparison with signed differences for diagnostics
+ * 
+ * Shows: index, P_reference, P_compared, difference, with highlighting for large differences
+ */
+static inline void print_distribution_diagnostics(
+        const std::string& event_name,
+        const std::vector<double>& reference,
+        const std::vector<double>& compared,
+        double difference_threshold = 0.01)
+{
+    std::cout << "\n  Distribution diagnostics for " << event_name << ":" << std::endl;
+    std::cout << "    idx | P_truth    | P_inferred | difference | (%)" << std::endl;
+    std::cout << "    ----|------------|------------|------------|------" << std::endl;
+    
+    for (size_t i = 0; i < reference.size(); ++i) {
+        double diff = compared[i] - reference[i];
+        double rel_diff = (reference[i] > 0.0) ? (diff / reference[i] * 100.0) : 0.0;
+        
+        // Highlight large differences
+        bool highlight = std::abs(diff) > difference_threshold;
+        
+        std::cout << "    " << std::setw(3) << i << " | "
+                  << std::fixed << std::setprecision(6)
+                  << std::setw(10) << reference[i] << " | "
+                  << std::setw(10) << compared[i] << " | "
+                  << std::setw(10) << std::showpos << diff << std::noshowpos << " | "
+                  << std::setw(6) << std::setprecision(1) << std::showpos << rel_diff << std::noshowpos << "%";
+        
+        if (highlight) {
+            std::cout << " <<<";
+        }
+        std::cout << std::endl;
+    }
+}
+
+/**
+ * @brief Print transition matrix comparison for dinucleotide Markov chains
+ * 
+ * Shows 4x4 matrices side by side with differences
+ */
+static inline void print_dinuc_matrix_diagnostics(
+        const std::string& event_name,
+        const std::array<double, 16>& reference,
+        const std::array<double, 16>& compared)
+{
+    const char* nucleotides = "ACGT";
+    
+    std::cout << "\n  Dinuc transition matrix diagnostics for " << event_name << ":" << std::endl;
+    std::cout << "\n  Ground truth T[i,j]:" << std::endl;
+    std::cout << "       ";
+    for (int j = 0; j < 4; ++j) std::cout << "   " << nucleotides[j] << "    ";
+    std::cout << std::endl;
+    
+    for (int i = 0; i < 4; ++i) {
+        std::cout << "    " << nucleotides[i] << " ";
+        for (int j = 0; j < 4; ++j) {
+            std::cout << std::fixed << std::setprecision(4) << std::setw(7) << reference[i*4 + j];
+        }
+        std::cout << std::endl;
+    }
+    
+    std::cout << "\n  Inferred T[i,j]:" << std::endl;
+    std::cout << "       ";
+    for (int j = 0; j < 4; ++j) std::cout << "   " << nucleotides[j] << "    ";
+    std::cout << std::endl;
+    
+    for (int i = 0; i < 4; ++i) {
+        std::cout << "    " << nucleotides[i] << " ";
+        for (int j = 0; j < 4; ++j) {
+            std::cout << std::fixed << std::setprecision(4) << std::setw(7) << compared[i*4 + j];
+        }
+        std::cout << std::endl;
+    }
+    
+    std::cout << "\n  Signed difference (inferred - truth):" << std::endl;
+    std::cout << "       ";
+    for (int j = 0; j < 4; ++j) std::cout << "   " << nucleotides[j] << "    ";
+    std::cout << std::endl;
+    
+    for (int i = 0; i < 4; ++i) {
+        std::cout << "    " << nucleotides[i] << " ";
+        for (int j = 0; j < 4; ++j) {
+            double diff = compared[i*4 + j] - reference[i*4 + j];
+            std::cout << std::fixed << std::setprecision(4) << std::setw(7) << std::showpos << diff << std::noshowpos;
+        }
+        std::cout << std::endl;
+    }
 };
 
 /**
@@ -559,6 +657,10 @@ static inline std::vector<ComparisonRow> build_comparison_rows(
         
         ComparisonRow row;
         row.event_nickname = ev.nickname;
+        
+        // Store actual distributions for diagnostic printing
+        row.reference_marginal = ev.model_marginal;
+        row.compared_marginal = compared;
         
         // Populate sampling baseline if provided
         if (sampling_baseline_kl && sampling_baseline_kl->count(ev.queue_position) > 0) {
@@ -618,6 +720,10 @@ static inline std::vector<ComparisonRow> build_comparison_rows(
                 // Dinuc D_KL
                 row.kl_dinuc = markov_kl_divergence(dinuc_ev->dinuc_T, compared_dinuc_T);
                 row.h_dinuc_compared = markov_entropy_rate(compared_dinuc_T);
+                
+                // Store transition matrices for diagnostic printing
+                row.reference_dinuc_T = dinuc_ev->dinuc_T;
+                row.compared_dinuc_T = compared_dinuc_T;
             } else {
                 // Generation test: can't compute combined/dinuc D_KL
                 row.H_combined_compared = 0.0;

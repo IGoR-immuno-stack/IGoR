@@ -734,12 +734,27 @@ TEST_CASE("Inference recovers ground truth model", "[inference]")
                     double relative_degradation = 
                         (row.kl_length - row.kl_length_sampling_baseline) / row.H_length_reference;
                     INFO("  Length relative degradation: " << (relative_degradation * 100) 
-                         << "% (threshold: " << (relative_kl_degradation_threshold * 100) << "%)");
+                         << "% (threshold: " << (relative_kl_degradation_threshold_inslen * 100) << "%)");
                 }
                 if (row.kl_dinuc > 0.0 && row.h_dinuc_reference > 0.0) {
                     double relative_kl = row.kl_dinuc / row.h_dinuc_reference;
                     INFO("  Dinuc relative D_KL: " << (relative_kl * 100) 
                          << "% (threshold: " << (relative_kl_threshold_dinuc_model * 100) << "%)");
+                }
+                
+                // Print diagnostics if length validation fails
+                if (!row.passes_length && !row.reference_marginal.empty()) {
+                    print_distribution_diagnostics(row.event_nickname + " (length)",
+                                                  row.reference_marginal,
+                                                  row.compared_marginal,
+                                                  0.01);
+                }
+                
+                // Print diagnostics if dinuc validation fails
+                if (!row.passes_dinuc) {
+                    print_dinuc_matrix_diagnostics(row.event_nickname + " (dinuc)",
+                                                  row.reference_dinuc_T,
+                                                  row.compared_dinuc_T);
                 }
                 
                 CHECK(row.passes_length);
@@ -756,6 +771,14 @@ TEST_CASE("Inference recovers ground truth model", "[inference]")
                         (row.kl_divergence - row.kl_sampling_baseline) / row.H_reference;
                     INFO("Relative degradation: " << (relative_degradation * 100) 
                          << "% (threshold: " << (relative_kl_degradation_threshold * 100) << "%)");
+                }
+                
+                // Print diagnostics if validation fails
+                if (!row.passes && !row.reference_marginal.empty()) {
+                    print_distribution_diagnostics(row.event_nickname,
+                                                  row.reference_marginal,
+                                                  row.compared_marginal,
+                                                  0.01);  // Highlight differences > 1%
                 }
                 
                 CHECK(row.passes);
