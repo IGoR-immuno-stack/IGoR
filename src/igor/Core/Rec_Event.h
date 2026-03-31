@@ -32,6 +32,13 @@
 #include <igor/Core/Utils.h>
 #include <igorCoreExport.h>
 
+// Context objects for refactored iterate()
+#include <igor/Core/QuerySequenceContext.h>
+#include <igor/Core/ModelContext.h>
+#include <igor/Core/ScenarioContext.h>
+#include <igor/Core/ExplorationContext.h>
+#include <igor/Core/AccumulationContext.h>
+
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -145,6 +152,31 @@ public:
             Seq_offsets_map &, std::shared_ptr<Error_rate> &, std::map<size_t, std::shared_ptr<Counter>> &,
             const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> &,
             Safety_bool_map &, Mismatch_vectors_map &, double &, double &) = 0;
+
+    /**
+     * @brief Refactored iterate() with context objects (Phase 2+)
+     * 
+     * New signature using 5 context objects instead of 18 individual parameters.
+     * This is a drop-in replacement that delegates to the legacy iterate() during
+     * Phase 2-3, then in Phase 3.5+ will contain semantic operations.
+     * 
+     * Contexts encapsulate:
+     * - QuerySequenceContext: Input sequence and alignments
+     * - ModelContext: Read-only model configuration
+     * - ScenarioContext: Per-path mutable state
+     * - ExplorationContext: Tree exploration policy
+     * - AccumulationContext: Result accumulation
+     * 
+     * This overload exists alongside the legacy signature during transition.
+     */
+    virtual void
+    iterate(QuerySequenceContext& query,
+            const ModelContext& model,
+            ScenarioContext& scenario,
+            ExplorationContext& exploration,
+            AccumulationContext& accumulation,
+            Safety_bool_map& safety_set) = 0;
+
     bool set_priority(int);
 
     //Accessors
@@ -263,6 +295,22 @@ protected:
                     &events_map,
             Safety_bool_map &safety_set, Mismatch_vectors_map &mismatches_lists, double &seq_max_prob_scenario,
             double &proba_threshold_factor);
+
+    /**
+     * @brief Refactored iterate_wrap_up() with context objects (Phase 2+)
+     * 
+     * New signature using 5 context objects instead of 18 individual parameters.
+     * Called at leaf nodes to accumulate marginals and update error rate.
+     * 
+     * During Phase 2, this delegates to the legacy iterate_wrap_up() function.
+     */
+    void iterate_wrap_up(
+            QuerySequenceContext& query,
+            const ModelContext& model,
+            ScenarioContext& scenario,
+            ExplorationContext& exploration,
+            AccumulationContext& accumulation,
+            Safety_bool_map& safety_set);
 };
 
 //bool compare_events(const Rec_Event*&, const Rec_Event*&);

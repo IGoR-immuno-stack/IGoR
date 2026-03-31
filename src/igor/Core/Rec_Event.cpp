@@ -225,6 +225,55 @@ void Rec_Event::iterate_wrap_up(
     }
 }
 
+/**
+ * @brief Adapter: Context-based iterate_wrap_up() -> Legacy iterate_wrap_up()
+ * 
+ * Phase 2 implementation: Unpacks 5 context objects into 18+ legacy parameters
+ * and delegates to the original iterate_wrap_up().
+ * 
+ * This enables Event subclasses to gradually migrate to context-based iterate()
+ * while maintaining compatibility with existing iterate_wrap_up() logic.
+ * 
+ * NOTE: Some const_casts are required because legacy iterate_wrap_up() signature
+ * expects const references for model data even though ModelContext stores them
+ * as const. These casts are safe during Phase 2 and will be eliminated in Phase 3+.
+ */
+void Rec_Event::iterate_wrap_up(
+        QuerySequenceContext& query,
+        const ModelContext& model,
+        ScenarioContext& scenario,
+        ExplorationContext& exploration,
+        AccumulationContext& accumulation,
+        Safety_bool_map& safety_set)
+{
+    // proba_threshold_factor is const in context but legacy signature expects mutable ref
+    // Create mutable copy (legacy iterate_wrap_up() doesn't actually modify it)
+    double proba_threshold_factor_copy = exploration.proba_threshold_factor;
+    
+    // Delegate to legacy iterate_wrap_up() by unpacking contexts
+    this->iterate_wrap_up(
+        scenario.scenario_proba,
+        exploration.downstream_proba_map,
+        query.sequence,
+        query.int_sequence,
+        exploration.index_map,
+        model.offset_map,
+        exploration.next_event_ptr_arr,
+        accumulation.updated_marginals,
+        model.model_parameters,
+        query.gene_alignments,
+        scenario.constructed_sequences,
+        scenario.seq_offsets,
+        accumulation.error_rate,
+        accumulation.counters,
+        model.events_map,
+        safety_set,
+        scenario.mismatches_lists,
+        exploration.seq_max_prob_scenario,
+        proba_threshold_factor_copy
+    );
+}
+
 void Rec_Event::initialize_event(
         unordered_set<Rec_Event_name> &processed_events,
         const unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map,

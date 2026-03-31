@@ -37,6 +37,10 @@ struct ExplorationContext {
     // Updated during recursion for marginal array indexing
     Index_map& index_map;
     
+    // Next event to call in iteration order (traversal utility)
+    // Array indexed by event_index to find which event comes next
+    std::shared_ptr<Next_event_ptr>& next_event_ptr_arr;
+    
     /**
      * @brief Constructor
      */
@@ -44,11 +48,13 @@ struct ExplorationContext {
         Downstream_scenario_proba_bound_map& downstream_proba_map_,
         double& seq_max_prob_scenario_,
         double proba_threshold_factor_,
-        Index_map& index_map_
+        Index_map& index_map_,
+        std::shared_ptr<Next_event_ptr>& next_event_ptr_arr_
     ) : downstream_proba_map(downstream_proba_map_),
         seq_max_prob_scenario(seq_max_prob_scenario_),
         proba_threshold_factor(proba_threshold_factor_),
-        index_map(index_map_)
+        index_map(index_map_),
+        next_event_ptr_arr(next_event_ptr_arr_)
     {}
     
     // Prevent copying

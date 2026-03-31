@@ -37,9 +37,6 @@ struct ModelContext {
         std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>>& 
         offset_map;
     
-    // Next event to call in iteration order
-    const std::shared_ptr<Next_event_ptr>& next_event_ptr_arr;
-    
     // All events in model (for querying neighbors)
     const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>,
         std::shared_ptr<Rec_Event>>& events_map;
@@ -51,12 +48,10 @@ struct ModelContext {
         const Marginal_array_p& model_parameters_,
         const std::unordered_map<Rec_Event_name, 
             std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>>& offset_map_,
-        const std::shared_ptr<Next_event_ptr>& next_event_ptr_arr_,
         const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>,
             std::shared_ptr<Rec_Event>>& events_map_
     ) : model_parameters(model_parameters_),
         offset_map(offset_map_),
-        next_event_ptr_arr(next_event_ptr_arr_),
         events_map(events_map_)
     {}
     

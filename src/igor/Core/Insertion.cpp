@@ -298,6 +298,53 @@ void Insertion::iterate(double &scenario_proba, Downstream_scenario_proba_bound_
     }
 }
 
+/**
+ * @brief Phase 2 adapter: Context-based iterate() -> Legacy iterate()
+ * 
+ * Unpacks 5 context objects into 18+ legacy parameters and delegates
+ * to the existing iterate() implementation.
+ * 
+ * NOTE: Some const_casts are required because legacy iterate() signatures
+ * accept non-const references even though they don't modify model data.
+ * These casts are safe during Phase 2 and will be eliminated in Phase 3+.
+ */
+void Insertion::iterate(
+        QuerySequenceContext& query,
+        const ModelContext& model,
+        ScenarioContext& scenario,
+        ExplorationContext& exploration,
+        AccumulationContext& accumulation,
+        Safety_bool_map& safety_set)
+{
+    // proba_threshold_factor is const in context but legacy signature expects mutable ref
+    // Create mutable copy (legacy iterate() doesn't actually modify it)
+    double proba_threshold_factor_copy = exploration.proba_threshold_factor;
+    
+    // Delegate to legacy iterate() by unpacking contexts
+    // const_cast needed for model parameters due to legacy signature requirements
+    this->iterate(
+        scenario.scenario_proba,
+        exploration.downstream_proba_map,
+        query.sequence,
+        query.int_sequence,
+        exploration.index_map,
+        const_cast<std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>>&>(model.offset_map),
+        exploration.next_event_ptr_arr,
+        accumulation.updated_marginals,
+        const_cast<Marginal_array_p&>(model.model_parameters),
+        const_cast<std::unordered_map<Gene_class, std::vector<Alignment_data>>&>(query.gene_alignments),
+        scenario.constructed_sequences,
+        scenario.seq_offsets,
+        accumulation.error_rate,
+        accumulation.counters,
+        const_cast<std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>>&>(model.events_map),
+        safety_set,
+        scenario.mismatches_lists,
+        exploration.seq_max_prob_scenario,
+        proba_threshold_factor_copy
+    );
+}
+
 /*
  *This short method performs the iterate operations common to all Rec_event (modify index map and fetch realization probability)
  */

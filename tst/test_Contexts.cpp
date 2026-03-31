@@ -94,23 +94,19 @@ TEST_CASE("ModelContext construction and immutability", "[Context][ModelContext]
     }
     
     unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> offset_map;
-    std::shared_ptr<Next_event_ptr> next_event_ptr (
-        new Next_event_ptr[1](),  // () initializes all to nullptr
-        default_delete<Next_event_ptr[]>()
-    );    unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> events_map;
+    unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> events_map;
     
     SECTION("Basic construction") {
-        ModelContext model(model_params, offset_map, next_event_ptr, events_map);
+        ModelContext model(model_params, offset_map, events_map);
         
         // Verify const references are bound correctly
         REQUIRE(&model.model_parameters == &model_params);
         REQUIRE(&model.offset_map == &offset_map);
-        REQUIRE(&model.next_event_ptr_arr == &next_event_ptr);
         REQUIRE(&model.events_map == &events_map);
     }
     
     SECTION("Access model parameters") {
-        ModelContext model(model_params, offset_map, next_event_ptr, events_map);
+        ModelContext model(model_params, offset_map, events_map);
         
         // Can read through const reference
         REQUIRE(model.model_parameters[0] == 0.0L);
@@ -119,7 +115,7 @@ TEST_CASE("ModelContext construction and immutability", "[Context][ModelContext]
     }
     
     SECTION("Empty events map") {
-        ModelContext model(model_params, offset_map, next_event_ptr, events_map);
+        ModelContext model(model_params, offset_map, events_map);
         
         REQUIRE(model.events_map.empty());
         REQUIRE(model.offset_map.empty());
@@ -192,20 +188,25 @@ TEST_CASE("ExplorationContext construction and pruning", "[Context][ExplorationC
     double max_prob = 1e-5;
     double threshold = 0.001;
     Index_map index_map(10);
+    std::shared_ptr<Next_event_ptr> next_event_ptr (
+        new Next_event_ptr[1](),  // () initializes all to nullptr
+        default_delete<Next_event_ptr[]>()
+    );
     
     SECTION("Basic construction") {
-        ExplorationContext exploration(proba_map, max_prob, threshold, index_map);
+        ExplorationContext exploration(proba_map, max_prob, threshold, index_map, next_event_ptr);
         
         // Verify references are bound correctly
         REQUIRE(&exploration.downstream_proba_map == &proba_map);
         REQUIRE(&exploration.seq_max_prob_scenario == &max_prob);
         REQUIRE(&exploration.index_map == &index_map);
+        REQUIRE(&exploration.next_event_ptr_arr == &next_event_ptr);
         REQUIRE(exploration.proba_threshold_factor == threshold);
     }
     
     SECTION("should_prune method - aggressive pruning") {
         double threshold_factor = 0.001;
-        ExplorationContext exploration(proba_map, max_prob, threshold_factor, index_map);
+        ExplorationContext exploration(proba_map, max_prob, threshold_factor, index_map, next_event_ptr);
         
         // max_prob = 1e-5, threshold = 0.001
         // Prune if scenario_prob < 1e-5 * 0.001 = 1e-8
@@ -216,7 +217,7 @@ TEST_CASE("ExplorationContext construction and pruning", "[Context][ExplorationC
     
     SECTION("should_prune method - conservative pruning") {
         double threshold_factor = 1e-6;
-        ExplorationContext exploration(proba_map, max_prob, threshold_factor, index_map);
+        ExplorationContext exploration(proba_map, max_prob, threshold_factor, index_map, next_event_ptr);
         
         // max_prob = 1e-5, threshold = 1e-6
         // Prune if scenario_prob < 1e-5 * 1e-6 = 1e-11
@@ -226,7 +227,7 @@ TEST_CASE("ExplorationContext construction and pruning", "[Context][ExplorationC
     }
     
     SECTION("update_max_prob method") {
-        ExplorationContext exploration(proba_map, max_prob, threshold, index_map);
+        ExplorationContext exploration(proba_map, max_prob, threshold, index_map, next_event_ptr);
         
         REQUIRE(max_prob == 1e-5);
         
@@ -246,7 +247,7 @@ TEST_CASE("ExplorationContext construction and pruning", "[Context][ExplorationC
     }
     
     SECTION("index_map tracking") {
-        ExplorationContext exploration(proba_map, max_prob, threshold, index_map);
+        ExplorationContext exploration(proba_map, max_prob, threshold, index_map, next_event_ptr);
         
         // Track parent realizations
         exploration.index_map.set_value(0, 5, 0);  // Event 0, realization 5, layer 0
@@ -257,7 +258,7 @@ TEST_CASE("ExplorationContext construction and pruning", "[Context][ExplorationC
     }
     
     SECTION("Adaptive pruning with threshold updates") {
-        ExplorationContext exploration(proba_map, max_prob, threshold, index_map);
+        ExplorationContext exploration(proba_map, max_prob, threshold, index_map, next_event_ptr);
         
         // Initially, max_prob = 1e-5, threshold = 0.001
         // Cutoff = 1e-8
@@ -335,10 +336,6 @@ TEST_CASE("Multiple contexts work together", "[Context][Integration]") {
     // Setup model
     auto model_params = make_unique<long double[]>(100);
     unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> offset_map;
-    std::shared_ptr<Next_event_ptr> next_event_ptr (
-        new Next_event_ptr[1](),  // () initializes all to nullptr
-        default_delete<Next_event_ptr[]>()
-    );
     unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> events_map;
     
     // Setup scenario
@@ -352,6 +349,10 @@ TEST_CASE("Multiple contexts work together", "[Context][Integration]") {
     double max_prob = 1e-5;
     double threshold = 0.001;
     Index_map index_map(10);
+    std::shared_ptr<Next_event_ptr> next_event_ptr (
+        new Next_event_ptr[1](),  // () initializes all to nullptr
+        default_delete<Next_event_ptr[]>()
+    );
     
     // Setup accumulation
     auto marginals = make_unique<long double[]>(100);
@@ -360,9 +361,9 @@ TEST_CASE("Multiple contexts work together", "[Context][Integration]") {
     
     SECTION("Create all five contexts") {
         QuerySequenceContext query(seq, int_seq, alignments);
-        ModelContext model(model_params, offset_map, next_event_ptr, events_map);
+        ModelContext model(model_params, offset_map, events_map);
         ScenarioContext scenario(proba, constructed_sequences, seq_offsets, mismatches);
-        ExplorationContext exploration(proba_map, max_prob, threshold, index_map);
+        ExplorationContext exploration(proba_map, max_prob, threshold, index_map, next_event_ptr);
         AccumulationContext accumulation(marginals, counters, error_rate);
         
         // All contexts exist and are independent
@@ -370,14 +371,15 @@ TEST_CASE("Multiple contexts work together", "[Context][Integration]") {
         REQUIRE(&model.model_parameters == &model_params);
         REQUIRE(&scenario.scenario_proba == &proba);
         REQUIRE(&exploration.seq_max_prob_scenario == &max_prob);
+        REQUIRE(&exploration.next_event_ptr_arr == &next_event_ptr);
         REQUIRE(&accumulation.updated_marginals == &marginals);
     }
     
     SECTION("Contexts don't interfere with each other") {
         QuerySequenceContext query(seq, int_seq, alignments);
-        ModelContext model(model_params, offset_map, next_event_ptr, events_map);
+        ModelContext model(model_params, offset_map, events_map);
         ScenarioContext scenario(proba, constructed_sequences, seq_offsets, mismatches);
-        ExplorationContext exploration(proba_map, max_prob, threshold, index_map);
+        ExplorationContext exploration(proba_map, max_prob, threshold, index_map, next_event_ptr);
         AccumulationContext accumulation(marginals, counters, error_rate);
         
         // Modify scenario

@@ -71,6 +71,16 @@ public:
             Seq_offsets_map &, std::shared_ptr<Error_rate> &, std::map<size_t, std::shared_ptr<Counter>> &,
             const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> &,
             Safety_bool_map &, Mismatch_vectors_map &, double &, double &);
+
+    // Phase 2: Context-based iterate() adapter
+    inline void
+    iterate(QuerySequenceContext& query,
+            const ModelContext& model,
+            ScenarioContext& scenario,
+            ExplorationContext& exploration,
+            AccumulationContext& accumulation,
+            Safety_bool_map& safety_set);
+
     void add_realization(int);
     bool add_realization(std::string gene_name, std::string gene_sequence);
     void set_genomic_templates(const std::vector<std::pair<std::string, std::string>> &);
