@@ -39,8 +39,7 @@ public:
           const ModelContext& model,
           ScenarioContext& scenario,
           ExplorationContext& exploration,
-          AccumulationContext& accumulation,
-          Safety_bool_map& safety_set) override {}
+          AccumulationContext& accumulation) override {}
 
   queue<int> draw_random_realization(
       const Marginal_array_p &, unordered_map<Rec_Event_name, int> &,

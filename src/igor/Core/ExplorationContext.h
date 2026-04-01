@@ -41,6 +41,12 @@ struct ExplorationContext {
     // Array indexed by event_index to find which event comes next
     std::shared_ptr<Next_event_ptr>& next_event_ptr_arr;
     
+    // Safety flags for gene overlap validation (exploration policy)
+    // Used to decide which branches are safe to explore (VD_safe, DJ_safe, VJ_safe)
+    // Guides exploration: determines if overlap checks are needed until reaching leaf
+    // Once at leaf node, this doesn't describe the scenario - only guided exploration
+    Safety_bool_map& safety_set;
+    
     /**
      * @brief Constructor
      */
@@ -49,12 +55,14 @@ struct ExplorationContext {
         double& seq_max_prob_scenario_,
         double proba_threshold_factor_,
         Index_map& index_map_,
-        std::shared_ptr<Next_event_ptr>& next_event_ptr_arr_
+        std::shared_ptr<Next_event_ptr>& next_event_ptr_arr_,
+        Safety_bool_map& safety_set_
     ) : downstream_proba_map(downstream_proba_map_),
         seq_max_prob_scenario(seq_max_prob_scenario_),
         proba_threshold_factor(proba_threshold_factor_),
         index_map(index_map_),
-        next_event_ptr_arr(next_event_ptr_arr_)
+        next_event_ptr_arr(next_event_ptr_arr_),
+        safety_set(safety_set_)
     {}
     
     // Prevent copying

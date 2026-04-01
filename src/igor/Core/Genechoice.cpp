@@ -1016,8 +1016,7 @@ void Gene_choice::iterate(
         const ModelContext& model,
         ScenarioContext& scenario,
         ExplorationContext& exploration,
-        AccumulationContext& accumulation,
-        Safety_bool_map& safety_set)
+        AccumulationContext& accumulation)
 {
     // proba_threshold_factor is const in context but legacy signature expects mutable ref
     // Create mutable copy (legacy iterate() doesn't actually modify it)
@@ -1041,7 +1040,7 @@ void Gene_choice::iterate(
         accumulation.error_rate,
         accumulation.counters,
         const_cast<std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>>&>(model.events_map),
-        safety_set,
+        exploration.safety_set,
         scenario.mismatches_lists,
         exploration.seq_max_prob_scenario,
         proba_threshold_factor_copy

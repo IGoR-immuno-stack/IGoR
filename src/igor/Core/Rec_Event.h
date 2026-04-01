@@ -174,8 +174,7 @@ public:
             const ModelContext& model,
             ScenarioContext& scenario,
             ExplorationContext& exploration,
-            AccumulationContext& accumulation,
-            Safety_bool_map& safety_set) = 0;
+            AccumulationContext& accumulation) = 0;
 
     bool set_priority(int);
 
@@ -309,8 +308,7 @@ protected:
             const ModelContext& model,
             ScenarioContext& scenario,
             ExplorationContext& exploration,
-            AccumulationContext& accumulation,
-            Safety_bool_map& safety_set);
+            AccumulationContext& accumulation);
 };
 
 //bool compare_events(const Rec_Event*&, const Rec_Event*&);

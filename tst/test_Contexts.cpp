@@ -192,21 +192,23 @@ TEST_CASE("ExplorationContext construction and pruning", "[Context][ExplorationC
         new Next_event_ptr[1](),  // () initializes all to nullptr
         default_delete<Next_event_ptr[]>()
     );
+    Safety_bool_map safety_set(3);  // For exploration decisions
     
     SECTION("Basic construction") {
-        ExplorationContext exploration(proba_map, max_prob, threshold, index_map, next_event_ptr);
+        ExplorationContext exploration(proba_map, max_prob, threshold, index_map, next_event_ptr, safety_set);
         
         // Verify references are bound correctly
         REQUIRE(&exploration.downstream_proba_map == &proba_map);
         REQUIRE(&exploration.seq_max_prob_scenario == &max_prob);
         REQUIRE(&exploration.index_map == &index_map);
         REQUIRE(&exploration.next_event_ptr_arr == &next_event_ptr);
+        REQUIRE(&exploration.safety_set == &safety_set);
         REQUIRE(exploration.proba_threshold_factor == threshold);
     }
     
     SECTION("should_prune method - aggressive pruning") {
         double threshold_factor = 0.001;
-        ExplorationContext exploration(proba_map, max_prob, threshold_factor, index_map, next_event_ptr);
+        ExplorationContext exploration(proba_map, max_prob, threshold_factor, index_map, next_event_ptr, safety_set);
         
         // max_prob = 1e-5, threshold = 0.001
         // Prune if scenario_prob < 1e-5 * 0.001 = 1e-8
@@ -217,7 +219,7 @@ TEST_CASE("ExplorationContext construction and pruning", "[Context][ExplorationC
     
     SECTION("should_prune method - conservative pruning") {
         double threshold_factor = 1e-6;
-        ExplorationContext exploration(proba_map, max_prob, threshold_factor, index_map, next_event_ptr);
+        ExplorationContext exploration(proba_map, max_prob, threshold_factor, index_map, next_event_ptr, safety_set);
         
         // max_prob = 1e-5, threshold = 1e-6
         // Prune if scenario_prob < 1e-5 * 1e-6 = 1e-11
@@ -227,7 +229,7 @@ TEST_CASE("ExplorationContext construction and pruning", "[Context][ExplorationC
     }
     
     SECTION("update_max_prob method") {
-        ExplorationContext exploration(proba_map, max_prob, threshold, index_map, next_event_ptr);
+        ExplorationContext exploration(proba_map, max_prob, threshold, index_map, next_event_ptr, safety_set);
         
         REQUIRE(max_prob == 1e-5);
         
@@ -247,7 +249,7 @@ TEST_CASE("ExplorationContext construction and pruning", "[Context][ExplorationC
     }
     
     SECTION("index_map tracking") {
-        ExplorationContext exploration(proba_map, max_prob, threshold, index_map, next_event_ptr);
+        ExplorationContext exploration(proba_map, max_prob, threshold, index_map, next_event_ptr, safety_set);
         
         // Track parent realizations
         exploration.index_map.set_value(0, 5, 0);  // Event 0, realization 5, layer 0
@@ -258,7 +260,7 @@ TEST_CASE("ExplorationContext construction and pruning", "[Context][ExplorationC
     }
     
     SECTION("Adaptive pruning with threshold updates") {
-        ExplorationContext exploration(proba_map, max_prob, threshold, index_map, next_event_ptr);
+        ExplorationContext exploration(proba_map, max_prob, threshold, index_map, next_event_ptr, safety_set);
         
         // Initially, max_prob = 1e-5, threshold = 0.001
         // Cutoff = 1e-8
@@ -353,6 +355,7 @@ TEST_CASE("Multiple contexts work together", "[Context][Integration]") {
         new Next_event_ptr[1](),  // () initializes all to nullptr
         default_delete<Next_event_ptr[]>()
     );
+    Safety_bool_map safety_set(3);  // For exploration decisions
     
     // Setup accumulation
     auto marginals = make_unique<long double[]>(100);
@@ -363,7 +366,7 @@ TEST_CASE("Multiple contexts work together", "[Context][Integration]") {
         QuerySequenceContext query(seq, int_seq, alignments);
         ModelContext model(model_params, offset_map, events_map);
         ScenarioContext scenario(proba, constructed_sequences, seq_offsets, mismatches);
-        ExplorationContext exploration(proba_map, max_prob, threshold, index_map, next_event_ptr);
+        ExplorationContext exploration(proba_map, max_prob, threshold, index_map, next_event_ptr, safety_set);
         AccumulationContext accumulation(marginals, counters, error_rate);
         
         // All contexts exist and are independent
@@ -372,6 +375,7 @@ TEST_CASE("Multiple contexts work together", "[Context][Integration]") {
         REQUIRE(&scenario.scenario_proba == &proba);
         REQUIRE(&exploration.seq_max_prob_scenario == &max_prob);
         REQUIRE(&exploration.next_event_ptr_arr == &next_event_ptr);
+        REQUIRE(&exploration.safety_set == &safety_set);  // safety_set in ExplorationContext
         REQUIRE(&accumulation.updated_marginals == &marginals);
     }
     
@@ -379,7 +383,7 @@ TEST_CASE("Multiple contexts work together", "[Context][Integration]") {
         QuerySequenceContext query(seq, int_seq, alignments);
         ModelContext model(model_params, offset_map, events_map);
         ScenarioContext scenario(proba, constructed_sequences, seq_offsets, mismatches);
-        ExplorationContext exploration(proba_map, max_prob, threshold, index_map, next_event_ptr);
+        ExplorationContext exploration(proba_map, max_prob, threshold, index_map, next_event_ptr, safety_set);
         AccumulationContext accumulation(marginals, counters, error_rate);
         
         // Modify scenario

@@ -243,8 +243,7 @@ void Rec_Event::iterate_wrap_up(
         const ModelContext& model,
         ScenarioContext& scenario,
         ExplorationContext& exploration,
-        AccumulationContext& accumulation,
-        Safety_bool_map& safety_set)
+        AccumulationContext& accumulation)
 {
     // proba_threshold_factor is const in context but legacy signature expects mutable ref
     // Create mutable copy (legacy iterate_wrap_up() doesn't actually modify it)
@@ -267,7 +266,7 @@ void Rec_Event::iterate_wrap_up(
         accumulation.error_rate,
         accumulation.counters,
         model.events_map,
-        safety_set,
+        exploration.safety_set,
         scenario.mismatches_lists,
         exploration.seq_max_prob_scenario,
         proba_threshold_factor_copy

@@ -79,8 +79,7 @@ public:
             const ModelContext& model,
             ScenarioContext& scenario,
             ExplorationContext& exploration,
-            AccumulationContext& accumulation,
-            Safety_bool_map& safety_set);
+            AccumulationContext& accumulation);
 
     bool add_realization(int);
     std::queue<int> draw_random_realization(

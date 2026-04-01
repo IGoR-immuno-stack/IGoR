@@ -26,6 +26,11 @@
  */
 
 #include <igor/Core/GenModel.h>
+#include <igor/Core/QuerySequenceContext.h>
+#include <igor/Core/ModelContext.h>
+#include <igor/Core/ScenarioContext.h>
+#include <igor/Core/ExplorationContext.h>
+#include <igor/Core/AccumulationContext.h>
 
 using namespace std;
 
@@ -400,15 +405,48 @@ bool GenModel::infer_model(
 				 * Call iterate on the first event
 				 * The method will be called recursively for each event, this is equivalent to a nested loop and enumerates all possible scenarios
 				 * The weight of each recombination scenario is added to the single_seq_marginals on the fly
+				 * 
+				 * Phase 2 Complete: Now using context-based interface
 				 */
                 try {
 
-                    first_event->iterate(
-                            init_proba, downstream_proba_map, get<1>(seq), int_sequence, index_mapp,
-                            single_thread_offset_map, next_event_ptr_arr, single_seq_marginals.marginal_array_smart_p,
-                            single_thread_model_marginals.marginal_array_smart_p, get<2>(seq), constructed_sequences,
-                            seq_offsets, single_thread_err_rate, single_thread_counter_list, events_map, safety_set,
-                            mismatches_lists, max_proba_scenario, proba_threshold_factor);
+                    // Construct context objects from existing variables
+                    QuerySequenceContext query(
+                        get<1>(seq),      // sequence
+                        int_sequence,     // int_sequence
+                        get<2>(seq)       // gene_alignments
+                    );
+
+                    ModelContext model(
+                        single_thread_model_marginals.marginal_array_smart_p,  // model_parameters
+                        single_thread_offset_map,                              // offset_map
+                        events_map                                             // events_map
+                    );
+
+                    ScenarioContext scenario(
+                        init_proba,              // scenario_proba
+                        constructed_sequences,   // constructed_sequences
+                        seq_offsets,            // seq_offsets
+                        mismatches_lists        // mismatches_lists
+                    );
+
+                    ExplorationContext exploration(
+                        downstream_proba_map,        // downstream_proba_map
+                        max_proba_scenario,          // seq_max_prob_scenario
+                        proba_threshold_factor,      // proba_threshold_factor
+                        index_mapp,                  // index_map
+                        next_event_ptr_arr,          // next_event_ptr_arr
+                        safety_set                   // safety_set
+                    );
+
+                    AccumulationContext accumulation(
+                        single_seq_marginals.marginal_array_smart_p,  // updated_marginals
+                        single_thread_counter_list,                   // counters
+                        single_thread_err_rate                        // error_rate
+                    );
+
+                    // Call context-based iterate
+                    first_event->iterate(query, model, scenario, exploration, accumulation);
 
                 }
 

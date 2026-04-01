@@ -78,8 +78,7 @@ public:
             const ModelContext& model,
             ScenarioContext& scenario,
             ExplorationContext& exploration,
-            AccumulationContext& accumulation,
-            Safety_bool_map& safety_set);
+            AccumulationContext& accumulation);
 
     void add_realization(int);
     bool add_realization(std::string gene_name, std::string gene_sequence);
