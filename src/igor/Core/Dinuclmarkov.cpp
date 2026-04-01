@@ -89,8 +89,69 @@ void Dinucl_markov::iterate(
         Safety_bool_map &safety_set, Mismatch_vectors_map &mismatches_lists, double &seq_max_prob_scenario,
         double &proba_threshold_factor)
 {
-    base_index = base_index_map.at(this->event_index);
-    new_scenario_proba = scenario_proba;
+    // Legacy to Context based signature adapter. 
+    
+    // Input query context
+    QuerySequenceContext query(
+        sequence,
+        int_sequence,
+        allowed_realizations  // Legacy param name, stored as gene_alignments
+    );
+    
+    // Model configuration context
+    ModelContext model(
+        model_parameters_point,
+        offset_map,
+        events_map
+    );
+    
+    // Scenario state context
+    ScenarioContext scenario(
+        scenario_proba,
+        constructed_sequences,
+        seq_offsets,
+        mismatches_lists
+    );
+    
+    // Exploration policy context
+    ExplorationContext exploration(
+        downstream_proba_map,
+        seq_max_prob_scenario,
+        proba_threshold_factor,
+        base_index_map,
+        next_event_ptr_arr,
+        safety_set
+    );
+    
+    // Accumulation context
+    AccumulationContext accumulation(
+        updated_marginals_point,
+        counters_list,
+        error_rate_p
+    );
+    
+    // Delegate to new context-based iterate
+    this->iterate(query, model, scenario, exploration, accumulation);
+}
+
+/**
+ * @brief Phase 2 adapter: Context-based iterate() -> Legacy iterate()
+ * 
+ * Unpacks 5 context objects into 18+ legacy parameters and delegates
+ * to the existing iterate() implementation.
+ * 
+ * NOTE: Some const_casts are required because legacy iterate() signatures
+ * accept non-const references even though they don't modify model data.
+ * These casts are safe during Phase 2 and will be eliminated in Phase 3+.
+ */
+void Dinucl_markov::iterate(
+        QuerySequenceContext& query,
+        const ModelContext& model,
+        ScenarioContext& scenario,
+        ExplorationContext& exploration,
+        AccumulationContext& accumulation)
+{
+    base_index = exploration.index_map.at(this->event_index);
     proba_contribution = 1;
 
     //Clear all previous scenario realizations
@@ -100,19 +161,19 @@ void Dinucl_markov::iterate(
     //For now do not include possible sequencing error
     if (event_class == VD_genes || event_class == VDJ_genes) {
         correct_class = 1;
-        previous_seq = (*constructed_sequences.at(V_gene_seq));
-        Int_Str &vd_seq = (*constructed_sequences.at(VD_ins_seq));
+        previous_seq = (*scenario.constructed_sequences.at(V_gene_seq));
+        Int_Str &vd_seq = (*scenario.constructed_sequences.at(VD_ins_seq));
         vd_seq_size = vd_seq.size();
         previous_seq_size = previous_seq.size();
         //data_seq_substr = sequence.substr(seq_offsets.at(pair<Seq_type,Seq_side>(V_gene_seq,Five_prime)) + previous_seq_size , vd_seq.size());
         //data_seq_substr = sequence.substr(seq_offsets.at(v_5_pair) + previous_seq_size , vd_seq.size());//TODO check this
         //data_seq_substr = int_sequence.substr(seq_offsets.at(v_5_pair) + previous_seq_size , vd_seq.size());
-        data_seq_substr = int_sequence.substr(seq_offsets.at(V_gene_seq, Five_prime) + previous_seq_size,
+        data_seq_substr = query.int_sequence.substr(scenario.seq_offsets.at(V_gene_seq, Five_prime) + previous_seq_size,
                                               vd_seq.size()); //FIXME use precomputed vd seq size
 
         previous_nt_str = previous_seq.back();
-        iterate_common(vd_realizations_indices, previous_nt_str, vd_seq, model_parameters_point);
-        downstream_proba_map.set_value(VD_ins_seq, 1.0, memory_layer_proba_map_junction_1);
+        iterate_common(vd_realizations_indices, previous_nt_str, vd_seq, model.model_parameters);
+        exploration.downstream_proba_map.set_value(VD_ins_seq, 1.0, memory_layer_proba_map_junction_1);
         //constructed_sequences.at(VD_ins_seq) = &vd_seq;
     }
     if (event_class == DJ_genes || event_class == VDJ_genes) {
@@ -125,57 +186,54 @@ void Dinucl_markov::iterate(
 		string data_seq_substr = sequence.substr(char_index , constructed_sequences.at(DJ_ins_seq).size());
 		new_scenario_proba = iterate_common(new_scenario_proba , prev_seq.substr(prev_seq_size-1,1) , data_seq_substr , constructed_sequences.at(DJ_ins_seq) , base_index , write_index_list , model_parameters_point);
 		*/
-        previous_seq = (*constructed_sequences.at(J_gene_seq));
-        Int_Str &dj_seq = (*constructed_sequences.at(DJ_ins_seq));
+        previous_seq = (*scenario.constructed_sequences.at(J_gene_seq));
+        Int_Str &dj_seq = (*scenario.constructed_sequences.at(DJ_ins_seq));
         dj_seq_size = dj_seq.size();
         //string& constr_ins_seq = constructed_sequences.at(DJ_ins_seq);
 
         //size_t char_index = seq_offsets.at(pair<Seq_type,Seq_side>(J_gene_seq,Five_prime)) -dj_seq.size();
         //size_t char_index = seq_offsets.at(j_5_pair) -dj_seq.size();
-        size_t char_index = seq_offsets.at(J_gene_seq, Five_prime) - dj_seq.size();
+        size_t char_index = scenario.seq_offsets.at(J_gene_seq, Five_prime) - dj_seq.size();
 
         //data_seq_substr = sequence.substr(char_index , dj_seq.size());
-        data_seq_substr = int_sequence.substr(char_index, dj_seq.size());
+        data_seq_substr = query.int_sequence.substr(char_index, dj_seq.size());
 
         previous_nt_str = previous_seq.front();
         reverse(data_seq_substr.begin(), data_seq_substr.end());
-        iterate_common(dj_realizations_indices, previous_nt_str, dj_seq, model_parameters_point);
+        iterate_common(dj_realizations_indices, previous_nt_str, dj_seq, model.model_parameters);
         reverse(dj_seq.begin(), dj_seq.end());
 
-        downstream_proba_map.set_value(DJ_ins_seq, 1.0, memory_layer_proba_map_junction_2);
+        exploration.downstream_proba_map.set_value(DJ_ins_seq, 1.0, memory_layer_proba_map_junction_2);
     }
     if (event_class == VJ_genes) {
         correct_class = 1;
-        previous_seq = (*constructed_sequences.at(V_gene_seq));
-        Int_Str &vj_seq = (*constructed_sequences.at(VJ_ins_seq));
+        previous_seq = (*scenario.constructed_sequences.at(V_gene_seq));
+        Int_Str &vj_seq = (*scenario.constructed_sequences.at(VJ_ins_seq));
         vj_seq_size = vj_seq.size();
         previous_seq_size = previous_seq.size();
         //data_seq_substr = sequence.substr(seq_offsets.at(v_5_pair) + previous_seq_size , vj_seq.size());
         //data_seq_substr = int_sequence.substr(seq_offsets.at(v_5_pair) + previous_seq_size , vj_seq.size());
         data_seq_substr =
-                int_sequence.substr(seq_offsets.at(V_gene_seq, Five_prime) + previous_seq_size, vj_seq.size());
+                query.int_sequence.substr(scenario.seq_offsets.at(V_gene_seq, Five_prime) + previous_seq_size, vj_seq.size());
 
         previous_nt_str = previous_seq.back();
-        iterate_common(vj_realizations_indices, previous_nt_str, vj_seq, model_parameters_point);
+        iterate_common(vj_realizations_indices, previous_nt_str, vj_seq, model.model_parameters);
 
-        downstream_proba_map.set_value(VJ_ins_seq, 1.0, memory_layer_proba_map_junction_1);
+        exploration.downstream_proba_map.set_value(VJ_ins_seq, 1.0, memory_layer_proba_map_junction_1);
     }
     if (!correct_class) {
         throw invalid_argument(std::string("Unknown gene class for DincuclMarkov model: ") + this->event_class);
     }
 
-    new_scenario_proba *= proba_contribution;
+    scenario.scenario_proba *= proba_contribution;
 
     //Compute scenario downstream proba bound
-    scenario_upper_bound_proba = new_scenario_proba;
+    scenario_upper_bound_proba = scenario.scenario_proba;
     //Multiply all downstream probas
-    downstream_proba_map.multiply_all(scenario_upper_bound_proba, current_downstream_proba_memory_layers);
+    exploration.downstream_proba_map.multiply_all(scenario_upper_bound_proba, current_downstream_proba_memory_layers);
 
-    if (scenario_upper_bound_proba >= (seq_max_prob_scenario * proba_threshold_factor)) {
-        iterate_wrap_up(new_scenario_proba, downstream_proba_map, sequence, int_sequence, base_index_map, offset_map,
-                        next_event_ptr_arr, updated_marginals_point, model_parameters_point, allowed_realizations,
-                        constructed_sequences, seq_offsets, error_rate_p, counters_list, events_map, safety_set,
-                        mismatches_lists, seq_max_prob_scenario, proba_threshold_factor);
+    if (scenario_upper_bound_proba >= (exploration.seq_max_prob_scenario * exploration.proba_threshold_factor)) {
+        Rec_Event::iterate_wrap_up(query, model, scenario, exploration, accumulation);
     }
 }
 
@@ -310,51 +368,6 @@ void Dinucl_markov::write2txt(ofstream &outfile)
     }
 }
 
-/**
- * @brief Phase 2 adapter: Context-based iterate() -> Legacy iterate()
- * 
- * Unpacks 5 context objects into 18+ legacy parameters and delegates
- * to the existing iterate() implementation.
- * 
- * NOTE: Some const_casts are required because legacy iterate() signatures
- * accept non-const references even though they don't modify model data.
- * These casts are safe during Phase 2 and will be eliminated in Phase 3+.
- */
-void Dinucl_markov::iterate(
-        QuerySequenceContext& query,
-        const ModelContext& model,
-        ScenarioContext& scenario,
-        ExplorationContext& exploration,
-        AccumulationContext& accumulation)
-{
-    // proba_threshold_factor is const in context but legacy signature expects mutable ref
-    // Create mutable copy (legacy iterate() doesn't actually modify it)
-    double proba_threshold_factor_copy = exploration.proba_threshold_factor;
-    
-    // Delegate to legacy iterate() by unpacking contexts
-    // const_cast needed for model parameters due to legacy signature requirements
-    this->iterate(
-        scenario.scenario_proba,
-        exploration.downstream_proba_map,
-        query.sequence,
-        query.int_sequence,
-        exploration.index_map,
-        const_cast<std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>>&>(model.offset_map),
-        exploration.next_event_ptr_arr,
-        accumulation.updated_marginals,
-        const_cast<Marginal_array_p&>(model.model_parameters),
-        const_cast<std::unordered_map<Gene_class, std::vector<Alignment_data>>&>(query.gene_alignments),
-        scenario.constructed_sequences,
-        scenario.seq_offsets,
-        accumulation.error_rate,
-        accumulation.counters,
-        const_cast<std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>>&>(model.events_map),
-        exploration.safety_set,
-        scenario.mismatches_lists,
-        exploration.seq_max_prob_scenario,
-        proba_threshold_factor_copy
-    );
-}
 
 void Dinucl_markov::iterate_common(int *indices_array, int &previous_assigned_nt, Int_Str &ins_seq,
                                    const Marginal_array_p &model_parameters_point)
