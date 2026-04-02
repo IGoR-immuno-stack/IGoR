@@ -195,14 +195,10 @@ int Rec_Event::get_event_identifier() const
 double Rec_Event::iterate_common(int realization_index, int base_index,
                                  Index_map &base_index_map,
                                  const Marginal_array_p &model_parameters) {
-    for (auto jiter = memory_and_offsets.begin();
-         jiter != memory_and_offsets.end(); ++jiter) {
-        int previous_index =
-            base_index_map.at(std::get<0>(*jiter), std::get<1>(*jiter) - 1);
-        previous_index += realization_index * std::get<2>(*jiter);
-        base_index_map.set_value(std::get<0>(*jiter), previous_index,
-                                 std::get<1>(*jiter));
-    }
+    // Update parent realization tracking for marginal array indexing of child events
+    update_parent_tracking(realization_index, base_index_map);
+    
+    // Return marginal probability for this realization
     return model_parameters[base_index + realization_index];
 }
 

@@ -215,6 +215,29 @@ public:
     double iterate_common(int realization_index, int base_index,
                           Index_map &base_index_map,
                           const Marginal_array_p &model_parameters);
+    
+    /**
+     * @brief Update parent realization tracking for marginal indexing
+     * 
+     * Encapsulates the index_map update logic from iterate_common().
+     * 
+     * Updates index_map based on this event's memory_and_offsets structure,
+     * which tracks dependencies on parent event realizations.
+     * 
+     * @param realization_index Current realization index
+     * @param index_map Index map to update (from ExplorationContext)
+     */
+    void update_parent_tracking(int realization_index, Index_map& index_map) const {
+        for (auto jiter = memory_and_offsets.begin();
+             jiter != memory_and_offsets.end(); ++jiter) {
+            int previous_index =
+                index_map.at(std::get<0>(*jiter), std::get<1>(*jiter) - 1);
+            previous_index += realization_index * std::get<2>(*jiter);
+            index_map.set_value(std::get<0>(*jiter), previous_index,
+                               std::get<1>(*jiter));
+        }
+    }
+    
     void set_upper_bound_proba(double);
     double get_upper_bound_proba() const { return event_upper_bound_proba; };
     virtual void update_event_internal_probas(const Marginal_array_p &,
