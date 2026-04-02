@@ -314,8 +314,6 @@ void Gene_choice::iterate(
             //Set the the V mismatch list using the mismatch list computed during the alignment
             scenario.mismatches_lists.set_value(V_gene_seq, &(*iter).mismatches, memory_layer_mismatches);
 
-            //Update downstream proba map and compute the downstream proba bound for this event
-            scenario_upper_bound_proba = new_scenario_proba;
 
             //Get VD or VJ junction upper bound proba
             if (d_chosen) {
@@ -347,10 +345,12 @@ void Gene_choice::iterate(
                     memory_layer_proba_map_seq);
 
             //Multiply all downstream probas
-            exploration.downstream_proba_map.multiply_all(scenario_upper_bound_proba, current_downstream_proba_memory_layers);
+            scenario_upper_bound_proba = exploration.compute_upper_bound(
+                new_scenario_proba,
+                current_downstream_proba_memory_layers
+            );
 
-            //compute_upper_bound_scenario_proba(new_tmp_err_w_proba);
-            if (scenario_upper_bound_proba < (exploration.seq_max_prob_scenario * exploration.proba_threshold_factor)) {
+            if (exploration.should_prune(scenario_upper_bound_proba)) {
                 continue;
             }
 
@@ -469,8 +469,6 @@ void Gene_choice::iterate(
 
             scenario.mismatches_lists.set_value(D_gene_seq, &(*iter).mismatches, memory_layer_mismatches);
 
-            //Update downstream proba map and compute the downstream proba bound for this event
-            scenario_upper_bound_proba = new_scenario_proba;
 
             //Get DJ or VJ junction upper bound proba
             if (v_chosen and j_chosen) {
@@ -519,10 +517,12 @@ void Gene_choice::iterate(
             }
 
             //Multiply all downstream probas
-            exploration.downstream_proba_map.multiply_all(scenario_upper_bound_proba, current_downstream_proba_memory_layers);
+            scenario_upper_bound_proba = exploration.compute_upper_bound(
+                new_scenario_proba,
+                current_downstream_proba_memory_layers
+            );
 
-            //compute_upper_bound_scenario_proba(new_tmp_err_w_proba);
-            if (scenario_upper_bound_proba < (exploration.seq_max_prob_scenario * exploration.proba_threshold_factor)) {
+            if (exploration.should_prune(scenario_upper_bound_proba)) {
                 continue;
             }
             no_d_align = false;
@@ -580,8 +580,6 @@ void Gene_choice::iterate(
 
                         new_scenario_proba = scenario.scenario_proba * proba_contribution;
 
-                        //Update downstream proba map and compute the downstream proba bound for this event
-                        scenario_upper_bound_proba = new_scenario_proba;
 
                         //Get DJ or VJ junction upper bound proba
                         /*							if(v_chosen and j_chosen){
@@ -613,11 +611,13 @@ void Gene_choice::iterate(
 								}*/
 
                         //Multiply all downstream probas
-                        exploration.downstream_proba_map.multiply_all(scenario_upper_bound_proba,
-                                                          current_downstream_proba_memory_layers);
+                        scenario_upper_bound_proba = exploration.compute_upper_bound(
+                            new_scenario_proba,
+                            current_downstream_proba_memory_layers
+                        );
 
                         //If even without taking the weight of errors into account not good, then any lower one not good
-                        if (scenario_upper_bound_proba < (exploration.seq_max_prob_scenario * exploration.proba_threshold_factor)) {
+                        if (exploration.should_prune(scenario_upper_bound_proba)) {
                             break;
                         }
 
@@ -653,11 +653,12 @@ void Gene_choice::iterate(
                                     memory_layer_proba_map_seq);
 
                             //Multiply all downstream probas
-                            scenario_upper_bound_proba = new_scenario_proba;
-                            exploration.downstream_proba_map.multiply_all(scenario_upper_bound_proba,
-                                                              current_downstream_proba_memory_layers);
+                            scenario_upper_bound_proba = exploration.compute_upper_bound(
+                                new_scenario_proba,
+                                current_downstream_proba_memory_layers
+                            );
 
-                            if (scenario_upper_bound_proba < (exploration.seq_max_prob_scenario * exploration.proba_threshold_factor)) {
+                            if (exploration.should_prune(scenario_upper_bound_proba)) {
                                 continue;
                             }
 
@@ -752,8 +753,6 @@ void Gene_choice::iterate(
                         scenario.seq_offsets.set_value(D_gene_seq, Five_prime, d_5_off, memory_layer_off_fivep);
                         scenario.seq_offsets.set_value(D_gene_seq, Three_prime, d_full_3_offset, memory_layer_off_threep);
 
-                        //Update downstream proba map and compute the downstream proba bound for this event
-                        scenario_upper_bound_proba = new_scenario_proba;
 
                         //Get DJ or VJ junction upper bound proba
                         if (v_chosen and j_chosen) {
@@ -808,11 +807,12 @@ void Gene_choice::iterate(
                         }
 
                         //Multiply all downstream probas
-                        exploration.downstream_proba_map.multiply_all(scenario_upper_bound_proba,
-                                                          current_downstream_proba_memory_layers);
+                        scenario_upper_bound_proba = exploration.compute_upper_bound(
+                            new_scenario_proba,
+                            current_downstream_proba_memory_layers
+                        );
 
-                        //compute_upper_bound_scenario_proba(new_tmp_err_w_proba);
-                        if (scenario_upper_bound_proba < (exploration.seq_max_prob_scenario * exploration.proba_threshold_factor)) {
+                        if (exploration.should_prune(scenario_upper_bound_proba)) {
                             continue;
                         }
 
@@ -947,8 +947,6 @@ void Gene_choice::iterate(
             //Mismatches list computed during alignment
             scenario.mismatches_lists.set_value(J_gene_seq, &(*iter).mismatches, memory_layer_mismatches);
 
-            //Update downstream proba map and compute the downstream proba bound for this event
-            scenario_upper_bound_proba = new_scenario_proba;
 
             //Get DJ or VJ junction upper bound proba
             if (d_chosen) {
@@ -980,10 +978,12 @@ void Gene_choice::iterate(
                     memory_layer_proba_map_seq);
 
             //Multiply all downstream probas
-            exploration.downstream_proba_map.multiply_all(scenario_upper_bound_proba, current_downstream_proba_memory_layers);
+            scenario_upper_bound_proba = exploration.compute_upper_bound(
+                new_scenario_proba,
+                current_downstream_proba_memory_layers
+            );
 
-            //compute_upper_bound_scenario_proba(new_tmp_err_w_proba);
-            if (scenario_upper_bound_proba < (exploration.seq_max_prob_scenario * exploration.proba_threshold_factor)) {
+            if (exploration.should_prune(scenario_upper_bound_proba)) {
                 continue;
             }
 

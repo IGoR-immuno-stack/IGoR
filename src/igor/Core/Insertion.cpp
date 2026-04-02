@@ -287,11 +287,12 @@ void Insertion::iterate(
         (*dinuc_updated_bound) = upper_bound_per_ins.at(insertions);
 
         //Compute scenario downstream proba bound
-        scenario_upper_bound_proba = scenario.scenario_proba;
-        //Multiply all downstream probas
-        exploration.downstream_proba_map.multiply_all(scenario_upper_bound_proba, current_downstream_proba_memory_layers);
+        scenario_upper_bound_proba = exploration.compute_upper_bound(
+            scenario.scenario_proba,
+            current_downstream_proba_memory_layers
+        );
 
-        if (scenario_upper_bound_proba >= (exploration.seq_max_prob_scenario * exploration.proba_threshold_factor)) {
+        if (!exploration.should_prune(scenario_upper_bound_proba)) {
             Rec_Event::iterate_wrap_up(query, model, scenario, exploration, accumulation);
         }
     }

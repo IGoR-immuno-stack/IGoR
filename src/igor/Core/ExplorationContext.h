@@ -89,4 +89,24 @@ struct ExplorationContext {
             seq_max_prob_scenario = scenario_prob;
         }
     }
+    
+    /**
+     * @brief Compute upper bound probability for pruning
+     * 
+     * Multiplies base scenario probability by all downstream probability
+     * bounds to get the maximum possible probability for this branch.
+     * Used for pruning: if even the best case is below threshold, skip branch.
+     * 
+     * @param base_proba Base scenario probability before downstream events
+     * @param downstream_layers Memory layers to query for downstream bounds
+     * @return Upper bound probability (base * all downstream bounds)
+     */
+    inline double compute_upper_bound(
+        double base_proba,
+        int* downstream_layers
+    ) const {
+        double upper_bound = base_proba;
+        downstream_proba_map.multiply_all(upper_bound, downstream_layers);
+        return upper_bound;
+    }
 };

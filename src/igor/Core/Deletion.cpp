@@ -387,8 +387,6 @@ void Deletion::iterate(
                 scenario.mismatches_lists.set_value(V_gene_seq, &mismatches_vector, memory_layer_mismatches);
 
                 //new_tmp_err_w_proba*=proba_contribution;
-                //Update downstream proba map and compute the downstream proba bound for this event
-                scenario_upper_bound_proba = new_scenario_proba;
 
                 //Get VD or VJ junction upper bound proba
                 if (d_chosen) {
@@ -411,20 +409,18 @@ void Deletion::iterate(
                         memory_layer_proba_map_seq);
 
                 //Multiply all downstream probas
-                exploration.downstream_proba_map.multiply_all(scenario_upper_bound_proba, current_downstream_proba_memory_layers);
+                scenario_upper_bound_proba = exploration.compute_upper_bound(
+                    new_scenario_proba,
+                    current_downstream_proba_memory_layers
+                );
 
-                //Add mismatches upper bound proba to the tmp_err_w_proba
-                //new_tmp_err_w_proba*=pow(err_rate_upper_bound,mismatches_vector.size());
-                //compute_upper_bound_scenario_proba(new_tmp_err_w_proba);
-
-                if (scenario_upper_bound_proba < (exploration.seq_max_prob_scenario * exploration.proba_threshold_factor)) {
+                if (exploration.should_prune(scenario_upper_bound_proba)) {
                     //The order in which deletion are processed goes with decreasing number of deletion.
                     //If a high number of deletions contains too many errors to be processed (even without taking the proba contribution into account), fewer deletions can only contain more thus the loop is broken
                     break;
                 }
 
                 new_scenario_proba *= proba_contribution;
-                scenario_upper_bound_proba = new_scenario_proba;
                 //Get VD or VJ junction upper bound proba
                 if (d_chosen) {
                     exploration.downstream_proba_map.set_value(VD_ins_seq,
@@ -436,10 +432,12 @@ void Deletion::iterate(
                                                    memory_layer_proba_map_junction);
                 }
                 //Multiply all downstream probas
-                exploration.downstream_proba_map.multiply_all(scenario_upper_bound_proba, current_downstream_proba_memory_layers);
+                scenario_upper_bound_proba = exploration.compute_upper_bound(
+                    new_scenario_proba,
+                    current_downstream_proba_memory_layers
+                );
 
-                //compute_upper_bound_scenario_proba(new_tmp_err_w_proba);
-                if (scenario_upper_bound_proba < (exploration.seq_max_prob_scenario * exploration.proba_threshold_factor)) {
+                if (exploration.should_prune(scenario_upper_bound_proba)) {
                     continue;
                 }
 
@@ -609,8 +607,6 @@ void Deletion::iterate(
                     scenario.mismatches_lists.set_value(D_gene_seq, &mismatches_vector, memory_layer_mismatches);
                     //TODO add mismatches if del_d3 has been processed
 
-                    //Update downstream proba map and compute the downstream proba bound for this event
-                    scenario_upper_bound_proba = new_scenario_proba;
 
                     //Get VD upper bound proba
                     if (v_chosen) {
@@ -642,24 +638,14 @@ void Deletion::iterate(
                     }
 
                     //Multiply all downstream probas
-                    exploration.downstream_proba_map.multiply_all(scenario_upper_bound_proba,
-                                                      current_downstream_proba_memory_layers);
-
-                    //Add mismatches upper bound proba to the tmp_err_w_proba
-
-                    //new_tmp_err_w_proba*=pow(err_rate_upper_bound,mismatches_vector.size());
-                    //compute_upper_bound_scenario_proba(new_tmp_err_w_proba);
-
-                    /*						if(scenario_upper_bound_proba<(seq_max_prob_scenario*proba_threshold_factor)){
-							//The order in which deletion are processed goes with decreasing number of deletion.
-							//If a high number of deletions contains too many errors to be processed (even without taking the proba contribution into account), fewer deletions can only contain more thus the loop is broken
-							break;
-						}*/
+                    scenario_upper_bound_proba = exploration.compute_upper_bound(
+                        new_scenario_proba,
+                        current_downstream_proba_memory_layers
+                    );
 
                     new_scenario_proba *= proba_contribution;
                     scenario_upper_bound_proba *= proba_contribution;
-                    //compute_upper_bound_scenario_proba(new_tmp_err_w_proba);
-                    if (scenario_upper_bound_proba < (exploration.seq_max_prob_scenario * exploration.proba_threshold_factor)) {
+                    if (exploration.should_prune(scenario_upper_bound_proba)) {
                         continue;
                     }
 
@@ -857,8 +843,6 @@ void Deletion::iterate(
 
                     scenario.mismatches_lists.set_value(D_gene_seq, &mismatches_vector, memory_layer_mismatches);
 
-                    //Update downstream proba map and compute the downstream proba bound for this event
-                    scenario_upper_bound_proba = new_scenario_proba;
 
                     //Get VD upper bound proba
                     if (j_chosen) {
@@ -890,24 +874,14 @@ void Deletion::iterate(
                     }
 
                     //Multiply all downstream probas
-                    exploration.downstream_proba_map.multiply_all(scenario_upper_bound_proba,
-                                                      current_downstream_proba_memory_layers);
-
-                    //Add mismatches upper bound proba to the tmp_err_w_proba
-
-                    //new_tmp_err_w_proba*=pow(err_rate_upper_bound,mismatches_vector.size());
-                    //compute_upper_bound_scenario_proba(new_tmp_err_w_proba);
-
-                    /*						if(scenario_upper_bound_proba<(seq_max_prob_scenario*proba_threshold_factor)){
-							//The order in which deletion are processed goes with decreasing number of deletion.
-							//If a high number of deletions contains too many errors to be processed (even without taking the proba contribution into account), fewer deletions can only contain more thus the loop is broken
-							break;
-						}*/
+                    scenario_upper_bound_proba = exploration.compute_upper_bound(
+                        new_scenario_proba,
+                        current_downstream_proba_memory_layers
+                    );
 
                     new_scenario_proba *= proba_contribution;
                     scenario_upper_bound_proba *= proba_contribution;
-                    //compute_upper_bound_scenario_proba(new_tmp_err_w_proba);
-                    if (scenario_upper_bound_proba < (exploration.seq_max_prob_scenario * exploration.proba_threshold_factor)) {
+                    if (exploration.should_prune(scenario_upper_bound_proba)) {
                         continue;
                     }
 
@@ -1131,8 +1105,6 @@ void Deletion::iterate(
                 scenario.mismatches_lists.set_value(J_gene_seq, &mismatches_vector, memory_layer_mismatches);
 
                 //new_tmp_err_w_proba*=proba_contribution;
-                //Update downstream proba map and compute the downstream proba bound for this event
-                scenario_upper_bound_proba = new_scenario_proba;
 
                 //Get DJ or VJ junction upper bound proba
                 if (d_chosen) {
@@ -1155,21 +1127,18 @@ void Deletion::iterate(
                         memory_layer_proba_map_seq);
 
                 //Multiply all downstream probas
-                exploration.downstream_proba_map.multiply_all(scenario_upper_bound_proba, current_downstream_proba_memory_layers);
+                scenario_upper_bound_proba = exploration.compute_upper_bound(
+                    new_scenario_proba,
+                    current_downstream_proba_memory_layers
+                );
 
-                //Add mismatches upper bound proba to the tmp_err_w_proba
-
-                //new_tmp_err_w_proba*=pow(err_rate_upper_bound,mismatches_vector.size());
-                //compute_upper_bound_scenario_proba(new_tmp_err_w_proba);
-
-                if (scenario_upper_bound_proba < (exploration.seq_max_prob_scenario * exploration.proba_threshold_factor)) {
+                if (exploration.should_prune(scenario_upper_bound_proba)) {
                     //The order in which deletion are processed goes with decreasing number of deletion.
                     //If a high number of deletions contains too many errors to be processed (even without taking the proba contribution into account), fewer deletions can only contain more thus the loop is broken
                     break;
                 }
 
                 new_scenario_proba *= proba_contribution;
-                scenario_upper_bound_proba = new_scenario_proba;
                 //Get DJ or VJ junction upper bound proba
                 if (d_chosen) {
                     exploration.downstream_proba_map.set_value(DJ_ins_seq,
@@ -1181,10 +1150,12 @@ void Deletion::iterate(
                                                    memory_layer_proba_map_junction);
                 }
                 //Multiply all downstream probas
-                exploration.downstream_proba_map.multiply_all(scenario_upper_bound_proba, current_downstream_proba_memory_layers);
+                scenario_upper_bound_proba = exploration.compute_upper_bound(
+                    new_scenario_proba,
+                    current_downstream_proba_memory_layers
+                );
 
-                //compute_upper_bound_scenario_proba(new_tmp_err_w_proba);
-                if (scenario_upper_bound_proba < (exploration.seq_max_prob_scenario * exploration.proba_threshold_factor)) {
+                if (exploration.should_prune(scenario_upper_bound_proba)) {
                     continue;
                 }
 
