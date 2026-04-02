@@ -109,4 +109,52 @@ struct ExplorationContext {
         downstream_proba_map.multiply_all(upper_bound, downstream_layers);
         return upper_bound;
     }
+    
+    // ========================================================================
+    // Phase 3.5.3: Gene Overlap Safety Tracking
+    // ========================================================================
+    // Semantic operations for safety_set (gene overlap validation).
+    // These methods guide exploration by marking which gene arrangements
+    // are safe to explore (no invalid overlaps).
+    // 
+    // PERFORMANCE: All inline - zero overhead.
+    // ========================================================================
+    
+    /**
+     * @brief Check if gene overlap is safe
+     * 
+     * Used by Gene_choice to verify V-D or D-J don't overlap in invalid ways.
+     * Guides exploration: determines if we can safely explore this branch.
+     * 
+     * @param safety_type Safety check type (VD_safe, DJ_safe, VJ_safe)
+     * @param memory_layer Memory layer to query
+     * @return true if overlap is safe, false otherwise
+     * 
+     * PERFORMANCE: Inline, single map lookup
+     */
+    inline bool is_overlap_safe(
+        Event_safety safety_type,
+        size_t memory_layer
+    ) const {
+        return safety_set.at(safety_type, memory_layer);
+    }
+    
+    /**
+     * @brief Mark gene overlap as safe or unsafe
+     * 
+     * Sets safety flag for future overlap checks during exploration.
+     * 
+     * @param safety_type Safety check type (VD_safe, DJ_safe, VJ_safe)
+     * @param is_safe Whether this arrangement is safe
+     * @param memory_layer Memory layer for storage
+     * 
+     * PERFORMANCE: Inline, single map write
+     */
+    inline void set_overlap_safety(
+        Event_safety safety_type,
+        bool is_safe,
+        size_t memory_layer
+    ) {
+        safety_set.set_value(safety_type, is_safe, memory_layer);
+    }
 };

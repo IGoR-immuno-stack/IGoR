@@ -103,14 +103,14 @@ void Dinucl_markov::iterate(
     //For now do not include possible sequencing error
     if (event_class == VD_genes || event_class == VDJ_genes) {
         correct_class = 1;
-        previous_seq = (*scenario.constructed_sequences.at(V_gene_seq));
-        Int_Str &vd_seq = (*scenario.constructed_sequences.at(VD_ins_seq));
+        previous_seq = (*scenario.get_sequence_segment(V_gene_seq));
+        Int_Str &vd_seq = (*scenario.get_sequence_segment(VD_ins_seq));
         vd_seq_size = vd_seq.size();
         previous_seq_size = previous_seq.size();
         //data_seq_substr = sequence.substr(seq_offsets.at(pair<Seq_type,Seq_side>(V_gene_seq,Five_prime)) + previous_seq_size , vd_seq.size());
         //data_seq_substr = sequence.substr(seq_offsets.at(v_5_pair) + previous_seq_size , vd_seq.size());//TODO check this
         //data_seq_substr = int_sequence.substr(seq_offsets.at(v_5_pair) + previous_seq_size , vd_seq.size());
-        data_seq_substr = query.int_sequence.substr(scenario.seq_offsets.at(V_gene_seq, Five_prime) + previous_seq_size,
+        data_seq_substr = query.int_sequence.substr(scenario.get_offset(V_gene_seq, Five_prime) + previous_seq_size,
                                               vd_seq.size()); //FIXME use precomputed vd seq size
 
         previous_nt_str = previous_seq.back();
@@ -128,14 +128,14 @@ void Dinucl_markov::iterate(
 		string data_seq_substr = sequence.substr(char_index , constructed_sequences.at(DJ_ins_seq).size());
 		new_scenario_proba = iterate_common(new_scenario_proba , prev_seq.substr(prev_seq_size-1,1) , data_seq_substr , constructed_sequences.at(DJ_ins_seq) , base_index , write_index_list , model_parameters_point);
 		*/
-        previous_seq = (*scenario.constructed_sequences.at(J_gene_seq));
-        Int_Str &dj_seq = (*scenario.constructed_sequences.at(DJ_ins_seq));
+        previous_seq = (*scenario.get_sequence_segment(J_gene_seq));
+        Int_Str &dj_seq = (*scenario.get_sequence_segment(DJ_ins_seq));
         dj_seq_size = dj_seq.size();
         //string& constr_ins_seq = constructed_sequences.at(DJ_ins_seq);
 
         //size_t char_index = seq_offsets.at(pair<Seq_type,Seq_side>(J_gene_seq,Five_prime)) -dj_seq.size();
         //size_t char_index = seq_offsets.at(j_5_pair) -dj_seq.size();
-        size_t char_index = scenario.seq_offsets.at(J_gene_seq, Five_prime) - dj_seq.size();
+        size_t char_index = scenario.get_offset(J_gene_seq, Five_prime) - dj_seq.size();
 
         //data_seq_substr = sequence.substr(char_index , dj_seq.size());
         data_seq_substr = query.int_sequence.substr(char_index, dj_seq.size());
@@ -149,14 +149,14 @@ void Dinucl_markov::iterate(
     }
     if (event_class == VJ_genes) {
         correct_class = 1;
-        previous_seq = (*scenario.constructed_sequences.at(V_gene_seq));
-        Int_Str &vj_seq = (*scenario.constructed_sequences.at(VJ_ins_seq));
+        previous_seq = (*scenario.get_sequence_segment(V_gene_seq));
+        Int_Str &vj_seq = (*scenario.get_sequence_segment(VJ_ins_seq));
         vj_seq_size = vj_seq.size();
         previous_seq_size = previous_seq.size();
         //data_seq_substr = sequence.substr(seq_offsets.at(v_5_pair) + previous_seq_size , vj_seq.size());
         //data_seq_substr = int_sequence.substr(seq_offsets.at(v_5_pair) + previous_seq_size , vj_seq.size());
         data_seq_substr =
-                query.int_sequence.substr(scenario.seq_offsets.at(V_gene_seq, Five_prime) + previous_seq_size, vj_seq.size());
+                query.int_sequence.substr(scenario.get_offset(V_gene_seq, Five_prime) + previous_seq_size, vj_seq.size());
 
         previous_nt_str = previous_seq.back();
         iterate_common(vj_realizations_indices, previous_nt_str, vj_seq, model.model_parameters);

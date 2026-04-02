@@ -169,7 +169,7 @@ void Insertion::iterate(
 
         //TODO get the current memory layer to avoid any error
         //insertions = seq_offsets.at(d_5_pair) - seq_offsets.at(v_3_pair) -1;
-        insertions = scenario.seq_offsets.at(D_gene_seq, Five_prime) - scenario.seq_offsets.at(V_gene_seq, Three_prime) - 1;
+        insertions = scenario.get_offset(D_gene_seq, Five_prime) - scenario.get_offset(V_gene_seq, Three_prime) - 1;
 
         //TODO Think about including in-dels in the insertion process(thus create a real loop on the number of insertion)
 
@@ -212,7 +212,7 @@ void Insertion::iterate(
         //if(!(*constructed_sequences.at(D_gene_seq)).empty()){
         //insertions = seq_offsets.at(pair<Seq_type,Seq_side>(J_gene_seq,Five_prime)) - seq_offsets.at(pair<Seq_type,Seq_side>(D_gene_seq,Three_prime)) -1;
         //insertions = seq_offsets.at(j_5_pair) - seq_offsets.at(d_3_pair) -1;
-        insertions = scenario.seq_offsets.at(J_gene_seq, Five_prime) - scenario.seq_offsets.at(D_gene_seq, Three_prime) - 1;
+        insertions = scenario.get_offset(J_gene_seq, Five_prime) - scenario.get_offset(D_gene_seq, Three_prime) - 1;
 
         proba_contribution = iterate_common(proba_contribution, insertions, base_index, exploration.index_map, model.offset_map,
                                             model.model_parameters);
@@ -260,7 +260,7 @@ void Insertion::iterate(
 
         //insertions = seq_offsets.at(pair<Seq_type,Seq_side>(J_gene_seq,Five_prime)) - seq_offsets.at(pair<Seq_type,Seq_side>(V_gene_seq,Three_prime)) -1;
         //insertions = seq_offsets.at(j_5_pair) - seq_offsets.at(v_3_pair) -1;
-        insertions = scenario.seq_offsets.at(J_gene_seq, Five_prime) - scenario.seq_offsets.at(V_gene_seq, Three_prime) - 1;
+        insertions = scenario.get_offset(J_gene_seq, Five_prime) - scenario.get_offset(V_gene_seq, Three_prime) - 1;
         proba_contribution = iterate_common(proba_contribution, insertions, base_index, exploration.index_map, model.offset_map,
                                             model.model_parameters);
 
