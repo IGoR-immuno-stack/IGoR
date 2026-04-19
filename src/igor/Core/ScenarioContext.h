@@ -24,6 +24,11 @@ struct ScenarioContext {
     // Scenario probability (multiplied at each recursion level)
     double& scenario_proba;
     
+    // Error-weighted probability (computed at leaf nodes)
+    // NOTE: This is scenario state computed once we have full sequence + error model evaluation
+    // Set by Error_rate::compare_sequences_error_prob() at leaf nodes
+    long double scenario_error_w_proba;
+    
     // Constructed sequences (built up during recursion)
     // Maps Seq_type → string pointer with memory layer
     Seq_type_str_p_map& constructed_sequences;
@@ -46,6 +51,7 @@ struct ScenarioContext {
         Seq_offsets_map& seq_offsets_,
         Mismatch_vectors_map& mismatches_lists_
     ) : scenario_proba(scenario_proba_),
+        scenario_error_w_proba(0.0),  // Initialize to 0 (set at leaf nodes)
         constructed_sequences(constructed_sequences_),
         seq_offsets(seq_offsets_),
         mismatches_lists(mismatches_lists_)

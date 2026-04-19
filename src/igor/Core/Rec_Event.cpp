@@ -26,6 +26,7 @@
 
 #include <igor/Core/Rec_Event.h>
 #include <igor/Core/Counter.h>
+#include <igor/Core/Scenario.h>  // Phase 4.2: For Scenario view construction
 
 using namespace std;
 
@@ -217,6 +218,7 @@ void Rec_Event::iterate_wrap_up(
         double &proba_threshold_factor)
 {
 
+    cout<<"legacy called"<<endl;
     /*			if(seq_offsets.count(make_pair(J_gene_seq, Three_prime))!=0){
 
 					int offset3=seq_offsets.at(make_pair(J_gene_seq, Three_prime));
@@ -283,17 +285,14 @@ void Rec_Event::iterate_wrap_up(
 }
 
 /**
- * @brief Adapter: Context-based iterate_wrap_up() -> Legacy iterate_wrap_up()
+ * @brief Phase 4.2: Context-based iterate_wrap_up with new Counter interface
  * 
- * Phase 2 implementation: Unpacks 5 context objects into 18+ legacy parameters
- * and delegates to the original iterate_wrap_up().
+ * Handles leaf-node scenario completion:
+ * - Computes error-weighted probability
+ * - Creates Scenario view from ScenarioContext
+ * - Calls counters and marginal accumulation
  * 
- * This enables Event subclasses to gradually migrate to context-based iterate()
- * while maintaining compatibility with existing iterate_wrap_up() logic.
- * 
- * NOTE: Some const_casts are required because legacy iterate_wrap_up() signature
- * expects const references for model data even though ModelContext stores them
- * as const. These casts are safe during Phase 2 and will be eliminated in Phase 3+.
+ * This replaces the legacy adapter pattern with direct context usage.
  */
 void Rec_Event::iterate_wrap_up(
         QuerySequenceContext& query,
@@ -302,32 +301,52 @@ void Rec_Event::iterate_wrap_up(
         ExplorationContext& exploration,
         AccumulationContext& accumulation)
 {
-    // proba_threshold_factor is const in context but legacy signature expects mutable ref
-    // Create mutable copy (legacy iterate_wrap_up() doesn't actually modify it)
-    double proba_threshold_factor_copy = exploration.proba_threshold_factor;
-    
-    // Delegate to legacy iterate_wrap_up() by unpacking contexts
-    this->iterate_wrap_up(
-        scenario.scenario_proba,
-        exploration.downstream_proba_map,
-        query.sequence,
-        query.int_sequence,
-        exploration.index_map,
-        model.offset_map,
-        exploration.next_event_ptr_arr,
-        accumulation.updated_marginals,
-        model.model_parameters,
-        query.gene_alignments,
-        scenario.constructed_sequences,
-        scenario.seq_offsets,
-        accumulation.error_rate,
-        accumulation.counters,
-        model.events_map,
-        exploration.safety_set,
-        scenario.mismatches_lists,
-        exploration.seq_max_prob_scenario,
-        proba_threshold_factor_copy
-    );
+    if (exploration.next_event_ptr_arr.get()[this->event_index]) {
+        // Not a leaf node - recursively call next event's iterate_wrap_up
+        exploration.next_event_ptr_arr.get()[this->event_index]->iterate(
+            query,
+            model,
+            scenario,
+            exploration,
+            accumulation
+        );
+    } else {
+        // Leaf node - complete scenario and accumulate
+        
+        // Compute error-weighted probability using error_rate
+        scenario.scenario_error_w_proba = accumulation.error_rate->compare_sequences_error_prob(
+            scenario.scenario_proba,
+            query.sequence,
+            scenario.constructed_sequences,
+            scenario.seq_offsets,
+            model.events_map,
+            scenario.mismatches_lists,
+            exploration.seq_max_prob_scenario,
+            exploration.proba_threshold_factor
+        );
+        
+        // Check pruning threshold
+        if (scenario.scenario_error_w_proba >= exploration.seq_max_prob_scenario * exploration.proba_threshold_factor) {
+            // Update maximum probability if needed
+            if (scenario.scenario_error_w_proba > exploration.seq_max_prob_scenario) {
+                exploration.seq_max_prob_scenario = scenario.scenario_error_w_proba;
+            }
+            
+            // Phase 4.2: Create Scenario view and call counters with new interface
+            Scenario scenario_view(scenario);
+            
+            for (auto& [counter_id, counter] : accumulation.counters) {
+                counter->count_scenario(scenario_view, query, model);
+            }
+            
+            // Accumulate marginals for non-fixed events
+            for (const auto& [event_key, event_ptr] : model.events_map) {
+                if (!event_ptr->is_fixed()) {
+                    event_ptr->add_to_marginals(scenario.scenario_error_w_proba, accumulation.updated_marginals);
+                }
+            }
+        }
+    }
 }
 
 void Rec_Event::initialize_event(

@@ -45,6 +45,60 @@ Counter::~Counter()
     // TODO Auto-generated destructor stub
 }
 
+// ===== NEW INTERFACE (Phase 4.1) - NEW→OLD Adapters =====
+// Pattern: Following Phase 3 strategy, adapters delegate from NEW interface to OLD implementation
+// This allows iterate_wrap_up to call new interface immediately while counters migrate gradually
+
+void Counter::initialize(const ModelContext& model)
+{
+    // NEW→OLD adapter: Delegate to legacy initialize_counter()
+    // This allows iterate_wrap_up to call new interface (Phase 4.2)
+    // while counters remain unmigrated
+    
+    // TODO Phase 4.3: Complete this adapter
+    // CHALLENGE: ModelContext only has model_parameters (Marginal_array_p)
+    // but initialize_counter() requires Model_Parms and Model_marginals
+    // 
+    // Options:
+    // 1. Extend ModelContext to include Model_Parms and Model_marginals references
+    // 2. Make counters override new interface (no adapter)
+    // 
+    // For now: Temporary stub - counters must override new interface OR
+    // we complete adapter in Phase 4.3 when ModelContext is extended
+    
+    // TEMPORARY: Do nothing - forces counter migration
+    // Each counter subclass should override new interface during Phase 4.4 migration
+}
+
+void Counter::count_scenario(
+        const Scenario& scenario,
+        const QuerySequenceContext& query,
+        const ModelContext& model)
+{
+    // NEW→OLD adapter: Delegate to legacy count_scenario() (Option A)
+    // This allows unmigrated counters to continue working with empty implementations
+    // while new counters can override this method directly.
+    //
+    // Pattern: Following Phase 3 strategy, adapter delegates from NEW → OLD
+    // This enables gradual per-counter migration with independent validation
+    //
+    // TODO Phase 4.5: REMOVE this adapter after all counters migrated
+    // This is temporary infrastructure for gradual migration only
+    
+    // Delegate to legacy interface (mutable references from Scenario's stored refs)
+    this->count_scenario(
+        scenario.scenario_error_w_proba,
+        scenario.scenario_proba,
+        query.sequence,
+        scenario.constructed_sequences_ref,  // Mutable reference
+        scenario.seq_offsets_ref,           // Const reference (OK)
+        model.events_map,
+        scenario.mismatches_lists_ref       // Mutable reference
+    );
+}
+
+// ===== OLD INTERFACE (DEPRECATED) - Default implementations =====
+
 void Counter::count_scenario(
         long double scenario_seq_joint_proba, double scenario_probability, const string &original_sequence,
         Seq_type_str_p_map &constructed_sequences, const Seq_offsets_map &seq_offsets,

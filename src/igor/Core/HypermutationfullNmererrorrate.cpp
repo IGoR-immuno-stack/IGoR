@@ -366,7 +366,7 @@ double Hypermutation_full_Nmer_errorrate::compare_sequences_error_prob(
         double scenario_probability, const string &original_sequence, Seq_type_str_p_map &constructed_sequences,
         const Seq_offsets_map &seq_offsets,
         const unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map,
-        Mismatch_vectors_map &mismatches_lists, double &seq_max_prob_scenario, double &proba_threshold_factor)
+        Mismatch_vectors_map &mismatches_lists, double &seq_max_prob_scenario, const double &proba_threshold_factor)
 {
     //TODO Take into account the order of mutations?
     //TODO reorganize to be more flexible in the model description
