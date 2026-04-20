@@ -218,7 +218,6 @@ void Rec_Event::iterate_wrap_up(
         double &proba_threshold_factor)
 {
 
-    cout<<"legacy called"<<endl;
     /*			if(seq_offsets.count(make_pair(J_gene_seq, Three_prime))!=0){
 
 					int offset3=seq_offsets.at(make_pair(J_gene_seq, Three_prime));
@@ -315,13 +314,13 @@ void Rec_Event::iterate_wrap_up(
         
         // Compute error-weighted probability using error_rate
         scenario.scenario_error_w_proba = accumulation.error_rate->compare_sequences_error_prob(
-            scenario.scenario_proba,
-            query.sequence,
-            scenario.constructed_sequences,
-            scenario.seq_offsets,
-            model.events_map,
-            scenario.mismatches_lists,
-            exploration.seq_max_prob_scenario,
+        scenario.scenario_proba,
+        query.sequence,
+        scenario.constructed_sequences,
+        scenario.seq_offsets,
+        model.events_map,
+        scenario.mismatches_lists,
+        exploration.seq_max_prob_scenario,
             exploration.proba_threshold_factor
         );
         

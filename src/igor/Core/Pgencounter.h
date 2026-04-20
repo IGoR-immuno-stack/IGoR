@@ -50,6 +50,15 @@ public:
 
     std::string type() const { return "PgenCounter"; }; //TODO return an enum
 
+    // NEW INTERFACE (Phase 4.4)
+    void initialize(const ModelContext& model) override;
+    void count_scenario(
+        const Scenario& scenario,
+        const QuerySequenceContext& query,
+        const ModelContext& model
+    ) override;
+
+    // LEGACY INTERFACE (DEPRECATED)
     void initialize_counter(const Model_Parms &, const Model_marginals &);
 
     void

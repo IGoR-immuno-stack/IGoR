@@ -75,6 +75,107 @@ Errors_counter::~Errors_counter()
     // TODO Auto-generated destructor stub
 }
 
+// ===== NEW INTERFACE (Phase 4.4) =====
+
+void Errors_counter::initialize(const ModelContext& model) {
+    if (not fstreams_created) {
+        //Create the individual scenarios file
+        if (this->n_scenarios_counted > 0) {
+            output_scenario_errors_file_ptr = shared_ptr<ofstream>(new ofstream);
+            this->output_scenario_errors_file_ptr->open(path_to_file + "scenarios_background_and_errors.csv");
+            //Create the header
+            (*this->output_scenario_errors_file_ptr.get())
+                    << "seq_index;scenario_rank;scenario_proba_cond_seq;n_genomic_nt;n_mismatches" << endl;
+        }
+
+        //Create the average mutation rate scenario file
+        output_sequence_averaged_errors_file_ptr = shared_ptr<ofstream>(new ofstream);
+        this->output_sequence_averaged_errors_file_ptr->open(path_to_file + "sequence_mutation_frequency.csv");
+        //Create the header
+        (*this->output_sequence_averaged_errors_file_ptr.get())
+                << "seq_index;n_genomic_nt;n_mismatches;average_mutation_frequency" << endl;
+
+        fstreams_created = true;
+    }
+}
+
+void Errors_counter::count_scenario(
+        const Scenario& scenario,
+        const QuerySequenceContext& query,
+        const ModelContext& model)
+{
+    // Use scenario_error_w_proba (already normalized by error rate)
+    long double scenario_seq_joint_proba = scenario.scenario_error_w_proba;
+
+    // Get the number of genomic nucleotides
+    if (scenario.sequences[V_gene_seq]) {
+        const vector<int> &v_seq = *scenario.sequences[V_gene_seq];
+        this->scenario_n_genomic += v_seq.size();
+    }
+    if (scenario.sequences[D_gene_seq]) {
+        const vector<int> &d_seq = *scenario.sequences[D_gene_seq];
+        this->scenario_n_genomic += d_seq.size();
+    }
+    if (scenario.sequences[J_gene_seq]) {
+        const vector<int> &j_seq = *scenario.sequences[J_gene_seq];
+        this->scenario_n_genomic += j_seq.size();
+    }
+
+    // Get the number of mismatches and add them to the mismatch counter
+    if (scenario.mismatches[V_gene_seq]) {
+        const vector<int> &v_mismatch_list = *scenario.mismatches[V_gene_seq];
+        this->scenario_n_mismatches += v_mismatch_list.size();
+    }
+    if (scenario.mismatches[D_gene_seq]) {
+        const vector<int> &d_mismatch_list = *scenario.mismatches[D_gene_seq];
+        this->scenario_n_mismatches += d_mismatch_list.size();
+    }
+    if (scenario.mismatches[J_gene_seq]) {
+        const vector<int> &j_mismatch_list = *scenario.mismatches[J_gene_seq];
+        this->scenario_n_mismatches += j_mismatch_list.size();
+    }
+
+    if (this->output_scenarios) {
+        if (this->best_scenarios_vec.size() < this->n_scenarios_counted) {
+
+            if (this->best_scenarios_vec.empty()) {
+                this->best_scenarios_vec.emplace_back(scenario_seq_joint_proba, this->scenario_n_genomic,
+                                                      this->scenario_n_mismatches);
+            } else {
+                auto jter = this->best_scenarios_vec.begin();
+                while ((jter != this->best_scenarios_vec.end()) and (scenario_seq_joint_proba > get<0>(*jter))) {
+                    ++jter;
+                }
+                this->best_scenarios_vec.emplace(jter, scenario_seq_joint_proba, this->scenario_n_genomic,
+                                                 this->scenario_n_mismatches);
+            }
+        } else {
+            if (scenario_seq_joint_proba > get<0>(this->best_scenarios_vec[0])) {
+
+                auto jter = this->best_scenarios_vec.begin() + 1;
+                while ((scenario_seq_joint_proba > get<0>(*jter)) and (jter != this->best_scenarios_vec.end())) {
+                    ++jter;
+                }
+                this->best_scenarios_vec.emplace(jter, scenario_seq_joint_proba, this->scenario_n_genomic,
+                                                 this->scenario_n_mismatches);
+                this->best_scenarios_vec.erase(this->best_scenarios_vec.begin());
+            }
+        }
+    }
+
+    //Add the contributions to the average mutation/genomic counters
+    this->sequence_average_n_genomic += scenario_seq_joint_proba * this->scenario_n_genomic;
+    this->sequence_average_n_mismatches += scenario_seq_joint_proba * this->scenario_n_mismatches;
+    this->sequence_average_error_freq +=
+            scenario_seq_joint_proba * ((double)this->scenario_n_mismatches / (double)this->scenario_n_genomic);
+
+    //Reset dummy variables
+    this->scenario_n_genomic = 0;
+    this->scenario_n_mismatches = 0;
+}
+
+// ===== LEGACY INTERFACE (DEPRECATED) =====
+
 void Errors_counter::count_scenario(
         long double scenario_seq_joint_proba, double scenario_probability, const string &original_sequence,
         Seq_type_str_p_map &constructed_sequences, const Seq_offsets_map &seq_offsets,

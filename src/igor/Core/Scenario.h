@@ -69,15 +69,6 @@ struct Scenario {
           seq_offsets_ref(ctx.seq_offsets),
           mismatches_lists_ref(ctx.mismatches_lists)
     {
-        // TODO Phase 4.4: Flatten maps for new counter implementations
-        // For now, we skip flattening since legacy counters only use the map references.
-        // When counters are migrated to use the flattened vectors (sequences, offsets, mismatches),
-        // uncomment and test the flattening code below.
-        
-        // Flattening disabled to avoid segfaults during Phase 4.2-4.3 (legacy counter compatibility period)
-        // The NEW→OLD adapter in Counter.cpp only uses the *_ref fields, not the flattened vectors.
-        
-        /*
         // Flatten constructed_sequences map → vector
         // Uses current memory layer (leaf node has finalized state)
         // NOTE: Not all Seq_type values are always present (e.g., D_gene_seq absent in VJ recombination)
@@ -111,7 +102,6 @@ struct Scenario {
             }
             // else: remains nullptr (already initialized)
         }
-        */
     }
     
     /**
@@ -142,5 +132,66 @@ struct Scenario {
      */
     inline const std::vector<int>* get_mismatches(Seq_type seq_type) const {
         return mismatches[seq_type];
+    }
+    
+    /**
+     * @brief Build the full scenario sequence by concatenating segments in biological order
+     * 
+     * Concatenates sequence segments in the correct biological order:
+     * - V → VD_ins → D → DJ_ins → J (if D gene present, VDJ recombination)
+     * - V → VJ_ins → J (if D gene absent, VJ recombination)
+     * 
+     * TODO: Refactor Seq_type enum to reflect biological ordering instead of requiring
+     * conditional branching logic. Ideal order: V_gene_seq(0), VD_ins_seq(1), D_gene_seq(2),
+     * DJ_ins_seq(3), J_gene_seq(4), VJ_ins_seq(5). This would enable simple iteration
+     * for sequence concatenation.
+     * 
+     * @param result Output parameter - cleared and filled with the complete sequence
+     * 
+     * PERFORMANCE: Inline, zero-copy (modifies output parameter by reference)
+     */
+    inline void build_full_sequence(Int_Str& result) const {
+        result.clear();
+        
+        // Add V gene segment
+        if (sequences[V_gene_seq]) {
+            result += *sequences[V_gene_seq];
+        }
+        
+        // Branch based on D gene presence (VDJ vs VJ recombination)
+        if (sequences[D_gene_seq]) {
+            // VDJ recombination path
+            if (sequences[VD_ins_seq]) {
+                result += *sequences[VD_ins_seq];
+            }
+            result += *sequences[D_gene_seq];
+            if (sequences[DJ_ins_seq]) {
+                result += *sequences[DJ_ins_seq];
+            }
+        } else {
+            // VJ recombination path (no D gene)
+            if (sequences[VJ_ins_seq]) {
+                result += *sequences[VJ_ins_seq];
+            }
+        }
+        
+        // Add J gene segment
+        if (sequences[J_gene_seq]) {
+            result += *sequences[J_gene_seq];
+        }
+    }
+    
+    /**
+     * @brief Build the full scenario sequence by concatenating segments in biological order
+     * 
+     * Convenience overload that returns by value. For performance-critical code,
+     * prefer the reference-parameter version to avoid allocation.
+     * 
+     * @return The complete scenario sequence as Int_Str
+     */
+    inline Int_Str build_full_sequence() const {
+        Int_Str result;
+        build_full_sequence(result);
+        return result;
     }
 };
