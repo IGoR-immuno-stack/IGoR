@@ -66,28 +66,14 @@ void Best_scenarios_counter::initialize(const ModelContext& model) {
         // Create the header with event names
         (*this->output_scenario_file_ptr.get()) << "seq_index;scenario_rank;scenario_proba_cond_seq";
         
-        // Build event list from model - we need a topologically sorted list
-        // For now, we'll iterate through events_map in a simple order
-        // Note: This is a simplified approach; the legacy method uses get_model_queue()
-        // which provides topological sorting. For Phase 4.4, we'll populate event_fw_list
-        // from events that actually exist in the model.
-        
-        // Collect events in a deterministic order
-        std::vector<std::shared_ptr<Rec_Event>> events_vec;
-        for (const auto& [key, event_ptr] : model.events_map) {
-            events_vec.push_back(event_ptr);
-        }
-        
-        // Sort by event priority to get consistent ordering
-        std::sort(events_vec.begin(), events_vec.end(), 
-                  [](const std::shared_ptr<Rec_Event>& a, const std::shared_ptr<Rec_Event>& b) {
-                      return a->get_priority() < b->get_priority();
-                  });
-        
-        // Add to header and populate event_fw_list
-        for (const auto& event_ptr : events_vec) {
+        // Use model_queue which provides correct topological ordering
+        // This matches the legacy behavior that used parms.get_model_queue()
+        auto event_queue_copy = model.model_queue;  // Copy queue to iterate
+        while (!event_queue_copy.empty()) {
+            shared_ptr<Rec_Event> event_ptr = event_queue_copy.front();
             (*this->output_scenario_file_ptr.get()) << ";" << event_ptr->get_name();
             this->event_fw_list.emplace_front(event_ptr);
+            event_queue_copy.pop();
         }
         event_fw_list.reverse();
         
@@ -96,18 +82,10 @@ void Best_scenarios_counter::initialize(const ModelContext& model) {
         fstreams_created = true;
     } else {
         // File already created, just populate event_fw_list
-        std::vector<std::shared_ptr<Rec_Event>> events_vec;
-        for (const auto& [key, event_ptr] : model.events_map) {
-            events_vec.push_back(event_ptr);
-        }
-        
-        std::sort(events_vec.begin(), events_vec.end(), 
-                  [](const std::shared_ptr<Rec_Event>& a, const std::shared_ptr<Rec_Event>& b) {
-                      return a->get_priority() < b->get_priority();
-                  });
-        
-        for (const auto& event_ptr : events_vec) {
-            this->event_fw_list.emplace_front(event_ptr);
+        auto event_queue_copy = model.model_queue;  // Copy queue to iterate
+        while (!event_queue_copy.empty()) {
+            this->event_fw_list.emplace_front(event_queue_copy.front());
+            event_queue_copy.pop();
         }
         event_fw_list.reverse();
     }

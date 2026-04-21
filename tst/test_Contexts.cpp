@@ -95,18 +95,20 @@ TEST_CASE("ModelContext construction and immutability", "[Context][ModelContext]
     
     unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> offset_map;
     unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> events_map;
+    queue<shared_ptr<Rec_Event>> model_queue;  // Empty queue for tests
     
     SECTION("Basic construction") {
-        ModelContext model(model_params, offset_map, events_map);
+        ModelContext model(model_params, offset_map, events_map, model_queue);
         
         // Verify const references are bound correctly
         REQUIRE(&model.model_parameters == &model_params);
         REQUIRE(&model.offset_map == &offset_map);
         REQUIRE(&model.events_map == &events_map);
+        REQUIRE(&model.model_queue == &model_queue);
     }
     
     SECTION("Access model parameters") {
-        ModelContext model(model_params, offset_map, events_map);
+        ModelContext model(model_params, offset_map, events_map, model_queue);
         
         // Can read through const reference
         REQUIRE(model.model_parameters[0] == 0.0L);
@@ -115,7 +117,7 @@ TEST_CASE("ModelContext construction and immutability", "[Context][ModelContext]
     }
     
     SECTION("Empty events map") {
-        ModelContext model(model_params, offset_map, events_map);
+        ModelContext model(model_params, offset_map, events_map, model_queue);
         
         REQUIRE(model.events_map.empty());
         REQUIRE(model.offset_map.empty());
@@ -339,6 +341,7 @@ TEST_CASE("Multiple contexts work together", "[Context][Integration]") {
     auto model_params = make_unique<long double[]>(100);
     unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> offset_map;
     unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> events_map;
+    queue<shared_ptr<Rec_Event>> model_queue;  // Empty queue for tests
     
     // Setup scenario
     double proba = 1.0;
@@ -364,7 +367,7 @@ TEST_CASE("Multiple contexts work together", "[Context][Integration]") {
     
     SECTION("Create all five contexts") {
         QuerySequenceContext query(seq, int_seq, alignments);
-        ModelContext model(model_params, offset_map, events_map);
+        ModelContext model(model_params, offset_map, events_map, model_queue);
         ScenarioContext scenario(proba, constructed_sequences, seq_offsets, mismatches);
         ExplorationContext exploration(proba_map, max_prob, threshold, index_map, next_event_ptr, safety_set);
         AccumulationContext accumulation(marginals, counters, error_rate);
@@ -381,7 +384,7 @@ TEST_CASE("Multiple contexts work together", "[Context][Integration]") {
     
     SECTION("Contexts don't interfere with each other") {
         QuerySequenceContext query(seq, int_seq, alignments);
-        ModelContext model(model_params, offset_map, events_map);
+        ModelContext model(model_params, offset_map, events_map, model_queue);
         ScenarioContext scenario(proba, constructed_sequences, seq_offsets, mismatches);
         ExplorationContext exploration(proba_map, max_prob, threshold, index_map, next_event_ptr, safety_set);
         AccumulationContext accumulation(marginals, counters, error_rate);
@@ -392,7 +395,7 @@ TEST_CASE("Multiple contexts work together", "[Context][Integration]") {
         // Modify exploration
         exploration.update_max_prob(1e-4);
         
-        // Modify accumulation
+        // Accumulation marginals
         accumulation.updated_marginals[0] = 0.1L;
         
         // Verify changes are independent

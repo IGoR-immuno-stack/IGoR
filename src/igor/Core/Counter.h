@@ -64,39 +64,33 @@ public:
     // ===== NEW INTERFACE (Phase 4.1 - context-based) =====
     
     /**
-     * @brief Initialize counter with model context (NEW)
+     * @brief Initialize counter with model context
      * 
      * Uses ModelContext which provides access to:
      * - events_map: Event structure for querying event properties
      * - model_parameters: Probability parameters
      * - offset_map: Event dependencies
      * 
-     * This is the preferred interface going forward.
+     * All Counter subclasses must implement this method.
      * 
      * @param model Model configuration context
-     * 
-     * NOTE: Default implementation does nothing (adapter incomplete - ModelContext needs extension).
-     * Counter subclasses should override this method during Phase 4.4 migration.
-     * TODO Phase 4.3: Complete NEW→OLD adapter when ModelContext extended with Model_Parms/Model_marginals.
      */
-    virtual void initialize(const ModelContext& model);
+    virtual void initialize(const ModelContext& model) = 0;
     
     /**
-     * @brief Count a completed scenario (NEW)
+     * @brief Count a completed scenario
      * 
      * Uses context-based interface:
      * - Scenario: Flattened view of completed scenario (zero-copy)
      * - QuerySequenceContext: Input sequence data
      * - ModelContext: Model structure for event queries
      * 
-     * This is the preferred interface going forward.
+     * Default implementation does nothing (for counters that don't count at scenario level).
+     * Override in derived classes that need scenario-level statistics.
      * 
      * @param scenario Flattened scenario view (probabilities + sequences)
      * @param query Input sequence context (read sequence data)
      * @param model Model context (event lookup, structure queries)
-     * 
-     * NOTE: Default implementation throws (no adapter - legacy interface incomplete).
-     * Counter subclasses MUST override this method during Phase 4.4 migration.
      */
     virtual void count_scenario(
         const Scenario& scenario,

@@ -39,14 +39,6 @@ struct Scenario {
     // Flattened mismatches (indexed by Seq_type)
     std::vector<const std::vector<int>*> mismatches;
     
-    // ===== TEMPORARY ADAPTER INFRASTRUCTURE =====
-    // TODO Phase 4.5: Remove after all counters migrated to new interface
-    // These references enable NEW→OLD adapter in Counter.cpp for gradual migration
-    // Once all counter subclasses override new interface, remove these fields
-    Seq_type_str_p_map& constructed_sequences_ref;
-    const Seq_offsets_map& seq_offsets_ref;
-    Mismatch_vectors_map& mismatches_lists_ref;
-    
     /**
      * @brief Construct flattened view from ScenarioContext
      * 
@@ -63,11 +55,7 @@ struct Scenario {
           scenario_error_w_proba(ctx.scenario_error_w_proba),
           sequences(6, nullptr),  // Pre-reserve vector size with Seq_type cardinality for performance
           offsets(6),
-          mismatches(6, nullptr),
-          // Store references to original containers (for NEW→OLD adapter)
-          constructed_sequences_ref(ctx.constructed_sequences),
-          seq_offsets_ref(ctx.seq_offsets),
-          mismatches_lists_ref(ctx.mismatches_lists)
+          mismatches(6, nullptr)
     {
         // Flatten constructed_sequences map → vector
         // Uses current memory layer (leaf node has finalized state)

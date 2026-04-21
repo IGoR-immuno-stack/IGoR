@@ -168,9 +168,20 @@ bool GenModel::infer_model(
 	 * First initialization creates file streams
 	 * This is to make sure that the counter copies do not create new files each time
 	 */
+    // Construct ModelContext for counter initialization
+    unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> offset_map =
+            model_marginals.get_offsets_map(model_parms, model_queue);
+    const auto& events_map_ref = model_parms.get_events_map();  // Store reference to avoid temporary
+    ModelContext model_context(
+        model_marginals.marginal_array_smart_p,
+        offset_map,
+        events_map_ref,
+        model_queue
+    );
+    
     for (map<size_t, shared_ptr<Counter>>::const_iterator iter = counters_list.begin(); iter != counters_list.end();
          ++iter) {
-        (*iter).second->initialize_counter(model_parms, model_marginals);
+        (*iter).second->initialize(model_context);
     }
 
     /*
@@ -326,9 +337,17 @@ bool GenModel::infer_model(
             single_thread_err_rate->set_viterbi_run(viterbi_like);
 
             //Initialize Counters
+            // Construct ModelContext for counter initialization
+            ModelContext single_thread_model_context(
+                single_thread_model_marginals.marginal_array_smart_p,
+                single_thread_offset_map,
+                events_map,
+                single_thread_model_queue
+            );
+            
             for (map<size_t, shared_ptr<Counter>>::iterator iter = single_thread_counter_list.begin();
                  iter != single_thread_counter_list.end(); ++iter) {
-                (*iter).second->initialize_counter(single_thread_model_parms, single_thread_marginals);
+                (*iter).second->initialize(single_thread_model_context);
             }
 #pragma omp single nowait
             {
@@ -420,7 +439,8 @@ bool GenModel::infer_model(
                     ModelContext model(
                         single_thread_model_marginals.marginal_array_smart_p,  // model_parameters
                         single_thread_offset_map,                              // offset_map
-                        events_map                                             // events_map
+                        events_map,                                            // events_map
+                        single_thread_model_queue                              // model_queue
                     );
 
                     ScenarioContext scenario(

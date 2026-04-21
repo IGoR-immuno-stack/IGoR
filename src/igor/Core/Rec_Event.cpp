@@ -150,7 +150,8 @@ void Rec_Event::iterate(double &scenario_proba, Downstream_scenario_proba_bound_
     ModelContext model(
         model_parameters_point,
         offset_map,
-        events_map
+        events_map,
+        queue<shared_ptr<Rec_Event>>()  // Never used by legacy iterate()
     );
     
     // Scenario state context
@@ -268,8 +269,11 @@ void Rec_Event::iterate_wrap_up(
 
             for (std::map<size_t, std::shared_ptr<Counter>>::iterator iter = counters_list.begin();
                  iter != counters_list.end(); ++iter) {
+                #pragma GCC diagnostic push
+                #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
                 (*iter).second->count_scenario(scenario_error_w_proba, scenario_proba, sequence, constructed_sequences,
                                                seq_offsets, events_map, mismatches_lists);
+                #pragma GCC diagnostic pop
             }
 
             for (std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>,

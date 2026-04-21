@@ -303,6 +303,17 @@ protected:
     int compare_sequences(std::string, std::string); //TODO should probably not be a member functino
     void add_realization(const Event_realization &);
     //inline void iterate_wrap_up(double& , double& , const std::string& , const std::string& , Index_map& , const std::unordered_map<Rec_Event_name,std::vector<std::pair<const Rec_Event*,int>>>& , std::queue<Rec_Event*>  , Marginal_array_p&  , const Marginal_array_p& , const std::unordered_map<Gene_class , std::vector<Alignment_data>>& , Seq_type_str_p_map& , Seq_offsets_map& ,std::shared_ptr<Error_rate>&,const std::unordered_map<std::tuple<Event_type,Gene_class,Seq_side>,const Rec_Event*>&  , Safety_bool_map& , Mismatch_vectors_map& , double& , double&);
+    
+    /**
+     * @deprecated use iterate_wrap_up(
+            QuerySequenceContext&,
+            const ModelContext&,
+            ScenarioContext&,
+            ExplorationContext&,
+            AccumulationContext&
+            )
+    */
+    [[deprecated("Use iterate_wrap_up(QuerySequenceContext&, const ModelContext&, ScenarioContext&, ExplorationContext&, AccumulationContext&)")]]
     void iterate_wrap_up(
             double &scenario_proba, Downstream_scenario_proba_bound_map &downstream_proba_map,
             const std::string &sequence, const Int_Str &int_sequence, Index_map &index_map,
