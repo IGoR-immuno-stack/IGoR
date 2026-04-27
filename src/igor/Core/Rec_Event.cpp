@@ -317,23 +317,17 @@ void Rec_Event::iterate_wrap_up(
         // Leaf node - complete scenario and accumulate
         
         // Compute error-weighted probability using error_rate
-        scenario.scenario_error_w_proba = accumulation.error_rate->compare_sequences_error_prob(
-        scenario.scenario_proba,
-        query.sequence,
-        scenario.constructed_sequences,
-        scenario.seq_offsets,
-        model.events_map,
-        scenario.mismatches_lists,
-        exploration.seq_max_prob_scenario,
-            exploration.proba_threshold_factor
+        scenario.scenario_error_w_proba = accumulation.error_rate->compute_scenario_error_probability(
+            query,
+            model,
+            scenario,
+            exploration
         );
         
         // Check pruning threshold
-        if (scenario.scenario_error_w_proba >= exploration.seq_max_prob_scenario * exploration.proba_threshold_factor) {
-            // Update maximum probability if needed
-            if (scenario.scenario_error_w_proba > exploration.seq_max_prob_scenario) {
-                exploration.seq_max_prob_scenario = scenario.scenario_error_w_proba;
-            }
+        if (not exploration.should_prune(scenario.scenario_error_w_proba)) {
+            // Update best scenario probability if needed
+            exploration.update_max_prob(scenario.scenario_error_w_proba);
             
             // Phase 4.2: Create Scenario view and call counters with new interface
             Scenario scenario_view(scenario);
