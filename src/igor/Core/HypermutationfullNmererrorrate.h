@@ -55,6 +55,16 @@ public:
     Hypermutation_full_Nmer_errorrate(size_t, Gene_class, Gene_class, std::vector<double>, std::string, size_t = 0);
     //Hypermutation_full_Nmer_errorrate(size_t,Gene_class,Gene_class, ??); Constructor to read or copy the error rate
     virtual ~Hypermutation_full_Nmer_errorrate();
+    
+    // Phase 5.3: Context-based interface
+    double compute_scenario_error_probability(
+        const QuerySequenceContext& query,
+        const ModelContext& model,
+        ScenarioContext& scenario,
+        ExplorationContext& exploration
+    ) override;
+    
+    // Legacy interface (preserved for backward compatibility)
     double compare_sequences_error_prob(
             double, const std::string &, Seq_type_str_p_map &, const Seq_offsets_map &,
             const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> &,

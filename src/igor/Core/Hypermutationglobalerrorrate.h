@@ -61,6 +61,16 @@ public:
     Hypermutation_global_errorrate(size_t, Gene_class, Gene_class, double, std::vector<double>, std::string);
     //Hypermutation_global_errorrate(size_t,Gene_class,Gene_class, ??); Constructor to read or copy the error rate
     virtual ~Hypermutation_global_errorrate();
+    
+    // Phase 5.3: Context-based interface
+    double compute_scenario_error_probability(
+        const QuerySequenceContext& query,
+        const ModelContext& model,
+        ScenarioContext& scenario,
+        ExplorationContext& exploration
+    ) override;
+    
+    // Legacy interface (preserved for backward compatibility)
     double compare_sequences_error_prob(
             double, const std::string &, Seq_type_str_p_map &, const Seq_offsets_map &,
             const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> &,

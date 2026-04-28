@@ -362,6 +362,41 @@ void Hypermutation_full_Nmer_errorrate::build_upper_bound_matrix(size_t m, size_
     this->max_noerr = new_bound_mat.get_n_cols() - 1;
 }
 
+/**
+ * @brief Context-based error probability computation (Phase 5.3)
+ * 
+ * Bridge implementation that unpacks contexts and delegates to legacy method.
+ * The hypermutation models are complex (N-mer context-dependent mutation rates,
+ * boundary handling, learning counters) so we preserve the existing logic.
+ * 
+ * Unlike Single_error_rate, hypermutation models always accumulate (no threshold pruning)
+ * and update learning counters during iterate(). Future refactoring could separate
+ * probability computation from learning accumulation.
+ */
+double Hypermutation_full_Nmer_errorrate::compute_scenario_error_probability(
+        const QuerySequenceContext& query,
+        const ModelContext& model,
+        ScenarioContext& scenario,
+        ExplorationContext& exploration)
+{
+    // Unpack contexts and delegate to legacy implementation
+    double result = this->compare_sequences_error_prob(
+        scenario.scenario_proba,
+        query.sequence,
+        scenario.constructed_sequences,
+        scenario.seq_offsets,
+        model.events_map,
+        scenario.mismatches_lists,
+        exploration.seq_max_prob_scenario,
+        exploration.proba_threshold_factor
+    );
+    
+    // Store in ScenarioContext for Counter access
+    scenario.scenario_error_w_proba = result;
+    
+    return result;
+}
+
 double Hypermutation_full_Nmer_errorrate::compare_sequences_error_prob(
         double scenario_probability, const string &original_sequence, Seq_type_str_p_map &constructed_sequences,
         const Seq_offsets_map &seq_offsets,

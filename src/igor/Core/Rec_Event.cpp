@@ -317,6 +317,11 @@ void Rec_Event::iterate_wrap_up(
         // Leaf node - complete scenario and accumulate
         
         // Compute error-weighted probability using error_rate
+        // TODO (Future): Consider changing compute_scenario_error_probability() to void return
+        //                Method already assigns scenario.scenario_error_w_proba internally,
+        //                making this assignment redundant. Void return would match
+        //                Rec_Event::iterate() pattern (contexts mutated, no return value).
+        //                See docs/ITERATE_REFACTORING_PLAN.md "Future Refactoring Opportunities"
         scenario.scenario_error_w_proba = accumulation.error_rate->compute_scenario_error_probability(
             query,
             model,
