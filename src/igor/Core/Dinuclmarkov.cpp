@@ -77,14 +77,12 @@ int Dinucl_markov::size() const
 }
 
 /**
- * @brief Phase 2 adapter: Context-based iterate() -> Legacy iterate()
+ * @brief Context-based iterate() implementation
  * 
- * Unpacks 5 context objects into 18+ legacy parameters and delegates
+ * Unpacks 5 context objects into legacy parameters and delegates
  * to the existing iterate() implementation.
  * 
- * NOTE: Some const_casts are required because legacy iterate() signatures
- * accept non-const references even though they don't modify model data.
- * These casts are safe during Phase 2 and will be eliminated in Phase 3+.
+
  */
 void Dinucl_markov::iterate(
         QuerySequenceContext& query,

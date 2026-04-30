@@ -75,7 +75,7 @@ Errors_counter::~Errors_counter()
     // TODO Auto-generated destructor stub
 }
 
-// ===== NEW INTERFACE (Phase 4.4) =====
+// ===== CONTEXT-BASED INTERFACE =====
 
 void Errors_counter::initialize(const ModelContext& model) {
     if (not fstreams_created) {

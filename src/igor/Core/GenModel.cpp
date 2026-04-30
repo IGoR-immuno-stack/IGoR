@@ -425,7 +425,7 @@ bool GenModel::infer_model(
 				 * The method will be called recursively for each event, this is equivalent to a nested loop and enumerates all possible scenarios
 				 * The weight of each recombination scenario is added to the single_seq_marginals on the fly
 				 * 
-				 * Phase 2 Complete: Now using context-based interface
+				 * Context-based interface
 				 */
                 try {
 

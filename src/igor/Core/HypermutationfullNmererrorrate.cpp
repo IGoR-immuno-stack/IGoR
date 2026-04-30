@@ -363,7 +363,7 @@ void Hypermutation_full_Nmer_errorrate::build_upper_bound_matrix(size_t m, size_
 }
 
 /**
- * @brief Context-based error probability computation (Phase 5.3)
+ * @brief Context-based error probability computation (bridge implementation)
  * 
  * Bridge implementation that unpacks contexts and delegates to legacy method.
  * The hypermutation models are complex (N-mer context-dependent mutation rates,

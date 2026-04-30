@@ -80,7 +80,7 @@ public:
             const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> &,
             Safety_bool_map &, Mismatch_vectors_map &, double &, double &);
 
-    // Phase 2: Context-based iterate() adapter
+    // Context-based iterate() interface
     inline void
     iterate(QuerySequenceContext& query,
             const ModelContext& model,

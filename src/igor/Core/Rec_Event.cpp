@@ -26,7 +26,7 @@
 
 #include <igor/Core/Rec_Event.h>
 #include <igor/Core/Counter.h>
-#include <igor/Core/Scenario.h>  // Phase 4.2: For Scenario view construction
+#include <igor/Core/Scenario.h>  // For Scenario view construction
 
 using namespace std;
 
@@ -288,7 +288,7 @@ void Rec_Event::iterate_wrap_up(
 }
 
 /**
- * @brief Phase 4.2: Context-based iterate_wrap_up with new Counter interface
+ * @brief Context-based iterate_wrap_up with Counter interface
  * 
  * Handles leaf-node scenario completion:
  * - Computes error-weighted probability
@@ -334,7 +334,7 @@ void Rec_Event::iterate_wrap_up(
             // Update best scenario probability if needed
             exploration.update_max_prob(scenario.scenario_error_w_proba);
             
-            // Phase 4.2: Create Scenario view and call counters with new interface
+            // Create Scenario view and call counters with context interface
             Scenario scenario_view(scenario);
             
             for (auto& [counter_id, counter] : accumulation.counters) {

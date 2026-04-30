@@ -59,7 +59,7 @@ Pgen_counter::~Pgen_counter()
     // TODO Auto-generated destructor stub
 }
 
-// ===== NEW INTERFACE (Phase 4.4) =====
+// ===== CONTEXT-BASED INTERFACE =====
 
 void Pgen_counter::initialize(const ModelContext& model) {
     // Initialize output file

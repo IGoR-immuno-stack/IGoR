@@ -50,7 +50,7 @@ public:
     Single_error_rate(double);
     virtual ~Single_error_rate();
     
-    // NEW: Context-based interface (Phase 5.2)
+    // Context-based interface
     double compute_scenario_error_probability(
         const QuerySequenceContext& query,
         const ModelContext& model,
@@ -58,7 +58,7 @@ public:
         ExplorationContext& exploration
     ) override;
     
-    // OLD: Legacy interface (Phase 5 - will be removed in Phase 5.6)
+    // Legacy interface (deprecated)
     double compare_sequences_error_prob(
             double, const std::string &, Seq_type_str_p_map &, const Seq_offsets_map &,
             const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> &,

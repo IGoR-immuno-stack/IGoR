@@ -56,7 +56,7 @@ Best_scenarios_counter::~Best_scenarios_counter()
     // TODO Auto-generated destructor stub
 }
 
-// ===== NEW INTERFACE (Phase 4.4) =====
+// ===== CONTEXT-BASED INTERFACE =====
 
 void Best_scenarios_counter::initialize(const ModelContext& model) {
     if (not fstreams_created) {

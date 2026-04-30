@@ -50,7 +50,7 @@ public:
 
     std::string type() const { return "PgenCounter"; }; //TODO return an enum
 
-    // NEW INTERFACE (Phase 4.4)
+    // Context-based interface
     void initialize(const ModelContext& model) override;
     void count_scenario(
         const Scenario& scenario,

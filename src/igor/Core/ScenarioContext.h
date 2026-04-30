@@ -66,7 +66,7 @@ struct ScenarioContext {
     ScenarioContext& operator=(ScenarioContext&&) = default;
     
     // ========================================================================
-    // Phase 3.5.3: Scenario State Management Abstractions
+    // Scenario State Management Abstractions
     // ========================================================================
     // Semantic operations for sequence construction and offset tracking.
     // These inline methods hide memory layer manipulation details and make

@@ -161,9 +161,9 @@ void Deletion::add_realization(int del_number)
 }
 
 /**
- * @brief Phase 2 adapter: Context-based iterate() -> Legacy iterate()
+ * @brief Context-based iterate() implementation
  * 
- * Unpacks 5 context objects into 18+ legacy parameters and delegates
+ * Unpacks 5 context objects into legacy parameters and delegates
  * to the existing iterate() implementation.
  * 
  * General: Loop over all possible number of deletions for a given gene on a given sequence side
@@ -172,9 +172,7 @@ void Deletion::add_realization(int del_number)
  * -First check whether any of these number of deletions is possible given the current position and number of deletions on other genes
  * -Loop over # of deletions in decreasing order
  * 
- * NOTE: Some const_casts are required because legacy iterate() signatures
- * accept non-const references even though they don't modify model data.
- * These casts are safe during Phase 2 and will be eliminated in Phase 3+.
+
  */
 void Deletion::iterate(
         QuerySequenceContext& query,

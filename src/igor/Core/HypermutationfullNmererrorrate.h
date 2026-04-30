@@ -56,7 +56,7 @@ public:
     //Hypermutation_full_Nmer_errorrate(size_t,Gene_class,Gene_class, ??); Constructor to read or copy the error rate
     virtual ~Hypermutation_full_Nmer_errorrate();
     
-    // Phase 5.3: Context-based interface
+    // Context-based interface (bridge to legacy implementation)
     double compute_scenario_error_probability(
         const QuerySequenceContext& query,
         const ModelContext& model,

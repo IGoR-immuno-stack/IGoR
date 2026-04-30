@@ -114,7 +114,7 @@ Coverage_err_counter::~Coverage_err_counter()
         delete[] positions;
 }
 
-// ===== NEW INTERFACE (Phase 4.4) =====
+// ===== CONTEXT-BASED INTERFACE =====
 
 void Coverage_err_counter::initialize(const ModelContext& model) {
     if (not fstreams_created) {

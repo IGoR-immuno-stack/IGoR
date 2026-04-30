@@ -154,11 +154,10 @@ public:
             Safety_bool_map &, Mismatch_vectors_map &, double &, double &);
 
     /**
-     * @brief Refactored iterate() with context objects (Phase 2+)
+     * @brief Context-based iterate() interface
      * 
-     * New signature using 5 context objects instead of 18 individual parameters.
-     * This is a drop-in replacement that delegates to the legacy iterate() during
-     * Phase 2-3, then in Phase 3.5+ will contain semantic operations.
+     * New signature using 5 context objects instead of 19 individual parameters.
+     * Subclasses implement semantic iteration logic using these contexts.
      * 
      * Contexts encapsulate:
      * - QuerySequenceContext: Input sequence and alignments
@@ -330,12 +329,10 @@ protected:
             double &proba_threshold_factor);
 
     /**
-     * @brief Refactored iterate_wrap_up() with context objects (Phase 2+)
+     * @brief Context-based iterate_wrap_up() interface
      * 
      * New signature using 5 context objects instead of 18 individual parameters.
      * Called at leaf nodes to accumulate marginals and update error rate.
-     * 
-     * During Phase 2, this delegates to the legacy iterate_wrap_up() function.
      */
     void iterate_wrap_up(
             QuerySequenceContext& query,

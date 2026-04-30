@@ -111,7 +111,7 @@ struct ExplorationContext {
     }
     
     // ========================================================================
-    // Phase 3.5.3: Gene Overlap Safety Tracking
+    // Gene Overlap Safety Tracking
     // ========================================================================
     // Semantic operations for safety_set (gene overlap validation).
     // These methods guide exploration by marking which gene arrangements

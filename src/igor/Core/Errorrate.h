@@ -106,7 +106,7 @@ public:
     Error_rate();
     virtual ~Error_rate();
     
-    // ===== NEW INTERFACE (Phase 5 - Context-based) =====
+    // ===== CONTEXT-BASED INTERFACE =====
     
     /**
      * @brief Compute error-weighted scenario probability (context-based interface)
@@ -140,7 +140,7 @@ public:
         ExplorationContext& exploration
     );
     
-    // ===== OLD INTERFACE (DEPRECATED - will be removed after Phase 5 migration) =====
+    // ===== LEGACY INTERFACE (DEPRECATED) =====
     
     /**
      * @brief Legacy error probability computation (DEPRECATED)

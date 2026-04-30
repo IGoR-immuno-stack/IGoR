@@ -99,7 +99,7 @@ void Single_error_rate::build_upper_bound_matrix(size_t m, size_t n)
 }
 
 /**
- * @brief Context-based error probability computation (Phase 5.2)
+ * @brief Context-based error probability computation
  * 
  * This implementation uses ScenarioContext directly for memory layer access.
  * Error_rate is an accumulator (not a passive observer like Counters), so it

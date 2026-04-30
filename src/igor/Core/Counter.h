@@ -61,7 +61,7 @@ public:
 
     virtual std::string type() const = 0;
 
-    // ===== NEW INTERFACE (Phase 4.1 - context-based) =====
+    // ===== CONTEXT-BASED INTERFACE =====
     
     /**
      * @brief Initialize counter with model context
@@ -117,7 +117,7 @@ public:
                    const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> &,
                    Mismatch_vectors_map &);
                    
-    // TODO Phase 4: Refactor count_sequence to use contexts
+    // TODO: Consider refactoring count_sequence to use contexts (future enhancement)
     // virtual void count_sequence(const Scenario&, const ModelContext&);
     virtual void count_sequence(double, const Model_marginals &, const Model_Parms &);
 
