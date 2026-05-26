@@ -5,6 +5,7 @@
 #endif
 
 #include <chrono>
+#include <cstdlib>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -26,7 +27,15 @@ static std::vector<std::pair<const int, const std::string>> load_reads(const cha
 int main(int argc, char** argv)
 {
     std::string seq_path = argc > 1 ? argv[1] : std::string(IGOR_SOURCE_DIR) + "/demo/murugan_naive1_noncoding_demo_seqs.txt";
-    auto reads_const = load_reads(seq_path.c_str());
+    int repeat = argc > 2 ? std::max(1, std::atoi(argv[2])) : 100;
+    auto base_reads = load_reads(seq_path.c_str());
+    std::vector<std::pair<const int, const std::string>> reads_const;
+    reads_const.reserve(base_reads.size() * repeat);
+    for (int r = 0; r < repeat; ++r) {
+        for (const auto& read : base_reads) {
+            reads_const.emplace_back(static_cast<int>(reads_const.size()), read.second);
+        }
+    }
     std::vector<std::pair<std::string, std::string>> germlines{{"synthetic", "ACGTACGTACGT"}};
     Matrix<double> subst = simple_matrix();
 
@@ -37,6 +46,9 @@ int main(int argc, char** argv)
     auto t1 = std::chrono::high_resolution_clock::now();
 
     std::cout << "{\n";
+    std::cout << "  \"input_sequences\": " << base_reads.size() << ",\n";
+    std::cout << "  \"repeat\": " << repeat << ",\n";
+    std::cout << "  \"benchmark_sequences\": " << reads_const.size() << ",\n";
     std::cout << "  \"legacy_ms\": "
               << std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count() << ",\n";
     std::cout << "  \"legacy_sequences\": " << legacy_res.size();
@@ -45,7 +57,8 @@ int main(int argc, char** argv)
     std::vector<std::pair<int, std::string>> reads;
     for (const auto& r : reads_const) reads.push_back({r.first, r.second});
 
-    SeqAn2Aligner seqan2_banded(subst, 2, V_gene, AlignmentPreset::with_band(50));
+    const int band_half_width = 50;
+    SeqAn2Aligner seqan2_banded(subst, 2, V_gene, AlignmentPreset::with_band(band_half_width));
     seqan2_banded.set_genomic_sequences(germlines);
     auto b0 = std::chrono::high_resolution_clock::now();
     auto seqan_banded_res = seqan2_banded.align_seqs(reads, -100.0, true);
@@ -65,7 +78,8 @@ int main(int argc, char** argv)
     std::cout << ",\n  \"seqan2_banded_ms\": "
               << std::chrono::duration_cast<std::chrono::milliseconds>(b1 - b0).count() << ",\n";
     std::cout << "  \"seqan2_banded_sequences\": " << seqan_banded_res.size() << ",\n";
-    std::cout << "  \"seqan2_banded_half_width\": 50,\n";
+    std::cout << "  \"seqan2_banded_band_lower_diag\": " << -band_half_width << ",\n";
+    std::cout << "  \"seqan2_banded_band_upper_diag\": " << band_half_width << ",\n";
     std::cout << "  \"seqan2_unbanded_ms\": "
               << std::chrono::duration_cast<std::chrono::milliseconds>(u1 - u0).count() << ",\n";
     std::cout << "  \"seqan2_unbanded_sequences\": " << seqan_unbanded_res.size();
