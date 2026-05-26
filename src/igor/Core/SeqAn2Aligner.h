@@ -45,7 +45,7 @@ private:
 
 CORE_EXPORT AlignmentPreset calibrate_preset(AlignmentPreset preset, const std::vector<std::string>& reads,
                                              const std::vector<std::string>& germlines,
-                                             const seqan2::Score<int, seqan2::Simple>& scoring,
+                                             const seqan2::Score<int, seqan2::ScoreMatrix<seqan2::Iupac, seqan2::Default>>& scoring,
                                              BandCalibrationParams params = {});
 CORE_EXPORT AlignmentPreset calibrate_preset(AlignmentPreset preset, const std::vector<int>& known_diagonals,
                                              BandCalibrationParams params = {});

@@ -9,9 +9,9 @@
 #include <numeric>
 #include <stdexcept>
 
-using TSeq = seqan2::String<seqan2::Dna5>;
+using TSeq = seqan2::String<seqan2::Iupac>;
 using TAlign = seqan2::Align<TSeq, seqan2::ArrayGaps>;
-using TScore = seqan2::Score<int, seqan2::Simple>;
+using TScore = seqan2::Score<int, seqan2::ScoreMatrix<seqan2::Iupac, seqan2::Default>>;
 
 static SeqAn2AlignConfig to_config(const AlignmentPreset& p)
 {
@@ -19,12 +19,18 @@ static SeqAn2AlignConfig to_config(const AlignmentPreset& p)
             p.seq1_trailing_free, p.seq2_trailing_free, p.local_alignment};
 }
 
-static TSeq to_dna5(const std::string& s)
+static TSeq to_iupac(const std::string& s)
 {
     TSeq out;
     seqan2::resize(out, s.size());
-    for (size_t i = 0; i < s.size(); ++i) out[i] = seqan2::Dna5(s[i]);
+    for (size_t i = 0; i < s.size(); ++i) out[i] = seqan2::Iupac(s[i]);
     return out;
+}
+
+static char igor_iupac_char(int idx)
+{
+    static const char chars[15] = {'A','C','G','T','R','Y','K','M','S','W','B','D','H','V','N'};
+    return chars[idx];
 }
 
 static bool has_indels(const TAlign& ali)
@@ -97,11 +103,14 @@ struct SeqAn2Aligner::Impl {
     std::vector<std::string> germline_strings;
 
     Impl(Matrix<double> subst, int gap_penalty, Gene_class g, SeqAn2AlignConfig c)
-        : scoring(static_cast<int>(subst(0,0)), -std::abs(gap_penalty), -std::abs(gap_penalty)), gene(g), config(c)
+        : scoring(-std::abs(gap_penalty), -std::abs(gap_penalty)), gene(g), config(c)
     {
-        // SeqAn Simple scoring cannot hold IUPAC matrix scores; use match/mismatch from matrix as a robust baseline.
-        int mismatch = static_cast<int>(subst(0,1));
-        scoring = TScore(static_cast<int>(subst(0,0)), mismatch, -std::abs(gap_penalty));
+        for (int i = 0; i < 15; ++i) {
+            for (int j = 0; j < 15; ++j) {
+                seqan2::setScore(scoring, seqan2::Iupac(igor_iupac_char(i)), seqan2::Iupac(igor_iupac_char(j)),
+                                 static_cast<int>(subst(i, j)));
+            }
+        }
     }
 };
 
@@ -125,7 +134,7 @@ void SeqAn2Aligner::set_genomic_sequences(std::vector<std::pair<std::string, std
     impl_->germlines.clear();
     impl_->germline_strings.clear();
     for (auto& g : gs) {
-        impl_->germlines.push_back({g.first, to_dna5(g.second)});
+        impl_->germlines.push_back({g.first, to_iupac(g.second)});
         impl_->germline_strings.push_back(g.second);
     }
 }
@@ -134,7 +143,7 @@ std::forward_list<Alignment_data> SeqAn2Aligner::align_seq(const std::string& se
                                                            bool allow_in_dels, bool best_only) const
 {
     std::forward_list<Alignment_data> out;
-    TSeq read = to_dna5(seq);
+    TSeq read = to_iupac(seq);
     double best = -1e300;
     std::forward_list<Alignment_data> all;
     for (const auto& germ : impl_->germlines) {
@@ -142,8 +151,24 @@ std::forward_list<Alignment_data> SeqAn2Aligner::align_seq(const std::string& se
             TAlign ali; seqan2::resize(seqan2::rows(ali), 2);
             seqan2::assignSource(seqan2::row(ali, 0), read);
             seqan2::assignSource(seqan2::row(ali, 1), germ.second);
-            int sc = seqan2::localAlignment(ali, impl_->scoring);
-            if (sc >= threshold && (allow_in_dels || !has_indels(ali))) all.push_front(from_seqan2_align(ali, germ.first, sc));
+            if (impl_->config.band_lower_diag <= impl_->config.band_upper_diag) {
+                seqan2::LocalAlignmentEnumerator<TScore, seqan2::Banded> enumerator(
+                        impl_->scoring, impl_->config.band_upper_diag, impl_->config.band_lower_diag,
+                        static_cast<int>(threshold));
+                while (seqan2::nextLocalAlignment(ali, enumerator)) {
+                    int sc = seqan2::getScore(enumerator);
+                    if (allow_in_dels || !has_indels(ali)) all.push_front(from_seqan2_align(ali, germ.first, sc));
+                    if (best_only) break;
+                }
+            } else {
+                seqan2::LocalAlignmentEnumerator<TScore, seqan2::Unbanded> enumerator(impl_->scoring,
+                                                                                       static_cast<int>(threshold));
+                while (seqan2::nextLocalAlignment(ali, enumerator)) {
+                    int sc = seqan2::getScore(enumerator);
+                    if (allow_in_dels || !has_indels(ali)) all.push_front(from_seqan2_align(ali, germ.first, sc));
+                    if (best_only) break;
+                }
+            }
         } else {
             TAlign ali; seqan2::resize(seqan2::rows(ali), 2);
             seqan2::assignSource(seqan2::row(ali, 0), read);
@@ -196,20 +221,43 @@ AlignmentPreset calibrate_preset(AlignmentPreset preset, const std::vector<std::
                                  BandCalibrationParams params)
 {
     std::vector<int> diagonals;
+    std::vector<std::tuple<int, int, int>> verify_pairs;
     int n = std::min<int>(params.n_seed_seqs, reads.size());
     for (int i = 0; i < n; ++i) {
-        TSeq read = to_dna5(reads[i]);
-        for (const auto& gstr : germlines) {
-            TSeq germ = to_dna5(gstr);
+        TSeq read = to_iupac(reads[i]);
+        for (size_t gi = 0; gi < germlines.size(); ++gi) {
+            TSeq germ = to_iupac(germlines[gi]);
             TAlign ali; seqan2::resize(seqan2::rows(ali), 2);
             seqan2::assignSource(seqan2::row(ali, 0), read);
             seqan2::assignSource(seqan2::row(ali, 1), germ);
-            if (preset.local_alignment) seqan2::localAlignment(ali, scoring);
-            else seqan2::globalAlignment(ali, scoring);
+            int score = preset.local_alignment ? seqan2::localAlignment(ali, scoring) : seqan2::globalAlignment(ali, scoring);
             diagonals.push_back(static_cast<int>(seqan2::clippedBeginPosition(seqan2::row(ali, 0))) -
                                 static_cast<int>(seqan2::clippedBeginPosition(seqan2::row(ali, 1))));
+            verify_pairs.push_back(std::make_tuple(i, static_cast<int>(gi), score));
         }
     }
-    return calibrate_preset(preset, diagonals, params);
+    AlignmentPreset calibrated = calibrate_preset(preset, diagonals, params);
+    int n_verify = std::min<int>(params.n_verify_seqs, reads.size());
+    for (int iter = 0; iter < params.max_iterations && !preset.local_alignment; ++iter) {
+        bool ok = true;
+        int checked_reads = 0;
+        for (const auto& p : verify_pairs) {
+            int ri = std::get<0>(p);
+            if (ri >= n_verify) continue;
+            checked_reads = std::max(checked_reads, ri + 1);
+            TSeq read = to_iupac(reads[ri]);
+            TSeq germ = to_iupac(germlines[std::get<1>(p)]);
+            TAlign ali; seqan2::resize(seqan2::rows(ali), 2);
+            seqan2::assignSource(seqan2::row(ali, 0), read);
+            seqan2::assignSource(seqan2::row(ali, 1), germ);
+            SeqAn2AlignConfig cfg = to_config(calibrated);
+            int banded_score = global_dispatch(ali, scoring, cfg);
+            if (banded_score + params.score_tolerance < std::get<2>(p)) { ok = false; break; }
+        }
+        if (ok || checked_reads == 0) break;
+        calibrated.band_lower_diag -= params.band_expand_step;
+        calibrated.band_upper_diag += params.band_expand_step;
+    }
+    return calibrated;
 }
 #endif

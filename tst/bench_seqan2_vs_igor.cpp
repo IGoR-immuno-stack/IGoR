@@ -10,6 +10,7 @@
 #include <string>
 #include <vector>
 #include <forward_list>
+#include <map>
 
 static Matrix<double> simple_matrix()
 {
@@ -49,9 +50,15 @@ int main(int argc, char** argv)
     std::cout << "  \"input_sequences\": " << base_reads.size() << ",\n";
     std::cout << "  \"repeat\": " << repeat << ",\n";
     std::cout << "  \"benchmark_sequences\": " << reads_const.size() << ",\n";
+    auto best_score = [](const auto& xs) {
+        double best = -1e300;
+        for (const auto& kv : xs) for (const auto& a : kv.second) best = std::max(best, a.score);
+        return best;
+    };
     std::cout << "  \"legacy_ms\": "
               << std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count() << ",\n";
-    std::cout << "  \"legacy_sequences\": " << legacy_res.size();
+    std::cout << "  \"legacy_sequences\": " << legacy_res.size() << ",\n";
+    std::cout << "  \"legacy_best_score\": " << best_score(legacy_res);
 
 #ifdef IGOR_WITH_SEQAN2
     std::vector<std::pair<int, std::string>> reads;
@@ -80,9 +87,13 @@ int main(int argc, char** argv)
     std::cout << "  \"seqan2_banded_sequences\": " << seqan_banded_res.size() << ",\n";
     std::cout << "  \"seqan2_banded_band_lower_diag\": " << -band_half_width << ",\n";
     std::cout << "  \"seqan2_banded_band_upper_diag\": " << band_half_width << ",\n";
+    std::cout << "  \"seqan2_banded_best_score\": " << best_score(seqan_banded_res) << ",\n";
     std::cout << "  \"seqan2_unbanded_ms\": "
               << std::chrono::duration_cast<std::chrono::milliseconds>(u1 - u0).count() << ",\n";
-    std::cout << "  \"seqan2_unbanded_sequences\": " << seqan_unbanded_res.size();
+    std::cout << "  \"seqan2_unbanded_sequences\": " << seqan_unbanded_res.size() << ",\n";
+    std::cout << "  \"seqan2_unbanded_best_score\": " << best_score(seqan_unbanded_res) << ",\n";
+    std::cout << "  \"score_delta_seqan2_unbanded_minus_legacy\": "
+              << (best_score(seqan_unbanded_res) - best_score(legacy_res));
 #endif
     std::cout << "\n}\n";
     return 0;
