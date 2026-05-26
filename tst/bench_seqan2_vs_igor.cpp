@@ -12,11 +12,14 @@
 #include <forward_list>
 #include <map>
 
-static Matrix<double> simple_matrix()
+static Matrix<double> load_matrix(const std::string& path)
 {
-    std::vector<double> v(15 * 15, -1.0);
-    for (int i = 0; i < 15; ++i) v[i + 15 * i] = 2.0;
-    return Matrix<double>(15, 15, v);
+    try { return read_substitution_matrix(path); }
+    catch (...) {
+        std::vector<double> v(15 * 15, -1.0);
+        for (int i = 0; i < 15; ++i) v[i + 15 * i] = 2.0;
+        return Matrix<double>(15, 15, v);
+    }
 }
 
 static std::vector<std::pair<const int, const std::string>> load_reads(const char* path)
@@ -29,6 +32,8 @@ int main(int argc, char** argv)
 {
     std::string seq_path = argc > 1 ? argv[1] : std::string(IGOR_SOURCE_DIR) + "/demo/murugan_naive1_noncoding_demo_seqs.txt";
     int repeat = argc > 2 ? std::max(1, std::atoi(argv[2])) : 100;
+    std::string germline_path = argc > 3 ? argv[3] : std::string(IGOR_SOURCE_DIR) + "/demo/genomicVs_with_primers.fasta";
+    std::string matrix_path = argc > 4 ? argv[4] : std::string(IGOR_SOURCE_DIR) + "/models/heavy_pen_substitution_matrix.csv";
     auto base_reads = load_reads(seq_path.c_str());
     std::vector<std::pair<const int, const std::string>> reads_const;
     reads_const.reserve(base_reads.size() * repeat);
@@ -37,38 +42,60 @@ int main(int argc, char** argv)
             reads_const.emplace_back(static_cast<int>(reads_const.size()), read.second);
         }
     }
-    std::vector<std::pair<std::string, std::string>> germlines{{"synthetic", "ACGTACGTACGT"}};
-    Matrix<double> subst = simple_matrix();
+    auto germlines = read_genomic_fasta(germline_path);
+    Matrix<double> subst = load_matrix(matrix_path);
+
+    auto avg_len_reads = [&]() {
+        size_t total = 0;
+        for (const auto& r : base_reads) total += r.second.size();
+        return base_reads.empty() ? 0.0 : static_cast<double>(total) / base_reads.size();
+    };
+    auto avg_len_germlines = [&]() {
+        size_t total = 0;
+        for (const auto& g : germlines) total += g.second.size();
+        return germlines.empty() ? 0.0 : static_cast<double>(total) / germlines.size();
+    };
 
     Aligner legacy(subst, 2, V_gene);
     legacy.set_genomic_sequences(germlines);
     auto t0 = std::chrono::high_resolution_clock::now();
-    auto legacy_res = legacy.align_seqs(reads_const, -100.0, true);
+    const double threshold = -1000000.0;
+    auto legacy_res = legacy.align_seqs(reads_const, threshold, true);
     auto t1 = std::chrono::high_resolution_clock::now();
 
     std::cout << "{\n";
     std::cout << "  \"input_sequences\": " << base_reads.size() << ",\n";
     std::cout << "  \"repeat\": " << repeat << ",\n";
     std::cout << "  \"benchmark_sequences\": " << reads_const.size() << ",\n";
+    std::cout << "  \"germline_templates\": " << germlines.size() << ",\n";
+    std::cout << "  \"avg_read_length\": " << avg_len_reads() << ",\n";
+    std::cout << "  \"avg_germline_length\": " << avg_len_germlines() << ",\n";
+    std::cout << "  \"germline_fasta\": \"" << germline_path << "\",\n";
     auto best_score = [](const auto& xs) {
         double best = -1e300;
         for (const auto& kv : xs) for (const auto& a : kv.second) best = std::max(best, a.score);
         return best;
     };
+    auto alignment_count = [](const auto& xs) {
+        size_t count = 0;
+        for (const auto& kv : xs) for (const auto& a : kv.second) { (void)a; ++count; }
+        return count;
+    };
     std::cout << "  \"legacy_ms\": "
               << std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count() << ",\n";
     std::cout << "  \"legacy_sequences\": " << legacy_res.size() << ",\n";
+    std::cout << "  \"legacy_alignments\": " << alignment_count(legacy_res) << ",\n";
     std::cout << "  \"legacy_best_score\": " << best_score(legacy_res);
 
 #ifdef IGOR_WITH_SEQAN2
     std::vector<std::pair<int, std::string>> reads;
     for (const auto& r : reads_const) reads.push_back({r.first, r.second});
 
-    const int band_half_width = 50;
+    const int band_half_width = 400;
     SeqAn2Aligner seqan2_banded(subst, 2, V_gene, AlignmentPreset::with_band(band_half_width));
     seqan2_banded.set_genomic_sequences(germlines);
     auto b0 = std::chrono::high_resolution_clock::now();
-    auto seqan_banded_res = seqan2_banded.align_seqs(reads, -100.0, true);
+    auto seqan_banded_res = seqan2_banded.align_seqs(reads, threshold, true);
     auto b1 = std::chrono::high_resolution_clock::now();
 
     SeqAn2AlignConfig unbanded_config;
@@ -79,18 +106,20 @@ int main(int argc, char** argv)
     SeqAn2Aligner seqan2_unbanded(subst, 2, V_gene, unbanded_config);
     seqan2_unbanded.set_genomic_sequences(germlines);
     auto u0 = std::chrono::high_resolution_clock::now();
-    auto seqan_unbanded_res = seqan2_unbanded.align_seqs(reads, -100.0, true);
+    auto seqan_unbanded_res = seqan2_unbanded.align_seqs(reads, threshold, true);
     auto u1 = std::chrono::high_resolution_clock::now();
 
     std::cout << ",\n  \"seqan2_banded_ms\": "
               << std::chrono::duration_cast<std::chrono::milliseconds>(b1 - b0).count() << ",\n";
     std::cout << "  \"seqan2_banded_sequences\": " << seqan_banded_res.size() << ",\n";
+    std::cout << "  \"seqan2_banded_alignments\": " << alignment_count(seqan_banded_res) << ",\n";
     std::cout << "  \"seqan2_banded_band_lower_diag\": " << -band_half_width << ",\n";
     std::cout << "  \"seqan2_banded_band_upper_diag\": " << band_half_width << ",\n";
     std::cout << "  \"seqan2_banded_best_score\": " << best_score(seqan_banded_res) << ",\n";
     std::cout << "  \"seqan2_unbanded_ms\": "
               << std::chrono::duration_cast<std::chrono::milliseconds>(u1 - u0).count() << ",\n";
     std::cout << "  \"seqan2_unbanded_sequences\": " << seqan_unbanded_res.size() << ",\n";
+    std::cout << "  \"seqan2_unbanded_alignments\": " << alignment_count(seqan_unbanded_res) << ",\n";
     std::cout << "  \"seqan2_unbanded_best_score\": " << best_score(seqan_unbanded_res) << ",\n";
     std::cout << "  \"score_delta_seqan2_unbanded_minus_legacy\": "
               << (best_score(seqan_unbanded_res) - best_score(legacy_res));
