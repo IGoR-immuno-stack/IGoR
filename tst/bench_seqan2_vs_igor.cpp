@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstdlib>
 #include <iostream>
 #include <string>
@@ -82,6 +83,62 @@ int main(int argc, char** argv)
         for (const auto& kv : xs) for (const auto& a : kv.second) { (void)a; ++count; }
         return count;
     };
+    struct ScoreComparison {
+        size_t common = 0;
+        size_t missing_in_candidate = 0;
+        size_t missing_in_legacy = 0;
+        double sum_abs_delta = 0.0;
+        double max_abs_delta = 0.0;
+    };
+    auto list_best_score = [](const auto& alignments, double& score) {
+        bool found = false;
+        for (const auto& a : alignments) {
+            if (!found || a.score > score) score = a.score;
+            found = true;
+        }
+        return found;
+    };
+    auto compare_best_scores = [&](const auto& legacy_alignments, const auto& candidate_alignments) {
+        ScoreComparison comparison;
+        for (const auto& kv : legacy_alignments) {
+            double legacy_score = 0.0;
+            if (!list_best_score(kv.second, legacy_score)) continue;
+            auto candidate_iter = candidate_alignments.find(kv.first);
+            if (candidate_iter == candidate_alignments.end()) {
+                ++comparison.missing_in_candidate;
+                continue;
+            }
+            double candidate_score = 0.0;
+            if (!list_best_score(candidate_iter->second, candidate_score)) {
+                ++comparison.missing_in_candidate;
+                continue;
+            }
+            const double abs_delta = std::abs(candidate_score - legacy_score);
+            ++comparison.common;
+            comparison.sum_abs_delta += abs_delta;
+            comparison.max_abs_delta = (std::max)(comparison.max_abs_delta, abs_delta);
+        }
+        for (const auto& kv : candidate_alignments) {
+            double candidate_score = 0.0;
+            if (!list_best_score(kv.second, candidate_score)) continue;
+            auto legacy_iter = legacy_alignments.find(kv.first);
+            if (legacy_iter == legacy_alignments.end()) {
+                ++comparison.missing_in_legacy;
+                continue;
+            }
+            double legacy_score = 0.0;
+            if (!list_best_score(legacy_iter->second, legacy_score)) ++comparison.missing_in_legacy;
+        }
+        return comparison;
+    };
+    auto print_score_comparison = [](const char* prefix, const ScoreComparison& comparison) {
+        std::cout << "  \"" << prefix << "_score_common_sequences\": " << comparison.common << ",\n";
+        std::cout << "  \"" << prefix << "_score_missing_in_seqan2\": " << comparison.missing_in_candidate << ",\n";
+        std::cout << "  \"" << prefix << "_score_missing_in_legacy\": " << comparison.missing_in_legacy << ",\n";
+        std::cout << "  \"" << prefix << "_score_mean_abs_delta\": "
+                  << (comparison.common ? comparison.sum_abs_delta / comparison.common : 0.0) << ",\n";
+        std::cout << "  \"" << prefix << "_score_max_abs_delta\": " << comparison.max_abs_delta;
+    };
     std::cout << "  \"legacy_ms\": "
               << std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count() << ",\n";
     std::cout << "  \"legacy_sequences\": " << legacy_res.size() << ",\n";
@@ -93,17 +150,22 @@ int main(int argc, char** argv)
     for (const auto& r : reads_const) reads.push_back({r.first, r.second});
 
     const int band_half_width = 400;
-    SeqAn2Aligner seqan2_banded(subst, 2, V_gene, AlignmentPreset::with_band(band_half_width));
+    SeqAn2AlignConfig legacy_like_banded_config;
+    legacy_like_banded_config.band_lower_diag = -band_half_width;
+    legacy_like_banded_config.band_upper_diag = band_half_width;
+    legacy_like_banded_config.seq2_leading_free = true;
+    legacy_like_banded_config.seq2_trailing_free = true;
+    legacy_like_banded_config.seq1_leading_free = true;
+    legacy_like_banded_config.seq1_trailing_free = true;
+    SeqAn2Aligner seqan2_banded(subst, 2, V_gene, legacy_like_banded_config);
     seqan2_banded.set_genomic_sequences(germlines);
     auto b0 = std::chrono::high_resolution_clock::now();
     auto seqan_banded_res = seqan2_banded.align_seqs(reads, threshold, true);
     auto b1 = std::chrono::high_resolution_clock::now();
 
-    SeqAn2AlignConfig unbanded_config;
+    SeqAn2AlignConfig unbanded_config = legacy_like_banded_config;
     unbanded_config.band_lower_diag = 1;
     unbanded_config.band_upper_diag = 0; // lower > upper means full-matrix unbanded alignment.
-    unbanded_config.seq1_trailing_free = false;
-    unbanded_config.seq2_trailing_free = false;
     SeqAn2Aligner seqan2_unbanded(subst, 2, V_gene, unbanded_config);
     seqan2_unbanded.set_genomic_sequences(germlines);
     auto u0 = std::chrono::high_resolution_clock::now();
@@ -116,13 +178,16 @@ int main(int argc, char** argv)
     std::cout << "  \"seqan2_banded_alignments\": " << alignment_count(seqan_banded_res) << ",\n";
     std::cout << "  \"seqan2_banded_band_lower_diag\": " << -band_half_width << ",\n";
     std::cout << "  \"seqan2_banded_band_upper_diag\": " << band_half_width << ",\n";
+    std::cout << "  \"seqan2_v_gene_legacy_like_free_all_ends\": true,\n";
     std::cout << "  \"seqan2_banded_best_score\": " << best_score(seqan_banded_res) << ",\n";
-    std::cout << "  \"seqan2_unbanded_ms\": "
+    print_score_comparison("seqan2_banded_vs_legacy", compare_best_scores(legacy_res, seqan_banded_res));
+    std::cout << ",\n  \"seqan2_unbanded_ms\": "
               << std::chrono::duration_cast<std::chrono::milliseconds>(u1 - u0).count() << ",\n";
     std::cout << "  \"seqan2_unbanded_sequences\": " << seqan_unbanded_res.size() << ",\n";
     std::cout << "  \"seqan2_unbanded_alignments\": " << alignment_count(seqan_unbanded_res) << ",\n";
     std::cout << "  \"seqan2_unbanded_best_score\": " << best_score(seqan_unbanded_res) << ",\n";
-    std::cout << "  \"score_delta_seqan2_unbanded_minus_legacy\": "
+    print_score_comparison("seqan2_unbanded_vs_legacy", compare_best_scores(legacy_res, seqan_unbanded_res));
+    std::cout << ",\n  \"score_delta_seqan2_unbanded_minus_legacy\": "
               << (best_score(seqan_unbanded_res) - best_score(legacy_res));
 #endif
     std::cout << "\n}\n";
