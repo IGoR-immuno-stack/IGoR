@@ -1,4 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 
 #include <igor/Core/QuerySequenceContext.h>
 #include <igor/Core/ModelContext.h>
@@ -21,6 +22,8 @@
 
 using namespace std;
 using namespace IgorTestUtils;
+using Catch::Matchers::WithinRel;
+
 
 // ============================================================================
 // QuerySequenceContext Tests
@@ -309,8 +312,8 @@ TEST_CASE("AccumulationContext construction", "[Context][AccumulationContext]") 
         // Can modify through context
         accumulation.updated_marginals[0] += 0.2L;
         
-        REQUIRE(marginals[0] == 0.3L);  // Original modified
-        REQUIRE(accumulation.updated_marginals[0] == 0.3L);
+        REQUIRE_THAT(marginals[0], WithinRel(0.3));  // Original modified
+        REQUIRE_THAT(accumulation.updated_marginals[0], WithinRel(0.3));
     }
     
     SECTION("Empty counters map") {
