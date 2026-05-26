@@ -22,7 +22,7 @@ clang-tools = ">=19.1.7,<22"
 valgrind = "*"
 
 [feature.seqan2.dependencies]
-seqan = ">=2.4.0"
+seqan = "==2.4.0"
 
 [environments]
 seqan2 = { features = ["seqan2"], solve-group = "default" }
