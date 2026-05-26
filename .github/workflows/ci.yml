@@ -59,13 +59,28 @@ jobs:
         run: pixi run submodule-update
 
       - name: Configure project
+        if: matrix.os != 'ubuntu-latest'
         run: pixi run configure
 
       - name: Build project
+        if: matrix.os != 'ubuntu-latest'
         run: pixi run build
 
+      - name: Configure project
+        if: matrix.os == 'ubuntu-latest'
+        run: pixi run configure_debug
+
+      - name: Build project
+        if: matrix.os == 'ubuntu-latest'
+        run: pixi run build_debug
+        
       - name: Run C++ tests
+        if: matrix.os != 'ubuntu-latest'
         run: pixi run test
+
+      - name: Run C++ tests
+        if: matrix.os == 'ubuntu-latest'
+        run: pixi run test_debug
 
       - name: Generate coverage report
         if: matrix.os == 'self-hosted'

@@ -23,11 +23,14 @@ valgrind = "*"
 
 [tasks]
 clean = "rm -fr build && rm -fr build_cov"
+configure_debug = "cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug"
 configure = "cmake -S . -B build -G Ninja"
 configure_coverage = "cmake -S . -B build_cov -DBUILD_DOC_DOXYGEN=ON -DENABLE_COVERAGE=ON  -DCMAKE_CXX_SCAN_FOR_MODULES=OFF"
 build = {cmd="cmake --build build --parallel", depends-on = "configure"}
+build_debug = {cmd="cmake --build build --parallel", depends-on = "configure_debug"}
 build_coverage = {cmd="cmake --build build_cov -j8", depends-on = "configure_coverage"}
 test = {cmd="ctest --test-dir build --output-on-failure", depends-on = "build"}
+test_debug = {cmd="ctest --test-dir build --output-on-failure", depends-on = "build_debug"}
 test_regression = { cmd = "scripts/tests/test_run.sh", depends-on = ["build"] }
 test_align = { cmd = "scripts/tests/test_align.sh", depends-on = ["build"] }
 benchmark = { cmd = "scripts/tests/benchmark_run.sh", depends-on = ["build"] }

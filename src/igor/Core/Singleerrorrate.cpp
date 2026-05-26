@@ -266,7 +266,7 @@ queue<int> Single_error_rate::generate_errors(string &generated_seq, mt19937_64 
                     (*iter) = 'T';
                 }
 
-            } else if ((*iter == 'T')) {
+            } else if ((*iter) == 'T') {
                 if (rand_trans <= 1.0 / 3.0) {
                     (*iter) = 'A';
                 } else if (rand_trans >= 2.0 / 3.0) {

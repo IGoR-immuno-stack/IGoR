@@ -56,6 +56,7 @@ public:
     }
 
     Int_Str substr(std::size_t pos = 0, std::size_t len = npos) const; //TODO correct this with aproper value
+    void substr(Int_Str &, std::size_t pos = 0, std::size_t len = npos) const; //TODO correct this with aproper value
 
     using std::vector<int>::erase;
     Int_Str &erase(std::size_t pos, std::size_t len);
