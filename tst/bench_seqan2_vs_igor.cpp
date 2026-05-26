@@ -4,6 +4,7 @@
 #include <igor/Core/SeqAn2Aligner.h>
 #endif
 
+#include <algorithm>
 #include <chrono>
 #include <cstdlib>
 #include <iostream>
@@ -31,7 +32,7 @@ static std::vector<std::pair<const int, const std::string>> load_reads(const cha
 int main(int argc, char** argv)
 {
     std::string seq_path = argc > 1 ? argv[1] : std::string(IGOR_SOURCE_DIR) + "/demo/murugan_naive1_noncoding_demo_seqs.txt";
-    int repeat = argc > 2 ? std::max(1, std::atoi(argv[2])) : 100;
+    int repeat = argc > 2 ? (std::max)(1, std::atoi(argv[2])) : 100;
     std::string germline_path = argc > 3 ? argv[3] : std::string(IGOR_SOURCE_DIR) + "/demo/genomicVs_with_primers.fasta";
     std::string matrix_path = argc > 4 ? argv[4] : std::string(IGOR_SOURCE_DIR) + "/models/heavy_pen_substitution_matrix.csv";
     auto base_reads = load_reads(seq_path.c_str());
@@ -73,7 +74,7 @@ int main(int argc, char** argv)
     std::cout << "  \"germline_fasta\": \"" << germline_path << "\",\n";
     auto best_score = [](const auto& xs) {
         double best = -1e300;
-        for (const auto& kv : xs) for (const auto& a : kv.second) best = std::max(best, a.score);
+        for (const auto& kv : xs) for (const auto& a : kv.second) best = (std::max)(best, a.score);
         return best;
     };
     auto alignment_count = [](const auto& xs) {
