@@ -8,6 +8,7 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <forward_list>
 
 static Matrix<double> simple_matrix()
 {
@@ -43,14 +44,31 @@ int main(int argc, char** argv)
 #ifdef IGOR_WITH_SEQAN2
     std::vector<std::pair<int, std::string>> reads;
     for (const auto& r : reads_const) reads.push_back({r.first, r.second});
-    SeqAn2Aligner seqan2(subst, 2, V_gene, AlignmentPreset::with_band(50));
-    seqan2.set_genomic_sequences(germlines);
-    auto s0 = std::chrono::high_resolution_clock::now();
-    auto seqan_res = seqan2.align_seqs(reads, -100.0, true);
-    auto s1 = std::chrono::high_resolution_clock::now();
-    std::cout << ",\n  \"seqan2_ms\": "
-              << std::chrono::duration_cast<std::chrono::milliseconds>(s1 - s0).count() << ",\n";
-    std::cout << "  \"seqan2_sequences\": " << seqan_res.size();
+
+    SeqAn2Aligner seqan2_banded(subst, 2, V_gene, AlignmentPreset::with_band(50));
+    seqan2_banded.set_genomic_sequences(germlines);
+    auto b0 = std::chrono::high_resolution_clock::now();
+    auto seqan_banded_res = seqan2_banded.align_seqs(reads, -100.0, true);
+    auto b1 = std::chrono::high_resolution_clock::now();
+
+    SeqAn2AlignConfig unbanded_config;
+    unbanded_config.band_lower_diag = 1;
+    unbanded_config.band_upper_diag = 0; // lower > upper means full-matrix unbanded alignment.
+    unbanded_config.seq1_trailing_free = false;
+    unbanded_config.seq2_trailing_free = false;
+    SeqAn2Aligner seqan2_unbanded(subst, 2, V_gene, unbanded_config);
+    seqan2_unbanded.set_genomic_sequences(germlines);
+    auto u0 = std::chrono::high_resolution_clock::now();
+    auto seqan_unbanded_res = seqan2_unbanded.align_seqs(reads, -100.0, true);
+    auto u1 = std::chrono::high_resolution_clock::now();
+
+    std::cout << ",\n  \"seqan2_banded_ms\": "
+              << std::chrono::duration_cast<std::chrono::milliseconds>(b1 - b0).count() << ",\n";
+    std::cout << "  \"seqan2_banded_sequences\": " << seqan_banded_res.size() << ",\n";
+    std::cout << "  \"seqan2_banded_half_width\": 50,\n";
+    std::cout << "  \"seqan2_unbanded_ms\": "
+              << std::chrono::duration_cast<std::chrono::milliseconds>(u1 - u0).count() << ",\n";
+    std::cout << "  \"seqan2_unbanded_sequences\": " << seqan_unbanded_res.size();
 #endif
     std::cout << "\n}\n";
     return 0;

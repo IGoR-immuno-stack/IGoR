@@ -72,6 +72,9 @@ static Alignment_data from_seqan2_align(const TAlign& ali, const std::string& ge
 template <bool A, bool B, bool C, bool D>
 static int run_global(TAlign& ali, const TScore& score, int lower, int upper)
 {
+    if (lower > upper) {
+        return seqan2::globalAlignment(ali, score, seqan2::AlignConfig<A, B, C, D>());
+    }
     return seqan2::globalAlignment(ali, score, seqan2::AlignConfig<A, B, C, D>(), lower, upper);
 }
 

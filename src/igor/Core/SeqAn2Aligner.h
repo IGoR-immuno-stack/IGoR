@@ -21,6 +21,7 @@ struct SeqAn2AlignConfig {
     bool seq1_trailing_free = true;
     bool seq2_trailing_free = true;
     bool local_alignment = false;
+    // Set band_lower_diag > band_upper_diag to request full-matrix unbanded global alignment.
 };
 
 #ifdef IGOR_WITH_SEQAN2
