@@ -175,6 +175,7 @@ sparrow::record_batch vector_to_batch(
  * @param row_index The row to extract alignments from
  * @return Map of gene class to vector of alignment data
  */
+STREAMING_EXPORT
 std::unordered_map<Gene_class, std::vector<Alignment_data>>
 parse_alignments_from_columns(const sparrow::record_batch &batch, size_t row_index);
 
@@ -185,6 +186,7 @@ parse_alignments_from_columns(const sparrow::record_batch &batch, size_t row_ind
  * @param column_name Name of the column
  * @return true if column exists, false otherwise
  */
+STREAMING_EXPORT
 bool has_column(const sparrow::record_batch &batch, const std::string &column_name);
 
 /**
@@ -196,6 +198,7 @@ bool has_column(const sparrow::record_batch &batch, const std::string &column_na
  * @param default_value Value to return if null or missing
  * @return String value or default
  */
+STREAMING_EXPORT
 std::string get_string_value(const sparrow::record_batch &batch, const std::string &column_name,
                              size_t row_index, const std::string &default_value = "");
 
@@ -208,6 +211,7 @@ std::string get_string_value(const sparrow::record_batch &batch, const std::stri
  * @param default_value Value to return if null or missing
  * @return Integer value or default
  */
+STREAMING_EXPORT
 int get_int_value(const sparrow::record_batch &batch, const std::string &column_name,
                   size_t row_index, int default_value = -1);
 
@@ -220,6 +224,7 @@ int get_int_value(const sparrow::record_batch &batch, const std::string &column_
  * @param default_value Value to return if null or missing
  * @return Double value or default
  */
+STREAMING_EXPORT
 double get_double_value(const sparrow::record_batch &batch, const std::string &column_name,
                         size_t row_index, double default_value = 0.0);
 
@@ -232,6 +237,7 @@ double get_double_value(const sparrow::record_batch &batch, const std::string &c
  * @param default_value Value to return if null or missing
  * @return size_t value or default
  */
+STREAMING_EXPORT
 size_t get_size_t_value(const sparrow::record_batch &batch, const std::string &column_name,
                         size_t row_index, size_t default_value = 0);
 
@@ -246,7 +252,8 @@ size_t get_size_t_value(const sparrow::record_batch &batch, const std::string &c
  * @param row_index Row index
  * @return Vector of integers (empty if null or missing)
  */
+STREAMING_EXPORT
 std::vector<int> get_int_list_value(const sparrow::record_batch &batch,
-                                     const std::string &column_name, size_t row_index);
+                                    const std::string &column_name, size_t row_index);
 
 } // namespace igor
