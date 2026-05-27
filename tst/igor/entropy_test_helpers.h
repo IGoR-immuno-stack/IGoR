@@ -11,18 +11,168 @@
 #include <igor/Core/Model_Parms.h>
 #include <igor/Core/Model_marginals.h>
 #include <igor/Core/Rec_Event.h>
+#include <igor/Core/FastGenerator.h>
 
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <forward_list>
 #include <functional>
 #include <iomanip>
 #include <iostream>
 #include <map>
+#include <queue>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
+
+// ---------------------------------------------------------------------------
+// Event metadata structure
+// ---------------------------------------------------------------------------
+
+/**
+ * @brief Metadata for one recombination event.
+ *
+ * Stores the event's name, nickname, number of realizations,
+ * its position in the model queue, and the theoretical marginal distribution.
+ */
+struct EventInfo
+{
+    Rec_Event_name name;
+    std::string nickname;
+    int num_realizations;
+    size_t queue_position; ///< index in the model-queue order
+    bool is_dinuc_markov; ///< skip empirical check for DinucMarkov
+    std::vector<double> model_marginal; ///< P(realization) marginalised over parents
+    double H; ///< entropy of the marginal
+    Gene_class gene_class; ///< gene class (VD_genes, DJ_genes, VJ_genes …)
+    std::array<double, 16> dinuc_T; ///< transition matrix (only for DinucMarkov)
+    double dinuc_entropy_rate; ///< Markov entropy rate h (only for DinucMarkov)
+};
+
+/**
+ * @brief Pair of insertion and dinucleotide Markov events for combined entropy.
+ */
+struct InsDinucPair {
+    const EventInfo *ins_event = nullptr;
+    const EventInfo *dinuc_event = nullptr;
+    double combined_H = 0.0;
+};
+
+// ---------------------------------------------------------------------------
+// Empirical marginals computation
+// ---------------------------------------------------------------------------
+
+/**
+ * @brief Compute empirical marginal distributions for ALL non-DinucMarkov
+ *        events in a single pass over the scenario list.
+ *
+ * Returns a map from event queue_position to its empirical marginal vector.
+ * This avoids the O(events × N) queue-copying that caused timeouts
+ * when compute_empirical_marginal was called per-event.
+ */
+static inline std::map<size_t, std::vector<double>> compute_all_empirical_marginals(
+        const std::forward_list<std::pair<std::string, std::queue<std::queue<int>>>> &scenarios,
+        const std::vector<EventInfo> &event_infos,
+        size_t total_sequences)
+{
+    // Prepare per-event count arrays (only for non-DinucMarkov events)
+    std::map<size_t, std::vector<size_t>> counts;
+    for (const auto &ev : event_infos) {
+        if (!ev.is_dinuc_markov) {
+            counts[ev.queue_position].assign(ev.num_realizations, 0);
+        }
+    }
+
+    // Single pass over all scenarios
+    for (auto it = scenarios.begin(); it != scenarios.end(); ++it) {
+        // Copy the outer queue once per scenario and drain it,
+        // collecting realizations for every event in one go.
+        auto outer = it->second;
+        size_t pos = 0;
+        while (!outer.empty()) {
+            auto inner = outer.front();
+            outer.pop();
+
+            auto cnt_it = counts.find(pos);
+            if (cnt_it != counts.end() && !inner.empty()) {
+                int realization = inner.front();
+                int num_real = static_cast<int>(cnt_it->second.size());
+                if (realization < 0 || realization >= num_real) {
+                    throw std::out_of_range(
+                            "Realization index " + std::to_string(realization) +
+                            " out of bounds [0, " + std::to_string(num_real) + ")");
+                }
+                ++cnt_it->second[realization];
+            }
+            ++pos;
+        }
+    }
+
+    // Convert counts to probabilities
+    std::map<size_t, std::vector<double>> result;
+    double n = static_cast<double>(total_sequences);
+    for (auto &[qpos, cvec] : counts) {
+        std::vector<double> empirical(cvec.size(), 0.0);
+        for (size_t i = 0; i < cvec.size(); ++i) {
+            empirical[i] = static_cast<double>(cvec[i]) / n;
+        }
+        result[qpos] = std::move(empirical);
+    }
+    return result;
+}
+
+/**
+ * @brief Compute empirical marginal distributions from FastGenerator output.
+ *
+ * Overload that works with the FastGenerator's output format:
+ * vector<GeneratedSequence> where each GeneratedSequence::realizations
+ * is a vector<vector<int>>. For non-DinucMarkov events, realizations[pos]
+ * contains a single element: the realization index.
+ */
+static inline std::map<size_t, std::vector<double>> compute_all_empirical_marginals(
+        const std::vector<igor::fast::GeneratedSequence> &sequences,
+        const std::vector<EventInfo> &event_infos,
+        size_t total_sequences)
+{
+    // Prepare per-event count arrays (non-DinucMarkov only)
+    std::map<size_t, std::vector<size_t>> counts;
+    for (const auto &ev : event_infos) {
+        if (!ev.is_dinuc_markov) {
+            counts[ev.queue_position].assign(ev.num_realizations, 0);
+        }
+    }
+
+    // Single pass over all generated sequences
+    for (const auto &seq : sequences) {
+        for (auto &[qpos, cvec] : counts) {
+            if (qpos < seq.realizations.size() && !seq.realizations[qpos].empty()) {
+                int realization = seq.realizations[qpos][0];
+                int num_real = static_cast<int>(cvec.size());
+                if (realization < 0 || realization >= num_real) {
+                    throw std::out_of_range(
+                            "Realization index " + std::to_string(realization) +
+                            " out of bounds [0, " + std::to_string(num_real) + ")");
+                }
+                ++cvec[realization];
+            }
+        }
+    }
+
+    // Convert counts to probabilities
+    std::map<size_t, std::vector<double>> result;
+    double n = static_cast<double>(total_sequences);
+    for (auto &[qpos, cvec] : counts) {
+        std::vector<double> empirical(cvec.size(), 0.0);
+        for (size_t i = 0; i < cvec.size(); ++i) {
+            empirical[i] = static_cast<double>(cvec[i]) / n;
+        }
+        result[qpos] = std::move(empirical);
+    }
+    return result;
+}
 
 // ---------------------------------------------------------------------------
 // Mathematical helpers
@@ -319,39 +469,6 @@ static inline double insertion_dinuc_cross_entropy(
     return H_len_cross + H_ss_cross + h_cross * (E_len_P - (1.0 - P0_P));
 }
 
-// ---------------------------------------------------------------------------
-// Event metadata structure
-// ---------------------------------------------------------------------------
-
-/**
- * @brief Metadata for one recombination event.
- *
- * Stores the event's name, nickname, number of realizations,
- * its position in the model queue, and the theoretical marginal distribution.
- */
-struct EventInfo
-{
-    Rec_Event_name name;
-    std::string nickname;
-    int num_realizations;
-    size_t queue_position; ///< index in the model-queue order
-    bool is_dinuc_markov; ///< skip empirical check for DinucMarkov
-    std::vector<double> model_marginal; ///< P(realization) marginalised over parents
-    double H; ///< entropy of the marginal
-    Gene_class gene_class; ///< gene class (VD_genes, DJ_genes, VJ_genes …)
-    std::array<double, 16> dinuc_T; ///< transition matrix (only for DinucMarkov)
-    double dinuc_entropy_rate; ///< Markov entropy rate h (only for DinucMarkov)
-};
-
-/**
- * @brief Pair of insertion and dinucleotide Markov events for combined entropy.
- */
-struct InsDinucPair {
-    const EventInfo *ins_event = nullptr;
-    const EventInfo *dinuc_event = nullptr;
-    double combined_H = 0.0;
-};
-
 /**
  * @brief Results of comparing two distributions for table display.
  * 
@@ -366,6 +483,13 @@ struct ComparisonRow {
     double uncovered_mass = 0.0;
     bool passes = false;
     
+    // Actual distributions for diagnostic printing
+    std::vector<double> reference_marginal;  ///< Ground truth or theoretical distribution
+    std::vector<double> compared_marginal;   ///< Inferred or empirical distribution
+    
+    // Sampling baseline (for inference tests)
+    double kl_sampling_baseline = -1.0;  ///< D_KL(truth || empirical), -1 if not computed
+    
     // For insertion+dinuc pairs: decomposition into components
     bool is_insertion_dinuc_pair = false;
     double kl_combined = 0.0;
@@ -376,11 +500,107 @@ struct ComparisonRow {
     double H_length_compared = 0.0;
     double uncovered_length = 0.0;
     bool passes_length = false;
+    double kl_length_sampling_baseline = -1.0;  ///< Sampling baseline for length distribution
+    double kl_combined_sampling_baseline = -1.0; ///< Sampling baseline for combined (if available)
     double kl_dinuc = 0.0;
     double h_dinuc_reference = 0.0;
     double h_dinuc_compared = 0.0;
     bool passes_combined = false;
     bool passes_dinuc = false;
+    
+    // Dinuc transition matrices for diagnostic printing
+    std::array<double, 16> reference_dinuc_T{};  ///< Ground truth transition matrix
+    std::array<double, 16> compared_dinuc_T{};   ///< Inferred transition matrix
+};
+
+/**
+ * @brief Print distribution comparison with signed differences for diagnostics
+ * 
+ * Shows: index, P_reference, P_compared, difference, with highlighting for large differences
+ */
+static inline void print_distribution_diagnostics(
+        const std::string& event_name,
+        const std::vector<double>& reference,
+        const std::vector<double>& compared,
+        double difference_threshold = 0.01)
+{
+    std::cout << "\n  Distribution diagnostics for " << event_name << ":" << std::endl;
+    std::cout << "    idx | P_truth    | P_inferred | difference | (%)" << std::endl;
+    std::cout << "    ----|------------|------------|------------|------" << std::endl;
+    
+    for (size_t i = 0; i < reference.size(); ++i) {
+        double diff = compared[i] - reference[i];
+        double rel_diff = (reference[i] > 0.0) ? (diff / reference[i] * 100.0) : 0.0;
+        
+        // Highlight large differences
+        bool highlight = std::abs(diff) > difference_threshold;
+        
+        std::cout << "    " << std::setw(3) << i << " | "
+                  << std::fixed << std::setprecision(6)
+                  << std::setw(10) << reference[i] << " | "
+                  << std::setw(10) << compared[i] << " | "
+                  << std::setw(10) << std::showpos << diff << std::noshowpos << " | "
+                  << std::setw(6) << std::setprecision(1) << std::showpos << rel_diff << std::noshowpos << "%";
+        
+        if (highlight) {
+            std::cout << " <<<";
+        }
+        std::cout << std::endl;
+    }
+}
+
+/**
+ * @brief Print transition matrix comparison for dinucleotide Markov chains
+ * 
+ * Shows 4x4 matrices side by side with differences
+ */
+static inline void print_dinuc_matrix_diagnostics(
+        const std::string& event_name,
+        const std::array<double, 16>& reference,
+        const std::array<double, 16>& compared)
+{
+    const char* nucleotides = "ACGT";
+    
+    std::cout << "\n  Dinuc transition matrix diagnostics for " << event_name << ":" << std::endl;
+    std::cout << "\n  Ground truth T[i,j]:" << std::endl;
+    std::cout << "       ";
+    for (int j = 0; j < 4; ++j) std::cout << "   " << nucleotides[j] << "    ";
+    std::cout << std::endl;
+    
+    for (int i = 0; i < 4; ++i) {
+        std::cout << "    " << nucleotides[i] << " ";
+        for (int j = 0; j < 4; ++j) {
+            std::cout << std::fixed << std::setprecision(4) << std::setw(7) << reference[i*4 + j];
+        }
+        std::cout << std::endl;
+    }
+    
+    std::cout << "\n  Inferred T[i,j]:" << std::endl;
+    std::cout << "       ";
+    for (int j = 0; j < 4; ++j) std::cout << "   " << nucleotides[j] << "    ";
+    std::cout << std::endl;
+    
+    for (int i = 0; i < 4; ++i) {
+        std::cout << "    " << nucleotides[i] << " ";
+        for (int j = 0; j < 4; ++j) {
+            std::cout << std::fixed << std::setprecision(4) << std::setw(7) << compared[i*4 + j];
+        }
+        std::cout << std::endl;
+    }
+    
+    std::cout << "\n  Signed difference (inferred - truth):" << std::endl;
+    std::cout << "       ";
+    for (int j = 0; j < 4; ++j) std::cout << "   " << nucleotides[j] << "    ";
+    std::cout << std::endl;
+    
+    for (int i = 0; i < 4; ++i) {
+        std::cout << "    " << nucleotides[i] << " ";
+        for (int j = 0; j < 4; ++j) {
+            double diff = compared[i*4 + j] - reference[i*4 + j];
+            std::cout << std::fixed << std::setprecision(4) << std::setw(7) << std::showpos << diff << std::noshowpos;
+        }
+        std::cout << std::endl;
+    }
 };
 
 /**
@@ -392,9 +612,11 @@ struct ComparisonRow {
  * @param event_infos List of events with theoretical marginals
  * @param compared_marginals Map from queue_position to compared marginal distribution
  * @param ins_dinuc_pairs Map of insertion+dinuc pairs with combined entropy
- * @param compared_model Optional Model_Parms/Marginals for computing combined D_KL
+ * @param compared_parms Optional Model_Parms for computing combined D_KL
+ * @param compared_model Optional Model_marginals for computing combined D_KL
  * @param compute_combined_kl If true, compute combined/dinuc D_KL (requires compared_model)
  * @param kl_threshold_func Function to compute pass threshold from entropy
+ * @param sampling_baseline_kl Optional map of sampling baseline D_KL values (for inference tests)
  */
 static inline std::vector<ComparisonRow> build_comparison_rows(
         const std::vector<EventInfo> &event_infos,
@@ -403,7 +625,8 @@ static inline std::vector<ComparisonRow> build_comparison_rows(
         const Model_Parms *compared_parms = nullptr,
         const Model_marginals *compared_model = nullptr,
         bool compute_combined_kl = false,
-        std::function<bool(double, double, int)> kl_threshold_func = nullptr)
+        std::function<bool(double, double, int)> kl_threshold_func = nullptr,
+        const std::map<size_t, double> *sampling_baseline_kl = nullptr)
 {
     std::vector<ComparisonRow> rows;
     
@@ -435,6 +658,15 @@ static inline std::vector<ComparisonRow> build_comparison_rows(
         ComparisonRow row;
         row.event_nickname = ev.nickname;
         
+        // Store actual distributions for diagnostic printing
+        row.reference_marginal = ev.model_marginal;
+        row.compared_marginal = compared;
+        
+        // Populate sampling baseline if provided
+        if (sampling_baseline_kl && sampling_baseline_kl->count(ev.queue_position) > 0) {
+            row.kl_sampling_baseline = sampling_baseline_kl->at(ev.queue_position);
+        }
+        
         if (is_ins_event) {
             // Insertion+dinuc pair: show decomposition
             const auto &pair = it_pair->second;
@@ -449,6 +681,7 @@ static inline std::vector<ComparisonRow> build_comparison_rows(
             row.H_length_reference = entropy(ev.model_marginal);
             row.H_length_compared = H_compared;
             row.uncovered_length = uncovered;
+            row.kl_length_sampling_baseline = row.kl_sampling_baseline; // Same baseline for length dist
             
             // Dinuc component (theoretical)
             row.h_dinuc_reference = pair.dinuc_event->dinuc_entropy_rate;
@@ -487,6 +720,10 @@ static inline std::vector<ComparisonRow> build_comparison_rows(
                 // Dinuc D_KL
                 row.kl_dinuc = markov_kl_divergence(dinuc_ev->dinuc_T, compared_dinuc_T);
                 row.h_dinuc_compared = markov_entropy_rate(compared_dinuc_T);
+                
+                // Store transition matrices for diagnostic printing
+                row.reference_dinuc_T = dinuc_ev->dinuc_T;
+                row.compared_dinuc_T = compared_dinuc_T;
             } else {
                 // Generation test: can't compute combined/dinuc D_KL
                 row.H_combined_compared = 0.0;
@@ -532,24 +769,42 @@ static inline std::vector<ComparisonRow> build_comparison_rows(
  * @param rows Vector of comparison rows to display
  * @param reference_label Label for reference column (e.g. "H_truth" or "H_model")
  * @param compared_label Label for compared column (e.g. "H_infer" or "H_emp")
+ * @param show_sampling_baseline If true, show D_KL(sampling) column for inference tests
  */
 static inline void print_comparison_table(
         const std::vector<ComparisonRow> &rows,
         const std::string &reference_label = "H_ref",
-        const std::string &compared_label = "H_cmp")
+        const std::string &compared_label = "H_cmp",
+        bool show_sampling_baseline = false)
 {
-    std::cout << "\nEvent                  | D_KL(R||C) | " 
-              << std::setw(7) << reference_label << " | " 
+    // Check if any row has sampling baseline
+    bool has_baseline = show_sampling_baseline && std::any_of(rows.begin(), rows.end(),
+            [](const ComparisonRow& r) { return r.kl_sampling_baseline >= 0.0; });
+    
+    // Print header
+    std::cout << "\nEvent                  | D_KL(R||C) ";
+    if (has_baseline) {
+        std::cout << "| D_KL(samp) ";
+    }
+    std::cout << "| " << std::setw(7) << reference_label << " | " 
               << std::setw(7) << compared_label << " | Uncovered | Pass" << std::endl;
-    std::cout << "---------------------- | ---------- | ------- | ------- | --------- | ----" << std::endl;
+    
+    std::cout << "---------------------- | ---------- ";
+    if (has_baseline) {
+        std::cout << "| ---------- ";
+    }
+    std::cout << "| ------- | ------- | --------- | ----" << std::endl;
     
     for (const auto& row : rows) {
         if (row.is_insertion_dinuc_pair) {
             // Main row (empty metrics)
             std::cout << std::left << std::setw(22) << row.event_nickname << " | "
                       << std::fixed 
-                      << "          " << " | "
-                      << "       " << " | "
+                      << "          " << " | ";
+            if (has_baseline) {
+                std::cout << "          " << " | ";
+            }
+            std::cout << "       " << " | "
                       << "       " << " | "
                       << "         " << " | "
                       << " " << std::endl;
@@ -561,7 +816,17 @@ static inline void print_comparison_table(
             } else {
                 std::cout << "-";
             }
-            std::cout << " | " << std::setw(7) << row.H_combined_reference << " | " << std::setw(7);
+            std::cout << " | ";
+            if (has_baseline) {
+                std::cout << std::setw(10);
+                if (row.kl_combined_sampling_baseline >= 0.0) {
+                    std::cout << row.kl_combined_sampling_baseline;
+                } else {
+                    std::cout << "-";
+                }
+                std::cout << " | ";
+            }
+            std::cout << std::setw(7) << row.H_combined_reference << " | " << std::setw(7);
             if (row.H_combined_compared > 0.0) {
                 std::cout << row.H_combined_compared;
             } else {
@@ -572,8 +837,17 @@ static inline void print_comparison_table(
                       << (row.passes_combined ? "✓" : "✗") << std::endl;
             // Length component
             std::cout << "  ├─ ins length         | "
-                      << std::setw(10) << row.kl_length << " | "
-                      << std::setw(7) << row.H_length_reference << " | "
+                      << std::setw(10) << row.kl_length << " | ";
+            if (has_baseline) {
+                std::cout << std::setw(10);
+                if (row.kl_length_sampling_baseline >= 0.0) {
+                    std::cout << row.kl_length_sampling_baseline;
+                } else {
+                    std::cout << "-";
+                }
+                std::cout << " | ";
+            }
+            std::cout << std::setw(7) << row.H_length_reference << " | "
                       << std::setw(7) << row.H_length_compared << " | "
                       << std::setw(9) << row.uncovered_length << " | "
                       << (row.passes_length ? "✓" : "✗") << std::endl;
@@ -585,7 +859,11 @@ static inline void print_comparison_table(
             } else {
                 std::cout << "-";
             }
-            std::cout << " | " << std::setw(7) << row.h_dinuc_reference << " | " << std::setw(7);
+            std::cout << " | ";
+            if (has_baseline) {
+                std::cout << std::setw(10) << "-" << " | ";  // No sampling baseline for dinuc
+            }
+            std::cout << std::setw(7) << row.h_dinuc_reference << " | " << std::setw(7);
             if (row.h_dinuc_compared > 0.0) {
                 std::cout << row.h_dinuc_compared;
             } else {
@@ -597,8 +875,17 @@ static inline void print_comparison_table(
         } else {
             // Regular event row
             std::cout << std::left << std::setw(22) << row.event_nickname << " | "
-                      << std::fixed << std::setprecision(4) << std::setw(10) << row.kl_divergence << " | "
-                      << std::setw(7) << row.H_reference << " | "
+                      << std::fixed << std::setprecision(4) << std::setw(10) << row.kl_divergence << " | ";
+            if (has_baseline) {
+                std::cout << std::setw(10);
+                if (row.kl_sampling_baseline >= 0.0) {
+                    std::cout << row.kl_sampling_baseline;
+                } else {
+                    std::cout << "-";
+                }
+                std::cout << " | ";
+            }
+            std::cout << std::setw(7) << row.H_reference << " | "
                       << std::setw(7) << row.H_compared << " | "
                       << std::setw(9) << row.uncovered_mass << " | "
                       << (row.passes ? "✓" : "✗") << std::endl;
