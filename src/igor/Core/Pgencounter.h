@@ -48,7 +48,7 @@ public:
     Pgen_counter(std::string, bool, bool do_output_sequences = false);
     virtual ~Pgen_counter();
 
-    std::string type() const { return "PgenCounter"; }; //TODO return an enum
+    std::string type() const override { return "PgenCounter"; }; //TODO return an enum
 
     // Context-based interface
     void initialize(const ModelContext& model) override;
@@ -59,18 +59,18 @@ public:
     ) override;
 
     // LEGACY INTERFACE (DEPRECATED)
-    void initialize_counter(const Model_Parms &, const Model_marginals &);
+    void initialize_counter(const Model_Parms &, const Model_marginals &) override;
 
     void
     count_scenario(long double, double, const std::string &, Seq_type_str_p_map &, const Seq_offsets_map &,
                    const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> &,
-                   Mismatch_vectors_map &);
+                   Mismatch_vectors_map &) override;
 
-    void dump_sequence_data(int, int);
+    void dump_sequence_data(int, int) override;
 
-    void add_checked(std::shared_ptr<Counter>);
+    void add_checked(std::shared_ptr<Counter>) override;
 
-    std::shared_ptr<Counter> copy() const;
+    std::shared_ptr<Counter> copy() const override;
 
 private:
     bool output_sequences;

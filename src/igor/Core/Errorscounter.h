@@ -47,7 +47,7 @@ public:
     Errors_counter(size_t, std::string, bool);
     virtual ~Errors_counter();
 
-    std::string type() const { return "ErrorsCounter"; }; //TODO return an enum
+    std::string type() const override { return "ErrorsCounter"; }; //TODO return an enum
 
     // Context-based interface
     void initialize(const ModelContext& model) override;
@@ -58,20 +58,20 @@ public:
     ) override;
 
     // LEGACY INTERFACE (DEPRECATED)
-    void initialize_counter(const Model_Parms &, const Model_marginals &);
+    void initialize_counter(const Model_Parms &, const Model_marginals &) override;
 
     void
     count_scenario(long double, double, const std::string &, Seq_type_str_p_map &, const Seq_offsets_map &,
                    const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> &,
-                   Mismatch_vectors_map &);
+                   Mismatch_vectors_map &) override;
 
-    void count_sequence(double, const Model_marginals &, const Model_Parms &);
+    void count_sequence(double, const Model_marginals &, const Model_Parms &) override;
 
-    void add_checked(std::shared_ptr<Counter>);
+    void add_checked(std::shared_ptr<Counter>) override;
 
-    void dump_sequence_data(int, int);
+    void dump_sequence_data(int, int) override;
 
-    std::shared_ptr<Counter> copy() const;
+    std::shared_ptr<Counter> copy() const override;
 
 private:
     // Gene class to count errors on different genes?

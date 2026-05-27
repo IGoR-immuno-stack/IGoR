@@ -49,7 +49,7 @@ public:
     Single_error_rate();
     Single_error_rate(double);
     virtual ~Single_error_rate();
-    
+
     // Context-based interface
     double compute_scenario_error_probability(
         const QuerySequenceContext& query,
@@ -57,25 +57,25 @@ public:
         ScenarioContext& scenario,
         ExplorationContext& exploration
     ) override;
-    
+
     // Legacy interface (deprecated)
     double compare_sequences_error_prob(
             double, const std::string &, Seq_type_str_p_map &, const Seq_offsets_map &,
             const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> &,
-            Mismatch_vectors_map &, double &, const double &);
-    void update();
-    void add_to_norm_counter();
-    void clean_seq_counters();
+            Mismatch_vectors_map &, double &, const double &) override;
+    void update() override;
+    void add_to_norm_counter() override;
+    void clean_seq_counters() override;
     Single_error_rate operator+(Single_error_rate);
     Single_error_rate &operator+=(Single_error_rate);
-    void write2txt(std::ofstream &);
-    std::shared_ptr<Error_rate> copy() const;
-    std::string type() const { return "SingleErrorRate"; }
-    Error_rate *add_checked(Error_rate *);
-    const double &get_err_rate_upper_bound(size_t, size_t);
-    void build_upper_bound_matrix(size_t, size_t);
-    int get_number_non_zero_likelihood_seqs() const { return number_seq; };
-    std::queue<int> generate_errors(std::string &, std::mt19937_64 &) const;
+    void write2txt(std::ofstream &) override;
+    std::shared_ptr<Error_rate> copy() const override;
+    std::string type() const override { return "SingleErrorRate"; }
+    Error_rate *add_checked(Error_rate *) override;
+    const double &get_err_rate_upper_bound(size_t, size_t) override;
+    void build_upper_bound_matrix(size_t, size_t) override;
+    int get_number_non_zero_likelihood_seqs() const override { return number_seq; };
+    std::queue<int> generate_errors(std::string &, std::mt19937_64 &) const override;
 
 private:
     double model_rate;
