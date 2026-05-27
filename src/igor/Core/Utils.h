@@ -578,6 +578,8 @@ public:
 
     int get_current_memory_layer(const K1 &key1, const K2 &key2) { return memory_layer_ptr[key1 + range_key1 * key2]; }
 
+    bool exist(const K1 &key1, const K2 &key2) { return memory_layer_ptr[key1 + range_key1 * key2] > -1; }
+
     void request_memory_layer(const K1 &key1, const K2 &key2)
     {
         /*std::cout<<key<<std::endl;

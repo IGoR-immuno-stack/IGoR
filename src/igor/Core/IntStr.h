@@ -35,6 +35,8 @@ class CORE_EXPORT Int_Str : public std::vector<int>
 {
 
 public:
+    using std::vector<int>::vector;
+
     static const std::size_t npos = -1;
 
     Int_Str &operator+=(const Int_Str &);
@@ -47,6 +49,11 @@ public:
     Int_Str operator+(const Int_Str &) const;
     Int_Str operator+(const int &) const;
     Int_Str operator+(int) const;
+
+    bool operator==(const Int_Str &other) const {
+        return static_cast<const std::vector<int> &>(*this) ==
+               static_cast<const std::vector<int> &>(other);
+    }
 
     Int_Str substr(std::size_t pos = 0, std::size_t len = npos) const; //TODO correct this with aproper value
     void substr(Int_Str &, std::size_t pos = 0, std::size_t len = npos) const; //TODO correct this with aproper value

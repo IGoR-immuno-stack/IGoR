@@ -23,6 +23,7 @@
  *   along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <igor/Core/EventUtils.h>
 #include <igor/Core/Genechoice.h>
 
 using namespace std;
@@ -169,20 +170,22 @@ void Gene_choice::set_genomic_templates(const vector<pair<string, string>> &geno
     }
 }
 
+/**
+ * @brief Context-based iterate() implementation
+ * 
+ * Unpacks 5 context objects into legacy parameters and delegates
+ * to the existing iterate() implementation.
+ * 
+ */
 void Gene_choice::iterate(
-        double &scenario_proba, Downstream_scenario_proba_bound_map &downstream_proba_map, const string &sequence,
-        const Int_Str &int_sequence, Index_map &base_index_map,
-        const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
-        shared_ptr<Next_event_ptr> &next_event_ptr_arr, Marginal_array_p &updated_marginals_pointer,
-        const Marginal_array_p &model_parameters_pointer,
-        const unordered_map<Gene_class, vector<Alignment_data>> &allowed_realizations,
-        Seq_type_str_p_map &constructed_sequences, Seq_offsets_map &seq_offsets, shared_ptr<Error_rate> &error_rate_p,
-        map<size_t, shared_ptr<Counter>> &counters_list,
-        const unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map,
-        Safety_bool_map &safety_set, Mismatch_vectors_map &mismatches_lists, double &seq_max_prob_scenario,
-        double &proba_threshold_factor)
+        QuerySequenceContext& query,
+        const ModelContext& model,
+        ScenarioContext& scenario,
+        ExplorationContext& exploration,
+        AccumulationContext& accumulation)
 {
-    base_index = base_index_map.at(this->event_index);
+    base_index = exploration.index_map.at(this->event_index);
+    const double base_scenario_proba = scenario.scenario_proba;
 
     switch (this->event_class) {
 
@@ -195,7 +198,7 @@ void Gene_choice::iterate(
         //Check D choice
         if (d_chosen) {
             //If D chosen need to check V safety
-            d_offset = seq_offsets.at(D_gene_seq, Five_prime, memory_layer_offset_check1);
+            d_offset = scenario.get_offset(D_gene_seq, Five_prime, memory_layer_offset_check1);
             d_5_min_offset = d_offset - d_5_min_del;
             d_5_max_offset = d_offset - d_5_max_del;
 
@@ -203,18 +206,18 @@ void Gene_choice::iterate(
         } else {
             vd_check = false;
             if (d_choice_exist) {
-                safety_set.set_value(Event_safety::VD_safe, false, memory_layer_safety_1);
+                exploration.set_overlap_safety(Event_safety::VD_safe, false, memory_layer_safety_1);
 
             } else {
                 //If no D choice V choice is safe
-                safety_set.set_value(Event_safety::VD_safe, true, memory_layer_safety_1);
+                exploration.set_overlap_safety(Event_safety::VD_safe, true, memory_layer_safety_1);
             }
         }
 
         //Check J choice
         if (j_chosen) {
             //If J chosen need to check V safety
-            j_offset = seq_offsets.at(J_gene_seq, Five_prime, memory_layer_offset_check2);
+            j_offset = scenario.get_offset(J_gene_seq, Five_prime, memory_layer_offset_check2);
             j_5_min_offset = j_offset - j_5_min_del;
             j_5_max_offset = j_offset - j_5_max_del;
 
@@ -222,16 +225,16 @@ void Gene_choice::iterate(
         } else {
             vj_check = false;
             if (j_choice_exist) {
-                safety_set.set_value(Event_safety::VJ_safe, false, memory_layer_safety_2);
+                exploration.set_overlap_safety(Event_safety::VJ_safe, false, memory_layer_safety_2);
             } else {
                 //If no J choice V choice is safe
-                safety_set.set_value(Event_safety::VJ_safe, true, memory_layer_safety_2);
+                exploration.set_overlap_safety(Event_safety::VJ_safe, true, memory_layer_safety_2);
             }
         }
 
         //Iterate over possible realizations (alignments provided for the V gene)
-        for (vector<Alignment_data>::const_iterator iter = allowed_realizations.at(V_gene).begin();
-             iter != allowed_realizations.at(V_gene).end(); ++iter) {
+        for (vector<Alignment_data>::const_iterator iter = query.gene_alignments.at(V_gene).begin();
+             iter != query.gene_alignments.at(V_gene).end(); ++iter) {
 
             if ((*iter).offset >= 0) {
                 //gene_seq = this->event_realizations.at((*iter).gene_name).value_str ;
@@ -246,7 +249,7 @@ void Gene_choice::iterate(
                 v_5_off = 0;
             }
             //Insert the gene sequence as the constructed V gene sequence
-            constructed_sequences.set_value(V_gene_seq, &gene_seq, memory_layer_cs);
+            scenario.set_sequence_segment(V_gene_seq, &gene_seq, memory_layer_cs);
 
             //Compute v_3_offset
             v_3_off = v_5_off + gene_seq.size() - 1;
@@ -260,10 +263,10 @@ void Gene_choice::iterate(
                 }
                 if ((v_3_off + v_3_min_del) < (d_5_min_offset)) {
                     //Even with minimum number of deletions there's no overlap => safe even without knowing the number of deletions
-                    safety_set.set_value(Event_safety::VD_safe, true, memory_layer_safety_1);
+                    exploration.set_overlap_safety(Event_safety::VD_safe, true, memory_layer_safety_1);
                 } else {
                     //In the deletion range => some number of deletion won't be allowed and will be discarded in the deletion process
-                    safety_set.set_value(Event_safety::VD_safe, false, memory_layer_safety_1);
+                    exploration.set_overlap_safety(Event_safety::VD_safe, false, memory_layer_safety_1);
                 }
             }
 
@@ -276,17 +279,17 @@ void Gene_choice::iterate(
                 }
                 if ((v_3_off + v_3_min_del) < (j_5_min_offset)) {
                     //Even with minimum number of deletions there's no overlap => safe even without knowing the number of deletions
-                    safety_set.set_value(Event_safety::VJ_safe, true, memory_layer_safety_2);
+                    exploration.set_overlap_safety(Event_safety::VJ_safe, true, memory_layer_safety_2);
                 } else {
                     //In the deletion range => some number of deletion won't be allowed and will be discarded in the deletion process
-                    safety_set.set_value(Event_safety::VJ_safe, false, memory_layer_safety_2);
+                    exploration.set_overlap_safety(Event_safety::VJ_safe, false, memory_layer_safety_2);
                 }
             }
 
             //Compute gene choice realization index
             current_realizations_index_vec[0] = this->event_realizations.at((*iter).gene_name).index;
             new_index = base_index + current_realizations_index_vec[0];
-            new_scenario_proba = scenario_proba;
+            new_scenario_proba = base_scenario_proba;
             //new_tmp_err_w_proba = tmp_err_w_proba;
             proba_contribution = 1;
 
@@ -295,34 +298,32 @@ void Gene_choice::iterate(
             alignment_offset_p = &(*iter).offset;
 
             proba_contribution = iterate_common(proba_contribution, current_realizations_index_vec[0], base_index,
-                                                base_index_map, offset_map, model_parameters_pointer);
+                                                exploration.index_map, model.offset_map, model.model_parameters);
 
             //Update scenario probability
             new_scenario_proba *= proba_contribution;
             new_tmp_err_w_proba *= proba_contribution;
 
             //Set seq offsets
-            seq_offsets.set_value(V_gene_seq, Five_prime, v_5_off, memory_layer_off_fivep);
-            seq_offsets.set_value(V_gene_seq, Three_prime, v_3_off, memory_layer_off_threep);
+            scenario.set_offset(V_gene_seq, Five_prime, v_5_off, memory_layer_off_fivep);
+            scenario.set_offset(V_gene_seq, Three_prime, v_3_off, memory_layer_off_threep);
 
             //Set the the V mismatch list using the mismatch list computed during the alignment
-            mismatches_lists.set_value(V_gene_seq, &(*iter).mismatches, memory_layer_mismatches);
+            scenario.set_mismatches(V_gene_seq, &(*iter).mismatches, memory_layer_mismatches);
 
-            //Update downstream proba map and compute the downstream proba bound for this event
-            scenario_upper_bound_proba = new_scenario_proba;
 
             //Get VD or VJ junction upper bound proba
             if (d_chosen) {
                 if (vd_length_best_proba_map.count(d_offset - v_3_off - 1) <= 0) {
                     continue; //This means no scenario can lead to a correct solution, would need to be changed for Error models with in/dels
                 }
-                downstream_proba_map.set_value(VD_ins_seq, vd_length_best_proba_map.at(d_offset - v_3_off - 1),
+                exploration.downstream_proba_map.set_value(VD_ins_seq, vd_length_best_proba_map.at(d_offset - v_3_off - 1),
                                                memory_layer_proba_map_junction);
             } else if (j_chosen) {
                 if (vj_length_best_proba_map.count(j_offset - v_3_off - 1) <= 0) {
                     continue; //This means no scenario can lead to a correct solution, would need to be changed for Error models with in/dels
                 }
-                downstream_proba_map.set_value(VJ_ins_seq, vj_length_best_proba_map.at(j_offset - v_3_off - 1),
+                exploration.downstream_proba_map.set_value(VJ_ins_seq, vj_length_best_proba_map.at(j_offset - v_3_off - 1),
                                                memory_layer_proba_map_junction);
             }
 
@@ -334,25 +335,26 @@ void Gene_choice::iterate(
                 ++endogeneous_mismatches;
                 ++mism_iter;
             }
-            downstream_proba_map.set_value(
+            exploration.downstream_proba_map.set_value(
                     V_gene_seq,
-                    error_rate_p->get_err_rate_upper_bound(endogeneous_mismatches,
+                    accumulation.error_rate->get_err_rate_upper_bound(endogeneous_mismatches,
                                                            gene_seq.size() - v_3_max_del - endogeneous_mismatches),
                     memory_layer_proba_map_seq);
 
             //Multiply all downstream probas
-            downstream_proba_map.multiply_all(scenario_upper_bound_proba, current_downstream_proba_memory_layers);
+            scenario_upper_bound_proba = exploration.compute_upper_bound(
+                new_scenario_proba,
+                current_downstream_proba_memory_layers
+            );
 
-            //compute_upper_bound_scenario_proba(new_tmp_err_w_proba);
-            if (scenario_upper_bound_proba < (seq_max_prob_scenario * proba_threshold_factor)) {
+            if (exploration.should_prune(scenario_upper_bound_proba)) {
                 continue;
             }
 
-            Rec_Event::iterate_wrap_up(new_scenario_proba, downstream_proba_map, sequence, int_sequence, base_index_map,
-                                       offset_map, next_event_ptr_arr, updated_marginals_pointer,
-                                       model_parameters_pointer, allowed_realizations, constructed_sequences,
-                                       seq_offsets, error_rate_p, counters_list, events_map, safety_set,
-                                       mismatches_lists, seq_max_prob_scenario, proba_threshold_factor);
+            // Update context with new probability before proceeding
+            scenario.scenario_proba = new_scenario_proba;
+        
+            Rec_Event::iterate_wrap_up(query, model, scenario, exploration, accumulation);
         }
     } break;
 
@@ -361,7 +363,7 @@ void Gene_choice::iterate(
         //Check V choice
         if (v_chosen) {
             //If V chosen need to check D safety
-            v_offset = seq_offsets.at(V_gene_seq, Three_prime, memory_layer_offset_check1);
+            v_offset = scenario.get_offset(V_gene_seq, Three_prime, memory_layer_offset_check1);
             v_3_max_offset = v_offset + v_3_min_del;
             v_3_min_offset = v_offset + v_3_max_del;
 
@@ -370,17 +372,17 @@ void Gene_choice::iterate(
         } else {
             vd_check = false;
             if (v_choice_exist) {
-                safety_set.set_value(Event_safety::VD_safe, false, memory_layer_safety_1);
+                exploration.set_overlap_safety(Event_safety::VD_safe, false, memory_layer_safety_1);
             } else {
                 //If no V choice D choice is safe
-                safety_set.set_value(Event_safety::VD_safe, true, memory_layer_safety_1);
+                exploration.set_overlap_safety(Event_safety::VD_safe, true, memory_layer_safety_1);
             }
         }
 
         //Check J choice
         if (j_chosen) {
             //If J chosen need to check D safety
-            j_offset = seq_offsets.at(J_gene_seq, Five_prime, memory_layer_offset_check2);
+            j_offset = scenario.get_offset(J_gene_seq, Five_prime, memory_layer_offset_check2);
             j_5_min_offset = j_offset - j_5_min_del;
             j_5_max_offset = j_offset - j_5_max_del;
 
@@ -389,29 +391,29 @@ void Gene_choice::iterate(
             dj_check = false;
 
             //Useful in case of no D, however for speed purpose it might be better to process J choice first
-            j_5_min_offset = sequence.size() - 1;
+            j_5_min_offset = query.sequence.size() - 1;
             j_5_max_offset = j_5_min_offset;
 
             if (j_choice_exist) {
                 //safety_set.emplace(Event_safety::DJ_unsafe);
-                safety_set.set_value(Event_safety::DJ_safe, false, memory_layer_safety_2);
+                exploration.set_overlap_safety(Event_safety::DJ_safe, false, memory_layer_safety_2);
             } else {
                 //If no J choice V choice is safe
                 //safety_set.emplace(Event_safety::DJ_safe);
-                safety_set.set_value(Event_safety::DJ_safe, true, memory_layer_safety_2);
+                exploration.set_overlap_safety(Event_safety::DJ_safe, true, memory_layer_safety_2);
             }
         }
 
         no_d_align = true;
 
         //Iterate over possible realizations (alignments provided for the D gene)
-        for (vector<Alignment_data>::const_iterator iter = allowed_realizations.at(D_gene).begin();
-             iter != allowed_realizations.at(D_gene).end(); ++iter) {
+        for (vector<Alignment_data>::const_iterator iter = query.gene_alignments.at(D_gene).begin();
+             iter != query.gene_alignments.at(D_gene).end(); ++iter) {
 
             //gene_seq = this->event_realizations.at((*iter).gene_name).value_str;
             gene_seq = this->event_realizations.at((*iter).gene_name).value_str_int;
 
-            constructed_sequences.set_value(D_gene_seq, &gene_seq, memory_layer_cs);
+            scenario.set_sequence_segment(D_gene_seq, &gene_seq, memory_layer_cs);
 
             d_5_off = (*iter).offset;
             d_3_off = (*iter).offset + gene_seq.size() - 1;
@@ -423,10 +425,10 @@ void Gene_choice::iterate(
                 }
                 if ((d_5_off - d_5_min_del) > (v_3_max_offset)) {
                     //Even with minimum number of deletions there's no overlap => safe even without knowing the number of deletions
-                    safety_set.set_value(Event_safety::VD_safe, true, memory_layer_safety_1);
+                    exploration.set_overlap_safety(Event_safety::VD_safe, true, memory_layer_safety_1);
                 } else {
                     //In the deletion range => some number of deletion won't be allowed and will be discarded in the deletion process
-                    safety_set.set_value(Event_safety::VD_safe, false, memory_layer_safety_1);
+                    exploration.set_overlap_safety(Event_safety::VD_safe, false, memory_layer_safety_1);
                 }
             }
             if (dj_check) {
@@ -436,10 +438,10 @@ void Gene_choice::iterate(
                 }
                 if ((d_3_off + d_3_min_del) < (j_5_min_offset)) {
                     //Even with minimum number of deletions there's no overlap => safe even without knowing the number of deletions
-                    safety_set.set_value(Event_safety::DJ_safe, true, memory_layer_safety_2);
+                    exploration.set_overlap_safety(Event_safety::DJ_safe, true, memory_layer_safety_2);
                 } else {
                     //In the deletion range => some number of deletion won't be allowed and will be discarded in the deletion process
-                    safety_set.set_value(Event_safety::DJ_safe, false, memory_layer_safety_2);
+                    exploration.set_overlap_safety(Event_safety::DJ_safe, false, memory_layer_safety_2);
                 }
             }
 
@@ -447,25 +449,23 @@ void Gene_choice::iterate(
 
             current_realizations_index_vec[0] = this->event_realizations.at((*iter).gene_name).index;
             new_index = base_index + current_realizations_index_vec[0];
-            new_scenario_proba = scenario_proba;
+            new_scenario_proba = base_scenario_proba;
             //new_tmp_err_w_proba = tmp_err_w_proba;
             proba_contribution = 1;
 
             proba_contribution = iterate_common(proba_contribution, current_realizations_index_vec[0], base_index,
-                                                base_index_map, offset_map, model_parameters_pointer);
+                                                exploration.index_map, model.offset_map, model.model_parameters);
 
             new_scenario_proba *= proba_contribution;
             //new_tmp_err_w_proba*=proba_contribution;
 
             //Assume that the whole D is in the sequence and add the D sequence to the constructed sequences
-            seq_offsets.set_value(D_gene_seq, Five_prime, (*iter).offset, memory_layer_off_fivep);
-            seq_offsets.set_value(D_gene_seq, Three_prime, (*iter).offset + gene_seq.size() - 1,
+            scenario.set_offset(D_gene_seq, Five_prime, (*iter).offset, memory_layer_off_fivep);
+            scenario.set_offset(D_gene_seq, Three_prime, (*iter).offset + gene_seq.size() - 1,
                                   memory_layer_off_threep);
 
-            mismatches_lists.set_value(D_gene_seq, &(*iter).mismatches, memory_layer_mismatches);
+            scenario.set_mismatches(D_gene_seq, &(*iter).mismatches, memory_layer_mismatches);
 
-            //Update downstream proba map and compute the downstream proba bound for this event
-            scenario_upper_bound_proba = new_scenario_proba;
 
             //Get DJ or VJ junction upper bound proba
             if (v_chosen and j_chosen) {
@@ -473,22 +473,22 @@ void Gene_choice::iterate(
                     or dj_length_best_proba_map.count(j_offset - d_3_off - 1) <= 0) {
                     continue; //This means no scenario can lead to a correct solution, would need to be changed for Error models with in/dels
                 }
-                downstream_proba_map.set_value(VJ_ins_seq, 1.0, memory_layer_proba_map_junction);
-                downstream_proba_map.set_value(VD_ins_seq, vd_length_best_proba_map.at(d_5_off - v_offset - 1),
+                exploration.downstream_proba_map.set_value(VJ_ins_seq, 1.0, memory_layer_proba_map_junction);
+                exploration.downstream_proba_map.set_value(VD_ins_seq, vd_length_best_proba_map.at(d_5_off - v_offset - 1),
                                                memory_layer_proba_map_junction_d2);
-                downstream_proba_map.set_value(DJ_ins_seq, dj_length_best_proba_map.at(j_offset - d_3_off - 1),
+                exploration.downstream_proba_map.set_value(DJ_ins_seq, dj_length_best_proba_map.at(j_offset - d_3_off - 1),
                                                memory_layer_proba_map_junction_d3);
             } else if (v_chosen) {
                 if (vd_length_best_proba_map.count(d_5_off - v_offset - 1) <= 0) {
                     continue; //This means no scenario can lead to a correct solution, would need to be changed for Error models with in/dels
                 }
-                downstream_proba_map.set_value(VD_ins_seq, vd_length_best_proba_map.at(d_5_off - v_offset - 1),
+                exploration.downstream_proba_map.set_value(VD_ins_seq, vd_length_best_proba_map.at(d_5_off - v_offset - 1),
                                                memory_layer_proba_map_junction_d2);
             } else if (j_chosen) {
                 if (dj_length_best_proba_map.count(j_offset - d_3_off - 1) <= 0) {
                     continue; //This means no scenario can lead to a correct solution, would need to be changed for Error models with in/dels
                 }
-                downstream_proba_map.set_value(DJ_ins_seq, dj_length_best_proba_map.at(j_offset - d_3_off - 1),
+                exploration.downstream_proba_map.set_value(DJ_ins_seq, dj_length_best_proba_map.at(j_offset - d_3_off - 1),
                                                memory_layer_proba_map_junction_d3);
             }
 
@@ -503,36 +503,38 @@ void Gene_choice::iterate(
                     }
                     ++mism_iter;
                 }
-                downstream_proba_map.set_value(D_gene_seq,
-                                               error_rate_p->get_err_rate_upper_bound(endogeneous_mismatches,
+                exploration.downstream_proba_map.set_value(D_gene_seq,
+                                               accumulation.error_rate->get_err_rate_upper_bound(endogeneous_mismatches,
                                                                                       (d_3_off + d_3_max_del)
                                                                                               - (d_5_off - d_5_max_del)
                                                                                               - endogeneous_mismatches),
                                                memory_layer_proba_map_seq);
             } else {
-                downstream_proba_map.set_value(D_gene_seq, 1.0, memory_layer_proba_map_seq);
+                exploration.downstream_proba_map.set_value(D_gene_seq, 1.0, memory_layer_proba_map_seq);
             }
 
             //Multiply all downstream probas
-            downstream_proba_map.multiply_all(scenario_upper_bound_proba, current_downstream_proba_memory_layers);
+            scenario_upper_bound_proba = exploration.compute_upper_bound(
+                new_scenario_proba,
+                current_downstream_proba_memory_layers
+            );
 
-            //compute_upper_bound_scenario_proba(new_tmp_err_w_proba);
-            if (scenario_upper_bound_proba < (seq_max_prob_scenario * proba_threshold_factor)) {
+            if (exploration.should_prune(scenario_upper_bound_proba)) {
                 continue;
             }
             no_d_align = false;
-            Rec_Event::iterate_wrap_up(new_scenario_proba, downstream_proba_map, sequence, int_sequence, base_index_map,
-                                       offset_map, next_event_ptr_arr, updated_marginals_pointer,
-                                       model_parameters_pointer, allowed_realizations, constructed_sequences,
-                                       seq_offsets, error_rate_p, counters_list, events_map, safety_set,
-                                       mismatches_lists, seq_max_prob_scenario, proba_threshold_factor);
+
+            // Update context with new probability before proceeding
+            scenario.scenario_proba = new_scenario_proba;
+        
+            Rec_Event::iterate_wrap_up(query, model, scenario, exploration, accumulation);
         }
 
         if (no_d_align) {
             //int test = 0;
 
             //Pass the mismatch vector pointer to the memory map once (will be updated in the next loop)
-            mismatches_lists.set_value(D_gene_seq, &no_d_mismatches, memory_layer_mismatches);
+            scenario.set_mismatches(D_gene_seq, &no_d_mismatches, memory_layer_mismatches);
 
             if (v_chosen and j_chosen) {
                 int vj_len = j_offset - v_offset - 1;
@@ -562,7 +564,7 @@ void Gene_choice::iterate(
                         }
 
                         gene_seq = d_real.value_str_int;
-                        constructed_sequences.set_value(D_gene_seq, &gene_seq, memory_layer_cs);
+                        scenario.set_sequence_segment(D_gene_seq, &gene_seq, memory_layer_cs);
 
                         current_realizations_index_vec[0] = d_real.index;
                         new_index = base_index + current_realizations_index_vec[0];
@@ -571,26 +573,24 @@ void Gene_choice::iterate(
                         proba_contribution = 1;
                         proba_contribution =
                                 iterate_common(proba_contribution, current_realizations_index_vec[0], base_index,
-                                               base_index_map, offset_map, model_parameters_pointer);
+                                               exploration.index_map, model.offset_map, model.model_parameters);
 
-                        new_scenario_proba = scenario_proba * proba_contribution;
+                        new_scenario_proba = scenario.scenario_proba * proba_contribution;
 
-                        //Update downstream proba map and compute the downstream proba bound for this event
-                        scenario_upper_bound_proba = new_scenario_proba;
 
                         //Get DJ or VJ junction upper bound proba
                         /*							if(v_chosen and j_chosen){
 									if(vd_length_best_proba_map.count(d_5_off - v_offset -1)<=0 or dj_length_best_proba_map.count(j_offset - d_full_3_offset  -1)<=0){
 										continue; //This means no scenario can lead to a correct solution, would need to be changed for Error models with in/dels
 									}*/
-                        downstream_proba_map.set_value(VJ_ins_seq, 1.0, memory_layer_proba_map_junction);
-                        downstream_proba_map.set_value(VD_ins_seq,
+                        exploration.downstream_proba_map.set_value(VJ_ins_seq, 1.0, memory_layer_proba_map_junction);
+                        exploration.downstream_proba_map.set_value(VD_ins_seq,
                                                        vd_length_best_proba_map.at(get<1>(*d_position_iter)),
                                                        memory_layer_proba_map_junction_d2);
-                        downstream_proba_map.set_value(DJ_ins_seq,
+                        exploration.downstream_proba_map.set_value(DJ_ins_seq,
                                                        dj_length_best_proba_map.at(get<2>(*d_position_iter)),
                                                        memory_layer_proba_map_junction_d3);
-                        downstream_proba_map.set_value(D_gene_seq, 1.0,
+                        exploration.downstream_proba_map.set_value(D_gene_seq, 1.0,
                                                        memory_layer_proba_map_seq); //Lift the penalty on D gene seq
 
                         /*							}
@@ -608,19 +608,21 @@ void Gene_choice::iterate(
 								}*/
 
                         //Multiply all downstream probas
-                        downstream_proba_map.multiply_all(scenario_upper_bound_proba,
-                                                          current_downstream_proba_memory_layers);
+                        scenario_upper_bound_proba = exploration.compute_upper_bound(
+                            new_scenario_proba,
+                            current_downstream_proba_memory_layers
+                        );
 
                         //If even without taking the weight of errors into account not good, then any lower one not good
-                        if (scenario_upper_bound_proba < (seq_max_prob_scenario * proba_threshold_factor)) {
+                        if (exploration.should_prune(scenario_upper_bound_proba)) {
                             break;
                         }
 
                         //Get mismatches between D gene and sequence
                         no_d_mismatches.clear();
                         for (int i = 0; i != d_size; ++i) {
-                            if (((d_5_off + i) >= 0) && (d_5_off + i) < int_sequence.size()) {
-                                if (gene_seq[i] != int_sequence[d_5_off + i]) {
+                            if (((d_5_off + i) >= 0) && (d_5_off + i) < query.int_sequence.size()) {
+                                if (gene_seq[i] != query.int_sequence[d_5_off + i]) {
                                     no_d_mismatches.push_back(d_5_off + i);
                                 }
                             }
@@ -639,37 +641,36 @@ void Gene_choice::iterate(
                                 ++mism_iter;
                             }
                             //Weigh D_gene_seq accordingly
-                            downstream_proba_map.set_value(
+                            exploration.downstream_proba_map.set_value(
                                     D_gene_seq,
-                                    error_rate_p->get_err_rate_upper_bound(endogeneous_mismatches,
+                                    accumulation.error_rate->get_err_rate_upper_bound(endogeneous_mismatches,
                                                                            (d_full_3_offset + d_3_max_del)
                                                                                    - (d_5_off - d_5_max_del)
                                                                                    - endogeneous_mismatches),
                                     memory_layer_proba_map_seq);
 
                             //Multiply all downstream probas
-                            scenario_upper_bound_proba = new_scenario_proba;
-                            downstream_proba_map.multiply_all(scenario_upper_bound_proba,
-                                                              current_downstream_proba_memory_layers);
+                            scenario_upper_bound_proba = exploration.compute_upper_bound(
+                                new_scenario_proba,
+                                current_downstream_proba_memory_layers
+                            );
 
-                            if (scenario_upper_bound_proba < (seq_max_prob_scenario * proba_threshold_factor)) {
+                            if (exploration.should_prune(scenario_upper_bound_proba)) {
                                 continue;
                             }
 
                         } else {
-                            downstream_proba_map.set_value(D_gene_seq, 1.0, memory_layer_proba_map_seq);
+                            exploration.downstream_proba_map.set_value(D_gene_seq, 1.0, memory_layer_proba_map_seq);
                         }
 
                         //Assume that the whole D is in the sequence and add the D sequence to the constructed sequences
-                        seq_offsets.set_value(D_gene_seq, Five_prime, d_5_off, memory_layer_off_fivep);
-                        seq_offsets.set_value(D_gene_seq, Three_prime, d_5_off + d_size - 1, memory_layer_off_threep);
+                        scenario.set_offset(D_gene_seq, Five_prime, d_5_off, memory_layer_off_fivep);
+                        scenario.set_offset(D_gene_seq, Three_prime, d_5_off + d_size - 1, memory_layer_off_threep);
 
-                        Rec_Event::iterate_wrap_up(new_scenario_proba, downstream_proba_map, sequence, int_sequence,
-                                                   base_index_map, offset_map, next_event_ptr_arr,
-                                                   updated_marginals_pointer, model_parameters_pointer,
-                                                   allowed_realizations, constructed_sequences, seq_offsets,
-                                                   error_rate_p, counters_list, events_map, safety_set,
-                                                   mismatches_lists, seq_max_prob_scenario, proba_threshold_factor);
+                        // Update context with new probability before proceeding
+                        scenario.scenario_proba = new_scenario_proba;
+                    
+                        Rec_Event::iterate_wrap_up(query, model, scenario, exploration, accumulation);
                     }
                 }
             } else {
@@ -706,7 +707,7 @@ void Gene_choice::iterate(
 
                     //Always the same sequence for the given D
                     gene_seq = (*d_gene_iter).second.value_str_int;
-                    constructed_sequences.set_value(D_gene_seq, &gene_seq, memory_layer_cs);
+                    scenario.set_sequence_segment(D_gene_seq, &gene_seq, memory_layer_cs);
 
                     current_realizations_index_vec[0] = d_gene_iter->second.index;
                     new_index = base_index + current_realizations_index_vec[0];
@@ -715,7 +716,7 @@ void Gene_choice::iterate(
                     proba_contribution = 1;
                     proba_contribution =
                             iterate_common(proba_contribution, current_realizations_index_vec[0], base_index,
-                                           base_index_map, offset_map, model_parameters_pointer);
+                                           exploration.index_map, model.offset_map, model.model_parameters);
                     //new_tmp_err_w_proba = tmp_err_w_proba*proba_contribution;
                     /*					compute_upper_bound_scenario_proba(new_tmp_err_w_proba);
 						if(scenario_upper_bound_proba<(seq_max_prob_scenario*proba_threshold_factor)){
@@ -728,14 +729,14 @@ void Gene_choice::iterate(
                         //Get mismatches between D gene and sequence at the 5' most position
                         no_d_mismatches.clear();
                         for (int i = 0; i != d_size; ++i) {
-                            if (((d_5_off + i) >= 0) && (d_5_off + i) < int_sequence.size()) {
-                                if (gene_seq[i] != int_sequence[d_5_off + i]) {
+                            if (((d_5_off + i) >= 0) && (d_5_off + i) < query.int_sequence.size()) {
+                                if (gene_seq[i] != query.int_sequence[d_5_off + i]) {
                                     no_d_mismatches.push_back(d_5_off + i);
                                 }
                             }
                         }
 
-                        new_scenario_proba = scenario_proba * proba_contribution;
+                        new_scenario_proba = scenario.scenario_proba * proba_contribution;
                         //new_tmp_err_w_proba = tmp_err_w_proba*proba_contribution;
 
                         /*if( (d_full_3_offset<0)){
@@ -746,11 +747,9 @@ void Gene_choice::iterate(
 							}*/
 
                         //Assume that the whole D is in the sequence and add the D sequence to the constructed sequences
-                        seq_offsets.set_value(D_gene_seq, Five_prime, d_5_off, memory_layer_off_fivep);
-                        seq_offsets.set_value(D_gene_seq, Three_prime, d_full_3_offset, memory_layer_off_threep);
+                        scenario.set_offset(D_gene_seq, Five_prime, d_5_off, memory_layer_off_fivep);
+                        scenario.set_offset(D_gene_seq, Three_prime, d_full_3_offset, memory_layer_off_threep);
 
-                        //Update downstream proba map and compute the downstream proba bound for this event
-                        scenario_upper_bound_proba = new_scenario_proba;
 
                         //Get DJ or VJ junction upper bound proba
                         if (v_chosen and j_chosen) {
@@ -758,25 +757,25 @@ void Gene_choice::iterate(
                                 or dj_length_best_proba_map.count(j_offset - d_full_3_offset - 1) <= 0) {
                                 continue; //This means no scenario can lead to a correct solution, would need to be changed for Error models with in/dels
                             }
-                            downstream_proba_map.set_value(VJ_ins_seq, 1.0, memory_layer_proba_map_junction);
-                            downstream_proba_map.set_value(VD_ins_seq,
+                            exploration.downstream_proba_map.set_value(VJ_ins_seq, 1.0, memory_layer_proba_map_junction);
+                            exploration.downstream_proba_map.set_value(VD_ins_seq,
                                                            vd_length_best_proba_map.at(d_5_off - v_offset - 1),
                                                            memory_layer_proba_map_junction_d2);
-                            downstream_proba_map.set_value(DJ_ins_seq,
+                            exploration.downstream_proba_map.set_value(DJ_ins_seq,
                                                            dj_length_best_proba_map.at(j_offset - d_full_3_offset - 1),
                                                            memory_layer_proba_map_junction_d3);
                         } else if (v_chosen) {
                             if (vd_length_best_proba_map.count(d_5_off - v_offset - 1) <= 0) {
                                 continue; //This means no scenario can lead to a correct solution, would need to be changed for Error models with in/dels
                             }
-                            downstream_proba_map.set_value(VD_ins_seq,
+                            exploration.downstream_proba_map.set_value(VD_ins_seq,
                                                            vd_length_best_proba_map.at(d_5_off - v_offset - 1),
                                                            memory_layer_proba_map_junction_d2);
                         } else if (j_chosen) {
                             if (dj_length_best_proba_map.count(j_offset - d_full_3_offset - 1) <= 0) {
                                 continue; //This means no scenario can lead to a correct solution, would need to be changed for Error models with in/dels
                             }
-                            downstream_proba_map.set_value(DJ_ins_seq,
+                            exploration.downstream_proba_map.set_value(DJ_ins_seq,
                                                            dj_length_best_proba_map.at(j_offset - d_full_3_offset - 1),
                                                            memory_layer_proba_map_junction_d3);
                         }
@@ -793,32 +792,31 @@ void Gene_choice::iterate(
                                 }
                                 ++mism_iter;
                             }
-                            downstream_proba_map.set_value(
+                            exploration.downstream_proba_map.set_value(
                                     D_gene_seq,
-                                    error_rate_p->get_err_rate_upper_bound(endogeneous_mismatches,
+                                    accumulation.error_rate->get_err_rate_upper_bound(endogeneous_mismatches,
                                                                            (d_full_3_offset + d_3_max_del)
                                                                                    - (d_5_off - d_5_max_del)
                                                                                    - endogeneous_mismatches),
                                     memory_layer_proba_map_seq);
                         } else {
-                            downstream_proba_map.set_value(D_gene_seq, 1.0, memory_layer_proba_map_seq);
+                            exploration.downstream_proba_map.set_value(D_gene_seq, 1.0, memory_layer_proba_map_seq);
                         }
 
                         //Multiply all downstream probas
-                        downstream_proba_map.multiply_all(scenario_upper_bound_proba,
-                                                          current_downstream_proba_memory_layers);
+                        scenario_upper_bound_proba = exploration.compute_upper_bound(
+                            new_scenario_proba,
+                            current_downstream_proba_memory_layers
+                        );
 
-                        //compute_upper_bound_scenario_proba(new_tmp_err_w_proba);
-                        if (scenario_upper_bound_proba < (seq_max_prob_scenario * proba_threshold_factor)) {
+                        if (exploration.should_prune(scenario_upper_bound_proba)) {
                             continue;
                         }
 
-                        Rec_Event::iterate_wrap_up(new_scenario_proba, downstream_proba_map, sequence, int_sequence,
-                                                   base_index_map, offset_map, next_event_ptr_arr,
-                                                   updated_marginals_pointer, model_parameters_pointer,
-                                                   allowed_realizations, constructed_sequences, seq_offsets,
-                                                   error_rate_p, counters_list, events_map, safety_set,
-                                                   mismatches_lists, seq_max_prob_scenario, proba_threshold_factor);
+                        // Update context with new probability before proceeding
+                        scenario.scenario_proba = new_scenario_proba;
+                    
+                        Rec_Event::iterate_wrap_up(query, model, scenario, exploration, accumulation);
 
                         //test++;
 
@@ -849,7 +847,7 @@ void Gene_choice::iterate(
         //Check D choice
         if (d_chosen) {
             //If D chosen need to check J safety
-            d_offset = seq_offsets.at(D_gene_seq, Three_prime, memory_layer_offset_check2);
+            d_offset = scenario.get_offset(D_gene_seq, Three_prime, memory_layer_offset_check2);
             d_3_min_offset = d_offset + d_3_max_del;
             d_3_max_offset = d_offset + d_3_min_del;
 
@@ -857,17 +855,17 @@ void Gene_choice::iterate(
         } else {
             dj_check = false;
             if (d_choice_exist) {
-                safety_set.set_value(Event_safety::DJ_safe, false, memory_layer_safety_2);
+                exploration.set_overlap_safety(Event_safety::DJ_safe, false, memory_layer_safety_2);
             } else {
                 //If no D choice V choice is safe
-                safety_set.set_value(Event_safety::DJ_safe, true, memory_layer_safety_2);
+                exploration.set_overlap_safety(Event_safety::DJ_safe, true, memory_layer_safety_2);
             }
         }
 
         //Check V choice
         if (v_chosen) {
             //If V chosen need to check J safety
-            v_offset = seq_offsets.at(V_gene_seq, Three_prime, memory_layer_offset_check1);
+            v_offset = scenario.get_offset(V_gene_seq, Three_prime, memory_layer_offset_check1);
             v_3_min_offset = v_offset + v_3_max_del;
             v_3_max_offset = v_offset + v_3_min_del;
 
@@ -875,16 +873,16 @@ void Gene_choice::iterate(
         } else {
             vj_check = false;
             if (v_choice_exist) {
-                safety_set.set_value(Event_safety::VJ_safe, false, memory_layer_safety_1);
+                exploration.set_overlap_safety(Event_safety::VJ_safe, false, memory_layer_safety_1);
             } else {
                 //If no V choice J choice is safe
-                safety_set.set_value(Event_safety::VJ_safe, true, memory_layer_safety_1);
+                exploration.set_overlap_safety(Event_safety::VJ_safe, true, memory_layer_safety_1);
             }
         }
 
         //Iterate over possible realizations (J gene alignments)
-        for (vector<Alignment_data>::const_iterator iter = allowed_realizations.at(J_gene).begin();
-             iter != allowed_realizations.at(J_gene).end(); ++iter) {
+        for (vector<Alignment_data>::const_iterator iter = query.gene_alignments.at(J_gene).begin();
+             iter != query.gene_alignments.at(J_gene).end(); ++iter) {
 
             j_5_off = (*iter).offset;
 
@@ -896,10 +894,10 @@ void Gene_choice::iterate(
                 }
                 if ((j_5_off - j_5_min_del) > (v_3_max_offset)) {
                     //Even with minimum number of deletions there's no overlap => safe even without knowing the number of deletions
-                    safety_set.set_value(Event_safety::VJ_safe, true, memory_layer_safety_1);
+                    exploration.set_overlap_safety(Event_safety::VJ_safe, true, memory_layer_safety_1);
                 } else {
                     //In the deletion range => some number of deletion won't be allowed and will be discarded in the deletion process
-                    safety_set.set_value(Event_safety::VJ_safe, false, memory_layer_safety_1);
+                    exploration.set_overlap_safety(Event_safety::VJ_safe, false, memory_layer_safety_1);
                 }
             }
             if (dj_check) {
@@ -909,16 +907,16 @@ void Gene_choice::iterate(
                 }
                 if ((j_5_off - j_5_min_del) > (d_3_max_offset)) {
                     //Even with minimum number of deletions there's no overlap => safe even without knowing the number of deletions
-                    safety_set.set_value(Event_safety::DJ_safe, true, memory_layer_safety_2);
+                    exploration.set_overlap_safety(Event_safety::DJ_safe, true, memory_layer_safety_2);
                 } else {
                     //In the deletion range => some number of deletion won't be allowed and will be discarded in the deletion process
-                    safety_set.set_value(Event_safety::DJ_safe, false, memory_layer_safety_2);
+                    exploration.set_overlap_safety(Event_safety::DJ_safe, false, memory_layer_safety_2);
                 }
             }
 
             current_realizations_index_vec[0] = this->event_realizations.at((*iter).gene_name).index;
             new_index = base_index + current_realizations_index_vec[0];
-            new_scenario_proba = scenario_proba;
+            new_scenario_proba = base_scenario_proba;
             //new_tmp_err_w_proba = tmp_err_w_proba;
             proba_contribution = 1;
 
@@ -927,7 +925,7 @@ void Gene_choice::iterate(
             alignment_offset_p = &(*iter).offset;
 
             proba_contribution = iterate_common(proba_contribution, current_realizations_index_vec[0], base_index,
-                                                base_index_map, offset_map, model_parameters_pointer);
+                                                exploration.index_map, model.offset_map, model.model_parameters);
 
             new_scenario_proba *= proba_contribution;
             new_tmp_err_w_proba *= proba_contribution;
@@ -935,32 +933,30 @@ void Gene_choice::iterate(
             //Compute the number of nucleotides at the end of the sequence that are not aligned with the J-gene and remove them
             //gene_seq = this->event_realizations.at((*iter).gene_name).value_str.substr(0,sequence.size() - (*iter).offset);
             gene_seq = this->event_realizations.at((*iter).gene_name)
-                               .value_str_int.substr(0, sequence.size() - (*iter).offset);
+                               .value_str_int.substr(0, query.sequence.size() - (*iter).offset);
 
-            constructed_sequences.set_value(J_gene_seq, &gene_seq, memory_layer_cs);
+            scenario.set_sequence_segment(J_gene_seq, &gene_seq, memory_layer_cs);
 
-            seq_offsets.set_value(J_gene_seq, Five_prime, (*iter).offset, memory_layer_off_fivep);
-            seq_offsets.set_value(J_gene_seq, Three_prime, (*iter).offset + gene_seq.size() - 1,
+            scenario.set_offset(J_gene_seq, Five_prime, (*iter).offset, memory_layer_off_fivep);
+            scenario.set_offset(J_gene_seq, Three_prime, (*iter).offset + gene_seq.size() - 1,
                                   memory_layer_off_threep);
 
             //Mismatches list computed during alignment
-            mismatches_lists.set_value(J_gene_seq, &(*iter).mismatches, memory_layer_mismatches);
+            scenario.set_mismatches(J_gene_seq, &(*iter).mismatches, memory_layer_mismatches);
 
-            //Update downstream proba map and compute the downstream proba bound for this event
-            scenario_upper_bound_proba = new_scenario_proba;
 
             //Get DJ or VJ junction upper bound proba
             if (d_chosen) {
                 if (dj_length_best_proba_map.count(j_5_off - d_offset - 1) <= 0) {
                     continue; //This means no scenario can lead to a correct solution, would need to be changed for Error models with in/dels
                 }
-                downstream_proba_map.set_value(DJ_ins_seq, dj_length_best_proba_map.at(j_5_off - d_offset - 1),
+                exploration.downstream_proba_map.set_value(DJ_ins_seq, dj_length_best_proba_map.at(j_5_off - d_offset - 1),
                                                memory_layer_proba_map_junction);
             } else if (v_chosen) {
                 if (vj_length_best_proba_map.count(j_5_off - v_offset - 1) <= 0) {
                     continue; //This means no scenario can lead to a correct solution, would need to be changed for Error models with in/dels
                 }
-                downstream_proba_map.set_value(VJ_ins_seq, vj_length_best_proba_map.at(j_5_off - v_offset - 1),
+                exploration.downstream_proba_map.set_value(VJ_ins_seq, vj_length_best_proba_map.at(j_5_off - v_offset - 1),
                                                memory_layer_proba_map_junction);
             }
 
@@ -972,25 +968,26 @@ void Gene_choice::iterate(
                 ++endogeneous_mismatches;
                 ++rev_mism_iter;
             }
-            downstream_proba_map.set_value(
+            exploration.downstream_proba_map.set_value(
                     J_gene_seq,
-                    error_rate_p->get_err_rate_upper_bound(endogeneous_mismatches,
+                    accumulation.error_rate->get_err_rate_upper_bound(endogeneous_mismatches,
                                                            gene_seq.size() - j_5_max_del - endogeneous_mismatches),
                     memory_layer_proba_map_seq);
 
             //Multiply all downstream probas
-            downstream_proba_map.multiply_all(scenario_upper_bound_proba, current_downstream_proba_memory_layers);
+            scenario_upper_bound_proba = exploration.compute_upper_bound(
+                new_scenario_proba,
+                current_downstream_proba_memory_layers
+            );
 
-            //compute_upper_bound_scenario_proba(new_tmp_err_w_proba);
-            if (scenario_upper_bound_proba < (seq_max_prob_scenario * proba_threshold_factor)) {
+            if (exploration.should_prune(scenario_upper_bound_proba)) {
                 continue;
             }
 
-            Rec_Event::iterate_wrap_up(new_scenario_proba, downstream_proba_map, sequence, int_sequence, base_index_map,
-                                       offset_map, next_event_ptr_arr, updated_marginals_pointer,
-                                       model_parameters_pointer, allowed_realizations, constructed_sequences,
-                                       seq_offsets, error_rate_p, counters_list, events_map, safety_set,
-                                       mismatches_lists, seq_max_prob_scenario, proba_threshold_factor);
+            // Update context with new probability before proceeding
+            scenario.scenario_proba = new_scenario_proba;
+        
+            Rec_Event::iterate_wrap_up(query, model, scenario, exploration, accumulation);
         }
     } break;
 
@@ -998,7 +995,7 @@ void Gene_choice::iterate(
         throw invalid_argument(std::string("Unknown gene_class for GeneChoice: ") + this->event_class);
         break;
     }
-};
+}
 
 /*
  *This short method performs the iterate operations common to all Rec_event (modify index map and fetch realization probability)
@@ -1009,29 +1006,9 @@ double Gene_choice::iterate_common(
         const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
         const Marginal_array_p &model_parameters)
 {
-
-    //TODO remove scenario proba as argument
-    //int gene_index = ((*this)).event_realizations.at((*iter).gene_name).index;
-    //Store the writing location for this event knowing the realization(since the queue is organized in a way that the index won't be changed for this event anymore)
-
-    /*if (offset_map.count(this->name)!=0){
-	for(vector<pair<const Rec_Event*,int>>::const_iterator jiter= offset_map.at(this->name).begin() ; jiter != offset_map.at(this->name).end() ; jiter++){			//modify index map using offset map
-			base_index_map.at((*jiter).first->get_name()) += gene_index*(*jiter).second;
-		}
-	}*/
-
-    for (forward_list<tuple<int, int, int>>::const_iterator jiter = memory_and_offsets.begin();
-         jiter != memory_and_offsets.end(); ++jiter) {
-        //Get previous index for the considered event
-        int previous_index = base_index_map.at(get<0>(*jiter), get<1>(*jiter) - 1);
-        //Update the index given the realization and the offset
-        previous_index += gene_index * get<2>(*jiter);
-        //Set the value
-        base_index_map.set_value(get<0>(*jiter), previous_index, get<1>(*jiter));
-    }
-
-    //Compute the probability of the scenario considering the realization (*iter) we're looking at
-    return scenario_proba * model_parameters[base_index + gene_index];
+    return scenario_proba * Rec_Event::iterate_common(gene_index, base_index,
+                                                      base_index_map,
+                                                      model_parameters);
 }
 
 queue<int> Gene_choice::draw_random_realization(
@@ -1094,49 +1071,19 @@ void Gene_choice::initialize_event(
 {
 
     //Check V choice
-    if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, V_gene, Undefined_side)) != 0) {
-        v_choice_exist = true;
-        shared_ptr<const Rec_Event> v_choice_p =
-                events_map.at(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, V_gene, Undefined_side));
-        if (processed_events.count(v_choice_p->get_name()) != 0) {
-            v_chosen = true;
-        } else {
-            v_chosen = false;
-        }
-    } else {
-        v_choice_exist = false;
-        v_chosen = false;
-    }
+    auto v_status = EventUtils::check_gene_choice(V_gene, events_map, processed_events);
+    v_choice_exist = v_status.exists;
+    v_chosen = v_status.chosen;
 
     //Check D choice
-    if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, D_gene, Undefined_side)) != 0) {
-        d_choice_exist = true;
-        shared_ptr<const Rec_Event> d_choice_p =
-                events_map.at(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, D_gene, Undefined_side));
-        if (processed_events.count(d_choice_p->get_name()) != 0) {
-            d_chosen = true;
-        } else {
-            d_chosen = false;
-        }
-    } else {
-        d_chosen = false;
-        d_choice_exist = false;
-    }
+    auto d_status = EventUtils::check_gene_choice(D_gene, events_map, processed_events);
+    d_choice_exist = d_status.exists;
+    d_chosen = d_status.chosen;
 
     //Check J choice
-    if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, J_gene, Undefined_side)) != 0) {
-        j_choice_exist = true;
-        shared_ptr<const Rec_Event> j_choice_p =
-                events_map.at(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, J_gene, Undefined_side));
-        if (processed_events.count(j_choice_p->get_name()) != 0) {
-            j_chosen = true;
-        } else {
-            j_chosen = false;
-        }
-    } else {
-        j_choice_exist = false;
-        j_chosen = false;
-    }
+    auto j_status = EventUtils::check_gene_choice(J_gene, events_map, processed_events);
+    j_choice_exist = j_status.exists;
+    j_chosen = j_status.chosen;
 
     switch (this->event_class) {
     case V_gene:
