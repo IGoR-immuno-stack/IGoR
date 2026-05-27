@@ -68,13 +68,13 @@ struct ParsedScenario {
     int j_5p_del;
     int d_5p_del, d_3p_del;
     int vd_ins, dj_ins, vj_ins;
-    
+
     std::string v_gene_name;
     std::string j_gene_name;
     std::string d_gene_name;
-    
+
     // Constructor with defaults for VJ models
-    ParsedScenario() : 
+    ParsedScenario() :
         v_gene_index(-1), j_gene_index(-1), d_gene_index(-1),
         v_3p_del(-1), j_5p_del(-1), d_5p_del(-1), d_3p_del(-1),
         vd_ins(-1), dj_ins(-1), vj_ins(-1) {}
@@ -82,7 +82,7 @@ struct ParsedScenario {
 
 /**
  * @brief Parse scenario queue to extract event realizations
- * 
+ *
  * Walks through the scenario queue matching queue positions to events,
  * extracting gene indices, deletion lengths, and insertion lengths.
  */
@@ -92,22 +92,22 @@ static ParsedScenario parse_scenario(
         const Model_Parms& parms)
 {
     ParsedScenario parsed;
-    
+
     // Make a copy to drain
     auto scenario_copy = scenario;
     size_t pos = 0;
-    
+
     while (!scenario_copy.empty()) {
         auto inner = scenario_copy.front();
         scenario_copy.pop();
-        
+
         if (inner.empty()) {
             ++pos;
             continue;
         }
-        
+
         int realization_idx = inner.front();
-        
+
         // Find the event at this position
         const EventInfo* ev_info = nullptr;
         for (const auto& ev : event_infos) {
@@ -116,17 +116,17 @@ static ParsedScenario parse_scenario(
                 break;
             }
         }
-        
+
         if (!ev_info) {
             ++pos;
             continue;
         }
-        
+
         // Extract based on event type and gene class
         auto ev_ptr = parms.get_event_pointer(ev_info->name);
         auto event_type = ev_ptr->get_type();
         auto gene_class = ev_ptr->get_class();
-        
+
         if (event_type == Event_type::GeneChoice_t) {
             // Get gene name from realization
             auto realizations = ev_ptr->get_realizations_map();
@@ -181,10 +181,10 @@ static ParsedScenario parse_scenario(
                 }
             }
         }
-        
+
         ++pos;
     }
-    
+
     return parsed;
 }
 
@@ -194,7 +194,7 @@ static ParsedScenario parse_scenario(
 
 /**
  * @brief Create mock alignment for V gene with proper mismatch handling
- * 
+ *
  * Aligns the non-deleted portion perfectly, then checks deleted region
  * for mismatches against the sequence (which contains insertion nucleotides).
  */
@@ -206,7 +206,7 @@ static Alignment_data create_v_mock_alignment(
     const std::string& v_template = gene_templates.at(scenario.v_gene_name);
     int v_len = v_template.length();
     int v_del = scenario.v_3p_del;
-    
+
     // Check for mismatches only in the deleted region
     std::vector<int> mismatches;
     for (int i = v_len - v_del; i < v_len && i < static_cast<int>(sequence.length()); ++i) {
@@ -214,7 +214,7 @@ static Alignment_data create_v_mock_alignment(
             mismatches.push_back(i);
         }
     }
-    
+
     Alignment_data v_align(scenario.v_gene_name, 0);
     v_align.five_p_offset = 0;
     v_align.three_p_offset = v_len - v_del - 1;
@@ -223,13 +223,13 @@ static Alignment_data create_v_mock_alignment(
     v_align.insertions = {};
     v_align.deletions = {};
     v_align.score = 5.0 * (v_align.align_length - static_cast<int>(mismatches.size()));
-    
+
     return v_align;
 }
 
 /**
  * @brief Create mock alignment for J gene with proper mismatch handling
- * 
+ *
  * Similar to V but checks the 5' deleted region (before the aligned portion).
  */
 static Alignment_data create_j_mock_alignment(
@@ -241,7 +241,7 @@ static Alignment_data create_j_mock_alignment(
     int j_len = j_template.length();
     int j_del = scenario.j_5p_del;
     int j_offset = sequence.length() - j_len;
-    
+
     // Check for mismatches only in the deleted region (5' of aligned portion)
     std::vector<int> mismatches;
     for (int i = 0; i < j_del; ++i) {
@@ -252,7 +252,7 @@ static Alignment_data create_j_mock_alignment(
             }
         }
     }
-    
+
     Alignment_data j_align(scenario.j_gene_name, j_offset);
     j_align.five_p_offset = j_offset - j_del;
     j_align.three_p_offset = sequence.length() - 1;
@@ -261,7 +261,7 @@ static Alignment_data create_j_mock_alignment(
     j_align.insertions = {};
     j_align.deletions = {};
     j_align.score = 5.0 * (j_align.align_length - static_cast<int>(mismatches.size()));
-    
+
     return j_align;
 }
 
@@ -282,17 +282,17 @@ static std::vector<ComparisonRow> compare_inference_to_ground_truth(
     std::map<size_t, std::vector<double>> inferred_marginals_map;
     for (const auto& gt_ev : ground_truth_events) {
         if (gt_ev.is_dinuc_markov) continue;
-        
-        auto [dims, inferred_probs] = 
+
+        auto [dims, inferred_probs] =
             inferred_marginals.compute_event_marginal_probability(gt_ev.name, inferred_parms);
-        
+
         std::vector<double> marginal(gt_ev.num_realizations, 0.0);
         for (int i = 0; i < gt_ev.num_realizations; ++i) {
             marginal[i] = static_cast<double>(inferred_probs.get()[i]);
         }
         inferred_marginals_map[gt_ev.queue_position] = marginal;
     }
-    
+
     // Build insertion+dinuc pairs with combined entropy computed
     // (reuse from ground truth events which already have combined_H)
     std::map<Gene_class, InsDinucPair> ins_dinuc_pairs;
@@ -303,7 +303,7 @@ static std::vector<ComparisonRow> compare_inference_to_ground_truth(
             ins_dinuc_pairs[ev.gene_class].ins_event = &ev;
         }
     }
-    
+
     // Compute combined entropy for pairs
     for (auto& [gene_class, pair] : ins_dinuc_pairs) {
         if (pair.ins_event && pair.dinuc_event) {
@@ -314,21 +314,21 @@ static std::vector<ComparisonRow> compare_inference_to_ground_truth(
             for (const auto &[key, real] : realizations) {
                 ins_lengths[real.index] = real.value_int;
             }
-            
+
             // Compute combined entropy for ground truth
             pair.combined_H = insertion_dinuc_entropy(
-                    pair.ins_event->model_marginal, 
-                    ins_lengths, 
+                    pair.ins_event->model_marginal,
+                    ins_lengths,
                     pair.dinuc_event->dinuc_T);
         }
     }
-    
+
     // Threshold function for inference
     auto threshold_func = [kl_threshold_factor](double dkl, double H, int) -> bool {
         double threshold = (std::max)(H / kl_threshold_factor, 0.01);
         return dkl < threshold;
     };
-    
+
     // Use helper to build comparison rows with combined D_KL computation
     return build_comparison_rows(
             ground_truth_events,
@@ -344,14 +344,14 @@ static std::vector<ComparisonRow> compare_inference_to_ground_truth(
 // THE TEST
 // ---------------------------------------------------------------------------
 
-TEST_CASE("Inference recovers ground truth model", "[inference][!mayfail]")
+TEST_CASE("Inference recovers ground truth model", "[inference][slow][!mayfail]")
 {
     std::string model_parms_path;
     std::string model_marginals_path;
     std::string model_label;
     int sample_size = 0;
     double kl_threshold_factor = 5.0;
-    
+
     SECTION("human TCR alpha (VJ) - N=1000 - smoke test") {
         model_parms_path = MODELS_DIR + "/human/tcr_alpha/models/model_parms.txt";
         model_marginals_path = MODELS_DIR + "/human/tcr_alpha/models/model_marginals.txt";
@@ -359,7 +359,7 @@ TEST_CASE("Inference recovers ground truth model", "[inference][!mayfail]")
         sample_size = 1000;
         kl_threshold_factor = 5.0;  // Loose threshold for fast test
     }
-    
+
     SECTION("human TCR alpha (VJ) - N=10000 - thorough validation") {
         model_parms_path = MODELS_DIR + "/human/tcr_alpha/models/model_parms.txt";
         model_marginals_path = MODELS_DIR + "/human/tcr_alpha/models/model_marginals.txt";
@@ -375,35 +375,35 @@ TEST_CASE("Inference recovers ground truth model", "[inference][!mayfail]")
         sample_size = 1000;
         kl_threshold_factor = 20.0;  // Stricter threshold
     }
-    
+
     // ------------------------------------------------------------------
     // 1. Load ground truth model
     // ------------------------------------------------------------------
     INFO("Testing inference with model: " << model_label);
     INFO("Sample size: " << sample_size);
-    
+
     Model_Parms truth_parms;
     truth_parms.read_model_parms(model_parms_path);
-    
+
     Model_marginals truth_marginals(truth_parms);
     truth_marginals.txt2marginals(model_marginals_path, truth_parms);
-    
+
     auto truth_events = build_event_info(truth_parms, truth_marginals);
-    
+
     std::cout << "\n=== Ground truth model loaded ===" << std::endl;
     std::cout << "Events: " << truth_events.size() << std::endl;
-    
+
     // Compute combined insertion+dinucleotide entropy and print decomposition
     compute_combined_insertion_dinuc_entropy(truth_events, truth_parms, /*print=*/true);
-    
+
     // ------------------------------------------------------------------
     // 2. Extract gene templates from model parameters
     // ------------------------------------------------------------------
     std::unordered_map<std::string, std::string> gene_templates;
-    
+
     // Get events map
     auto events_map = truth_parms.get_events_map();
-    
+
     // Extract V gene templates
     auto v_gene_event = events_map.at(std::make_tuple(GeneChoice_t, std::string("V_gene_seq"), Undefined_side));
     auto v_gene_choice = std::dynamic_pointer_cast<Gene_choice>(v_gene_event);
@@ -411,7 +411,7 @@ TEST_CASE("Inference recovers ground truth model", "[inference][!mayfail]")
     for (const auto& [name, realization] : v_realizations) {
         gene_templates[name] = realization.value_str;
     }
-    
+
     // Extract J gene templates
     auto j_gene_event = events_map.at(std::make_tuple(GeneChoice_t, std::string("J_gene_seq"), Undefined_side));
     auto j_gene_choice = std::dynamic_pointer_cast<Gene_choice>(j_gene_event);
@@ -419,7 +419,7 @@ TEST_CASE("Inference recovers ground truth model", "[inference][!mayfail]")
     for (const auto& [name, realization] : j_realizations) {
         gene_templates[name] = realization.value_str;
     }
-    
+
     // Extract D gene templates if VDJ model
     if (events_map.count(std::make_tuple(GeneChoice_t, std::string("D_gene_seq"), Undefined_side)) > 0) {
         auto d_gene_event = events_map.at(std::make_tuple(GeneChoice_t, std::string("D_gene_seq"), Undefined_side));
@@ -429,16 +429,16 @@ TEST_CASE("Inference recovers ground truth model", "[inference][!mayfail]")
             gene_templates[name] = realization.value_str;
         }
     }
-    
+
     std::cout << "\nExtracted " << gene_templates.size() << " gene templates from model" << std::endl;
-    
+
     // ------------------------------------------------------------------
     // 3. Generate sequences with scenarios
     // ------------------------------------------------------------------
     std::cout << "\n=== Generating " << sample_size << " sequences ===" << std::endl;
     GenModel gen_model(truth_parms, truth_marginals);
     auto scenarios = gen_model.generate_sequences(sample_size, /*generate_errors=*/false);
-    
+
     // Count generated sequences
     size_t actual_count = 0;
     for (auto it = scenarios.begin(); it != scenarios.end(); ++it) {
@@ -446,43 +446,43 @@ TEST_CASE("Inference recovers ground truth model", "[inference][!mayfail]")
     }
     REQUIRE(actual_count == static_cast<size_t>(sample_size));
     std::cout << "Generated " << actual_count << " sequences" << std::endl;
-    
+
     // ------------------------------------------------------------------
     // 4. Create mock alignments in memory
     // ------------------------------------------------------------------
     std::cout << "\n=== Creating mock alignments ===" << std::endl;
-    
-    std::vector<std::tuple<int, std::string, 
-        std::unordered_map<Gene_class, std::vector<Alignment_data>>>> 
+
+    std::vector<std::tuple<int, std::string,
+        std::unordered_map<Gene_class, std::vector<Alignment_data>>>>
         sequences_with_alignments;
-    
+
     int seq_idx = 0;
     for (const auto& [seq, scenario] : scenarios) {
         // Parse scenario to extract gene choices and deletions
         ParsedScenario parsed = parse_scenario(scenario, truth_events, truth_parms);
-        
+
         // Create V alignment
         Alignment_data v_align = create_v_mock_alignment(seq, parsed, gene_templates);
-        
+
         // Create J alignment
         Alignment_data j_align = create_j_mock_alignment(seq, parsed, gene_templates);
 
         // Create empty D alignment (required for VDJ models)
         std::vector<Alignment_data> d_aligns;
-        
+
         // Build alignment map
         std::unordered_map<Gene_class, std::vector<Alignment_data>> aligns_map;
         aligns_map[V_gene] = {v_align};
         aligns_map[J_gene] = {j_align};
         aligns_map[D_gene] = d_aligns;
-        
+
         sequences_with_alignments.emplace_back(seq_idx, seq, aligns_map);
         ++seq_idx;
     }
-    
-    std::cout << "Created alignments for " << sequences_with_alignments.size() 
+
+    std::cout << "Created alignments for " << sequences_with_alignments.size()
               << " sequences" << std::endl;
-    
+
     // ------------------------------------------------------------------
     // 5. Set up debug logging directory (if enabled)
     // ------------------------------------------------------------------
@@ -491,11 +491,11 @@ TEST_CASE("Inference recovers ground truth model", "[inference][!mayfail]")
     inference_dir = "/tmp/igor_inference_test_" + std::to_string(sample_size) + "/";
     std::cout << "\n=== Debug mode enabled ===" << std::endl;
     std::cout << "Output directory: " << inference_dir << std::endl;
-    
+
     // Create directory if it doesn't exist
     std::string mkdir_cmd = "mkdir -p " + inference_dir;
     std::system(mkdir_cmd.c_str());
-    
+
     // Write generated sequences and scenarios to file
     std::cout << "\n=== Writing sequences and scenarios to file ===" << std::endl;
     gen_model.write_seq_real2txt(
@@ -507,7 +507,7 @@ TEST_CASE("Inference recovers ground truth model", "[inference][!mayfail]")
 
     // Write alignments to file for debugging
     std::cout << "\n=== Writing alignments to file for debugging ===" << std::endl;
-    
+
     // Extract V gene alignments
     std::unordered_map<int, std::forward_list<Alignment_data>> v_alignments;
     for (const auto& [seq_idx, seq, aligns_map] : sequences_with_alignments) {
@@ -519,7 +519,7 @@ TEST_CASE("Inference recovers ground truth model", "[inference][!mayfail]")
             v_alignments[seq_idx] = v_list;
         }
     }
-    
+
     // Extract J gene alignments
     std::unordered_map<int, std::forward_list<Alignment_data>> j_alignments;
     for (const auto& [seq_idx, seq, aligns_map] : sequences_with_alignments) {
@@ -531,33 +531,33 @@ TEST_CASE("Inference recovers ground truth model", "[inference][!mayfail]")
             j_alignments[seq_idx] = j_list;
         }
     }
-    
+
     // Write using Aligner class methods
     Aligner aligner;
     aligner.write_alignments_seq_csv(inference_dir + "V_alignments.csv", v_alignments);
     std::cout << "Wrote V alignments to: " << inference_dir << "V_alignments.csv" << std::endl;
-    
+
     aligner.write_alignments_seq_csv(inference_dir + "J_alignments.csv", j_alignments);
     std::cout << "Wrote J alignments to: " << inference_dir << "J_alignments.csv" << std::endl;
     #endif
-    
+
     // ------------------------------------------------------------------
     // 6. Initialize inference with uniform marginals
     // ------------------------------------------------------------------
     std::cout << "\n=== Initializing inference ===" << std::endl;
     Model_marginals initial_marginals(truth_parms);
     initial_marginals.uniform_initialize(truth_parms);
-    
+
     // ------------------------------------------------------------------
     // 7. Run inference
     // ------------------------------------------------------------------
     std::cout << "\n=== Running inference ===" << std::endl;
-    
+
     GenModel inference_model(truth_parms, initial_marginals);
-    
+
     int num_iterations = 20;
     std::cout << "Inference iterations: " << num_iterations << std::endl;
-    
+
     bool failed = inference_model.infer_model(
         sequences_with_alignments,
         num_iterations,
@@ -566,51 +566,51 @@ TEST_CASE("Inference recovers ground truth model", "[inference][!mayfail]")
         /*likelihood_threshold=*/0.0,
         /*viterbi_like=*/false,
         /*proba_threshold_factor=*/1e-4);
-    
+
     REQUIRE(!failed);
     std::cout << "Inference completed successfully" << std::endl;
-    
+
     // ------------------------------------------------------------------
     // 8. Use inferred marginals from GenModel object
     //    (marginals are modified by reference during inference)
     // ------------------------------------------------------------------
     std::cout << "\n=== Using inferred marginals ===" << std::endl;
-    
+
     // The initial_marginals object now contains the inferred marginals
     // after GenModel.infer_model() completes
     Model_Parms inferred_parms = truth_parms;  // Structure is the same
     const Model_marginals& inferred_marginals = inference_model.get_marginals();
-    
+
     // ------------------------------------------------------------------
     // 9. Compare inferred vs ground truth
     // ------------------------------------------------------------------
     std::cout << "\n=== Comparing inferred model to ground truth ===" << std::endl;
-    
+
     auto rows = compare_inference_to_ground_truth(
         truth_events,
         inferred_marginals,
         inferred_parms,
         kl_threshold_factor);
-    
+
     print_comparison_table(rows, "H_truth", "H_infer");
-    
+
     std::cout << "\n=== Inference test completed ===" << std::endl;
-    
+
     // Check assertions
     for (const auto& row : rows) {
         INFO("Event: " << row.event_nickname);
-        
+
         if (row.is_insertion_dinuc_pair) {
             INFO("  Combined (len+dinuc) - D_KL=" << row.kl_combined
                  << ", H_truth=" << row.H_combined_reference
                  << ", H_inferred=" << row.H_combined_compared);
-            INFO("  Ins length - D_KL=" << row.kl_length 
-                 << ", H_truth=" << row.H_length_reference 
+            INFO("  Ins length - D_KL=" << row.kl_length
+                 << ", H_truth=" << row.H_length_reference
                  << ", H_inferred=" << row.H_length_compared);
             INFO("  Dinuc Markov - D_KL=" << row.kl_dinuc
                  << ", h_truth=" << row.h_dinuc_reference
                  << ", h_inferred=" << row.h_dinuc_compared);
-            
+
             CHECK(row.passes_combined);
             CHECK(row.passes_length);
             CHECK(row.passes_dinuc);
@@ -621,6 +621,6 @@ TEST_CASE("Inference recovers ground truth model", "[inference][!mayfail]")
             CHECK(row.passes);
         }
     }
-    
+
     std::cout << "\n=== Inference test completed ===" << std::endl;
 }

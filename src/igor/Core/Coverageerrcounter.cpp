@@ -300,8 +300,8 @@ void Coverage_err_counter::count_scenario(
          * Disregard P nucleotides, and set end bound as: tmp_corr_len - max(0,*v_3_del_value_p)
          */
 
-        this->recurs_coverage_count(scenario_seq_joint_proba, 0, max(0, -(**vgene_offset_p)),
-                                    tmp_corr_len - max(0, *v_3_del_value_p), tmp_corr_len);
+        this->recurs_coverage_count(scenario_seq_joint_proba, 0, std::max(0, -(**vgene_offset_p)),
+                        tmp_corr_len - std::max(0, *v_3_del_value_p), tmp_corr_len);
 
         /*
          * compute the position on the mismatch vector of the first Pnuc error and set it as the end bound
@@ -346,10 +346,10 @@ void Coverage_err_counter::count_scenario(
 		 */
 
         this->recurs_coverage_count(
-                scenario_seq_joint_proba, 0, max(0, (*j_5_del_value_p)),
-                max(0, (*j_5_del_value_p))
-                        + (scenario.offsets[J_gene_seq].three_prime - scenario.offsets[J_gene_seq].five_prime + 1),
-                tmp_corr_len);
+            scenario_seq_joint_proba, 0, std::max(0, (*j_5_del_value_p)),
+            std::max(0, (*j_5_del_value_p))
+                + (scenario.offsets[J_gene_seq].three_prime - scenario.offsets[J_gene_seq].five_prime + 1),
+            tmp_corr_len);
 
         /*
 		 * compute the position on the mismatch vector of the first Pnuc error and set it as the begin bound
@@ -550,8 +550,8 @@ void Coverage_err_counter::count_scenario(
 		 * Disregard P nucleotides, and set end bound as: tmp_corr_len - max(0,*v_3_del_value_p)
 		 */
 
-        this->recurs_coverage_count(scenario_seq_joint_proba, 0, max(0, -(**vgene_offset_p)),
-                                    tmp_corr_len - max(0, *v_3_del_value_p), tmp_corr_len);
+        this->recurs_coverage_count(scenario_seq_joint_proba, 0, std::max(0, -(**vgene_offset_p)),
+                        tmp_corr_len - std::max(0, *v_3_del_value_p), tmp_corr_len);
 
         /*
 		 * compute the position on the mismatch vector of the first Pnuc error and set it as the end bound
@@ -568,10 +568,10 @@ void Coverage_err_counter::count_scenario(
                                   tmp_corr_len);
 
         /*		//Get the corrected number of deletions(no negative deletion)
-		tmp_corr_len -= max(0,*v_3_del_value_p); //FIXME assumes that V is on the left of the read
+        tmp_corr_len -= std::max(0,*v_3_del_value_p); //FIXME assumes that V is on the left of the read
 
 		// Compute the coverage
-		for( i = max(0,-(**vgene_offset_p)) ; i != tmp_corr_len ; ++i ){
+        for( i = std::max(0,-(**vgene_offset_p)) ; i != tmp_corr_len ; ++i ){
 			tmp_cov_p[i]+=scenario_seq_joint_proba;
 		}
 
@@ -609,8 +609,8 @@ void Coverage_err_counter::count_scenario(
 		 */
 
         this->recurs_coverage_count(
-                scenario_seq_joint_proba, 0, max(0, (*j_5_del_value_p)),
-                max(0, (*j_5_del_value_p))
+                scenario_seq_joint_proba, 0, std::max(0, (*j_5_del_value_p)),
+                std::max(0, (*j_5_del_value_p))
                         + (seq_offsets.at(J_gene_seq, Three_prime) - seq_offsets.at(J_gene_seq, Five_prime) + 1),
                 tmp_corr_len);
 
@@ -630,7 +630,7 @@ void Coverage_err_counter::count_scenario(
                                   j_mismatch_list.size(), tmp_corr_len);
 
         /*		//Get the corrected number of deletions(no negative deletion)
-		tmp_corr_len = max(0,(*j_5_del_value_p));
+        tmp_corr_len = std::max(0,(*j_5_del_value_p));
 
 		// Compute the coverage
 		const int tmp = (seq_offsets.at(J_gene_seq,Three_prime) - seq_offsets.at(J_gene_seq,Five_prime) +1);

@@ -141,6 +141,10 @@ else()
   find_package(OpenMP REQUIRED)
 endif()
 
+find_package(Arrow REQUIRED)
+find_package(Parquet REQUIRED)
+find_package(sparrow REQUIRED)
+
 ## #############################################################################
 ## Options
 ## #############################################################################

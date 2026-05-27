@@ -14,6 +14,8 @@ doxygen = "~=1.8"
 catch2 = "3.*"
 ninja = "*"
 anaconda-client = "*"
+sparrow-devel = "*"
+arrow-cpp = "*"
 
 [target.osx.dependencies]
 clang-tools = ">=19.1.7,<22"
@@ -31,6 +33,8 @@ build_debug = {cmd="cmake --build build --parallel", depends-on = "configure_deb
 build_coverage = {cmd="cmake --build build_cov -j8", depends-on = "configure_coverage"}
 test = {cmd="ctest --test-dir build --output-on-failure", depends-on = "build"}
 test_debug = {cmd="ctest --test-dir build --output-on-failure", depends-on = "build_debug"}
+test_small = {cmd="ctest --test-dir build --output-on-failure -E \"Inference recovers ground truth model\"", depends-on = "build"}
+test_small_debug = {cmd="ctest --test-dir build --output-on-failure -E \"Inference recovers ground truth model\"", depends-on = "build_debug"}
 test_regression = { cmd = "scripts/tests/test_run.sh", depends-on = ["build"] }
 test_align = { cmd = "scripts/tests/test_align.sh", depends-on = ["build"] }
 benchmark = { cmd = "scripts/tests/benchmark_run.sh", depends-on = ["build"] }
@@ -70,8 +74,8 @@ name = "pixi-build-cmake"
 version = "*"
 
 [package.build.config]
-extra-args = ["-DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_SCAN_FOR_MODULES=OFF"]
-env = { MACOSX_DEPLOYMENT_TARGET = "10.15" }
+extra-args = ["-DCMAKE_BUILD_TYPE=Release"]
+env = { MACOSX_DEPLOYMENT_TARGET = "13.4" }
 
 
 [package.build-dependencies]
@@ -80,9 +84,13 @@ env = { MACOSX_DEPLOYMENT_TARGET = "10.15" }
 # Add dependencies on (header-only) libraries at compile time
 gsl = "*"
 catch2 = "3.*"
+sparrow-devel = "*"
+arrow-cpp = "*"
 
 [package.run-dependencies]
 gsl = "*"
+arrow-cpp = "*"
+sparrow-devel = "*"
 
 [target.linux-64.dependencies]
 valgrind = ">=3.26.0,<4"

@@ -71,7 +71,7 @@ const double &Single_error_rate::get_err_rate_upper_bound(size_t n_errors, size_
 {
     if (n_errors > this->max_err || n_error_free > this->max_noerr) {
         //Need to increase the matrix size (anyway the matrix is at very most read_len^2
-        this->build_upper_bound_matrix(max(this->max_err, n_errors + 10), max(this->max_noerr, n_error_free + 10));
+        this->build_upper_bound_matrix(std::max(this->max_err, n_errors + 10), std::max(this->max_noerr, n_error_free + 10));
     }
 
     return this->upper_bound_proba_mat(n_errors, n_error_free);
@@ -100,7 +100,7 @@ void Single_error_rate::build_upper_bound_matrix(size_t m, size_t n)
 
 /**
  * @brief Context-based error probability computation
- * 
+ *
  * This implementation uses ScenarioContext directly for memory layer access.
  * Error_rate is an accumulator (not a passive observer like Counters), so it
  * receives full ScenarioContext rather than flattened Scenario view.
@@ -137,7 +137,7 @@ double Single_error_rate::compute_scenario_error_probability(
 
     // Compute error-weighted probability
     // P(errors | model) = (rate/3)^n_err * (1-rate)^(n_genomic - n_err)
-    scenario_new_proba = scenario.scenario_proba 
+    scenario_new_proba = scenario.scenario_proba
                                     * pow(model_rate / 3.0, number_errors)
                                     * pow(1.0 - model_rate, genomic_nucl - number_errors);
 
@@ -148,10 +148,10 @@ double Single_error_rate::compute_scenario_error_probability(
     if (scenario_new_proba >= exploration.seq_max_prob_scenario * exploration.proba_threshold_factor) {
         // Update Error_rate internal accumulators
         this->seq_mean_error_number += number_errors * scenario_new_proba;
-        
+
         temp2 = (genomic_nucl > 0) ? (double(number_errors) / double(genomic_nucl)) : 0.0;
         temp = scenario_new_proba * temp2;
-        
+
         if (viterbi_run) {
             this->seq_weighted_er = temp;
             this->seq_likelihood = scenario_new_proba;

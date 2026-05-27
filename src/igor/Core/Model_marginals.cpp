@@ -1454,9 +1454,9 @@ void swap_neighboring_events_order(const Rec_Event_name event_1, const Rec_Event
         if (event_1_found) {
             //event 1 used to have
         }
-        size_t small_offset = min(event_1_new_offset, event_2_new_offset);
+        size_t small_offset = std::min(event_1_new_offset, event_2_new_offset);
         size_t big_offset =
-                max(event_1_new_offset * event_1_iterator->second, event_2_new_offset * event_2_iterator->second);
+            std::max(event_1_new_offset * event_1_iterator->second, event_2_new_offset * event_2_iterator->second);
         /*
 		 * Now invert the marginals
 		 * (i/former_offset)%size corresponds to the realization index
