@@ -87,3 +87,22 @@ void add_to_err_rate(Error_rate *err_p1, Error_rate *err_p2)
         return;
     }
 }
+
+double Error_rate::compute_scenario_error_probability(
+        const QuerySequenceContext& query,
+        const ModelContext& model,
+        ScenarioContext& scenario,
+        ExplorationContext& exploration
+){
+    // Do nothing, temporary to allow per error rate migration before setting it to pure virtual again.
+    return this->compare_sequences_error_prob(
+        scenario.scenario_proba,
+        query.sequence,
+        scenario.constructed_sequences,
+        scenario.seq_offsets,
+        model.events_map,
+        scenario.mismatches_lists,
+        exploration.seq_max_prob_scenario,
+        exploration.proba_threshold_factor
+    );
+}

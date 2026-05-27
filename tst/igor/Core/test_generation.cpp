@@ -274,23 +274,23 @@ TEST_CASE("Generation marginals converge - KL divergence vs entropy",
             }
             return true;
         };
-        
+
         auto rows = build_comparison_rows(
                 event_infos, all_empiricals, ins_dinuc_pairs,
                 nullptr, nullptr, false, threshold_func);
-        
+
         // Print table
         print_comparison_table(rows, "H_model", "H_emp");
-        
+
         // Update traces for convergence checks
         for (const auto &ev : event_infos) {
             if (ev.is_dinuc_markov) continue;
-            
+
             const auto &empirical = all_empiricals.at(ev.queue_position);
             double uncovered = 0.0;
             double dkl = kl_divergence(ev.model_marginal, empirical, &uncovered);
             kl_traces[ev.queue_position].emplace_back(dkl, uncovered);
-            
+
             double H_emp = entropy(empirical);
             entropy_traces[ev.queue_position].push_back(H_emp);
 

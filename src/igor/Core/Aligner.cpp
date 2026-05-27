@@ -859,7 +859,7 @@ unordered_map<int, vector<Alignment_data>> read_alignments_seq_csv(const string 
                 }
             }
         }
-        if (!allow_in_dels & (!insertions.empty() | !deletions.empty())) {
+        if (!allow_in_dels && (!insertions.empty() || !deletions.empty())) {
             continue;
         }
 
@@ -1060,7 +1060,7 @@ Int_Str nt2int(const string &nt_sequence)
 bool comp_nt_int(const int &nt_1, const int &nt_2)
 {
     if (nt_1 != nt_2) {
-        if ((nt_1 < 4) & (nt_2 < 4)) {
+        if ((nt_1 < 4) && (nt_2 < 4)) {
             return false;
         } else {
             switch (nt_1) {
@@ -1332,7 +1332,7 @@ void Aligner::sw_align_common(const Int_Str &int_data_sequence, const Int_Str &i
     int subs_score =
             score_matrix(i - 1, j - 1) + substitution_matrix(int_data_sequence.at(i), int_genomic_sequence.at(j));
 
-    if ((subs_score >= data_gap_score) & (subs_score >= genomic_gap_score) & ((subs_score > 0) | (!local_align))) {
+    if ((subs_score >= data_gap_score) && (subs_score >= genomic_gap_score) && ((!local_align) || (subs_score > 0)) ) {
         score_matrix(i, j) = subs_score;
         row_memory_matrix(i, j) = 1;
         col_memory_matrix(i, j) = 1;
@@ -1345,14 +1345,14 @@ void Aligner::sw_align_common(const Int_Str &int_data_sequence, const Int_Str &i
             alignment_numb_tracker(i, j) = alignment_numb_tracker(i - 1, j - 1);
         }
 
-    } else if ((data_gap_score >= genomic_gap_score) & ((data_gap_score > 0) | (!local_align))) {
+    } else if ((data_gap_score >= genomic_gap_score) && ((!local_align) || (data_gap_score > 0))) {
         //This is in favor of deletions in the sequenced read instead of insertion.
         //No real rational behind it just to avoid undefined behavior of the aligner
         score_matrix(i, j) = data_gap_score;
         row_memory_matrix(i, j) = 1;
         col_memory_matrix(i, j) = 0;
         alignment_numb_tracker(i, j) = alignment_numb_tracker(i - 1, j);
-    } else if ((genomic_gap_score > 0) | (!local_align)) {
+    } else if ((!local_align) || (genomic_gap_score > 0)) {
         score_matrix(i, j) = genomic_gap_score;
         row_memory_matrix(i, j) = 0;
         col_memory_matrix(i, j) = 1;
@@ -1487,7 +1487,7 @@ list<pair<int, Alignment_data>> Aligner::sw_align(const Int_Str &int_data_sequen
             int i = 1;
             int j = 1;
 
-            while ((i != explored_row_coord) & (j != explored_col_coord)) {
+            while ((i != explored_row_coord) && (j != explored_col_coord)) {
                 sw_align_common(int_data_sequence_copy, int_genomic_sequence_copy, i, explored_col_coord, score_matrix,
                                 row_memory_matrix, col_memory_matrix, alignment_numb_tracker, max_score, max_row_coord,
                                 max_col_coord);
@@ -1503,7 +1503,7 @@ list<pair<int, Alignment_data>> Aligner::sw_align(const Int_Str &int_data_sequen
                             max_row_coord, max_col_coord);
         }
 
-        if ((explored_row_coord == n_rows) & (explored_col_coord == n_cols)) {
+        if ((explored_row_coord == n_rows) && (explored_col_coord == n_cols)) {
             matrix_complete = true;
         }
         if (explored_row_coord != n_rows) {
@@ -1606,7 +1606,7 @@ list<pair<int, Alignment_data>> Aligner::sw_align(const Int_Str &int_data_sequen
             int offset = flip_factor * (i - j) + flip_offset + offset_change;
 
             if ((offset >= min_offset)
-                & (offset
+                && (offset
                    <= max_offset)) { //TODO reduce computation time by truncating the alignment from the beginning?
                 //TODO change this and use incorporate_in_dels(), should probably change the list inside alignment data also to have the actual corresponding indices
                 //TODO return the actual inserted/deleted sequences in the alignment data??
@@ -1678,7 +1678,7 @@ list<pair<int, Alignment_data>> Aligner::sw_align(const Int_Str &int_data_sequen
             }
         }
     }
-    if (best_only & (seq_alignments_results.size() > 1)) {
+    if (best_only && (seq_alignments_results.size() > 1)) {
         for (list<pair<int, Alignment_data>>::iterator align = seq_alignments_results.begin();
              align != seq_alignments_results.end(); ++align) {
             if ((*align).first < max_align_score) {
