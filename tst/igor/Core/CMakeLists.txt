@@ -8,6 +8,7 @@ set(CORE_TEST_SOURCES
     test_inference.cpp
     test_sanity.cpp
     test_utils.cpp
+    test_gene_choice_iterate.cpp
 )
 
 add_executable(igor_tests ${CORE_TEST_SOURCES})
