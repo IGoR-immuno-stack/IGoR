@@ -33,8 +33,10 @@ build_debug = {cmd="cmake --build build --parallel", depends-on = "configure_deb
 build_coverage = {cmd="cmake --build build_cov -j8", depends-on = "configure_coverage"}
 test = {cmd="ctest --test-dir build --output-on-failure", depends-on = "build"}
 test_debug = {cmd="ctest --test-dir build --output-on-failure", depends-on = "build_debug"}
-test_small = {cmd="ctest --test-dir build --output-on-failure -E \"Inference recovers ground truth model\"", depends-on = "build"}
-test_small_debug = {cmd="ctest --test-dir build --output-on-failure -E \"Inference recovers ground truth model\"", depends-on = "build_debug"}
+test_unit = {cmd="ctest --test-dir build --output-on-failure -L unit", depends-on = "build"}
+test_unit_debug = {cmd="ctest --test-dir build --output-on-failure -L unit", depends-on = "build_debug"}
+test_integration = {cmd="ctest --test-dir build --output-on-failure -L integration", depends-on = "build"}
+test_integration_debug = {cmd="ctest --test-dir build --output-on-failure -L integration", depends-on = "build_debug"}
 test_regression = { cmd = "scripts/tests/test_run.sh", depends-on = ["build"] }
 test_align = { cmd = "scripts/tests/test_align.sh", depends-on = ["build"] }
 benchmark = { cmd = "scripts/tests/benchmark_run.sh", depends-on = ["build"] }

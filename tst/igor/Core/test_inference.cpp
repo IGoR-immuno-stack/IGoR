@@ -424,7 +424,7 @@ static std::vector<ComparisonRow> compare_inference_to_ground_truth(
  * The relative degradation metric isolates inference quality from sampling noise,
  * making validation robust across different event types and sample sizes.
  */
-TEST_CASE("Inference recovers ground truth model", "[inference][slow][!mayfail]")
+TEST_CASE("Inference recovers ground truth model", "[integration][inference][slow][!mayfail]")
 {
     std::string model_parms_path;
     std::string model_marginals_path;
