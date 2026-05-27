@@ -32,6 +32,8 @@
 #include <sstream>
 #include <igor/Core/Utils.h>
 
+#include <igorCoreExport.h>
+
 using namespace std;
 
 /**
@@ -39,35 +41,37 @@ using namespace std;
  * \brief Class to extract sequences features (e.g. CDR3) of sequences using alignment and V, J anchors information.
  * \author C. Olivares
  */
-class ExtractFeatures {
+class CORE_EXPORT ExtractFeatures
+{
 public:
     ExtractFeatures();
-    ExtractFeatures(const ExtractFeatures& orig);
+    ExtractFeatures(const ExtractFeatures &orig);
     virtual ~ExtractFeatures();
-    
+
     unordered_map<string, string> UMap_v_genomic;
     unordered_map<string, string> UMap_j_genomic;
-    unordered_map<string, size_t> UMap_v_CDR3_anchors; 
+    unordered_map<string, size_t> UMap_v_CDR3_anchors;
     unordered_map<string, size_t> UMap_j_CDR3_anchors;
-//    vector<pair<const int, const string>> *p_indexed_seqlist;
-    unordered_map<int,pair<string,unordered_map<Gene_class,vector<Alignment_data>>>>  *p_sorted_alignments;
-    
-    void load_VJgenomicTemplates(vector<pair<string,string>> v_genomic, vector<pair<string,string>> j_genomic);
+    //    vector<pair<const int, const string>> *p_indexed_seqlist;
+    unordered_map<int, pair<string, unordered_map<Gene_class, vector<Alignment_data>>>> *p_sorted_alignments;
+
+    void load_VJgenomicTemplates(vector<pair<string, string>> v_genomic, vector<pair<string, string>> j_genomic);
     void load_VJanchors(string flnV_CDR3_anchors, string flnJ_CDR3_anchors);
-    void load_VJanchors(unordered_map<string, size_t>  flnV_CDR3_anchors, unordered_map<string, size_t>  flnJ_CDR3_anchors);
-    
+    void load_VJanchors(unordered_map<string, size_t> flnV_CDR3_anchors,
+                        unordered_map<string, size_t> flnJ_CDR3_anchors);
+
     void print_VgenomicTemplates();
     void print_JgenomicTemplates();
-    
-//    void set_indexed_seqlist(vector<pair<const int, const string>>* pointer);
-    void set_sorted_alignments(unordered_map<int,pair<string,unordered_map<Gene_class,vector<Alignment_data>>>>* pointer);
-    
-    
+
+    //    void set_indexed_seqlist(vector<pair<const int, const string>>* pointer);
+    void
+    set_sorted_alignments(unordered_map<int, pair<string, unordered_map<Gene_class, vector<Alignment_data>>>> *pointer);
+
     CDR3SeqData extractCDR3(int seq_index);
     int getVAnchor4Seq(string seq_str, Alignment_data v_alig);
     int getJAnchor4Seq(string seq_str, Alignment_data j_alig);
-    
-    string generateCDR3_csv_line(CDR3SeqData cdr3InputSeq);
-private:
 
+    string generateCDR3_csv_line(CDR3SeqData cdr3InputSeq);
+
+private:
 };

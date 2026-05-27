@@ -47,3 +47,14 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/igor/Streaming")
         catch_discover_tests(streaming_tests)
     endif()
 endif()
+# Provide the project source directory so tests can locate data files
+target_compile_definitions(igor_tests PRIVATE IGOR_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+
+# Set include directories if needed
+# target_include_directories(igor_tests PRIVATE ../src/igor/Core)
+
+# Register the tests with CTest
+include(Catch)
+catch_discover_tests(igor_tests
+    PROPERTIES TIMEOUT 3600  # generation test with 1M sequences needs headroom
+)

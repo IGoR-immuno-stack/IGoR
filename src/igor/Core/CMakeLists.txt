@@ -38,7 +38,10 @@ target_sources(${PROJECT_NAME}
     Dinuclmarkov.cpp
     Errorrate.cpp
     Errorscounter.cpp
+    EventUtils.cpp
     ExtractFeatures.cpp
+    FastGenerator.cpp
+    FastSampling.cpp
     GenModel.cpp
     Genechoice.cpp
     HypermutationfullNmererrorrate.cpp
@@ -57,6 +60,7 @@ target_sources(${PROJECT_NAME}
       ${CMAKE_CURRENT_SOURCE_DIR}
       ${CMAKE_CURRENT_BINARY_DIR}
     FILES
+      AccumulationContext.h
       Aligner.h
       Bestscenarioscounter.h
       CDR3SeqData.h
@@ -66,17 +70,25 @@ target_sources(${PROJECT_NAME}
       Dinuclmarkov.h
       Errorrate.h
       Errorscounter.h
+      EventUtils.h
+      ExplorationContext.h
       ExtractFeatures.h
+      FastGenerator.h
+      FastSampling.h
       GenModel.h
       Genechoice.h
       HypermutationfullNmererrorrate.h
       Hypermutationglobalerrorrate.h
       Insertion.h
       IntStr.h
+      ModelContext.h
       Model_Parms.h
       Model_marginals.h
       Pgencounter.h
+      QuerySequenceContext.h
       Rec_Event.h
+      Scenario.h
+      ScenarioContext.h
       Singleerrorrate.h
       Utils.h
       ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_PROJECT_NAME}${PROJECT_NAME}Export.h
@@ -101,6 +113,10 @@ if(APPLE)
   target_link_libraries(${PROJECT_NAME} PRIVATE OpenMP::OpenMP)
 else()
   target_link_libraries(${PROJECT_NAME} PRIVATE OpenMP::OpenMP_CXX)
+endif()
+
+if(WIN32)
+	target_link_libraries(${PROJECT_NAME} PRIVATE ws2_32)
 endif()
 
 ## ###################################################################

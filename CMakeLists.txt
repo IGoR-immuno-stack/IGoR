@@ -170,6 +170,28 @@ if(ENABLE_COVERAGE)
   endif()
 endif(ENABLE_COVERAGE)
 #add_subdirectory(tst)
+#
+
+## #################################################################
+## Formatting
+## #################################################################
+
+find_program(CLANG_FORMAT clang-format)
+if(CLANG_FORMAT)
+  file(GLOB_RECURSE ALL_SOURCE_FILES
+    "${CMAKE_SOURCE_DIR}/src/*.cpp" "${CMAKE_SOURCE_DIR}/src/*.h"
+    "${CMAKE_SOURCE_DIR}/app/*.cpp" "${CMAKE_SOURCE_DIR}/app/*.h"
+    "${CMAKE_SOURCE_DIR}/tst/*.cpp" "${CMAKE_SOURCE_DIR}/tst/*.h"
+  )
+  add_custom_target(clang-format
+    COMMAND ${CLANG_FORMAT} -i -style=file ${ALL_SOURCE_FILES}
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    COMMENT "Running clang-format on source files"
+  )
+else()
+  message(WARNING "clang-format not found, formatting target will not be available.")
+endif()
+
 ## Input
 ## ###################################################################
 

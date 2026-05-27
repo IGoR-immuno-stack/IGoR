@@ -34,7 +34,12 @@
 #include <igor/Core/Rec_Event.h>
 #include <igor/Core/IntStr.h>
 
+// Phase 4.1: Context-based Counter interface
+#include <igor/Core/Scenario.h>
+#include <igor/Core/QuerySequenceContext.h>
+#include <igor/Core/ModelContext.h>
 
+#include <igorCoreExport.h>
 
 /**
  * \class Counter Counter.h
@@ -43,34 +48,94 @@
  * \version 1.0
  *
  * The Counter abstract class provides an interface to collect individual scenarios statistics and aggregate them in various ways.
+ * 
+ * PHASE 4 REFACTORING: Counter interface now uses context objects for cleaner, more maintainable code.
+ * - New interface: initialize(ModelContext) and count_scenario(Scenario, QuerySequenceContext, ModelContext)
+ * - Legacy interface: Preserved for compatibility, marked deprecated
  */
-class Counter {
+class CORE_EXPORT Counter
+{
 public:
-	Counter(const std::string& path = "/tmp/", bool last_iter = false);
-	virtual ~Counter();
+    Counter(const std::string &path = "/tmp/", bool last_iter = false);
+    virtual ~Counter();
 
-	virtual std::string type() const =0;
+    virtual std::string type() const = 0;
 
-	virtual void initialize_counter(const Model_Parms& , const Model_marginals&) = 0;
+    // ===== CONTEXT-BASED INTERFACE =====
+    
+    /**
+     * @brief Initialize counter with model context
+     * 
+     * Uses ModelContext which provides access to:
+     * - events_map: Event structure for querying event properties
+     * - model_parameters: Probability parameters
+     * - offset_map: Event dependencies
+     * 
+     * All Counter subclasses must implement this method.
+     * 
+     * @param model Model configuration context
+     */
+    virtual void initialize(const ModelContext& model) = 0;
+    
+    /**
+     * @brief Count a completed scenario
+     * 
+     * Uses context-based interface:
+     * - Scenario: Flattened view of completed scenario (zero-copy)
+     * - QuerySequenceContext: Input sequence data
+     * - ModelContext: Model structure for event queries
+     * 
+     * Default implementation does nothing (for counters that don't count at scenario level).
+     * Override in derived classes that need scenario-level statistics.
+     * 
+     * @param scenario Flattened scenario view (probabilities + sequences)
+     * @param query Input sequence context (read sequence data)
+     * @param model Model context (event lookup, structure queries)
+     */
+    virtual void count_scenario(
+        const Scenario& scenario,
+        const QuerySequenceContext& query,
+        const ModelContext& model
+    );
+    
+    // ===== OLD INTERFACE (parameter-based) - DEPRECATED =====
+    
+    /**
+     * @brief Initialize counter (DEPRECATED)
+     * @deprecated Use initialize(const ModelContext&)
+     */
+    [[deprecated("Use initialize(const ModelContext&)")]]
+    virtual void initialize_counter(const Model_Parms &, const Model_marginals &) = 0;
 
-	virtual void count_scenario(long double , double ,const std::string& , Seq_type_str_p_map& , const Seq_offsets_map& , const std::unordered_map<std::tuple<Event_type,Gene_class,Seq_side>, std::shared_ptr<Rec_Event>>&  , Mismatch_vectors_map& );
-	virtual void count_sequence(double , const Model_marginals& ,const Model_Parms&);
+    /**
+     * @brief Count scenario (DEPRECATED)
+     * @deprecated Use count_scenario(const Scenario&, const QuerySequenceContext&, const ModelContext&)
+     */
+    [[deprecated("Use count_scenario(const Scenario&, const QuerySequenceContext&, const ModelContext&)")]]
+    virtual void
+    count_scenario(long double, double, const std::string &, Seq_type_str_p_map &, const Seq_offsets_map &,
+                   const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> &,
+                   Mismatch_vectors_map &);
+                   
+    // TODO: Consider refactoring count_sequence to use contexts (future enhancement)
+    // virtual void count_sequence(const Scenario&, const ModelContext&);
+    virtual void count_sequence(double, const Model_marginals &, const Model_Parms &);
 
-	virtual void add_to_counter(std::shared_ptr<Counter>);
-	virtual void add_checked(std::shared_ptr<Counter>) =0;
+    virtual void add_to_counter(std::shared_ptr<Counter>);
+    virtual void add_checked(std::shared_ptr<Counter>) = 0;
 
-	virtual void dump_sequence_data(int , int);
-	virtual void dump_data_summary(int);
+    virtual void dump_sequence_data(int, int);
+    virtual void dump_data_summary(int);
 
-	bool is_last_iter_only() const {return last_iter_only;}
-	std::string get_path_to_files() const {return path_to_file;}
-	void set_path_to_files(const std::string& new_path );
+    bool is_last_iter_only() const { return last_iter_only; }
+    std::string get_path_to_files() const { return path_to_file; }
+    void set_path_to_files(const std::string &new_path);
 
-	virtual std::shared_ptr<Counter> copy() const = 0;
+    virtual std::shared_ptr<Counter> copy() const = 0;
 
 protected:
-	std::string path_to_file;
-	bool last_iter_only;
-	bool fstreams_created;
-	//TODO create a unique identifier of the counter? Make something up to prevent to have twice the same counter??
+    std::string path_to_file;
+    bool last_iter_only;
+    bool fstreams_created;
+    //TODO create a unique identifier of the counter? Make something up to prevent to have twice the same counter??
 };
