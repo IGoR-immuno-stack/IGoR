@@ -20,20 +20,13 @@ using namespace EventUtils;
 class MockEvent : public Rec_Event {
 public:
   MockEvent(string name) : Rec_Event() { this->name = name; }
+  
   void
-  iterate(double &, Downstream_scenario_proba_bound_map &, const string &,
-          const Int_Str &, Index_map &,
-          const unordered_map<Rec_Event_name,
-                              vector<pair<shared_ptr<const Rec_Event>, int>>> &,
-          shared_ptr<Next_event_ptr> &, Marginal_array_p &,
-          const Marginal_array_p &,
-          const unordered_map<Gene_class, vector<Alignment_data>> &,
-          Seq_type_str_p_map &, Seq_offsets_map &, shared_ptr<Error_rate> &,
-          map<size_t, shared_ptr<Counter>> &,
-          const unordered_map<tuple<Event_type, Gene_class, Seq_side>,
-                              shared_ptr<Rec_Event>> &,
-          Safety_bool_map &, Mismatch_vectors_map &, double &,
-          double &) override {}
+  iterate(QuerySequenceContext& query,
+          const ModelContext& model,
+          ScenarioContext& scenario,
+          ExplorationContext& exploration,
+          AccumulationContext& accumulation) override {}
 
   queue<int> draw_random_realization(
       const Marginal_array_p &, unordered_map<Rec_Event_name, int> &,

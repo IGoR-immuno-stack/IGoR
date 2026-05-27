@@ -26,6 +26,7 @@
 
 #include <igor/Core/Rec_Event.h>
 #include <igor/Core/Counter.h>
+#include <igor/Core/Scenario.h>  // For Scenario view construction
 
 using namespace std;
 
@@ -121,6 +122,68 @@ int Rec_Event::size() const
     return event_realizations.size();
 }
 
+/**
+ * @brief Legacy to Context based signature adapter.
+ * @deprecated
+ */
+void Rec_Event::iterate(double &scenario_proba, Downstream_scenario_proba_bound_map &downstream_proba_map,
+                       const string &sequence, const Int_Str &int_sequence, Index_map &base_index_map,
+                       const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
+                       shared_ptr<Next_event_ptr> &next_event_ptr_arr, Marginal_array_p &updated_marginals_point,
+                       const Marginal_array_p &model_parameters_point,
+                       const unordered_map<Gene_class, vector<Alignment_data>> &allowed_realizations,
+                       Seq_type_str_p_map &constructed_sequences, Seq_offsets_map &seq_offsets,
+                       shared_ptr<Error_rate> &error_rate_p, map<size_t, shared_ptr<Counter>> &counters_list,
+                       const unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map,
+                       Safety_bool_map &safety_set, Mismatch_vectors_map &mismatches_lists,
+                       double &seq_max_prob_scenario, double &proba_threshold_factor)
+{
+    
+    // Input query context
+    QuerySequenceContext query(
+        sequence,
+        int_sequence,
+        allowed_realizations  // Legacy param name, stored as gene_alignments
+    );
+    
+    // Model configuration context
+    ModelContext model(
+        model_parameters_point,
+        offset_map,
+        events_map,
+        queue<shared_ptr<Rec_Event>>()  // Never used by legacy iterate()
+    );
+    
+    // Scenario state context
+    ScenarioContext scenario(
+        scenario_proba,
+        constructed_sequences,
+        seq_offsets,
+        mismatches_lists
+    );
+    
+    // Exploration policy context
+    ExplorationContext exploration(
+        downstream_proba_map,
+        seq_max_prob_scenario,
+        proba_threshold_factor,
+        base_index_map,
+        next_event_ptr_arr,
+        safety_set
+    );
+    
+    // Accumulation context
+    AccumulationContext accumulation(
+        updated_marginals_point,
+        counters_list,
+        error_rate_p
+    );
+    
+    // Delegate to new context-based iterate
+    this->iterate(query, model, scenario, exploration, accumulation);
+
+}
+
 void Rec_Event::set_event_identifier(size_t identifier)
 {
     this->event_index = identifier;
@@ -134,14 +197,10 @@ int Rec_Event::get_event_identifier() const
 double Rec_Event::iterate_common(int realization_index, int base_index,
                                  Index_map &base_index_map,
                                  const Marginal_array_p &model_parameters) {
-    for (auto jiter = memory_and_offsets.begin();
-         jiter != memory_and_offsets.end(); ++jiter) {
-        int previous_index =
-            base_index_map.at(std::get<0>(*jiter), std::get<1>(*jiter) - 1);
-        previous_index += realization_index * std::get<2>(*jiter);
-        base_index_map.set_value(std::get<0>(*jiter), previous_index,
-                                 std::get<1>(*jiter));
-    }
+    // Update parent realization tracking for marginal array indexing of child events
+    update_parent_tracking(realization_index, base_index_map);
+    
+    // Return marginal probability for this realization
     return model_parameters[base_index + realization_index];
 }
 
@@ -210,8 +269,11 @@ void Rec_Event::iterate_wrap_up(
 
             for (std::map<size_t, std::shared_ptr<Counter>>::iterator iter = counters_list.begin();
                  iter != counters_list.end(); ++iter) {
+                #pragma GCC diagnostic push
+                #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
                 (*iter).second->count_scenario(scenario_error_w_proba, scenario_proba, sequence, constructed_sequences,
                                                seq_offsets, events_map, mismatches_lists);
+                #pragma GCC diagnostic pop
             }
 
             for (std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>,
@@ -219,6 +281,70 @@ void Rec_Event::iterate_wrap_up(
                  iter != events_map.end(); ++iter) {
                 if (!(*iter).second->is_fixed()) {
                     (*iter).second->add_to_marginals(scenario_error_w_proba, updated_marginal_array_p);
+                }
+            }
+        }
+    }
+}
+
+/**
+ * @brief Context-based iterate_wrap_up with Counter interface
+ * 
+ * Handles leaf-node scenario completion:
+ * - Computes error-weighted probability
+ * - Creates Scenario view from ScenarioContext
+ * - Calls counters and marginal accumulation
+ * 
+ * This replaces the legacy adapter pattern with direct context usage.
+ */
+void Rec_Event::iterate_wrap_up(
+        QuerySequenceContext& query,
+        const ModelContext& model,
+        ScenarioContext& scenario,
+        ExplorationContext& exploration,
+        AccumulationContext& accumulation)
+{
+    if (exploration.next_event_ptr_arr.get()[this->event_index]) {
+        // Not a leaf node - recursively call next event's iterate_wrap_up
+        exploration.next_event_ptr_arr.get()[this->event_index]->iterate(
+            query,
+            model,
+            scenario,
+            exploration,
+            accumulation
+        );
+    } else {
+        // Leaf node - complete scenario and accumulate
+        
+        // Compute error-weighted probability using error_rate
+        // TODO (Future): Consider changing compute_scenario_error_probability() to void return
+        //                Method already assigns scenario.scenario_error_w_proba internally,
+        //                making this assignment redundant. Void return would match
+        //                Rec_Event::iterate() pattern (contexts mutated, no return value).
+        //                See docs/ITERATE_REFACTORING_PLAN.md "Future Refactoring Opportunities"
+        scenario.scenario_error_w_proba = accumulation.error_rate->compute_scenario_error_probability(
+            query,
+            model,
+            scenario,
+            exploration
+        );
+        
+        // Check pruning threshold
+        if (not exploration.should_prune(scenario.scenario_error_w_proba)) {
+            // Update best scenario probability if needed
+            exploration.update_max_prob(scenario.scenario_error_w_proba);
+            
+            // Create Scenario view and call counters with context interface
+            Scenario scenario_view(scenario);
+            
+            for (auto& [counter_id, counter] : accumulation.counters) {
+                counter->count_scenario(scenario_view, query, model);
+            }
+            
+            // Accumulate marginals for non-fixed events
+            for (const auto& [event_key, event_ptr] : model.events_map) {
+                if (!event_ptr->is_fixed()) {
+                    event_ptr->add_to_marginals(scenario.scenario_error_w_proba, accumulation.updated_marginals);
                 }
             }
         }

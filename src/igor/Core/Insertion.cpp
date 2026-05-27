@@ -119,20 +119,24 @@ bool Insertion::add_realization(int insertion_number)
     return 0;
 }
 
-void Insertion::iterate(double &scenario_proba, Downstream_scenario_proba_bound_map &downstream_proba_map,
-                        const string &sequence, const Int_Str &int_sequence, Index_map &base_index_map,
-                        const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
-                        shared_ptr<Next_event_ptr> &next_event_ptr_arr, Marginal_array_p &updated_marginals_point,
-                        const Marginal_array_p &model_parameters_point,
-                        const unordered_map<Gene_class, vector<Alignment_data>> &allowed_realizations,
-                        Seq_type_str_p_map &constructed_sequences, Seq_offsets_map &seq_offsets,
-                        shared_ptr<Error_rate> &error_rate_p, map<size_t, shared_ptr<Counter>> &counters_list,
-                        const unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map,
-                        Safety_bool_map &safety_set, Mismatch_vectors_map &mismatches_lists,
-                        double &seq_max_prob_scenario, double &proba_threshold_factor)
+/**
+ * @brief Context-based iterate() implementation
+ * 
+ * Unpacks 5 context objects into legacy parameters and delegates
+ * to the existing iterate() implementation.
+ * 
+ * NOTE: Some const_casts are required because legacy iterate() signatures
+ * accept non-const references even though they don't modify model data.
+ * These casts are safe and will be eliminated when legacy interface is removed.
+ */
+void Insertion::iterate(
+        QuerySequenceContext& query,
+        const ModelContext& model,
+        ScenarioContext& scenario,
+        ExplorationContext& exploration,
+        AccumulationContext& accumulation)
 {
-    base_index = base_index_map.at(this->event_index);
-    new_scenario_proba = scenario_proba;
+    base_index = exploration.index_map.at(this->event_index);
     proba_contribution = 1;
 
     switch ((*this).event_class) {
@@ -165,18 +169,18 @@ void Insertion::iterate(double &scenario_proba, Downstream_scenario_proba_bound_
 
         //TODO get the current memory layer to avoid any error
         //insertions = seq_offsets.at(d_5_pair) - seq_offsets.at(v_3_pair) -1;
-        insertions = seq_offsets.at(D_gene_seq, Five_prime) - seq_offsets.at(V_gene_seq, Three_prime) - 1;
+        insertions = scenario.get_offset(D_gene_seq, Five_prime) - scenario.get_offset(V_gene_seq, Three_prime) - 1;
 
         //TODO Think about including in-dels in the insertion process(thus create a real loop on the number of insertion)
 
-        proba_contribution = (*this).iterate_common(proba_contribution, insertions, base_index, base_index_map,
-                                                    offset_map, model_parameters_point);
+        proba_contribution = (*this).iterate_common(proba_contribution, insertions, base_index, exploration.index_map,
+                                                    model.offset_map, model.model_parameters);
         if (proba_contribution != 0) {
             inserted_str.assign(insertions, -1);
             new_index =
                     base_index + this->event_realizations.at(to_string(insertions)).index; //FIXME this should not exist
-            constructed_sequences[VD_ins_seq] = &inserted_str;
-            downstream_proba_map.set_value(VD_ins_seq, junction_length_best_proba_map.at(insertions),
+            scenario.constructed_sequences[VD_ins_seq] = &inserted_str;
+            exploration.downstream_proba_map.set_value(VD_ins_seq, junction_length_best_proba_map.at(insertions),
                                            memory_layer_proba_map_junction);
         }
         //}
@@ -208,16 +212,16 @@ void Insertion::iterate(double &scenario_proba, Downstream_scenario_proba_bound_
         //if(!(*constructed_sequences.at(D_gene_seq)).empty()){
         //insertions = seq_offsets.at(pair<Seq_type,Seq_side>(J_gene_seq,Five_prime)) - seq_offsets.at(pair<Seq_type,Seq_side>(D_gene_seq,Three_prime)) -1;
         //insertions = seq_offsets.at(j_5_pair) - seq_offsets.at(d_3_pair) -1;
-        insertions = seq_offsets.at(J_gene_seq, Five_prime) - seq_offsets.at(D_gene_seq, Three_prime) - 1;
+        insertions = scenario.get_offset(J_gene_seq, Five_prime) - scenario.get_offset(D_gene_seq, Three_prime) - 1;
 
-        proba_contribution = iterate_common(proba_contribution, insertions, base_index, base_index_map, offset_map,
-                                            model_parameters_point);
+        proba_contribution = iterate_common(proba_contribution, insertions, base_index, exploration.index_map, model.offset_map,
+                                            model.model_parameters);
 
         if (proba_contribution != 0) {
             inserted_str.assign(insertions, -1);
             new_index = base_index + this->event_realizations.at(to_string(insertions)).index;
-            constructed_sequences[DJ_ins_seq] = &inserted_str;
-            downstream_proba_map.set_value(DJ_ins_seq, junction_length_best_proba_map.at(insertions),
+            scenario.constructed_sequences[DJ_ins_seq] = &inserted_str;
+            exploration.downstream_proba_map.set_value(DJ_ins_seq, junction_length_best_proba_map.at(insertions),
                                            memory_layer_proba_map_junction);
         }
 
@@ -256,16 +260,15 @@ void Insertion::iterate(double &scenario_proba, Downstream_scenario_proba_bound_
 
         //insertions = seq_offsets.at(pair<Seq_type,Seq_side>(J_gene_seq,Five_prime)) - seq_offsets.at(pair<Seq_type,Seq_side>(V_gene_seq,Three_prime)) -1;
         //insertions = seq_offsets.at(j_5_pair) - seq_offsets.at(v_3_pair) -1;
-        insertions = seq_offsets.at(J_gene_seq, Five_prime) - seq_offsets.at(V_gene_seq, Three_prime) - 1;
-
-        proba_contribution = iterate_common(proba_contribution, insertions, base_index, base_index_map, offset_map,
-                                            model_parameters_point);
+        insertions = scenario.get_offset(J_gene_seq, Five_prime) - scenario.get_offset(V_gene_seq, Three_prime) - 1;
+        proba_contribution = iterate_common(proba_contribution, insertions, base_index, exploration.index_map, model.offset_map,
+                                            model.model_parameters);
 
         if (proba_contribution != 0) {
             inserted_str.assign(insertions, -1);
             new_index = base_index + realization_index; //this->event_realizations.at(to_string(insertions)).index;
-            constructed_sequences[VJ_ins_seq] = &inserted_str;
-            downstream_proba_map.set_value(VJ_ins_seq, junction_length_best_proba_map.at(insertions),
+            scenario.constructed_sequences[VJ_ins_seq] = &inserted_str;
+            exploration.downstream_proba_map.set_value(VJ_ins_seq, junction_length_best_proba_map.at(insertions),
                                            memory_layer_proba_map_junction);
         }
 
@@ -279,21 +282,18 @@ void Insertion::iterate(double &scenario_proba, Downstream_scenario_proba_bound_
 
     if (proba_contribution != 0) {
         //TODO new_scenario proba necessary?
-        new_scenario_proba *= proba_contribution;
+        scenario.scenario_proba *= proba_contribution;
         //tmp_err_w_proba*=proba_contribution;
         (*dinuc_updated_bound) = upper_bound_per_ins.at(insertions);
 
         //Compute scenario downstream proba bound
-        scenario_upper_bound_proba = new_scenario_proba;
-        //Multiply all downstream probas
-        downstream_proba_map.multiply_all(scenario_upper_bound_proba, current_downstream_proba_memory_layers);
+        scenario_upper_bound_proba = exploration.compute_upper_bound(
+            scenario.scenario_proba,
+            current_downstream_proba_memory_layers
+        );
 
-        if (scenario_upper_bound_proba >= (seq_max_prob_scenario * proba_threshold_factor)) {
-            Rec_Event::iterate_wrap_up(new_scenario_proba, downstream_proba_map, sequence, int_sequence, base_index_map,
-                                       offset_map, next_event_ptr_arr, updated_marginals_point, model_parameters_point,
-                                       allowed_realizations, constructed_sequences, seq_offsets, error_rate_p,
-                                       counters_list, events_map, safety_set, mismatches_lists, seq_max_prob_scenario,
-                                       proba_threshold_factor);
+        if (!exploration.should_prune(scenario_upper_bound_proba)) {
+            Rec_Event::iterate_wrap_up(query, model, scenario, exploration, accumulation);
         }
     }
 }

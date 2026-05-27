@@ -59,6 +59,64 @@ Pgen_counter::~Pgen_counter()
     // TODO Auto-generated destructor stub
 }
 
+// ===== CONTEXT-BASED INTERFACE =====
+
+void Pgen_counter::initialize(const ModelContext& model) {
+    // Initialize output file
+    if (not fstreams_created) {
+        output_pgen_file_ptr = shared_ptr<ofstream>(new ofstream);
+        output_pgen_file_ptr->open(path_to_file + "Pgen_counts.csv");
+        //Create the header
+        if (output_Pgen_estimator) {
+            (*output_pgen_file_ptr.get()) << "seq_index;Pgen_estimate" << endl;
+        } else {
+            if (output_sequences) {
+                (*output_pgen_file_ptr.get()) << "seq_index;scen_sequence;Pgen;P_joint_read_seq" << endl;
+            } else {
+                (*output_pgen_file_ptr.get()) << "seq_index;Pgen;P_seq_given_read" << endl;
+            }
+        }
+
+        fstreams_created = true;
+    }
+
+    // Identify which gene/insertion sequences exist in the model
+    const unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map =
+            model.events_map;
+            
+    v_gene = events_map.count(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, V_gene, Undefined_side)) > 0;
+    d_gene = events_map.count(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, D_gene, Undefined_side)) > 0;
+    j_gene = events_map.count(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, J_gene, Undefined_side)) > 0;
+    vj_ins = events_map.count(tuple<Event_type, Gene_class, Seq_side>(Insertion_t, VJ_genes, Undefined_side)) > 0;
+    vd_ins = events_map.count(tuple<Event_type, Gene_class, Seq_side>(Insertion_t, VD_genes, Undefined_side)) > 0;
+    dj_ins = events_map.count(tuple<Event_type, Gene_class, Seq_side>(Insertion_t, DJ_genes, Undefined_side)) > 0;
+}
+
+void Pgen_counter::count_scenario(
+        const Scenario& scenario,
+        const QuerySequenceContext& query,
+        const ModelContext& model)
+{
+    // Build scenario sequence using Scenario's method (modifies member variable by reference)
+    scenario.build_full_sequence(scenario_resulting_sequence);
+
+    // Accumulate probabilities for this scenario sequence
+    if (sequence_Pgens_map.count(scenario_resulting_sequence) > 0) {
+        pair<double, long double> &Pgen_Pjoint_pair = sequence_Pgens_map[scenario_resulting_sequence];
+        Pgen_Pjoint_pair.first += scenario.scenario_proba;
+        Pgen_Pjoint_pair.second += scenario.scenario_error_w_proba;
+    } else {
+        pair<double, long double> &Pgen_Pjoint_pair = sequence_Pgens_map[scenario_resulting_sequence];
+        //make proper initialization
+        Pgen_Pjoint_pair.first = scenario.scenario_proba;
+        Pgen_Pjoint_pair.second = scenario.scenario_error_w_proba;
+    }
+
+    read_likelihood += scenario.scenario_error_w_proba;
+}
+
+// ===== LEGACY INTERFACE (DEPRECATED) =====
+
 void Pgen_counter::initialize_counter(const Model_Parms &parms, const Model_marginals &marginals)
 {
     if (not fstreams_created) {
@@ -81,36 +139,12 @@ void Pgen_counter::initialize_counter(const Model_Parms &parms, const Model_marg
     const unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map =
             parms.get_events_map();
     //Initialize booleans for constructed sequences
-    if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, V_gene, Undefined_side)) > 0) {
-        v_gene = true;
-    } else {
-        v_gene = false;
-    }
-    if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, D_gene, Undefined_side)) > 0) {
-        d_gene = true;
-    } else {
-        d_gene = false;
-    }
-    if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, J_gene, Undefined_side)) > 0) {
-        j_gene = true;
-    } else {
-        j_gene = false;
-    }
-    if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(Insertion_t, VJ_genes, Undefined_side)) > 0) {
-        vj_ins = true;
-    } else {
-        vj_ins = false;
-    }
-    if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(Insertion_t, VD_genes, Undefined_side)) > 0) {
-        vd_ins = true;
-    } else {
-        vd_ins = false;
-    }
-    if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(Insertion_t, DJ_genes, Undefined_side)) > 0) {
-        dj_ins = true;
-    } else {
-        dj_ins = false;
-    }
+    v_gene = events_map.count(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, V_gene, Undefined_side)) > 0;
+    d_gene = events_map.count(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, D_gene, Undefined_side)) > 0;
+    j_gene = events_map.count(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, J_gene, Undefined_side)) > 0;
+    vj_ins = events_map.count(tuple<Event_type, Gene_class, Seq_side>(Insertion_t, VJ_genes, Undefined_side)) > 0;
+    vd_ins = events_map.count(tuple<Event_type, Gene_class, Seq_side>(Insertion_t, VD_genes, Undefined_side)) > 0;
+    dj_ins = events_map.count(tuple<Event_type, Gene_class, Seq_side>(Insertion_t, DJ_genes, Undefined_side)) > 0;
 }
 
 void Pgen_counter::count_scenario(

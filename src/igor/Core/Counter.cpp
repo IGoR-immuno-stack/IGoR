@@ -45,6 +45,20 @@ Counter::~Counter()
     // TODO Auto-generated destructor stub
 }
 
+
+void Counter::count_scenario(
+        const Scenario& scenario,
+        const QuerySequenceContext& query,
+        const ModelContext& model)
+{
+    // Do nothing - virtual method for counters that don't count at scenario level
+    // All concrete counter implementations override this method with their specific logic
+}
+
+// ===== OLD INTERFACE (DEPRECATED) - Default implementations =====
+/**
+*  @deprecated use count_scenario( const Scenario& scenario, const QuerySequenceContext& query, const ModelContext& model)
+*/
 void Counter::count_scenario(
         long double scenario_seq_joint_proba, double scenario_probability, const string &original_sequence,
         Seq_type_str_p_map &constructed_sequences, const Seq_offsets_map &seq_offsets,

@@ -114,6 +114,262 @@ Coverage_err_counter::~Coverage_err_counter()
         delete[] positions;
 }
 
+// ===== CONTEXT-BASED INTERFACE =====
+
+void Coverage_err_counter::initialize(const ModelContext& model) {
+    if (not fstreams_created) {
+
+        if (count_on_v) {
+            output_cov_err_v_file_ptr = shared_ptr<ofstream>(new ofstream);
+            this->output_cov_err_v_file_ptr->open(path_to_file + "V_genes_cov_and_err.csv");
+
+            //Create the header
+            if (dump_individual_seqs) {
+                (*this->output_cov_err_v_file_ptr.get()) << "iteration_n;seq_index;gene_index;coverage;errors" << endl;
+            } else {
+                (*this->output_cov_err_v_file_ptr.get()) << "iteration_n;gene_index;coverage;errors" << endl;
+            }
+        }
+
+        if (count_on_d) {
+            output_cov_err_d_file_ptr = shared_ptr<ofstream>(new ofstream);
+            this->output_cov_err_d_file_ptr->open(path_to_file + "D_genes_cov_and_err.csv");
+
+            //Create the header
+            if (dump_individual_seqs) {
+                (*this->output_cov_err_d_file_ptr.get()) << "iteration_n;seq_index;gene_index;coverage;errors" << endl;
+            } else {
+                (*this->output_cov_err_d_file_ptr.get()) << "iteration_n;gene_index;coverage;errors" << endl;
+            }
+        }
+
+        if (count_on_j) {
+            output_cov_err_j_file_ptr = shared_ptr<ofstream>(new ofstream);
+            this->output_cov_err_j_file_ptr->open(path_to_file + "J_genes_cov_and_err.csv");
+
+            //Create the header
+            if (dump_individual_seqs) {
+                (*this->output_cov_err_j_file_ptr.get()) << "iteration_n;seq_index;gene_index;coverage;errors" << endl;
+            } else {
+                (*this->output_cov_err_j_file_ptr.get()) << "iteration_n;gene_index;coverage;errors" << endl;
+            }
+        }
+
+        fstreams_created = true;
+    }
+    positions = new size_t[record_Npoint_occurence];
+    const auto& events_map = model.events_map;
+
+    if (count_on_v) {
+        //Initialize V pointers
+        try {
+            v_gene_event_p = dynamic_pointer_cast<Gene_choice>(
+                    events_map.at(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, V_gene, Undefined_side)));
+            vgene_offset_p = &v_gene_event_p->alignment_offset_p;
+            vgene_real_index_p = &v_gene_event_p->current_realization_index;
+
+            //Initialize gene counters
+            v_realizations = v_gene_event_p->get_realizations_map();
+            //Get the number of realizations
+            n_v_real = v_realizations.size();
+
+            this->allocate_coverage_and_errors_arrays(n_v_real, v_realizations, v_gene_nucleotide_coverage_p,
+                                                      v_gene_per_nucleotide_error_p, v_gene_nucleotide_coverage_seq_p,
+                                                      v_gene_per_nucleotide_error_seq_p);
+
+        } catch (exception &except) {
+            cout << "Exception caught during initialization of Coverage_err_counter" << endl;
+            cout << "Exception caught trying to initialize V gene pointers" << endl;
+            cout << endl << "throwing exception now..." << endl;
+            throw except;
+        }
+
+        //Get deletion value pointer for V 3' deletions if it exists
+        if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(Deletion_t, V_gene, Three_prime)) != 0) {
+            shared_ptr<const Deletion> v_3_del_event_p = dynamic_pointer_cast<Deletion>(
+                    events_map.at(tuple<Event_type, Gene_class, Seq_side>(Deletion_t, V_gene, Three_prime)));
+            v_3_del_value_p = &(v_3_del_event_p->deletion_value);
+        } else {
+            v_3_del_value_p = &no_del_buffer;
+        }
+    }
+
+    if (count_on_d) {
+        //Initialize D pointers
+        try {
+            d_gene_event_p = dynamic_pointer_cast<Gene_choice>(
+                    events_map.at(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, D_gene, Undefined_side)));
+            dgene_offset_p = &d_gene_event_p->alignment_offset_p;
+            dgene_real_index_p = &d_gene_event_p->current_realization_index;
+
+            //Initialize gene counters
+            d_realizations = d_gene_event_p->get_realizations_map();
+            //Get the number of realizations
+            n_d_real = d_realizations.size();
+
+            this->allocate_coverage_and_errors_arrays(n_d_real, d_realizations, d_gene_nucleotide_coverage_p,
+                                                      d_gene_per_nucleotide_error_p, d_gene_nucleotide_coverage_seq_p,
+                                                      d_gene_per_nucleotide_error_seq_p);
+
+        } catch (exception &except) {
+            cout << "Exception caught during initialization of Coverage_err_counter" << endl;
+            cout << "Exception caught trying to initialize D gene pointers" << endl;
+            cout << endl << "throwing exception now..." << endl;
+            throw except;
+        }
+
+        //Get deletion value pointer for D 5' deletions if it exists
+        if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(Deletion_t, D_gene, Five_prime)) != 0) {
+            shared_ptr<const Deletion> d_5_del_event_p = dynamic_pointer_cast<Deletion>(
+                    events_map.at(tuple<Event_type, Gene_class, Seq_side>(Deletion_t, D_gene, Five_prime)));
+            d_5_del_value_p = &(d_5_del_event_p->deletion_value);
+        } else {
+            d_5_del_value_p = &no_del_buffer;
+        }
+
+        //Get deletion value pointer for D 3' deletions if it exists
+        if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(Deletion_t, D_gene, Three_prime)) != 0) {
+            shared_ptr<const Deletion> d_3_del_event_p = dynamic_pointer_cast<Deletion>(
+                    events_map.at(tuple<Event_type, Gene_class, Seq_side>(Deletion_t, D_gene, Three_prime)));
+            d_3_del_value_p = &(d_3_del_event_p->deletion_value);
+        } else {
+            d_3_del_value_p = &no_del_buffer;
+        }
+    }
+
+    if (count_on_j) {
+        //Initialize J pointers
+        try {
+            j_gene_event_p = dynamic_pointer_cast<Gene_choice>(
+                    events_map.at(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, J_gene, Undefined_side)));
+            jgene_offset_p = &j_gene_event_p->alignment_offset_p;
+            jgene_real_index_p = &j_gene_event_p->current_realization_index;
+
+            //Initialize gene counters
+            j_realizations = j_gene_event_p->get_realizations_map();
+            //Get the number of realizations
+            n_j_real = j_realizations.size();
+
+            this->allocate_coverage_and_errors_arrays(n_j_real, j_realizations, j_gene_nucleotide_coverage_p,
+                                                      j_gene_per_nucleotide_error_p, j_gene_nucleotide_coverage_seq_p,
+                                                      j_gene_per_nucleotide_error_seq_p);
+
+        } catch (exception &except) {
+            cout << "Exception caught during initialization of Coverage_err_counter" << endl;
+            cout << "Exception caught trying to initialize J gene pointers" << endl;
+            cout << endl << "throwing exception now..." << endl;
+            throw except;
+        }
+
+        //Get deletion value pointer for J 5' deletions if it exists
+        if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(Deletion_t, J_gene, Five_prime)) != 0) {
+            shared_ptr<const Deletion> j_5_del_event_p = dynamic_pointer_cast<Deletion>(
+                    events_map.at(tuple<Event_type, Gene_class, Seq_side>(Deletion_t, J_gene, Five_prime)));
+            j_5_del_value_p = &(j_5_del_event_p->deletion_value);
+        } else {
+            j_5_del_value_p = &no_del_buffer;
+        }
+    }
+}
+
+void Coverage_err_counter::count_scenario(
+        const Scenario& scenario,
+        const QuerySequenceContext& query,
+        const ModelContext& model)
+{
+    // Use scenario_error_w_proba (already normalized by error rate)
+    long double scenario_seq_joint_proba = scenario.scenario_error_w_proba;
+
+    if (count_on_v) {
+
+        //Get mismatch list
+        vector<int> v_mismatch_list;
+        if (scenario.mismatches[V_gene_seq]) {
+            v_mismatch_list = *scenario.mismatches[V_gene_seq];
+        }
+
+        //Get the coverage
+        //Get the length of the gene and a pointer to the right array to write on
+        tmp_corr_len = v_gene_nucleotide_coverage_seq_p[**vgene_real_index_p].first;
+        tmp_cov_p = v_gene_nucleotide_coverage_seq_p[**vgene_real_index_p].second;
+        tmp_err_p = v_gene_per_nucleotide_error_seq_p[**vgene_real_index_p].second;
+
+        /*
+         * Start at position 0
+         * Assume V is on the left of the read and compute left bound: max(0,-(**vgene_offset_p))
+         * Disregard P nucleotides, and set end bound as: tmp_corr_len - max(0,*v_3_del_value_p)
+         */
+
+        this->recurs_coverage_count(scenario_seq_joint_proba, 0, max(0, -(**vgene_offset_p)),
+                                    tmp_corr_len - max(0, *v_3_del_value_p), tmp_corr_len);
+
+        /*
+         * compute the position on the mismatch vector of the first Pnuc error and set it as the end bound
+         */
+        size_t tmp_len_util = v_mismatch_list.size();
+        for (i = 0; i != tmp_len_util; ++i) {
+            //Disregard mismatches due to P nucleotides
+            if ((v_mismatch_list[i] - (**vgene_offset_p)) >= tmp_corr_len) {
+                tmp_len_util = i;
+                break;
+            }
+        }
+        this->recurs_errors_count(scenario_seq_joint_proba, v_mismatch_list, vgene_offset_p, 0, 0, tmp_len_util,
+                                  tmp_corr_len);
+    }
+
+    if (count_on_d) {
+        throw("/!\\ D coverage and errors counters not implemented yet! /!\\ ");
+    }
+
+    if (count_on_j) {
+
+        //Get mismatch list
+        vector<int> j_mismatch_list;
+        if (scenario.mismatches[J_gene_seq]) {
+            j_mismatch_list = *scenario.mismatches[J_gene_seq];
+        }
+
+        
+        //Get the coverage
+        //Get the length of the gene and a pointer to the right array to write on
+        tmp_corr_len = j_gene_nucleotide_coverage_seq_p[**jgene_real_index_p].first; //Length of the J gene
+        tmp_cov_p = j_gene_nucleotide_coverage_seq_p[**jgene_real_index_p].second; //Coverage array
+        tmp_err_p = j_gene_per_nucleotide_error_seq_p[**jgene_real_index_p].second; //Errors array
+
+        /*
+		 * Start at position 0
+		 *
+		 * Disregard P nucleotides, and set begin bound as: max(0,(*j_5_del_value_p))
+		 * Assume J is on the right of the read and compute end bound: max(0,(*j_5_del_value_p))+(seq_offsets.at(J_gene_seq,Three_prime) - seq_offsets.at(J_gene_seq,Five_prime) +1)
+		 * 																i.e : begin bound + number of visible nucleotides
+		 */
+
+        this->recurs_coverage_count(
+                scenario_seq_joint_proba, 0, max(0, (*j_5_del_value_p)),
+                max(0, (*j_5_del_value_p))
+                        + (scenario.offsets[J_gene_seq].three_prime - scenario.offsets[J_gene_seq].five_prime + 1),
+                tmp_corr_len);
+
+        /*
+		 * compute the position on the mismatch vector of the first Pnuc error and set it as the begin bound
+		 */
+        size_t tmp_len_util = j_mismatch_list.size();
+        for (i = 0; i != tmp_len_util; ++i) {
+            //Disregard mismatches due to P nucleotides
+            if ((j_mismatch_list[i] >= (**jgene_offset_p))) {
+                //Since the alignment offset does not take into account Pnuc, any error due to Pnucs will have an index smaller than the gene offset
+                tmp_len_util = i;
+                break;
+            }
+        }
+        this->recurs_errors_count(scenario_seq_joint_proba, j_mismatch_list, jgene_offset_p, 0, tmp_len_util,
+                                  j_mismatch_list.size(), tmp_corr_len);
+    }
+}
+
+// ===== LEGACY INTERFACE (DEPRECATED) =====
+
 void Coverage_err_counter::initialize_counter(const Model_Parms &parms, const Model_marginals &marginals)
 {
     if (not fstreams_created) {
