@@ -283,6 +283,30 @@ public:
                     accumulation_storage.error_rate)
     {}
     
+    // ========================================================================
+    // Mutation helpers (operate on private storage, bypass Context const refs)
+    // Use these in tests instead of const_cast to set up test state.
+    // Because IterateTestState owns the storage, mutating it here is safe and
+    // correct — the Context's const refs will automatically see the new values.
+    // ========================================================================
+
+    /// Set alignments for a single gene class
+    void set_alignment(Gene_class gene_class, std::vector<Alignment_data> alignments) {
+        query_storage.gene_alignments[gene_class] = std::move(alignments);
+    }
+
+    /// Replace the full events_map (use create_events_map() to build one)
+    void set_events_map(
+        std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> map
+    ) {
+        model_storage.events_map = std::move(map);
+    }
+
+    /// Set a single marginal value by flat array index
+    void set_marginal(size_t index, long double value) {
+        model_storage.model_marginals[index] = value;
+    }
+
     // Prevent copying (contexts hold references)
     IterateTestState(const IterateTestState&) = delete;
     IterateTestState& operator=(const IterateTestState&) = delete;
