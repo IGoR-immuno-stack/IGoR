@@ -102,37 +102,210 @@ bool compare_sequences_with_mismatches(const std::string& seq1,
                                       const std::string& seq2,
                                       int max_mismatches);
 
+// ============================================================================
+// Storage Objects (Private implementation - own data, guarantee Context lifetime)
+// ============================================================================
+
 /**
- * @brief State container for iterate() method testing
+ * @brief Storage for QuerySequenceContext fields
  * 
- * Holds all the complex state required to call Event::iterate() methods.
- * Provides properly initialized instances of all the maps and structures.
+ * Private storage that owns query data and guarantees lifetime for QuerySequenceContext references.
+ * Update this struct when QuerySequenceContext evolves.
  */
-struct IterateTestState {
+struct QueryStorage {
     std::string sequence;
     Int_Str int_sequence;
-    double scenario_proba;
+    std::unordered_map<Gene_class, std::vector<Alignment_data>> gene_alignments;
     
-    // Maps and structures
-    Downstream_scenario_proba_bound_map downstream_proba_map;
-    Index_map base_index_map;
-    std::unordered_map<Rec_Event_name,std::vector<std::pair<std::shared_ptr<const Rec_Event>,int>>> offset_map;
-    std::unique_ptr<long double[]> updated_marginals;
-    std::unique_ptr<long double[]> model_marginals;
-    Seq_type_str_p_map constructed_sequences;
-    Seq_offsets_map seq_offsets;
-    std::shared_ptr<Error_rate> error_rate;
-    std::map<size_t,std::shared_ptr<Counter>> counters_list;
-    Safety_bool_map safety_set;
-    Mismatch_vectors_map mismatches_lists;
-    
-    // Pruning parameters
-    double seq_max_prob = 1.0;
-    double proba_threshold = 1e-10;
+    explicit QueryStorage(const std::string& seq)
+        : sequence(seq), int_sequence(nt2int(seq)), gene_alignments{} {}
 };
 
 /**
+ * @brief Storage for ModelContext fields
+ * 
+ * Private storage that owns model data and guarantees lifetime for ModelContext references.
+ * Update this struct when ModelContext evolves.
+ */
+struct ModelStorage {
+    std::unique_ptr<long double[]> model_marginals;
+    std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> offset_map;
+    std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> events_map;
+    std::queue<std::shared_ptr<Rec_Event>> model_queue;
+    
+    explicit ModelStorage(size_t marginal_array_size)
+        : model_marginals(std::make_unique<long double[]>(marginal_array_size)),
+          offset_map{}, events_map{}, model_queue{} {
+        // Initialize marginal array to 0
+        for (size_t i = 0; i < marginal_array_size; ++i) {
+            model_marginals[i] = 0.0;
+        }
+    }
+};
+
+/**
+ * @brief Storage for ScenarioContext fields
+ * 
+ * Private storage that owns scenario data and guarantees lifetime for ScenarioContext references.
+ * Update this struct when ScenarioContext evolves.
+ */
+struct ScenarioStorage {
+    double scenario_proba;
+    Seq_type_str_p_map constructed_sequences;
+    Seq_offsets_map seq_offsets;
+    Mismatch_vectors_map mismatches_lists;
+    
+    ScenarioStorage()
+        : scenario_proba(1.0),
+          constructed_sequences(Seq_type_str_p_map(6)),
+          seq_offsets(Seq_offsets_map(6, 3)),
+          mismatches_lists(Mismatch_vectors_map(6)) {}
+};
+
+/**
+ * @brief Storage for ExplorationContext fields
+ * 
+ * Private storage that owns exploration data and guarantees lifetime for ExplorationContext references.
+ * Update this struct when ExplorationContext evolves.
+ */
+struct ExplorationStorage {
+    Downstream_scenario_proba_bound_map downstream_proba_map;
+    double seq_max_prob;
+    double proba_threshold;
+    Index_map base_index_map;
+    std::shared_ptr<Next_event_ptr> next_event_ptr_arr;
+    Safety_bool_map safety_set;
+    
+    ExplorationStorage()
+        : downstream_proba_map(Downstream_scenario_proba_bound_map(6)),
+          seq_max_prob(1.0),
+          proba_threshold(1e-10),
+          base_index_map(Index_map(100)),
+          next_event_ptr_arr(nullptr),
+          safety_set(Safety_bool_map(3)) {}
+};
+
+/**
+ * @brief Storage for AccumulationContext fields
+ * 
+ * Private storage that owns accumulation data and guarantees lifetime for AccumulationContext references.
+ * Update this struct when AccumulationContext evolves.
+ */
+struct AccumulationStorage {
+    std::unique_ptr<long double[]> updated_marginals;
+    std::map<size_t, std::shared_ptr<Counter>> counters_list;
+    std::shared_ptr<Error_rate> error_rate;
+    
+    explicit AccumulationStorage(size_t marginal_array_size)
+        : updated_marginals(std::make_unique<long double[]>(marginal_array_size)),
+          counters_list{},
+          error_rate(std::make_shared<Single_error_rate>(0.0)) {
+        // Initialize marginal array to 0
+        for (size_t i = 0; i < marginal_array_size; ++i) {
+            updated_marginals[i] = 0.0;
+        }
+    }
+};
+
+/**
+ * @brief State container for iterate() method testing (storage-backed context design)
+ * 
+ * Clean separation of concerns:
+ * - Private Storage objects own data and guarantee Context reference lifetime
+ * - Public Context objects provide the API interface
+ * - Tests interact exclusively through Context objects
+ * - When a Context evolves, update the corresponding Storage struct
+ * 
+ * Design contract:
+ * 1. Storage objects are private, guarantee lifetime, have constructors
+ * 2. Context objects are public, reference Storage data
+ * 3. All test access goes through Context API (state.query.*, state.model.*, etc.)
+ * 4. Constructor: construct Storage → wire references to Contexts
+ * 
+ * Example usage:
+ *   auto state = create_iterate_state("ACGTACGT");
+ *   state.query.gene_alignments[V_gene] = v_alignments;
+ *   state.model.events_map[{GeneChoice_t, V_gene, Undefined_side}] = v_event;
+ *   call_iterate(event, state);
+ */
+struct IterateTestState {
+private:
+    // ========================================================================
+    // Storage objects (own data, guarantee Context lifetime)
+    // These are implementation details - tests never access them directly
+    // ========================================================================
+    QueryStorage query_storage;
+    ModelStorage model_storage;
+    ScenarioStorage scenario_storage;
+    ExplorationStorage exploration_storage;
+    AccumulationStorage accumulation_storage;
+    
+public:
+    // ========================================================================
+    // Context objects (public interface - reference Storage data)
+    // Tests access everything through these
+    // ========================================================================
+    QuerySequenceContext query;
+    ModelContext model;
+    ScenarioContext scenario;
+    ExplorationContext exploration;
+    AccumulationContext accumulation;
+    
+    /**
+     * @brief Constructor - initialize Storage objects, then wire Contexts to them
+     * 
+     * Construction order:
+     * 1. Construct Storage objects (with initialization logic in their constructors)
+     * 2. Construct Context objects that reference Storage data
+     * 
+     * This encapsulates all initialization complexity in Storage constructors,
+     * keeping this constructor clean and focused on wiring.
+     */
+    IterateTestState(
+        const std::string& seq,
+        size_t marginal_array_size
+    ) : // Step 1: Construct Storage objects
+        query_storage(seq),
+        model_storage(marginal_array_size),
+        scenario_storage(),
+        exploration_storage(),
+        accumulation_storage(marginal_array_size),
+        
+        // Step 2: Wire Contexts to Storage references
+        query(query_storage.sequence, query_storage.int_sequence, query_storage.gene_alignments),
+        model(model_storage.model_marginals, model_storage.offset_map, model_storage.events_map, model_storage.model_queue),
+        scenario(scenario_storage.scenario_proba, scenario_storage.constructed_sequences, 
+                scenario_storage.seq_offsets, scenario_storage.mismatches_lists),
+        exploration(exploration_storage.downstream_proba_map, exploration_storage.seq_max_prob,
+                   exploration_storage.proba_threshold, exploration_storage.base_index_map,
+                   exploration_storage.next_event_ptr_arr, exploration_storage.safety_set),
+        accumulation(accumulation_storage.updated_marginals, accumulation_storage.counters_list,
+                    accumulation_storage.error_rate)
+    {}
+    
+    // Prevent copying (contexts hold references)
+    IterateTestState(const IterateTestState&) = delete;
+    IterateTestState& operator=(const IterateTestState&) = delete;
+    
+    // Allow moving
+    IterateTestState(IterateTestState&&) = default;
+    IterateTestState& operator=(IterateTestState&&) = delete;
+};
+
+// ============================================================================
+// Test State Factory
+// ============================================================================
+
+/**
  * @brief Create an IterateTestState with reasonable defaults
+ * 
+ * Creates a test state initialized for iterate() method testing.
+ * All data is owned by the returned state, and tests interact with it
+ * through the Context object members (query, model, scenario, etc.).
+ * 
+ * After creation, populate test-specific data through the Context objects:
+ *   state.query.gene_alignments[V_gene] = v_alignments;
+ *   state.model.events_map[{GeneChoice_t, V_gene, Undefined_side}] = v_event;
  * 
  * @param sequence The test sequence to evaluate
  * @param marginal_array_size Size of marginal array to allocate (default 1000)
@@ -144,21 +317,22 @@ IterateTestState create_iterate_state(
 );
 
 /**
- * @brief Wrapper function to call iterate() on a Rec_Event with proper parameter dispatch
+ * @brief Wrapper function to call iterate() on a Rec_Event with context-based interface
  * 
  * This helper function simplifies calling iterate() by taking an IterateTestState struct,
- * initializing the event, and dispatching its members in the correct order to the iterate() method.
+ * initializing the event, setting up post-initialization for uninitialized genes, and
+ * dispatching context objects to the iterate() method.
+ * 
+ * Post-initialization pattern: After initialize_event(), this function initializes empty
+ * sequences/mismatch lists for genes not set by the event. This prevents null pointer
+ * dereferencing in error rate calculation when testing events in isolation.
  * 
  * @param event The recombination event to iterate
- * @param state The test state containing all iterate parameters
- * @param allowed_realizations Map of allowed gene alignments by gene class
- * @param events_map Map of all events in the model
+ * @param state The test state containing all iterate parameters and storage
  */
 void call_iterate(
     std::shared_ptr<Rec_Event> event,
-    IterateTestState& state,
-    const std::unordered_map<Gene_class, std::vector<Alignment_data>>& allowed_realizations,
-    const std::unordered_map<std::tuple<Event_type,Gene_class,Seq_side>, std::shared_ptr<Rec_Event>>& events_map
+    IterateTestState& state
 );
 
 // ============================================================================
@@ -167,6 +341,8 @@ void call_iterate(
 
 /**
  * @brief Get sequence offset from IterateTestState
+ * 
+ * Helper that accesses scenario context data.
  * 
  * @param state Test state
  * @param seq_type Type of sequence (V_gene_seq, D_gene_seq, etc.)
@@ -184,6 +360,8 @@ int get_seq_offset(
 /**
  * @brief Check if a seq_offset exists in the map
  * 
+ * Helper that accesses scenario context data.
+ * 
  * @param state Test state
  * @param seq_type Sequence type (V_gene_seq, D_gene_seq, J_gene_seq)
  * @param side Sequence side (Five_prime, Three_prime)
@@ -200,6 +378,8 @@ bool has_seq_offset(
 /**
  * @brief Get constructed sequence from IterateTestState
  * 
+ * Helper that accesses scenario context data.
+ * 
  * @param state Test state
  * @param seq_type Type of sequence
  * @param layer Memory layer (default 0)
@@ -213,6 +393,8 @@ const Int_Str* get_constructed_sequence(
 
 /**
  * @brief Check if a constructed sequence exists in the map
+ * 
+ * Helper that accesses scenario context data.
  * 
  * @param state Test state
  * @param seq_type Sequence type (V_gene_seq, D_gene_seq, J_gene_seq)
@@ -228,6 +410,8 @@ bool has_constructed_sequence(
 /**
  * @brief Get mismatch positions for a sequence type
  * 
+ * Helper that accesses scenario context data.
+ * 
  * @param state Test state
  * @param seq_type Type of sequence
  * @param layer Memory layer (default 0)
@@ -242,6 +426,8 @@ std::vector<int> get_mismatches(
 /**
  * @brief Check if a safety flag is set
  * 
+ * Helper that accesses exploration context data.
+ * 
  * @param state Test state
  * @param safety_type VD_safe, VJ_safe, or DJ_safe
  * @param layer Memory layer (default 0)
@@ -255,6 +441,8 @@ bool is_safe(
 
 /**
  * @brief Check if a safety flag exists in the map
+ * 
+ * Helper that accesses exploration context data.
  * 
  * @param state Test state
  * @param safety_type VD_safe, VJ_safe, or DJ_safe

@@ -254,117 +254,83 @@ bool compare_sequences_with_mismatches(const std::string& seq1,
     return true;
 }
 
-// IterateTestState implementation - uses default constructors/destructors
+// IterateTestState implementation - uses context factory functions
+
+// ============================================================================
+// Test State Factory
+// ============================================================================
 
 IterateTestState create_iterate_state(
     const std::string& sequence,
     size_t marginal_array_size
 ) {
-    IterateTestState state{
-        sequence,                                  // sequence
-        nt2int(sequence),                         // int_sequence
-        1.0,                                      // scenario_proba
-        Downstream_scenario_proba_bound_map(6),   // downstream_proba_map (6 Seq_types)
-        Index_map(100),                           // base_index_map (arbitrary size, enough for test events)
-        {},                                       // offset_map
-        std::make_unique<long double[]>(marginal_array_size),  // updated_marginals
-        std::make_unique<long double[]>(marginal_array_size),  // model_marginals
-        Seq_type_str_p_map(6),                    // constructed_sequences (6 Seq_types)
-        Seq_offsets_map(6, 3),                    // seq_offsets (6 Seq_types, 3 Seq_sides)
-        std::make_shared<Single_error_rate>(0.0), // error_rate with 0% error rate
-        {},                                       // counters_list
-        Safety_bool_map(3),                       // safety_set (3 Event_safety values)
-        Mismatch_vectors_map(6),                  // mismatches_lists (6 Seq_types)
-        1.0,                                      // seq_max_prob
-        1e-10                                     // proba_threshold
-    };
-    
-    // Initialize marginal arrays to 0
-    for (size_t i = 0; i < marginal_array_size; ++i) {
-        state.updated_marginals[i] = 0.0;
-        state.model_marginals[i] = 0.0;
-    }
-    
-    return state;
+    // Constructor handles all initialization
+    return IterateTestState(sequence, marginal_array_size);
 }
 
 void call_iterate(
     std::shared_ptr<Rec_Event> event,
-    IterateTestState& state,
-    const std::unordered_map<Gene_class, std::vector<Alignment_data>>& allowed_realizations,
-    const std::unordered_map<std::tuple<Event_type,Gene_class,Seq_side>, std::shared_ptr<Rec_Event>>& events_map
+    IterateTestState& state
 ) {
     // Set base_index_map for ALL events in events_map (required by IGoR)
-    // Even stub events need base_index_map entries
+    // Access through const_cast since model context provides const reference
+    auto& events_map = const_cast<std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>>&>(
+        state.model.events_map
+    );
     for (const auto& event_pair : events_map) {
         const auto& ev = event_pair.second;
         if (ev) {
-            state.base_index_map[ev->get_event_identifier()] = 0;
+            // Access through const_cast since exploration context provides non-const reference
+            const_cast<Index_map&>(state.exploration.index_map)[ev->get_event_identifier()] = 0;
         }
     }
     
     // Initialize the event - this will call initialize_event() which requests memory layers
-    // and then calls Rec_Event::initialize_event() which uses get_all_current_memory_layer()
     std::unordered_set<Rec_Event_name> initialized_events;
     event->initialize_event(
         initialized_events,
         events_map,
-        state.offset_map,
-        state.downstream_proba_map,
-        state.constructed_sequences,
-        state.safety_set,
-        state.error_rate,
-        state.mismatches_lists,
-        state.seq_offsets,
-        state.base_index_map
+        const_cast<std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>>&>(
+            state.model.offset_map
+        ),
+        const_cast<Downstream_scenario_proba_bound_map&>(state.exploration.downstream_proba_map),
+        const_cast<Seq_type_str_p_map&>(state.scenario.constructed_sequences),
+        const_cast<Safety_bool_map&>(state.exploration.safety_set),
+        const_cast<std::shared_ptr<Error_rate>&>(state.accumulation.error_rate),
+        const_cast<Mismatch_vectors_map&>(state.scenario.mismatches_lists),
+        const_cast<Seq_offsets_map&>(state.scenario.seq_offsets),
+        const_cast<Index_map&>(state.exploration.index_map)
     );
     
-    // Initialize empty sequences and mismatch lists for genes not initialized by the event
-    // This prevents null pointer dereferencing in error rate calculation (compare_sequences)
-    // Use static storage to ensure pointers remain valid throughout test execution
+    // POST-INITIALIZATION: Initialize empty sequences and mismatch lists for genes 
+    // not initialized by the event. This prevents null pointer dereferencing in 
+    // error rate calculation (compare_sequences) when testing events in isolation.
+    // Use static storage to ensure pointers remain valid throughout test execution.
     static Int_Str empty_seq = nt2int("");
     static std::vector<int> empty_mismatches;
     
-    if (!state.constructed_sequences.exist(V_gene_seq)) {
-        state.constructed_sequences.set_value(V_gene_seq, &empty_seq, 0);
-        state.mismatches_lists.set_value(V_gene_seq, &empty_mismatches, 0);
+    auto& constructed_seqs = const_cast<Seq_type_str_p_map&>(state.scenario.constructed_sequences);
+    auto& mismatch_lists = const_cast<Mismatch_vectors_map&>(state.scenario.mismatches_lists);
+    
+    if (!constructed_seqs.exist(V_gene_seq)) {
+        constructed_seqs.set_value(V_gene_seq, &empty_seq, 0);
+        mismatch_lists.set_value(V_gene_seq, &empty_mismatches, 0);
     }
-    if (!state.constructed_sequences.exist(J_gene_seq)) {
-        state.constructed_sequences.set_value(J_gene_seq, &empty_seq, 0);
-        state.mismatches_lists.set_value(J_gene_seq, &empty_mismatches, 0);
+    if (!constructed_seqs.exist(J_gene_seq)) {
+        constructed_seqs.set_value(J_gene_seq, &empty_seq, 0);
+        mismatch_lists.set_value(J_gene_seq, &empty_mismatches, 0);
     }
     
     // Create a next_event_ptr array for the event chain
-    // For isolated event testing, we create an array large enough to hold
-    // pointers for all possible events, initialized to nullptr
-    const size_t max_events = 100; // Arbitrary size large enough for test events
-    std::shared_ptr<Next_event_ptr> next_event_ptr(
-        new Next_event_ptr[max_events](),  // () initializes all to nullptr
+    const size_t max_events = 100;
+    auto& next_ptr = const_cast<std::shared_ptr<Next_event_ptr>&>(state.exploration.next_event_ptr_arr);
+    next_ptr = std::shared_ptr<Next_event_ptr>(
+        new Next_event_ptr[max_events](),
         std::default_delete<Next_event_ptr[]>()
     );
     
-    // Call iterate with all parameters from the state struct
-    event->iterate(
-        state.scenario_proba,
-        state.downstream_proba_map,
-        state.sequence,
-        state.int_sequence,
-        state.base_index_map,
-        state.offset_map,
-        next_event_ptr,
-        state.updated_marginals,
-        state.model_marginals,
-        allowed_realizations,
-        state.constructed_sequences,
-        state.seq_offsets,
-        state.error_rate,
-        state.counters_list,
-        events_map,
-        state.safety_set,
-        state.mismatches_lists,
-        state.seq_max_prob,
-        state.proba_threshold
-    );
+    // Call iterate with context objects (already members of state)
+    event->iterate(state.query, state.model, state.scenario, state.exploration, state.accumulation);
 }
 
 // ============================================================================
@@ -377,7 +343,7 @@ int get_seq_offset(
     Seq_side side,
     int layer
 ) {
-    return state.seq_offsets.at(seq_type, side, layer);
+    return state.scenario.seq_offsets.at(seq_type, side, layer);
 }
 
 bool has_seq_offset(
@@ -387,7 +353,7 @@ bool has_seq_offset(
     int layer
 ) {
     try {
-        state.seq_offsets.at(seq_type, side, layer);
+        state.scenario.seq_offsets.at(seq_type, side, layer);
         return true;
     } catch (const std::out_of_range&) {
         return false;
@@ -399,7 +365,7 @@ const Int_Str* get_constructed_sequence(
     Seq_type seq_type,
     int layer
 ) {
-    return state.constructed_sequences.at(seq_type, layer);
+    return state.scenario.constructed_sequences.at(seq_type, layer);
 }
 
 bool has_constructed_sequence(
@@ -408,7 +374,7 @@ bool has_constructed_sequence(
     int layer
 ) {
     try {
-        state.constructed_sequences.at(seq_type, layer);
+        state.scenario.constructed_sequences.at(seq_type, layer);
         return true;
     } catch (const std::out_of_range&) {
         return false;
@@ -420,7 +386,7 @@ std::vector<int> get_mismatches(
     Seq_type seq_type,
     int layer
 ) {
-    auto* mismatch_vec = state.mismatches_lists.at(seq_type, layer);
+    auto* mismatch_vec = state.scenario.mismatches_lists.at(seq_type, layer);
     if (mismatch_vec) {
         return *mismatch_vec;
     }
@@ -432,7 +398,7 @@ bool is_safe(
     Event_safety safety_type,
     int layer
 ) {
-    return state.safety_set.at(safety_type, layer);
+    return state.exploration.safety_set.at(safety_type, layer);
 }
 
 bool has_safety(
@@ -441,7 +407,7 @@ bool has_safety(
     int layer
 ) {
     try {
-        state.safety_set.at(safety_type, layer);
+        state.exploration.safety_set.at(safety_type, layer);
         return true;
     } catch (const std::out_of_range&) {
         return false;

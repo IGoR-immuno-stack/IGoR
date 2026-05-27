@@ -137,11 +137,11 @@ TEST_CASE("IterateTestState creation", "[gene_choice][test_utils]") {
         std::string test_seq = "ACGTACGTACGTNNNNNN";
         auto state = create_iterate_state(test_seq);
         
-        REQUIRE(state.sequence == test_seq);
-        REQUIRE(state.int_sequence.size() == test_seq.size());
-        REQUIRE(state.updated_marginals != nullptr);
-        REQUIRE(state.model_marginals != nullptr);
-        REQUIRE(state.error_rate != nullptr);
+        REQUIRE(state.query.sequence == test_seq);
+        REQUIRE(state.query.int_sequence.size() == test_seq.size());
+        REQUIRE(state.accumulation.updated_marginals != nullptr);
+        REQUIRE(state.model.model_parameters != nullptr);
+        REQUIRE(state.accumulation.error_rate != nullptr);
     }
     
     SECTION("Create state with custom marginal size") {
@@ -151,7 +151,7 @@ TEST_CASE("IterateTestState creation", "[gene_choice][test_utils]") {
         // Verify marginal arrays are initialized to 0
         bool all_zero = true;
         for (size_t i = 0; i < 500; ++i) {
-            if (state.updated_marginals[i] != 0.0 || state.model_marginals[i] != 0.0) {
+            if (state.accumulation.updated_marginals[i] != 0.0 || state.model.model_parameters[i] != 0.0) {
                 all_zero = false;
                 break;
             }
@@ -177,7 +177,7 @@ TEST_CASE("Gene_choice::iterate basic call", "[gene_choice][iterate]") {
         auto state = create_iterate_state(test_sequence);
         
         // Set model marginals - P(TRBV1) = 1.0
-        state.model_marginals[0] = 1.0;
+        const_cast<long double*>(state.model.model_parameters.get())[0] = 1.0;
         
         // Create alignment using helper
         std::vector<Alignment_data> v_alignments;
@@ -191,10 +191,14 @@ TEST_CASE("Gene_choice::iterate basic call", "[gene_choice][iterate]") {
         auto events_map = create_events_map(v_choice_ptr);
         
         // Set base_index_map for this event
-        state.base_index_map[v_choice_ptr->get_event_identifier()] = 0;
+        const_cast<Index_map&>(state.exploration.index_map)[v_choice_ptr->get_event_identifier()] = 0;
         
         // Call iterate using the wrapper utility (handles initialization internally)
-        call_iterate(v_choice_ptr, state, allowed_realizations, events_map);
+        const_cast<std::unordered_map<Gene_class, std::vector<Alignment_data>>&>(state.query.gene_alignments) = allowed_realizations;
+
+        const_cast<std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>>&>(state.model.events_map) = events_map;
+
+        call_iterate(v_choice_ptr, state);
         
         // Verify using helper functions
         REQUIRE(get_seq_offset(state, V_gene_seq, Five_prime) == 0);
@@ -215,8 +219,8 @@ TEST_CASE("Gene_choice::iterate basic call", "[gene_choice][iterate]") {
         auto state = create_iterate_state(test_sequence);
         
         // Set marginals: P(TRBV1) = 0.7, P(TRBV2) = 0.3
-        state.model_marginals[0] = 0.7;
-        state.model_marginals[1] = 0.3;
+        const_cast<long double*>(state.model.model_parameters.get())[0] = 0.7;
+        const_cast<long double*>(state.model.model_parameters.get())[1] = 0.3;
         
         // Both genes align (but only TRBV1 matches perfectly)
         std::vector<Alignment_data> v_alignments;
@@ -230,10 +234,14 @@ TEST_CASE("Gene_choice::iterate basic call", "[gene_choice][iterate]") {
         auto v_choice_ptr = std::make_shared<Gene_choice>(v_choice);
         events_map[std::make_tuple(GeneChoice_t, V_gene, Undefined_side)] = v_choice_ptr;
         
-        state.base_index_map[v_choice_ptr->get_event_identifier()] = 0;
+        const_cast<Index_map&>(state.exploration.index_map)[v_choice_ptr->get_event_identifier()] = 0;
         
         // Call iterate - should explore both alignments
-        call_iterate(v_choice_ptr, state, allowed_realizations, events_map);
+        const_cast<std::unordered_map<Gene_class, std::vector<Alignment_data>>&>(state.query.gene_alignments) = allowed_realizations;
+
+        const_cast<std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>>&>(state.model.events_map) = events_map;
+
+        call_iterate(v_choice_ptr, state);
     }
     
     SECTION("V gene with negative offset") {
@@ -248,7 +256,7 @@ TEST_CASE("Gene_choice::iterate basic call", "[gene_choice][iterate]") {
         std::string test_sequence = "CCCGGGTTTNNNNNN";  // Last 9bp of gene visible
         auto state = create_iterate_state(test_sequence);
         
-        state.model_marginals[0] = 1.0;
+        const_cast<long double*>(state.model.model_parameters.get())[0] = 1.0;
         
         // Alignment with negative offset
         std::vector<Alignment_data> v_alignments;
@@ -267,10 +275,14 @@ TEST_CASE("Gene_choice::iterate basic call", "[gene_choice][iterate]") {
         auto v_choice_ptr = std::make_shared<Gene_choice>(v_choice);
         events_map[std::make_tuple(GeneChoice_t, V_gene, Undefined_side)] = v_choice_ptr;
         
-        state.base_index_map[v_choice_ptr->get_event_identifier()] = 0;
+        const_cast<Index_map&>(state.exploration.index_map)[v_choice_ptr->get_event_identifier()] = 0;
         
         // Call iterate with negative offset
-        call_iterate(v_choice_ptr, state, allowed_realizations, events_map);
+        const_cast<std::unordered_map<Gene_class, std::vector<Alignment_data>>&>(state.query.gene_alignments) = allowed_realizations;
+
+        const_cast<std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>>&>(state.model.events_map) = events_map;
+
+        call_iterate(v_choice_ptr, state);
     }
 }
 
@@ -296,7 +308,7 @@ TEST_CASE("V_gene iterate - comprehensive code path coverage", "[gene_choice][it
         };
         
         auto state = create_iterate_state(test_sequence);
-        state.model_marginals[0] = realization_proba;
+        const_cast<long double*>(state.model.model_parameters.get())[0] = realization_proba;
         
         std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
         allowed_realizations[V_gene] = alignments;
@@ -304,7 +316,13 @@ TEST_CASE("V_gene iterate - comprehensive code path coverage", "[gene_choice][it
         // For isolated V testing without D or J genes, create events_map with only V
         auto events_map = create_events_map(v_event);
         
-        call_iterate(v_event, state, allowed_realizations, events_map);
+        const_cast<std::unordered_map<Gene_class, std::vector<Alignment_data>>&>(state.query.gene_alignments) = allowed_realizations;
+
+        
+        const_cast<std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>>&>(state.model.events_map) = events_map;
+
+        
+        call_iterate(v_event, state);
         
         // Verify V gene offsets and sequence
         REQUIRE(get_seq_offset(state, V_gene_seq, Five_prime) == 0);
@@ -315,7 +333,7 @@ TEST_CASE("V_gene iterate - comprehensive code path coverage", "[gene_choice][it
         // When testing a single event in isolation without downstream events,
         // scenario_proba isn't updated by iterate(). Instead, check updated_marginals
         // which contains the computed probability for this realization.
-        REQUIRE(state.updated_marginals[0] == realization_proba);
+        REQUIRE(state.accumulation.updated_marginals[0] == realization_proba);
     }
     
     SECTION("VD safety check: overlap detected") {
@@ -343,7 +361,11 @@ TEST_CASE("V_gene iterate - comprehensive code path coverage", "[gene_choice][it
         // TODO: Pre-set D offset in state to trigger overlap check
         std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
         allowed_realizations[V_gene] = alignments;
-        call_iterate(v_event, state, allowed_realizations, events_map);
+        const_cast<std::unordered_map<Gene_class, std::vector<Alignment_data>>&>(state.query.gene_alignments) = allowed_realizations;
+
+        const_cast<std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>>&>(state.model.events_map) = events_map;
+
+        call_iterate(v_event, state);
         
         // Assertion: iterate should skip this realization (no V offset set)
         // TODO: Verify that when overlap occurs, the realization is skipped
@@ -373,7 +395,11 @@ TEST_CASE("V_gene iterate - comprehensive code path coverage", "[gene_choice][it
         // TODO: Set D offset far from V to ensure safety
         std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
         allowed_realizations[V_gene] = alignments;
-        call_iterate(v_event, state, allowed_realizations, events_map);
+        const_cast<std::unordered_map<Gene_class, std::vector<Alignment_data>>&>(state.query.gene_alignments) = allowed_realizations;
+
+        const_cast<std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>>&>(state.model.events_map) = events_map;
+
+        call_iterate(v_event, state);
         
         // When gap is large enough, even with min deletions no overlap occurs
         REQUIRE(has_safety(state, VD_safe, 0));
@@ -404,7 +430,11 @@ TEST_CASE("V_gene iterate - comprehensive code path coverage", "[gene_choice][it
         // TODO: Set D offset to create ambiguous deletion scenario
         std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
         allowed_realizations[V_gene] = alignments;
-        call_iterate(v_event, state, allowed_realizations, events_map);
+        const_cast<std::unordered_map<Gene_class, std::vector<Alignment_data>>&>(state.query.gene_alignments) = allowed_realizations;
+
+        const_cast<std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>>&>(state.model.events_map) = events_map;
+
+        call_iterate(v_event, state);
         
         // When in deletion range, some deletions would cause overlap
         REQUIRE(has_safety(state, VD_safe, 0));
@@ -435,7 +465,11 @@ TEST_CASE("V_gene iterate - comprehensive code path coverage", "[gene_choice][it
         // TODO: Set J offset appropriately
         std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
         allowed_realizations[V_gene] = alignments;
-        call_iterate(v_event, state, allowed_realizations, events_map);
+        const_cast<std::unordered_map<Gene_class, std::vector<Alignment_data>>&>(state.query.gene_alignments) = allowed_realizations;
+
+        const_cast<std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>>&>(state.model.events_map) = events_map;
+
+        call_iterate(v_event, state);
         
         // Verify VJ safety flag is set correctly (depends on gap size)
         // REQUIRE(is_safe(state, VJ_safe, 0) == true); // or false, depending on configuration
@@ -462,7 +496,9 @@ TEST_CASE("V_gene iterate - comprehensive code path coverage", "[gene_choice][it
         auto state = create_iterate_state(seq);
         std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
         allowed_realizations[V_gene] = alignments;
-        call_iterate(v_event, state, allowed_realizations, {});
+        const_cast<std::unordered_map<Gene_class, std::vector<Alignment_data>>&>(state.query.gene_alignments) = allowed_realizations;
+
+        call_iterate(v_event, state);
         
         // Verify that at least one alignment was processed
         REQUIRE(get_seq_offset(state, V_gene_seq, Five_prime, 0) >= 0);
@@ -489,7 +525,9 @@ TEST_CASE("V_gene iterate - comprehensive code path coverage", "[gene_choice][it
         auto state = create_iterate_state(seq);
         std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
         allowed_realizations[V_gene] = alignments;
-        call_iterate(v_event, state, allowed_realizations, {});
+        const_cast<std::unordered_map<Gene_class, std::vector<Alignment_data>>&>(state.query.gene_alignments) = allowed_realizations;
+
+        call_iterate(v_event, state);
         
         // Verify mismatches are tracked
         REQUIRE(get_mismatches(state, V_gene_seq, 0).size() == 2);
@@ -520,7 +558,11 @@ TEST_CASE("V_gene iterate - comprehensive code path coverage", "[gene_choice][it
         // TODO: Configure D offset to create junction length not in probability map
         std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
         allowed_realizations[V_gene] = alignments;
-        call_iterate(v_event, state, allowed_realizations, events_map);
+        const_cast<std::unordered_map<Gene_class, std::vector<Alignment_data>>&>(state.query.gene_alignments) = allowed_realizations;
+
+        const_cast<std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>>&>(state.model.events_map) = events_map;
+
+        call_iterate(v_event, state);
         
         // When junction length not in probability map, scenario should be skipped
         // TODO: Verify V offsets were not set or scenario_proba unchanged
@@ -547,7 +589,9 @@ TEST_CASE("V_gene iterate - comprehensive code path coverage", "[gene_choice][it
         // TODO: Set seq_max_prob_scenario and threshold to trigger filtering
         std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
         allowed_realizations[V_gene] = alignments;
-        call_iterate(v_event, state, allowed_realizations, {});
+        const_cast<std::unordered_map<Gene_class, std::vector<Alignment_data>>&>(state.query.gene_alignments) = allowed_realizations;
+
+        call_iterate(v_event, state);
         
         // When probability below threshold, scenario should be filtered
         // TODO: Verify realization was skipped due to low probability
@@ -578,10 +622,14 @@ TEST_CASE("D_gene iterate - comprehensive code path coverage", "[gene_choice][it
         
         auto events_map = create_events_map(nullptr, d_event, nullptr);
         auto state = create_iterate_state(seq);
-        state.model_marginals[0] = 1.0; // P(IGHD1-1*01) = 1.0
+        state.model.model_parameters.get()[0] = 1.0; // P(IGHD1-1*01) = 1.0
         std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
         allowed_realizations[D_gene] = alignments;
-        call_iterate(d_event, state, allowed_realizations, events_map);
+        const_cast<std::unordered_map<Gene_class, std::vector<Alignment_data>>&>(state.query.gene_alignments) = allowed_realizations;
+
+        const_cast<std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>>&>(state.model.events_map) = events_map;
+
+        call_iterate(d_event, state);
         
         // Basic assertions: D offsets should be set correctly
         REQUIRE(get_seq_offset(state, D_gene_seq, Five_prime, 0) == d_offset);
@@ -604,10 +652,14 @@ TEST_CASE("D_gene iterate - comprehensive code path coverage", "[gene_choice][it
         
         auto events_map = create_events_map(nullptr, d_event, nullptr);
         auto state = create_iterate_state(seq);
-        state.model_marginals[0] = 1.0; // P(IGHD1-1*01) = 1.0
+        const_cast<long double*>(state.model.model_parameters.get())[0] = 1.0; // P(IGHD1-1*01) = 1.0
         std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
         allowed_realizations[D_gene] = alignments;
-        call_iterate(d_event, state, allowed_realizations, events_map);
+        const_cast<std::unordered_map<Gene_class, std::vector<Alignment_data>>&>(state.query.gene_alignments) = allowed_realizations;
+
+        const_cast<std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>>&>(state.model.events_map) = events_map;
+
+        call_iterate(d_event, state);
         
         // D should be positioned somewhere in the sequence
         // TODO: Verify D offset is within valid range
@@ -638,7 +690,9 @@ TEST_CASE("D_gene iterate - comprehensive code path coverage", "[gene_choice][it
         // TODO: Pre-set V and J offsets in state
         std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
         allowed_realizations[D_gene] = alignments;
-        call_iterate(d_event, state, allowed_realizations, {});
+        const_cast<std::unordered_map<Gene_class, std::vector<Alignment_data>>&>(state.query.gene_alignments) = allowed_realizations;
+
+        call_iterate(d_event, state);
         
         REQUIRE(get_seq_offset(state, D_gene_seq, Five_prime, 0) == d_offset);
         REQUIRE(get_seq_offset(state, D_gene_seq, Three_prime, 0) == d_offset + d_gene.length() - 1);
@@ -667,7 +721,9 @@ TEST_CASE("D_gene iterate - comprehensive code path coverage", "[gene_choice][it
         // TODO: Set J offset to trigger overlap
         std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
         allowed_realizations[D_gene] = alignments;
-        call_iterate(d_event, state, allowed_realizations, {});
+        const_cast<std::unordered_map<Gene_class, std::vector<Alignment_data>>&>(state.query.gene_alignments) = allowed_realizations;
+
+        call_iterate(d_event, state);
         
         // When D and J would overlap, realization should be skipped
         // TODO: Verify D offsets were not set (indicating skip)
@@ -695,7 +751,9 @@ TEST_CASE("D_gene iterate - comprehensive code path coverage", "[gene_choice][it
         // TODO: Pre-set V and J offsets to define search range
         std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
         allowed_realizations[D_gene] = alignments;
-        call_iterate(d_event, state, allowed_realizations, {});
+        const_cast<std::unordered_map<Gene_class, std::vector<Alignment_data>>&>(state.query.gene_alignments) = allowed_realizations;
+
+        call_iterate(d_event, state);
         
         // In exhaustive search, D should be positioned somewhere valid
         // TODO: Verify D offset is in expected range
@@ -723,7 +781,9 @@ TEST_CASE("D_gene iterate - comprehensive code path coverage", "[gene_choice][it
         // TODO: Set V offset, configure deletion bounds for sliding range
         std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
         allowed_realizations[D_gene] = alignments;
-        call_iterate(d_event, state, allowed_realizations, {});
+        const_cast<std::unordered_map<Gene_class, std::vector<Alignment_data>>&>(state.query.gene_alignments) = allowed_realizations;
+
+        call_iterate(d_event, state);
         
         // D should slide through valid positions between V and sequence end
         // TODO: Verify D was positioned (at least one valid position found)
@@ -752,7 +812,9 @@ TEST_CASE("D_gene iterate - comprehensive code path coverage", "[gene_choice][it
         // TODO: Set deletion bounds such that D fully truncated
         std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
         allowed_realizations[D_gene] = alignments;
-        call_iterate(d_event, state, allowed_realizations, {});
+        const_cast<std::unordered_map<Gene_class, std::vector<Alignment_data>>&>(state.query.gene_alignments) = allowed_realizations;
+
+        call_iterate(d_event, state);
         
         // When D fully truncated, error rate should be 1.0 (no penalty)
         REQUIRE(get_seq_offset(state, D_gene_seq, Five_prime, 0) == d_offset);
@@ -778,7 +840,9 @@ TEST_CASE("D_gene iterate - comprehensive code path coverage", "[gene_choice][it
         // TODO: Position D to have specific mismatches
         std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
         allowed_realizations[D_gene] = alignments;
-        call_iterate(d_event, state, allowed_realizations, {});
+        const_cast<std::unordered_map<Gene_class, std::vector<Alignment_data>>&>(state.query.gene_alignments) = allowed_realizations;
+
+        call_iterate(d_event, state);
         
         // Mismatches should be computed between D gene and sequence
         // TODO: Verify mismatch positions are correct for positioned D
@@ -809,10 +873,14 @@ TEST_CASE("J_gene iterate - comprehensive code path coverage", "[gene_choice][it
         
         auto events_map = create_events_map(nullptr, nullptr, j_event);
         auto state = create_iterate_state(seq);
-        state.model_marginals[0] = 1.0; // P(IGHJ1*01) = 1.0
+        const_cast<long double*>(state.model.model_parameters.get())[0] = 1.0; // P(IGHJ1*01) = 1.0
         std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
         allowed_realizations[J_gene] = alignments;
-        call_iterate(j_event, state, allowed_realizations, events_map);
+        const_cast<std::unordered_map<Gene_class, std::vector<Alignment_data>>&>(state.query.gene_alignments) = allowed_realizations;
+
+        const_cast<std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>>&>(state.model.events_map) = events_map;
+
+        call_iterate(j_event, state);
         
         // Basic assertions: J offsets should be set correctly
         REQUIRE(get_seq_offset(state, J_gene_seq, Five_prime, 0) == j_offset);
@@ -842,7 +910,9 @@ TEST_CASE("J_gene iterate - comprehensive code path coverage", "[gene_choice][it
         // TODO: Pre-set D offset for safety check
         std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
         allowed_realizations[J_gene] = alignments;
-        call_iterate(j_event, state, allowed_realizations, {});
+        const_cast<std::unordered_map<Gene_class, std::vector<Alignment_data>>&>(state.query.gene_alignments) = allowed_realizations;
+
+        call_iterate(j_event, state);
         
         REQUIRE(get_seq_offset(state, J_gene_seq, Five_prime, 0) == j_offset);
         REQUIRE(get_seq_offset(state, J_gene_seq, Three_prime, 0) == j_offset + j_gene.length() - 1);
@@ -870,7 +940,9 @@ TEST_CASE("J_gene iterate - comprehensive code path coverage", "[gene_choice][it
         // TODO: Set V offset for VJ check
         std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
         allowed_realizations[J_gene] = alignments;
-        call_iterate(j_event, state, allowed_realizations, {});
+        const_cast<std::unordered_map<Gene_class, std::vector<Alignment_data>>&>(state.query.gene_alignments) = allowed_realizations;
+
+        call_iterate(j_event, state);
         
         // Verify VJ safety flag is set correctly
         REQUIRE(get_seq_offset(state, J_gene_seq, Five_prime, 0) == j_offset);
@@ -898,7 +970,9 @@ TEST_CASE("J_gene iterate - comprehensive code path coverage", "[gene_choice][it
         // TODO: Set D offset to trigger overlap
         std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
         allowed_realizations[J_gene] = alignments;
-        call_iterate(j_event, state, allowed_realizations, {});
+        const_cast<std::unordered_map<Gene_class, std::vector<Alignment_data>>&>(state.query.gene_alignments) = allowed_realizations;
+
+        call_iterate(j_event, state);
         
         // When J overlaps with D or V, realization should be skipped
         // TODO: Verify J offsets were not set (indicating skip)
@@ -924,7 +998,9 @@ TEST_CASE("J_gene iterate - comprehensive code path coverage", "[gene_choice][it
         auto state = create_iterate_state(seq);
         std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
         allowed_realizations[J_gene] = alignments;
-        call_iterate(j_event, state, allowed_realizations, {});
+        const_cast<std::unordered_map<Gene_class, std::vector<Alignment_data>>&>(state.query.gene_alignments) = allowed_realizations;
+
+        call_iterate(j_event, state);
         
         // Verify at least one J alignment was processed
         REQUIRE(get_seq_offset(state, J_gene_seq, Five_prime, 0) >= 0);
@@ -949,7 +1025,9 @@ TEST_CASE("Gene_choice iterate - empty alignment list", "[gene_choice][iterate][
     auto state = create_iterate_state(seq);
     std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
     allowed_realizations[V_gene] = alignments;
-    call_iterate(v_event, state, allowed_realizations, {});
+    const_cast<std::unordered_map<Gene_class, std::vector<Alignment_data>>&>(state.query.gene_alignments) = allowed_realizations;
+
+    call_iterate(v_event, state);
     
     // With empty alignments (non-D gene), nothing should be processed
     // TODO: Verify state remains unchanged
@@ -974,7 +1052,9 @@ TEST_CASE("Gene_choice iterate - sequence boundary conditions", "[gene_choice][i
     auto state = create_iterate_state(seq);
     std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
     allowed_realizations[V_gene] = alignments;
-    call_iterate(v_event, state, allowed_realizations, {});
+    const_cast<std::unordered_map<Gene_class, std::vector<Alignment_data>>&>(state.query.gene_alignments) = allowed_realizations;
+
+    call_iterate(v_event, state);
     
     // With heavy negative offset, only visible part of gene should be used
     // V 5' offset should be normalized to 0
@@ -1002,7 +1082,9 @@ TEST_CASE("Gene_choice iterate - zero-length junction", "[gene_choice][iterate][
     // TODO: Set D offset = v_3_off + 1 (zero junction)
     std::unordered_map<Gene_class, std::vector<Alignment_data>> allowed_realizations;
     allowed_realizations[V_gene] = alignments;
-    call_iterate(v_event, state, allowed_realizations, {});
+    const_cast<std::unordered_map<Gene_class, std::vector<Alignment_data>>&>(state.query.gene_alignments) = allowed_realizations;
+
+    call_iterate(v_event, state);
     
     // With zero-length junction, V and D are directly adjacent
     REQUIRE(get_seq_offset(state, V_gene_seq, Five_prime, 0) == 0);
