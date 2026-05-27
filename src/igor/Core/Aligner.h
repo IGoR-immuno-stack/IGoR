@@ -210,6 +210,8 @@ private:
 
 CORE_EXPORT std::vector<std::pair<int, char>> parse_cigar(const std::string &cigar);
 CORE_EXPORT std::string alignment_data_to_cigar(const Alignment_data &aln);
+CORE_EXPORT std::string alignment_data_to_cigar_full_span(const Alignment_data &aln, size_t sequence_length,
+                                                          size_t germline_length);
 CORE_EXPORT Alignment_data alignment_data_from_cigar(const std::string &gene_name, const std::string &cigar,
                                                      int seq_start_1based, int seq_end_1based,
                                                      int ref_start_1based, int ref_end_1based, double score);

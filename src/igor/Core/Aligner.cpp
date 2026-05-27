@@ -789,6 +789,23 @@ static void append_cigar_op(vector<pair<int, char>> &ops, char op)
     }
 }
 
+static string cigar_ops_to_string(const vector<pair<int, char>> &ops)
+{
+    string cigar_out;
+    for (const auto &op : ops) {
+        cigar_out += to_string(op.first);
+        cigar_out += op.second;
+    }
+    return cigar_out;
+}
+
+static void append_cigar_run(vector<pair<int, char>> &ops, int count, char op)
+{
+    if (count <= 0) return;
+    if (!ops.empty() && ops.back().second == op) ops.back().first += count;
+    else ops.push_back(make_pair(count, op));
+}
+
 std::string alignment_data_to_cigar(const Alignment_data &aln)
 {
     vector<int> insertions(aln.insertions.begin(), aln.insertions.end());
@@ -826,12 +843,40 @@ std::string alignment_data_to_cigar(const Alignment_data &aln)
         ++del_i;
     }
 
-    string cigar_out;
-    for (const auto &op : ops) {
-        cigar_out += to_string(op.first);
-        cigar_out += op.second;
+    return cigar_ops_to_string(ops);
+}
+
+std::string alignment_data_to_cigar_full_span(const Alignment_data &aln, size_t sequence_length, size_t germline_length)
+{
+    int t = static_cast<int>(aln.five_p_offset);
+    int g = static_cast<int>(aln.five_p_offset) - aln.offset;
+    vector<pair<int, char>> ops;
+    append_cigar_run(ops, g, 'D');
+    append_cigar_run(ops, t, 'I');
+    for (const auto &entry : parse_cigar(alignment_data_to_cigar(aln))) {
+        append_cigar_run(ops, entry.first, entry.second);
+        switch (entry.second) {
+        case '=':
+        case 'X':
+        case 'M':
+            t += entry.first;
+            g += entry.first;
+            break;
+        case 'I':
+        case 'S':
+            t += entry.first;
+            break;
+        case 'D':
+        case 'N':
+            g += entry.first;
+            break;
+        default:
+            break;
+        }
     }
-    return cigar_out;
+    append_cigar_run(ops, static_cast<int>(germline_length) - g, 'D');
+    append_cigar_run(ops, static_cast<int>(sequence_length) - t, 'I');
+    return cigar_ops_to_string(ops);
 }
 
 Alignment_data alignment_data_from_cigar(const std::string &gene_name, const std::string &cigar, int seq_start_1based,
