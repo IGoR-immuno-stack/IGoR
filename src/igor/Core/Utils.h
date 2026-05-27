@@ -43,6 +43,13 @@
 #include <sys/types.h>
 #if defined(_WIN32)
 
+#  ifndef WIN32_LEAN_AND_MEAN
+#    define WIN32_LEAN_AND_MEAN
+#  endif
+#  ifndef NOMINMAX
+#    define NOMINMAX
+#  endif
+
 #  include <process.h>
 #  include <winsock2.h>
 #  include <windows.h>
