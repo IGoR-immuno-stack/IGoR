@@ -26,6 +26,8 @@
 #include <igor/Core/Deletion.h>
 #include <igor/Core/EventUtils.h>
 
+#include <algorithm>
+
 using namespace std;
 Deletion::Deletion() : Deletion(Undefined_gene, Undefined_side)
 {
@@ -37,8 +39,8 @@ Deletion::Deletion(Gene_class gene, Seq_side del_side, pair<int, int> del_range)
 {
     //TODO prevent undefined_side entry(throw exception)
 
-    int min_del = min(del_range.first, del_range.second);
-    int max_del = max(del_range.first, del_range.second);
+    int min_del = std::min(del_range.first, del_range.second);
+    int max_del = std::max(del_range.first, del_range.second);
 
     this->type = Event_type::Deletion_t;
     this->len_max = -min_del;
@@ -162,16 +164,16 @@ void Deletion::add_realization(int del_number)
 
 /**
  * @brief Context-based iterate() implementation
- * 
+ *
  * Unpacks 5 context objects into legacy parameters and delegates
  * to the existing iterate() implementation.
- * 
+ *
  * General: Loop over all possible number of deletions for a given gene on a given sequence side
  *
  * Specific:
  * -First check whether any of these number of deletions is possible given the current position and number of deletions on other genes
  * -Loop over # of deletions in decreasing order
- * 
+ *
 
  */
 void Deletion::iterate(
@@ -441,7 +443,7 @@ void Deletion::iterate(
 
                 // Update context with new probability before proceeding
                 scenario.scenario_proba = new_scenario_proba;
-                
+
                 Rec_Event::iterate_wrap_up(query, model, scenario, exploration, accumulation);
             }
         }
@@ -673,7 +675,7 @@ void Deletion::iterate(
 */
                     // Update context with new probability before proceeding
                     scenario.scenario_proba = new_scenario_proba;
-                
+
                     Rec_Event::iterate_wrap_up(query, model, scenario, exploration, accumulation);
 
                 }
@@ -911,7 +913,7 @@ void Deletion::iterate(
 
                     // Update context with new probability before proceeding
                     scenario.scenario_proba = new_scenario_proba;
-                
+
                     Rec_Event::iterate_wrap_up(query, model, scenario, exploration, accumulation);
                 }
             }
