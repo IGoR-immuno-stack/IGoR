@@ -3,6 +3,40 @@
 
 namespace EventUtils {
 
+bool try_gene_class_to_gene_seq_type(Gene_class gene, Seq_type &seq_type)
+{
+  switch (gene) {
+  case V_gene:
+    seq_type = V_gene_seq;
+    return true;
+  case D_gene:
+    seq_type = D_gene_seq;
+    return true;
+  case J_gene:
+    seq_type = J_gene_seq;
+    return true;
+  default:
+    return false;
+  }
+}
+
+bool try_insertion_gene_class_to_seq_type(Gene_class gene_pair, Seq_type &seq_type)
+{
+  switch (gene_pair) {
+  case VD_genes:
+    seq_type = VD_ins_seq;
+    return true;
+  case DJ_genes:
+    seq_type = DJ_ins_seq;
+    return true;
+  case VJ_genes:
+    seq_type = VJ_ins_seq;
+    return true;
+  default:
+    return false;
+  }
+}
+
 GeneChoiceStatus check_gene_choice(
     Gene_class gene,
     const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>,

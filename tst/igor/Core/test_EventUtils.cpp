@@ -20,7 +20,7 @@ using namespace EventUtils;
 class MockEvent : public Rec_Event {
 public:
   MockEvent(string name) : Rec_Event() { this->name = name; }
-  
+
   void
   iterate(QuerySequenceContext& query,
           const ModelContext& model,
@@ -156,5 +156,45 @@ TEST_CASE("EventUtils GetInsertionLenMax", "[EventUtils]") {
 
   SECTION("VJ insertion") {
     REQUIRE(get_insertion_len_max(VJ_genes, events_map) == 20);
+  }
+}
+
+TEST_CASE("EventUtils GeneClassToSeqType mapping", "[EventUtils]") {
+  Seq_type seq_type = V_gene_seq;
+
+  SECTION("Gene class maps to gene sequence type") {
+    REQUIRE(try_gene_class_to_gene_seq_type(V_gene, seq_type));
+    REQUIRE(seq_type == V_gene_seq);
+
+    REQUIRE(try_gene_class_to_gene_seq_type(D_gene, seq_type));
+    REQUIRE(seq_type == D_gene_seq);
+
+    REQUIRE(try_gene_class_to_gene_seq_type(J_gene, seq_type));
+    REQUIRE(seq_type == J_gene_seq);
+  }
+
+  SECTION("Non-gene class fails gene sequence mapping") {
+    REQUIRE_FALSE(try_gene_class_to_gene_seq_type(VD_genes, seq_type));
+    REQUIRE_FALSE(try_gene_class_to_gene_seq_type(Undefined_gene, seq_type));
+  }
+}
+
+TEST_CASE("EventUtils InsertionGeneClassToSeqType mapping", "[EventUtils]") {
+  Seq_type seq_type = VD_ins_seq;
+
+  SECTION("Insertion class maps to insertion sequence type") {
+    REQUIRE(try_insertion_gene_class_to_seq_type(VD_genes, seq_type));
+    REQUIRE(seq_type == VD_ins_seq);
+
+    REQUIRE(try_insertion_gene_class_to_seq_type(DJ_genes, seq_type));
+    REQUIRE(seq_type == DJ_ins_seq);
+
+    REQUIRE(try_insertion_gene_class_to_seq_type(VJ_genes, seq_type));
+    REQUIRE(seq_type == VJ_ins_seq);
+  }
+
+  SECTION("Non-insertion class fails insertion sequence mapping") {
+    REQUIRE_FALSE(try_insertion_gene_class_to_seq_type(V_gene, seq_type));
+    REQUIRE_FALSE(try_insertion_gene_class_to_seq_type(Undefined_gene, seq_type));
   }
 }

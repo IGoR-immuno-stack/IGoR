@@ -25,6 +25,7 @@
  */
 
 #include <igor/Core/Insertion.h>
+#include <igor/Core/EventUtils.h>
 
 #include <algorithm>
 
@@ -346,18 +347,9 @@ queue<int> Insertion::draw_random_realization(
          iter != this->event_realizations.end(); ++iter) {
         prob_count += model_marginals_p[index_map.at(this->get_name()) + (*iter).second.index];
         if (prob_count >= rand) {
-            switch (this->event_class) {
-            case VD_genes:
-                constructed_sequences[VD_ins_seq] = string((*iter).second.value_int, 'I');
-                break;
-            case DJ_genes:
-                constructed_sequences[DJ_ins_seq] = string((*iter).second.value_int, 'I');
-                break;
-            case VJ_genes:
-                constructed_sequences[VJ_ins_seq] = string((*iter).second.value_int, 'I');
-                break;
-            default:
-                break;
+            Seq_type seq_type = VD_ins_seq;
+            if (EventUtils::try_insertion_gene_class_to_seq_type(this->event_class, seq_type)) {
+                constructed_sequences[seq_type] = string((*iter).second.value_int, 'I');
             }
             realization_queue.push((*iter).second.index);
             if (offset_map.count(this->get_name()) != 0) {
@@ -391,24 +383,13 @@ void Insertion::initialize_event(
         Safety_bool_map &safety_set, shared_ptr<Error_rate> error_rate_p, Mismatch_vectors_map &mismatches_list,
         Seq_offsets_map &seq_offsets, Index_map &index_map)
 {
-
-    switch (this->event_class) {
-
-    case VD_genes:
-        downstream_proba_map.request_memory_layer(VD_ins_seq);
-        memory_layer_proba_map_junction = downstream_proba_map.get_current_memory_layer(VD_ins_seq);
-        break;
-
-    case DJ_genes:
-        downstream_proba_map.request_memory_layer(DJ_ins_seq);
-        memory_layer_proba_map_junction = downstream_proba_map.get_current_memory_layer(DJ_ins_seq);
-        break;
-
-    case VJ_genes:
-        downstream_proba_map.request_memory_layer(VJ_ins_seq);
-        memory_layer_proba_map_junction = downstream_proba_map.get_current_memory_layer(VJ_ins_seq);
-        break;
+    Seq_type seq_type = VD_ins_seq;
+    if (!EventUtils::try_insertion_gene_class_to_seq_type(this->event_class, seq_type)) {
+        throw runtime_error("Unknown insertion event_class in initialize_event");
     }
+
+    downstream_proba_map.request_memory_layer(seq_type);
+    memory_layer_proba_map_junction = downstream_proba_map.get_current_memory_layer(seq_type);
 
     this->Rec_Event::initialize_event(processed_events, events_map, offset_map, downstream_proba_map,
                                       constructed_sequences, safety_set, error_rate_p, mismatches_list, seq_offsets,
@@ -556,19 +537,9 @@ void Insertion::iterate_initialize_Len_proba(Seq_type considered_junction, std::
         base_index = base_index_map.at(this->event_index, 0);
 
         //Insert sequence in the right constructed sequence
-        Seq_type seq_type;
-        switch (this->event_class) {
-        case VD_genes:
-            seq_type = VD_ins_seq;
-            break;
-
-        case VJ_ins_seq:
-            seq_type = VJ_ins_seq;
-            break;
-
-        case DJ_ins_seq:
-            seq_type = DJ_ins_seq;
-            break;
+        Seq_type seq_type = VD_ins_seq;
+        if (!EventUtils::try_insertion_gene_class_to_seq_type(this->event_class, seq_type)) {
+            throw runtime_error("Unknown insertion event_class in iterate_initialize_Len_proba");
         }
 
         for (unordered_map<string, Event_realization>::const_iterator iter = this->event_realizations.begin();
@@ -612,19 +583,9 @@ void Insertion::iterate_initialize_Len_proba(Seq_type considered_junction, std::
 void Insertion::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &model_queue,
                                            const Marginal_array_p &model_parameters_point, Index_map &base_index_map)
 {
-    Seq_type seq_type;
-    switch (this->event_class) {
-    case VD_genes:
-        seq_type = VD_ins_seq;
-        break;
-
-    case VJ_ins_seq:
-        seq_type = VJ_ins_seq;
-        break;
-
-    case DJ_ins_seq:
-        seq_type = DJ_ins_seq;
-        break;
+    Seq_type seq_type = VD_ins_seq;
+    if (!EventUtils::try_insertion_gene_class_to_seq_type(this->event_class, seq_type)) {
+        throw runtime_error("Unknown insertion event_class in initialize_Len_proba_bound");
     }
 
     Seq_type_str_p_map constructed_sequences(6);
