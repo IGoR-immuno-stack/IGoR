@@ -89,6 +89,7 @@ target_sources(${PROJECT_NAME}
       Rec_Event.h
       Scenario.h
       ScenarioContext.h
+      SeqTypeRegistry.h
       Singleerrorrate.h
       Utils.h
       ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_PROJECT_NAME}${PROJECT_NAME}Export.h

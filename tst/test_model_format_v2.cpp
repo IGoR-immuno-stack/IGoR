@@ -20,6 +20,7 @@
 #include <igor/Core/Insertion.h>
 #include <igor/Core/Dinuclmarkov.h>
 #include <igor/Core/Singleerrorrate.h>
+#include <igor/Core/SeqTypeRegistry.h>
 #include <igor/Core/Utils.h>
 
 #include <filesystem>
@@ -176,4 +177,67 @@ TEST_CASE("Load actual v2.0 model file from models directory", "[model_format][v
     // Verify edges were loaded
     auto edges = parms.get_edges();
     REQUIRE(!edges.empty());
+}
+
+// Test that a v2 file with a custom (tandem-D) @Seq_type_order populates
+// the SeqTypeRegistry with exactly the declared order, including non-standard
+// seq_type names that cannot exist in legacy format.
+TEST_CASE("SeqTypeRegistry populated from v2 custom seq_type_order", "[model_format][v2.0][seq_type_registry]")
+{
+    const std::string file_path = TEST_DATA_DIR + "test_v2_tandem_d_parms.txt";
+
+    Model_Parms parms;
+    REQUIRE_NOTHROW(parms.read_model_parms(file_path));
+
+    const SeqTypeRegistry &registry = parms.get_seq_type_registry();
+
+    // Registry must reflect exactly the seven entries listed in @Seq_type_order
+    const std::vector<std::string> expected = {
+        "V_gene_seq", "VD1_ins_seq", "D1_gene_seq",
+        "D1D2_ins_seq", "D2_gene_seq", "DJ_ins_seq", "J_gene_seq"
+    };
+    REQUIRE(registry.get_ordered_types() == expected);
+
+    // Every declared name must be reachable
+    REQUIRE(registry.contains("D1_gene_seq"));
+    REQUIRE(registry.contains("D2_gene_seq"));
+    REQUIRE(registry.contains("D1D2_ins_seq"));
+
+    // Neighbour navigation must follow the declared order
+    REQUIRE(registry.get_left_neighbor("D1_gene_seq")  == std::optional<std::string>("VD1_ins_seq"));
+    REQUIRE(registry.get_right_neighbor("D1_gene_seq") == std::optional<std::string>("D1D2_ins_seq"));
+    REQUIRE(registry.get_left_neighbor("V_gene_seq")   == std::nullopt);
+    REQUIRE(registry.get_right_neighbor("J_gene_seq")  == std::nullopt);
+}
+
+// Test that reading a legacy VJ file (no @Version / no @Seq_type_order) produces
+// the inferred VJ ordering in the SeqTypeRegistry.
+TEST_CASE("SeqTypeRegistry inferred as VJ order from legacy format", "[model_format][legacy][seq_type_registry]")
+{
+    const std::string file_path = TEST_DATA_DIR + "test_legacy_model_parms.txt";
+
+    Model_Parms parms;
+    REQUIRE_NOTHROW(parms.read_model_parms(file_path));
+
+    const SeqTypeRegistry &registry = parms.get_seq_type_registry();
+
+    const std::vector<std::string> expected = {"V_gene_seq", "VJ_ins_seq", "J_gene_seq"};
+    REQUIRE(registry.get_ordered_types() == expected);
+}
+
+// Test that reading a legacy VDJ file (no @Version / no @Seq_type_order) produces
+// the inferred VDJ ordering in the SeqTypeRegistry.
+TEST_CASE("SeqTypeRegistry inferred as VDJ order from legacy format", "[model_format][legacy][seq_type_registry]")
+{
+    const std::string file_path = TEST_DATA_DIR + "test_legacy_vdj_model_parms.txt";
+
+    Model_Parms parms;
+    REQUIRE_NOTHROW(parms.read_model_parms(file_path));
+
+    const SeqTypeRegistry &registry = parms.get_seq_type_registry();
+
+    const std::vector<std::string> expected = {
+        "V_gene_seq", "VD_ins_seq", "D_gene_seq", "DJ_ins_seq", "J_gene_seq"
+    };
+    REQUIRE(registry.get_ordered_types() == expected);
 }

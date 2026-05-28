@@ -645,6 +645,7 @@ void Model_Parms::read_model_parms(string filename)
                 if (!order_content.empty()) {
                     seq_type_order.push_back(order_content);
                 }
+                seq_type_registry.set_ordered_types(seq_type_order);
             }
             getline(infile, line_str);
         }
@@ -809,6 +810,24 @@ void Model_Parms::read_model_parms(string filename)
     } else {
         throw runtime_error("Unknown format for model_parms file");
     }
+
+    // For legacy files (v1.x) the seq_type_order was not in the file; infer it now.
+    if (seq_type_registry.empty()) {
+        bool has_d = false;
+        for (const auto &ev : events) {
+            if (ev->get_type() == GeneChoice_t && ev->get_class() == D_gene) {
+                has_d = true;
+                break;
+            }
+        }
+        if (has_d) {
+            seq_type_registry.set_ordered_types(
+                    {"V_gene_seq", "VD_ins_seq", "D_gene_seq", "DJ_ins_seq", "J_gene_seq"});
+        } else {
+            seq_type_registry.set_ordered_types({"V_gene_seq", "VJ_ins_seq", "J_gene_seq"});
+        }
+    }
+
     if (line_str == string("@Edges")) {
         getline(infile, line_str);
         while (line_str[0] == '%') {
