@@ -20,7 +20,7 @@ The strategy is staged to reduce risk:
 - Phase 1b: completed.
 - Phase 1c: completed.
 - Phase 1d: completed.
-- Phase 1e: implemented across the targeted ancillary/runtime consumers; ready for sign-off.
+- Phase 1e: completed across the targeted ancillary/runtime consumers.
 
 ### Main implementation outcomes
 - Added shared bridge helpers in EventUtils to centralize semantic mapping and event lookups:
@@ -62,7 +62,7 @@ The strategy is staged to reduce risk:
 
 ## What Remains To Do
 ### Immediate closure item
-- Mark Phase 1e complete after explicit maintainer sign-off on the latest helper-based cleanup scope.
+- Phase 1e closure is complete.
 
 ### Phase 2 (next)
 - Add richer per-event identity so events can carry both genomic context and explicit target segment context where required.
@@ -128,7 +128,7 @@ Initial plan content:
 - Migrate constructed-segment logic while leaving pure genomic checks intact.
 - Target files listed by initial plan: Pgencounter, Coverageerrcounter, HypermutationfullNmererrorrate, Errorrate, EventUtils.
 
-Status: implemented across target runtime consumers and adjacent duplicated callsites; ready for sign-off as complete.
+Status: completed across target runtime consumers and adjacent duplicated callsites.
 
 ### Phase 2: Richer Per-Event Identity
 Goal: support tandem-D readiness by allowing events to hold both genomic and segment identities where relevant.
