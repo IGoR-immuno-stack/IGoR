@@ -20,6 +20,21 @@ CORE_EXPORT bool try_gene_class_to_gene_seq_type(Gene_class gene, Seq_type &seq_
 
 CORE_EXPORT bool try_insertion_gene_class_to_seq_type(Gene_class gene_pair, Seq_type &seq_type);
 
+CORE_EXPORT bool try_insertion_seq_type_to_gene_class(Seq_type seq_type, Gene_class &gene_pair);
+
+CORE_EXPORT bool has_insertion_seq_type(
+    const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>,
+                             std::shared_ptr<Rec_Event>> &events_map,
+    Seq_type seq_type);
+
+CORE_EXPORT bool try_get_event(
+    const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>,
+                             std::shared_ptr<Rec_Event>> &events_map,
+    Event_type event_type,
+    Gene_class gene_class,
+    Seq_side seq_side,
+    std::shared_ptr<Rec_Event> &event_ptr);
+
 struct GeneChoiceStatus {
   bool exists;
   bool chosen;

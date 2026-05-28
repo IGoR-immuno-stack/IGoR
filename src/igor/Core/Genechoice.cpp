@@ -173,10 +173,10 @@ void Gene_choice::set_genomic_templates(const vector<pair<string, string>> &geno
 
 /**
  * @brief Context-based iterate() implementation
- * 
+ *
  * Unpacks 5 context objects into legacy parameters and delegates
  * to the existing iterate() implementation.
- * 
+ *
  */
 void Gene_choice::iterate(
         QuerySequenceContext& query,
@@ -354,7 +354,7 @@ void Gene_choice::iterate(
 
             // Update context with new probability before proceeding
             scenario.scenario_proba = new_scenario_proba;
-        
+
             Rec_Event::iterate_wrap_up(query, model, scenario, exploration, accumulation);
         }
     } break;
@@ -527,7 +527,7 @@ void Gene_choice::iterate(
 
             // Update context with new probability before proceeding
             scenario.scenario_proba = new_scenario_proba;
-        
+
             Rec_Event::iterate_wrap_up(query, model, scenario, exploration, accumulation);
         }
 
@@ -670,7 +670,7 @@ void Gene_choice::iterate(
 
                         // Update context with new probability before proceeding
                         scenario.scenario_proba = new_scenario_proba;
-                    
+
                         Rec_Event::iterate_wrap_up(query, model, scenario, exploration, accumulation);
                     }
                 }
@@ -816,7 +816,7 @@ void Gene_choice::iterate(
 
                         // Update context with new probability before proceeding
                         scenario.scenario_proba = new_scenario_proba;
-                    
+
                         Rec_Event::iterate_wrap_up(query, model, scenario, exploration, accumulation);
 
                         //test++;
@@ -987,7 +987,7 @@ void Gene_choice::iterate(
 
             // Update context with new probability before proceeding
             scenario.scenario_proba = new_scenario_proba;
-        
+
             Rec_Event::iterate_wrap_up(query, model, scenario, exploration, accumulation);
         }
     } break;
@@ -1228,9 +1228,8 @@ void Gene_choice::initialize_event(
     //downstream_proba_map.get_all_current_memory_layer(current_downstream_proba_memory_layers);
 
     //Get V 3' deletion
-    if (events_map.count(make_tuple(Deletion_t, string("V_gene_seq"), Three_prime)) != 0) {
-        shared_ptr<const Rec_Event> del_v_p =
-                events_map.at(make_tuple(Deletion_t, string("V_gene_seq"), Three_prime));
+    shared_ptr<Rec_Event> del_v_p;
+    if (EventUtils::try_get_event(events_map, Deletion_t, V_gene, Three_prime, del_v_p)) {
         if (processed_events.count(del_v_p->get_name()) != 0) {
             v_3_min_del = 0;
             v_3_max_del = 0;
@@ -1244,9 +1243,8 @@ void Gene_choice::initialize_event(
     }
 
     //Get D 5' deletion range
-    if (events_map.count(make_tuple(Deletion_t, string("D_gene_seq"), Five_prime)) != 0) {
-        shared_ptr<const Rec_Event> del_d_p =
-                events_map.at(make_tuple(Deletion_t, string("D_gene_seq"), Five_prime));
+    shared_ptr<Rec_Event> del_d_p;
+    if (EventUtils::try_get_event(events_map, Deletion_t, D_gene, Five_prime, del_d_p)) {
         if (processed_events.count(del_d_p->get_name()) != 0) {
             d_5_min_del = 0;
             d_5_max_del = 0;
@@ -1260,15 +1258,14 @@ void Gene_choice::initialize_event(
     }
 
     //Get D 3' deletion
-    if (events_map.count(make_tuple(Deletion_t, string("D_gene_seq"), Three_prime)) != 0) {
-        shared_ptr<const Rec_Event> del_d_p =
-                events_map.at(make_tuple(Deletion_t, string("D_gene_seq"), Three_prime));
-        if (processed_events.count(del_d_p->get_name()) != 0) {
+    shared_ptr<Rec_Event> del_d_3_p;
+    if (EventUtils::try_get_event(events_map, Deletion_t, D_gene, Three_prime, del_d_3_p)) {
+        if (processed_events.count(del_d_3_p->get_name()) != 0) {
             d_3_min_del = 0;
             d_3_max_del = 0;
         } else {
-            d_3_min_del = del_d_p->get_len_max();
-            d_3_max_del = del_d_p->get_len_min();
+            d_3_min_del = del_d_3_p->get_len_max();
+            d_3_max_del = del_d_3_p->get_len_min();
         }
     } else {
         d_3_min_del = 0;
@@ -1276,9 +1273,8 @@ void Gene_choice::initialize_event(
     }
 
     //Get J 5' deletion range
-    if (events_map.count(make_tuple(Deletion_t, string("J_gene_seq"), Five_prime)) != 0) {
-        shared_ptr<const Rec_Event> del_j_p =
-                events_map.at(make_tuple(Deletion_t, string("J_gene_seq"), Five_prime));
+    shared_ptr<Rec_Event> del_j_p;
+    if (EventUtils::try_get_event(events_map, Deletion_t, J_gene, Five_prime, del_j_p)) {
         if (processed_events.count(del_j_p->get_name()) != 0) {
             j_5_min_del = 0;
             j_5_max_del = 0;

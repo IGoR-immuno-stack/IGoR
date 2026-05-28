@@ -370,26 +370,27 @@ void Insertion::initialize_crude_scenario_proba_bound(
         ordered_realization_map.emplace((*iter).second.value_int, (*iter).second);
     }
 
-    const string &icsb_st = this->seq_type;
-    //TODO be careful in case there is both VDJ and VD/DJ (however this should not happen)
-    if (icsb_st == "VD_ins_seq") {
-        if (events_map.count(make_tuple(Dinuclmarkov_t, string("VD_ins_seq"), Undefined_side))) {
-            dinuc_event_p = events_map.at(make_tuple(Dinuclmarkov_t, string("VD_ins_seq"), Undefined_side));
-        } else if (events_map.count(make_tuple(Dinuclmarkov_t, string("VDJ_ins_seq"), Undefined_side))) {
-            dinuc_event_p = events_map.at(make_tuple(Dinuclmarkov_t, string("VDJ_ins_seq"), Undefined_side));
+    switch (this->event_class) {
+        //TODO be careful in case there is both VDJ and VD/DJ (however this should not happen)
+
+    case VD_genes:
+        if (!EventUtils::try_get_event(events_map, Dinuclmarkov_t, VD_genes, Undefined_side, dinuc_event_p)) {
+            EventUtils::try_get_event(events_map, Dinuclmarkov_t, VDJ_genes, Undefined_side, dinuc_event_p);
         }
-    } else if (icsb_st == "VJ_ins_seq") {
-        if (events_map.count(make_tuple(Dinuclmarkov_t, string("VJ_ins_seq"), Undefined_side))) {
-            dinuc_event_p = events_map.at(make_tuple(Dinuclmarkov_t, string("VJ_ins_seq"), Undefined_side));
+        break;
+
+    case VJ_genes:
+        EventUtils::try_get_event(events_map, Dinuclmarkov_t, VJ_genes, Undefined_side, dinuc_event_p);
+        break;
+
+    case DJ_genes:
+        if (!EventUtils::try_get_event(events_map, Dinuclmarkov_t, DJ_genes, Undefined_side, dinuc_event_p)) {
+            EventUtils::try_get_event(events_map, Dinuclmarkov_t, VDJ_genes, Undefined_side, dinuc_event_p);
         }
-    } else if (icsb_st == "DJ_ins_seq") {
-        if (events_map.count(make_tuple(Dinuclmarkov_t, string("DJ_ins_seq"), Undefined_side))) {
-            dinuc_event_p = events_map.at(make_tuple(Dinuclmarkov_t, string("DJ_ins_seq"), Undefined_side));
-        } else if (events_map.count(make_tuple(Dinuclmarkov_t, string("VDJ_ins_seq"), Undefined_side))) {
-            dinuc_event_p = events_map.at(make_tuple(Dinuclmarkov_t, string("VDJ_ins_seq"), Undefined_side));
-        }
-    } else {
-        throw runtime_error("Unknown seq_type for insertion in initialize_scenario_proba_bound(): " + icsb_st);
+        break;
+
+    default:
+        throw runtime_error("Unknown event_class for insertion in initialize_scenario_proba_bound()");
     }
     double dinuc_upper_bound_proba = dinuc_event_p->get_upper_bound_proba();
     for (map<int, double>::iterator iter = upper_bound_per_ins.begin(); iter != upper_bound_per_ins.end(); ++iter) {

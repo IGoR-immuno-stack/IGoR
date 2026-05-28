@@ -24,6 +24,7 @@
  */
 
 #include <igor/Core/Coverageerrcounter.h>
+#include <igor/Core/EventUtils.h>
 
 using namespace std;
 
@@ -163,8 +164,9 @@ void Coverage_err_counter::initialize(const ModelContext& model) {
     if (count_on_v) {
         //Initialize V pointers
         try {
-            v_gene_event_p = dynamic_pointer_cast<Gene_choice>(
-                    events_map.at(make_tuple(GeneChoice_t, string("V_gene_seq"), Undefined_side)));
+            shared_ptr<Rec_Event> v_gene_event_base_p;
+            EventUtils::try_get_event(events_map, GeneChoice_t, V_gene, Undefined_side, v_gene_event_base_p);
+            v_gene_event_p = dynamic_pointer_cast<Gene_choice>(v_gene_event_base_p);
             vgene_offset_p = &v_gene_event_p->alignment_offset_p;
             vgene_real_index_p = &v_gene_event_p->current_realization_index;
 
@@ -185,9 +187,9 @@ void Coverage_err_counter::initialize(const ModelContext& model) {
         }
 
         //Get deletion value pointer for V 3' deletions if it exists
-        if (events_map.count(make_tuple(Deletion_t, string("V_gene_seq"), Three_prime)) != 0) {
-            shared_ptr<const Deletion> v_3_del_event_p = dynamic_pointer_cast<Deletion>(
-                    events_map.at(make_tuple(Deletion_t, string("V_gene_seq"), Three_prime)));
+        shared_ptr<Rec_Event> v_3_del_event_base_p;
+        if (EventUtils::try_get_event(events_map, Deletion_t, V_gene, Three_prime, v_3_del_event_base_p)) {
+            shared_ptr<const Deletion> v_3_del_event_p = dynamic_pointer_cast<Deletion>(v_3_del_event_base_p);
             v_3_del_value_p = &(v_3_del_event_p->deletion_value);
         } else {
             v_3_del_value_p = &no_del_buffer;
@@ -197,8 +199,9 @@ void Coverage_err_counter::initialize(const ModelContext& model) {
     if (count_on_d) {
         //Initialize D pointers
         try {
-            d_gene_event_p = dynamic_pointer_cast<Gene_choice>(
-                    events_map.at(make_tuple(GeneChoice_t, string("D_gene_seq"), Undefined_side)));
+            shared_ptr<Rec_Event> d_gene_event_base_p;
+            EventUtils::try_get_event(events_map, GeneChoice_t, D_gene, Undefined_side, d_gene_event_base_p);
+            d_gene_event_p = dynamic_pointer_cast<Gene_choice>(d_gene_event_base_p);
             dgene_offset_p = &d_gene_event_p->alignment_offset_p;
             dgene_real_index_p = &d_gene_event_p->current_realization_index;
 
@@ -219,18 +222,18 @@ void Coverage_err_counter::initialize(const ModelContext& model) {
         }
 
         //Get deletion value pointer for D 5' deletions if it exists
-        if (events_map.count(make_tuple(Deletion_t, string("D_gene_seq"), Five_prime)) != 0) {
-            shared_ptr<const Deletion> d_5_del_event_p = dynamic_pointer_cast<Deletion>(
-                    events_map.at(make_tuple(Deletion_t, string("D_gene_seq"), Five_prime)));
+        shared_ptr<Rec_Event> d_5_del_event_base_p;
+        if (EventUtils::try_get_event(events_map, Deletion_t, D_gene, Five_prime, d_5_del_event_base_p)) {
+            shared_ptr<const Deletion> d_5_del_event_p = dynamic_pointer_cast<Deletion>(d_5_del_event_base_p);
             d_5_del_value_p = &(d_5_del_event_p->deletion_value);
         } else {
             d_5_del_value_p = &no_del_buffer;
         }
 
         //Get deletion value pointer for D 3' deletions if it exists
-        if (events_map.count(make_tuple(Deletion_t, string("D_gene_seq"), Three_prime)) != 0) {
-            shared_ptr<const Deletion> d_3_del_event_p = dynamic_pointer_cast<Deletion>(
-                    events_map.at(make_tuple(Deletion_t, string("D_gene_seq"), Three_prime)));
+        shared_ptr<Rec_Event> d_3_del_event_base_p;
+        if (EventUtils::try_get_event(events_map, Deletion_t, D_gene, Three_prime, d_3_del_event_base_p)) {
+            shared_ptr<const Deletion> d_3_del_event_p = dynamic_pointer_cast<Deletion>(d_3_del_event_base_p);
             d_3_del_value_p = &(d_3_del_event_p->deletion_value);
         } else {
             d_3_del_value_p = &no_del_buffer;
@@ -240,8 +243,9 @@ void Coverage_err_counter::initialize(const ModelContext& model) {
     if (count_on_j) {
         //Initialize J pointers
         try {
-            j_gene_event_p = dynamic_pointer_cast<Gene_choice>(
-                    events_map.at(make_tuple(GeneChoice_t, string("J_gene_seq"), Undefined_side)));
+            shared_ptr<Rec_Event> j_gene_event_base_p;
+            EventUtils::try_get_event(events_map, GeneChoice_t, J_gene, Undefined_side, j_gene_event_base_p);
+            j_gene_event_p = dynamic_pointer_cast<Gene_choice>(j_gene_event_base_p);
             jgene_offset_p = &j_gene_event_p->alignment_offset_p;
             jgene_real_index_p = &j_gene_event_p->current_realization_index;
 
@@ -262,9 +266,9 @@ void Coverage_err_counter::initialize(const ModelContext& model) {
         }
 
         //Get deletion value pointer for J 5' deletions if it exists
-        if (events_map.count(make_tuple(Deletion_t, string("J_gene_seq"), Five_prime)) != 0) {
-            shared_ptr<const Deletion> j_5_del_event_p = dynamic_pointer_cast<Deletion>(
-                    events_map.at(make_tuple(Deletion_t, string("J_gene_seq"), Five_prime)));
+        shared_ptr<Rec_Event> j_5_del_event_base_p;
+        if (EventUtils::try_get_event(events_map, Deletion_t, J_gene, Five_prime, j_5_del_event_base_p)) {
+            shared_ptr<const Deletion> j_5_del_event_p = dynamic_pointer_cast<Deletion>(j_5_del_event_base_p);
             j_5_del_value_p = &(j_5_del_event_p->deletion_value);
         } else {
             j_5_del_value_p = &no_del_buffer;
@@ -330,7 +334,7 @@ void Coverage_err_counter::count_scenario(
             j_mismatch_list = *scenario.mismatches[J_gene_seq];
         }
 
-        
+
         //Get the coverage
         //Get the length of the gene and a pointer to the right array to write on
         tmp_corr_len = j_gene_nucleotide_coverage_seq_p[**jgene_real_index_p].first; //Length of the J gene
@@ -440,9 +444,9 @@ void Coverage_err_counter::initialize_counter(const Model_Parms &parms, const Mo
         }
 
         //Get deletion value pointer for V 3' deletions if it exists
-        if (events_map.count(make_tuple(Deletion_t, string("V_gene_seq"), Three_prime)) != 0) {
-            shared_ptr<const Deletion> v_3_del_event_p = dynamic_pointer_cast<Deletion>(
-                    events_map.at(make_tuple(Deletion_t, string("V_gene_seq"), Three_prime)));
+        shared_ptr<Rec_Event> v_3_del_event_base_p;
+        if (EventUtils::try_get_event(events_map, Deletion_t, V_gene, Three_prime, v_3_del_event_base_p)) {
+            shared_ptr<const Deletion> v_3_del_event_p = dynamic_pointer_cast<Deletion>(v_3_del_event_base_p);
             v_3_del_value_p = &(v_3_del_event_p->deletion_value);
         } else {
             v_3_del_value_p = &no_del_buffer;
@@ -452,8 +456,9 @@ void Coverage_err_counter::initialize_counter(const Model_Parms &parms, const Mo
     if (count_on_d) {
         //Initialize D pointers
         try {
-            d_gene_event_p = dynamic_pointer_cast<Gene_choice>(
-                    events_map.at(make_tuple(GeneChoice_t, string("D_gene_seq"), Undefined_side)));
+            shared_ptr<Rec_Event> d_gene_event_base_p;
+            EventUtils::try_get_event(events_map, GeneChoice_t, D_gene, Undefined_side, d_gene_event_base_p);
+            d_gene_event_p = dynamic_pointer_cast<Gene_choice>(d_gene_event_base_p);
             dgene_offset_p = &d_gene_event_p->alignment_offset_p;
             dgene_real_index_p = &d_gene_event_p->current_realization_index;
 
@@ -474,18 +479,18 @@ void Coverage_err_counter::initialize_counter(const Model_Parms &parms, const Mo
         }
 
         //Get deletion value pointer for D 5' deletions if it exists
-        if (events_map.count(make_tuple(Deletion_t, string("D_gene_seq"), Five_prime)) != 0) {
-            shared_ptr<const Deletion> d_5_del_event_p = dynamic_pointer_cast<Deletion>(
-                    events_map.at(make_tuple(Deletion_t, string("D_gene_seq"), Five_prime)));
+        shared_ptr<Rec_Event> d_5_del_event_base_p;
+        if (EventUtils::try_get_event(events_map, Deletion_t, D_gene, Five_prime, d_5_del_event_base_p)) {
+            shared_ptr<const Deletion> d_5_del_event_p = dynamic_pointer_cast<Deletion>(d_5_del_event_base_p);
             d_5_del_value_p = &(d_5_del_event_p->deletion_value);
         } else {
             d_5_del_value_p = &no_del_buffer;
         }
 
         //Get deletion value pointer for D 3' deletions if it exists
-        if (events_map.count(make_tuple(Deletion_t, string("D_gene_seq"), Three_prime)) != 0) {
-            shared_ptr<const Deletion> d_3_del_event_p = dynamic_pointer_cast<Deletion>(
-                    events_map.at(make_tuple(Deletion_t, string("D_gene_seq"), Three_prime)));
+        shared_ptr<Rec_Event> d_3_del_event_base_p;
+        if (EventUtils::try_get_event(events_map, Deletion_t, D_gene, Three_prime, d_3_del_event_base_p)) {
+            shared_ptr<const Deletion> d_3_del_event_p = dynamic_pointer_cast<Deletion>(d_3_del_event_base_p);
             d_3_del_value_p = &(d_3_del_event_p->deletion_value);
         } else {
             d_3_del_value_p = &no_del_buffer;
@@ -495,8 +500,9 @@ void Coverage_err_counter::initialize_counter(const Model_Parms &parms, const Mo
     if (count_on_j) {
         //Initialize J pointers
         try {
-            j_gene_event_p = dynamic_pointer_cast<Gene_choice>(
-                    events_map.at(make_tuple(GeneChoice_t, string("J_gene_seq"), Undefined_side)));
+            shared_ptr<Rec_Event> j_gene_event_base_p;
+            EventUtils::try_get_event(events_map, GeneChoice_t, J_gene, Undefined_side, j_gene_event_base_p);
+            j_gene_event_p = dynamic_pointer_cast<Gene_choice>(j_gene_event_base_p);
             jgene_offset_p = &j_gene_event_p->alignment_offset_p;
             jgene_real_index_p = &j_gene_event_p->current_realization_index;
 
@@ -517,9 +523,9 @@ void Coverage_err_counter::initialize_counter(const Model_Parms &parms, const Mo
         }
 
         //Get deletion value pointer for J 5' deletions if it exists
-        if (events_map.count(make_tuple(Deletion_t, string("J_gene_seq"), Five_prime)) != 0) {
-            shared_ptr<const Deletion> j_5_del_event_p = dynamic_pointer_cast<Deletion>(
-                    events_map.at(make_tuple(Deletion_t, string("J_gene_seq"), Five_prime)));
+        shared_ptr<Rec_Event> j_5_del_event_base_p;
+        if (EventUtils::try_get_event(events_map, Deletion_t, J_gene, Five_prime, j_5_del_event_base_p)) {
+            shared_ptr<const Deletion> j_5_del_event_p = dynamic_pointer_cast<Deletion>(j_5_del_event_base_p);
             j_5_del_value_p = &(j_5_del_event_p->deletion_value);
         } else {
             j_5_del_value_p = &no_del_buffer;

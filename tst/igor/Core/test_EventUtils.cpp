@@ -279,3 +279,66 @@ TEST_CASE("EventUtils InsertionGeneClassToSeqType mapping", "[EventUtils]") {
     REQUIRE_FALSE(try_insertion_gene_class_to_seq_type(Undefined_gene, seq_type));
   }
 }
+
+TEST_CASE("EventUtils HasInsertionSeqType", "[EventUtils]") {
+  unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>>
+      events_map;
+
+  class MockInsertionEvent : public MockEvent {
+  public:
+    MockInsertionEvent(string name) : MockEvent(name) {}
+  };
+
+  auto vd_ins = make_shared<MockInsertionEvent>("VD_ins");
+  auto vj_ins = make_shared<MockInsertionEvent>("VJ_ins");
+  events_map[make_tuple(Insertion_t, VD_genes, Undefined_side)] = vd_ins;
+
+  SECTION("Finds present insertion segments") {
+    REQUIRE(has_insertion_seq_type(events_map, VD_ins_seq));
+    REQUIRE_FALSE(has_insertion_seq_type(events_map, DJ_ins_seq));
+    REQUIRE_FALSE(has_insertion_seq_type(events_map, VJ_ins_seq));
+  }
+
+  SECTION("Tracks a different insertion segment independently") {
+    events_map[make_tuple(Insertion_t, VJ_genes, Undefined_side)] = vj_ins;
+    REQUIRE(has_insertion_seq_type(events_map, VD_ins_seq));
+    REQUIRE(has_insertion_seq_type(events_map, VJ_ins_seq));
+    REQUIRE_FALSE(has_insertion_seq_type(events_map, DJ_ins_seq));
+  }
+}
+
+TEST_CASE("EventUtils TryGetEvent", "[EventUtils]") {
+  unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>>
+      events_map;
+
+  auto v_event = make_shared<MockEvent>("V_choice");
+  events_map[make_tuple(GeneChoice_t, V_gene, Undefined_side)] = v_event;
+
+  SECTION("Returns a present event") {
+    shared_ptr<Rec_Event> event_ptr;
+    REQUIRE(try_get_event(events_map, GeneChoice_t, V_gene, Undefined_side, event_ptr));
+    REQUIRE(event_ptr == v_event);
+  }
+
+  SECTION("Returns false for a missing event") {
+    shared_ptr<Rec_Event> event_ptr;
+    REQUIRE_FALSE(try_get_event(events_map, GeneChoice_t, J_gene, Undefined_side, event_ptr));
+    REQUIRE(event_ptr == nullptr);
+  }
+
+  SECTION("Supports fallback lookup pattern") {
+    auto vdj_event = make_shared<MockEvent>("VDJ_dinuc");
+    events_map[make_tuple(Dinuclmarkov_t, VDJ_genes, Undefined_side)] = vdj_event;
+
+    shared_ptr<Rec_Event> event_ptr;
+    bool found_primary =
+        try_get_event(events_map, Dinuclmarkov_t, VD_genes, Undefined_side, event_ptr);
+    if (!found_primary) {
+      found_primary =
+          try_get_event(events_map, Dinuclmarkov_t, VDJ_genes, Undefined_side, event_ptr);
+    }
+
+    REQUIRE(found_primary);
+    REQUIRE(event_ptr == vdj_event);
+  }
+}
