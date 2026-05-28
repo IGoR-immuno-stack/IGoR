@@ -184,7 +184,7 @@ std::forward_list<Alignment_data> SeqAn2Aligner::align_seq(const std::string& se
 }
 
 std::unordered_map<int, std::forward_list<Alignment_data>>
-SeqAn2Aligner::align_seqs(const std::vector<std::pair<int, std::string>>& seqs, double threshold, bool allow_in_dels) const
+SeqAn2Aligner::align_seqs(const std::vector<std::pair<const int, const std::string>>& seqs, double threshold, bool allow_in_dels) const
 {
     std::unordered_map<int, std::forward_list<Alignment_data>> out;
 #pragma omp parallel for schedule(dynamic)

@@ -11,6 +11,7 @@
 
 #ifdef IGOR_WITH_SEQAN2
 #include <seqan/score.h>
+namespace seqan2 = seqan;
 #endif
 
 struct SeqAn2AlignConfig {
@@ -35,7 +36,7 @@ public:
     std::forward_list<Alignment_data> align_seq(const std::string& seq, double threshold,
                                                 bool allow_in_dels, bool best_only = false) const;
     std::unordered_map<int, std::forward_list<Alignment_data>>
-    align_seqs(const std::vector<std::pair<int, std::string>>& seqs, double threshold, bool allow_in_dels) const;
+    align_seqs(const std::vector<std::pair<const int, const std::string>>& seqs, double threshold, bool allow_in_dels) const;
     void set_genomic_sequences(std::vector<std::pair<std::string, std::string>>);
 
 private:

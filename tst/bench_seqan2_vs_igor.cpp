@@ -355,7 +355,7 @@ int main(int argc, char** argv)
     print_metric("best score", best_score(legacy_res));
 
 #ifdef IGOR_WITH_SEQAN2
-    std::vector<std::pair<int, std::string>> reads;
+    std::vector<std::pair<const int, const std::string>> reads;
     for (const auto& r : reads_const) reads.push_back({r.first, r.second});
 
     const int band_half_width = 400;
