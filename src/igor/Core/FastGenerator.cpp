@@ -24,6 +24,7 @@
  */
 
 #include <igor/Core/FastGenerator.h>
+#include <igor/Core/EventUtils.h>
 #include <igor/Core/Genechoice.h>
 #include <igor/Core/Insertion.h>
 #include <igor/Core/Deletion.h>
@@ -280,18 +281,8 @@ size_t FastGenerator::compute_condition_index(const FastEventSampler &sampler, c
 void FastGenerator::apply_gene_choice(const FastEventSampler &sampler, size_t choice_idx,
                                       std::unordered_map<Seq_type, std::string> &sequences) const
 {
-    Seq_type seq_type;
-    switch (sampler.gene_class) {
-    case V_gene:
-        seq_type = V_gene_seq;
-        break;
-    case D_gene:
-        seq_type = D_gene_seq;
-        break;
-    case J_gene:
-        seq_type = J_gene_seq;
-        break;
-    default:
+    Seq_type seq_type = V_gene_seq;
+    if (!EventUtils::try_gene_class_to_gene_seq_type(sampler.gene_class, seq_type)) {
         return;
     }
 
@@ -309,18 +300,8 @@ void FastGenerator::apply_deletion(const FastEventSampler &sampler, size_t del_i
 
     int num_del = sampler.deletion_idx_to_value[del_idx];
 
-    Seq_type seq_type;
-    switch (sampler.gene_class) {
-    case V_gene:
-        seq_type = V_gene_seq;
-        break;
-    case D_gene:
-        seq_type = D_gene_seq;
-        break;
-    case J_gene:
-        seq_type = J_gene_seq;
-        break;
-    default:
+    Seq_type seq_type = V_gene_seq;
+    if (!EventUtils::try_gene_class_to_gene_seq_type(sampler.gene_class, seq_type)) {
         return;
     }
 
@@ -381,18 +362,11 @@ void FastGenerator::sample_event(const FastEventSampler &sampler, std::mt19937_6
     case Insertion_t: {
         // For insertion, sampled index directly gives insertion length
         // Create placeholder for dinucleotide model
-        Seq_type seq_type_enum;
-        const std::string &st = sampler.seq_type;
-        if (st == "VD_ins_seq") {
-            seq_type_enum = VD_ins_seq;
-        } else if (st == "DJ_ins_seq") {
-            seq_type_enum = DJ_ins_seq;
-        } else if (st == "VJ_ins_seq") {
-            seq_type_enum = VJ_ins_seq;
-        } else {
+        Seq_type seq_type = VD_ins_seq;
+        if (!EventUtils::try_insertion_gene_class_to_seq_type(sampler.gene_class, seq_type)) {
             return;
         }
-        sequences[seq_type_enum] = std::string(choice_idx, 'I');
+        sequences[seq_type] = std::string(choice_idx, 'I');
         break;
     }
 

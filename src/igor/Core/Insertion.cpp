@@ -25,6 +25,7 @@
  */
 
 #include <igor/Core/Insertion.h>
+#include <igor/Core/EventUtils.h>
 
 #include <algorithm>
 
@@ -252,13 +253,9 @@ queue<int> Insertion::draw_random_realization(
          iter != this->event_realizations.end(); ++iter) {
         prob_count += model_marginals_p[index_map.at(this->get_name()) + (*iter).second.index];
         if (prob_count >= rand) {
-            const string &drr_st = this->seq_type;
-            if (drr_st == "VD_ins_seq") {
-                constructed_sequences[VD_ins_seq] = string((*iter).second.value_int, 'I');
-            } else if (drr_st == "DJ_ins_seq") {
-                constructed_sequences[DJ_ins_seq] = string((*iter).second.value_int, 'I');
-            } else if (drr_st == "VJ_ins_seq") {
-                constructed_sequences[VJ_ins_seq] = string((*iter).second.value_int, 'I');
+            Seq_type seq_type = VD_ins_seq;
+            if (EventUtils::try_insertion_gene_class_to_seq_type(this->event_class, seq_type)) {
+                constructed_sequences[seq_type] = string((*iter).second.value_int, 'I');
             }
             realization_queue.push((*iter).second.index);
             if (offset_map.count(this->get_name()) != 0) {
@@ -313,18 +310,13 @@ void Insertion::initialize_event(
         Safety_bool_map &safety_set, shared_ptr<Error_rate> error_rate_p, Mismatch_vectors_map &mismatches_list,
         Seq_offsets_map &seq_offsets, Index_map &index_map)
 {
-
-    const string &ie_st = this->seq_type;
-    if (ie_st == "VD_ins_seq") {
-        downstream_proba_map.request_memory_layer(VD_ins_seq);
-        memory_layer_proba_map_junction = downstream_proba_map.get_current_memory_layer(VD_ins_seq);
-    } else if (ie_st == "DJ_ins_seq") {
-        downstream_proba_map.request_memory_layer(DJ_ins_seq);
-        memory_layer_proba_map_junction = downstream_proba_map.get_current_memory_layer(DJ_ins_seq);
-    } else if (ie_st == "VJ_ins_seq") {
-        downstream_proba_map.request_memory_layer(VJ_ins_seq);
-        memory_layer_proba_map_junction = downstream_proba_map.get_current_memory_layer(VJ_ins_seq);
+    Seq_type seq_type = VD_ins_seq;
+    if (!EventUtils::try_insertion_gene_class_to_seq_type(this->event_class, seq_type)) {
+        throw runtime_error("Unknown insertion event_class in initialize_event");
     }
+
+    downstream_proba_map.request_memory_layer(seq_type);
+    memory_layer_proba_map_junction = downstream_proba_map.get_current_memory_layer(seq_type);
 
     this->Rec_Event::initialize_event(processed_events, events_map, offset_map, downstream_proba_map,
                                       constructed_sequences, safety_set, error_rate_p, mismatches_list, seq_offsets,
@@ -443,19 +435,9 @@ void Insertion::iterate_initialize_Len_proba(Seq_type considered_junction, std::
         base_index = base_index_map.at(this->event_index, 0);
 
         //Insert sequence in the right constructed sequence
-        Seq_type seq_type_enum;
-        const string &iilp_st = this->seq_type;
-        if (iilp_st == "VD_ins_seq") {
-            seq_type_enum = VD_ins_seq;
-        } else if (iilp_st == "VJ_ins_seq") {
-            seq_type_enum = VJ_ins_seq;
-        } else if (iilp_st == "DJ_ins_seq") {
-            seq_type_enum = DJ_ins_seq;
-        } else {
-            Rec_Event::iterate_initialize_Len_proba_wrap_up(considered_junction, length_best_proba_map, model_queue,
-                                                            scenario_proba, model_parameters_point, base_index_map,
-                                                            constructed_sequences, seq_len);
-            return;
+        Seq_type seq_type = VD_ins_seq;
+        if (!EventUtils::try_insertion_gene_class_to_seq_type(this->event_class, seq_type)) {
+            throw runtime_error("Unknown insertion event_class in iterate_initialize_Len_proba");
         }
 
         for (unordered_map<string, Event_realization>::const_iterator iter = this->event_realizations.begin();
@@ -481,7 +463,7 @@ void Insertion::iterate_initialize_Len_proba(Seq_type considered_junction, std::
 
             //Build an inserted sequence to let the Dinuc know about the number of insertions considered
             inserted_str.assign(iter->second.value_int, -1);
-            constructed_sequences[seq_type_enum] = &inserted_str;
+            constructed_sequences[seq_type] = &inserted_str;
 
             //Update the length and the probability within the recursive call
             Rec_Event::iterate_initialize_Len_proba_wrap_up(
@@ -499,16 +481,9 @@ void Insertion::iterate_initialize_Len_proba(Seq_type considered_junction, std::
 void Insertion::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &model_queue,
                                            const Marginal_array_p &model_parameters_point, Index_map &base_index_map)
 {
-    Seq_type seq_type_enum;
-    const string &ilpb_st = this->seq_type;
-    if (ilpb_st == "VD_ins_seq") {
-        seq_type_enum = VD_ins_seq;
-    } else if (ilpb_st == "VJ_ins_seq") {
-        seq_type_enum = VJ_ins_seq;
-    } else if (ilpb_st == "DJ_ins_seq") {
-        seq_type_enum = DJ_ins_seq;
-    } else {
-        return; // Unknown seq_type, skip
+    Seq_type seq_type = VD_ins_seq;
+    if (!EventUtils::try_insertion_gene_class_to_seq_type(this->event_class, seq_type)) {
+        throw runtime_error("Unknown insertion event_class in initialize_Len_proba_bound");
     }
 
     Seq_type_str_p_map constructed_sequences(6);
@@ -518,9 +493,9 @@ void Insertion::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &model_q
     for (unordered_map<string, Event_realization>::const_iterator iter = this->event_realizations.begin();
          iter != this->event_realizations.end(); ++iter) {
         inserted_str.assign(iter->second.value_int, -1);
-        constructed_sequences[seq_type_enum] = &inserted_str;
+        constructed_sequences[seq_type] = &inserted_str;
         double init_proba = 1.0;
-        this->Rec_Event::iterate_initialize_Len_proba(seq_type_enum, junction_length_best_proba_map, model_queue, init_proba,
+        this->Rec_Event::iterate_initialize_Len_proba(seq_type, junction_length_best_proba_map, model_queue, init_proba,
                                                       model_parameters_point, base_index_map, constructed_sequences);
     }
 }

@@ -16,6 +16,10 @@
 
 namespace EventUtils {
 
+CORE_EXPORT bool try_gene_class_to_gene_seq_type(Gene_class gene, Seq_type &seq_type);
+
+CORE_EXPORT bool try_insertion_gene_class_to_seq_type(Gene_class gene_pair, Seq_type &seq_type);
+
 struct GeneChoiceStatus {
   bool exists;
   bool chosen;
