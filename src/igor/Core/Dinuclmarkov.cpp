@@ -112,10 +112,10 @@ int Dinucl_markov::size() const
 
 /**
  * @brief Context-based iterate() implementation
- * 
+ *
  * Unpacks 5 context objects into legacy parameters and delegates
  * to the existing iterate() implementation.
- * 
+ *
 
  */
 void Dinucl_markov::iterate(

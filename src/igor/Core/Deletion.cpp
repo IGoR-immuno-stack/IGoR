@@ -29,6 +29,31 @@
 #include <algorithm>
 
 using namespace std;
+
+namespace {
+
+vector<Seq_type> get_deletion_effective_junctions(Gene_class gene_class, Seq_side event_side)
+{
+    switch (gene_class) {
+    case V_gene:
+        return { VD_ins_seq, VJ_ins_seq };
+    case D_gene:
+        if (event_side == Five_prime) {
+            return { VD_ins_seq };
+        }
+        if (event_side == Three_prime) {
+            return { DJ_ins_seq };
+        }
+        return {};
+    case J_gene:
+        return { VJ_ins_seq, DJ_ins_seq };
+    default:
+        return {};
+    }
+}
+
+} // namespace
+
 Deletion::Deletion() : Deletion(Undefined_gene, Undefined_side)
 {
     this->type = Event_type::Deletion_t;
@@ -1633,44 +1658,8 @@ bool del_numb_compare(const Event_realization &real1, const Event_realization &r
 
 bool Deletion::has_effect_on(Seq_type seq_type) const
 {
-    switch (this->event_class) {
-    case V_gene:
-        if (seq_type == VJ_ins_seq or seq_type == VD_ins_seq) {
-            return true;
-        } else
-            return false;
-        break;
-
-    case D_gene:
-        switch (this->event_side) {
-
-        case Five_prime:
-            if (seq_type == VD_ins_seq)
-                return true;
-            else
-                return false;
-            break;
-
-        case Three_prime:
-            if (seq_type == DJ_ins_seq)
-                return true;
-            else
-                return false;
-            break;
-        }
-        break;
-
-    case J_gene:
-        if (seq_type == VJ_ins_seq or seq_type == DJ_ins_seq) {
-            return true;
-        } else
-            return false;
-        break;
-
-    default:
-        return false;
-    }
-    return false;
+    const auto effective_junctions = get_deletion_effective_junctions(this->event_class, this->event_side);
+    return find(effective_junctions.begin(), effective_junctions.end(), seq_type) != effective_junctions.end();
 }
 
 void Deletion::iterate_initialize_Len_proba(Seq_type considered_junction, std::map<int, double> &length_best_proba_map,
@@ -1717,67 +1706,34 @@ void Deletion::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &model_qu
                                           const Marginal_array_p &model_parameters_point, Index_map &base_index_map)
 {
     Seq_type_str_p_map constructed_sequences(6);
-    switch (this->event_class) {
-    case V_gene:
-        vd_length_best_proba_map.clear();
-        vj_length_best_proba_map.clear();
+    const auto effective_junctions = get_deletion_effective_junctions(this->event_class, this->event_side);
+    if (effective_junctions.empty()) {
+        throw invalid_argument(std::string("Unknown gene for deletions : ") + this->event_class);
+    }
 
-        if (d_chosen) {
-            double init_proba = 1.0;
-            this->Rec_Event::iterate_initialize_Len_proba(VD_ins_seq, vd_length_best_proba_map, model_queue, init_proba,
-                                                          model_parameters_point, base_index_map,
-                                                          constructed_sequences);
-        } else if (j_chosen) {
-            double init_proba = 1.0;
-            this->Rec_Event::iterate_initialize_Len_proba(VJ_ins_seq, vj_length_best_proba_map, model_queue, init_proba,
-                                                          model_parameters_point, base_index_map,
-                                                          constructed_sequences);
-        }
-        break;
-
-    case D_gene:
-        switch (this->event_side) {
-
-        case Five_prime:
-            vd_length_best_proba_map.clear();
-            if (v_chosen) {
-                double init_proba = 1.0;
-                this->Rec_Event::iterate_initialize_Len_proba(VD_ins_seq, vd_length_best_proba_map, model_queue,
-                                                              init_proba, model_parameters_point, base_index_map,
-                                                              constructed_sequences);
-            }
+    for (Seq_type junction_seq : effective_junctions) {
+        std::map<int, double> *length_best_proba_map = nullptr;
+        switch (junction_seq) {
+        case VD_ins_seq:
+            length_best_proba_map = &vd_length_best_proba_map;
             break;
-
-        case Three_prime:
-            dj_length_best_proba_map.clear();
-            if (j_chosen) {
-                double init_proba = 1.0;
-                this->Rec_Event::iterate_initialize_Len_proba(DJ_ins_seq, dj_length_best_proba_map, model_queue,
-                                                              init_proba, model_parameters_point, base_index_map,
-                                                              constructed_sequences);
-            }
+        case DJ_ins_seq:
+            length_best_proba_map = &dj_length_best_proba_map;
             break;
+        case VJ_ins_seq:
+            length_best_proba_map = &vj_length_best_proba_map;
+            break;
+        default:
+            continue;
         }
-        break;
 
-    case J_gene:
-        dj_length_best_proba_map.clear();
-        vj_length_best_proba_map.clear();
-
-        if (d_chosen) {
-            double init_proba = 1.0;
-            this->Rec_Event::iterate_initialize_Len_proba(DJ_ins_seq, dj_length_best_proba_map, model_queue, init_proba,
-                                                          model_parameters_point, base_index_map,
-                                                          constructed_sequences);
-        } else if (v_chosen) {
-            double init_proba = 1.0;
-            this->Rec_Event::iterate_initialize_Len_proba(VJ_ins_seq, vj_length_best_proba_map, model_queue, init_proba,
-                                                          model_parameters_point, base_index_map,
-                                                          constructed_sequences);
+        if (!this->has_effect_on(junction_seq)) {
+            continue;
         }
-        break;
 
-    default:
-        break;
+        length_best_proba_map->clear();
+        double init_proba = 1.0;
+        this->Rec_Event::iterate_initialize_Len_proba(junction_seq, *length_best_proba_map, model_queue, init_proba,
+                                                      model_parameters_point, base_index_map, constructed_sequences);
     }
 }
