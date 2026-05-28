@@ -37,6 +37,55 @@ bool try_insertion_gene_class_to_seq_type(Gene_class gene_pair, Seq_type &seq_ty
   }
 }
 
+bool try_insertion_seq_type_to_gene_class(Seq_type seq_type, Gene_class &gene_pair)
+{
+  switch (seq_type) {
+  case VD_ins_seq:
+    gene_pair = VD_genes;
+    return true;
+  case DJ_ins_seq:
+    gene_pair = DJ_genes;
+    return true;
+  case VJ_ins_seq:
+    gene_pair = VJ_genes;
+    return true;
+  default:
+    return false;
+  }
+}
+
+bool has_insertion_seq_type(
+    const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>,
+                             std::shared_ptr<Rec_Event>> &events_map,
+    Seq_type seq_type)
+{
+  Gene_class gene_pair = Undefined_gene;
+  if (!try_insertion_seq_type_to_gene_class(seq_type, gene_pair)) {
+    return false;
+  }
+
+  return events_map.count(std::make_tuple(Insertion_t, gene_pair, Undefined_side)) != 0;
+}
+
+bool try_get_event(
+    const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>,
+                             std::shared_ptr<Rec_Event>> &events_map,
+    Event_type event_type,
+    Gene_class gene_class,
+    Seq_side seq_side,
+    std::shared_ptr<Rec_Event> &event_ptr)
+{
+  auto key = std::make_tuple(event_type, gene_class, seq_side);
+  auto event_it = events_map.find(key);
+  if (event_it == events_map.end()) {
+    event_ptr = nullptr;
+    return false;
+  }
+
+  event_ptr = event_it->second;
+  return true;
+}
+
 GeneChoiceStatus check_gene_choice(
     Gene_class gene,
     const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>,

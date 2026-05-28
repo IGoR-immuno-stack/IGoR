@@ -1397,16 +1397,17 @@ void Deletion::initialize_event(
                 memory_layer_offset_check1 = seq_offsets.get_current_memory_layer(V_gene_seq, Three_prime);
                 //cout<<"d_del_1: "<<memory_layer_safety_1<<endl;
             }
-            if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(Deletion_t, D_gene, Three_prime)) != 0) {
-                shared_ptr<const Rec_Event> del_d_p =
-                        events_map.at(tuple<Event_type, Gene_class, Seq_side>(Deletion_t, D_gene, Three_prime));
-                if (processed_events.count(del_d_p->get_name()) != 0) {
-                    d_del_opposite_side_processed = true;
+            {
+                shared_ptr<Rec_Event> del_d_p;
+                if (EventUtils::try_get_event(events_map, Deletion_t, D_gene, Three_prime, del_d_p)) {
+                    if (processed_events.count(del_d_p->get_name()) != 0) {
+                        d_del_opposite_side_processed = true;
+                    } else {
+                        d_del_opposite_side_processed = false;
+                    }
                 } else {
-                    d_del_opposite_side_processed = false;
+                    d_del_opposite_side_processed = true;
                 }
-            } else {
-                d_del_opposite_side_processed = true;
             }
 
             if (v_chosen) {
@@ -1424,16 +1425,17 @@ void Deletion::initialize_event(
                 memory_layer_offset_check2 = seq_offsets.get_current_memory_layer(J_gene_seq, Five_prime);
                 //cout<<"d_del_2: "<<memory_layer_safety_2<<endl;
             }
-            if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(Deletion_t, D_gene, Five_prime)) != 0) {
-                shared_ptr<const Rec_Event> del_d_p =
-                        events_map.at(tuple<Event_type, Gene_class, Seq_side>(Deletion_t, D_gene, Five_prime));
-                if (processed_events.count(del_d_p->get_name()) != 0) {
-                    d_del_opposite_side_processed = true;
+            {
+                shared_ptr<Rec_Event> del_d_p;
+                if (EventUtils::try_get_event(events_map, Deletion_t, D_gene, Five_prime, del_d_p)) {
+                    if (processed_events.count(del_d_p->get_name()) != 0) {
+                        d_del_opposite_side_processed = true;
+                    } else {
+                        d_del_opposite_side_processed = false;
+                    }
                 } else {
-                    d_del_opposite_side_processed = false;
+                    d_del_opposite_side_processed = true;
                 }
-            } else {
-                d_del_opposite_side_processed = true;
             }
 
             if (j_chosen) {
@@ -1478,9 +1480,8 @@ void Deletion::initialize_event(
     }
 
     //Get V 3' deletion
-    if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(Deletion_t, V_gene, Three_prime)) != 0) {
-        shared_ptr<const Rec_Event> del_v_p =
-                events_map.at(tuple<Event_type, Gene_class, Seq_side>(Deletion_t, V_gene, Three_prime));
+    shared_ptr<Rec_Event> del_v_p;
+    if (EventUtils::try_get_event(events_map, Deletion_t, V_gene, Three_prime, del_v_p)) {
         if (processed_events.count(del_v_p->get_name()) != 0) {
             v_3_min_del = 0;
             v_3_max_del = 0;
@@ -1494,15 +1495,14 @@ void Deletion::initialize_event(
     }
 
     //Get D 5' deletion range
-    if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(Deletion_t, D_gene, Five_prime)) != 0) {
-        shared_ptr<const Rec_Event> del_d_p =
-                events_map.at(tuple<Event_type, Gene_class, Seq_side>(Deletion_t, D_gene, Five_prime));
-        if (processed_events.count(del_d_p->get_name()) != 0) {
+    shared_ptr<Rec_Event> del_d_5_p;
+    if (EventUtils::try_get_event(events_map, Deletion_t, D_gene, Five_prime, del_d_5_p)) {
+        if (processed_events.count(del_d_5_p->get_name()) != 0) {
             d_5_min_del = 0;
             d_5_max_del = 0;
         } else {
-            d_5_min_del = del_d_p->get_len_max();
-            d_5_max_del = del_d_p->get_len_min();
+            d_5_min_del = del_d_5_p->get_len_max();
+            d_5_max_del = del_d_5_p->get_len_min();
         }
     } else {
         d_5_min_del = 0;
@@ -1510,15 +1510,14 @@ void Deletion::initialize_event(
     }
 
     //Get D 3' deletion
-    if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(Deletion_t, D_gene, Three_prime)) != 0) {
-        shared_ptr<const Rec_Event> del_d_p =
-                events_map.at(tuple<Event_type, Gene_class, Seq_side>(Deletion_t, D_gene, Three_prime));
-        if (processed_events.count(del_d_p->get_name()) != 0) {
+    shared_ptr<Rec_Event> del_d_3_p;
+    if (EventUtils::try_get_event(events_map, Deletion_t, D_gene, Three_prime, del_d_3_p)) {
+        if (processed_events.count(del_d_3_p->get_name()) != 0) {
             d_3_min_del = 0;
             d_3_max_del = 0;
         } else {
-            d_3_min_del = del_d_p->get_len_max();
-            d_3_max_del = del_d_p->get_len_min();
+            d_3_min_del = del_d_3_p->get_len_max();
+            d_3_max_del = del_d_3_p->get_len_min();
         }
     } else {
         d_3_min_del = 0;
@@ -1526,9 +1525,8 @@ void Deletion::initialize_event(
     }
 
     //Get J 5' deletion range
-    if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(Deletion_t, J_gene, Five_prime)) != 0) {
-        shared_ptr<const Rec_Event> del_j_p =
-                events_map.at(tuple<Event_type, Gene_class, Seq_side>(Deletion_t, J_gene, Five_prime));
+    shared_ptr<Rec_Event> del_j_p;
+    if (EventUtils::try_get_event(events_map, Deletion_t, J_gene, Five_prime, del_j_p)) {
         if (processed_events.count(del_j_p->get_name()) != 0) {
             j_5_min_del = 0;
             j_5_max_del = 0;

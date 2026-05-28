@@ -83,13 +83,14 @@ void Pgen_counter::initialize(const ModelContext& model) {
     // Identify which gene/insertion sequences exist in the model
     const unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map =
             model.events_map;
-            
-    v_gene = events_map.count(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, V_gene, Undefined_side)) > 0;
-    d_gene = events_map.count(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, D_gene, Undefined_side)) > 0;
-    j_gene = events_map.count(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, J_gene, Undefined_side)) > 0;
-    vj_ins = events_map.count(tuple<Event_type, Gene_class, Seq_side>(Insertion_t, VJ_genes, Undefined_side)) > 0;
-    vd_ins = events_map.count(tuple<Event_type, Gene_class, Seq_side>(Insertion_t, VD_genes, Undefined_side)) > 0;
-    dj_ins = events_map.count(tuple<Event_type, Gene_class, Seq_side>(Insertion_t, DJ_genes, Undefined_side)) > 0;
+
+        shared_ptr<Rec_Event> gene_choice_event_p;
+        v_gene = EventUtils::try_get_event(events_map, GeneChoice_t, V_gene, Undefined_side, gene_choice_event_p);
+        d_gene = EventUtils::try_get_event(events_map, GeneChoice_t, D_gene, Undefined_side, gene_choice_event_p);
+        j_gene = EventUtils::try_get_event(events_map, GeneChoice_t, J_gene, Undefined_side, gene_choice_event_p);
+    vj_ins = EventUtils::has_insertion_seq_type(events_map, VJ_ins_seq);
+    vd_ins = EventUtils::has_insertion_seq_type(events_map, VD_ins_seq);
+    dj_ins = EventUtils::has_insertion_seq_type(events_map, DJ_ins_seq);
 }
 
 void Pgen_counter::count_scenario(
@@ -139,12 +140,13 @@ void Pgen_counter::initialize_counter(const Model_Parms &parms, const Model_marg
     const unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map =
             parms.get_events_map();
     //Initialize booleans for constructed sequences
-    v_gene = events_map.count(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, V_gene, Undefined_side)) > 0;
-    d_gene = events_map.count(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, D_gene, Undefined_side)) > 0;
-    j_gene = events_map.count(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, J_gene, Undefined_side)) > 0;
-    vj_ins = events_map.count(tuple<Event_type, Gene_class, Seq_side>(Insertion_t, VJ_genes, Undefined_side)) > 0;
-    vd_ins = events_map.count(tuple<Event_type, Gene_class, Seq_side>(Insertion_t, VD_genes, Undefined_side)) > 0;
-    dj_ins = events_map.count(tuple<Event_type, Gene_class, Seq_side>(Insertion_t, DJ_genes, Undefined_side)) > 0;
+    shared_ptr<Rec_Event> gene_choice_event_p;
+    v_gene = EventUtils::try_get_event(events_map, GeneChoice_t, V_gene, Undefined_side, gene_choice_event_p);
+    d_gene = EventUtils::try_get_event(events_map, GeneChoice_t, D_gene, Undefined_side, gene_choice_event_p);
+    j_gene = EventUtils::try_get_event(events_map, GeneChoice_t, J_gene, Undefined_side, gene_choice_event_p);
+    vj_ins = EventUtils::has_insertion_seq_type(events_map, VJ_ins_seq);
+    vd_ins = EventUtils::has_insertion_seq_type(events_map, VD_ins_seq);
+    dj_ins = EventUtils::has_insertion_seq_type(events_map, DJ_ins_seq);
 }
 
 void Pgen_counter::count_scenario(

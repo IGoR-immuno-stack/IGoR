@@ -447,31 +447,18 @@ void Insertion::initialize_crude_scenario_proba_bound(
         //TODO be careful in case there is both VDJ and VD/DJ (however this should not happen)
 
     case VD_genes:
-        if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(Dinuclmarkov_t, VD_genes, Undefined_side))) {
-            dinuc_event_p =
-                    events_map.at(tuple<Event_type, Gene_class, Seq_side>(Dinuclmarkov_t, VD_genes, Undefined_side));
-        } else if (events_map.count(
-                           tuple<Event_type, Gene_class, Seq_side>(Dinuclmarkov_t, VDJ_genes, Undefined_side))) {
-            dinuc_event_p =
-                    events_map.at(tuple<Event_type, Gene_class, Seq_side>(Dinuclmarkov_t, VDJ_genes, Undefined_side));
+        if (!EventUtils::try_get_event(events_map, Dinuclmarkov_t, VD_genes, Undefined_side, dinuc_event_p)) {
+            EventUtils::try_get_event(events_map, Dinuclmarkov_t, VDJ_genes, Undefined_side, dinuc_event_p);
         }
         break;
 
     case VJ_genes:
-        if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(Dinuclmarkov_t, VJ_genes, Undefined_side))) {
-            dinuc_event_p =
-                    events_map.at(tuple<Event_type, Gene_class, Seq_side>(Dinuclmarkov_t, VJ_genes, Undefined_side));
-        }
+        EventUtils::try_get_event(events_map, Dinuclmarkov_t, VJ_genes, Undefined_side, dinuc_event_p);
         break;
 
     case DJ_genes:
-        if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(Dinuclmarkov_t, DJ_genes, Undefined_side))) {
-            dinuc_event_p =
-                    events_map.at(tuple<Event_type, Gene_class, Seq_side>(Dinuclmarkov_t, DJ_genes, Undefined_side));
-        } else if (events_map.count(
-                           tuple<Event_type, Gene_class, Seq_side>(Dinuclmarkov_t, VDJ_genes, Undefined_side))) {
-            dinuc_event_p =
-                    events_map.at(tuple<Event_type, Gene_class, Seq_side>(Dinuclmarkov_t, VDJ_genes, Undefined_side));
+        if (!EventUtils::try_get_event(events_map, Dinuclmarkov_t, DJ_genes, Undefined_side, dinuc_event_p)) {
+            EventUtils::try_get_event(events_map, Dinuclmarkov_t, VDJ_genes, Undefined_side, dinuc_event_p);
         }
         break;
     default:
