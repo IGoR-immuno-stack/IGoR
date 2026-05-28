@@ -23,16 +23,16 @@
 #include <igor/Core/Utils.h>
 
 #include <filesystem>
-#include <fstream>
-#include <sstream>
 #include <string>
+
+static const std::string TEST_DATA_DIR = std::string(IGOR_SOURCE_DIR) + "/tst/test_data/format_v2/";
 
 // Test that legacy format files can still be read
 TEST_CASE("Legacy model format backward compatibility", "[model_format][legacy]")
 {
     // Read the legacy format file from test_data/format_v2
     std::string filename = "test_legacy_model_parms.txt";
-    std::string file_path = std::string(IGOR_SOURCE_DIR) + "/tst/test_data/format_v2/" + filename;
+    std::string file_path = TEST_DATA_DIR + filename;
     
     Model_Parms parms;
     REQUIRE_NOTHROW(parms.read_model_parms(file_path));
@@ -52,66 +52,19 @@ TEST_CASE("Legacy model format backward compatibility", "[model_format][legacy]"
 // Test that v2.0 format files can be read (placeholder for future implementation)
 TEST_CASE("Model format v2.0 parsing", "[model_format][v2.0][!mayfail]")
 {
-    // Create a v2.0 format model file
-    std::string temp_file = "/tmp/test_v2_model_parms.txt";
+    // Read the v2.0 format file from test_data/format_v2
+    std::string filename = "test_v2_model_parms.txt";
+    std::string file_path = TEST_DATA_DIR + filename;
     
-    std::ofstream outfile(temp_file);
-    outfile << "@Version" << std::endl;
-    outfile << "2.0" << std::endl;
-    
-    outfile << "@Seq_type_order" << std::endl;
-    outfile << "[V_gene_seq,VJ_ins_seq,J_gene_seq]" << std::endl;
-    
-    outfile << "@Event_list" << std::endl;
-    
-    // GeneChoice event (v2.0 format: type;gene_class;seq_type;seq_side;priority;nickname)
-    outfile << "#GeneChoice;V_gene;V_gene_seq;Undefined_side;7;v_choice" << std::endl;
-    outfile << "%V_test;ATCGATCG;0" << std::endl;
-    
-    outfile << "#GeneChoice;J_gene;J_gene_seq;Undefined_side;7;j_choice" << std::endl;
-    outfile << "%J_test;GCTAGCTA;0" << std::endl;
-    
-    // Deletion event (v2.0: gene_class is Undefined_gene, seq_type identifies target)
-    outfile << "#Deletion;Undefined_gene;V_gene_seq;Three_prime;5;v_3_del" << std::endl;
-    outfile << "%0;0" << std::endl;
-    outfile << "%1;1" << std::endl;
-    
-    // Insertion event
-    outfile << "#Insertion;Undefined_gene;VJ_ins_seq;Undefined_side;4;vj_ins" << std::endl;
-    outfile << "%0;0" << std::endl;
-    outfile << "%1;1" << std::endl;
-    
-    // DinucMarkov event (v2.0: seq_side is explicit)
-    outfile << "#DinucMarkov;Undefined_gene;VJ_ins_seq;Three_prime;1;vj_dinucl" << std::endl;
-    outfile << "%A;0" << std::endl;
-    outfile << "%C;1" << std::endl;
-    outfile << "%G;2" << std::endl;
-    outfile << "%T;3" << std::endl;
-    
-    outfile << "@Edges" << std::endl;
-    // Edge names must match the internal event names (after v2.0 -> legacy conversion)
-    // Deletion with seq_type=V_gene_seq gets gene_class=V_gene for internal use
-    outfile << "%GeneChoice_V_gene_Undefined_side_prio7_size1;Deletion_V_gene_Three_prime_prio5_size2" << std::endl;
-    outfile << "%GeneChoice_V_gene_Undefined_side_prio7_size1;GeneChoice_J_gene_Undefined_side_prio7_size1" << std::endl;
-    
-    outfile << "@ErrorRate" << std::endl;
-    outfile << "#SingleErrorRate" << std::endl;
-    outfile << "0.001" << std::endl;
-    outfile.close();
-    
-    // Read the v2.0 format file
     Model_Parms parms;
-    REQUIRE_NOTHROW(parms.read_model_parms(temp_file));
+    REQUIRE_NOTHROW(parms.read_model_parms(file_path));
     
     // Verify events were loaded correctly
     auto events = parms.get_event_list();
     REQUIRE(events.size() == 5); // 2 GeneChoice + 1 Deletion + 1 Insertion + 1 DinucMarkov (error rate is separate)
-    
-    // Cleanup
-    std::filesystem::remove(temp_file);
 }
 
-// Test round-trip: write and read back
+// Test round-trip: write to test_data/format_v2 and read back
 TEST_CASE("Model format round-trip", "[model_format]")
 {
     // Create a simple model
@@ -147,13 +100,13 @@ TEST_CASE("Model format round-trip", "[model_format]")
     auto err_rate = std::make_shared<Single_error_rate>(0.001);
     original_parms.set_error_ratep(err_rate);
     
-    // Write to file
-    std::string temp_file = "/tmp/test_roundtrip_parms.txt";
-    original_parms.write_model_parms(temp_file);
+    // Write to test_data directory and read back
+    std::string roundtrip_file = TEST_DATA_DIR + "test_roundtrip_parms.txt";
+    original_parms.write_model_parms(roundtrip_file);
     
     // Read back
     Model_Parms loaded_parms;
-    REQUIRE_NOTHROW(loaded_parms.read_model_parms(temp_file));
+    REQUIRE_NOTHROW(loaded_parms.read_model_parms(roundtrip_file));
     
     // Compare
     auto orig_events = original_parms.get_event_list();
@@ -161,47 +114,21 @@ TEST_CASE("Model format round-trip", "[model_format]")
     REQUIRE(orig_events.size() == loaded_events.size());
     
     // Cleanup
-    std::filesystem::remove(temp_file);
+    std::filesystem::remove(roundtrip_file);
 }
 
 // Test format detection
 TEST_CASE("Format version detection", "[model_format]")
 {
     // Test legacy format detection (no @Version header)
-    std::string legacy_file = "/tmp/test_legacy_detect.txt";
-    std::ofstream legacy_out(legacy_file);
-    legacy_out << "@Event_list" << std::endl;
-    legacy_out << "#GeneChoice;V_gene;Undefined_side;7;v_choice" << std::endl;
-    legacy_out << "%V1;ATCG;0" << std::endl;
-    legacy_out << "@Edges" << std::endl;
-    legacy_out << "@ErrorRate" << std::endl;
-    legacy_out << "#SingleErrorRate" << std::endl;
-    legacy_out << "0.001" << std::endl;
-    legacy_out.close();
-    
+    std::string legacy_file = TEST_DATA_DIR + "test_legacy_detect.txt";
     Model_Parms legacy_parms;
     REQUIRE_NOTHROW(legacy_parms.read_model_parms(legacy_file));
     
     // Test v2.0 format detection
-    std::string v2_file = "/tmp/test_v2_detect.txt";
-    std::ofstream v2_out(v2_file);
-    v2_out << "@Version" << std::endl;
-    v2_out << "2.0" << std::endl;
-    v2_out << "@Event_list" << std::endl;
-    v2_out << "#GeneChoice;V_gene;V_gene_seq;Undefined_side;7;v_choice" << std::endl;
-    v2_out << "%V1;ATCG;0" << std::endl;
-    v2_out << "@Edges" << std::endl;
-    v2_out << "@ErrorRate" << std::endl;
-    v2_out << "#SingleErrorRate" << std::endl;
-    v2_out << "0.001" << std::endl;
-    v2_out.close();
-    
+    std::string v2_file = TEST_DATA_DIR + "test_v2_detect.txt";
     Model_Parms v2_parms;
     REQUIRE_NOTHROW(v2_parms.read_model_parms(v2_file));
-    
-    // Cleanup
-    std::filesystem::remove(legacy_file);
-    std::filesystem::remove(v2_file);
 }
 
 // Test reading actual v2.0 format model file from models directory
