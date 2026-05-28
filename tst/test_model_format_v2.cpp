@@ -30,49 +30,12 @@
 // Test that legacy format files can still be read
 TEST_CASE("Legacy model format backward compatibility", "[model_format][legacy]")
 {
-    // Create a minimal legacy format model file
-    std::string temp_file = "/tmp/test_legacy_model_parms.txt";
+    // Read the legacy format file from test_data/format_v2
+    std::string filename = "test_legacy_model_parms.txt";
+    std::string file_path = std::string(IGOR_SOURCE_DIR) + "/tst/test_data/format_v2/" + filename;
     
-    std::ofstream outfile(temp_file);
-    outfile << "@Event_list" << std::endl;
-    
-    // GeneChoice event (legacy format: type;gene_class;seq_side;priority;nickname)
-    outfile << "#GeneChoice;V_gene;Undefined_side;7;v_choice" << std::endl;
-    outfile << "%V_test;ATCGATCG;0" << std::endl;
-    
-    outfile << "#GeneChoice;J_gene;Undefined_side;7;j_choice" << std::endl;
-    outfile << "%J_test;GCTAGCTA;0" << std::endl;
-    
-    // Deletion event
-    outfile << "#Deletion;V_gene;Three_prime;5;v_3_del" << std::endl;
-    outfile << "%0;0" << std::endl;
-    outfile << "%1;1" << std::endl;
-    
-    // Insertion event
-    outfile << "#Insertion;VJ_gene;Undefined_side;4;vj_ins" << std::endl;
-    outfile << "%0;0" << std::endl;
-    outfile << "%1;1" << std::endl;
-    
-    // DinucMarkov event
-    outfile << "#DinucMarkov;VJ_gene;Undefined_side;1;vj_dinucl" << std::endl;
-    outfile << "%A;0" << std::endl;
-    outfile << "%C;1" << std::endl;
-    outfile << "%G;2" << std::endl;
-    outfile << "%T;3" << std::endl;
-    
-    outfile << "@Edges" << std::endl;
-    // Edge names use the internal event name format (legacy-compatible)
-    outfile << "%GeneChoice_V_gene_Undefined_side_prio7_size1;Deletion_V_gene_Three_prime_prio5_size2" << std::endl;
-    outfile << "%GeneChoice_V_gene_Undefined_side_prio7_size1;GeneChoice_J_gene_Undefined_side_prio7_size1" << std::endl;
-    
-    outfile << "@ErrorRate" << std::endl;
-    outfile << "#SingleErrorRate" << std::endl;
-    outfile << "0.001" << std::endl;
-    outfile.close();
-    
-    // Read the legacy format file
     Model_Parms parms;
-    REQUIRE_NOTHROW(parms.read_model_parms(temp_file));
+    REQUIRE_NOTHROW(parms.read_model_parms(file_path));
     
     // Verify events were loaded correctly
     auto events = parms.get_event_list();
@@ -83,10 +46,8 @@ TEST_CASE("Legacy model format backward compatibility", "[model_format][legacy]"
     REQUIRE(v_choice != nullptr);
     REQUIRE(v_choice->get_type() == GeneChoice_t);
     REQUIRE(v_choice->get_class() == V_gene);
-    
-    // Cleanup
-    std::filesystem::remove(temp_file);
 }
+
 
 // Test that v2.0 format files can be read (placeholder for future implementation)
 TEST_CASE("Model format v2.0 parsing", "[model_format][v2.0][!mayfail]")
