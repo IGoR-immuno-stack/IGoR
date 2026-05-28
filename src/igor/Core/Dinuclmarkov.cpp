@@ -26,7 +26,39 @@
 #include <igor/Core/Dinuclmarkov.h>
 #include <igor/Core/EventUtils.h>
 
+#include <vector>
+
 using namespace std;
+
+namespace {
+
+struct DinuclTraversalSpec {
+    Seq_type target_seq;
+    Seq_type anchor_seq;
+    Seq_side anchor_side;
+    bool reverse_traversal;
+};
+
+vector<DinuclTraversalSpec> get_dinucl_traversal_specs(Gene_class gene_class)
+{
+    switch (gene_class) {
+    case VD_genes:
+        return { { VD_ins_seq, V_gene_seq, Five_prime, false } };
+    case DJ_genes:
+        return { { DJ_ins_seq, J_gene_seq, Five_prime, true } };
+    case VJ_genes:
+        return { { VJ_ins_seq, V_gene_seq, Five_prime, false } };
+    case VDJ_genes:
+        return {
+            { VD_ins_seq, V_gene_seq, Five_prime, false },
+            { DJ_ins_seq, J_gene_seq, Five_prime, true },
+        };
+    default:
+        return {};
+    }
+}
+
+} // namespace
 
 Dinucl_markov::Dinucl_markov(Gene_class gene) : Rec_Event(), total_nucl_count(0)
 {
@@ -99,54 +131,62 @@ void Dinucl_markov::iterate(
     //Clear all previous scenario realizations
     current_realizations_index_vec.clear();
 
-    correct_class = 0;
-    //For now do not include possible sequencing error
-    const string &dm_st = this->seq_type;
-    if (dm_st == "VD_ins_seq") {
-        correct_class = 1;
-        previous_seq = (*scenario.get_sequence_segment(V_gene_seq));
-        Int_Str &vd_seq = (*scenario.get_sequence_segment(VD_ins_seq));
-        vd_seq_size = vd_seq.size();
-        previous_seq_size = previous_seq.size();
-        data_seq_substr = query.int_sequence.substr(scenario.get_offset(V_gene_seq, Five_prime) + previous_seq_size,
-                                              vd_seq.size()); //FIXME use precomputed vd seq size
-
-        previous_nt_str = previous_seq.back();
-        iterate_common(vd_realizations_indices, previous_nt_str, vd_seq, model.model_parameters);
-        exploration.downstream_proba_map.set_value(VD_ins_seq, 1.0, memory_layer_proba_map_junction_1);
+    const auto traversal_specs = get_dinucl_traversal_specs(event_class);
+    if (traversal_specs.empty()) {
+        throw invalid_argument(std::string("Unknown gene class for DincuclMarkov model: ") + this->event_class);
     }
-    if (dm_st == "DJ_ins_seq") {
-        correct_class = 1;
-        previous_seq = (*scenario.get_sequence_segment(J_gene_seq));
-        Int_Str &dj_seq = (*scenario.get_sequence_segment(DJ_ins_seq));
-        dj_seq_size = dj_seq.size();
 
-        size_t char_index = scenario.get_offset(J_gene_seq, Five_prime) - dj_seq.size();
-        data_seq_substr = query.int_sequence.substr(char_index, dj_seq.size());
+    auto indices_array_for_target = [&](Seq_type seq_type) -> int * {
+        switch (seq_type) {
+        case VD_ins_seq:
+            return vd_realizations_indices;
+        case DJ_ins_seq:
+            return dj_realizations_indices;
+        case VJ_ins_seq:
+            return vj_realizations_indices;
+        default:
+            return nullptr;
+        }
+    };
 
-        previous_nt_str = previous_seq.front();
-        reverse(data_seq_substr.begin(), data_seq_substr.end());
-        iterate_common(dj_realizations_indices, previous_nt_str, dj_seq, model.model_parameters);
-        reverse(dj_seq.begin(), dj_seq.end());
+    auto memory_layer_for_target = [&](Seq_type seq_type) -> int {
+        return (seq_type == DJ_ins_seq) ? memory_layer_proba_map_junction_2 : memory_layer_proba_map_junction_1;
+    };
 
-        exploration.downstream_proba_map.set_value(DJ_ins_seq, 1.0, memory_layer_proba_map_junction_2);
-    }
-    if (dm_st == "VJ_ins_seq") {
-        correct_class = 1;
-        previous_seq = (*scenario.get_sequence_segment(V_gene_seq));
-        Int_Str &vj_seq = (*scenario.get_sequence_segment(VJ_ins_seq));
-        vj_seq_size = vj_seq.size();
-        previous_seq_size = previous_seq.size();
-        data_seq_substr =
-                query.int_sequence.substr(scenario.get_offset(V_gene_seq, Five_prime) + previous_seq_size, vj_seq.size());
+    for (const auto &spec : traversal_specs) {
+        previous_seq = (*scenario.get_sequence_segment(spec.anchor_seq));
+        Int_Str &target_seq = (*scenario.get_sequence_segment(spec.target_seq));
 
-        previous_nt_str = previous_seq.back();
-        iterate_common(vj_realizations_indices, previous_nt_str, vj_seq, model.model_parameters);
+        switch (spec.target_seq) {
+        case VD_ins_seq:
+            vd_seq_size = target_seq.size();
+            break;
+        case DJ_ins_seq:
+            dj_seq_size = target_seq.size();
+            break;
+        case VJ_ins_seq:
+            vj_seq_size = target_seq.size();
+            break;
+        default:
+            break;
+        }
 
-        exploration.downstream_proba_map.set_value(VJ_ins_seq, 1.0, memory_layer_proba_map_junction_1);
-    }
-    if (!correct_class) {
-        throw invalid_argument(std::string("Unknown seq_type for DinuclMarkov model: ") + dm_st);
+        if (spec.reverse_traversal) {
+            const size_t char_index = scenario.get_offset(spec.anchor_seq, spec.anchor_side) - target_seq.size();
+            data_seq_substr = query.int_sequence.substr(char_index, target_seq.size());
+            previous_nt_str = previous_seq.front();
+            reverse(data_seq_substr.begin(), data_seq_substr.end());
+            iterate_common(indices_array_for_target(spec.target_seq), previous_nt_str, target_seq, model.model_parameters);
+            reverse(target_seq.begin(), target_seq.end());
+        } else {
+            previous_seq_size = previous_seq.size();
+            data_seq_substr = query.int_sequence.substr(
+                    scenario.get_offset(spec.anchor_seq, spec.anchor_side) + previous_seq_size, target_seq.size());
+            previous_nt_str = previous_seq.back();
+            iterate_common(indices_array_for_target(spec.target_seq), previous_nt_str, target_seq, model.model_parameters);
+        }
+
+        exploration.downstream_proba_map.set_value(spec.target_seq, 1.0, memory_layer_for_target(spec.target_seq));
     }
 
     scenario.scenario_proba *= proba_contribution;
@@ -169,51 +209,33 @@ queue<int> Dinucl_markov::draw_random_realization(
 {
 
     uniform_real_distribution<double> distribution(0.0, 1.0);
-    bool correct_class = 0;
     int index = index_map.at(this->get_name());
     queue<int> realization_queue;
 
-    const string &drr_dm_st = this->seq_type;
-    if (drr_dm_st == "VD_ins_seq") {
-        correct_class = 1;
-        string &vd_ins_seq = constructed_sequences.at(VD_ins_seq);
-        string v_seq = constructed_sequences.at(V_gene_seq);
+    const auto traversal_specs = get_dinucl_traversal_specs(event_class);
+    if (traversal_specs.empty()) {
+        throw invalid_argument(std::string("Unknown gene class for DincuclMarkov model: ") + this->event_class);
+    }
 
-        queue<int> tmp = this->draw_random_common(v_seq, vd_ins_seq, model_marginals_p, index, distribution, generator);
+    for (const auto &spec : traversal_specs) {
+        string &target_ins_seq = constructed_sequences.at(spec.target_seq);
+        string anchor_seq = constructed_sequences.at(spec.anchor_seq);
+        if (spec.reverse_traversal) {
+            reverse(anchor_seq.begin(), anchor_seq.end());
+        }
+
+        queue<int> tmp = this->draw_random_common(anchor_seq, target_ins_seq, model_marginals_p, index, distribution,
+                                                  generator);
         while (!tmp.empty()) {
             realization_queue.push(tmp.front());
             tmp.pop();
         }
-    }
-    if (drr_dm_st == "DJ_ins_seq") {
-        correct_class = 1;
 
-        string &dj_ins_seq = constructed_sequences.at(DJ_ins_seq);
-        string j_seq = constructed_sequences.at(J_gene_seq);
-        reverse(j_seq.begin(), j_seq.end());
-
-        queue<int> tmp = this->draw_random_common(j_seq, dj_ins_seq, model_marginals_p, index, distribution, generator);
-        while (!tmp.empty()) {
-            realization_queue.push(tmp.front());
-            tmp.pop();
-        }
-        reverse(dj_ins_seq.begin(), dj_ins_seq.end());
-    }
-    if (drr_dm_st == "VJ_ins_seq") {
-        correct_class = 1;
-
-        string &vj_ins_seq = constructed_sequences.at(VJ_ins_seq);
-        string v_seq = constructed_sequences.at(V_gene_seq);
-
-        queue<int> tmp = this->draw_random_common(v_seq, vj_ins_seq, model_marginals_p, index, distribution, generator);
-        while (!tmp.empty()) {
-            realization_queue.push(tmp.front());
-            tmp.pop();
+        if (spec.reverse_traversal) {
+            reverse(target_ins_seq.begin(), target_ins_seq.end());
         }
     }
-    if (!correct_class) {
-        throw invalid_argument(std::string("Unknown seq_type for DinuclMarkov model: ") + drr_dm_st);
-    }
+
     return realization_queue;
 }
 
@@ -421,18 +443,19 @@ void Dinucl_markov::initialize_event(
     max_vj_ins = EventUtils::get_insertion_len_max("VJ_ins_seq", events_map);
     max_dj_ins = EventUtils::get_insertion_len_max("DJ_ins_seq", events_map);
 
-    const string &ie_dm_st = this->seq_type;
-    if (ie_dm_st == "VD_ins_seq") {
-        downstream_proba_map.request_memory_layer(VD_ins_seq);
-        memory_layer_proba_map_junction_1 = downstream_proba_map.get_current_memory_layer(VD_ins_seq);
+    const auto traversal_specs = get_dinucl_traversal_specs(this->event_class);
+    if (traversal_specs.empty()) {
+        throw invalid_argument(std::string("Unknown gene class for DincuclMarkov model: ") + this->event_class);
     }
-    if (ie_dm_st == "DJ_ins_seq") {
-        downstream_proba_map.request_memory_layer(DJ_ins_seq);
-        memory_layer_proba_map_junction_2 = downstream_proba_map.get_current_memory_layer(DJ_ins_seq);
-    }
-    if (ie_dm_st == "VJ_ins_seq") {
-        downstream_proba_map.request_memory_layer(VJ_ins_seq);
-        memory_layer_proba_map_junction_1 = downstream_proba_map.get_current_memory_layer(VJ_ins_seq);
+
+    for (const auto &spec : traversal_specs) {
+        downstream_proba_map.request_memory_layer(spec.target_seq);
+        int layer = downstream_proba_map.get_current_memory_layer(spec.target_seq);
+        if (spec.target_seq == DJ_ins_seq) {
+            memory_layer_proba_map_junction_2 = layer;
+        } else {
+            memory_layer_proba_map_junction_1 = layer;
+        }
     }
 
     vd_realizations_indices = new int[max_vd_ins];
@@ -457,25 +480,30 @@ void Dinucl_markov::add_to_marginals(long double scenario_proba, Marginal_array_
         }
     }
 
-    const string &atm_st = this->seq_type;
-    if (atm_st == "VD_ins_seq") {
-        for (size_t i = 0; i != vd_seq_size; ++i) {
-            if (vd_realizations_indices[i] >= 0) {
-                updated_marginals[vd_realizations_indices[i]] += scenario_proba;
-            }
+    const auto traversal_specs = get_dinucl_traversal_specs(event_class);
+    for (const auto &spec : traversal_specs) {
+        const int *indices = nullptr;
+        size_t seq_size = 0;
+        switch (spec.target_seq) {
+        case VD_ins_seq:
+            indices = vd_realizations_indices;
+            seq_size = vd_seq_size;
+            break;
+        case DJ_ins_seq:
+            indices = dj_realizations_indices;
+            seq_size = dj_seq_size;
+            break;
+        case VJ_ins_seq:
+            indices = vj_realizations_indices;
+            seq_size = vj_seq_size;
+            break;
+        default:
+            break;
         }
-    }
-    if (atm_st == "DJ_ins_seq") {
-        for (size_t i = 0; i != dj_seq_size; ++i) {
-            if (dj_realizations_indices[i] >= 0) {
-                updated_marginals[dj_realizations_indices[i]] += scenario_proba;
-            }
-        }
-    }
-    if (atm_st == "VJ_ins_seq") {
-        for (size_t i = 0; i != vj_seq_size; ++i) {
-            if (vj_realizations_indices[i] >= 0) {
-                updated_marginals[vj_realizations_indices[i]] += scenario_proba;
+
+        for (size_t i = 0; i != seq_size; ++i) {
+            if (indices[i] >= 0) {
+                updated_marginals[indices[i]] += scenario_proba;
             }
         }
     }
