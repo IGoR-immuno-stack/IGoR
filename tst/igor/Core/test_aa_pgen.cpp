@@ -19,6 +19,7 @@
 #include <igor/Core/QuerySequenceContext.h>
 #include <igor/Core/Aligner.h>
 #include <igor/Core/Dinuclmarkov.h>
+#include <igor/Core/GenModel.h>
 #include <igor/Core/IntStr.h>
 
 #include <array>
@@ -876,4 +877,114 @@ TEST_CASE("Markov AA sum: frame offset handling", "[aa_pgen][phase6]") {
     REQUIRE(jq2.reference[2] == int_A);
     REQUIRE(jq2.reference[3] == int_T);
     REQUIRE(jq2.reference[4] == int_G);
+}
+
+// ============================================================================
+// Phase 7: Public API (compute_aa_pgen)
+// ============================================================================
+
+TEST_CASE("AAPgenResult struct", "[aa_pgen][phase7]") {
+    // Verify AAPgenResult struct is properly defined
+    AAPgenResult result{0.5, 100};
+    REQUIRE(result.pgen == 0.5);
+    REQUIRE(result.n_scenarios == 100);
+}
+
+TEST_CASE("JournaledQuery construction for simple motif", "[aa_pgen][phase7]") {
+    // Test that JournaledQuery is correctly constructed for a simple motif
+    // This is a prerequisite for compute_aa_pgen
+    std::string motif = "MV";
+    int frame_offset = 0;
+    int receptor_len = 6;
+
+    auto jq = EventUtils::motif_to_journaled_query(motif, frame_offset, receptor_len);
+
+    // Verify display string
+    REQUIRE(jq.display_string == "MV");
+
+    // Verify reference has correct length
+    REQUIRE(jq.reference.size() == static_cast<size_t>(receptor_len));
+
+    // Verify codon positions are filled
+    // M = ATG, V = GTA/GTC/GTG/GTT (first is GTA)
+    REQUIRE(jq.reference[0] == int_A);
+    REQUIRE(jq.reference[1] == int_T);
+    REQUIRE(jq.reference[2] == int_G);
+    REQUIRE(jq.reference[3] == int_G);
+    REQUIRE(jq.reference[4] == int_T);
+    REQUIRE(jq.reference[5] == int_A);
+
+    // Verify patches exist for V (which has 4 codons)
+    bool has_v_patch = false;
+    for (const auto& patch : jq.patches) {
+        if (patch.start == 3 && patch.length == 3) {
+            has_v_patch = true;
+            // V has 4 codons, reference is GTA, alternatives are GTC, GTG, GTT
+            REQUIRE(patch.alternatives.size() == 3);
+        }
+    }
+    REQUIRE(has_v_patch);
+
+    // M (Methionine) has only 1 codon, so no patch for position 0
+    bool has_m_patch = false;
+    for (const auto& patch : jq.patches) {
+        if (patch.start == 0) {
+            has_m_patch = true;
+        }
+    }
+    REQUIRE_FALSE(has_m_patch);
+}
+
+TEST_CASE("JournaledQuery for motif with bracket groups", "[aa_pgen][phase7]") {
+    // Test motif with bracket notation: [KSM]
+    std::string motif = "A[KSM]";
+    int frame_offset = 0;
+    int receptor_len = 6;
+
+    auto jq = EventUtils::motif_to_journaled_query(motif, frame_offset, receptor_len);
+
+    // Verify reference
+    // A = GCx (first is GCA), [KSM] = K(G/A) + S(G/C/T/A) + M(A/TG)
+    // K: A or G, S: C or G, M: A or C
+    // Combined mask for [KSM]: K|S|M
+    // First position: K(0/2) | S(0/2) | M(0/2) = {A, G} = M
+    // Second position: K(1) | S(1) | M(1) = {C, G, A} = V
+    // Third position: K(1/3) | S(0/1/2/3) | M(0/2) = {A, C, G, T} = N
+    // Reference codon: first valid codon in mask
+
+    REQUIRE(jq.display_string == "A[KSM]");
+    REQUIRE(jq.reference.size() == static_cast<size_t>(receptor_len));
+
+    // Verify patches exist for the bracket group
+    bool found_bracket_patch = false;
+    for (const auto& patch : jq.patches) {
+        if (patch.start == 3 && patch.length == 3) {
+            found_bracket_patch = true;
+            // [KSM] should have multiple alternatives
+            REQUIRE(patch.alternatives.size() > 0);
+        }
+    }
+    REQUIRE(found_bracket_patch);
+}
+
+TEST_CASE("JournaledQuery wildcards", "[aa_pgen][phase7]") {
+    // Test wildcard X (any non-stop codon)
+    std::string motif = "MX";
+    int frame_offset = 0;
+    int receptor_len = 6;
+
+    auto jq = EventUtils::motif_to_journaled_query(motif, frame_offset, receptor_len);
+
+    // X should create a patch with many alternatives (all non-stop codons)
+    bool found_x_patch = false;
+    for (const auto& patch : jq.patches) {
+        if (patch.start == 3 && patch.length == 3) {
+            found_x_patch = true;
+            // X = all non-stop codons = 61 codons - 3 stop codons = 58+ codons
+            // But since M is already position 0, X is position 3
+            // The patch should have many alternatives
+            REQUIRE(patch.alternatives.size() > 50);
+        }
+    }
+    REQUIRE(found_x_patch);
 }

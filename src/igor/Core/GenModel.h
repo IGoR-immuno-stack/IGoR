@@ -35,6 +35,9 @@
 #include <igor/Core/Errorrate.h>
 #include <igor/Core/Utils.h>
 #include <igor/Core/FastGenerator.h>
+#include <igor/Core/EventUtils.h>
+#include <igor/Core/JournaledQuery.h>
+#include <igor/Core/QuerySequenceContext.h>
 #include <list>
 #include <map>
 #include <string>
@@ -47,6 +50,14 @@
 #include <memory>
 
 #include <igorCoreExport.h>
+
+/**
+ * @brief Result of AA-level Pgen computation.
+ */
+struct CORE_EXPORT AAPgenResult {
+    double pgen;           // P_gen(aa_seq) = sum over all contributing scenarios
+    size_t n_scenarios;    // number of scenarios encoding the target AA sequence
+};
 
 //Make typedef for the function pointers
 typedef void (*gen_seq_trans)(size_t, std::pair<std::string, std::queue<std::queue<int>>>, std::shared_ptr<void>);
@@ -222,6 +233,19 @@ public:
                             std::forward_list<std::pair<std::string, std::queue<std::queue<int>>>>);
     const Model_marginals get_marginals() const { return this->model_marginals; };
 
+    /**
+     * @brief Compute AA-level Pgen for a plain AA sequence or OLGA-style motif.
+     *
+     * @param motif           AA sequence or bracket-notation motif (e.g. "CAVX[KSM]DS")
+     * @param frame_offset    Position of the first codon start within the receptor nt sequence
+     * @param receptor_nt_len Expected full receptor nt length
+     * @return AAPgenResult with pgen probability and scenario count
+     */
+    AAPgenResult compute_aa_pgen(
+        const std::string& motif,
+        int frame_offset,
+        int receptor_nt_len);
+
     //write alignments, load alignments
 
 private:
@@ -246,3 +270,9 @@ get_best_aligns(
 
 CORE_EXPORT void output_CDR3_gen_data(size_t, std::pair<std::string, std::queue<std::queue<int>>> seq_and_real,
                                       std::shared_ptr<void> func_data);
+
+CORE_EXPORT AAPgenResult compute_aa_pgen(
+    const std::string& motif,
+    int frame_offset,
+    int receptor_nt_len,
+    GenModel& model);
