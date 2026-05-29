@@ -618,21 +618,36 @@ void Gene_choice::iterate(
                             break;
                         }
 
-                        //Get mismatches between D gene and sequence
+                        //Two-track mismatch computation: floor + upper bound
+                        no_d_floor_mismatches.clear();
                         no_d_mismatches.clear();
                         for (int i = 0; i != d_size; ++i) {
-                            if (((d_5_off + i) >= 0) && (d_5_off + i) < query.int_sequence.size()) {
-                                if (gene_seq[i] != query.int_sequence[d_5_off + i]) {
-                                    no_d_mismatches.push_back(d_5_off + i);
-                                }
+                            int qpos = d_5_off + i;
+                            if (qpos < 0 || qpos >= static_cast<int>(query.int_sequence.size())) {
+                                continue;
+                            }
+                            bool floor_mismatch = !comp_nt_int(gene_seq[i], query.int_sequence[qpos]);
+                            bool upper_mismatch;
+                            if (query.journaled_query.has_value()) {
+                                upper_mismatch = query.journaled_query->empty_isect[qpos]
+                                              || !comp_nt_int(gene_seq[i], query.journaled_query->iupac_intersection[qpos]);
+                            } else {
+                                upper_mismatch = (gene_seq[i] != query.int_sequence[qpos]);
+                            }
+                            if (floor_mismatch) {
+                                no_d_floor_mismatches.push_back(qpos);
+                            }
+                            if (upper_mismatch) {
+                                no_d_mismatches.push_back(qpos);
                             }
                         }
 
-                        //Count the number of mismatches that will not go away even with maximum number of deletions
+                        //Count the number of floor mismatches that will not go away even with max deletions
+                        // (used for conservative pruning bound)
                         endogeneous_mismatches = 0;
                         if ((d_5_off - d_5_max_del) < (d_full_3_offset + d_3_max_del)) {
-                            mism_iter = no_d_mismatches.begin();
-                            while (mism_iter != no_d_mismatches.end()) {
+                            mism_iter = no_d_floor_mismatches.begin();
+                            while (mism_iter != no_d_floor_mismatches.end()) {
                                 if ((*mism_iter) >= (d_5_off - d_5_max_del)
                                     and (*mism_iter) <= (d_full_3_offset + d_3_max_del)) {
                                     //Count one mismatch
@@ -640,7 +655,7 @@ void Gene_choice::iterate(
                                 }
                                 ++mism_iter;
                             }
-                            //Weigh D_gene_seq accordingly
+                            //Weigh D_gene_seq accordingly (floor-based pruning bound)
                             exploration.downstream_proba_map.set_value(
                                     D_gene_seq,
                                     accumulation.error_rate->get_err_rate_upper_bound(endogeneous_mismatches,
@@ -648,6 +663,9 @@ void Gene_choice::iterate(
                                                                                    - (d_5_off - d_5_max_del)
                                                                                    - endogeneous_mismatches),
                                     memory_layer_proba_map_seq);
+                            // Store floor mismatches for pruning
+                            exploration.pruning_mismatch_floor.set_value(D_gene_seq,
+                                    &no_d_floor_mismatches, memory_layer_mismatches);
 
                             //Multiply all downstream probas
                             scenario_upper_bound_proba = exploration.compute_upper_bound(
@@ -726,13 +744,27 @@ void Gene_choice::iterate(
                     while (d_3_min_offset < j_5_min_offset) {
                         //Slides the D one nucleotide at a time towards 3', updating the mismatch list,offsets
 
-                        //Get mismatches between D gene and sequence at the 5' most position
+                        //Two-track mismatch computation: floor + upper bound
+                        no_d_floor_mismatches.clear();
                         no_d_mismatches.clear();
                         for (int i = 0; i != d_size; ++i) {
-                            if (((d_5_off + i) >= 0) && (d_5_off + i) < query.int_sequence.size()) {
-                                if (gene_seq[i] != query.int_sequence[d_5_off + i]) {
-                                    no_d_mismatches.push_back(d_5_off + i);
-                                }
+                            int qpos = d_5_off + i;
+                            if (qpos < 0 || qpos >= static_cast<int>(query.int_sequence.size())) {
+                                continue;
+                            }
+                            bool floor_mismatch = !comp_nt_int(gene_seq[i], query.int_sequence[qpos]);
+                            bool upper_mismatch;
+                            if (query.journaled_query.has_value()) {
+                                upper_mismatch = query.journaled_query->empty_isect[qpos]
+                                              || !comp_nt_int(gene_seq[i], query.journaled_query->iupac_intersection[qpos]);
+                            } else {
+                                upper_mismatch = (gene_seq[i] != query.int_sequence[qpos]);
+                            }
+                            if (floor_mismatch) {
+                                no_d_floor_mismatches.push_back(qpos);
+                            }
+                            if (upper_mismatch) {
+                                no_d_mismatches.push_back(qpos);
                             }
                         }
 
@@ -780,11 +812,11 @@ void Gene_choice::iterate(
                                                            memory_layer_proba_map_junction_d3);
                         }
 
-                        //Count the number of mismatches that will not go away even with maximum number of deletions
+                        //Count the number of floor mismatches that will not go away even with max deletions
                         endogeneous_mismatches = 0;
                         if ((d_5_off - d_5_max_del) < (d_full_3_offset + d_3_max_del)) {
-                            mism_iter = no_d_mismatches.begin();
-                            while (mism_iter != no_d_mismatches.end()) {
+                            mism_iter = no_d_floor_mismatches.begin();
+                            while (mism_iter != no_d_floor_mismatches.end()) {
                                 if ((*mism_iter) >= (d_5_off - d_5_max_del)
                                     and (*mism_iter) <= (d_full_3_offset + d_3_max_del)) {
                                     //Count one mismatch
@@ -799,6 +831,8 @@ void Gene_choice::iterate(
                                                                                    - (d_5_off - d_5_max_del)
                                                                                    - endogeneous_mismatches),
                                     memory_layer_proba_map_seq);
+                            exploration.pruning_mismatch_floor.set_value(D_gene_seq,
+                                    &no_d_floor_mismatches, memory_layer_mismatches);
                         } else {
                             exploration.downstream_proba_map.set_value(D_gene_seq, 1.0, memory_layer_proba_map_seq);
                         }

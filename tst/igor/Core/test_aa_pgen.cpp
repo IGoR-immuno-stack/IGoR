@@ -16,6 +16,7 @@
 
 #include <igor/Core/EventUtils.h>
 #include <igor/Core/JournaledQuery.h>
+#include <igor/Core/QuerySequenceContext.h>
 #include <igor/Core/Aligner.h>
 #include <igor/Core/IntStr.h>
 
@@ -496,4 +497,139 @@ TEST_CASE("JournaledQuery: mixed motif with brackets and wildcards", "[aa_pgen][
   }
   REQUIRE(found_60);
   REQUIRE(found_1);
+}
+
+// ============================================================================
+// Phase 3: QuerySequenceContext Extension
+// ============================================================================
+
+TEST_CASE("QuerySequenceContext: standard NT mode (no journaled_query)", "[aa_pgen][phase3]") {
+    std::string seq = "ATGATG";
+    Int_Str int_seq = {int_A, int_T, int_G, int_A, int_T, int_G};
+    std::unordered_map<Gene_class, std::vector<Alignment_data>> gene_alignments;
+
+    QuerySequenceContext q(seq, int_seq, gene_alignments);
+
+    REQUIRE(q.sequence == seq);
+    REQUIRE(q.int_sequence == int_seq);
+    REQUIRE(!q.journaled_query.has_value());
+}
+
+TEST_CASE("QuerySequenceContext: motif mode (with journaled_query)", "[aa_pgen][phase3]") {
+    auto jq = EventUtils::motif_to_journaled_query("ML", 0, 6);
+    Int_Str iupac_seq = {int_A, int_T, int_G, int_Y, int_T, int_N};
+    std::unordered_map<Gene_class, std::vector<Alignment_data>> gene_alignments;
+
+    QuerySequenceContext q("ML", iupac_seq, gene_alignments, std::move(jq));
+
+    REQUIRE(q.sequence == "ML");
+    REQUIRE(q.int_sequence == iupac_seq);
+    REQUIRE(q.journaled_query.has_value());
+    REQUIRE(q.journaled_query->display_string == "ML");
+    REQUIRE(q.journaled_query->patches.size() == 1);
+    REQUIRE(q.journaled_query->patches[0].start == 3);
+}
+
+TEST_CASE("QuerySequenceContext: motif with frame_offset", "[aa_pgen][phase3]") {
+    auto jq = EventUtils::motif_to_journaled_query("M", 2, 5);
+    Int_Str iupac_seq(5, int_N);
+    iupac_seq[2] = int_A;
+    iupac_seq[3] = int_T;
+    iupac_seq[4] = int_G;
+    std::unordered_map<Gene_class, std::vector<Alignment_data>> gene_alignments;
+
+    QuerySequenceContext q("M", iupac_seq, gene_alignments, std::move(jq));
+
+    REQUIRE(q.journaled_query.has_value());
+    // Codon at positions 2,3,4 should have exact IUPAC
+    REQUIRE(q.journaled_query->iupac_union[2] == int_A);
+    REQUIRE(q.journaled_query->iupac_union[3] == int_T);
+    REQUIRE(q.journaled_query->iupac_union[4] == int_G);
+    // Non-codon positions should be N
+    REQUIRE(q.journaled_query->iupac_union[0] == int_N);
+    REQUIRE(q.journaled_query->iupac_union[1] == int_N);
+}
+
+// ============================================================================
+// Phase 4: Two-Track Mismatch Computation
+// ============================================================================
+
+TEST_CASE("Two-track mismatch: exact NT mode (floor == upper)", "[aa_pgen][phase4]") {
+    // In exact NT mode (no journaled_query), floor and upper bound should be identical
+    Int_Str query_seq = {int_A, int_T, int_G, int_C};
+    Int_Str gene_seq = {int_A, int_T, int_A, int_C};  // 1 mismatch at pos 2
+
+    std::vector<int> floor_vec, upper_vec;
+    for (int i = 0; i < 4; ++i) {
+        bool floor_mismatch = !comp_nt_int(gene_seq[i], query_seq[i]);
+        bool upper_mismatch = (gene_seq[i] != query_seq[i]);  // NT mode fallback
+        if (floor_mismatch) floor_vec.push_back(i);
+        if (upper_mismatch) upper_vec.push_back(i);
+    }
+
+    REQUIRE(floor_vec.size() == 1);
+    REQUIRE(upper_vec.size() == 1);
+    REQUIRE(floor_vec[0] == 2);
+    REQUIRE(upper_vec[0] == 2);
+}
+
+TEST_CASE("Two-track mismatch: Leu motif (floor < upper)", "[aa_pgen][phase4]") {
+    // Leu has 6 codons: TTA, TTG, CTT, CTC, CTA, CTG
+    // iupac_union: [Y, T, N] (Y=C|T, T=T, N=all)
+    // iupac_intersection: empty at pos 0 (T∩C=∅), T at pos 1, empty at pos 2 (all 4 nucleotides)
+    // empty_isect: [true, false, true]
+    //
+    // Gene TTA vs query:
+    //   pos 0: gene=T, union=Y → comp_nt_int(T,Y)=true → no floor mismatch
+    //          empty_isect=true → upper mismatch
+    //   pos 1: gene=T, union=T → comp_nt_int(T,T)=true → no floor mismatch
+    //          intersection=T → comp_nt_int(T,T)=true → no upper mismatch
+    //   pos 2: gene=A, union=N → comp_nt_int(A,N)=true → no floor mismatch
+    //          empty_isect=true → upper mismatch
+    //
+    // Result: floor_mismatches = [], upper_mismatches = [0, 2]
+
+    auto jq = EventUtils::motif_to_journaled_query("L", 0, 3);
+    Int_Str query_union = {jq.iupac_union[0], jq.iupac_union[1], jq.iupac_union[2]};
+    Int_Str query_intersection = {jq.iupac_intersection[0], jq.iupac_intersection[1], jq.iupac_intersection[2]};
+
+    // Reference Leu codon: TTA
+    Int_Str gene_seq = {int_T, int_T, int_A};
+
+    std::vector<int> floor_vec, upper_vec;
+    for (int i = 0; i < 3; ++i) {
+        bool floor_mismatch = !comp_nt_int(gene_seq[i], query_union[i]);
+        bool upper_mismatch = jq.empty_isect[i] || !comp_nt_int(gene_seq[i], query_intersection[i]);
+        if (floor_mismatch) floor_vec.push_back(i);
+        if (upper_mismatch) upper_vec.push_back(i);
+    }
+
+    // Floor should be empty (all positions compatible with union)
+    REQUIRE(floor_vec.empty());
+    // Upper should have 2 mismatches at pos 0 and 2 (both have empty_isect=true)
+    REQUIRE(upper_vec.size() == 2);
+    REQUIRE(upper_vec[0] == 0);
+    REQUIRE(upper_vec[1] == 2);
+}
+
+TEST_CASE("Two-track mismatch: confirmed mismatch in both tracks", "[aa_pgen][phase4]") {
+    // Gene: AAA (K)
+    // Query union: CCC (all C)
+    // Query intersection: CCC (all C)
+    // All 3 positions are mismatches in both tracks
+    Int_Str query_union = {int_C, int_C, int_C};
+    Int_Str query_intersection = {int_C, int_C, int_C};
+    Int_Str gene_seq = {int_A, int_A, int_A};
+
+    std::vector<int> floor_vec, upper_vec;
+    for (int i = 0; i < 3; ++i) {
+        bool floor_mismatch = !comp_nt_int(gene_seq[i], query_union[i]);
+        bool upper_mismatch = !comp_nt_int(gene_seq[i], query_intersection[i]);
+        if (floor_mismatch) floor_vec.push_back(i);
+        if (upper_mismatch) upper_vec.push_back(i);
+    }
+
+    REQUIRE(floor_vec.size() == 3);
+    REQUIRE(upper_vec.size() == 3);
+    REQUIRE(floor_vec == upper_vec);
 }

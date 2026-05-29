@@ -151,7 +151,7 @@ public:
             const std::unordered_map<Gene_class, std::vector<Alignment_data>> &, Seq_type_str_p_map &,
             Seq_offsets_map &, std::shared_ptr<Error_rate> &, std::map<size_t, std::shared_ptr<Counter>> &,
             const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> &,
-            Safety_bool_map &, Mismatch_vectors_map &, double &, double &);
+            Safety_bool_map &, Mismatch_vectors_map &, Pruning_mismatch_floor_map &, double &, double &);
 
     /**
      * @brief Context-based iterate() interface
@@ -325,7 +325,8 @@ protected:
             std::shared_ptr<Error_rate> &error_rate_p, std::map<size_t, std::shared_ptr<Counter>> &counters_list,
             const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>>
                     &events_map,
-            Safety_bool_map &safety_set, Mismatch_vectors_map &mismatches_lists, double &seq_max_prob_scenario,
+            Safety_bool_map &safety_set, Mismatch_vectors_map &mismatches_lists,
+            Pruning_mismatch_floor_map &pruning_mismatch_floor, double &seq_max_prob_scenario,
             double &proba_threshold_factor);
 
     /**

@@ -136,6 +136,7 @@ void Rec_Event::iterate(double &scenario_proba, Downstream_scenario_proba_bound_
                        shared_ptr<Error_rate> &error_rate_p, map<size_t, shared_ptr<Counter>> &counters_list,
                        const unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map,
                        Safety_bool_map &safety_set, Mismatch_vectors_map &mismatches_lists,
+                       Pruning_mismatch_floor_map &pruning_mismatch_floor,
                        double &seq_max_prob_scenario, double &proba_threshold_factor)
 {
     
@@ -169,7 +170,8 @@ void Rec_Event::iterate(double &scenario_proba, Downstream_scenario_proba_bound_
         proba_threshold_factor,
         base_index_map,
         next_event_ptr_arr,
-        safety_set
+        safety_set,
+        pruning_mismatch_floor
     );
     
     // Accumulation context
@@ -215,7 +217,8 @@ void Rec_Event::iterate_wrap_up(
         Seq_type_str_p_map &constructed_sequences, Seq_offsets_map &seq_offsets,
         std::shared_ptr<Error_rate> &error_rate_p, map<size_t, shared_ptr<Counter>> &counters_list,
         const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> &events_map,
-        Safety_bool_map &safety_set, Mismatch_vectors_map &mismatches_lists, double &seq_max_prob_scenario,
+        Safety_bool_map &safety_set, Mismatch_vectors_map &mismatches_lists,
+        Pruning_mismatch_floor_map &pruning_mismatch_floor, double &seq_max_prob_scenario,
         double &proba_threshold_factor)
 {
 
@@ -239,7 +242,7 @@ void Rec_Event::iterate_wrap_up(
                 scenario_proba, downstream_proba_map, sequence, int_sequence, index_map, offset_map, next_event_ptr_arr,
                 updated_marginal_array_p, model_parameters_point, allowed_realizations, constructed_sequences,
                 seq_offsets, error_rate_p, counters_list, events_map, safety_set, mismatches_lists,
-                seq_max_prob_scenario, proba_threshold_factor);
+                pruning_mismatch_floor, seq_max_prob_scenario, proba_threshold_factor);
 
     } else {
 

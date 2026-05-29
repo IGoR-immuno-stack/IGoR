@@ -240,6 +240,7 @@ void Deletion::iterate(
         }
         Int_Str &previous_str = (*scenario.get_sequence_segment(V_gene_seq, memory_layer_cs - 1));
         vector<int> &v_mismatch_list = *scenario.get_mismatches(V_gene_seq, memory_layer_mismatches - 1);
+        vector<int> &v_floor_mismatch_list = *exploration.pruning_mismatch_floor.at(V_gene_seq, memory_layer_mismatches - 1);
 
         for (forward_list<Event_realization>::const_iterator iter = (*this).int_value_and_index.begin();
              iter != (*this).int_value_and_index.end(); ++iter) {
@@ -344,8 +345,9 @@ void Deletion::iterate(
                             new_str = previous_str + tmp_str;
                             //cout<<"prev_str: "<<previous_str<<endl;
                             //cout<<"new str:  "<<new_str<<endl;
-                            //Count mismatches and add them to the mismatches list
+                            //Two-track mismatch computation: floor + upper bound
                             mismatches_vector = v_mismatch_list;
+                            floor_mismatches_vector = v_floor_mismatch_list;
                             /*	cout<<"mismatch_vect : ";
 								for(vector<int>::const_iterator test = mismatches_vector.begin() ; test != mismatches_vector.end() ; test++){
 									cout<<(*test)<<";";
@@ -353,8 +355,15 @@ void Deletion::iterate(
 								cout<<endl;
 */
                             for (int i = 0; i != (-(*iter).value_int); ++i) {
-                                if (not comp_nt_int(tmp_str[i], query.int_sequence.at(v_3_offset + 1 + i))) {
-                                    mismatches_vector.push_back(v_3_offset + 1 + i);
+                                int qpos = v_3_offset + 1 + i;
+                                bool floor_mismatch = !comp_nt_int(tmp_str[i], query.int_sequence.at(qpos));
+                                bool upper_mismatch = !comp_nt_int(tmp_str[i], query.int_sequence.at(qpos));
+                                // In deletion mode with no journaled_query, floor == upper
+                                if (floor_mismatch) {
+                                    floor_mismatches_vector.push_back(qpos);
+                                }
+                                if (upper_mismatch) {
+                                    mismatches_vector.push_back(qpos);
                                 }
                             }
                             /*								cout<<"prev_v_3_offset: "<<v_3_offset<<endl;
@@ -842,7 +851,7 @@ void Deletion::iterate(
                     scenario.set_offset(D_gene_seq, Three_prime, d_3_new_offset, memory_layer_offset_del);
 
                     scenario.set_mismatches(D_gene_seq, &mismatches_vector, memory_layer_mismatches);
-
+                    exploration.pruning_mismatch_floor.set_value(D_gene_seq, &floor_mismatches_vector, memory_layer_mismatches);
 
                     //Get VD upper bound proba
                     if (j_chosen) {

@@ -47,6 +47,12 @@ struct ExplorationContext {
     // Once at leaf node, this doesn't describe the scenario - only guided exploration
     Safety_bool_map& safety_set;
 
+    /// NT-floor mismatch positions per Seq_type (pruning lower bound).
+    /// floor[seg] contains positions where !comp_nt_int(gene_nt, query.int_sequence[p]).
+    /// Invariant: floor[seg] ⊆ mismatches_lists[seg] (floor is subset of upper bound).
+    /// In patched/motif mode, floor uses iupac_union; upper bound uses iupac_intersection.
+    Pruning_mismatch_floor_map& pruning_mismatch_floor;
+
     /**
      * @brief Constructor
      */
@@ -56,13 +62,15 @@ struct ExplorationContext {
         double proba_threshold_factor_,
         Index_map& index_map_,
         std::shared_ptr<Next_event_ptr>& next_event_ptr_arr_,
-        Safety_bool_map& safety_set_
+        Safety_bool_map& safety_set_,
+        Pruning_mismatch_floor_map& pruning_mismatch_floor_
     ) : downstream_proba_map(downstream_proba_map_),
         seq_max_prob_scenario(seq_max_prob_scenario_),
         proba_threshold_factor(proba_threshold_factor_),
         index_map(index_map_),
         next_event_ptr_arr(next_event_ptr_arr_),
-        safety_set(safety_set_)
+        safety_set(safety_set_),
+        pruning_mismatch_floor(pruning_mismatch_floor_)
     {}
 
     // Prevent copying

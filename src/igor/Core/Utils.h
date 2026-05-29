@@ -455,6 +455,10 @@ typedef Enum_fast_memory_map<Event_safety, bool> Safety_bool_map;
 
 typedef Enum_fast_memory_map<Seq_type, std::vector<int> *> Mismatch_vectors_map;
 
+/// Pruning mismatch floor map — conservative lower-bound mismatches.
+/// floor[seg] ⊆ mismatches_lists[seg] (floor is subset of upper bound).
+typedef Enum_fast_memory_map<Seq_type, std::vector<int> *> Pruning_mismatch_floor_map;
+
 typedef Enum_fast_memory_map<int, size_t> Index_map;
 
 typedef Enum_fast_memory_map<Seq_type, double> Downstream_scenario_proba_bound_map;

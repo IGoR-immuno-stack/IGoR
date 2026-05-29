@@ -142,6 +142,7 @@ private:
     //Suitable D align bool
     bool no_d_align;
     std::vector<int> no_d_mismatches;
+    std::vector<int> no_d_floor_mismatches;  // Floor mismatches for pruning
     size_t d_size;
     Seq_Offset d_full_3_offset;
 

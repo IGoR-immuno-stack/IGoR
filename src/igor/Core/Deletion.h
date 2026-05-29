@@ -185,6 +185,7 @@ private:
     mutable std::string gen_new_str;
     mutable std::string gen_tmp_str;
     std::vector<int> mismatches_vector;
+    std::vector<int> floor_mismatches_vector;  // Floor mismatches for pruning
     std::vector<int>::iterator mis_iter;
     std::vector<int>::reverse_iterator rev_mis_iter;
     size_t endogeneous_mismatches;

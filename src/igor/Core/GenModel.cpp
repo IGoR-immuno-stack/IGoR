@@ -262,6 +262,7 @@ bool GenModel::infer_model(
             Safety_bool_map safety_set(3);
             Seq_type_str_p_map constructed_sequences(6); //6 is the number of outcomes for Seq_type
             Mismatch_vectors_map mismatches_lists(6);
+            Pruning_mismatch_floor_map pruning_mismatch_floor(6);
             Seq_offsets_map seq_offsets(6, 3);
 
             //Initialize downstream probas to 1
@@ -307,6 +308,8 @@ bool GenModel::infer_model(
                         .initialize_event(init_processed_events, events_map, single_thread_offset_map,
                                           downstream_proba_map, constructed_sequences, safety_set,
                                           single_thread_err_rate, mismatches_lists, seq_offsets, index_mapp);
+                // Note: pruning_mismatch_floor is NOT used in initialize_event
+                // (it only sets up event structures, not mismatch computation)
                 (*first_init_event).set_viterbi_run(viterbi_like);
             }
 
@@ -456,7 +459,8 @@ bool GenModel::infer_model(
                         proba_threshold_factor,      // proba_threshold_factor
                         index_mapp,                  // index_map
                         next_event_ptr_arr,          // next_event_ptr_arr
-                        safety_set                   // safety_set
+                        safety_set,                  // safety_set
+                        pruning_mismatch_floor        // pruning_mismatch_floor
                     );
 
                     AccumulationContext accumulation(
