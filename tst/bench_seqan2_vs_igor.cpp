@@ -74,7 +74,7 @@ int main(int argc, char** argv)
         return germlines.empty() ? 0.0 : static_cast<double>(total) / germlines.size();
     };
 
-    Aligner legacy(subst, 2, V_gene);
+    Aligner legacy(subst, 30, V_gene);
     legacy.set_genomic_sequences(germlines);
     auto t0 = std::chrono::high_resolution_clock::now();
     const double threshold = -1000000.0;
@@ -266,7 +266,7 @@ int main(int argc, char** argv)
                 ++comparison.equal;
             } else {
                 ++comparison.mismatch;
-                if (comparison.mismatch_samples.size() < 5) {
+                if (comparison.mismatch_samples.size() < 50) {
                     std::ostringstream sample;
                     const auto read_it = read_sequences.find(kv.first);
                     const auto legacy_germline = germline_sequences.find(legacy_cigar.gene_name);
@@ -362,11 +362,12 @@ int main(int argc, char** argv)
     SeqAn2AlignConfig legacy_like_banded_config;
     legacy_like_banded_config.band_lower_diag = -band_half_width;
     legacy_like_banded_config.band_upper_diag = band_half_width;
-    legacy_like_banded_config.seq2_leading_free = true;
-    legacy_like_banded_config.seq2_trailing_free = true;
+    legacy_like_banded_config.seq2_leading_free = false;
     legacy_like_banded_config.seq1_leading_free = true;
-    legacy_like_banded_config.seq1_trailing_free = true;
-    SeqAn2Aligner seqan2_banded(subst, 2, V_gene, legacy_like_banded_config);
+    legacy_like_banded_config.seq1_trailing_free = false;
+    legacy_like_banded_config.seq2_trailing_free = true;
+
+    SeqAn2Aligner seqan2_banded(subst, 30, V_gene, legacy_like_banded_config);
     seqan2_banded.set_genomic_sequences(germlines);
     auto b0 = std::chrono::high_resolution_clock::now();
     auto seqan_banded_res = seqan2_banded.align_seqs(reads, threshold, true);
@@ -375,7 +376,7 @@ int main(int argc, char** argv)
     SeqAn2AlignConfig unbanded_config = legacy_like_banded_config;
     unbanded_config.band_lower_diag = 1;
     unbanded_config.band_upper_diag = 0; // lower > upper means full-matrix unbanded alignment.
-    SeqAn2Aligner seqan2_unbanded(subst, 2, V_gene, unbanded_config);
+    SeqAn2Aligner seqan2_unbanded(subst, 30, V_gene, unbanded_config);
     seqan2_unbanded.set_genomic_sequences(germlines);
     auto u0 = std::chrono::high_resolution_clock::now();
     auto seqan_unbanded_res = seqan2_unbanded.align_seqs(reads, threshold, true);

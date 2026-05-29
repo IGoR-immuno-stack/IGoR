@@ -138,7 +138,7 @@ TEST_CASE("SeqAn2Aligner read 136 alignment matches legacy aligner", "[seqan2][r
     config.band_upper_diag = band_half_width;
     config.seq2_leading_free = false;
     config.seq1_leading_free = true;
-    config.seq1_trailing_free = true;
+    config.seq1_trailing_free = false;
     config.seq2_trailing_free = true;
     //config.local_alignment = true;
     SeqAn2Aligner seqan_aligner(subst, 30, V_gene, config);
