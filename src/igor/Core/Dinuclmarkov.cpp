@@ -91,6 +91,12 @@ void Dinucl_markov::iterate(
         ExplorationContext& exploration,
         AccumulationContext& accumulation)
 {
+    // Dispatch to AA Pgen mode if journaled_query has patches
+    if (query.journaled_query.has_value() && !query.journaled_query->patches.empty()) {
+        iterate_patched_pgen(query, model, scenario, exploration, accumulation);
+        return;
+    }
+
     base_index = exploration.index_map.at(this->event_index);
     proba_contribution = 1;
 
@@ -612,4 +618,320 @@ void Dinucl_markov::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &mod
 	 * =>no errors
 	 * =>no in/dels
 	 */
+}
+
+/**
+ * @brief Compute the Markov forward sum over all nucleotide sequences of length `ins_len`
+ *        that encode the target amino acids specified by `codon_masks`.
+ *
+ * Uses dynamic programming over the 4-state Markov chain. At each position, we restrict
+ * the state space to nucleotides compatible with the codon mask(s) covering that position.
+ *
+ * @param prev_nt           Context nucleotide before the insertion (0..3)
+ * @param ins_len           Length of the insertion
+ * @param frame_start_in_ins Codon phase at insertion start (0, 1, or 2)
+ * @param codon_masks       CodonMasks for each codon position covered (may be partial)
+ * @param model_params      Marginal array for dinucleotide probabilities
+ * @return Total probability weight
+ */
+double Dinucl_markov::compute_markov_aa_sum(
+    int prev_nt,
+    int ins_len,
+    int frame_start_in_ins,
+    const std::vector<EventUtils::CodonMask>& codon_masks,
+    const Marginal_array_p& model_params)
+    const
+{
+    if (ins_len == 0) return 1.0;
+    if (codon_masks.empty()) return 0.0;
+
+    const size_t nt_states = 4;  // A, C, G, T
+
+    // Build per-position nucleotide compatibility: for each position in the insertion,
+    // compute a bitmask of allowed nucleotides based on codon masks.
+    // The codon frame is determined by frame_start_in_ins.
+    std::vector<uint64_t> pos_allowed(ins_len, 0);  // bitset of 4 nucleotides
+
+    for (size_t pos = 0; pos < ins_len; ++pos) {
+        // Determine which codon position this nt belongs to (0, 1, or 2)
+        int codon_pos = (frame_start_in_ins + static_cast<int>(pos)) % 3;
+        // Determine which codon index in codon_masks
+        int codon_idx = (frame_start_in_ins + static_cast<int>(pos)) / 3;
+
+        if (codon_idx >= 0 && codon_idx < static_cast<int>(codon_masks.size())) {
+            // Extract the nucleotide bit for this codon position
+            // CodonMask: bit k set iff codon_index(k) is valid
+            // For codon position p, nucleotide n is valid if:
+            //   (mask >> (n * 16 + p * 4 + codon_pos)) & 1
+            // But actually the mask encodes full codons. We need to check which nucleotides
+            // at this codon position are valid.
+            EventUtils::CodonMask mask = codon_masks[codon_idx];
+            uint64_t allowed = 0;
+            for (int n = 0; n < 4; ++n) {
+                // Check if nucleotide n at codon position codon_pos is valid
+                // A codon index with nucleotide n at position codon_pos:
+                int codon_idx_val = (0 * 16) | ((n * 4) << (2 - codon_pos)) | (0 << (2 - codon_pos));
+                // Actually, codon index = n0*16 + n1*4 + n2 where n0 is first pos
+                // For codon position codon_pos, nucleotide n:
+                int base = 0;
+                if (codon_pos == 0) base = n * 16;
+                else if (codon_pos == 1) base = n * 4;
+                else base = n;
+                if ((mask >> base) & 1) {
+                    allowed |= (1 << n);
+                }
+            }
+            pos_allowed[pos] = allowed;
+        } else {
+            // No codon mask for this position - allow all nucleotides
+            pos_allowed[pos] = 0b1111;
+        }
+    }
+
+    // Forward DP: dp[pos][nt] = total probability weight of sequences of length pos+1
+    // ending with nucleotide nt at position pos.
+    //
+    // Transition: dp[pos][n] = sum over prev_nt of:
+    //   dp[pos-1][prev_nt] * T(prev_nt, n)  [if n is allowed at pos]
+    //
+    // Base case (pos=0):
+    //   dp[0][n] = T(prev_nt, n)  [if n is allowed at pos 0]
+
+    // Use two rows to save memory
+    std::vector<double> dp_prev(nt_states, 0.0);
+    std::vector<double> dp_curr(nt_states, 0.0);
+
+    // Base case: position 0
+    for (int n = 0; n < 4; ++n) {
+        if ((pos_allowed[0] >> n) & 1) {
+            dp_curr[n] = dinuc_proba_matrix(prev_nt, n);
+        }
+    }
+
+    // Iterate over positions 1..ins_len-1
+    for (size_t pos = 1; pos < ins_len; ++pos) {
+        std::fill(dp_curr.begin(), dp_curr.end(), 0.0);
+        for (int n = 0; n < 4; ++n) {
+            if (!((pos_allowed[pos] >> n) & 1)) continue;  // nucleotide not allowed
+            for (int prev = 0; prev < 4; ++prev) {
+                dp_curr[n] += dp_prev[prev] * dinuc_proba_matrix(prev, n);
+            }
+        }
+        std::swap(dp_prev, dp_curr);
+    }
+
+    // Sum over all final nucleotides
+    double total = 0.0;
+    for (int n = 0; n < 4; ++n) {
+        total += dp_prev[n];
+    }
+
+    return total;
+}
+
+/**
+ * @brief AA Pgen mode iterate: compute Markov forward sum for insertions
+ *        constrained by the journaled_query patches.
+ *
+ * Replaces the greedy heuristic in iterate_common() with a forward sum
+ * over all nucleotide sequences that encode the target amino acids.
+ */
+void Dinucl_markov::iterate_patched_pgen(
+    QuerySequenceContext& query,
+    const ModelContext& model,
+    ScenarioContext& scenario,
+    ExplorationContext& exploration,
+    AccumulationContext& accumulation)
+{
+    base_index = exploration.index_map.at(this->event_index);
+    proba_contribution = 1.0;
+    correct_class = false;
+
+    if (event_class == VD_genes || event_class == VDJ_genes) {
+        correct_class = true;
+        const Int_Str& v_gene_seq = *scenario.get_sequence_segment(V_gene_seq);
+        Int_Str& vd_seq = *scenario.get_sequence_segment(VD_ins_seq);
+        size_t vd_len = vd_seq.size();
+
+        // Get context nucleotide (last nt of V gene)
+        int prev_nt = v_gene_seq.back();
+
+        // Determine frame: position of V gene end in codon terms
+        int v_end_pos = scenario.get_offset(V_gene_seq, Five_prime) + static_cast<int>(v_gene_seq.size());
+        int frame_start_in_ins = v_end_pos % 3;
+
+        // Determine which codon masks apply to the VD insertion
+        // The insertion spans from v_end_pos to v_end_pos + vd_len - 1
+        // We need codon masks for codons that overlap this range
+        const JournaledQuery& jq = *query.journaled_query;
+        std::vector<EventUtils::CodonMask> vd_codon_masks;
+
+        // Find codon indices that overlap the VD insertion span
+        int first_codon = v_end_pos / 3;
+        int last_codon = (v_end_pos + static_cast<int>(vd_len) - 1) / 3;
+
+        for (int ci = first_codon; ci <= last_codon; ++ci) {
+            if (ci >= 0 && ci < static_cast<int>(jq.patches.size())) {
+                // This codon position maps to a patch
+                // We need to extract the CodonMask for this patch
+                // For now, use a simplified approach: enumerate allowed codons
+                // from the patch alternatives and build a CodonMask
+                const Patch& patch = jq.patches[ci];
+                // Build codon mask from patch alternatives + reference
+                EventUtils::CodonMask mask = 0;
+                // Reference codon
+                Int_Str ref_span(patch.start, patch.length);
+                // ... (simplified: we'll use the reference as the only "codon" for now)
+                // Actually, we need to enumerate all valid codons from alternatives
+                // For a proper implementation, we'd parse the patch's alternatives
+                // and build the full codon mask.
+                //
+                // Simplified approach: use the reference span as a single valid codon
+                Int_Str ref = jq.reference.substr(patch.start, patch.length);
+                if (ref.size() == 3) {
+                    int codon_idx_val = ref[0] * 16 + ref[1] * 4 + ref[2];
+                    mask = static_cast<EventUtils::CodonMask>(1ULL << codon_idx_val);
+                    // Also add alternatives
+                    for (const auto& alt : patch.alternatives) {
+                        if (alt.size() == 3) {
+                            int alt_idx = alt[0] * 16 + alt[1] * 4 + alt[2];
+                            mask |= static_cast<EventUtils::CodonMask>(1ULL << alt_idx);
+                        }
+                    }
+                }
+                vd_codon_masks.push_back(mask);
+            }
+        }
+
+        // Compute Markov forward sum
+        double markov_weight = compute_markov_aa_sum(
+            prev_nt, vd_len, frame_start_in_ins, vd_codon_masks, model.model_parameters);
+
+        // Store a representative compatible insertion (reference codons)
+        // For simplicity, use the reference sequence from the journaled_query
+        Int_Str rep_ins(vd_len, static_cast<int>(int_N));
+        for (size_t i = 0; i < vd_len && i < jq.reference.size(); ++i) {
+            rep_ins[i] = jq.reference[v_end_pos + static_cast<int>(i)];
+        }
+        vd_seq = rep_ins;
+
+        proba_contribution = markov_weight;
+        exploration.downstream_proba_map.set_value(VD_ins_seq, 1.0, memory_layer_proba_map_junction_1);
+    }
+
+    if (event_class == DJ_genes || event_class == VDJ_genes) {
+        correct_class = true;
+        const Int_Str& d_gene_seq = *scenario.get_sequence_segment(D_gene_seq);
+        Int_Str& dj_seq = *scenario.get_sequence_segment(DJ_ins_seq);
+        size_t dj_len = dj_seq.size();
+
+        // Get context nucleotide (first nt of J gene, but we process DJ in reverse)
+        int j_start = scenario.get_offset(J_gene_seq, Five_prime);
+        int prev_nt = d_gene_seq.front();  // Use D gene end as context
+
+        // Determine frame
+        int d_end_pos = j_start - static_cast<int>(dj_len);
+        int frame_start_in_ins = d_end_pos % 3;
+
+        // Collect codon masks for DJ insertion
+        const JournaledQuery& jq = *query.journaled_query;
+        std::vector<EventUtils::CodonMask> dj_codon_masks;
+
+        int first_codon = d_end_pos / 3;
+        int last_codon = (d_end_pos + static_cast<int>(dj_len) - 1) / 3;
+
+        for (int ci = first_codon; ci <= last_codon; ++ci) {
+            if (ci >= 0 && ci < static_cast<int>(jq.patches.size())) {
+                const Patch& patch = jq.patches[ci];
+                EventUtils::CodonMask mask = 0;
+                Int_Str ref = jq.reference.substr(patch.start, patch.length);
+                if (ref.size() == 3) {
+                    int codon_idx_val = ref[0] * 16 + ref[1] * 4 + ref[2];
+                    mask = static_cast<EventUtils::CodonMask>(1ULL << codon_idx_val);
+                    for (const auto& alt : patch.alternatives) {
+                        if (alt.size() == 3) {
+                            int alt_idx = alt[0] * 16 + alt[1] * 4 + alt[2];
+                            mask |= static_cast<EventUtils::CodonMask>(1ULL << alt_idx);
+                        }
+                    }
+                }
+                dj_codon_masks.push_back(mask);
+            }
+        }
+
+        double markov_weight = compute_markov_aa_sum(
+            prev_nt, dj_len, frame_start_in_ins, dj_codon_masks, model.model_parameters);
+
+        Int_Str rep_ins(dj_len, static_cast<int>(int_N));
+        for (size_t i = 0; i < dj_len && i < jq.reference.size(); ++i) {
+            rep_ins[i] = jq.reference[d_end_pos + static_cast<int>(i)];
+        }
+        dj_seq = rep_ins;
+
+        proba_contribution *= markov_weight;
+        exploration.downstream_proba_map.set_value(DJ_ins_seq, 1.0, memory_layer_proba_map_junction_2);
+    }
+
+    if (event_class == VJ_genes) {
+        correct_class = true;
+        const Int_Str& v_gene_seq = *scenario.get_sequence_segment(V_gene_seq);
+        Int_Str& vj_seq = *scenario.get_sequence_segment(VJ_ins_seq);
+        size_t vj_len = vj_seq.size();
+
+        int prev_nt = v_gene_seq.back();
+        int v_end_pos = scenario.get_offset(V_gene_seq, Five_prime) + static_cast<int>(v_gene_seq.size());
+        int frame_start_in_ins = v_end_pos % 3;
+
+        const JournaledQuery& jq = *query.journaled_query;
+        std::vector<EventUtils::CodonMask> vj_codon_masks;
+
+        int first_codon = v_end_pos / 3;
+        int last_codon = (v_end_pos + static_cast<int>(vj_len) - 1) / 3;
+
+        for (int ci = first_codon; ci <= last_codon; ++ci) {
+            if (ci >= 0 && ci < static_cast<int>(jq.patches.size())) {
+                const Patch& patch = jq.patches[ci];
+                EventUtils::CodonMask mask = 0;
+                Int_Str ref = jq.reference.substr(patch.start, patch.length);
+                if (ref.size() == 3) {
+                    int codon_idx_val = ref[0] * 16 + ref[1] * 4 + ref[2];
+                    mask = static_cast<EventUtils::CodonMask>(1ULL << codon_idx_val);
+                    for (const auto& alt : patch.alternatives) {
+                        if (alt.size() == 3) {
+                            int alt_idx = alt[0] * 16 + alt[1] * 4 + alt[2];
+                            mask |= static_cast<EventUtils::CodonMask>(1ULL << alt_idx);
+                        }
+                    }
+                }
+                vj_codon_masks.push_back(mask);
+            }
+        }
+
+        double markov_weight = compute_markov_aa_sum(
+            prev_nt, vj_len, frame_start_in_ins, vj_codon_masks, model.model_parameters);
+
+        Int_Str rep_ins(vj_len, static_cast<int>(int_N));
+        for (size_t i = 0; i < vj_len && i < jq.reference.size(); ++i) {
+            rep_ins[i] = jq.reference[v_end_pos + static_cast<int>(i)];
+        }
+        vj_seq = rep_ins;
+
+        proba_contribution = markov_weight;
+        exploration.downstream_proba_map.set_value(VJ_ins_seq, 1.0, memory_layer_proba_map_junction_1);
+    }
+
+    if (!correct_class) {
+        throw std::invalid_argument(std::string("Unknown gene class for DinuclMarkov model: ") + this->event_class);
+    }
+
+    scenario.scenario_proba *= proba_contribution;
+
+    scenario_upper_bound_proba = exploration.compute_upper_bound(
+        scenario.scenario_proba,
+        current_downstream_proba_memory_layers
+    );
+
+    if (!exploration.should_prune(scenario_upper_bound_proba)) {
+        Rec_Event::iterate_wrap_up(query, model, scenario, exploration, accumulation);
+    }
 }

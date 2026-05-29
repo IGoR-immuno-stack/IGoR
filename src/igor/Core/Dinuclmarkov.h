@@ -30,6 +30,7 @@
 
 #include <igor/Core/Rec_Event.h>
 #include <igor/Core/Utils.h>
+#include <igor/Core/EventUtils.h>
 #include <forward_list>
 #include <unordered_map>
 #include <string>
@@ -37,7 +38,9 @@
 #include <queue>
 #include <utility>
 #include <igor/Core/Errorrate.h>
+#include <igor/Core/JournaledQuery.h>
 #include <random>
+#include <vector>
 
 #include <igorCoreExport.h>
 
@@ -158,4 +161,21 @@ private:
     inline std::queue<int> draw_random_common(const std::string &, std::string &, const Marginal_array_p &, int,
                                               std::uniform_real_distribution<double> &, std::mt19937_64 &) const;
     inline double compute_nt_freq(int, const Marginal_array_p &) const;
+
+    // AA Pgen mode helpers
+    double compute_markov_aa_sum(
+        int prev_nt,
+        int ins_len,
+        int frame_start_in_ins,
+        const std::vector<EventUtils::CodonMask>& codon_masks,
+        const Marginal_array_p& model_params
+    ) const;
+
+    void iterate_patched_pgen(
+        QuerySequenceContext& query,
+        const ModelContext& model,
+        ScenarioContext& scenario,
+        ExplorationContext& exploration,
+        AccumulationContext& accumulation
+    );
 };
