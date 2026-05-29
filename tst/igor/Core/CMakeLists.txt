@@ -1,6 +1,7 @@
 ### CMakeLists.txt ---
 
 set(CORE_TEST_SOURCES
+    test_aa_pgen.cpp
     test_Contexts.cpp
     test_EventUtils.cpp
     test_fast_sampling.cpp

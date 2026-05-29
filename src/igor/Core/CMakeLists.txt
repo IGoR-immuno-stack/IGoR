@@ -40,6 +40,7 @@ target_sources(${PROJECT_NAME}
     Errorscounter.cpp
     EventUtils.cpp
     ExtractFeatures.cpp
+    JournaledQuery.cpp
     FastGenerator.cpp
     FastSampling.cpp
     GenModel.cpp
@@ -72,6 +73,7 @@ target_sources(${PROJECT_NAME}
       Errorscounter.h
       EventUtils.h
       ExplorationContext.h
+      JournaledQuery.h
       ExtractFeatures.h
       FastGenerator.h
       FastSampling.h
