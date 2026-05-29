@@ -38,8 +38,7 @@ public:
   void write2txt(ofstream &) override {}
   void initialize_event(
       unordered_set<Rec_Event_name> &,
-      const unordered_map<tuple<Event_type, Gene_class, Seq_side>,
-                          shared_ptr<Rec_Event>> &,
+      const Events_map &,
       const unordered_map<Rec_Event_name,
                           vector<pair<shared_ptr<const Rec_Event>, int>>> &,
       Downstream_scenario_proba_bound_map &, Seq_type_str_p_map &,
@@ -59,12 +58,11 @@ public:
 };
 
 TEST_CASE("EventUtils CheckGeneChoice", "[EventUtils]") {
-  unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>>
-      events_map;
+  Events_map events_map;
   unordered_set<Rec_Event_name> processed_events;
 
   SECTION("Event does not exist") {
-    auto status = check_gene_choice(V_gene, events_map, processed_events);
+    auto status = check_gene_choice("V_gene_seq", events_map, processed_events);
     REQUIRE_FALSE(status.exists);
     REQUIRE_FALSE(status.chosen);
     REQUIRE(status.event_ptr == nullptr);
@@ -72,9 +70,9 @@ TEST_CASE("EventUtils CheckGeneChoice", "[EventUtils]") {
 
   SECTION("Event exists but not processed") {
     auto v_event = make_shared<MockEvent>("V_choice");
-    events_map[make_tuple(GeneChoice_t, V_gene, Undefined_side)] = v_event;
+    events_map[make_tuple(GeneChoice_t, string("V_gene_seq"), Undefined_side)] = v_event;
 
-    auto status = check_gene_choice(V_gene, events_map, processed_events);
+    auto status = check_gene_choice("V_gene_seq", events_map, processed_events);
     REQUIRE(status.exists);
     REQUIRE_FALSE(status.chosen);
     REQUIRE(status.event_ptr == v_event);
@@ -82,10 +80,10 @@ TEST_CASE("EventUtils CheckGeneChoice", "[EventUtils]") {
 
   SECTION("Event exists and processed") {
     auto v_event = make_shared<MockEvent>("V_choice");
-    events_map[make_tuple(GeneChoice_t, V_gene, Undefined_side)] = v_event;
+    events_map[make_tuple(GeneChoice_t, string("V_gene_seq"), Undefined_side)] = v_event;
 
     processed_events.insert(v_event->get_name());
-    auto status = check_gene_choice(V_gene, events_map, processed_events);
+    auto status = check_gene_choice("V_gene_seq", events_map, processed_events);
     REQUIRE(status.exists);
     REQUIRE(status.chosen);
     REQUIRE(status.event_ptr == v_event);
@@ -127,8 +125,7 @@ TEST_CASE("EventUtils BuildScenarioSequence", "[EventUtils]") {
 }
 
 TEST_CASE("EventUtils GetInsertionLenMax", "[EventUtils]") {
-  unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>>
-      events_map;
+  Events_map events_map;
 
   // Create a mock event with specific len_max
   class MockInsertionEvent : public MockEvent {
@@ -142,19 +139,19 @@ TEST_CASE("EventUtils GetInsertionLenMax", "[EventUtils]") {
   auto dj_ins = make_shared<MockInsertionEvent>("DJ_ins", 15);
   auto vj_ins = make_shared<MockInsertionEvent>("VJ_ins", 20);
 
-  events_map[make_tuple(Insertion_t, VD_genes, Undefined_side)] = vd_ins;
-  events_map[make_tuple(Insertion_t, DJ_genes, Undefined_side)] = dj_ins;
-  events_map[make_tuple(Insertion_t, VJ_genes, Undefined_side)] = vj_ins;
+  events_map[make_tuple(Insertion_t, string("VD_ins_seq"), Undefined_side)] = vd_ins;
+  events_map[make_tuple(Insertion_t, string("DJ_ins_seq"), Undefined_side)] = dj_ins;
+  events_map[make_tuple(Insertion_t, string("VJ_ins_seq"), Undefined_side)] = vj_ins;
 
   SECTION("VD insertion") {
-    REQUIRE(get_insertion_len_max(VD_genes, events_map) == 10);
+    REQUIRE(get_insertion_len_max("VD_ins_seq", events_map) == 10);
   }
 
   SECTION("DJ insertion") {
-    REQUIRE(get_insertion_len_max(DJ_genes, events_map) == 15);
+    REQUIRE(get_insertion_len_max("DJ_ins_seq", events_map) == 15);
   }
 
   SECTION("VJ insertion") {
-    REQUIRE(get_insertion_len_max(VJ_genes, events_map) == 20);
+    REQUIRE(get_insertion_len_max("VJ_ins_seq", events_map) == 20);
   }
 }

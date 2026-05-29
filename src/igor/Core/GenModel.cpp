@@ -242,7 +242,7 @@ bool GenModel::infer_model(
             Model_marginals single_thread_model_marginals(model_marginals);
             Model_marginals single_thread_marginals(single_thread_model_parms);
             shared_ptr<Error_rate> single_thread_err_rate = single_thread_model_parms.get_err_rate_p();
-            unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> events_map =
+            Events_map events_map =
                     single_thread_model_parms.get_events_map();
             map<size_t, shared_ptr<Counter>> single_thread_counter_list;
             for (map<size_t, shared_ptr<Counter>>::const_iterator iter = this->counters_list.begin();

@@ -103,6 +103,7 @@ shared_ptr<Rec_Event> Insertion::copy()
     new_insertion_p->fixed = this->fixed;
     new_insertion_p->update_event_name();
     new_insertion_p->set_event_identifier(this->event_index);
+    new_insertion_p->set_seq_type(this->get_seq_type());
     return new_insertion_p;
 }
 
@@ -383,7 +384,7 @@ void Insertion::write2txt(ofstream &outfile)
 
 void Insertion::initialize_event(
         unordered_set<Rec_Event_name> &processed_events,
-        const unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map,
+        const Events_map &events_map,
         const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
         Downstream_scenario_proba_bound_map &downstream_proba_map, Seq_type_str_p_map &constructed_sequences,
         Safety_bool_map &safety_set, shared_ptr<Error_rate> error_rate_p, Mismatch_vectors_map &mismatches_list,
@@ -446,7 +447,7 @@ void Insertion::set_crude_upper_bound_proba(size_t base_index, size_t event_size
 
 void Insertion::initialize_crude_scenario_proba_bound(
         double &downstream_proba_bound, forward_list<double *> &updated_proba_list,
-        const unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map)
+        const Events_map &events_map)
 {
     this->scenario_downstream_upper_bound_proba = downstream_proba_bound;
     this->updated_proba_bounds_list = updated_proba_list;
@@ -464,31 +465,24 @@ void Insertion::initialize_crude_scenario_proba_bound(
         //TODO be careful in case there is both VDJ and VD/DJ (however this should not happen)
 
     case VD_genes:
-        if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(Dinuclmarkov_t, VD_genes, Undefined_side))) {
-            dinuc_event_p =
-                    events_map.at(tuple<Event_type, Gene_class, Seq_side>(Dinuclmarkov_t, VD_genes, Undefined_side));
-        } else if (events_map.count(
-                           tuple<Event_type, Gene_class, Seq_side>(Dinuclmarkov_t, VDJ_genes, Undefined_side))) {
-            dinuc_event_p =
-                    events_map.at(tuple<Event_type, Gene_class, Seq_side>(Dinuclmarkov_t, VDJ_genes, Undefined_side));
+        if (events_map.count(make_tuple(Dinuclmarkov_t, string("VD_ins_seq"), Undefined_side))) {
+            dinuc_event_p = events_map.at(make_tuple(Dinuclmarkov_t, string("VD_ins_seq"), Undefined_side));
+        } else if (events_map.count(make_tuple(Dinuclmarkov_t, string("VDJ_ins_seq"), Undefined_side))) {
+            dinuc_event_p = events_map.at(make_tuple(Dinuclmarkov_t, string("VDJ_ins_seq"), Undefined_side));
         }
         break;
 
     case VJ_genes:
-        if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(Dinuclmarkov_t, VJ_genes, Undefined_side))) {
-            dinuc_event_p =
-                    events_map.at(tuple<Event_type, Gene_class, Seq_side>(Dinuclmarkov_t, VJ_genes, Undefined_side));
+        if (events_map.count(make_tuple(Dinuclmarkov_t, string("VJ_ins_seq"), Undefined_side))) {
+            dinuc_event_p = events_map.at(make_tuple(Dinuclmarkov_t, string("VJ_ins_seq"), Undefined_side));
         }
         break;
 
     case DJ_genes:
-        if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(Dinuclmarkov_t, DJ_genes, Undefined_side))) {
-            dinuc_event_p =
-                    events_map.at(tuple<Event_type, Gene_class, Seq_side>(Dinuclmarkov_t, DJ_genes, Undefined_side));
-        } else if (events_map.count(
-                           tuple<Event_type, Gene_class, Seq_side>(Dinuclmarkov_t, VDJ_genes, Undefined_side))) {
-            dinuc_event_p =
-                    events_map.at(tuple<Event_type, Gene_class, Seq_side>(Dinuclmarkov_t, VDJ_genes, Undefined_side));
+        if (events_map.count(make_tuple(Dinuclmarkov_t, string("DJ_ins_seq"), Undefined_side))) {
+            dinuc_event_p = events_map.at(make_tuple(Dinuclmarkov_t, string("DJ_ins_seq"), Undefined_side));
+        } else if (events_map.count(make_tuple(Dinuclmarkov_t, string("VDJ_ins_seq"), Undefined_side))) {
+            dinuc_event_p = events_map.at(make_tuple(Dinuclmarkov_t, string("VDJ_ins_seq"), Undefined_side));
         }
         break;
     default:

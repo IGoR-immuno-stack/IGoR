@@ -65,7 +65,7 @@ void FastGenerator::initialize(const Model_Parms &model_parms, const Model_margi
     // Check for D gene
     has_d_gene_ = false;
     auto events_map = model_parms.get_events_map();
-    if (events_map.count(std::make_tuple(GeneChoice_t, D_gene, Undefined_side)) > 0) {
+    if (events_map.count(std::make_tuple(GeneChoice_t, std::string("D_gene_seq"), Undefined_side)) > 0) {
         has_d_gene_ = true;
     }
 

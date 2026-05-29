@@ -47,7 +47,7 @@ Error_rate::~Error_rate()
 }
 
 void Error_rate::initialize(
-        const unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map)
+        const Events_map &events_map)
 {
     //Do nothing
     //This method is called if no other method is supplied in the instantiated class

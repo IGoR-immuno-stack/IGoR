@@ -150,7 +150,7 @@ public:
             std::shared_ptr<Next_event_ptr> &, Marginal_array_p &, const Marginal_array_p &,
             const std::unordered_map<Gene_class, std::vector<Alignment_data>> &, Seq_type_str_p_map &,
             Seq_offsets_map &, std::shared_ptr<Error_rate> &, std::map<size_t, std::shared_ptr<Counter>> &,
-            const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> &,
+            const Events_map &,
             Safety_bool_map &, Mismatch_vectors_map &, double &, double &);
 
     /**
@@ -204,13 +204,13 @@ public:
     virtual void ind_normalize(Marginal_array_p &, size_t) const;
     virtual void initialize_event(
             std::unordered_set<Rec_Event_name> &,
-            const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> &,
+            const Events_map &,
             const std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &,
             Downstream_scenario_proba_bound_map &, Seq_type_str_p_map &, Safety_bool_map &, std::shared_ptr<Error_rate>,
             Mismatch_vectors_map &, Seq_offsets_map &, Index_map &);
     virtual void initialize_crude_scenario_proba_bound(
             double &, std::forward_list<double *> &,
-            const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> &);
+            const Events_map &);
     virtual void add_to_marginals(long double, Marginal_array_p &) const = 0;
     virtual void set_crude_upper_bound_proba(size_t, size_t, Marginal_array_p &);
     double iterate_common(int realization_index, int base_index,
@@ -326,8 +326,7 @@ protected:
             const std::unordered_map<Gene_class, std::vector<Alignment_data>> &allowed_realizations,
             Seq_type_str_p_map &constructed_sequences, Seq_offsets_map &seq_offsets,
             std::shared_ptr<Error_rate> &error_rate_p, std::map<size_t, std::shared_ptr<Counter>> &counters_list,
-            const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>>
-                    &events_map,
+            const Events_map &events_map,
             Safety_bool_map &safety_set, Mismatch_vectors_map &mismatches_lists, double &seq_max_prob_scenario,
             double &proba_threshold_factor);
 

@@ -700,6 +700,20 @@ struct hash<std::tuple<Event_type, Gene_class, Seq_side>>
 };
 
 template <>
+struct hash<std::tuple<Event_type, std::string, Seq_side>>
+{
+    std::size_t operator()(const std::tuple<Event_type, std::string, Seq_side> &event_triplet) const
+    {
+        Event_type ev_type;
+        std::string seq_type_str;
+        Seq_side s_side;
+        std::tie(ev_type, seq_type_str, s_side) = event_triplet;
+        return ((hash<int>()(ev_type) ^ (hash<std::string>()(seq_type_str) << 1) >> 1)
+                ^ (hash<int>()(s_side) << 1));
+    }
+};
+
+template <>
 struct hash<std::pair<Seq_type, Seq_side>>
 {
     std::size_t operator()(const std::pair<Seq_type, Seq_side> seq_pair) const
@@ -714,6 +728,13 @@ struct hash<Event_safety>
     std::size_t operator()(const Event_safety ev_saf) const { return (hash<int>()(ev_saf)); }
 };
 } // namespace std
+
+// v2.0 events map: keyed by (Event_type, seq_type string, Seq_side) so that
+// multiple events of the same type and side but different seq_types (e.g. two
+// D-gene deletions on D1 vs D2 in a tandem-D model) can coexist unambiguously.
+typedef std::unordered_map<std::tuple<Event_type, std::string, Seq_side>,
+                           std::shared_ptr<Rec_Event>>
+        Events_map;
 
 struct D_position_comparator
 {

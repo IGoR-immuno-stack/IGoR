@@ -15,14 +15,14 @@
 %0;0
 #Insertion;VD_genes;Undefined_side;4;vd_ins
 %0;0
-#Insertion;DJ_genes;Undefined_side;2;dj_ins
+#Insertion;DJ_gene;Undefined_side;2;dj_ins
 %0;0
 #DinucMarkov;VD_genes;Undefined_side;3;vd_dinucl
 %A;0
 %C;1
 %G;2
 %T;3
-#DinucMarkov;DJ_genes;Undefined_side;1;dj_dinucl
+#DinucMarkov;DJ_gene;Undefined_side;1;dj_dinucl
 %A;0
 %C;1
 %G;2

@@ -413,7 +413,7 @@ int main(int argc, char *argv[])
 
             //Check if the model contains a D gene event in order to load the alignments
             auto events_map = cl_model_parms.get_events_map();
-            if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, D_gene, Undefined_side)) > 0) {
+            if (events_map.count(make_tuple(GeneChoice_t, string("D_gene_seq"), Undefined_side)) > 0) {
                 has_D = true;
             }
         }
@@ -1253,7 +1253,7 @@ int main(int argc, char *argv[])
 
             //Check if the model contains a D gene event in order to load the alignments
             auto events_map = cl_model_parms.get_events_map();
-            if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, D_gene, Undefined_side)) > 0) {
+            if (events_map.count(make_tuple(GeneChoice_t, string("D_gene_seq"), Undefined_side)) > 0) {
                 has_D = true;
             }
         } catch (exception &e) {
@@ -1293,11 +1293,10 @@ int main(int argc, char *argv[])
 	 */
     if ((infer or evaluate or generate)) {
         bool any_custom_gene = false;
-        unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> tmp_events_map =
-                cl_model_parms.get_events_map();
+        Events_map tmp_events_map = cl_model_parms.get_events_map();
         if (custom_v) {
             shared_ptr<Rec_Event> v_choice =
-                    tmp_events_map.at(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, V_gene, Undefined_side));
+                    tmp_events_map.at(make_tuple(GeneChoice_t, string("V_gene_seq"), Undefined_side));
             shared_ptr<Gene_choice> v_choice_gc = dynamic_pointer_cast<Gene_choice>(v_choice);
             bool any_genomic_difference = false;
             unordered_map<string, Event_realization> realization_map_copy = v_choice_gc->get_realizations_map();
@@ -1336,7 +1335,7 @@ int main(int argc, char *argv[])
         }
         if (has_D and custom_d) {
             shared_ptr<Rec_Event> d_choice =
-                    tmp_events_map.at(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, D_gene, Undefined_side));
+                    tmp_events_map.at(make_tuple(GeneChoice_t, string("D_gene_seq"), Undefined_side));
             shared_ptr<Gene_choice> d_choice_gc = dynamic_pointer_cast<Gene_choice>(d_choice);
             bool any_genomic_difference = false;
             unordered_map<string, Event_realization> realization_map_copy = d_choice_gc->get_realizations_map();
@@ -1375,7 +1374,7 @@ int main(int argc, char *argv[])
         }
         if (custom_j) {
             shared_ptr<Rec_Event> j_choice =
-                    tmp_events_map.at(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, J_gene, Undefined_side));
+                    tmp_events_map.at(make_tuple(GeneChoice_t, string("J_gene_seq"), Undefined_side));
             shared_ptr<Gene_choice> j_choice_gc = dynamic_pointer_cast<Gene_choice>(j_choice);
             bool any_genomic_difference = false;
             unordered_map<string, Event_realization> realization_map_copy = j_choice_gc->get_realizations_map();
@@ -2220,9 +2219,9 @@ int main(int argc, char *argv[])
                     //Get V and J event
                     auto events_map = cl_model_parms.get_events_map();
                     shared_ptr<const Rec_Event> v_event_ptr =
-                            events_map.at(make_tuple(GeneChoice_t, V_gene, Undefined_side));
+                            events_map.at(make_tuple(GeneChoice_t, string("V_gene_seq"), Undefined_side));
                     shared_ptr<const Rec_Event> j_event_ptr =
-                            events_map.at(make_tuple(GeneChoice_t, J_gene, Undefined_side));
+                            events_map.at(make_tuple(GeneChoice_t, string("J_gene_seq"), Undefined_side));
 
                     //Get V and J event positions on the queue
                     auto model_queue = cl_model_parms.get_model_queue();

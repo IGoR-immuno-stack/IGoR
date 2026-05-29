@@ -4,9 +4,8 @@
 namespace EventUtils {
 
 GeneChoiceStatus check_gene_choice(
-    Gene_class gene,
-    const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>,
-                             std::shared_ptr<Rec_Event>> &events_map,
+    const std::string &gene_seq_type,
+    const Events_map &events_map,
     const std::unordered_set<Rec_Event_name> &processed_events) {
 
   GeneChoiceStatus status;
@@ -14,7 +13,7 @@ GeneChoiceStatus check_gene_choice(
   status.chosen = false;
   status.event_ptr = nullptr;
 
-  auto key = std::make_tuple(GeneChoice_t, gene, Undefined_side);
+  auto key = std::make_tuple(GeneChoice_t, gene_seq_type, Undefined_side);
   if (events_map.count(key) != 0) {
     status.exists = true;
     status.event_ptr = events_map.at(key);
@@ -58,10 +57,9 @@ Int_Str build_scenario_sequence(Seq_type_str_p_map &constructed_sequences,
 }
 
 int get_insertion_len_max(
-    Gene_class gene_pair,
-    const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>,
-                             std::shared_ptr<Rec_Event>> &events_map) {
-  auto key = std::make_tuple(Insertion_t, gene_pair, Undefined_side);
+    const std::string &ins_seq_type,
+    const Events_map &events_map) {
+  auto key = std::make_tuple(Insertion_t, ins_seq_type, Undefined_side);
   if (events_map.count(key) != 0) {
     return events_map.at(key)->get_len_max();
   }

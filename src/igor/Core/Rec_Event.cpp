@@ -134,7 +134,7 @@ void Rec_Event::iterate(double &scenario_proba, Downstream_scenario_proba_bound_
                        const unordered_map<Gene_class, vector<Alignment_data>> &allowed_realizations,
                        Seq_type_str_p_map &constructed_sequences, Seq_offsets_map &seq_offsets,
                        shared_ptr<Error_rate> &error_rate_p, map<size_t, shared_ptr<Counter>> &counters_list,
-                       const unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map,
+                       const Events_map &events_map,
                        Safety_bool_map &safety_set, Mismatch_vectors_map &mismatches_lists,
                        double &seq_max_prob_scenario, double &proba_threshold_factor)
 {
@@ -214,7 +214,7 @@ void Rec_Event::iterate_wrap_up(
         const std::unordered_map<Gene_class, std::vector<Alignment_data>> &allowed_realizations,
         Seq_type_str_p_map &constructed_sequences, Seq_offsets_map &seq_offsets,
         std::shared_ptr<Error_rate> &error_rate_p, map<size_t, shared_ptr<Counter>> &counters_list,
-        const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> &events_map,
+        const Events_map &events_map,
         Safety_bool_map &safety_set, Mismatch_vectors_map &mismatches_lists, double &seq_max_prob_scenario,
         double &proba_threshold_factor)
 {
@@ -276,8 +276,7 @@ void Rec_Event::iterate_wrap_up(
                 #pragma GCC diagnostic pop
             }
 
-            for (std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>,
-                                    std::shared_ptr<Rec_Event>>::const_iterator iter = events_map.begin();
+            for (Events_map::const_iterator iter = events_map.begin();
                  iter != events_map.end(); ++iter) {
                 if (!(*iter).second->is_fixed()) {
                     (*iter).second->add_to_marginals(scenario_error_w_proba, updated_marginal_array_p);
@@ -353,7 +352,7 @@ void Rec_Event::iterate_wrap_up(
 
 void Rec_Event::initialize_event(
         unordered_set<Rec_Event_name> &processed_events,
-        const unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map,
+        const Events_map &events_map,
         const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
         Downstream_scenario_proba_bound_map &downstream_proba_map, Seq_type_str_p_map &constructed_sequences,
         Safety_bool_map &safety_set, shared_ptr<Error_rate> error_rate_p, Mismatch_vectors_map &mismatches_list,
@@ -427,7 +426,7 @@ void Rec_Event::update_event_internal_probas(const Marginal_array_p &marginal_ar
  */
 void Rec_Event::initialize_crude_scenario_proba_bound(
         double &downstream_proba_bound, forward_list<double *> &updated_proba_list,
-        const unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map)
+        const Events_map &events_map)
 {
     this->scenario_downstream_upper_bound_proba = downstream_proba_bound;
     this->updated_proba_bounds_list = updated_proba_list;

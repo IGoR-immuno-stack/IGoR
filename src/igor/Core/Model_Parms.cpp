@@ -519,23 +519,23 @@ void Model_Parms::update_edge_event_name(Rec_Event_name former_name, Rec_Event_n
     }
 }
 
-const unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> Model_Parms::get_events_map() const
+Events_map Model_Parms::get_events_map() const
 {
-    unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> events_map;
+    Events_map events_map;
     for (list<shared_ptr<Rec_Event>>::const_iterator iter = this->events.begin(); iter != this->events.end(); ++iter) {
         events_map.emplace(
-                tuple<Event_type, Gene_class, Seq_side>((*iter)->get_type(), (*iter)->get_class(), (*iter)->get_side()),
+                make_tuple((*iter)->get_type(), (*iter)->get_seq_type(), (*iter)->get_side()),
                 (*iter));
     }
     return events_map;
 }
 
-unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> Model_Parms::get_events_map()
+Events_map Model_Parms::get_events_map()
 {
-    unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> events_map;
+    Events_map events_map;
     for (list<shared_ptr<Rec_Event>>::const_iterator iter = this->events.begin(); iter != this->events.end(); ++iter) {
         events_map.emplace(
-                tuple<Event_type, Gene_class, Seq_side>((*iter)->get_type(), (*iter)->get_class(), (*iter)->get_side()),
+                make_tuple((*iter)->get_type(), (*iter)->get_seq_type(), (*iter)->get_side()),
                 (*iter));
     }
     return events_map;

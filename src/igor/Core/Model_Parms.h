@@ -139,9 +139,8 @@ public:
 
     const SeqTypeRegistry &get_seq_type_registry() const { return seq_type_registry; }
 
-    const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>>
-    get_events_map() const;
-    std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> get_events_map();
+    Events_map get_events_map() const;
+    Events_map get_events_map();
 
     void set_error_ratep(Error_rate *Er_r)
     {

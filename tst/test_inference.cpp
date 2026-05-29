@@ -405,7 +405,7 @@ TEST_CASE("Inference recovers ground truth model", "[inference][!mayfail]")
     auto events_map = truth_parms.get_events_map();
     
     // Extract V gene templates
-    auto v_gene_event = events_map.at(std::make_tuple(GeneChoice_t, V_gene, Undefined_side));
+    auto v_gene_event = events_map.at(std::make_tuple(GeneChoice_t, std::string("V_gene_seq"), Undefined_side));
     auto v_gene_choice = std::dynamic_pointer_cast<Gene_choice>(v_gene_event);
     auto v_realizations = v_gene_choice->get_realizations_map();
     for (const auto& [name, realization] : v_realizations) {
@@ -413,7 +413,7 @@ TEST_CASE("Inference recovers ground truth model", "[inference][!mayfail]")
     }
     
     // Extract J gene templates
-    auto j_gene_event = events_map.at(std::make_tuple(GeneChoice_t, J_gene, Undefined_side));
+    auto j_gene_event = events_map.at(std::make_tuple(GeneChoice_t, std::string("J_gene_seq"), Undefined_side));
     auto j_gene_choice = std::dynamic_pointer_cast<Gene_choice>(j_gene_event);
     auto j_realizations = j_gene_choice->get_realizations_map();
     for (const auto& [name, realization] : j_realizations) {
@@ -421,8 +421,8 @@ TEST_CASE("Inference recovers ground truth model", "[inference][!mayfail]")
     }
     
     // Extract D gene templates if VDJ model
-    if (events_map.count(std::make_tuple(GeneChoice_t, D_gene, Undefined_side)) > 0) {
-        auto d_gene_event = events_map.at(std::make_tuple(GeneChoice_t, D_gene, Undefined_side));
+    if (events_map.count(std::make_tuple(GeneChoice_t, std::string("D_gene_seq"), Undefined_side)) > 0) {
+        auto d_gene_event = events_map.at(std::make_tuple(GeneChoice_t, std::string("D_gene_seq"), Undefined_side));
         auto d_gene_choice = std::dynamic_pointer_cast<Gene_choice>(d_gene_event);
         auto d_realizations = d_gene_choice->get_realizations_map();
         for (const auto& [name, realization] : d_realizations) {

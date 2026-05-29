@@ -97,7 +97,7 @@ TEST_CASE("ModelContext construction and immutability", "[Context][ModelContext]
     }
     
     unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> offset_map;
-    unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> events_map;
+    Events_map events_map;
     queue<shared_ptr<Rec_Event>> model_queue;  // Empty queue for tests
     
     SECTION("Basic construction") {
@@ -343,7 +343,7 @@ TEST_CASE("Multiple contexts work together", "[Context][Integration]") {
     // Setup model
     auto model_params = make_unique<long double[]>(100);
     unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> offset_map;
-    unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> events_map;
+    Events_map events_map;
     queue<shared_ptr<Rec_Event>> model_queue;  // Empty queue for tests
     
     // Setup scenario

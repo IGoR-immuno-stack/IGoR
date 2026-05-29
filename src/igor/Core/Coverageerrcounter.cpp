@@ -164,7 +164,7 @@ void Coverage_err_counter::initialize(const ModelContext& model) {
         //Initialize V pointers
         try {
             v_gene_event_p = dynamic_pointer_cast<Gene_choice>(
-                    events_map.at(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, V_gene, Undefined_side)));
+                    events_map.at(make_tuple(GeneChoice_t, string("V_gene_seq"), Undefined_side)));
             vgene_offset_p = &v_gene_event_p->alignment_offset_p;
             vgene_real_index_p = &v_gene_event_p->current_realization_index;
 
@@ -185,9 +185,9 @@ void Coverage_err_counter::initialize(const ModelContext& model) {
         }
 
         //Get deletion value pointer for V 3' deletions if it exists
-        if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(Deletion_t, V_gene, Three_prime)) != 0) {
+        if (events_map.count(make_tuple(Deletion_t, string("V_gene_seq"), Three_prime)) != 0) {
             shared_ptr<const Deletion> v_3_del_event_p = dynamic_pointer_cast<Deletion>(
-                    events_map.at(tuple<Event_type, Gene_class, Seq_side>(Deletion_t, V_gene, Three_prime)));
+                    events_map.at(make_tuple(Deletion_t, string("V_gene_seq"), Three_prime)));
             v_3_del_value_p = &(v_3_del_event_p->deletion_value);
         } else {
             v_3_del_value_p = &no_del_buffer;
@@ -198,7 +198,7 @@ void Coverage_err_counter::initialize(const ModelContext& model) {
         //Initialize D pointers
         try {
             d_gene_event_p = dynamic_pointer_cast<Gene_choice>(
-                    events_map.at(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, D_gene, Undefined_side)));
+                    events_map.at(make_tuple(GeneChoice_t, string("D_gene_seq"), Undefined_side)));
             dgene_offset_p = &d_gene_event_p->alignment_offset_p;
             dgene_real_index_p = &d_gene_event_p->current_realization_index;
 
@@ -219,18 +219,18 @@ void Coverage_err_counter::initialize(const ModelContext& model) {
         }
 
         //Get deletion value pointer for D 5' deletions if it exists
-        if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(Deletion_t, D_gene, Five_prime)) != 0) {
+        if (events_map.count(make_tuple(Deletion_t, string("D_gene_seq"), Five_prime)) != 0) {
             shared_ptr<const Deletion> d_5_del_event_p = dynamic_pointer_cast<Deletion>(
-                    events_map.at(tuple<Event_type, Gene_class, Seq_side>(Deletion_t, D_gene, Five_prime)));
+                    events_map.at(make_tuple(Deletion_t, string("D_gene_seq"), Five_prime)));
             d_5_del_value_p = &(d_5_del_event_p->deletion_value);
         } else {
             d_5_del_value_p = &no_del_buffer;
         }
 
         //Get deletion value pointer for D 3' deletions if it exists
-        if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(Deletion_t, D_gene, Three_prime)) != 0) {
+        if (events_map.count(make_tuple(Deletion_t, string("D_gene_seq"), Three_prime)) != 0) {
             shared_ptr<const Deletion> d_3_del_event_p = dynamic_pointer_cast<Deletion>(
-                    events_map.at(tuple<Event_type, Gene_class, Seq_side>(Deletion_t, D_gene, Three_prime)));
+                    events_map.at(make_tuple(Deletion_t, string("D_gene_seq"), Three_prime)));
             d_3_del_value_p = &(d_3_del_event_p->deletion_value);
         } else {
             d_3_del_value_p = &no_del_buffer;
@@ -241,7 +241,7 @@ void Coverage_err_counter::initialize(const ModelContext& model) {
         //Initialize J pointers
         try {
             j_gene_event_p = dynamic_pointer_cast<Gene_choice>(
-                    events_map.at(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, J_gene, Undefined_side)));
+                    events_map.at(make_tuple(GeneChoice_t, string("J_gene_seq"), Undefined_side)));
             jgene_offset_p = &j_gene_event_p->alignment_offset_p;
             jgene_real_index_p = &j_gene_event_p->current_realization_index;
 
@@ -262,9 +262,9 @@ void Coverage_err_counter::initialize(const ModelContext& model) {
         }
 
         //Get deletion value pointer for J 5' deletions if it exists
-        if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(Deletion_t, J_gene, Five_prime)) != 0) {
+        if (events_map.count(make_tuple(Deletion_t, string("J_gene_seq"), Five_prime)) != 0) {
             shared_ptr<const Deletion> j_5_del_event_p = dynamic_pointer_cast<Deletion>(
-                    events_map.at(tuple<Event_type, Gene_class, Seq_side>(Deletion_t, J_gene, Five_prime)));
+                    events_map.at(make_tuple(Deletion_t, string("J_gene_seq"), Five_prime)));
             j_5_del_value_p = &(j_5_del_event_p->deletion_value);
         } else {
             j_5_del_value_p = &no_del_buffer;
@@ -419,7 +419,7 @@ void Coverage_err_counter::initialize_counter(const Model_Parms &parms, const Mo
         //Initialize V pointers
         try {
             v_gene_event_p = dynamic_pointer_cast<Gene_choice>(
-                    events_map.at(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, V_gene, Undefined_side)));
+                    events_map.at(make_tuple(GeneChoice_t, string("V_gene_seq"), Undefined_side)));
             vgene_offset_p = &v_gene_event_p->alignment_offset_p;
             vgene_real_index_p = &v_gene_event_p->current_realization_index;
 
@@ -440,9 +440,9 @@ void Coverage_err_counter::initialize_counter(const Model_Parms &parms, const Mo
         }
 
         //Get deletion value pointer for V 3' deletions if it exists
-        if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(Deletion_t, V_gene, Three_prime)) != 0) {
+        if (events_map.count(make_tuple(Deletion_t, string("V_gene_seq"), Three_prime)) != 0) {
             shared_ptr<const Deletion> v_3_del_event_p = dynamic_pointer_cast<Deletion>(
-                    events_map.at(tuple<Event_type, Gene_class, Seq_side>(Deletion_t, V_gene, Three_prime)));
+                    events_map.at(make_tuple(Deletion_t, string("V_gene_seq"), Three_prime)));
             v_3_del_value_p = &(v_3_del_event_p->deletion_value);
         } else {
             v_3_del_value_p = &no_del_buffer;
@@ -453,7 +453,7 @@ void Coverage_err_counter::initialize_counter(const Model_Parms &parms, const Mo
         //Initialize D pointers
         try {
             d_gene_event_p = dynamic_pointer_cast<Gene_choice>(
-                    events_map.at(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, D_gene, Undefined_side)));
+                    events_map.at(make_tuple(GeneChoice_t, string("D_gene_seq"), Undefined_side)));
             dgene_offset_p = &d_gene_event_p->alignment_offset_p;
             dgene_real_index_p = &d_gene_event_p->current_realization_index;
 
@@ -474,18 +474,18 @@ void Coverage_err_counter::initialize_counter(const Model_Parms &parms, const Mo
         }
 
         //Get deletion value pointer for D 5' deletions if it exists
-        if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(Deletion_t, D_gene, Five_prime)) != 0) {
+        if (events_map.count(make_tuple(Deletion_t, string("D_gene_seq"), Five_prime)) != 0) {
             shared_ptr<const Deletion> d_5_del_event_p = dynamic_pointer_cast<Deletion>(
-                    events_map.at(tuple<Event_type, Gene_class, Seq_side>(Deletion_t, D_gene, Five_prime)));
+                    events_map.at(make_tuple(Deletion_t, string("D_gene_seq"), Five_prime)));
             d_5_del_value_p = &(d_5_del_event_p->deletion_value);
         } else {
             d_5_del_value_p = &no_del_buffer;
         }
 
         //Get deletion value pointer for D 3' deletions if it exists
-        if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(Deletion_t, D_gene, Three_prime)) != 0) {
+        if (events_map.count(make_tuple(Deletion_t, string("D_gene_seq"), Three_prime)) != 0) {
             shared_ptr<const Deletion> d_3_del_event_p = dynamic_pointer_cast<Deletion>(
-                    events_map.at(tuple<Event_type, Gene_class, Seq_side>(Deletion_t, D_gene, Three_prime)));
+                    events_map.at(make_tuple(Deletion_t, string("D_gene_seq"), Three_prime)));
             d_3_del_value_p = &(d_3_del_event_p->deletion_value);
         } else {
             d_3_del_value_p = &no_del_buffer;
@@ -496,7 +496,7 @@ void Coverage_err_counter::initialize_counter(const Model_Parms &parms, const Mo
         //Initialize J pointers
         try {
             j_gene_event_p = dynamic_pointer_cast<Gene_choice>(
-                    events_map.at(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, J_gene, Undefined_side)));
+                    events_map.at(make_tuple(GeneChoice_t, string("J_gene_seq"), Undefined_side)));
             jgene_offset_p = &j_gene_event_p->alignment_offset_p;
             jgene_real_index_p = &j_gene_event_p->current_realization_index;
 
@@ -517,9 +517,9 @@ void Coverage_err_counter::initialize_counter(const Model_Parms &parms, const Mo
         }
 
         //Get deletion value pointer for J 5' deletions if it exists
-        if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(Deletion_t, J_gene, Five_prime)) != 0) {
+        if (events_map.count(make_tuple(Deletion_t, string("J_gene_seq"), Five_prime)) != 0) {
             shared_ptr<const Deletion> j_5_del_event_p = dynamic_pointer_cast<Deletion>(
-                    events_map.at(tuple<Event_type, Gene_class, Seq_side>(Deletion_t, J_gene, Five_prime)));
+                    events_map.at(make_tuple(Deletion_t, string("J_gene_seq"), Five_prime)));
             j_5_del_value_p = &(j_5_del_event_p->deletion_value);
         } else {
             j_5_del_value_p = &no_del_buffer;
@@ -530,7 +530,7 @@ void Coverage_err_counter::initialize_counter(const Model_Parms &parms, const Mo
 void Coverage_err_counter::count_scenario(
         long double scenario_seq_joint_proba, double scenario_probability, const string &original_sequence,
         Seq_type_str_p_map &constructed_sequences, const Seq_offsets_map &seq_offsets,
-        const unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map,
+        const Events_map &events_map,
         Mismatch_vectors_map &mismatches_lists)
 {
     if (count_on_v) {

@@ -68,6 +68,7 @@ shared_ptr<Rec_Event> Dinucl_markov::copy()
     new_dinucl_markov_p->fixed = this->fixed;
     new_dinucl_markov_p->update_event_name();
     new_dinucl_markov_p->set_event_identifier(this->event_index);
+    new_dinucl_markov_p->set_seq_type(this->get_seq_type());
     return new_dinucl_markov_p;
 }
 
@@ -404,16 +405,16 @@ void Dinucl_markov::ind_normalize(Marginal_array_p &marginal_array_p, size_t bas
 
 void Dinucl_markov::initialize_event(
         unordered_set<Rec_Event_name> &processed_events,
-        const unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map,
+        const Events_map &events_map,
         const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
         Downstream_scenario_proba_bound_map &downstream_proba_map, Seq_type_str_p_map &constructed_sequences,
         Safety_bool_map &safety_set, shared_ptr<Error_rate> error_rate_p, Mismatch_vectors_map &mismatches_list,
         Seq_offsets_map &seq_offsets, Index_map &index_map)
 {
 
-    max_vd_ins = EventUtils::get_insertion_len_max(VD_genes, events_map);
-    max_vj_ins = EventUtils::get_insertion_len_max(VJ_genes, events_map);
-    max_dj_ins = EventUtils::get_insertion_len_max(DJ_genes, events_map);
+    max_vd_ins = EventUtils::get_insertion_len_max("VD_ins_seq", events_map);
+    max_vj_ins = EventUtils::get_insertion_len_max("VJ_ins_seq", events_map);
+    max_dj_ins = EventUtils::get_insertion_len_max("DJ_ins_seq", events_map);
 
     if ((this->event_class == VD_genes) or (this->event_class == VDJ_genes)) {
         downstream_proba_map.request_memory_layer(VD_ins_seq);
@@ -510,7 +511,7 @@ double *Dinucl_markov::get_updated_ptr()
 
 void Dinucl_markov::initialize_crude_scenario_proba_bound(
         double &downstream_proba_bound, forward_list<double *> &updated_proba_list,
-        const unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map)
+        const Events_map &events_map)
 {
     this->scenario_downstream_upper_bound_proba = downstream_proba_bound;
     this->updated_proba_bounds_list = updated_proba_list;

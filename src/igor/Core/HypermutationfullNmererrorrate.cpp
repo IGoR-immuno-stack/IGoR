@@ -400,7 +400,7 @@ double Hypermutation_full_Nmer_errorrate::compute_scenario_error_probability(
 double Hypermutation_full_Nmer_errorrate::compare_sequences_error_prob(
         double scenario_probability, const string &original_sequence, Seq_type_str_p_map &constructed_sequences,
         const Seq_offsets_map &seq_offsets,
-        const unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map,
+        const Events_map &events_map,
         Mismatch_vectors_map &mismatches_lists, double &seq_max_prob_scenario, const double &proba_threshold_factor)
 {
     //TODO Take into account the order of mutations?
@@ -1053,37 +1053,37 @@ void Hypermutation_full_Nmer_errorrate::update()
 }
 
 void Hypermutation_full_Nmer_errorrate::initialize(
-        const unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map)
+        const Events_map &events_map)
 {
     //FIXME look for previous initialization to avoid memory leak
 
     //Initialize booleans for constructed sequences
-    if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, V_gene, Undefined_side)) > 0) {
+    if (events_map.count(make_tuple(GeneChoice_t, string("V_gene_seq"), Undefined_side)) > 0) {
         v_gene = true;
     } else {
         v_gene = false;
     }
-    if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, D_gene, Undefined_side)) > 0) {
+    if (events_map.count(make_tuple(GeneChoice_t, string("D_gene_seq"), Undefined_side)) > 0) {
         d_gene = true;
     } else {
         d_gene = false;
     }
-    if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, J_gene, Undefined_side)) > 0) {
+    if (events_map.count(make_tuple(GeneChoice_t, string("J_gene_seq"), Undefined_side)) > 0) {
         j_gene = true;
     } else {
         j_gene = false;
     }
-    if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(Insertion_t, VJ_genes, Undefined_side)) > 0) {
+    if (events_map.count(make_tuple(Insertion_t, string("VJ_ins_seq"), Undefined_side)) > 0) {
         vj_ins = true;
     } else {
         vj_ins = false;
     }
-    if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(Insertion_t, VD_genes, Undefined_side)) > 0) {
+    if (events_map.count(make_tuple(Insertion_t, string("VD_ins_seq"), Undefined_side)) > 0) {
         vd_ins = true;
     } else {
         vd_ins = false;
     }
-    if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(Insertion_t, DJ_genes, Undefined_side)) > 0) {
+    if (events_map.count(make_tuple(Insertion_t, string("DJ_ins_seq"), Undefined_side)) > 0) {
         dj_ins = true;
     } else {
         dj_ins = false;
@@ -1092,7 +1092,7 @@ void Hypermutation_full_Nmer_errorrate::initialize(
     //Get the right pointers for the V gene
     if (v_gene) {
         v_gene_event_p = dynamic_pointer_cast<Gene_choice>(
-                events_map.at(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, V_gene, Undefined_side)));
+                events_map.at(make_tuple(GeneChoice_t, string("V_gene_seq"), Undefined_side)));
         vgene_offset_p = &v_gene_event_p->alignment_offset_p;
         vgene_real_index_p = &v_gene_event_p->current_realization_index;
 
@@ -1107,9 +1107,9 @@ void Hypermutation_full_Nmer_errorrate::initialize(
         }
 
         //Get deletion value pointer for V 3' deletions if it exists
-        if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(Deletion_t, V_gene, Three_prime)) != 0) {
+        if (events_map.count(make_tuple(Deletion_t, string("V_gene_seq"), Three_prime)) != 0) {
             shared_ptr<const Deletion> v_3_del_event_p = dynamic_pointer_cast<Deletion>(
-                    events_map.at(tuple<Event_type, Gene_class, Seq_side>(Deletion_t, V_gene, Three_prime)));
+                    events_map.at(make_tuple(Deletion_t, string("V_gene_seq"), Three_prime)));
             v_3_del_value_p = &(v_3_del_event_p->deletion_value);
         } else {
             v_3_del_value_p = &no_del_buffer;
@@ -1127,23 +1127,23 @@ void Hypermutation_full_Nmer_errorrate::initialize(
     //Get the right pointers for the D gene
     if (d_gene) {
         d_gene_event_p = dynamic_pointer_cast<Gene_choice>(
-                events_map.at(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, D_gene, Undefined_side)));
+                events_map.at(make_tuple(GeneChoice_t, string("D_gene_seq"), Undefined_side)));
         dgene_offset_p = &d_gene_event_p->alignment_offset_p;
         dgene_real_index_p = &d_gene_event_p->current_realization_index;
 
         //Get deletion value pointer for D 5' deletions if it exists
-        if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(Deletion_t, D_gene, Five_prime)) != 0) {
+        if (events_map.count(make_tuple(Deletion_t, string("D_gene_seq"), Five_prime)) != 0) {
             shared_ptr<const Deletion> d_5_del_event_p = dynamic_pointer_cast<Deletion>(
-                    events_map.at(tuple<Event_type, Gene_class, Seq_side>(Deletion_t, D_gene, Five_prime)));
+                    events_map.at(make_tuple(Deletion_t, string("D_gene_seq"), Five_prime)));
             d_5_del_value_p = &(d_5_del_event_p->deletion_value);
         } else {
             d_5_del_value_p = &no_del_buffer;
         }
 
         //Get deletion value pointer for D 3' deletions if it exists
-        if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(Deletion_t, D_gene, Three_prime)) != 0) {
+        if (events_map.count(make_tuple(Deletion_t, string("D_gene_seq"), Three_prime)) != 0) {
             shared_ptr<const Deletion> d_3_del_event_p = dynamic_pointer_cast<Deletion>(
-                    events_map.at(tuple<Event_type, Gene_class, Seq_side>(Deletion_t, D_gene, Three_prime)));
+                    events_map.at(make_tuple(Deletion_t, string("D_gene_seq"), Three_prime)));
             d_3_del_value_p = &(d_3_del_event_p->deletion_value);
         } else {
             d_3_del_value_p = &no_del_buffer;
@@ -1160,7 +1160,7 @@ void Hypermutation_full_Nmer_errorrate::initialize(
     //Get the right pointers for the J gene
     if (j_gene) {
         j_gene_event_p = dynamic_pointer_cast<Gene_choice>(
-                events_map.at(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, J_gene, Undefined_side)));
+                events_map.at(make_tuple(GeneChoice_t, string("J_gene_seq"), Undefined_side)));
         jgene_offset_p = &j_gene_event_p->alignment_offset_p;
         jgene_real_index_p = &j_gene_event_p->current_realization_index;
 
@@ -1175,9 +1175,9 @@ void Hypermutation_full_Nmer_errorrate::initialize(
         }
 
         //Get deletion value pointer for J 5' deletions if it exists
-        if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(Deletion_t, J_gene, Five_prime)) != 0) {
+        if (events_map.count(make_tuple(Deletion_t, string("J_gene_seq"), Five_prime)) != 0) {
             shared_ptr<const Deletion> j_5_del_event_p = dynamic_pointer_cast<Deletion>(
-                    events_map.at(tuple<Event_type, Gene_class, Seq_side>(Deletion_t, J_gene, Five_prime)));
+                    events_map.at(make_tuple(Deletion_t, string("J_gene_seq"), Five_prime)));
             j_5_del_value_p = &(j_5_del_event_p->deletion_value);
         } else {
             j_5_del_value_p = &no_del_buffer;
