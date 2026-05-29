@@ -61,7 +61,6 @@ public:
     // Legacy interface (deprecated)
     double compare_sequences_error_prob(
             double, const std::string &, Seq_type_str_p_map &, const Seq_offsets_map &,
-            const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> &,
             Mismatch_vectors_map &, double &, const double &) override;
     void update() override;
     void add_to_norm_counter() override;

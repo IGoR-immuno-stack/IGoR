@@ -54,6 +54,37 @@ bool try_insertion_seq_type_to_gene_class(Seq_type seq_type, Gene_class &gene_pa
   }
 }
 
+bool try_event_key_to_seq_key(
+    Event_type event_type,
+    Gene_class gene_class,
+    Seq_side seq_side,
+    std::tuple<Event_type, Seq_type, Seq_side> &seq_key)
+{
+  Seq_type seq_type = V_gene_seq;
+  bool mapped = false;
+
+  switch (event_type) {
+  case GeneChoice_t:
+  case Deletion_t:
+    mapped = try_gene_class_to_gene_seq_type(gene_class, seq_type);
+    break;
+  case Insertion_t:
+  case Dinuclmarkov_t:
+    mapped = try_insertion_gene_class_to_seq_type(gene_class, seq_type);
+    break;
+  default:
+    mapped = false;
+    break;
+  }
+
+  if (!mapped) {
+    return false;
+  }
+
+  seq_key = std::make_tuple(event_type, seq_type, seq_side);
+  return true;
+}
+
 bool has_insertion_seq_type(
     const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>,
                              std::shared_ptr<Rec_Event>> &events_map,
@@ -64,7 +95,17 @@ bool has_insertion_seq_type(
     return false;
   }
 
-  return events_map.count(std::make_tuple(Insertion_t, gene_pair, Undefined_side)) != 0;
+  auto key = std::make_tuple(Insertion_t, gene_pair, Undefined_side);
+  return events_map.find(key) != events_map.end();
+}
+
+bool has_insertion_seq_type(
+    const std::unordered_map<std::tuple<Event_type, Seq_type, Seq_side>,
+                             std::shared_ptr<Rec_Event>> &events_map,
+    Seq_type seq_type)
+{
+  auto key = std::make_tuple(Insertion_t, seq_type, Undefined_side);
+  return events_map.find(key) != events_map.end();
 }
 
 bool try_get_event(
@@ -86,26 +127,23 @@ bool try_get_event(
   return true;
 }
 
-GeneChoiceStatus check_gene_choice(
-    Gene_class gene,
-    const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>,
+bool try_get_event(
+    const std::unordered_map<std::tuple<Event_type, Seq_type, Seq_side>,
                              std::shared_ptr<Rec_Event>> &events_map,
-    const std::unordered_set<Rec_Event_name> &processed_events) {
-
-  GeneChoiceStatus status;
-  status.exists = false;
-  status.chosen = false;
-  status.event_ptr = nullptr;
-
-  auto key = std::make_tuple(GeneChoice_t, gene, Undefined_side);
-  if (events_map.count(key) != 0) {
-    status.exists = true;
-    status.event_ptr = events_map.at(key);
-    if (processed_events.count(status.event_ptr->get_name()) != 0) {
-      status.chosen = true;
-    }
+    Event_type event_type,
+    Seq_type seq_type,
+    Seq_side seq_side,
+    std::shared_ptr<Rec_Event> &event_ptr)
+{
+  auto key = std::make_tuple(event_type, seq_type, seq_side);
+  auto event_it = events_map.find(key);
+  if (event_it == events_map.end()) {
+    event_ptr = nullptr;
+    return false;
   }
-  return status;
+
+  event_ptr = event_it->second;
+  return true;
 }
 
 Int_Str build_scenario_sequence(Seq_type_str_p_map &constructed_sequences,
@@ -145,8 +183,21 @@ int get_insertion_len_max(
     const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>,
                              std::shared_ptr<Rec_Event>> &events_map) {
   auto key = std::make_tuple(Insertion_t, gene_pair, Undefined_side);
-  if (events_map.count(key) != 0) {
-    return events_map.at(key)->get_len_max();
+  auto event_it = events_map.find(key);
+  if (event_it != events_map.end()) {
+    return event_it->second->get_len_max();
+  }
+  return 0;
+}
+
+int get_insertion_len_max(
+    Seq_type seq_type,
+    const std::unordered_map<std::tuple<Event_type, Seq_type, Seq_side>,
+                             std::shared_ptr<Rec_Event>> &events_map) {
+  auto key = std::make_tuple(Insertion_t, seq_type, Undefined_side);
+  auto event_it = events_map.find(key);
+  if (event_it != events_map.end()) {
+    return event_it->second->get_len_max();
   }
   return 0;
 }

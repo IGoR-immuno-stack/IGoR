@@ -707,6 +707,19 @@ struct hash<std::tuple<Event_type, Gene_class, Seq_side>>
 };
 
 template <>
+struct hash<std::tuple<Event_type, Seq_type, Seq_side>>
+{
+    std::size_t operator()(const std::tuple<Event_type, Seq_type, Seq_side> &event_triplet) const
+    {
+        Event_type ev_type;
+        Seq_type seq_type;
+        Seq_side s_side;
+        std::tie(ev_type, seq_type, s_side) = event_triplet;
+        return ((hash<int>()(ev_type) ^ (hash<int>()(seq_type) << 1) >> 1) ^ (hash<int>()(s_side) << 1));
+    }
+};
+
+template <>
 struct hash<std::pair<Seq_type, Seq_side>>
 {
     std::size_t operator()(const std::pair<Seq_type, Seq_side> seq_pair) const

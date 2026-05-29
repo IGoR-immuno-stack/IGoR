@@ -81,13 +81,13 @@ void Pgen_counter::initialize(const ModelContext& model) {
     }
 
     // Identify which gene/insertion sequences exist in the model
-    const unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map =
+    const unordered_map<tuple<Event_type, Seq_type, Seq_side>, shared_ptr<Rec_Event>> &events_map =
             model.events_map;
 
         shared_ptr<Rec_Event> gene_choice_event_p;
-        v_gene = EventUtils::try_get_event(events_map, GeneChoice_t, V_gene, Undefined_side, gene_choice_event_p);
-        d_gene = EventUtils::try_get_event(events_map, GeneChoice_t, D_gene, Undefined_side, gene_choice_event_p);
-        j_gene = EventUtils::try_get_event(events_map, GeneChoice_t, J_gene, Undefined_side, gene_choice_event_p);
+        v_gene = EventUtils::try_get_event(events_map, GeneChoice_t, V_gene_seq, Undefined_side, gene_choice_event_p);
+        d_gene = EventUtils::try_get_event(events_map, GeneChoice_t, D_gene_seq, Undefined_side, gene_choice_event_p);
+        j_gene = EventUtils::try_get_event(events_map, GeneChoice_t, J_gene_seq, Undefined_side, gene_choice_event_p);
     vj_ins = EventUtils::has_insertion_seq_type(events_map, VJ_ins_seq);
     vd_ins = EventUtils::has_insertion_seq_type(events_map, VD_ins_seq);
     dj_ins = EventUtils::has_insertion_seq_type(events_map, DJ_ins_seq);
@@ -137,13 +137,13 @@ void Pgen_counter::initialize_counter(const Model_Parms &parms, const Model_marg
         fstreams_created = true;
     }
 
-    const unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map =
-            parms.get_events_map();
+        const unordered_map<tuple<Event_type, Seq_type, Seq_side>, shared_ptr<Rec_Event>> events_map =
+            parms.get_events_map_seq_type();
     //Initialize booleans for constructed sequences
     shared_ptr<Rec_Event> gene_choice_event_p;
-    v_gene = EventUtils::try_get_event(events_map, GeneChoice_t, V_gene, Undefined_side, gene_choice_event_p);
-    d_gene = EventUtils::try_get_event(events_map, GeneChoice_t, D_gene, Undefined_side, gene_choice_event_p);
-    j_gene = EventUtils::try_get_event(events_map, GeneChoice_t, J_gene, Undefined_side, gene_choice_event_p);
+        v_gene = EventUtils::try_get_event(events_map, GeneChoice_t, V_gene_seq, Undefined_side, gene_choice_event_p);
+        d_gene = EventUtils::try_get_event(events_map, GeneChoice_t, D_gene_seq, Undefined_side, gene_choice_event_p);
+        j_gene = EventUtils::try_get_event(events_map, GeneChoice_t, J_gene_seq, Undefined_side, gene_choice_event_p);
     vj_ins = EventUtils::has_insertion_seq_type(events_map, VJ_ins_seq);
     vd_ins = EventUtils::has_insertion_seq_type(events_map, VD_ins_seq);
     dj_ins = EventUtils::has_insertion_seq_type(events_map, DJ_ins_seq);

@@ -67,7 +67,6 @@ public:
     // Legacy interface (preserved for backward compatibility)
     double compare_sequences_error_prob(
             double, const std::string &, Seq_type_str_p_map &, const Seq_offsets_map &,
-            const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> &,
             Mismatch_vectors_map &, double &, const double &) override;
     void update() override;
     void
@@ -88,6 +87,10 @@ public:
     uint64_t generate_random_mutation_probas(double, double);
 
 private:
+    double compute_error_probability_impl(
+        double, const std::string &, Seq_type_str_p_map &, const Seq_offsets_map &,
+        Mismatch_vectors_map &, double &, const double &);
+
     void introduce_uniform_transversion(char &, std::mt19937_64 &, std::uniform_real_distribution<double> &) const;
 
     Gene_class learn_on;

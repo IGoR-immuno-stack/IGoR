@@ -30,6 +30,15 @@
 using namespace std;
 using namespace EventUtils;
 
+namespace {
+const unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &
+empty_legacy_events_map()
+{
+    static const unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> kEmptyLegacyEventsMap;
+    return kEmptyLegacyEventsMap;
+}
+} // namespace
+
 Hypermutation_full_Nmer_errorrate::Hypermutation_full_Nmer_errorrate(size_t nmer_width, Gene_class learn,
                                                                      Gene_class apply, double starting_flat_value,
                                                                      size_t n_observed_thresh /*=0*/)
@@ -381,13 +390,12 @@ double Hypermutation_full_Nmer_errorrate::compute_scenario_error_probability(
         ScenarioContext& scenario,
         ExplorationContext& exploration)
 {
-    // Unpack contexts and delegate to legacy implementation
-    double result = this->compare_sequences_error_prob(
+    (void) model;
+    double result = this->compute_error_probability_impl(
         scenario.scenario_proba,
         query.sequence,
         scenario.constructed_sequences,
         scenario.seq_offsets,
-        model.events_map,
         scenario.mismatches_lists,
         exploration.seq_max_prob_scenario,
         exploration.proba_threshold_factor
@@ -402,7 +410,21 @@ double Hypermutation_full_Nmer_errorrate::compute_scenario_error_probability(
 double Hypermutation_full_Nmer_errorrate::compare_sequences_error_prob(
         double scenario_probability, const string &original_sequence, Seq_type_str_p_map &constructed_sequences,
         const Seq_offsets_map &seq_offsets,
-        const unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map,
+        Mismatch_vectors_map &mismatches_lists, double &seq_max_prob_scenario, const double &proba_threshold_factor)
+{
+    return this->compute_error_probability_impl(
+        scenario_probability,
+        original_sequence,
+        constructed_sequences,
+        seq_offsets,
+        mismatches_lists,
+        seq_max_prob_scenario,
+        proba_threshold_factor);
+}
+
+double Hypermutation_full_Nmer_errorrate::compute_error_probability_impl(
+        double scenario_probability, const string &original_sequence, Seq_type_str_p_map &constructed_sequences,
+        const Seq_offsets_map &seq_offsets,
         Mismatch_vectors_map &mismatches_lists, double &seq_max_prob_scenario, const double &proba_threshold_factor)
 {
     //TODO Take into account the order of mutations?

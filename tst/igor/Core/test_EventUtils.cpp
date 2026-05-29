@@ -58,40 +58,6 @@ public:
                                   Index_map &) override {}
 };
 
-TEST_CASE("EventUtils CheckGeneChoice", "[EventUtils]") {
-  unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>>
-      events_map;
-  unordered_set<Rec_Event_name> processed_events;
-
-  SECTION("Event does not exist") {
-    auto status = check_gene_choice(V_gene, events_map, processed_events);
-    REQUIRE_FALSE(status.exists);
-    REQUIRE_FALSE(status.chosen);
-    REQUIRE(status.event_ptr == nullptr);
-  }
-
-  SECTION("Event exists but not processed") {
-    auto v_event = make_shared<MockEvent>("V_choice");
-    events_map[make_tuple(GeneChoice_t, V_gene, Undefined_side)] = v_event;
-
-    auto status = check_gene_choice(V_gene, events_map, processed_events);
-    REQUIRE(status.exists);
-    REQUIRE_FALSE(status.chosen);
-    REQUIRE(status.event_ptr == v_event);
-  }
-
-  SECTION("Event exists and processed") {
-    auto v_event = make_shared<MockEvent>("V_choice");
-    events_map[make_tuple(GeneChoice_t, V_gene, Undefined_side)] = v_event;
-
-    processed_events.insert(v_event->get_name());
-    auto status = check_gene_choice(V_gene, events_map, processed_events);
-    REQUIRE(status.exists);
-    REQUIRE(status.chosen);
-    REQUIRE(status.event_ptr == v_event);
-  }
-}
-
 TEST_CASE("EventUtils BuildScenarioSequence", "[EventUtils]") {
   Seq_type_str_p_map constructed_sequences(6);
 
@@ -129,6 +95,8 @@ TEST_CASE("EventUtils BuildScenarioSequence", "[EventUtils]") {
 TEST_CASE("EventUtils GetInsertionLenMax", "[EventUtils]") {
   unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>>
       events_map;
+  unordered_map<tuple<Event_type, Seq_type, Seq_side>, shared_ptr<Rec_Event>>
+      seq_events_map;
 
   // Create a mock event with specific len_max
   class MockInsertionEvent : public MockEvent {
@@ -145,6 +113,9 @@ TEST_CASE("EventUtils GetInsertionLenMax", "[EventUtils]") {
   events_map[make_tuple(Insertion_t, VD_genes, Undefined_side)] = vd_ins;
   events_map[make_tuple(Insertion_t, DJ_genes, Undefined_side)] = dj_ins;
   events_map[make_tuple(Insertion_t, VJ_genes, Undefined_side)] = vj_ins;
+  seq_events_map[make_tuple(Insertion_t, VD_ins_seq, Undefined_side)] = vd_ins;
+  seq_events_map[make_tuple(Insertion_t, DJ_ins_seq, Undefined_side)] = dj_ins;
+  seq_events_map[make_tuple(Insertion_t, VJ_ins_seq, Undefined_side)] = vj_ins;
 
   SECTION("VD insertion") {
     REQUIRE(get_insertion_len_max(VD_genes, events_map) == 10);
@@ -156,6 +127,18 @@ TEST_CASE("EventUtils GetInsertionLenMax", "[EventUtils]") {
 
   SECTION("VJ insertion") {
     REQUIRE(get_insertion_len_max(VJ_genes, events_map) == 20);
+  }
+
+  SECTION("VD insertion typed map") {
+    REQUIRE(get_insertion_len_max(VD_ins_seq, seq_events_map) == 10);
+  }
+
+  SECTION("DJ insertion typed map") {
+    REQUIRE(get_insertion_len_max(DJ_ins_seq, seq_events_map) == 15);
+  }
+
+  SECTION("VJ insertion typed map") {
+    REQUIRE(get_insertion_len_max(VJ_ins_seq, seq_events_map) == 20);
   }
 }
 
@@ -259,5 +242,31 @@ TEST_CASE("EventUtils TryGetEvent", "[EventUtils]") {
 
     REQUIRE(found_primary);
     REQUIRE(event_ptr == vdj_event);
+  }
+}
+
+TEST_CASE("EventUtils TryEventKeyToSeqKey", "[EventUtils]") {
+  tuple<Event_type, Seq_type, Seq_side> seq_key;
+
+  SECTION("Maps gene events to gene sequence keys") {
+    REQUIRE(try_event_key_to_seq_key(GeneChoice_t, V_gene, Undefined_side, seq_key));
+    REQUIRE(seq_key == make_tuple(GeneChoice_t, V_gene_seq, Undefined_side));
+
+    REQUIRE(try_event_key_to_seq_key(Deletion_t, J_gene, Five_prime, seq_key));
+    REQUIRE(seq_key == make_tuple(Deletion_t, J_gene_seq, Five_prime));
+  }
+
+  SECTION("Maps insertion-like events to insertion sequence keys") {
+    REQUIRE(try_event_key_to_seq_key(Insertion_t, VD_genes, Undefined_side, seq_key));
+    REQUIRE(seq_key == make_tuple(Insertion_t, VD_ins_seq, Undefined_side));
+
+    REQUIRE(try_event_key_to_seq_key(Dinuclmarkov_t, DJ_genes, Three_prime, seq_key));
+    REQUIRE(seq_key == make_tuple(Dinuclmarkov_t, DJ_ins_seq, Three_prime));
+  }
+
+  SECTION("Fails on incompatible class/type combinations") {
+    REQUIRE_FALSE(try_event_key_to_seq_key(Insertion_t, V_gene, Undefined_side, seq_key));
+    REQUIRE_FALSE(try_event_key_to_seq_key(GeneChoice_t, VD_genes, Undefined_side, seq_key));
+    REQUIRE_FALSE(try_event_key_to_seq_key(Undefined_t, Undefined_gene, Undefined_side, seq_key));
   }
 }

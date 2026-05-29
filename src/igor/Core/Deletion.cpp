@@ -32,12 +32,114 @@ using namespace std;
 
 namespace {
 
-vector<Seq_type> get_deletion_effective_junctions(Gene_class gene_class, Seq_side event_side)
+using LegacyEventsMap = unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>>;
+using SeqEventsMap = unordered_map<tuple<Event_type, Seq_type, Seq_side>, shared_ptr<Rec_Event>>;
+
+const LegacyEventsMap &empty_legacy_events_map()
+{
+    static const LegacyEventsMap kEmptyLegacyEventsMap;
+    return kEmptyLegacyEventsMap;
+}
+
+SeqEventsMap build_seq_events_map(const LegacyEventsMap &events_map)
+{
+    SeqEventsMap seq_events_map;
+    seq_events_map.reserve(events_map.size());
+    for (const auto &entry : events_map) {
+        tuple<Event_type, Seq_type, Seq_side> seq_key;
+        if (!EventUtils::try_event_key_to_seq_key(get<0>(entry.first), get<1>(entry.first), get<2>(entry.first),
+                                                   seq_key)) {
+            continue;
+        }
+        seq_events_map.emplace(seq_key, entry.second);
+    }
+    return seq_events_map;
+}
+
+EventUtils::GeneChoiceStatus check_gene_choice_seq_type(
+        Gene_class gene, const SeqEventsMap &events_map, const unordered_set<Rec_Event_name> &processed_events)
+{
+    EventUtils::GeneChoiceStatus status{ false, false, nullptr };
+    Seq_type gene_seq = V_gene_seq;
+    if (!EventUtils::try_gene_class_to_gene_seq_type(gene, gene_seq)) {
+        return status;
+    }
+
+    shared_ptr<Rec_Event> event_ptr;
+    if (!EventUtils::try_get_event(events_map, GeneChoice_t, gene_seq, Undefined_side, event_ptr)) {
+        return status;
+    }
+
+    status.exists = true;
+    status.chosen = processed_events.count(event_ptr->get_name()) != 0;
+    status.event_ptr = event_ptr;
+    return status;
+}
+
+bool try_gene_seq_type_to_gene_class(Seq_type seq_type, Gene_class &gene_class)
+{
+    switch (seq_type) {
+    case V_gene_seq:
+        gene_class = V_gene;
+        return true;
+    case D_gene_seq:
+        gene_class = D_gene;
+        return true;
+    case J_gene_seq:
+        gene_class = J_gene;
+        return true;
+    default:
+        return false;
+    }
+}
+
+LegacyEventsMap build_legacy_events_map(const SeqEventsMap &events_map)
+{
+    LegacyEventsMap legacy_events_map;
+    legacy_events_map.reserve(events_map.size());
+    for (const auto &entry : events_map) {
+        Event_type event_type = get<0>(entry.first);
+        Seq_type seq_type = get<1>(entry.first);
+        Seq_side seq_side = get<2>(entry.first);
+
+        Gene_class gene_class = Undefined_gene;
+        bool converted = false;
+
+        if (event_type == Insertion_t || event_type == Dinuclmarkov_t) {
+            converted = EventUtils::try_insertion_seq_type_to_gene_class(seq_type, gene_class);
+        } else {
+            converted = try_gene_seq_type_to_gene_class(seq_type, gene_class);
+        }
+
+        if (!converted) {
+            continue;
+        }
+
+        legacy_events_map.emplace(make_tuple(event_type, gene_class, seq_side), entry.second);
+    }
+    return legacy_events_map;
+}
+
+Seq_type get_deletion_target_seq_type(Gene_class gene_class)
 {
     switch (gene_class) {
     case V_gene:
-        return { VD_ins_seq, VJ_ins_seq };
+        return V_gene_seq;
     case D_gene:
+        return D_gene_seq;
+    case J_gene:
+        return J_gene_seq;
+    default:
+        throw invalid_argument(std::string("Unknown gene for deletions : ") + gene_class);
+    }
+}
+
+vector<Seq_type> get_deletion_effective_junctions(Seq_type target_seq_type, Seq_side event_side)
+{
+    switch (target_seq_type) {
+    case V_gene_seq:
+        return { VD_ins_seq, VJ_ins_seq };
+    case D_gene_seq:
         if (event_side == Five_prime) {
             return { VD_ins_seq };
         }
@@ -45,7 +147,7 @@ vector<Seq_type> get_deletion_effective_junctions(Gene_class gene_class, Seq_sid
             return { DJ_ins_seq };
         }
         return {};
-    case J_gene:
+    case J_gene_seq:
         return { VJ_ins_seq, DJ_ins_seq };
     default:
         return {};
@@ -187,6 +289,44 @@ void Deletion::add_realization(int del_number)
     this->update_event_name();
 }
 
+void Deletion::iterate(
+        double &scenario_proba, Downstream_scenario_proba_bound_map &downstream_proba_map, const string &sequence,
+        const Int_Str &int_sequence, Index_map &base_index_map,
+        const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
+        shared_ptr<Next_event_ptr> &next_event_ptr_arr, Marginal_array_p &updated_marginals_point,
+        const Marginal_array_p &model_parameters_point,
+        const unordered_map<Gene_class, vector<Alignment_data>> &allowed_realizations,
+        Seq_type_str_p_map &constructed_sequences, Seq_offsets_map &seq_offsets, shared_ptr<Error_rate> &error_rate_p,
+        map<size_t, shared_ptr<Counter>> &counters_list,
+        const unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map,
+        Safety_bool_map &safety_set, Mismatch_vectors_map &mismatches_lists, double &seq_max_prob_scenario,
+        double &proba_threshold_factor)
+{
+    this->Rec_Event::iterate(scenario_proba, downstream_proba_map, sequence, int_sequence, base_index_map, offset_map,
+                             next_event_ptr_arr, updated_marginals_point, model_parameters_point, allowed_realizations,
+                             constructed_sequences, seq_offsets, error_rate_p, counters_list, events_map, safety_set,
+                             mismatches_lists, seq_max_prob_scenario, proba_threshold_factor);
+}
+
+void Deletion::iterate(
+        double &scenario_proba, Downstream_scenario_proba_bound_map &downstream_proba_map, const string &sequence,
+        const Int_Str &int_sequence, Index_map &base_index_map,
+        const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
+        shared_ptr<Next_event_ptr> &next_event_ptr_arr, Marginal_array_p &updated_marginals_point,
+        const Marginal_array_p &model_parameters_point,
+        const unordered_map<Gene_class, vector<Alignment_data>> &allowed_realizations,
+        Seq_type_str_p_map &constructed_sequences, Seq_offsets_map &seq_offsets, shared_ptr<Error_rate> &error_rate_p,
+        map<size_t, shared_ptr<Counter>> &counters_list,
+        const unordered_map<tuple<Event_type, Seq_type, Seq_side>, shared_ptr<Rec_Event>> &events_map,
+        Safety_bool_map &safety_set, Mismatch_vectors_map &mismatches_lists, double &seq_max_prob_scenario,
+        double &proba_threshold_factor)
+{
+    this->iterate(scenario_proba, downstream_proba_map, sequence, int_sequence, base_index_map, offset_map,
+                  next_event_ptr_arr, updated_marginals_point, model_parameters_point, allowed_realizations,
+                  constructed_sequences, seq_offsets, error_rate_p, counters_list, build_legacy_events_map(events_map),
+                  safety_set, mismatches_lists, seq_max_prob_scenario, proba_threshold_factor);
+}
+
 /**
  * @brief Context-based iterate() implementation
  *
@@ -215,9 +355,11 @@ void Deletion::iterate(
     //unordered_map<Rec_Event_name,int> base_index_map_copy(base_index_map);
     //unordered_map<Seq_type,vector<int>*> mismatches_lists_copy (mismatches_lists);
 
-    switch ((*this).event_class) {
+    const Seq_type target_seq_type = get_deletion_target_seq_type(this->event_class);
 
-    case V_gene: {
+    switch (target_seq_type) {
+
+    case V_gene_seq: {
 
         //v_3_offset = seq_offsets.at(pair<Seq_type,Seq_side>(V_gene_seq,Three_prime));
         v_3_offset = scenario.get_offset(V_gene_seq, Three_prime, memory_layer_offset_del - 1);
@@ -474,7 +616,7 @@ void Deletion::iterate(
         }
     } break;
 
-    case D_gene:
+    case D_gene_seq:
         switch ((*this).event_side) {
 
         case Five_prime: {
@@ -952,7 +1094,7 @@ void Deletion::iterate(
 
         break;
 
-    case J_gene: {
+    case J_gene_seq: {
 
         //j_5_offset =  seq_offsets.at(pair<Seq_type,Seq_side>(J_gene_seq,Five_prime));
         //j_5_offset =  seq_offsets.at(j_5_pair);
@@ -1226,9 +1368,11 @@ queue<int> Deletion::draw_random_realization(
          iter != this->event_realizations.end(); ++iter) {
         prob_count += model_marginals_p[index_map.at(this->get_name()) + (*iter).second.index];
         if (prob_count >= rand) {
-            switch (this->event_class) {
+            const Seq_type target_seq_type = get_deletion_target_seq_type(this->event_class);
 
-            case V_gene:
+            switch (target_seq_type) {
+
+            case V_gene_seq:
                 if ((*iter).second.value_int >= 0) {
                     constructed_sequences.at(V_gene_seq)
                             .erase(constructed_sequences.at(V_gene_seq).size() - (*iter).second.value_int);
@@ -1242,7 +1386,7 @@ queue<int> Deletion::draw_random_realization(
 
                 break;
 
-            case D_gene:
+            case D_gene_seq:
                 switch (this->event_side) {
 
                 case Five_prime:
@@ -1277,7 +1421,7 @@ queue<int> Deletion::draw_random_realization(
                     break;
                 }
                 break;
-            case J_gene:
+            case J_gene_seq:
                 if ((*iter).second.value_int >= 0) {
                     constructed_sequences.at(J_gene_seq).erase(0, (*iter).second.value_int);
                 } else {
@@ -1319,7 +1463,7 @@ void Deletion::write2txt(ofstream &outfile)
 
 void Deletion::initialize_event(
         unordered_set<Rec_Event_name> &processed_events,
-        const unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map,
+    const unordered_map<tuple<Event_type, Seq_type, Seq_side>, shared_ptr<Rec_Event>> &events_map,
         const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
         Downstream_scenario_proba_bound_map &downstream_proba_map, Seq_type_str_p_map &constructed_sequences,
         Safety_bool_map &safety_set, shared_ptr<Error_rate> error_rate_p, Mismatch_vectors_map &mismatches_list,
@@ -1337,19 +1481,21 @@ void Deletion::initialize_event(
     int_value_and_index.sort(del_numb_compare);
 
     //Check V choice
-    auto v_status = EventUtils::check_gene_choice(V_gene, events_map, processed_events);
+    auto v_status = check_gene_choice_seq_type(V_gene, events_map, processed_events);
     v_chosen = v_status.chosen;
 
     //Check D choice
-    auto d_status = EventUtils::check_gene_choice(D_gene, events_map, processed_events);
+    auto d_status = check_gene_choice_seq_type(D_gene, events_map, processed_events);
     d_chosen = d_status.chosen;
 
     //Check J choice
-    auto j_status = EventUtils::check_gene_choice(J_gene, events_map, processed_events);
+    auto j_status = check_gene_choice_seq_type(J_gene, events_map, processed_events);
     j_chosen = j_status.chosen;
 
-    switch (this->event_class) {
-    case V_gene:
+    const Seq_type target_seq_type = get_deletion_target_seq_type(this->event_class);
+
+    switch (target_seq_type) {
+    case V_gene_seq:
         seq_offsets.request_memory_layer(V_gene_seq, Three_prime);
         memory_layer_offset_del = seq_offsets.get_current_memory_layer(V_gene_seq, Three_prime);
         mismatches_list.request_memory_layer(V_gene_seq);
@@ -1380,7 +1526,7 @@ void Deletion::initialize_event(
         }
 
         break;
-    case D_gene:
+    case D_gene_seq:
         mismatches_list.request_memory_layer(D_gene_seq);
         this->memory_layer_mismatches = mismatches_list.get_current_memory_layer(D_gene_seq);
         constructed_sequences.request_memory_layer(D_gene_seq);
@@ -1399,7 +1545,7 @@ void Deletion::initialize_event(
             }
             {
                 shared_ptr<Rec_Event> del_d_p;
-                if (EventUtils::try_get_event(events_map, Deletion_t, D_gene, Three_prime, del_d_p)) {
+                if (EventUtils::try_get_event(events_map, Deletion_t, D_gene_seq, Three_prime, del_d_p)) {
                     if (processed_events.count(del_d_p->get_name()) != 0) {
                         d_del_opposite_side_processed = true;
                     } else {
@@ -1427,7 +1573,7 @@ void Deletion::initialize_event(
             }
             {
                 shared_ptr<Rec_Event> del_d_p;
-                if (EventUtils::try_get_event(events_map, Deletion_t, D_gene, Five_prime, del_d_p)) {
+                if (EventUtils::try_get_event(events_map, Deletion_t, D_gene_seq, Five_prime, del_d_p)) {
                     if (processed_events.count(del_d_p->get_name()) != 0) {
                         d_del_opposite_side_processed = true;
                     } else {
@@ -1445,7 +1591,7 @@ void Deletion::initialize_event(
         }
 
         break;
-    case J_gene:
+    case J_gene_seq:
         seq_offsets.request_memory_layer(J_gene_seq, Five_prime);
         memory_layer_offset_del = seq_offsets.get_current_memory_layer(J_gene_seq, Five_prime);
         mismatches_list.request_memory_layer(J_gene_seq);
@@ -1481,7 +1627,7 @@ void Deletion::initialize_event(
 
     //Get V 3' deletion
     shared_ptr<Rec_Event> del_v_p;
-    if (EventUtils::try_get_event(events_map, Deletion_t, V_gene, Three_prime, del_v_p)) {
+    if (EventUtils::try_get_event(events_map, Deletion_t, V_gene_seq, Three_prime, del_v_p)) {
         if (processed_events.count(del_v_p->get_name()) != 0) {
             v_3_min_del = 0;
             v_3_max_del = 0;
@@ -1496,7 +1642,7 @@ void Deletion::initialize_event(
 
     //Get D 5' deletion range
     shared_ptr<Rec_Event> del_d_5_p;
-    if (EventUtils::try_get_event(events_map, Deletion_t, D_gene, Five_prime, del_d_5_p)) {
+    if (EventUtils::try_get_event(events_map, Deletion_t, D_gene_seq, Five_prime, del_d_5_p)) {
         if (processed_events.count(del_d_5_p->get_name()) != 0) {
             d_5_min_del = 0;
             d_5_max_del = 0;
@@ -1511,7 +1657,7 @@ void Deletion::initialize_event(
 
     //Get D 3' deletion
     shared_ptr<Rec_Event> del_d_3_p;
-    if (EventUtils::try_get_event(events_map, Deletion_t, D_gene, Three_prime, del_d_3_p)) {
+    if (EventUtils::try_get_event(events_map, Deletion_t, D_gene_seq, Three_prime, del_d_3_p)) {
         if (processed_events.count(del_d_3_p->get_name()) != 0) {
             d_3_min_del = 0;
             d_3_max_del = 0;
@@ -1526,7 +1672,7 @@ void Deletion::initialize_event(
 
     //Get J 5' deletion range
     shared_ptr<Rec_Event> del_j_p;
-    if (EventUtils::try_get_event(events_map, Deletion_t, J_gene, Five_prime, del_j_p)) {
+    if (EventUtils::try_get_event(events_map, Deletion_t, J_gene_seq, Five_prime, del_j_p)) {
         if (processed_events.count(del_j_p->get_name()) != 0) {
             j_5_min_del = 0;
             j_5_max_del = 0;
@@ -1538,7 +1684,7 @@ void Deletion::initialize_event(
         j_5_min_del = 0;
         j_5_max_del = 0;
     }
-    this->Rec_Event::initialize_event(processed_events, events_map, offset_map, downstream_proba_map,
+    this->Rec_Event::initialize_event(processed_events, empty_legacy_events_map(), offset_map, downstream_proba_map,
                                       constructed_sequences, safety_set, error_rate_p, mismatches_list, seq_offsets,
                                       index_map);
 }
@@ -1641,7 +1787,8 @@ bool del_numb_compare(const Event_realization &real1, const Event_realization &r
 
 bool Deletion::has_effect_on(Seq_type seq_type) const
 {
-    const auto effective_junctions = get_deletion_effective_junctions(this->event_class, this->event_side);
+    const auto effective_junctions =
+            get_deletion_effective_junctions(get_deletion_target_seq_type(this->event_class), this->event_side);
     return find(effective_junctions.begin(), effective_junctions.end(), seq_type) != effective_junctions.end();
 }
 
@@ -1689,7 +1836,8 @@ void Deletion::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &model_qu
                                           const Marginal_array_p &model_parameters_point, Index_map &base_index_map)
 {
     Seq_type_str_p_map constructed_sequences(6);
-    const auto effective_junctions = get_deletion_effective_junctions(this->event_class, this->event_side);
+    const auto effective_junctions =
+            get_deletion_effective_junctions(get_deletion_target_seq_type(this->event_class), this->event_side);
     if (effective_junctions.empty()) {
         throw invalid_argument(std::string("Unknown gene for deletions : ") + this->event_class);
     }

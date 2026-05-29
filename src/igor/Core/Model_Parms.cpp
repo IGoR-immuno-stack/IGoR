@@ -28,6 +28,7 @@
  */
 
 #include <igor/Core/Model_Parms.h>
+#include <igor/Core/EventUtils.h>
 using namespace std;
 
 /*
@@ -537,6 +538,30 @@ unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> Mo
         events_map.emplace(
                 tuple<Event_type, Gene_class, Seq_side>((*iter)->get_type(), (*iter)->get_class(), (*iter)->get_side()),
                 (*iter));
+    }
+    return events_map;
+}
+
+const unordered_map<tuple<Event_type, Seq_type, Seq_side>, shared_ptr<Rec_Event>> Model_Parms::get_events_map_seq_type() const
+{
+    unordered_map<tuple<Event_type, Seq_type, Seq_side>, shared_ptr<Rec_Event>> events_map;
+    for (list<shared_ptr<Rec_Event>>::const_iterator iter = this->events.begin(); iter != this->events.end(); ++iter) {
+        tuple<Event_type, Seq_type, Seq_side> seq_key;
+        if (EventUtils::try_event_key_to_seq_key((*iter)->get_type(), (*iter)->get_class(), (*iter)->get_side(), seq_key)) {
+            events_map.emplace(seq_key, (*iter));
+        }
+    }
+    return events_map;
+}
+
+unordered_map<tuple<Event_type, Seq_type, Seq_side>, shared_ptr<Rec_Event>> Model_Parms::get_events_map_seq_type()
+{
+    unordered_map<tuple<Event_type, Seq_type, Seq_side>, shared_ptr<Rec_Event>> events_map;
+    for (list<shared_ptr<Rec_Event>>::const_iterator iter = this->events.begin(); iter != this->events.end(); ++iter) {
+        tuple<Event_type, Seq_type, Seq_side> seq_key;
+        if (EventUtils::try_event_key_to_seq_key((*iter)->get_type(), (*iter)->get_class(), (*iter)->get_side(), seq_key)) {
+            events_map.emplace(seq_key, (*iter));
+        }
     }
     return events_map;
 }
