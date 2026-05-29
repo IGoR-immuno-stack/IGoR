@@ -16,6 +16,7 @@ ninja = "*"
 anaconda-client = "*"
 sparrow-devel = "*"
 arrow-cpp = "*"
+python = "*"
 
 [target.osx.dependencies]
 clang-tools = ">=19.1.7,<22"
@@ -44,6 +45,8 @@ doc = "cmake --build build --target doc"
 format = "cmake --build build --target clang-format"
 coverage = {cmd="llvm-profdata merge -sparse build_cov/tst/default.profraw -o default.profdata && llvm-cov show build_cov/bin/igor_tests -instr-profile=default.profdata -format=html -output-dir=htmlcov", depends-on = "build_coverage"}
 submodule-update = "git submodule update --init --recursive"
+
+resolve-test-selection = {cmd = "python scripts/ci/resolve_test_selection.py", depends-on = []}
 
 [target.win-64.tasks]
 configure = "cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release"

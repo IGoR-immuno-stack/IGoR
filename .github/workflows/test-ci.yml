@@ -1,0 +1,42 @@
+name: Label dependant CI test selection
+
+on:
+  pull_request:
+    branches: [ master, develop, feature/* ]
+    types: [opened, reopened, synchronize, labeled, unlabeled, ready_for_review]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  labelled-tests-selection:
+    name: Labbeled tests selection
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pixi
+        uses: prefix-dev/setup-pixi@v0.8.1
+        with:
+          pixi-version: v0.69.0
+          cache: true
+
+      - name: Show event context
+        run: |
+          echo "Event: ${{ github.event_name }}"
+          echo "PR number: ${{ github.event.pull_request.number }}"
+          echo "Base ref: ${{ github.base_ref }}"
+          echo "Head ref: ${{ github.head_ref }}"
+
+      - name: Dry-run label resolution
+        run: |
+          pixi run resolve-test-selection --dry-run --default-task test
+
+      - name: Reminder
+        run: |
+          echo "Ubuntu debug lane remains outside label-based selection."
+          echo "This workflow is dry-run only."
