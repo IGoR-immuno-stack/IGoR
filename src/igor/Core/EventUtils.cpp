@@ -54,6 +54,37 @@ bool try_insertion_seq_type_to_gene_class(Seq_type seq_type, Gene_class &gene_pa
   }
 }
 
+bool try_event_key_to_seq_key(
+    Event_type event_type,
+    Gene_class gene_class,
+    Seq_side seq_side,
+    std::tuple<Event_type, Seq_type, Seq_side> &seq_key)
+{
+  Seq_type seq_type = V_gene_seq;
+  bool mapped = false;
+
+  switch (event_type) {
+  case GeneChoice_t:
+  case Deletion_t:
+    mapped = try_gene_class_to_gene_seq_type(gene_class, seq_type);
+    break;
+  case Insertion_t:
+  case Dinuclmarkov_t:
+    mapped = try_insertion_gene_class_to_seq_type(gene_class, seq_type);
+    break;
+  default:
+    mapped = false;
+    break;
+  }
+
+  if (!mapped) {
+    return false;
+  }
+
+  seq_key = std::make_tuple(event_type, seq_type, seq_side);
+  return true;
+}
+
 bool has_insertion_seq_type(
     const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>,
                              std::shared_ptr<Rec_Event>> &events_map,
@@ -64,7 +95,17 @@ bool has_insertion_seq_type(
     return false;
   }
 
-  return events_map.count(std::make_tuple(Insertion_t, gene_pair, Undefined_side)) != 0;
+  auto key = std::make_tuple(Insertion_t, gene_pair, Undefined_side);
+  return events_map.find(key) != events_map.end();
+}
+
+bool has_insertion_seq_type(
+    const std::unordered_map<std::tuple<Event_type, Seq_type, Seq_side>,
+                             std::shared_ptr<Rec_Event>> &events_map,
+    Seq_type seq_type)
+{
+  auto key = std::make_tuple(Insertion_t, seq_type, Undefined_side);
+  return events_map.find(key) != events_map.end();
 }
 
 bool try_get_event(
@@ -104,6 +145,7 @@ GeneChoiceStatus check_gene_choice(
       status.chosen = true;
     }
   }
+
   return status;
 }
 

@@ -94,6 +94,10 @@ public:
     uint64_t generate_random_contributions(double);
 
 private:
+    double compute_error_probability_impl(
+        double, const std::string &, Seq_type_str_p_map &, const Seq_offsets_map &,
+        Mismatch_vectors_map &, double &, const double &);
+
     void update_Nmers_proba(int, int, double);
     //void compute_P_SHM_and_BG();
     double compute_Nmer_unorm_score(int *, double *);

@@ -171,7 +171,7 @@ bool GenModel::infer_model(
     // Construct ModelContext for counter initialization
     unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> offset_map =
             model_marginals.get_offsets_map(model_parms, model_queue);
-    const auto& events_map_ref = model_parms.get_events_map();  // Store reference to avoid temporary
+    const auto& events_map_ref = model_parms.get_events_map_seq_type();  // Store reference to avoid temporary
     ModelContext model_context(
         model_marginals.marginal_array_smart_p,
         offset_map,
@@ -200,7 +200,7 @@ bool GenModel::infer_model(
         shared_ptr<Error_rate> error_rate_copy = model_parms.get_err_rate_p()->copy();
 
         //Initialize error rate copy
-        error_rate_copy->initialize(model_parms.get_events_map());
+        error_rate_copy->initialize(model_parms.get_events_map_seq_type());
 
         //Initialize counters for the log file
         size_t sequences_processed = 0;
@@ -304,7 +304,7 @@ bool GenModel::infer_model(
                 init_single_thread_stack.push(first_init_event);
                 init_single_thread_model_queue.pop();
                 (*first_init_event)
-                        .initialize_event(init_processed_events, events_map, single_thread_offset_map,
+                    .initialize_event(init_processed_events, events_map_seq, single_thread_offset_map,
                                           downstream_proba_map, constructed_sequences, safety_set,
                                           single_thread_err_rate, mismatches_lists, seq_offsets, index_mapp);
                 (*first_init_event).set_viterbi_run(viterbi_like);
@@ -333,7 +333,7 @@ bool GenModel::infer_model(
             }
 
             //Initialize error rate
-            single_thread_err_rate->initialize(events_map);
+            single_thread_err_rate->initialize(events_map_seq);
             single_thread_err_rate->set_viterbi_run(viterbi_like);
 
             //Initialize Counters
@@ -341,7 +341,7 @@ bool GenModel::infer_model(
             ModelContext single_thread_model_context(
                 single_thread_model_marginals.marginal_array_smart_p,
                 single_thread_offset_map,
-                events_map,
+                events_map_seq,
                 single_thread_model_queue
             );
 
@@ -364,8 +364,8 @@ bool GenModel::infer_model(
                     tmp_init_proba_single_thread_model_queue.pop();
                 }
                 tmp_init_proba_single_thread_model_queue.pop();
-                last_proba_init_event->initialize_crude_scenario_proba_bound(downstream_proba_bound, updated_proba_list,
-                                                                             events_map);
+                last_proba_init_event->initialize_crude_scenario_proba_bound(downstream_proba_bound,
+                                                                             updated_proba_list, events_map_seq);
 
                 last_proba_init_event->initialize_Len_proba_bound(tmp_init_proba_single_thread_model_queue,
                                                                   single_thread_model_marginals.marginal_array_smart_p,
@@ -439,7 +439,7 @@ bool GenModel::infer_model(
                     ModelContext model(
                         single_thread_model_marginals.marginal_array_smart_p,  // model_parameters
                         single_thread_offset_map,                              // offset_map
-                        events_map,                                            // events_map
+                        events_map_seq,                                        // events_map
                         single_thread_model_queue                              // model_queue
                     );
 

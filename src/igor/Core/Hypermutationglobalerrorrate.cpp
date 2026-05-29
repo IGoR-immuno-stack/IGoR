@@ -30,6 +30,15 @@
 
 using namespace std;
 
+namespace {
+const unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &
+empty_legacy_events_map()
+{
+    static const unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> kEmptyLegacyEventsMap;
+    return kEmptyLegacyEventsMap;
+}
+} // namespace
+
 //ofstream debug_stream("/tmp/debug_stream.csv");
 
 /*Hypermutation_global_errorrate::Hypermutation_global_errorrate(size_t nmer_width , Gene_class learn , Gene_class apply , double starting_flat_value): Error_rate() , mutation_Nmer_size(nmer_width) , learn_on(learn) , apply_to(apply) , ei_nucleotide_contributions((new double [4*nmer_width])) , R(starting_flat_value) , n_v_real(0) , n_j_real(0) , n_d_real(0) ,
@@ -346,13 +355,12 @@ double Hypermutation_global_errorrate::compute_scenario_error_probability(
         ScenarioContext& scenario,
         ExplorationContext& exploration)
 {
-    // Unpack contexts and delegate to legacy implementation
-    double result = this->compare_sequences_error_prob(
+    (void) model;
+    double result = this->compute_error_probability_impl(
         scenario.scenario_proba,
         query.sequence,
         scenario.constructed_sequences,
         scenario.seq_offsets,
-        model.events_map,
         scenario.mismatches_lists,
         exploration.seq_max_prob_scenario,
         exploration.proba_threshold_factor

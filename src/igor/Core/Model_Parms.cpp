@@ -28,6 +28,7 @@
  */
 
 #include <igor/Core/Model_Parms.h>
+#include <igor/Core/EventUtils.h>
 using namespace std;
 
 /*

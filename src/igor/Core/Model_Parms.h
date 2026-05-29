@@ -145,6 +145,10 @@ public:
     Events_map get_events_map() const;
     Events_map get_events_map();
 
+    const std::unordered_map<std::tuple<Event_type, Seq_type, Seq_side>, std::shared_ptr<Rec_Event>>
+    get_events_map_seq_type() const;
+    std::unordered_map<std::tuple<Event_type, Seq_type, Seq_side>, std::shared_ptr<Rec_Event>> get_events_map_seq_type();
+
     void set_error_ratep(Error_rate *Er_r)
     {
         error_rate = std::shared_ptr<Error_rate>(Er_r, null_delete<Error_rate>());

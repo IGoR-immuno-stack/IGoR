@@ -88,6 +88,10 @@ public:
     uint64_t generate_random_mutation_probas(double, double);
 
 private:
+    double compute_error_probability_impl(
+        double, const std::string &, Seq_type_str_p_map &, const Seq_offsets_map &,
+        Mismatch_vectors_map &, double &, const double &);
+
     void introduce_uniform_transversion(char &, std::mt19937_64 &, std::uniform_real_distribution<double> &) const;
 
     Gene_class learn_on;

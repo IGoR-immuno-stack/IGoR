@@ -26,9 +26,54 @@
 
 #include <igor/Core/Rec_Event.h>
 #include <igor/Core/Counter.h>
+#include <igor/Core/EventUtils.h>
 #include <igor/Core/Scenario.h>  // For Scenario view construction
 
 using namespace std;
+
+unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>>
+build_legacy_events_map(const unordered_map<tuple<Event_type, Seq_type, Seq_side>, shared_ptr<Rec_Event>> &events_map)
+{
+    unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> legacy_events_map;
+    legacy_events_map.reserve(events_map.size());
+    for (const auto &entry : events_map) {
+        Event_type event_type = get<0>(entry.first);
+        Seq_type seq_type = get<1>(entry.first);
+        Seq_side seq_side = get<2>(entry.first);
+
+        Gene_class gene_class = Undefined_gene;
+        bool converted = false;
+
+        if (event_type == Insertion_t || event_type == Dinuclmarkov_t) {
+            converted = EventUtils::try_insertion_seq_type_to_gene_class(seq_type, gene_class);
+        } else {
+            switch (seq_type) {
+            case V_gene_seq:
+                gene_class = V_gene;
+                converted = true;
+                break;
+            case D_gene_seq:
+                gene_class = D_gene;
+                converted = true;
+                break;
+            case J_gene_seq:
+                gene_class = J_gene;
+                converted = true;
+                break;
+            default:
+                converted = false;
+                break;
+            }
+        }
+
+        if (!converted) {
+            continue;
+        }
+
+        legacy_events_map.emplace(make_tuple(event_type, gene_class, seq_side), entry.second);
+    }
+    return legacy_events_map;
+}
 
 //std::ofstream log_file(std::string("/media/quentin/419a9e2c-2635-471b-baa0-58a693d04d87/data/tcr_murugan/one_seq_comp/logs.txt"));
 
@@ -153,22 +198,32 @@ void Rec_Event::iterate(double &scenario_proba, Downstream_scenario_proba_bound_
                        Safety_bool_map &safety_set, Mismatch_vectors_map &mismatches_lists,
                        double &seq_max_prob_scenario, double &proba_threshold_factor)
 {
-    
+    unordered_map<tuple<Event_type, Seq_type, Seq_side>, shared_ptr<Rec_Event>> events_map_seq_type;
+    events_map_seq_type.reserve(events_map.size());
+    for (const auto &event_entry : events_map) {
+        tuple<Event_type, Seq_type, Seq_side> seq_key;
+        if (EventUtils::try_event_key_to_seq_key(get<0>(event_entry.first), get<1>(event_entry.first),
+                                                 get<2>(event_entry.first), seq_key)) {
+            events_map_seq_type.emplace(seq_key, event_entry.second);
+        }
+    }
+
+
     // Input query context
     QuerySequenceContext query(
         sequence,
         int_sequence,
         allowed_realizations  // Legacy param name, stored as gene_alignments
     );
-    
+
     // Model configuration context
     ModelContext model(
         model_parameters_point,
         offset_map,
-        events_map,
+        events_map_seq_type,
         queue<shared_ptr<Rec_Event>>()  // Never used by legacy iterate()
     );
-    
+
     // Scenario state context
     ScenarioContext scenario(
         scenario_proba,
@@ -176,7 +231,7 @@ void Rec_Event::iterate(double &scenario_proba, Downstream_scenario_proba_bound_
         seq_offsets,
         mismatches_lists
     );
-    
+
     // Exploration policy context
     ExplorationContext exploration(
         downstream_proba_map,
@@ -186,14 +241,14 @@ void Rec_Event::iterate(double &scenario_proba, Downstream_scenario_proba_bound_
         next_event_ptr_arr,
         safety_set
     );
-    
+
     // Accumulation context
     AccumulationContext accumulation(
         updated_marginals_point,
         counters_list,
         error_rate_p
     );
-    
+
     // Delegate to new context-based iterate
     this->iterate(query, model, scenario, exploration, accumulation);
 
@@ -214,7 +269,7 @@ double Rec_Event::iterate_common(int realization_index, int base_index,
                                  const Marginal_array_p &model_parameters) {
     // Update parent realization tracking for marginal array indexing of child events
     update_parent_tracking(realization_index, base_index_map);
-    
+
     // Return marginal probability for this realization
     return model_parameters[base_index + realization_index];
 }
@@ -259,7 +314,7 @@ void Rec_Event::iterate_wrap_up(
     } else {
 
         long double scenario_error_w_proba = error_rate_p->compare_sequences_error_prob(
-                scenario_proba, sequence, constructed_sequences, seq_offsets, events_map, mismatches_lists,
+            scenario_proba, sequence, constructed_sequences, seq_offsets, mismatches_lists,
                 seq_max_prob_scenario, proba_threshold_factor);
 
         //TODO add a monitor of the likelihood at each iteration
@@ -303,12 +358,12 @@ void Rec_Event::iterate_wrap_up(
 
 /**
  * @brief Context-based iterate_wrap_up with Counter interface
- * 
+ *
  * Handles leaf-node scenario completion:
  * - Computes error-weighted probability
  * - Creates Scenario view from ScenarioContext
  * - Calls counters and marginal accumulation
- * 
+ *
  * This replaces the legacy adapter pattern with direct context usage.
  */
 void Rec_Event::iterate_wrap_up(
@@ -329,7 +384,7 @@ void Rec_Event::iterate_wrap_up(
         );
     } else {
         // Leaf node - complete scenario and accumulate
-        
+
         // Compute error-weighted probability using error_rate
         // TODO (Future): Consider changing compute_scenario_error_probability() to void return
         //                Method already assigns scenario.scenario_error_w_proba internally,
@@ -342,19 +397,19 @@ void Rec_Event::iterate_wrap_up(
             scenario,
             exploration
         );
-        
+
         // Check pruning threshold
         if (not exploration.should_prune(scenario.scenario_error_w_proba)) {
             // Update best scenario probability if needed
             exploration.update_max_prob(scenario.scenario_error_w_proba);
-            
+
             // Create Scenario view and call counters with context interface
             Scenario scenario_view(scenario);
-            
+
             for (auto& [counter_id, counter] : accumulation.counters) {
                 counter->count_scenario(scenario_view, query, model);
             }
-            
+
             // Accumulate marginals for non-fixed events
             for (const auto& [event_key, event_ptr] : model.events_map) {
                 if (!event_ptr->is_fixed()) {
@@ -372,6 +427,26 @@ void Rec_Event::initialize_event(
         Downstream_scenario_proba_bound_map &downstream_proba_map, Seq_type_str_p_map &constructed_sequences,
         Safety_bool_map &safety_set, shared_ptr<Error_rate> error_rate_p, Mismatch_vectors_map &mismatches_list,
         Seq_offsets_map &seq_offsets, Index_map &index_map)
+{
+    initialize_event_common(processed_events, offset_map, downstream_proba_map, index_map);
+}
+
+void Rec_Event::initialize_event(
+        unordered_set<Rec_Event_name> &processed_events,
+        const unordered_map<tuple<Event_type, Seq_type, Seq_side>, shared_ptr<Rec_Event>> &events_map,
+        const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
+        Downstream_scenario_proba_bound_map &downstream_proba_map, Seq_type_str_p_map &constructed_sequences,
+        Safety_bool_map &safety_set, shared_ptr<Error_rate> error_rate_p, Mismatch_vectors_map &mismatches_list,
+        Seq_offsets_map &seq_offsets, Index_map &index_map)
+{
+    initialize_event_common(processed_events, offset_map, downstream_proba_map, index_map);
+}
+
+void Rec_Event::initialize_event_common(
+        unordered_set<Rec_Event_name> &processed_events,
+        const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
+        Downstream_scenario_proba_bound_map &downstream_proba_map,
+        Index_map &index_map)
 {
     //No action performed on the event by default if the method is not overloaded
     //Need to call Rec_Event::initialize_event() to apply these common actions when the method is overloaded
@@ -392,7 +467,6 @@ void Rec_Event::initialize_event(
     downstream_proba_map.get_all_current_memory_layer(current_downstream_proba_memory_layers);
 
     processed_events.emplace(this->name);
-    return;
 }
 
 void Rec_Event::ind_normalize(Marginal_array_p &marginal_array_p, size_t base_index) const
@@ -450,6 +524,14 @@ void Rec_Event::initialize_crude_scenario_proba_bound(
     } else {
         throw logic_error("Updated events should overload Rec_event::initialize_scenario_proba_bound()");
     }
+}
+
+void Rec_Event::initialize_crude_scenario_proba_bound(
+        double &downstream_proba_bound, forward_list<double *> &updated_proba_list,
+        const unordered_map<tuple<Event_type, Seq_type, Seq_side>, shared_ptr<Rec_Event>> &events_map)
+{
+    this->initialize_crude_scenario_proba_bound(downstream_proba_bound, updated_proba_list,
+                                                build_legacy_events_map(events_map));
 }
 
 /*

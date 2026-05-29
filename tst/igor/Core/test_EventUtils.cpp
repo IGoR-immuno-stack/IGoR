@@ -342,3 +342,29 @@ TEST_CASE("EventUtils TryGetEvent", "[EventUtils]") {
     REQUIRE(event_ptr == vdj_event);
   }
 }
+
+TEST_CASE("EventUtils TryEventKeyToSeqKey", "[EventUtils]") {
+  tuple<Event_type, Seq_type, Seq_side> seq_key;
+
+  SECTION("Maps gene events to gene sequence keys") {
+    REQUIRE(try_event_key_to_seq_key(GeneChoice_t, V_gene, Undefined_side, seq_key));
+    REQUIRE(seq_key == make_tuple(GeneChoice_t, V_gene_seq, Undefined_side));
+
+    REQUIRE(try_event_key_to_seq_key(Deletion_t, J_gene, Five_prime, seq_key));
+    REQUIRE(seq_key == make_tuple(Deletion_t, J_gene_seq, Five_prime));
+  }
+
+  SECTION("Maps insertion-like events to insertion sequence keys") {
+    REQUIRE(try_event_key_to_seq_key(Insertion_t, VD_genes, Undefined_side, seq_key));
+    REQUIRE(seq_key == make_tuple(Insertion_t, VD_ins_seq, Undefined_side));
+
+    REQUIRE(try_event_key_to_seq_key(Dinuclmarkov_t, DJ_genes, Three_prime, seq_key));
+    REQUIRE(seq_key == make_tuple(Dinuclmarkov_t, DJ_ins_seq, Three_prime));
+  }
+
+  SECTION("Fails on incompatible class/type combinations") {
+    REQUIRE_FALSE(try_event_key_to_seq_key(Insertion_t, V_gene, Undefined_side, seq_key));
+    REQUIRE_FALSE(try_event_key_to_seq_key(GeneChoice_t, VD_genes, Undefined_side, seq_key));
+    REQUIRE_FALSE(try_event_key_to_seq_key(Undefined_t, Undefined_gene, Undefined_side, seq_key));
+  }
+}

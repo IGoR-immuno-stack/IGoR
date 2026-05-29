@@ -30,6 +30,79 @@
 #include <algorithm>
 
 using namespace std;
+
+namespace {
+
+using LegacyEventsMap = unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>>;
+using SeqEventsMap = unordered_map<tuple<Event_type, Seq_type, Seq_side>, shared_ptr<Rec_Event>>;
+
+const LegacyEventsMap &empty_legacy_events_map()
+{
+    static const LegacyEventsMap kEmptyLegacyEventsMap;
+    return kEmptyLegacyEventsMap;
+}
+
+bool try_gene_seq_type_to_gene_class(Seq_type seq_type, Gene_class &gene_class)
+{
+    switch (seq_type) {
+    case V_gene_seq:
+        gene_class = V_gene;
+        return true;
+    case D_gene_seq:
+        gene_class = D_gene;
+        return true;
+    case J_gene_seq:
+        gene_class = J_gene;
+        return true;
+    default:
+        return false;
+    }
+}
+
+LegacyEventsMap build_legacy_events_map(const SeqEventsMap &events_map)
+{
+    LegacyEventsMap legacy_events_map;
+    legacy_events_map.reserve(events_map.size());
+    for (const auto &entry : events_map) {
+        Event_type event_type = get<0>(entry.first);
+        Seq_type seq_type = get<1>(entry.first);
+        Seq_side seq_side = get<2>(entry.first);
+
+        Gene_class gene_class = Undefined_gene;
+        bool converted = false;
+
+        if (event_type == Insertion_t || event_type == Dinuclmarkov_t) {
+            converted = EventUtils::try_insertion_seq_type_to_gene_class(seq_type, gene_class);
+        } else {
+            converted = try_gene_seq_type_to_gene_class(seq_type, gene_class);
+        }
+
+        if (!converted) {
+            continue;
+        }
+
+        legacy_events_map.emplace(make_tuple(event_type, gene_class, seq_side), entry.second);
+    }
+    return legacy_events_map;
+}
+
+SeqEventsMap build_seq_events_map(const LegacyEventsMap &events_map)
+{
+    SeqEventsMap seq_events_map;
+    seq_events_map.reserve(events_map.size());
+    for (const auto &entry : events_map) {
+        tuple<Event_type, Seq_type, Seq_side> seq_key;
+        if (!EventUtils::try_event_key_to_seq_key(get<0>(entry.first), get<1>(entry.first), get<2>(entry.first),
+                                                   seq_key)) {
+            continue;
+        }
+        seq_events_map.emplace(seq_key, entry.second);
+    }
+    return seq_events_map;
+}
+
+} // namespace
+
 Insertion::Insertion() : Insertion(Undefined_gene)
 {
     this->type = Event_type::Insertion_t;
@@ -121,6 +194,44 @@ bool Insertion::add_realization(int insertion_number)
     }
     this->update_event_name();
     return 0;
+}
+
+void Insertion::iterate(
+        double &scenario_proba, Downstream_scenario_proba_bound_map &downstream_proba_map, const string &sequence,
+        const Int_Str &int_sequence, Index_map &base_index_map,
+        const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
+        shared_ptr<Next_event_ptr> &next_event_ptr_arr, Marginal_array_p &updated_marginals_point,
+        const Marginal_array_p &model_parameters_point,
+        const unordered_map<Gene_class, vector<Alignment_data>> &allowed_realizations,
+        Seq_type_str_p_map &constructed_sequences, Seq_offsets_map &seq_offsets, shared_ptr<Error_rate> &error_rate_p,
+        map<size_t, shared_ptr<Counter>> &counters_list,
+        const unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map,
+        Safety_bool_map &safety_set, Mismatch_vectors_map &mismatches_lists, double &seq_max_prob_scenario,
+        double &proba_threshold_factor)
+{
+    this->Rec_Event::iterate(scenario_proba, downstream_proba_map, sequence, int_sequence, base_index_map, offset_map,
+                             next_event_ptr_arr, updated_marginals_point, model_parameters_point, allowed_realizations,
+                             constructed_sequences, seq_offsets, error_rate_p, counters_list, events_map, safety_set,
+                             mismatches_lists, seq_max_prob_scenario, proba_threshold_factor);
+}
+
+void Insertion::iterate(
+        double &scenario_proba, Downstream_scenario_proba_bound_map &downstream_proba_map, const string &sequence,
+        const Int_Str &int_sequence, Index_map &base_index_map,
+        const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
+        shared_ptr<Next_event_ptr> &next_event_ptr_arr, Marginal_array_p &updated_marginals_point,
+        const Marginal_array_p &model_parameters_point,
+        const unordered_map<Gene_class, vector<Alignment_data>> &allowed_realizations,
+        Seq_type_str_p_map &constructed_sequences, Seq_offsets_map &seq_offsets, shared_ptr<Error_rate> &error_rate_p,
+        map<size_t, shared_ptr<Counter>> &counters_list,
+        const unordered_map<tuple<Event_type, Seq_type, Seq_side>, shared_ptr<Rec_Event>> &events_map,
+        Safety_bool_map &safety_set, Mismatch_vectors_map &mismatches_lists, double &seq_max_prob_scenario,
+        double &proba_threshold_factor)
+{
+    this->iterate(scenario_proba, downstream_proba_map, sequence, int_sequence, base_index_map, offset_map,
+                  next_event_ptr_arr, updated_marginals_point, model_parameters_point, allowed_realizations,
+                  constructed_sequences, seq_offsets, error_rate_p, counters_list, build_legacy_events_map(events_map),
+                  safety_set, mismatches_lists, seq_max_prob_scenario, proba_threshold_factor);
 }
 
 /**
@@ -318,7 +429,7 @@ void Insertion::initialize_event(
     downstream_proba_map.request_memory_layer(seq_type);
     memory_layer_proba_map_junction = downstream_proba_map.get_current_memory_layer(seq_type);
 
-    this->Rec_Event::initialize_event(processed_events, events_map, offset_map, downstream_proba_map,
+    this->Rec_Event::initialize_event(processed_events, empty_legacy_events_map(), offset_map, downstream_proba_map,
                                       constructed_sequences, safety_set, error_rate_p, mismatches_list, seq_offsets,
                                       index_map);
 }
