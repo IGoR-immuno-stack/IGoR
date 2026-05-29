@@ -633,3 +633,150 @@ TEST_CASE("Two-track mismatch: confirmed mismatch in both tracks", "[aa_pgen][ph
     REQUIRE(upper_vec.size() == 3);
     REQUIRE(floor_vec == upper_vec);
 }
+
+// ============================================================================
+// Phase 5: Patch-Aware Leaf Check
+// ============================================================================
+
+/**
+ * Helper: extract a subsequence from a full assembled sequence for a patch span.
+ * Matches the logic in Singleerrorrate.cpp:
+ *   Int_Str assembled(full_seq.begin() + patch.start,
+ *                     full_seq.begin() + patch.start + patch.length);
+ */
+static Int_Str extract_subseq(const Int_Str& full_seq, const Patch& patch) {
+    return Int_Str(full_seq.begin() + patch.start, full_seq.begin() + patch.start + patch.length);
+}
+
+/**
+ * Helper: simulate one iteration of the patch-aware leaf check.
+ * Returns 1 if this patch is a mismatch, 0 otherwise.
+ */
+static size_t check_patch(const Int_Str& full_seq, const Int_Str& ref_seq, const Patch& patch,
+                          const std::unordered_set<int>& upper_mismatches) {
+    // Fast path: any position in the patch is a confirmed upper-bound mismatch
+    bool fast_miss = false;
+    for (int k = patch.start; k < patch.start + patch.length && !fast_miss; ++k) {
+        if (upper_mismatches.count(k)) {
+            fast_miss = true;
+        }
+    }
+    if (fast_miss) return 1;
+
+    // Slow path: extract assembled subsequence and compare
+    Int_Str assembled_sub = extract_subseq(full_seq, patch);
+    Int_Str ref_sub(ref_seq.begin() + patch.start, ref_seq.begin() + patch.start + patch.length);
+    if (assembled_sub == ref_sub) return 0;
+    for (const auto& alt : patch.alternatives) {
+        if (assembled_sub == alt) return 0;
+    }
+    return 1;
+}
+
+TEST_CASE("Patch leaf check: exact match (no mismatches)", "[aa_pgen][phase5]") {
+    // Valine has 4 codons: GTA, GTC, GTG, GTT (enumerated in codon-index order)
+    // First codon (GTA) becomes reference; alternatives: GTC, GTG, GTT
+    // Query motif: V → reference GTA, one patch [start=0, length=3]
+    // Assembled sequence: GTA (matches reference) → 0 patch mismatches
+
+    auto jq = EventUtils::motif_to_journaled_query("V", 0, 3);
+    REQUIRE(!jq.patches.empty());
+    REQUIRE(jq.patches.size() == 1);
+
+    // Verify reference span is GTA
+    Int_Str ref_span(jq.reference.begin(), jq.reference.begin() + 3);
+    Int_Str expected_ref = {int_G, int_T, int_A};
+    REQUIRE(ref_span == expected_ref);
+
+    // Full assembled sequence (GTA) matches reference
+    Int_Str full_seq = {int_G, int_T, int_A};
+    std::unordered_set<int> upper_mismatches;
+
+    size_t patch_mismatches = 0;
+    for (const auto& p : jq.patches) {
+        patch_mismatches += check_patch(full_seq, jq.reference, p, upper_mismatches);
+    }
+
+    REQUIRE(patch_mismatches == 0);
+}
+
+TEST_CASE("Patch leaf check: fast path (upper-bound mismatch)", "[aa_pgen][phase5]") {
+    // Query motif: V → one patch [start=0, length=3]
+    // Upper-bound mismatch at position 1 → fast path triggered
+    // Assembled sequence doesn't matter (fast path always counts as mismatch)
+
+    auto jq = EventUtils::motif_to_journaled_query("V", 0, 3);
+    REQUIRE(!jq.patches.empty());
+
+    // Upper-bound mismatch at position 1
+    std::unordered_set<int> upper_mismatches = {1};
+
+    Int_Str full_seq = {int_G, int_T, int_G};
+
+    size_t patch_mismatches = 0;
+    for (const auto& patch : jq.patches) {
+        patch_mismatches += check_patch(full_seq, jq.reference, patch, upper_mismatches);
+    }
+
+    // Fast path triggered → 1 patch mismatch
+    REQUIRE(patch_mismatches == 1);
+}
+
+TEST_CASE("Patch leaf check: slow path (alternative match)", "[aa_pgen][phase5]") {
+    // Valine: reference GTA, alternatives: GTC, GTG, GTT
+    // Assembled sequence: GTG (not reference GTA, but matches alternative) → no mismatch
+
+    auto jq = EventUtils::motif_to_journaled_query("V", 0, 3);
+    REQUIRE(!jq.patches.empty());
+
+    std::unordered_set<int> upper_mismatches;
+
+    // Assembled sequence: GTG (matches one of V's alternatives)
+    Int_Str full_seq = {int_G, int_T, int_G};
+
+    // Verify GTG is in alternatives
+    bool found = false;
+    for (const auto& alt : jq.patches[0].alternatives) {
+        if (full_seq == alt) {
+            found = true;
+            break;
+        }
+    }
+    REQUIRE(found);
+
+    size_t patch_mismatches = 0;
+    for (const auto& patch : jq.patches) {
+        patch_mismatches += check_patch(full_seq, jq.reference, patch, upper_mismatches);
+    }
+
+    REQUIRE(patch_mismatches == 0);
+}
+
+TEST_CASE("Patch leaf check: slow path (no match = mismatch)", "[aa_pgen][phase5]") {
+    // Query motif: V → reference GTA
+    // Assembled sequence: CCC (not reference, not alternative) → 1 mismatch
+
+    auto jq = EventUtils::motif_to_journaled_query("V", 0, 3);
+    REQUIRE(!jq.patches.empty());
+
+    std::unordered_set<int> upper_mismatches;
+
+    Int_Str full_seq = {int_C, int_C, int_C};
+
+    // Verify CCC is not in alternatives
+    bool found = false;
+    for (const auto& alt : jq.patches[0].alternatives) {
+        if (full_seq == alt) {
+            found = true;
+            break;
+        }
+    }
+    REQUIRE_FALSE(found);
+
+    size_t patch_mismatches = 0;
+    for (const auto& patch : jq.patches) {
+        patch_mismatches += check_patch(full_seq, jq.reference, patch, upper_mismatches);
+    }
+
+    REQUIRE(patch_mismatches == 1);
+}

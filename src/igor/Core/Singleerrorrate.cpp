@@ -25,6 +25,9 @@
  */
 
 #include <igor/Core/Singleerrorrate.h>
+#include <igor/Core/JournaledQuery.h>
+#include <igor/Core/EventUtils.h>
+#include <unordered_set>
 
 using namespace std;
 
@@ -111,29 +114,100 @@ double Single_error_rate::compute_scenario_error_probability(
         ScenarioContext& scenario,
         ExplorationContext& exploration)
 {
+    // Determine which segments exist in this scenario
+    bool has_v = true;  // V gene always exists
+    bool has_d = scenario.mismatches_lists.exist(D_gene_seq);
+    bool has_j = true;  // J gene always exists
+
+    // Check for insertions
+    bool has_vd_ins = scenario.mismatches_lists.exist(VD_ins_seq);
+    bool has_dj_ins = scenario.mismatches_lists.exist(DJ_ins_seq);
+    bool has_vj_ins = scenario.mismatches_lists.exist(VJ_ins_seq);
+
     // Count genomic nucleotides and mismatches
     number_errors = 0;
     genomic_nucl = 0;
 
-    // V gene (always exists)
-    Int_Str& v_gene_seq = (*scenario.constructed_sequences[V_gene_seq]);
-    std::vector<int>& v_mismatch_list = *scenario.mismatches_lists[V_gene_seq];
-    genomic_nucl += v_gene_seq.size();
-    number_errors += v_mismatch_list.size();
+    if (query.journaled_query.has_value() && !query.journaled_query->patches.empty()) {
+        // ── Patch/motif mode ───────────────────────────────────────────────────
+        // The unit of mismatch is one patch, not one nucleotide.
+        // Collect upper-bound mismatch positions (pre-computed during traversal).
+        std::unordered_set<int> upper_mismatches;
+        // Iterate over known sequence types (V_gene_seq=0..VJ_ins_seq=5)
+        for (int seg_int = 0; seg_int <= 5; ++seg_int) {
+            Seq_type seg = static_cast<Seq_type>(seg_int);
+            if (scenario.mismatches_lists.exist(seg)) {
+                std::vector<int>* vec_ptr = scenario.mismatches_lists[seg];
+                for (int p : *vec_ptr) {
+                    upper_mismatches.insert(p);
+                }
+            }
+        }
 
-    // D gene (may not exist)
-    if (scenario.mismatches_lists.exist(D_gene_seq)) {
-        Int_Str& d_gene_seq = (*scenario.constructed_sequences[D_gene_seq]);
-        std::vector<int>& d_mismatch_list = *scenario.mismatches_lists[D_gene_seq];
-        number_errors += d_mismatch_list.size();
-        genomic_nucl += d_gene_seq.size();
+        // Assemble full sequence for patch-level verification.
+        Int_Str full_seq = EventUtils::build_scenario_sequence(
+            scenario.constructed_sequences, has_v, has_d, has_j,
+            has_vd_ins, has_dj_ins, has_vj_ins);
+
+        const JournaledQuery& jq = *query.journaled_query;
+        number_errors = 0;  // patch mismatch count
+        genomic_nucl = jq.patches.size();  // total patch count
+
+        for (const auto& patch : jq.patches) {
+            // Fast path: any position in the patch is a confirmed upper-bound mismatch.
+            bool fast_miss = false;
+            for (int k = patch.start; k < patch.start + patch.length && !fast_miss; ++k) {
+                if (upper_mismatches.count(k)) {
+                    fast_miss = true;
+                }
+            }
+            if (fast_miss) {
+                ++number_errors;
+                continue;
+            }
+
+            // Slow path: extract the assembled concrete subsequence for this patch span.
+            Int_Str assembled(full_seq.begin() + patch.start,
+                              full_seq.begin() + patch.start + patch.length);
+            // Check against reference span and each alternative.
+            Int_Str ref_span(jq.reference.begin() + patch.start,
+                             jq.reference.begin() + patch.start + patch.length);
+            if (assembled == ref_span) {
+                continue;  // matches reference → no mismatch
+            }
+            bool found = false;
+            for (const auto& alt : patch.alternatives) {
+                if (assembled == alt) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                ++number_errors;
+            }
+        }
+    } else {
+        // ── NT mode (unchanged) ────────────────────────────────────────────────
+        // V gene (always exists)
+        Int_Str& v_gene_seq = (*scenario.constructed_sequences[V_gene_seq]);
+        std::vector<int>& v_mismatch_list = *scenario.mismatches_lists[V_gene_seq];
+        genomic_nucl += v_gene_seq.size();
+        number_errors += v_mismatch_list.size();
+
+        // D gene (may not exist)
+        if (has_d) {
+            Int_Str& d_gene_seq = (*scenario.constructed_sequences[D_gene_seq]);
+            std::vector<int>& d_mismatch_list = *scenario.mismatches_lists[D_gene_seq];
+            number_errors += d_mismatch_list.size();
+            genomic_nucl += d_gene_seq.size();
+        }
+
+        // J gene (always exists)
+        Int_Str& j_gene_seq = (*scenario.constructed_sequences[J_gene_seq]);
+        std::vector<int>& j_mismatch_list = *scenario.mismatches_lists[J_gene_seq];
+        genomic_nucl += j_gene_seq.size();
+        number_errors += j_mismatch_list.size();
     }
-
-    // J gene (always exists)
-    Int_Str& j_gene_seq = (*scenario.constructed_sequences[J_gene_seq]);
-    std::vector<int>& j_mismatch_list = *scenario.mismatches_lists[J_gene_seq];
-    genomic_nucl += j_gene_seq.size();
-    number_errors += j_mismatch_list.size();
 
     // Compute error-weighted probability
     // P(errors | model) = (rate/3)^n_err * (1-rate)^(n_genomic - n_err)
