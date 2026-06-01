@@ -24,6 +24,7 @@
  *
  */
 
+#include <igor/Core/EventUtils.h>
 #include <igor/Core/Hypermutationglobalerrorrate.h>
 
 using namespace std;
@@ -291,7 +292,7 @@ const double &Hypermutation_global_errorrate::get_err_rate_upper_bound(size_t n_
     //return mu/(3*(1+mu));
     if (n_errors > this->max_err || n_error_free > this->max_noerr) {
         //Need to increase the matrix size (anyway the matrix is at very most read_len^2
-        Matrix<double> new_bound_mat(max(this->max_err, n_errors + 10), max(this->max_noerr, n_error_free + 10));
+        Matrix<double> new_bound_mat(std::max(this->max_err, n_errors + 10), std::max(this->max_noerr, n_error_free + 10));
         for (size_t i = 0; i != new_bound_mat.get_n_rows(); ++i) {
             for (size_t j = 0; j != new_bound_mat.get_n_cols(); ++j) {
                 if (i < this->max_err and j < this->max_noerr) {
@@ -327,35 +328,52 @@ void Hypermutation_global_errorrate::build_upper_bound_matrix(size_t m, size_t n
     this->max_noerr = new_bound_mat.get_n_cols() - 1;
 }
 
+/**
+ * @brief Context-based error probability computation (Phase 5.3)
+ *
+ * Bridge implementation that unpacks contexts and delegates to legacy method.
+ * The hypermutation models are complex (N-mer context-dependent mutation rates,
+ * boundary handling, learning counters) so we preserve the existing logic.
+ *
+ * Unlike Single_error_rate, hypermutation models always accumulate (no threshold pruning)
+ * and update learning counters during iterate(). Future refactoring could separate
+ * probability computation from learning accumulation.
+ */
+double Hypermutation_global_errorrate::compute_scenario_error_probability(
+        const QuerySequenceContext& query,
+        const ModelContext& model,
+        ScenarioContext& scenario,
+        ExplorationContext& exploration)
+{
+    // Unpack contexts and delegate to legacy implementation
+    double result = this->compare_sequences_error_prob(
+        scenario.scenario_proba,
+        query.sequence,
+        scenario.constructed_sequences,
+        scenario.seq_offsets,
+        model.events_map,
+        scenario.mismatches_lists,
+        exploration.seq_max_prob_scenario,
+        exploration.proba_threshold_factor
+    );
+
+    // Store in ScenarioContext for Counter access
+    scenario.scenario_error_w_proba = result;
+
+    return result;
+}
+
 double Hypermutation_global_errorrate::compare_sequences_error_prob(
         double scenario_probability, const string &original_sequence, Seq_type_str_p_map &constructed_sequences,
         const Seq_offsets_map &seq_offsets,
         const unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map,
-        Mismatch_vectors_map &mismatches_lists, double &seq_max_prob_scenario, double &proba_threshold_factor)
+        Mismatch_vectors_map &mismatches_lists, double &seq_max_prob_scenario, const double &proba_threshold_factor)
 {
     //TODO Take into account the order of mutations?
     //TODO reorganize to be more flexible in the model description
 
-    scenario_resulting_sequence.clear();
-    if (v_gene) {
-        scenario_resulting_sequence += (*constructed_sequences[V_gene_seq]);
-    }
-    if (d_gene) {
-        if (vd_ins) {
-            scenario_resulting_sequence += (*constructed_sequences[VD_ins_seq]);
-        }
-        scenario_resulting_sequence += (*constructed_sequences[D_gene_seq]);
-        if (dj_ins) {
-            scenario_resulting_sequence += (*constructed_sequences[DJ_ins_seq]);
-        }
-    } else {
-        if (vj_ins) {
-            scenario_resulting_sequence += (*constructed_sequences[VJ_ins_seq]);
-        }
-    }
-    if (j_gene) {
-        scenario_resulting_sequence += (*constructed_sequences[J_gene_seq]);
-    }
+    scenario_resulting_sequence = EventUtils::build_scenario_sequence(
+        constructed_sequences, v_gene, d_gene, j_gene, vd_ins, dj_ins, vj_ins);
 
     vector<int> &v_mismatch_list = *mismatches_lists.at(V_gene_seq);
 

@@ -23,6 +23,7 @@ __pycache__
 .ipynb_checkpoints
 .cache
 .DS_Store
+.vscode
 
 ## ###################################################################
 ## Build tree

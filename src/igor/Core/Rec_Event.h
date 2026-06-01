@@ -33,6 +33,13 @@
 #include <igorCoreExport.h>
 #include <igor/Core/Typedef.h>
 
+// Context objects for refactored iterate()
+#include <igor/Core/QuerySequenceContext.h>
+#include <igor/Core/ModelContext.h>
+#include <igor/Core/ScenarioContext.h>
+#include <igor/Core/ExplorationContext.h>
+#include <igor/Core/AccumulationContext.h>
+
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -147,14 +154,37 @@ public:
 	 *  It is further modified to take into account the current event's realization when its children realization probabilities will be read.
 	 *
 	 */
-    virtual void
+    void
     iterate(double &, Downstream_scenario_proba_bound_map &, const std::string &, const Int_Str &, Index_map &,
             const std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &,
             std::shared_ptr<Next_event_ptr> &, Marginal_array_p &, const Marginal_array_p &,
             const std::unordered_map<Gene_class, std::vector<Alignment_data>> &, Seq_type_str_p_map &,
             Seq_offsets_map &, std::shared_ptr<Error_rate> &, std::map<size_t, std::shared_ptr<Counter>> &,
             const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> &,
-            Safety_bool_map &, Mismatch_vectors_map &, double &, double &) = 0;
+            Safety_bool_map &, Mismatch_vectors_map &, double &, double &);
+
+    /**
+     * @brief Context-based iterate() interface
+     * 
+     * New signature using 5 context objects instead of 19 individual parameters.
+     * Subclasses implement semantic iteration logic using these contexts.
+     * 
+     * Contexts encapsulate:
+     * - QuerySequenceContext: Input sequence and alignments
+     * - ModelContext: Read-only model configuration
+     * - ScenarioContext: Per-path mutable state
+     * - ExplorationContext: Tree exploration policy
+     * - AccumulationContext: Result accumulation
+     * 
+     * This overload exists alongside the legacy signature during transition.
+     */
+    virtual void
+    iterate(QuerySequenceContext& query,
+            const ModelContext& model,
+            ScenarioContext& scenario,
+            ExplorationContext& exploration,
+            AccumulationContext& accumulation) = 0;
+
     bool set_priority(int);
     void set_event_class(Gene_class gc) { event_class = gc; update_event_name(); }
     void set_event_side(Seq_side side) { event_side = side; update_event_name(); }
@@ -193,6 +223,32 @@ public:
             const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> &);
     virtual void add_to_marginals(long double, Marginal_array_p &) const = 0;
     virtual void set_crude_upper_bound_proba(size_t, size_t, Marginal_array_p &);
+    double iterate_common(int realization_index, int base_index,
+                          Index_map &base_index_map,
+                          const Marginal_array_p &model_parameters);
+    
+    /**
+     * @brief Update parent realization tracking for marginal indexing
+     * 
+     * Encapsulates the index_map update logic from iterate_common().
+     * 
+     * Updates index_map based on this event's memory_and_offsets structure,
+     * which tracks dependencies on parent event realizations.
+     * 
+     * @param realization_index Current realization index
+     * @param index_map Index map to update (from ExplorationContext)
+     */
+    void update_parent_tracking(int realization_index, Index_map& index_map) const {
+        for (auto jiter = memory_and_offsets.begin();
+             jiter != memory_and_offsets.end(); ++jiter) {
+            int previous_index =
+                index_map.at(std::get<0>(*jiter), std::get<1>(*jiter) - 1);
+            previous_index += realization_index * std::get<2>(*jiter);
+            index_map.set_value(std::get<0>(*jiter), previous_index,
+                               std::get<1>(*jiter));
+        }
+    }
+    
     void set_upper_bound_proba(double);
     double get_upper_bound_proba() const { return event_upper_bound_proba; };
     virtual void update_event_internal_probas(const Marginal_array_p &,
@@ -260,6 +316,17 @@ protected:
 
     int compare_sequences(std::string, std::string); //TODO should probably not be a member functino
     //inline void iterate_wrap_up(double& , double& , const std::string& , const std::string& , Index_map& , const std::unordered_map<Rec_Event_name,std::vector<std::pair<const Rec_Event*,int>>>& , std::queue<Rec_Event*>  , Marginal_array_p&  , const Marginal_array_p& , const std::unordered_map<Gene_class , std::vector<Alignment_data>>& , Seq_type_str_p_map& , Seq_offsets_map& ,std::shared_ptr<Error_rate>&,const std::unordered_map<std::tuple<Event_type,Gene_class,Seq_side>,const Rec_Event*>&  , Safety_bool_map& , Mismatch_vectors_map& , double& , double&);
+    
+    /**
+     * @deprecated use iterate_wrap_up(
+            QuerySequenceContext&,
+            const ModelContext&,
+            ScenarioContext&,
+            ExplorationContext&,
+            AccumulationContext&
+            )
+    */
+    [[deprecated("Use iterate_wrap_up(QuerySequenceContext&, const ModelContext&, ScenarioContext&, ExplorationContext&, AccumulationContext&)")]]
     void iterate_wrap_up(
             double &scenario_proba, Downstream_scenario_proba_bound_map &downstream_proba_map,
             const std::string &sequence, const Int_Str &int_sequence, Index_map &index_map,
@@ -274,6 +341,19 @@ protected:
                     &events_map,
             Safety_bool_map &safety_set, Mismatch_vectors_map &mismatches_lists, double &seq_max_prob_scenario,
             double &proba_threshold_factor);
+
+    /**
+     * @brief Context-based iterate_wrap_up() interface
+     * 
+     * New signature using 5 context objects instead of 18 individual parameters.
+     * Called at leaf nodes to accumulate marginals and update error rate.
+     */
+    void iterate_wrap_up(
+            QuerySequenceContext& query,
+            const ModelContext& model,
+            ScenarioContext& scenario,
+            ExplorationContext& exploration,
+            AccumulationContext& accumulation);
 };
 
 //bool compare_events(const Rec_Event*&, const Rec_Event*&);

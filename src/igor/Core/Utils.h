@@ -43,6 +43,13 @@
 #include <sys/types.h>
 #if defined(_WIN32)
 
+#  ifndef WIN32_LEAN_AND_MEAN
+#    define WIN32_LEAN_AND_MEAN
+#  endif
+#  ifndef NOMINMAX
+#    define NOMINMAX
+#  endif
+
 #  include <process.h>
 #  include <winsock2.h>
 #  include <windows.h>
@@ -577,6 +584,8 @@ public:
     }
 
     int get_current_memory_layer(const K1 &key1, const K2 &key2) { return memory_layer_ptr[key1 + range_key1 * key2]; }
+
+    bool exist(const K1 &key1, const K2 &key2) { return memory_layer_ptr[key1 + range_key1 * key2] > -1; }
 
     void request_memory_layer(const K1 &key1, const K2 &key2)
     {

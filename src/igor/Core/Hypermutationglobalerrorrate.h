@@ -61,26 +61,36 @@ public:
     Hypermutation_global_errorrate(size_t, Gene_class, Gene_class, double, std::vector<double>, std::string);
     //Hypermutation_global_errorrate(size_t,Gene_class,Gene_class, ??); Constructor to read or copy the error rate
     virtual ~Hypermutation_global_errorrate();
+
+    // Context-based interface (bridge to legacy implementation)
+    double compute_scenario_error_probability(
+        const QuerySequenceContext& query,
+        const ModelContext& model,
+        ScenarioContext& scenario,
+        ExplorationContext& exploration
+    ) override;
+
+    // Legacy interface (preserved for backward compatibility)
     double compare_sequences_error_prob(
             double, const std::string &, Seq_type_str_p_map &, const Seq_offsets_map &,
             const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> &,
-            Mismatch_vectors_map &, double &, double &);
-    void update();
+            Mismatch_vectors_map &, double &, const double &) override;
+    void update() override;
     void
-    initialize(const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> &);
-    void add_to_norm_counter();
-    void clean_seq_counters();
+    initialize(const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> &) override;
+    void add_to_norm_counter() override;
+    void clean_seq_counters() override;
     void clean_all_counters();
-    void write2txt(std::ofstream &);
+    void write2txt(std::ofstream &) override;
     void set_output_Nmer_stream(std::string);
-    std::shared_ptr<Error_rate> copy() const;
-    std::string type() const { return "HypermutationGlobalErrorRate"; }
+    std::shared_ptr<Error_rate> copy() const override;
+    std::string type() const override { return "HypermutationGlobalErrorRate"; }
     Hypermutation_global_errorrate &operator+=(Hypermutation_global_errorrate);
-    Error_rate *add_checked(Error_rate *);
-    const double &get_err_rate_upper_bound(size_t, size_t);
-    void build_upper_bound_matrix(size_t, size_t);
-    int get_number_non_zero_likelihood_seqs() const { return number_seq; };
-    std::queue<int> generate_errors(std::string &, std::mt19937_64 &) const;
+    Error_rate *add_checked(Error_rate *) override;
+    const double &get_err_rate_upper_bound(size_t, size_t) override;
+    void build_upper_bound_matrix(size_t, size_t) override;
+    int get_number_non_zero_likelihood_seqs() const override { return number_seq; };
+    std::queue<int> generate_errors(std::string &, std::mt19937_64 &) const override;
     uint64_t generate_random_contributions(double);
 
 private:
