@@ -69,7 +69,7 @@ public:
         virtual ~Deletion();
 
     //Virtual methods
-    std::shared_ptr<Rec_Event> copy();
+    std::shared_ptr<Rec_Event> copy() override;
 
     inline void
     iterate(double &, Downstream_scenario_proba_bound_map &, const std::string &, const Int_Str &, Index_map &,
@@ -95,7 +95,7 @@ public:
             const ModelContext& model,
             ScenarioContext& scenario,
             ExplorationContext& exploration,
-            AccumulationContext& accumulation);
+            AccumulationContext& accumulation) override;
 
     void add_realization(int);
     std::queue<int> draw_random_realization(
@@ -110,17 +110,17 @@ public:
             const Events_map &,
             const std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &,
             Downstream_scenario_proba_bound_map &, Seq_type_str_p_map &, Safety_bool_map &, std::shared_ptr<Error_rate>,
-            Mismatch_vectors_map &, Seq_offsets_map &, Index_map &);
-    void add_to_marginals(long double, Marginal_array_p &) const;
+            Mismatch_vectors_map &, Seq_offsets_map &, Index_map &) override;
+    void add_to_marginals(long double, Marginal_array_p &) const override;
 
     //Proba bound related computation methods
-    bool has_effect_on(Seq_type) const;
+    bool has_effect_on(Seq_type) const override;
     void iterate_initialize_Len_proba(Seq_type considered_junction, std::map<int, double> &length_best_proba_map,
                                       std::queue<std::shared_ptr<Rec_Event>> &model_queue, double &scenario_proba,
                                       const Marginal_array_p &model_parameters_point, Index_map &base_index_map,
-                                      Seq_type_str_p_map &constructed_sequences, int &seq_len) const;
+                                      Seq_type_str_p_map &constructed_sequences, int &seq_len) const override;
     void initialize_Len_proba_bound(std::queue<std::shared_ptr<Rec_Event>> &model_queue,
-                                    const Marginal_array_p &model_parameters_point, Index_map &base_index_map);
+                                    const Marginal_array_p &model_parameters_point, Index_map &base_index_map) override;
 
 private:
     inline void iterate_common(
