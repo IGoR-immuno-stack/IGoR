@@ -659,29 +659,21 @@ double Dinucl_markov::compute_markov_aa_sum(
         int codon_idx = (frame_start_in_ins + static_cast<int>(pos)) / 3;
 
         if (codon_idx >= 0 && codon_idx < static_cast<int>(codon_masks.size())) {
-            // Extract the nucleotide bit for this codon position
-            // CodonMask: bit k set iff codon_index(k) is valid
-            // For codon position p, nucleotide n is valid if:
-            //   (mask >> (n * 16 + p * 4 + codon_pos)) & 1
-            // But actually the mask encodes full codons. We need to check which nucleotides
-            // at this codon position are valid.
-            EventUtils::CodonMask mask = codon_masks[codon_idx];
-            uint64_t allowed = 0;
-            for (int n = 0; n < 4; ++n) {
-                // Check if nucleotide n at codon position codon_pos is valid
-                // A codon index with nucleotide n at position codon_pos:
-                int codon_idx_val = (0 * 16) | ((n * 4) << (2 - codon_pos)) | (0 << (2 - codon_pos));
-                // Actually, codon index = n0*16 + n1*4 + n2 where n0 is first pos
-                // For codon position codon_pos, nucleotide n:
-                int base = 0;
-                if (codon_pos == 0) base = n * 16;
-                else if (codon_pos == 1) base = n * 4;
-                else base = n;
-                if ((mask >> base) & 1) {
-                    allowed |= (1 << n);
+            // Collect allowed nucleotides at each codon position by iterating
+            // over all 64 codons whose bit is set in the mask. For codon
+            // position `p` and codon index `i`, the nucleotide at that
+            // position is: nt = (p==0) ? i/16 : (p==1) ? (i/4)%4 : i%4.
+            int bits = 0;
+            for (int codon = 0; codon < 64; ++codon) {
+                if ((codon_masks[codon_idx] >> codon) & 1ULL) {
+                    int nt;
+                    if (codon_pos == 0) nt = codon / 16;
+                    else if (codon_pos == 1) nt = (codon / 4) % 4;
+                    else nt = codon % 4;
+                    bits |= (1 << nt);
                 }
             }
-            pos_allowed[pos] = allowed;
+            pos_allowed[pos] = static_cast<uint64_t>(bits);
         } else {
             // No codon mask for this position - allow all nucleotides
             pos_allowed[pos] = 0b1111;
@@ -707,6 +699,12 @@ double Dinucl_markov::compute_markov_aa_sum(
             dp_curr[n] = dinuc_proba_matrix(prev_nt, n);
         }
     }
+
+    // Transfer base-case weights to dp_prev so the position loop can use them.
+    // BUG FIX (Bug #1): Without this swap the loop's zero-fill of dp_curr
+    // discards these values and dp_prev stays zero forever, making all
+    // positions for ins_len > 1 evaluate to 0.0.
+    std::swap(dp_prev, dp_curr);
 
     // Iterate over positions 1..ins_len-1
     for (size_t pos = 1; pos < ins_len; ++pos) {
@@ -766,41 +764,46 @@ void Dinucl_markov::iterate_patched_pgen(
         const JournaledQuery& jq = *query.journaled_query;
         std::vector<EventUtils::CodonMask> vd_codon_masks;
 
-        // Find codon indices that overlap the VD insertion span
+        // Find codon masks for the VD insertion. Patches are indexed
+        // by patch number (not codon index), so we must search by the
+        // codon's nucleotide position in the reference.
         int first_codon = v_end_pos / 3;
         int last_codon = (v_end_pos + static_cast<int>(vd_len) - 1) / 3;
 
         for (int ci = first_codon; ci <= last_codon; ++ci) {
-            if (ci >= 0 && ci < static_cast<int>(jq.patches.size())) {
-                // This codon position maps to a patch
-                // We need to extract the CodonMask for this patch
-                // For now, use a simplified approach: enumerate allowed codons
-                // from the patch alternatives and build a CodonMask
-                const Patch& patch = jq.patches[ci];
-                // Build codon mask from patch alternatives + reference
-                EventUtils::CodonMask mask = 0;
-                // Reference codon
-                Int_Str ref_span(patch.start, patch.length);
-                // ... (simplified: we'll use the reference as the only "codon" for now)
-                // Actually, we need to enumerate all valid codons from alternatives
-                // For a proper implementation, we'd parse the patch's alternatives
-                // and build the full codon mask.
-                //
-                // Simplified approach: use the reference span as a single valid codon
-                Int_Str ref = jq.reference.substr(patch.start, patch.length);
+            int nt_pos = ci * 3;
+            // Find the patch whose start matches this codon's nucleotide position.
+            const Patch* matched_patch = nullptr;
+            for (const auto& patch : jq.patches) {
+                if (patch.start == nt_pos) {
+                    matched_patch = &patch;
+                    break;
+                }
+            }
+            EventUtils::CodonMask mask = 0;
+            if (matched_patch == nullptr) {
+                // Trivial codon (only one valid encoding) - no patch entry;
+                // build mask from reference alone as a single valid codon.
+                Int_Str ref = jq.reference.substr(nt_pos, 3);
                 if (ref.size() == 3) {
                     int codon_idx_val = ref[0] * 16 + ref[1] * 4 + ref[2];
                     mask = static_cast<EventUtils::CodonMask>(1ULL << codon_idx_val);
-                    // Also add alternatives
-                    for (const auto& alt : patch.alternatives) {
+                }
+            } else {
+                // Build codon mask from patch alternatives + reference.
+                Int_Str ref = jq.reference.substr(matched_patch->start, matched_patch->length);
+                if (ref.size() == 3) {
+                    int codon_idx_val = ref[0] * 16 + ref[1] * 4 + ref[2];
+                    mask = static_cast<EventUtils::CodonMask>(1ULL << codon_idx_val);
+                    for (const auto& alt : matched_patch->alternatives) {
                         if (alt.size() == 3) {
                             int alt_idx = alt[0] * 16 + alt[1] * 4 + alt[2];
                             mask |= static_cast<EventUtils::CodonMask>(1ULL << alt_idx);
                         }
                     }
                 }
-                vd_codon_masks.push_back(mask);
             }
+            vd_codon_masks.push_back(mask);
         }
 
         // Compute Markov forward sum
@@ -841,22 +844,35 @@ void Dinucl_markov::iterate_patched_pgen(
         int last_codon = (d_end_pos + static_cast<int>(dj_len) - 1) / 3;
 
         for (int ci = first_codon; ci <= last_codon; ++ci) {
-            if (ci >= 0 && ci < static_cast<int>(jq.patches.size())) {
-                const Patch& patch = jq.patches[ci];
-                EventUtils::CodonMask mask = 0;
-                Int_Str ref = jq.reference.substr(patch.start, patch.length);
+            int nt_pos = ci * 3;
+            const Patch* matched_patch = nullptr;
+            for (const auto& patch : jq.patches) {
+                if (patch.start == nt_pos) {
+                    matched_patch = &patch;
+                    break;
+                }
+            }
+            EventUtils::CodonMask mask = 0;
+            if (matched_patch == nullptr) {
+                Int_Str ref = jq.reference.substr(nt_pos, 3);
                 if (ref.size() == 3) {
                     int codon_idx_val = ref[0] * 16 + ref[1] * 4 + ref[2];
                     mask = static_cast<EventUtils::CodonMask>(1ULL << codon_idx_val);
-                    for (const auto& alt : patch.alternatives) {
+                }
+            } else {
+                Int_Str ref = jq.reference.substr(matched_patch->start, matched_patch->length);
+                if (ref.size() == 3) {
+                    int codon_idx_val = ref[0] * 16 + ref[1] * 4 + ref[2];
+                    mask = static_cast<EventUtils::CodonMask>(1ULL << codon_idx_val);
+                    for (const auto& alt : matched_patch->alternatives) {
                         if (alt.size() == 3) {
                             int alt_idx = alt[0] * 16 + alt[1] * 4 + alt[2];
                             mask |= static_cast<EventUtils::CodonMask>(1ULL << alt_idx);
                         }
                     }
                 }
-                dj_codon_masks.push_back(mask);
             }
+            dj_codon_masks.push_back(mask);
         }
 
         double markov_weight = compute_markov_aa_sum(
@@ -889,22 +905,35 @@ void Dinucl_markov::iterate_patched_pgen(
         int last_codon = (v_end_pos + static_cast<int>(vj_len) - 1) / 3;
 
         for (int ci = first_codon; ci <= last_codon; ++ci) {
-            if (ci >= 0 && ci < static_cast<int>(jq.patches.size())) {
-                const Patch& patch = jq.patches[ci];
-                EventUtils::CodonMask mask = 0;
-                Int_Str ref = jq.reference.substr(patch.start, patch.length);
+            int nt_pos = ci * 3;
+            const Patch* matched_patch = nullptr;
+            for (const auto& patch : jq.patches) {
+                if (patch.start == nt_pos) {
+                    matched_patch = &patch;
+                    break;
+                }
+            }
+            EventUtils::CodonMask mask = 0;
+            if (matched_patch == nullptr) {
+                Int_Str ref = jq.reference.substr(nt_pos, 3);
                 if (ref.size() == 3) {
                     int codon_idx_val = ref[0] * 16 + ref[1] * 4 + ref[2];
                     mask = static_cast<EventUtils::CodonMask>(1ULL << codon_idx_val);
-                    for (const auto& alt : patch.alternatives) {
+                }
+            } else {
+                Int_Str ref = jq.reference.substr(matched_patch->start, matched_patch->length);
+                if (ref.size() == 3) {
+                    int codon_idx_val = ref[0] * 16 + ref[1] * 4 + ref[2];
+                    mask = static_cast<EventUtils::CodonMask>(1ULL << codon_idx_val);
+                    for (const auto& alt : matched_patch->alternatives) {
                         if (alt.size() == 3) {
                             int alt_idx = alt[0] * 16 + alt[1] * 4 + alt[2];
                             mask |= static_cast<EventUtils::CodonMask>(1ULL << alt_idx);
                         }
                     }
                 }
-                vj_codon_masks.push_back(mask);
             }
+            vj_codon_masks.push_back(mask);
         }
 
         double markov_weight = compute_markov_aa_sum(
