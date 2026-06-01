@@ -14,18 +14,21 @@ mkdir -p "$REPORT_BASE_DIR"
 
 # Test definitions with name, script, and description (parallel indexed arrays)
 TEST_NAMES=(
+    "cli"
     "align"
     "inference"
     "generate"
 )
 
 TEST_SCRIPTS=(
+    "$SCRIPT_DIR/test_cli.sh"
     "$SCRIPT_DIR/test_align.sh"
     "$SCRIPT_DIR/test_inference.sh"
     "$SCRIPT_DIR/test_generate.sh"
 )
 
 TEST_DESCRIPTIONS=(
+    "CLI smoke, config, manifest, replay tests"
     "Alignment tests"
     "Inference tests"
     "Generation tests"
@@ -46,8 +49,8 @@ Run regression tests and generate detailed reports.
 
 Arguments:
   TEST_SPEC           Test to run (index, name, or 'all')
-                      Index: 1, 2, 3
-                      Name: align, inference, generate
+                      Index: 1, 2, 3, 4
+                      Name: cli, align, inference, generate
                       Default: all
 
 Options:
@@ -58,7 +61,7 @@ Options:
 
 Examples (pixi):
   pixi run test_regression               Run all tests
-  pixi run test_regression 1             Run test 1 (align)
+  pixi run test_regression 1             Run test 1 (cli)
   pixi run test_regression align         Run align test
   pixi run test_regression 1,2           Run tests 1 and 2
   pixi run test_regression align,inference Run align and inference tests
@@ -67,7 +70,7 @@ Examples (pixi):
 
 Direct execution:
   $0                  Run all tests
-  $0 1                Run test 1 (align)
+  $0 1                Run test 1 (cli)
   $0 -l               List available tests
 
 EOF

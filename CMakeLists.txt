@@ -136,7 +136,9 @@ if (APPLE)
       INTERFACE_COMPILE_OPTIONS "${OpenMP_COMPILE_OPTIONS}"
     )
   endif()
-  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lpthread")
+  set(CMAKE_HAVE_LIBC_PTHREAD TRUE CACHE BOOL "pthread symbols are provided by libSystem on Darwin" FORCE)
+  set(CMAKE_THREAD_LIBS_INIT "" CACHE STRING "No explicit pthread library is needed on Darwin" FORCE)
+  set(Threads_FOUND TRUE CACHE BOOL "Threads are available on Darwin" FORCE)
 else()
   find_package(OpenMP REQUIRED)
 endif()
@@ -144,6 +146,8 @@ endif()
 find_package(Arrow REQUIRED)
 find_package(Parquet REQUIRED)
 find_package(sparrow REQUIRED)
+find_package(CLI11 REQUIRED)
+find_package(tomlplusplus REQUIRED)
 
 ## #############################################################################
 ## Options

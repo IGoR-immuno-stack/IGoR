@@ -16,6 +16,8 @@ ninja = "*"
 anaconda-client = "*"
 sparrow-devel = "*"
 arrow-cpp = "*"
+cli11 = ">=2.6.2,<3"
+tomlplusplus = ">=3.3.0,<4"
 
 [target.osx.dependencies]
 clang-tools = ">=19.1.7,<22"
@@ -38,7 +40,10 @@ test_unit_debug = {cmd="ctest --test-dir build --output-on-failure -L unit", dep
 test_integration = {cmd="ctest --test-dir build --output-on-failure -L integration", depends-on = "build"}
 test_integration_debug = {cmd="ctest --test-dir build --output-on-failure -L integration", depends-on = "build_debug"}
 test_regression = { cmd = "scripts/tests/test_run.sh", depends-on = ["build"] }
+test_cli = { cmd = "scripts/tests/test_cli.sh", depends-on = ["build"] }
 test_align = { cmd = "scripts/tests/test_align.sh", depends-on = ["build"] }
+test_inference = { cmd = "scripts/tests/test_inference.sh", depends-on = ["build"] }
+test_generate = { cmd = "scripts/tests/test_generate.sh", depends-on = ["build"] }
 benchmark = { cmd = "scripts/tests/benchmark_run.sh", depends-on = ["build"] }
 doc = "cmake --build build --target doc"
 format = "cmake --build build --target clang-format"

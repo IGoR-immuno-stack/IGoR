@@ -9,6 +9,8 @@ brevity.  Much more detail can be found in the git revision history:
   Fast parallel sequence generation
 
   New features:
+  - Route the POSIX-style command interface through CLI11 for consistent help,
+    version, and option validation
   - Add fast parallel sequence generator (FastGenerator) with 100x+ speedup
     using precomputed CDFs, binary search/alias method sampling, and OpenMP
     multi-threading
