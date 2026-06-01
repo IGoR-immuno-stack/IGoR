@@ -96,6 +96,11 @@ if(WIN32)
   add_compile_definitions(NOMINMAX)
 endif()
 
+if(MSVC)
+  # Ensure __cplusplus macro reports the correct C++ version instead of 199711L
+  add_compile_options(/Zc:__cplusplus)
+endif()
+
 ## ###################################################################
 ## Test setup
 ## ###################################################################
