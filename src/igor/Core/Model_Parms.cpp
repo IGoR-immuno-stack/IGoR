@@ -28,6 +28,7 @@
  */
 
 #include <igor/Core/Model_Parms.h>
+#include <igor/Core/gene_to_seqtype_migr.h>
 #include <igor/Core/EventUtils.h>
 using namespace std;
 
@@ -547,7 +548,7 @@ const unordered_map<tuple<Event_type, Seq_type, Seq_side>, shared_ptr<Rec_Event>
     unordered_map<tuple<Event_type, Seq_type, Seq_side>, shared_ptr<Rec_Event>> events_map;
     for (list<shared_ptr<Rec_Event>>::const_iterator iter = this->events.begin(); iter != this->events.end(); ++iter) {
         tuple<Event_type, Seq_type, Seq_side> seq_key;
-        if (EventUtils::try_event_key_to_seq_key((*iter)->get_type(), (*iter)->get_class(), (*iter)->get_side(), seq_key)) {
+        if (igor::migration::try_event_key_to_seq_key((*iter)->get_type(), (*iter)->get_class(), (*iter)->get_side(), seq_key)) {
             events_map.emplace(seq_key, (*iter));
         }
     }
@@ -559,7 +560,7 @@ unordered_map<tuple<Event_type, Seq_type, Seq_side>, shared_ptr<Rec_Event>> Mode
     unordered_map<tuple<Event_type, Seq_type, Seq_side>, shared_ptr<Rec_Event>> events_map;
     for (list<shared_ptr<Rec_Event>>::const_iterator iter = this->events.begin(); iter != this->events.end(); ++iter) {
         tuple<Event_type, Seq_type, Seq_side> seq_key;
-        if (EventUtils::try_event_key_to_seq_key((*iter)->get_type(), (*iter)->get_class(), (*iter)->get_side(), seq_key)) {
+        if (igor::migration::try_event_key_to_seq_key((*iter)->get_type(), (*iter)->get_class(), (*iter)->get_side(), seq_key)) {
             events_map.emplace(seq_key, (*iter));
         }
     }

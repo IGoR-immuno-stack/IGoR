@@ -1,6 +1,6 @@
 # Gene_class and Seq_type Separation: Plan Status
 
-Date: 2026-06-01
+Date: 2026-06-01 (updated)
 
 ## Architecture Decision Record (ADR)
 
@@ -32,15 +32,23 @@ The strategy is staged to reduce risk:
 - Phase 1c: completed. *(Note: Phase 1c was successfully completed with the initial 3-axis helper logic. The 2-axis targeting is a planned design refinement to simplify the implementation, not a rollback).*
 - Phase 1d: completed.
 - Phase 1e: completed across the targeted ancillary/runtime consumers.
+- Migration helper extraction to dedicated module: completed.
 - Typed `Seq_type` view added in `Model_Parms` and used by the first production consumer.
 
 ### Main implementation outcomes
-- Added shared bridge helpers in EventUtils to centralize semantic mapping and event lookups:
+- Added dedicated migration module (`gene_to_seqtype_migr.h/.cpp`) to isolate transient Gene_class-to-Seq_type bridge logic.
+- Moved bridge helpers out of EventUtils into `igor::migration`:
   - try_gene_class_to_gene_seq_type(...)
   - try_insertion_gene_class_to_seq_type(...)
   - try_insertion_seq_type_to_gene_class(...)
-  - has_insertion_seq_type(...)
-  - try_get_event(...) (Implements a fallback lookup pattern that will make the events_map key transition transparent to consumers).
+    - try_event_key_to_seq_key(...)
+    - build_seq_events_map(...)
+    - check_gene_choice_seq_type(...)
+    - empty_legacy_events_map(...)
+
+- Kept stable typed utility helpers in EventUtils:
+    - has_insertion_seq_type(...)
+    - try_get_event(...)
 
 - Replaced repeated manual tuple lookup patterns (count/at) with helper-based lookups in ancillary/runtime code paths.
 
@@ -53,10 +61,14 @@ The strategy is staged to reduce risk:
 - Added a typed Error_rate::initialize(...) overload so typed consumers can forward through legacy error models without blocking the migration.
 
 - Kept events_map keying unchanged (tuple<Event_type, Gene_class, Seq_side>) during all Phase 1 work, as planned.
+- Fixed `Deletion::initialize_event(...)` member-state overwrite regression by assigning `this->v_chosen`, `this->d_chosen`, and `this->j_chosen` explicitly.
+- Added/strengthened regression test coverage so the Deletion initialization test now forces pre-state before calling `initialize_event(...)` and verifies overwrite behavior.
 
 ### Files updated in this implementation stream
 - src/igor/Core/EventUtils.h
 - src/igor/Core/EventUtils.cpp
+- src/igor/Core/gene_to_seqtype_migr.h
+- src/igor/Core/gene_to_seqtype_migr.cpp
 - src/igor/Core/Pgencounter.cpp
 - src/igor/Core/Coverageerrcounter.cpp
 - src/igor/Core/HypermutationfullNmererrorrate.cpp
@@ -64,11 +76,15 @@ The strategy is staged to reduce risk:
 - src/igor/Core/Genechoice.cpp
 - src/igor/Core/Insertion.cpp
 - src/igor/Core/Deletion.cpp
+- src/igor/Core/FastGenerator.cpp
+- src/igor/Core/Model_Parms.cpp
+- src/igor/Core/Rec_Event.cpp
+- src/igor/Core/CMakeLists.txt
 - tst/igor/Core/test_EventUtils.cpp
 
 ### Testing and validation executed
 - Unit suite run repeatedly with pixi run test_unit.
-- Current result: 33/33 unit tests passing.
+- Current result: 34/34 unit tests passing.
 - Added direct helper regression coverage:
   - EventUtils HasInsertionSeqType
   - EventUtils TryGetEvent
@@ -76,6 +92,7 @@ The strategy is staged to reduce risk:
 - Added integration coverage through production bridge path:
     - Insertion Bridge Integration
     - Covers VDJ alias fallback, specific-over-alias precedence, and missing-dinuc throw behavior
+    - Deletion Member Initialization Regression (member overwrite safety)
 
 ---
 
@@ -203,6 +220,7 @@ Adjust `Dinuclmarkov` to use a 2-axis coordinate:
 - Finalize tandem-D `Seq_type` enum additions (`D1_gene_seq`, `D2_gene_seq`, `D1D2_ins_seq`) and propagate through mapping/IO checkpoints.
 - Complete the `Dinuclmarkov` 2-axis targeting refinement.
 - Keep serialization compatibility work in Phase 3 / Issue #46 as planned.
+- Optional cleanup: remove temporary `friend class DeletionTest` once a non-intrusive test accessor strategy is adopted.
 
 ---
 

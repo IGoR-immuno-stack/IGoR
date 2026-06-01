@@ -28,14 +28,7 @@
 
 using namespace std;
 
-namespace {
-const unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &
-empty_legacy_events_map()
-{
-    static const unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> kEmptyLegacyEventsMap;
-    return kEmptyLegacyEventsMap;
-}
-} // namespace
+
 
 Error_rate::Error_rate()
     : debug_number_scenarios(0),

@@ -30,14 +30,7 @@
 using namespace std;
 using namespace EventUtils;
 
-namespace {
-const unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &
-empty_legacy_events_map()
-{
-    static const unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> kEmptyLegacyEventsMap;
-    return kEmptyLegacyEventsMap;
-}
-} // namespace
+
 
 Hypermutation_full_Nmer_errorrate::Hypermutation_full_Nmer_errorrate(size_t nmer_width, Gene_class learn,
                                                                      Gene_class apply, double starting_flat_value,

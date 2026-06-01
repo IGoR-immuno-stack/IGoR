@@ -25,56 +25,13 @@
 
 #include <igor/Core/Deletion.h>
 #include <igor/Core/EventUtils.h>
+#include <igor/Core/gene_to_seqtype_migr.h>
 
 #include <algorithm>
 
 using namespace std;
 
 namespace {
-
-using LegacyEventsMap = unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>>;
-using SeqEventsMap = unordered_map<tuple<Event_type, Seq_type, Seq_side>, shared_ptr<Rec_Event>>;
-
-const LegacyEventsMap &empty_legacy_events_map()
-{
-    static const LegacyEventsMap kEmptyLegacyEventsMap;
-    return kEmptyLegacyEventsMap;
-}
-
-SeqEventsMap build_seq_events_map(const LegacyEventsMap &events_map)
-{
-    SeqEventsMap seq_events_map;
-    seq_events_map.reserve(events_map.size());
-    for (const auto &entry : events_map) {
-        tuple<Event_type, Seq_type, Seq_side> seq_key;
-        if (!EventUtils::try_event_key_to_seq_key(get<0>(entry.first), get<1>(entry.first), get<2>(entry.first),
-                                                   seq_key)) {
-            continue;
-        }
-        seq_events_map.emplace(seq_key, entry.second);
-    }
-    return seq_events_map;
-}
-
-EventUtils::GeneChoiceStatus check_gene_choice_seq_type(
-        Gene_class gene, const SeqEventsMap &events_map, const unordered_set<Rec_Event_name> &processed_events)
-{
-    EventUtils::GeneChoiceStatus status{ false, false, nullptr };
-    Seq_type gene_seq = V_gene_seq;
-    if (!EventUtils::try_gene_class_to_gene_seq_type(gene, gene_seq)) {
-        return status;
-    }
-
-    shared_ptr<Rec_Event> event_ptr;
-    if (!EventUtils::try_get_event(events_map, GeneChoice_t, gene_seq, Undefined_side, event_ptr)) {
-        return status;
-    }
-
-    status.exists = true;
-    status.chosen = processed_events.count(event_ptr->get_name()) != 0;
-    status.event_ptr = event_ptr;
-    return status;
-}
 
 Seq_type get_deletion_target_seq_type(Gene_class gene_class)
 {
@@ -1399,16 +1356,19 @@ void Deletion::initialize_event(
     int_value_and_index.sort(del_numb_compare);
 
     //Check V choice
-    auto v_status = check_gene_choice_seq_type(V_gene, events_map, processed_events);
-    v_chosen = v_status.chosen;
+    auto v_status = igor::migration::check_gene_choice_seq_type(V_gene, events_map, processed_events);
+    bool v_choice_exist = v_status.exists;
+    this->v_chosen = v_status.chosen;
 
     //Check D choice
-    auto d_status = check_gene_choice_seq_type(D_gene, events_map, processed_events);
-    d_chosen = d_status.chosen;
+    auto d_status = igor::migration::check_gene_choice_seq_type(D_gene, events_map, processed_events);
+    bool d_choice_exist = d_status.exists;
+    this->d_chosen = d_status.chosen;
 
     //Check J choice
-    auto j_status = check_gene_choice_seq_type(J_gene, events_map, processed_events);
-    j_chosen = j_status.chosen;
+    auto j_status = igor::migration::check_gene_choice_seq_type(J_gene, events_map, processed_events);
+    bool j_choice_exist = j_status.exists;
+    this->j_chosen = j_status.chosen;
 
     const Seq_type target_seq_type = get_deletion_target_seq_type(this->event_class);
 
@@ -1602,7 +1562,7 @@ void Deletion::initialize_event(
         j_5_min_del = 0;
         j_5_max_del = 0;
     }
-    this->Rec_Event::initialize_event(processed_events, empty_legacy_events_map(), offset_map, downstream_proba_map,
+    this->Rec_Event::initialize_event(processed_events, igor::migration::empty_legacy_events_map(), offset_map, downstream_proba_map,
                                       constructed_sequences, safety_set, error_rate_p, mismatches_list, seq_offsets,
                                       index_map);
 }
