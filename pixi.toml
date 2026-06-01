@@ -47,6 +47,11 @@ coverage = {cmd="llvm-profdata merge -sparse build_cov/tst/default.profraw -o de
 submodule-update = "git submodule update --init --recursive"
 
 resolve-test-selection = {cmd = "python scripts/ci/resolve_test_selection.py", depends-on = []}
+test_proto_unit = {cmd="./build/bin/igor_tests [unit] -g 0", depends-on = "build"}
+test_proto_integration = {cmd="./build/bin/igor_tests [integration] -g 1", depends-on = "build"}
+test_proto_convergence = {cmd="./build/bin/igor_tests [convergence] -g 2", depends-on = "build"}
+test_proto_regression = {cmd="./build/bin/igor_tests [regression] -g 3", depends-on = "build"}
+test_proto_benchmark = {cmd="./build/bin/igor_tests [benchmark] -g 4", depends-on = "build"}
 
 [target.win-64.tasks]
 configure = "cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release"
