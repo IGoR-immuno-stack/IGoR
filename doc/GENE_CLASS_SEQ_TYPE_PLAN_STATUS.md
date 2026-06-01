@@ -1,6 +1,6 @@
 # Gene_class and Seq_type Separation: Plan Status
 
-Date: 2026-05-29
+Date: 2026-06-01
 
 ## Architecture Decision Record (ADR)
 
@@ -68,11 +68,14 @@ The strategy is staged to reduce risk:
 
 ### Testing and validation executed
 - Unit suite run repeatedly with pixi run test_unit.
-- Current result: 31/31 unit tests passing.
+- Current result: 33/33 unit tests passing.
 - Added direct helper regression coverage:
   - EventUtils HasInsertionSeqType
   - EventUtils TryGetEvent
-  - Fallback lookup pattern section inside EventUtils TryGetEvent
+    - Direct lookup coverage section inside EventUtils TryGetEvent
+- Added integration coverage through production bridge path:
+    - Insertion Bridge Integration
+    - Covers VDJ alias fallback, specific-over-alias precedence, and missing-dinuc throw behavior
 
 ---
 
@@ -183,6 +186,8 @@ This step must be executed as a coordinated atomic operation: `Model_Parms` stor
 - Redundant typed forwarding wrappers have been removed where `Rec_Event` inherited bridges now cover the same dispatch path (`Insertion` probability-bound initialization and `Dinucl_markov` typed init/proba-bound forwarding). *(Completed)*
 - `Dinucl_markov` typed initialization no longer depends on reconstructing a legacy-keyed map; a typed `EventUtils::get_insertion_len_max(...)` helper now supports that path directly. *(Completed)*
 - The unused legacy `EventUtils::check_gene_choice(...)` helper has been retired; remaining `EventUtils` legacy helpers still correspond to active compatibility bridges. *(Completed)*
+- Legacy subclass `iterate(...)` compatibility wrappers have been removed in `Gene_choice`, `Deletion`, `Insertion`, and `Dinucl_markov`; legacy iterate bridging is now centralized in `Rec_Event` only. *(Completed)*
+- `initialize_event(...)` centralization is intentionally deferred: typed subclass implementations remain authoritative because they still embed event-specific business logic. *(Deferred by design)*
 - Remove legacy helper signatures in `EventUtils` once no callers remain. *(Deferred)*
 - Decide end-state of model registry storage keying in `Model_Parms` and retire `get_events_map()` at the end of migration. *(Deferred)*
 

@@ -86,20 +86,6 @@ bool try_event_key_to_seq_key(
 }
 
 bool has_insertion_seq_type(
-    const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>,
-                             std::shared_ptr<Rec_Event>> &events_map,
-    Seq_type seq_type)
-{
-  Gene_class gene_pair = Undefined_gene;
-  if (!try_insertion_seq_type_to_gene_class(seq_type, gene_pair)) {
-    return false;
-  }
-
-  auto key = std::make_tuple(Insertion_t, gene_pair, Undefined_side);
-  return events_map.find(key) != events_map.end();
-}
-
-bool has_insertion_seq_type(
     const std::unordered_map<std::tuple<Event_type, Seq_type, Seq_side>,
                              std::shared_ptr<Rec_Event>> &events_map,
     Seq_type seq_type)
@@ -108,24 +94,7 @@ bool has_insertion_seq_type(
   return events_map.find(key) != events_map.end();
 }
 
-bool try_get_event(
-    const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>,
-                             std::shared_ptr<Rec_Event>> &events_map,
-    Event_type event_type,
-    Gene_class gene_class,
-    Seq_side seq_side,
-    std::shared_ptr<Rec_Event> &event_ptr)
-{
-  auto key = std::make_tuple(event_type, gene_class, seq_side);
-  auto event_it = events_map.find(key);
-  if (event_it == events_map.end()) {
-    event_ptr = nullptr;
-    return false;
-  }
 
-  event_ptr = event_it->second;
-  return true;
-}
 
 GeneChoiceStatus check_gene_choice(
     const std::string &gene_seq_type,

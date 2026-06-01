@@ -54,6 +54,8 @@ class CORE_EXPORT Gene_choice : public Rec_Event
     friend class Hypermutation_full_Nmer_errorrate; //Same
 
 public:
+    using Rec_Event::iterate;
+
     //Constructors
     Gene_choice();
     Gene_choice(Gene_class);

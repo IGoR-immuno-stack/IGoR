@@ -56,6 +56,7 @@
 class CORE_EXPORT Dinucl_markov : public Rec_Event
 {
 public:
+        using Rec_Event::iterate;
         using Rec_Event::initialize_event;
         using Rec_Event::initialize_crude_scenario_proba_bound;
 

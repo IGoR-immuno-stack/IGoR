@@ -29,22 +29,11 @@ CORE_EXPORT bool try_event_key_to_seq_key(
     std::tuple<Event_type, Seq_type, Seq_side> &seq_key);
 
 CORE_EXPORT bool has_insertion_seq_type(
-    const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>,
-                             std::shared_ptr<Rec_Event>> &events_map,
-    Seq_type seq_type);
-
-CORE_EXPORT bool has_insertion_seq_type(
     const std::unordered_map<std::tuple<Event_type, Seq_type, Seq_side>,
                              std::shared_ptr<Rec_Event>> &events_map,
     Seq_type seq_type);
 
-CORE_EXPORT bool try_get_event(
-    const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>,
-                             std::shared_ptr<Rec_Event>> &events_map,
-    Event_type event_type,
-    Gene_class gene_class,
-    Seq_side seq_side,
-    std::shared_ptr<Rec_Event> &event_ptr);
+
 
 CORE_EXPORT bool try_get_event(
     const std::unordered_map<std::tuple<Event_type, Seq_type, Seq_side>,

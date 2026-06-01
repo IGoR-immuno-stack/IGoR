@@ -58,15 +58,14 @@ class CORE_EXPORT Deletion : public Rec_Event
     friend class Hypermutation_full_Nmer_errorrate; //Same
 
 public:
-    //Constructor
-    Deletion();
-    Deletion(Gene_class, Seq_side, std::pair<int, int>);
-    Deletion(std::forward_list<int>);
-    Deletion(Gene_class, Seq_side);
-    Deletion(Gene_class, Seq_side, std::unordered_map<std::string, Event_realization> &);
+        using Rec_Event::iterate;
 
-    //Destructor
-    virtual ~Deletion();
+        //Constructor
+        Deletion();
+        Deletion(Gene_class, Seq_side, std::pair<int, int>);
+        Deletion(Gene_class, Seq_side);
+        Deletion(Gene_class, Seq_side, std::unordered_map<std::string, Event_realization> &);
+        virtual ~Deletion();
 
     //Virtual methods
     std::shared_ptr<Rec_Event> copy();

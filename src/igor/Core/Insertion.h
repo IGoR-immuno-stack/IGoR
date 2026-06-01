@@ -52,6 +52,7 @@
 class CORE_EXPORT Insertion : public Rec_Event
 {
 public:
+        using Rec_Event::iterate;
         using Rec_Event::initialize_crude_scenario_proba_bound;
 
     //Constructors
