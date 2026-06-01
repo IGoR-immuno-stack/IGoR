@@ -70,7 +70,7 @@ public:
             Mismatch_vectors_map &, double &, const double &) override;
     void update() override;
     void
-    initialize(const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> &) override;
+    initialize(const std::unordered_map<std::tuple<Event_type, Seq_type, Seq_side>, std::shared_ptr<Rec_Event>> &) override;
     void add_to_norm_counter() override;
     void clean_seq_counters() override;
     void clean_all_counters();

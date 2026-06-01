@@ -56,6 +56,7 @@
 class CORE_EXPORT Dinucl_markov : public Rec_Event
 {
 public:
+        using Rec_Event::iterate;
         using Rec_Event::initialize_event;
         using Rec_Event::initialize_crude_scenario_proba_bound;
 
@@ -67,24 +68,6 @@ public:
     //Accessors
     std::shared_ptr<Rec_Event> copy();
     int size() const;
-
-    inline void
-    iterate(double &, Downstream_scenario_proba_bound_map &, const std::string &, const Int_Str &, Index_map &,
-            const std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &,
-            std::shared_ptr<Next_event_ptr> &, Marginal_array_p &, const Marginal_array_p &,
-            const std::unordered_map<Gene_class, std::vector<Alignment_data>> &, Seq_type_str_p_map &,
-            Seq_offsets_map &, std::shared_ptr<Error_rate> &, std::map<size_t, std::shared_ptr<Counter>> &,
-            const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> &,
-            Safety_bool_map &, Mismatch_vectors_map &, double &, double &);
-
-    inline void
-    iterate(double &, Downstream_scenario_proba_bound_map &, const std::string &, const Int_Str &, Index_map &,
-            const std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &,
-            std::shared_ptr<Next_event_ptr> &, Marginal_array_p &, const Marginal_array_p &,
-            const std::unordered_map<Gene_class, std::vector<Alignment_data>> &, Seq_type_str_p_map &,
-            Seq_offsets_map &, std::shared_ptr<Error_rate> &, std::map<size_t, std::shared_ptr<Counter>> &,
-            const std::unordered_map<std::tuple<Event_type, Seq_type, Seq_side>, std::shared_ptr<Rec_Event>> &,
-            Safety_bool_map &, Mismatch_vectors_map &, double &, double &);
 
     // Context-based iterate() interface
     inline void

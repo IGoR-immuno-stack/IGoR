@@ -1077,7 +1077,7 @@ void Hypermutation_full_Nmer_errorrate::update()
 }
 
 void Hypermutation_full_Nmer_errorrate::initialize(
-        const unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map)
+        const unordered_map<tuple<Event_type, Seq_type, Seq_side>, shared_ptr<Rec_Event>> &events_map)
 {
     //FIXME look for previous initialization to avoid memory leak
 
@@ -1085,9 +1085,9 @@ void Hypermutation_full_Nmer_errorrate::initialize(
     shared_ptr<Rec_Event> v_gene_event_base_p;
     shared_ptr<Rec_Event> d_gene_event_base_p;
     shared_ptr<Rec_Event> j_gene_event_base_p;
-    v_gene = try_get_event(events_map, GeneChoice_t, V_gene, Undefined_side, v_gene_event_base_p);
-    d_gene = try_get_event(events_map, GeneChoice_t, D_gene, Undefined_side, d_gene_event_base_p);
-    j_gene = try_get_event(events_map, GeneChoice_t, J_gene, Undefined_side, j_gene_event_base_p);
+    v_gene = try_get_event(events_map, GeneChoice_t, V_gene_seq, Undefined_side, v_gene_event_base_p);
+    d_gene = try_get_event(events_map, GeneChoice_t, D_gene_seq, Undefined_side, d_gene_event_base_p);
+    j_gene = try_get_event(events_map, GeneChoice_t, J_gene_seq, Undefined_side, j_gene_event_base_p);
     vj_ins = has_insertion_seq_type(events_map, VJ_ins_seq);
     vd_ins = has_insertion_seq_type(events_map, VD_ins_seq);
     dj_ins = has_insertion_seq_type(events_map, DJ_ins_seq);
@@ -1110,7 +1110,7 @@ void Hypermutation_full_Nmer_errorrate::initialize(
 
         //Get deletion value pointer for V 3' deletions if it exists
         shared_ptr<Rec_Event> v_3_del_event_base_p;
-        if (try_get_event(events_map, Deletion_t, V_gene, Three_prime, v_3_del_event_base_p)) {
+        if (try_get_event(events_map, Deletion_t, V_gene_seq, Three_prime, v_3_del_event_base_p)) {
             shared_ptr<const Deletion> v_3_del_event_p = dynamic_pointer_cast<Deletion>(v_3_del_event_base_p);
             v_3_del_value_p = &(v_3_del_event_p->deletion_value);
         } else {
@@ -1134,7 +1134,7 @@ void Hypermutation_full_Nmer_errorrate::initialize(
 
         //Get deletion value pointer for D 5' deletions if it exists
         shared_ptr<Rec_Event> d_5_del_event_base_p;
-        if (try_get_event(events_map, Deletion_t, D_gene, Five_prime, d_5_del_event_base_p)) {
+        if (try_get_event(events_map, Deletion_t, D_gene_seq, Five_prime, d_5_del_event_base_p)) {
             shared_ptr<const Deletion> d_5_del_event_p = dynamic_pointer_cast<Deletion>(d_5_del_event_base_p);
             d_5_del_value_p = &(d_5_del_event_p->deletion_value);
         } else {
@@ -1143,7 +1143,7 @@ void Hypermutation_full_Nmer_errorrate::initialize(
 
         //Get deletion value pointer for D 3' deletions if it exists
         shared_ptr<Rec_Event> d_3_del_event_base_p;
-        if (try_get_event(events_map, Deletion_t, D_gene, Three_prime, d_3_del_event_base_p)) {
+        if (try_get_event(events_map, Deletion_t, D_gene_seq, Three_prime, d_3_del_event_base_p)) {
             shared_ptr<const Deletion> d_3_del_event_p = dynamic_pointer_cast<Deletion>(d_3_del_event_base_p);
             d_3_del_value_p = &(d_3_del_event_p->deletion_value);
         } else {
@@ -1176,7 +1176,7 @@ void Hypermutation_full_Nmer_errorrate::initialize(
 
         //Get deletion value pointer for J 5' deletions if it exists
         shared_ptr<Rec_Event> j_5_del_event_base_p;
-        if (try_get_event(events_map, Deletion_t, J_gene, Five_prime, j_5_del_event_base_p)) {
+        if (try_get_event(events_map, Deletion_t, J_gene_seq, Five_prime, j_5_del_event_base_p)) {
             shared_ptr<const Deletion> j_5_del_event_p = dynamic_pointer_cast<Deletion>(j_5_del_event_base_p);
             j_5_del_value_p = &(j_5_del_event_p->deletion_value);
         } else {
