@@ -6,12 +6,38 @@ set(CORE_TEST_SOURCES
     test_fast_sampling.cpp
     test_generation.cpp
     test_inference.cpp
+    test_poc.cpp
     test_sanity.cpp
     test_utils.cpp
-    test_poc.cpp
 )
 
 add_executable(igor_tests ${CORE_TEST_SOURCES})
+
+add_test(
+    NAME igor_test_unit
+    COMMAND igor_tests [unit] -g 0
+)
+
+add_test(
+    NAME igor_test_integration
+    COMMAND igor_tests [regression] -g 1
+)
+
+add_test(
+    NAME igor_test_convergence
+    COMMAND igor_tests [convergence] -g 2
+)
+
+add_test(
+    NAME igor_test_regression
+    COMMAND igor_tests [regression] -g 3
+)
+
+add_test(
+    NAME igor_test_benchmark
+    COMMAND igor_tests [benchmark] -g 4
+)
+
 
 target_link_libraries(igor_tests
     PRIVATE
