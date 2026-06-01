@@ -3,6 +3,7 @@
 #include <igor/Core/Deletion.h>
 #include <igor/Core/Dinuclmarkov.h>
 #include <igor/Core/EventUtils.h>
+#include <igor/Core/gene_to_seqtype_migr.h>
 #include <igor/Core/Genechoice.h>
 #include <igor/Core/Insertion.h>
 #include <igor/Core/Rec_Event.h>
@@ -243,40 +244,40 @@ TEST_CASE("EventUtils GetInsertionLenMax", "[EventUtils]") {
 TEST_CASE("EventUtils GeneClassToSeqType mapping", "[EventUtils]") {
   Seq_type seq_type = V_gene_seq;
 
-  SECTION("Gene class maps to gene sequence type") {
-    REQUIRE(try_gene_class_to_gene_seq_type(V_gene, seq_type));
+  SECTION("Valid mappings") {
+    REQUIRE(igor::migration::try_gene_class_to_gene_seq_type(V_gene, seq_type));
     REQUIRE(seq_type == V_gene_seq);
 
-    REQUIRE(try_gene_class_to_gene_seq_type(D_gene, seq_type));
+    REQUIRE(igor::migration::try_gene_class_to_gene_seq_type(D_gene, seq_type));
     REQUIRE(seq_type == D_gene_seq);
 
-    REQUIRE(try_gene_class_to_gene_seq_type(J_gene, seq_type));
+    REQUIRE(igor::migration::try_gene_class_to_gene_seq_type(J_gene, seq_type));
     REQUIRE(seq_type == J_gene_seq);
   }
 
-  SECTION("Non-gene class fails gene sequence mapping") {
-    REQUIRE_FALSE(try_gene_class_to_gene_seq_type(VD_genes, seq_type));
-    REQUIRE_FALSE(try_gene_class_to_gene_seq_type(Undefined_gene, seq_type));
+  SECTION("Invalid mappings") {
+    REQUIRE_FALSE(igor::migration::try_gene_class_to_gene_seq_type(VD_genes, seq_type));
+    REQUIRE_FALSE(igor::migration::try_gene_class_to_gene_seq_type(Undefined_gene, seq_type));
   }
 }
 
 TEST_CASE("EventUtils InsertionGeneClassToSeqType mapping", "[EventUtils]") {
   Seq_type seq_type = VD_ins_seq;
 
-  SECTION("Insertion class maps to insertion sequence type") {
-    REQUIRE(try_insertion_gene_class_to_seq_type(VD_genes, seq_type));
+  SECTION("Valid mappings") {
+    REQUIRE(igor::migration::try_insertion_gene_class_to_seq_type(VD_genes, seq_type));
     REQUIRE(seq_type == VD_ins_seq);
 
-    REQUIRE(try_insertion_gene_class_to_seq_type(DJ_genes, seq_type));
+    REQUIRE(igor::migration::try_insertion_gene_class_to_seq_type(DJ_genes, seq_type));
     REQUIRE(seq_type == DJ_ins_seq);
 
-    REQUIRE(try_insertion_gene_class_to_seq_type(VJ_genes, seq_type));
+    REQUIRE(igor::migration::try_insertion_gene_class_to_seq_type(VJ_genes, seq_type));
     REQUIRE(seq_type == VJ_ins_seq);
   }
 
-  SECTION("Non-insertion class fails insertion sequence mapping") {
-    REQUIRE_FALSE(try_insertion_gene_class_to_seq_type(V_gene, seq_type));
-    REQUIRE_FALSE(try_insertion_gene_class_to_seq_type(Undefined_gene, seq_type));
+  SECTION("Invalid mappings") {
+    REQUIRE_FALSE(igor::migration::try_insertion_gene_class_to_seq_type(V_gene, seq_type));
+    REQUIRE_FALSE(igor::migration::try_insertion_gene_class_to_seq_type(Undefined_gene, seq_type));
   }
 }
 
@@ -357,7 +358,7 @@ TEST_CASE("EventUtils InsertionPriorityBridge - specific wins over VDJ alias", "
   for (const auto& entry : gene_map) {
     if (get<1>(entry.first) != VDJ_genes) {
       Seq_type seq_type = V_gene_seq;
-      if (EventUtils::try_insertion_gene_class_to_seq_type(get<1>(entry.first), seq_type)) {
+      if (igor::migration::try_insertion_gene_class_to_seq_type(get<1>(entry.first), seq_type)) {
         seq_map.emplace(make_tuple(get<0>(entry.first), seq_type, get<2>(entry.first)), entry.second);
       }
     }
@@ -406,25 +407,25 @@ TEST_CASE("EventUtils InsertionPriorityBridge - VDJ alias used when specific abs
 TEST_CASE("EventUtils TryEventKeyToSeqKey", "[EventUtils]") {
   tuple<Event_type, Seq_type, Seq_side> seq_key;
 
-  SECTION("Maps gene events to gene sequence keys") {
-    REQUIRE(try_event_key_to_seq_key(GeneChoice_t, V_gene, Undefined_side, seq_key));
+  SECTION("GeneChoice and Deletion mapping") {
+    REQUIRE(igor::migration::try_event_key_to_seq_key(GeneChoice_t, V_gene, Undefined_side, seq_key));
     REQUIRE(seq_key == make_tuple(GeneChoice_t, V_gene_seq, Undefined_side));
 
-    REQUIRE(try_event_key_to_seq_key(Deletion_t, J_gene, Five_prime, seq_key));
+    REQUIRE(igor::migration::try_event_key_to_seq_key(Deletion_t, J_gene, Five_prime, seq_key));
     REQUIRE(seq_key == make_tuple(Deletion_t, J_gene_seq, Five_prime));
   }
 
-  SECTION("Maps insertion events to specific insertion sequence keys") {
-    REQUIRE(try_event_key_to_seq_key(Insertion_t, VD_genes, Undefined_side, seq_key));
+  SECTION("Insertion and Dinuclmarkov mapping") {
+    REQUIRE(igor::migration::try_event_key_to_seq_key(Insertion_t, VD_genes, Undefined_side, seq_key));
     REQUIRE(seq_key == make_tuple(Insertion_t, VD_ins_seq, Undefined_side));
 
-    REQUIRE(try_event_key_to_seq_key(Dinuclmarkov_t, DJ_genes, Undefined_side, seq_key));
+    REQUIRE(igor::migration::try_event_key_to_seq_key(Dinuclmarkov_t, DJ_genes, Undefined_side, seq_key));
     REQUIRE(seq_key == make_tuple(Dinuclmarkov_t, DJ_ins_seq, Undefined_side));
   }
 
-  SECTION("Does not map shared VDJ insertion events directly") {
-    REQUIRE_FALSE(try_event_key_to_seq_key(Insertion_t, VDJ_genes, Undefined_side, seq_key));
-    REQUIRE_FALSE(try_event_key_to_seq_key(Dinuclmarkov_t, VDJ_genes, Undefined_side, seq_key));
+  SECTION("Invalid alias (VDJ_genes) mapping") {
+    REQUIRE_FALSE(igor::migration::try_event_key_to_seq_key(Insertion_t, VDJ_genes, Undefined_side, seq_key));
+    REQUIRE_FALSE(igor::migration::try_event_key_to_seq_key(Dinuclmarkov_t, VDJ_genes, Undefined_side, seq_key));
   }
 }
 
@@ -486,4 +487,47 @@ TEST_CASE("Insertion Bridge Integration", "[Insertion]") {
     // VD_genes Insertion shouldn't find anything and will throw
     REQUIRE_THROWS_AS(ins_vd.initialize_crude_scenario_proba_bound(downstream_bound, updated_list, gene_map), runtime_error);
   }
+}
+
+class DeletionTest {
+public:
+  static void test_initialization() {
+    Deletion del_event;
+    del_event.event_class = V_gene;
+    
+    // Create mock objects for initialize_event
+    std::unordered_set<Rec_Event_name> processed_events;
+    std::unordered_map<std::tuple<Event_type, Seq_type, Seq_side>, std::shared_ptr<Rec_Event>> seq_events_map;
+    
+    // Create a mock gene choice in the map to simulate it being present
+    std::shared_ptr<Rec_Event> mock_v = std::make_shared<MockEvent>("V_choice");
+    seq_events_map[std::make_tuple(GeneChoice_t, V_gene_seq, Undefined_side)] = mock_v;
+
+    std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> offset_map;
+    Downstream_scenario_proba_bound_map downstream_proba_map(6);
+    Seq_type_str_p_map constructed_sequences(6);
+    Safety_bool_map safety_set(6);
+    std::shared_ptr<Error_rate> error_rate_p;
+    Mismatch_vectors_map mismatches_list(6);
+    Seq_offsets_map seq_offsets(6, 2);
+    Index_map index_map(6);
+
+    // Force initial state to true to verify that initialize_event actually overwrites it
+    del_event.v_chosen = true;
+    del_event.d_chosen = true;
+    del_event.j_chosen = true;
+
+    del_event.initialize_event(processed_events, seq_events_map, offset_map, downstream_proba_map, 
+                               constructed_sequences, safety_set, error_rate_p, mismatches_list, 
+                               seq_offsets, index_map);
+    
+    // Since MockEvent does not set chosen, check v_chosen state based on mock defaults (chosen is usually true if it exists, wait, GeneChoiceStatus sets chosen if the event was processed. Since processed_events doesn't contain "V_choice", chosen will be false).
+    REQUIRE(del_event.v_chosen == false);
+    REQUIRE(del_event.d_chosen == false);
+    REQUIRE(del_event.j_chosen == false);
+  }
+};
+
+TEST_CASE("Deletion Member Initialization Regression", "[Deletion]") {
+  DeletionTest::test_initialization();
 }

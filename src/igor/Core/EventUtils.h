@@ -16,24 +16,10 @@
 
 namespace EventUtils {
 
-CORE_EXPORT bool try_gene_class_to_gene_seq_type(Gene_class gene, Seq_type &seq_type);
-
-CORE_EXPORT bool try_insertion_gene_class_to_seq_type(Gene_class gene_pair, Seq_type &seq_type);
-
-CORE_EXPORT bool try_insertion_seq_type_to_gene_class(Seq_type seq_type, Gene_class &gene_pair);
-
-CORE_EXPORT bool try_event_key_to_seq_key(
-    Event_type event_type,
-    Gene_class gene_class,
-    Seq_side seq_side,
-    std::tuple<Event_type, Seq_type, Seq_side> &seq_key);
-
 CORE_EXPORT bool has_insertion_seq_type(
     const std::unordered_map<std::tuple<Event_type, Seq_type, Seq_side>,
                              std::shared_ptr<Rec_Event>> &events_map,
     Seq_type seq_type);
-
-
 
 CORE_EXPORT bool try_get_event(
     const std::unordered_map<std::tuple<Event_type, Seq_type, Seq_side>,
@@ -43,11 +29,7 @@ CORE_EXPORT bool try_get_event(
     Seq_side seq_side,
     std::shared_ptr<Rec_Event> &event_ptr);
 
-struct GeneChoiceStatus {
-  bool exists;
-  bool chosen;
-  std::shared_ptr<const Rec_Event> event_ptr;
-};
+
 
 // gene_seq_type: seq_type of the GeneChoice event to look up (e.g. "V_gene_seq")
 CORE_EXPORT GeneChoiceStatus check_gene_choice(

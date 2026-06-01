@@ -25,56 +25,13 @@
 
 #include <igor/Core/Deletion.h>
 #include <igor/Core/EventUtils.h>
+#include <igor/Core/gene_to_seqtype_migr.h>
 
 #include <algorithm>
 
 using namespace std;
 
 namespace {
-
-using LegacyEventsMap = unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>>;
-using SeqEventsMap = unordered_map<tuple<Event_type, Seq_type, Seq_side>, shared_ptr<Rec_Event>>;
-
-const LegacyEventsMap &empty_legacy_events_map()
-{
-    static const LegacyEventsMap kEmptyLegacyEventsMap;
-    return kEmptyLegacyEventsMap;
-}
-
-SeqEventsMap build_seq_events_map(const LegacyEventsMap &events_map)
-{
-    SeqEventsMap seq_events_map;
-    seq_events_map.reserve(events_map.size());
-    for (const auto &entry : events_map) {
-        tuple<Event_type, Seq_type, Seq_side> seq_key;
-        if (!EventUtils::try_event_key_to_seq_key(get<0>(entry.first), get<1>(entry.first), get<2>(entry.first),
-                                                   seq_key)) {
-            continue;
-        }
-        seq_events_map.emplace(seq_key, entry.second);
-    }
-    return seq_events_map;
-}
-
-EventUtils::GeneChoiceStatus check_gene_choice_seq_type(
-        Gene_class gene, const SeqEventsMap &events_map, const unordered_set<Rec_Event_name> &processed_events)
-{
-    EventUtils::GeneChoiceStatus status{ false, false, nullptr };
-    Seq_type gene_seq = V_gene_seq;
-    if (!EventUtils::try_gene_class_to_gene_seq_type(gene, gene_seq)) {
-        return status;
-    }
-
-    shared_ptr<Rec_Event> event_ptr;
-    if (!EventUtils::try_get_event(events_map, GeneChoice_t, gene_seq, Undefined_side, event_ptr)) {
-        return status;
-    }
-
-    status.exists = true;
-    status.chosen = processed_events.count(event_ptr->get_name()) != 0;
-    status.event_ptr = event_ptr;
-    return status;
-}
 
 Seq_type get_deletion_target_seq_type(Gene_class gene_class)
 {
@@ -1617,7 +1574,7 @@ void Deletion::initialize_event(
         j_5_min_del = 0;
         j_5_max_del = 0;
     }
-    this->Rec_Event::initialize_event(processed_events, empty_legacy_events_map(), offset_map, downstream_proba_map,
+    this->Rec_Event::initialize_event(processed_events, igor::migration::empty_legacy_events_map(), offset_map, downstream_proba_map,
                                       constructed_sequences, safety_set, error_rate_p, mismatches_list, seq_offsets,
                                       index_map);
 }

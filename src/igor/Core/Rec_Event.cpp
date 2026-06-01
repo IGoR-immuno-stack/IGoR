@@ -25,6 +25,7 @@
  */
 
 #include <igor/Core/Rec_Event.h>
+#include <igor/Core/gene_to_seqtype_migr.h>
 #include <igor/Core/Counter.h>
 #include <igor/Core/EventUtils.h>
 #include <igor/Core/Scenario.h>  // For Scenario view construction
@@ -45,7 +46,7 @@ build_legacy_events_map(const unordered_map<tuple<Event_type, Seq_type, Seq_side
         bool converted = false;
 
         if (event_type == Insertion_t || event_type == Dinuclmarkov_t) {
-            converted = EventUtils::try_insertion_seq_type_to_gene_class(seq_type, gene_class);
+            converted = igor::migration::try_insertion_seq_type_to_gene_class(seq_type, gene_class);
         } else {
             switch (seq_type) {
             case V_gene_seq:
@@ -202,7 +203,7 @@ void Rec_Event::iterate(double &scenario_proba, Downstream_scenario_proba_bound_
     events_map_seq_type.reserve(events_map.size());
     for (const auto &event_entry : events_map) {
         tuple<Event_type, Seq_type, Seq_side> seq_key;
-        if (EventUtils::try_event_key_to_seq_key(get<0>(event_entry.first), get<1>(event_entry.first),
+        if (igor::migration::try_event_key_to_seq_key(get<0>(event_entry.first), get<1>(event_entry.first),
                                                  get<2>(event_entry.first), seq_key)) {
             events_map_seq_type.emplace(seq_key, event_entry.second);
         }

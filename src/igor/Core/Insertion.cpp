@@ -26,38 +26,13 @@
 
 #include <igor/Core/Insertion.h>
 #include <igor/Core/EventUtils.h>
+#include <igor/Core/gene_to_seqtype_migr.h>
 
 #include <algorithm>
 
 using namespace std;
 
-namespace {
 
-using LegacyEventsMap = unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>>;
-using SeqEventsMap = unordered_map<tuple<Event_type, Seq_type, Seq_side>, shared_ptr<Rec_Event>>;
-
-const LegacyEventsMap &empty_legacy_events_map()
-{
-    static const LegacyEventsMap kEmptyLegacyEventsMap;
-    return kEmptyLegacyEventsMap;
-}
-
-SeqEventsMap build_seq_events_map(const LegacyEventsMap &events_map)
-{
-    SeqEventsMap seq_events_map;
-    seq_events_map.reserve(events_map.size());
-    for (const auto &entry : events_map) {
-        tuple<Event_type, Seq_type, Seq_side> seq_key;
-        if (!EventUtils::try_event_key_to_seq_key(get<0>(entry.first), get<1>(entry.first), get<2>(entry.first),
-                                                   seq_key)) {
-            continue;
-        }
-        seq_events_map.emplace(seq_key, entry.second);
-    }
-    return seq_events_map;
-}
-
-} // namespace
 
 Insertion::Insertion() : Insertion(Undefined_gene)
 {
@@ -283,7 +258,7 @@ queue<int> Insertion::draw_random_realization(
         prob_count += model_marginals_p[index_map.at(this->get_name()) + (*iter).second.index];
         if (prob_count >= rand) {
             Seq_type seq_type = VD_ins_seq;
-            if (EventUtils::try_insertion_gene_class_to_seq_type(this->event_class, seq_type)) {
+            if (igor::migration::try_insertion_gene_class_to_seq_type(this->event_class, seq_type)) {
                 constructed_sequences[seq_type] = string((*iter).second.value_int, 'I');
             }
             realization_queue.push((*iter).second.index);
@@ -340,14 +315,14 @@ void Insertion::initialize_event(
         Seq_offsets_map &seq_offsets, Index_map &index_map)
 {
     Seq_type seq_type = VD_ins_seq;
-    if (!EventUtils::try_insertion_gene_class_to_seq_type(this->event_class, seq_type)) {
+    if (!igor::migration::try_insertion_gene_class_to_seq_type(this->event_class, seq_type)) {
         throw runtime_error("Unknown insertion event_class in initialize_event");
     }
 
     downstream_proba_map.request_memory_layer(seq_type);
     memory_layer_proba_map_junction = downstream_proba_map.get_current_memory_layer(seq_type);
 
-    this->Rec_Event::initialize_event(processed_events, empty_legacy_events_map(), offset_map, downstream_proba_map,
+    this->Rec_Event::initialize_event(processed_events, igor::migration::empty_legacy_events_map(), offset_map, downstream_proba_map,
                                       constructed_sequences, safety_set, error_rate_p, mismatches_list, seq_offsets,
                                       index_map);
 }
@@ -462,9 +437,9 @@ void Insertion::initialize_crude_scenario_proba_bound(
         Seq_type seq_type = V_gene_seq;
         bool converted = false;
         if (event_type == Insertion_t || event_type == Dinuclmarkov_t) {
-            converted = EventUtils::try_insertion_gene_class_to_seq_type(gene_class, seq_type);
+            converted = igor::migration::try_insertion_gene_class_to_seq_type(gene_class, seq_type);
         } else {
-            converted = EventUtils::try_gene_class_to_gene_seq_type(gene_class, seq_type);
+            converted = igor::migration::try_gene_class_to_gene_seq_type(gene_class, seq_type);
         }
 
         if (converted) {
@@ -520,7 +495,7 @@ void Insertion::iterate_initialize_Len_proba(Seq_type considered_junction, std::
 
         //Insert sequence in the right constructed sequence
         Seq_type seq_type = VD_ins_seq;
-        if (!EventUtils::try_insertion_gene_class_to_seq_type(this->event_class, seq_type)) {
+        if (!igor::migration::try_insertion_gene_class_to_seq_type(this->event_class, seq_type)) {
             throw runtime_error("Unknown insertion event_class in iterate_initialize_Len_proba");
         }
 
@@ -566,7 +541,7 @@ void Insertion::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &model_q
                                            const Marginal_array_p &model_parameters_point, Index_map &base_index_map)
 {
     Seq_type seq_type = VD_ins_seq;
-    if (!EventUtils::try_insertion_gene_class_to_seq_type(this->event_class, seq_type)) {
+    if (!igor::migration::try_insertion_gene_class_to_seq_type(this->event_class, seq_type)) {
         throw runtime_error("Unknown insertion event_class in initialize_Len_proba_bound");
     }
 
