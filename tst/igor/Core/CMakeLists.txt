@@ -21,10 +21,11 @@ target_link_libraries(igor_tests
 target_compile_definitions(igor_tests PRIVATE
     IGOR_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 
-igor_copy_runtime_dlls(igor_tests)
 
 include(Catch)
 catch_discover_tests(igor_tests
+    DL_PATHS $<TARGET_FILE_DIR:igor_tests> $ENV{CONDA_PREFIX}/Library/bin
+    DISCOVERY_MODE PRE_TEST
     TEST_SPEC "~[integration]"
     TEST_PREFIX "unit::"
     PROPERTIES
@@ -33,6 +34,8 @@ catch_discover_tests(igor_tests
 )
 
 catch_discover_tests(igor_tests
+    DL_PATHS $<TARGET_FILE_DIR:igor_tests> $ENV{CONDA_PREFIX}/Library/bin
+    DISCOVERY_MODE PRE_TEST
     TEST_SPEC "[integration]"
     TEST_PREFIX "integration::"
     PROPERTIES

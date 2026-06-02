@@ -25,8 +25,10 @@ target_compile_definitions(streaming_tests PRIVATE
     IGOR_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test_data")
 
 include(Catch)
-igor_copy_runtime_dlls(streaming_tests)
-catch_discover_tests(streaming_tests)
+catch_discover_tests(streaming_tests
+    DL_PATHS $<TARGET_FILE_DIR:streaming_tests> $ENV{CONDA_PREFIX}/Library/bin
+    DISCOVERY_MODE PRE_TEST
+)
 
 ######################################################################
 ### CMakeLists.txt ends here
