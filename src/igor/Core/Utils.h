@@ -726,14 +726,7 @@ struct hash<Event_safety>
 };
 } // namespace std
 
-struct D_position_comparator
-{
-    bool operator()(std::tuple<std::string, int, int, double> position_1,
-                    std::tuple<std::string, int, int, double> position_2)
-    {
-        return std::get<3>(position_1) > std::get<3>(position_2);
-    }
-};
+// D_position_comparator moved to Genechoice.h since it depends on D_position_info
 
 struct inverse_offset_comparator
 {

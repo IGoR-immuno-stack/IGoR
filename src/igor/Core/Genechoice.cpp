@@ -538,17 +538,15 @@ void Gene_choice::iterate(
 
             if (v_chosen and j_chosen) {
                 int vj_len = j_offset - v_offset - 1;
-                if (vj_length_d_position_proba.count(vj_len) != 0) {
-                    const vector<tuple<string, int, int, double>> &d_positions_vector =
-                            vj_length_d_position_proba.at(vj_len);
-                    for (vector<tuple<string, int, int, double>>::const_iterator d_position_iter =
-                                 d_positions_vector.begin();
-                         d_position_iter != d_positions_vector.end(); ++d_position_iter) {
+                if (vj_length_d_position_range.count(vj_len) != 0) {
+                    const auto& range = vj_length_d_position_range.at(vj_len);
+                    for (auto d_position_iter = vj_length_d_position_proba.begin() + range.first;
+                         d_position_iter != vj_length_d_position_proba.begin() + range.second; ++d_position_iter) {
 
-                        const Event_realization &d_real = this->event_realizations.at(get<0>(*d_position_iter));
+                        const Event_realization &d_real = this->event_realizations.at(std::string(d_position_iter->d_gene_name));
 
                         //d_5_off is v 3' offset + vd junction length
-                        d_5_off = v_offset + get<1>(*d_position_iter);
+                        d_5_off = v_offset + d_position_iter->vd_len;
 
                         if (d_5_off - d_5_min_del >= j_5_max_offset) {
                             continue;
@@ -585,10 +583,10 @@ void Gene_choice::iterate(
 									}*/
                         exploration.downstream_proba_map.set_value(VJ_ins_seq, 1.0, memory_layer_proba_map_junction);
                         exploration.downstream_proba_map.set_value(VD_ins_seq,
-                                                       vd_length_best_proba_map.at(get<1>(*d_position_iter)),
+                                                       vd_length_best_proba_map.at(d_position_iter->vd_len),
                                                        memory_layer_proba_map_junction_d2);
                         exploration.downstream_proba_map.set_value(DJ_ins_seq,
-                                                       dj_length_best_proba_map.at(get<2>(*d_position_iter)),
+                                                       dj_length_best_proba_map.at(d_position_iter->dj_len),
                                                        memory_layer_proba_map_junction_d3);
                         exploration.downstream_proba_map.set_value(D_gene_seq, 1.0,
                                                        memory_layer_proba_map_seq); //Lift the penalty on D gene seq
@@ -1438,6 +1436,7 @@ void Gene_choice::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &model
 
         if (v_chosen and j_chosen) {
             int junction_len;
+            size_t start_idx = vj_length_d_position_proba.size();
 
             //Loop over D gene choices
             for (unordered_map<string, Event_realization>::const_iterator d_gene_iter =
@@ -1461,28 +1460,20 @@ void Gene_choice::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &model
                          dj_len_iter != dj_length_best_proba_map.end(); ++dj_len_iter) {
                         junction_len = d_gene_iter->second.value_str.size() + vd_len_iter->first + dj_len_iter->first;
 
-                        if (vj_length_d_position_proba.count(junction_len) != 0) {
-                            vj_length_d_position_proba.at(junction_len)
-                                    .emplace_back(d_gene_iter->first, vd_len_iter->first, dj_len_iter->first,
-                                                  (d_gene_max_proba * vd_len_iter->second * dj_len_iter->second));
-                        } else {
-                            vj_length_d_position_proba.emplace(
-                                    piecewise_construct, make_tuple(junction_len),
-                                    make_tuple(1,
-                                               make_tuple(d_gene_iter->first, vd_len_iter->first, dj_len_iter->first,
-                                                          (d_gene_max_proba * vd_len_iter->second
-                                                           * dj_len_iter->second))));
-                        }
+                        D_position_info new_info;
+                        new_info.d_gene_name = d_gene_iter->first.c_str();  // Store pointer to string in event_realizations
+                        new_info.vd_len = vd_len_iter->first;
+                        new_info.dj_len = dj_len_iter->first;
+                        new_info.proba = d_gene_max_proba * vd_len_iter->second * dj_len_iter->second;
+                        vj_length_d_position_proba.push_back(new_info);
                     }
                 }
             }
+            size_t end_idx = vj_length_d_position_proba.size();
+            vj_length_d_position_range[junction_len] = std::make_pair(start_idx, end_idx);
 
-            //Now sort each vector in the map in decreasing order of probability (according to the model)
-            for (map<int, vector<tuple<string, int, int, double>>>::iterator d_position_map_iter =
-                         vj_length_d_position_proba.begin();
-                 d_position_map_iter != vj_length_d_position_proba.end(); ++d_position_map_iter) {
-                sort(d_position_map_iter->second.begin(), d_position_map_iter->second.end(), D_position_tuple);
-            }
+            //Now sort in decreasing order of probability (according to the model)
+            sort(vj_length_d_position_proba.begin(), vj_length_d_position_proba.end(), D_position_tuple);
         }
 
         break;

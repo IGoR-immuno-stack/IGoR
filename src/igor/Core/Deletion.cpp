@@ -240,7 +240,9 @@ void Deletion::iterate(
         }
         Int_Str &previous_str = (*scenario.get_sequence_segment(V_gene_seq, memory_layer_cs - 1));
         vector<int> &v_mismatch_list = *scenario.get_mismatches(V_gene_seq, memory_layer_mismatches - 1);
-        vector<int> &v_floor_mismatch_list = *exploration.pruning_mismatch_floor.at(V_gene_seq, memory_layer_mismatches - 1);
+        // For exact NT queries, floor == upper bound, so use v_mismatch_list directly.
+        // Avoids data race on shared pruning_mismatch_floor map in OpenMP parallel region.
+        vector<int> &v_floor_mismatch_list = v_mismatch_list;
 
         for (forward_list<Event_realization>::const_iterator iter = (*this).int_value_and_index.begin();
              iter != (*this).int_value_and_index.end(); ++iter) {

@@ -198,7 +198,24 @@ private:
     std::map<int, double> dj_length_best_proba_map;
 
     //No D prunning proba bound map
-    std::map<int, std::vector<std::tuple<std::string, int, int, double>>> vj_length_d_position_proba;
+    // Store as flat vector of tuples to avoid heap corruption issues
+    // with nested map<vector<tuple<string, ...>>>
+    struct D_position_info {
+        const char* d_gene_name;  // Pointer to event_realizations key (no copy)
+        int vd_len;
+        int dj_len;
+        double proba;
+    };
+    struct D_position_comparator {
+        bool operator()(const D_position_info& position_1,
+                        const D_position_info& position_2) {
+            return position_1.proba > position_2.proba;
+        }
+    };
+    // Use a simple flat vector instead of map<vector<tuple<...>>>
+    std::vector<D_position_info> vj_length_d_position_proba;
+    // Map from junction length to index range in vj_length_d_position_proba
+    std::map<int, std::pair<size_t, size_t>> vj_length_d_position_range;
 
     D_position_comparator D_position_tuple;
 };
