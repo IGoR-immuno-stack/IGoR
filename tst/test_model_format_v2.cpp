@@ -23,7 +23,9 @@
 #include <igor/Core/SeqTypeRegistry.h>
 #include <igor/Core/Utils.h>
 
+#include <algorithm>
 #include <filesystem>
+#include <fstream>
 #include <string>
 
 static const std::string TEST_DATA_DIR = std::string(IGOR_SOURCE_DIR) + "/tst/test_data/format_v2/";
@@ -471,4 +473,181 @@ TEST_CASE("v1/v2 parity: write_model_parms_v2 round-trip for inference model",
             v2_parms.get_seq_type_registry().get_ordered_types());
 
     std::filesystem::remove(tmp_v2);
+}
+
+// ── Step 7: requires_extended_format() ─────────────────────────────────────
+
+// Standard VJ model uses only legacy seq_types in VJ order → no extension needed.
+TEST_CASE("requires_extended_format: VJ model returns false",
+          "[model_format][step7][requires_extended_format]")
+{
+    Model_Parms parms;
+    REQUIRE_NOTHROW(parms.read_model_parms(TEST_DATA_DIR + "test_legacy_model_parms.txt"));
+    REQUIRE_FALSE(parms.requires_extended_format());
+}
+
+// Standard VDJ model uses only legacy seq_types in VDJ order → no extension needed.
+TEST_CASE("requires_extended_format: VDJ model returns false",
+          "[model_format][step7][requires_extended_format]")
+{
+    Model_Parms parms;
+    REQUIRE_NOTHROW(parms.read_model_parms(TEST_DATA_DIR + "test_legacy_vdj_model_parms.txt"));
+    REQUIRE_FALSE(parms.requires_extended_format());
+}
+
+// Tandem-D model has non-standard seq_types (D1_gene_seq, VD1_ins_seq …) → must use v2.
+TEST_CASE("requires_extended_format: tandem-D model returns true",
+          "[model_format][step7][requires_extended_format]")
+{
+    Model_Parms parms;
+    REQUIRE_NOTHROW(parms.read_model_parms(TEST_DATA_DIR + "test_v2_tandem_d_parms.txt"));
+    REQUIRE(parms.requires_extended_format());
+}
+
+// Programmatically created model with no registry → not extended (legacy OK).
+TEST_CASE("requires_extended_format: empty registry returns false",
+          "[model_format][step7][requires_extended_format]")
+{
+    Model_Parms parms;   // no events, no registry
+    REQUIRE_FALSE(parms.requires_extended_format());
+}
+
+// ── Step 7: write_model_parms() auto-selection ──────────────────────────────
+
+// For a standard VDJ model, write_model_parms() must produce a legacy file
+// (no @Version header).
+TEST_CASE("write_model_parms auto-selects legacy format for standard VDJ model",
+          "[model_format][step7][auto_select]")
+{
+    const std::string src  = TEST_DATA_DIR + "test_legacy_vdj_model_parms.txt";
+    const std::string dest = TEST_DATA_DIR + "tmp_auto_select_legacy.txt";
+
+    Model_Parms parms;
+    REQUIRE_NOTHROW(parms.read_model_parms(src));
+    REQUIRE_NOTHROW(parms.write_model_parms(dest));
+
+    // First line must NOT be @Version
+    std::ifstream f(dest);
+    REQUIRE(f.is_open());
+    std::string first_line;
+    std::getline(f, first_line);
+    REQUIRE(first_line != "@Version");
+
+    // Must be readable as legacy (no version header means legacy parser path)
+    Model_Parms loaded;
+    REQUIRE_NOTHROW(loaded.read_model_parms(dest));
+    require_same_events(parms, loaded);
+
+    std::filesystem::remove(dest);
+}
+
+// For a tandem-D model with non-standard seq_types, write_model_parms() must
+// produce a v2 file (starts with @Version / 2.0).
+TEST_CASE("write_model_parms auto-selects v2 format for tandem-D model",
+          "[model_format][step7][auto_select]")
+{
+    const std::string src  = TEST_DATA_DIR + "test_v2_tandem_d_parms.txt";
+    const std::string dest = TEST_DATA_DIR + "tmp_auto_select_v2.txt";
+
+    Model_Parms parms;
+    REQUIRE_NOTHROW(parms.read_model_parms(src));
+    REQUIRE_NOTHROW(parms.write_model_parms(dest));
+
+    std::ifstream f(dest);
+    REQUIRE(f.is_open());
+    std::string first_line;
+    std::getline(f, first_line);
+    REQUIRE(first_line == "@Version");
+
+    // Must also be readable back with the same events
+    Model_Parms loaded;
+    REQUIRE_NOTHROW(loaded.read_model_parms(dest));
+    require_same_events(parms, loaded);
+
+    std::filesystem::remove(dest);
+}
+
+// ── Step 7: write_model_parms_legacy() round-trip ──────────────────────────
+
+// Read a VDJ legacy model, write it via write_model_parms_legacy(), read back,
+// and verify that all events are identical.
+TEST_CASE("write_model_parms_legacy: VDJ round-trip preserves events",
+          "[model_format][step7][legacy_roundtrip]")
+{
+    const std::string src  = TEST_DATA_DIR + "test_legacy_vdj_model_parms.txt";
+    const std::string dest = TEST_DATA_DIR + "tmp_legacy_roundtrip.txt";
+
+    Model_Parms original;
+    REQUIRE_NOTHROW(original.read_model_parms(src));
+    REQUIRE_NOTHROW(original.write_model_parms_legacy(dest));
+
+    // Written file must not contain @Version
+    std::ifstream f(dest);
+    REQUIRE(f.is_open());
+    std::string first_line;
+    std::getline(f, first_line);
+    REQUIRE(first_line != "@Version");
+
+    Model_Parms loaded;
+    REQUIRE_NOTHROW(loaded.read_model_parms(dest));
+    require_same_events(original, loaded);
+
+    REQUIRE(original.get_seq_type_registry().get_ordered_types() ==
+            loaded.get_seq_type_registry().get_ordered_types());
+
+    std::filesystem::remove(dest);
+}
+
+// ── Step 5: write2txt_v2() output format check ─────────────────────────────
+
+// write_model_parms_v2() must produce event lines with the seq_type field
+// between gene_class and seq_side: #Deletion;Undefined_gene;<seq_type>;<side>...
+TEST_CASE("write2txt_v2 output contains seq_type field in correct position",
+          "[model_format][step5][write2txt_v2]")
+{
+    const std::string src  = TEST_DATA_DIR + "test_legacy_vdj_model_parms.txt";
+    const std::string dest = TEST_DATA_DIR + "tmp_v2_format_check.txt";
+
+    Model_Parms parms;
+    REQUIRE_NOTHROW(parms.read_model_parms(src));
+    REQUIRE_NOTHROW(parms.write_model_parms_v2(dest));
+
+    std::ifstream f(dest);
+    REQUIRE(f.is_open());
+
+    bool found_deletion_v2_line = false;
+    bool found_insertion_v2_line = false;
+    bool found_genechoice_v2_line = false;
+    std::string line;
+    while (std::getline(f, line)) {
+        // Deletion v2: #Deletion;Undefined_gene;<seq_type>;<side>;<prio>;<nick>
+        if (line.size() > 1 && line[0] == '#' && line.find("Deletion") == 1) {
+            // Count semicolons — v2 has 5 fields after '#Deletion'
+            size_t count = std::count(line.begin(), line.end(), ';');
+            REQUIRE(count == 5);  // gene_class;seq_type;side;priority;nickname
+            REQUIRE(line.find("Undefined_gene") != std::string::npos);
+            REQUIRE(line.find("_seq") != std::string::npos);  // seq_type present
+            found_deletion_v2_line = true;
+        }
+        // Insertion v2: #Insertion;Undefined_gene;<seq_type>;...
+        if (line.size() > 1 && line[0] == '#' && line.find("Insertion") == 1) {
+            size_t count = std::count(line.begin(), line.end(), ';');
+            REQUIRE(count == 5);
+            REQUIRE(line.find("Undefined_gene") != std::string::npos);
+            REQUIRE(line.find("_seq") != std::string::npos);
+            found_insertion_v2_line = true;
+        }
+        // GeneChoice v2: #GeneChoice;<gene_class>;<seq_type>;...
+        if (line.size() > 1 && line[0] == '#' && line.find("GeneChoice") == 1) {
+            size_t count = std::count(line.begin(), line.end(), ';');
+            REQUIRE(count == 5);
+            REQUIRE(line.find("_seq") != std::string::npos);
+            found_genechoice_v2_line = true;
+        }
+    }
+    REQUIRE(found_deletion_v2_line);
+    REQUIRE(found_insertion_v2_line);
+    REQUIRE(found_genechoice_v2_line);
+
+    std::filesystem::remove(dest);
 }

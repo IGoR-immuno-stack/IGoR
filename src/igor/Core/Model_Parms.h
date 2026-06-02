@@ -127,7 +127,9 @@ public:
 
     void update_edge_event_name(Rec_Event_name, Rec_Event_name);
 
+    bool requires_extended_format() const;
     void write_model_parms(std::string);
+    void write_model_parms_legacy(std::string);
     void write_model_parms_v2(std::string);
 
     void read_model_parms(std::string);

@@ -541,17 +541,47 @@ Events_map Model_Parms::get_events_map()
     return events_map;
 }
 
+/**
+ * Returns true if this model requires v2.0 format to be fully represented:
+ * - any seq_type is outside the 6 standard legacy types, or
+ * - the seq_type ordering is non-standard (neither VDJ nor VJ order)
+ */
+bool Model_Parms::requires_extended_format() const
+{
+    static const std::unordered_set<std::string> legacy_seq_types = {
+        "V_gene_seq", "VD_ins_seq", "D_gene_seq", "DJ_ins_seq", "J_gene_seq", "VJ_ins_seq"
+    };
+    static const std::vector<std::string> vdj_order = {
+        "V_gene_seq", "VD_ins_seq", "D_gene_seq", "DJ_ins_seq", "J_gene_seq"
+    };
+    static const std::vector<std::string> vj_order = {
+        "V_gene_seq", "VJ_ins_seq", "J_gene_seq"
+    };
+
+    const auto &ordered = seq_type_registry.get_ordered_types();
+    if (ordered.empty())
+        return false;
+    for (const auto &st : ordered) {
+        if (legacy_seq_types.find(st) == legacy_seq_types.end())
+            return true;
+    }
+    return (ordered != vdj_order && ordered != vj_order);
+}
+
 void Model_Parms::write_model_parms(string filename)
 {
+    if (requires_extended_format())
+        write_model_parms_v2(filename);
+    else
+        write_model_parms_legacy(filename);
+}
+
+void Model_Parms::write_model_parms_legacy(string filename)
+{
     ofstream outfile(filename);
-    
-    // Determine if we need v2.0 format based on whether any seq_type conversion is needed
-    // For now, write in legacy format for backward compatibility
-    // TODO: Auto-detect when v2.0 format is required (tandem D genes, non-standard ordering)
-    
     outfile << "@Event_list" << endl;
     for (list<shared_ptr<Rec_Event>>::const_iterator iter = events.begin(); iter != events.end(); ++iter) {
-        (*iter)->write2txt(outfile);
+        (*iter)->write2txt_legacy(outfile);
     }
     outfile << "@Edges" << endl;
     for (list<shared_ptr<Rec_Event>>::const_iterator iter = events.begin(); iter != events.end(); ++iter) {

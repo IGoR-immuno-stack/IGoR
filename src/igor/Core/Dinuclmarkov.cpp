@@ -293,10 +293,11 @@ void Dinucl_markov::write2txt(ofstream &outfile)
 void Dinucl_markov::write2txt_legacy(ofstream &outfile)
 {
     // Derive legacy gene_class from seq_type for backward compatibility
+    // Use to_string() to match the exact strings expected by str2GeneClass()
     string legacy_gene_class;
-    if (seq_type == "VD_ins_seq") legacy_gene_class = "VD_genes";
-    else if (seq_type == "DJ_ins_seq") legacy_gene_class = "DJ_genes";
-    else if (seq_type == "VJ_ins_seq") legacy_gene_class = "VJ_genes";
+    if (seq_type == "VD_ins_seq") legacy_gene_class = to_string(VD_genes);
+    else if (seq_type == "DJ_ins_seq") legacy_gene_class = to_string(DJ_genes);
+    else if (seq_type == "VJ_ins_seq") legacy_gene_class = to_string(VJ_genes);
     else legacy_gene_class = to_string(event_class);
     outfile << "#DinucMarkov;" << legacy_gene_class << ";" << event_side << ";" << priority << ";" << nickname << endl;
     for (unordered_map<string, Event_realization>::const_iterator iter = event_realizations.begin();
