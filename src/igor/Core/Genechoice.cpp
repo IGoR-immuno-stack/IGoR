@@ -1055,10 +1055,22 @@ queue<int> Gene_choice::draw_random_realization(
 }
 void Gene_choice::write2txt(ofstream &outfile)
 {
+    write2txt_legacy(outfile);
+}
+
+void Gene_choice::write2txt_legacy(ofstream &outfile)
+{
     outfile << "#GeneChoice;" << event_class << ";" << event_side << ";" << priority << ";" << nickname << endl;
-    for (unordered_map<string, Event_realization>::const_iterator iter = event_realizations.begin();
-         iter != event_realizations.end(); ++iter) {
-        outfile << "%" << (*iter).second.name << ";" << (*iter).second.value_str << ";" << (*iter).second.index << endl;
+    for (const auto &iter : event_realizations) {
+        outfile << "%" << iter.second.name << ";" << iter.second.value_str << ";" << iter.second.index << endl;
+    }
+}
+
+void Gene_choice::write2txt_v2(ofstream &outfile)
+{
+    outfile << "#GeneChoice;" << event_class << ";" << seq_type << ";" << event_side << ";" << priority << ";" << nickname << endl;
+    for (const auto &iter : event_realizations) {
+        outfile << "%" << iter.second.name << ";" << iter.second.value_str << ";" << iter.second.index << endl;
     }
 }
 

@@ -88,6 +88,8 @@ public:
             const std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &,
             std::unordered_map<Seq_type, std::string> &, std::mt19937_64 &) const;
     void write2txt(std::ofstream &);
+    void write2txt_legacy(std::ofstream &);
+    void write2txt_v2(std::ofstream &);
     void ind_normalize(Marginal_array_p &, size_t) const;
     void initialize_event(
             std::unordered_set<Rec_Event_name> &,

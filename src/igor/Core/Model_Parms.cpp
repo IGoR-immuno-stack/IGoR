@@ -585,34 +585,7 @@ void Model_Parms::write_model_parms_v2(string filename)
     // Events in v2 format
     outfile << "@Event_list" << endl;
     for (const auto &ev : events) {
-        const string &st = ev->get_seq_type();
-        Event_type evt = ev->get_type();
-        Seq_side side = ev->get_side();
-        int prio = ev->get_priority();
-        const string &nick = ev->get_nickname();
-        const auto &realizations = ev->get_realizations_map();
-
-        if (evt == GeneChoice_t) {
-            outfile << "#GeneChoice;" << ev->get_class() << ";" << st << ";" << side << ";" << prio << ";" << nick << endl;
-            for (const auto &r : realizations) {
-                outfile << "%" << r.second.name << ";" << r.second.value_str << ";" << r.second.index << endl;
-            }
-        } else if (evt == Deletion_t) {
-            outfile << "#Deletion;Undefined_gene;" << st << ";" << side << ";" << prio << ";" << nick << endl;
-            for (const auto &r : realizations) {
-                outfile << "%" << r.second.value_int << ";" << r.second.index << endl;
-            }
-        } else if (evt == Insertion_t) {
-            outfile << "#Insertion;Undefined_gene;" << st << ";" << side << ";" << prio << ";" << nick << endl;
-            for (const auto &r : realizations) {
-                outfile << "%" << r.second.value_int << ";" << r.second.index << endl;
-            }
-        } else if (evt == Dinuclmarkov_t) {
-            outfile << "#DinucMarkov;Undefined_gene;" << st << ";" << side << ";" << prio << ";" << nick << endl;
-            for (const auto &r : realizations) {
-                outfile << "%" << r.second.value_str << ";" << r.second.index << endl;
-            }
-        }
+        ev->write2txt_v2(outfile);
     }
 
     // Edges

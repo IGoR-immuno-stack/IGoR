@@ -1284,7 +1284,21 @@ queue<int> Deletion::draw_random_realization(
 
 void Deletion::write2txt(ofstream &outfile)
 {
+    write2txt_legacy(outfile);
+}
+
+void Deletion::write2txt_legacy(ofstream &outfile)
+{
     outfile << "#Deletion;" << event_class << ";" << event_side << ";" << priority << ";" << nickname << endl;
+    for (unordered_map<string, Event_realization>::const_iterator iter = event_realizations.begin();
+         iter != event_realizations.end(); ++iter) {
+        outfile << "%" << (*iter).second.value_int << ";" << (*iter).second.index << endl;
+    }
+}
+
+void Deletion::write2txt_v2(ofstream &outfile)
+{
+    outfile << "#Deletion;Undefined_gene;" << seq_type << ";" << event_side << ";" << priority << ";" << nickname << endl;
     for (unordered_map<string, Event_realization>::const_iterator iter = event_realizations.begin();
          iter != event_realizations.end(); ++iter) {
         outfile << "%" << (*iter).second.value_int << ";" << (*iter).second.index << endl;

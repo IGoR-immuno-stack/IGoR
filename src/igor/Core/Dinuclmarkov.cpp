@@ -287,6 +287,11 @@ queue<int> Dinucl_markov::draw_random_common(const string &previous_seq, string 
 
 void Dinucl_markov::write2txt(ofstream &outfile)
 {
+    write2txt_legacy(outfile);
+}
+
+void Dinucl_markov::write2txt_legacy(ofstream &outfile)
+{
     // Derive legacy gene_class from seq_type for backward compatibility
     string legacy_gene_class;
     if (seq_type == "VD_ins_seq") legacy_gene_class = "VD_genes";
@@ -294,6 +299,15 @@ void Dinucl_markov::write2txt(ofstream &outfile)
     else if (seq_type == "VJ_ins_seq") legacy_gene_class = "VJ_genes";
     else legacy_gene_class = to_string(event_class);
     outfile << "#DinucMarkov;" << legacy_gene_class << ";" << event_side << ";" << priority << ";" << nickname << endl;
+    for (unordered_map<string, Event_realization>::const_iterator iter = event_realizations.begin();
+         iter != event_realizations.end(); ++iter) {
+        outfile << "%" << (*iter).second.value_str << ";" << (*iter).second.index << endl;
+    }
+}
+
+void Dinucl_markov::write2txt_v2(ofstream &outfile)
+{
+    outfile << "#DinucMarkov;Undefined_gene;" << seq_type << ";" << event_side << ";" << priority << ";" << nickname << endl;
     for (unordered_map<string, Event_realization>::const_iterator iter = event_realizations.begin();
          iter != event_realizations.end(); ++iter) {
         outfile << "%" << (*iter).second.value_str << ";" << (*iter).second.index << endl;
