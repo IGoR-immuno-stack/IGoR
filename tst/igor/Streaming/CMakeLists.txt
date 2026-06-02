@@ -26,7 +26,7 @@ target_compile_definitions(streaming_tests PRIVATE
 
 include(Catch)
 catch_discover_tests(streaming_tests
-    DL_PATHS $<TARGET_FILE_DIR:streaming_tests> $ENV{CONDA_PREFIX}/Library/bin
+    DL_PATHS "${CONDA_BIN_DIR}"
     DISCOVERY_MODE PRE_TEST
 )
 
