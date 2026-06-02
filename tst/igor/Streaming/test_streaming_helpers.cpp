@@ -16,6 +16,8 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
+#include <iostream>
+#include <typeinfo>
 #include <catch2/generators/catch_generators_adapters.hpp>
 #include <catch2/matchers/catch_matchers_container_properties.hpp>
 #include <catch2/matchers/catch_matchers_contains.hpp>
@@ -267,6 +269,22 @@ TEST_CASE_METHOD(HelpersFixture, "parse_alignments_from_columns", "[streaming][h
         const auto& v = alignments.at(V_gene)[0];
         REQUIRE(v.gene_name == "IGHV1-1*01");
         REQUIRE(v.offset == 5);
+
+        auto value = v_batch.get_column("v_gene_score")[0];
+        std::visit([](const auto& arg) {
+            std::cout << "type: " << typeid(arg).name() << '\n';
+
+            if constexpr (requires { arg.has_value(); arg.get(); }) {
+                std::cout << "branch: has_value/get\n";
+            } else if constexpr (requires { arg.has_value(); arg.value(); }) {
+                std::cout << "branch: has_value/value\n";
+            } else if constexpr (std::is_arithmetic_v<std::decay_t<decltype(arg)>>) {
+                std::cout << "branch: arithmetic direct\n";
+            } else {
+                std::cout << "branch: unknown\n";
+            }
+        }, value);
+
         REQUIRE(v.score == 150.5);
     }
 }
