@@ -18,8 +18,6 @@ target_link_libraries(math_tests PRIVATE igor::Math Catch2::Catch2WithMain)
 include(Catch)
 catch_discover_tests(math_tests
     DISCOVERY_MODE PRE_TEST
-    PROPERTIES
-        ENVIRONMENT "PATH=${PIXI_BIN_DIR};$ENV{PATH}"
 )
 
 ######################################################################

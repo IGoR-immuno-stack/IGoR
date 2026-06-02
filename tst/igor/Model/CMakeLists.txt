@@ -20,8 +20,6 @@ target_compile_definitions(model_tests PRIVATE IGOR_MODELS_DIR="${CMAKE_SOURCE_D
 include(Catch)
 catch_discover_tests(model_tests
     DISCOVERY_MODE PRE_TEST
-    PROPERTIES
-        ENVIRONMENT "PATH=${PIXI_BIN_DIR};$ENV{PATH}"
 )
 
 ######################################################################
