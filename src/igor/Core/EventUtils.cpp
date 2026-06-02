@@ -171,7 +171,7 @@ std::array<int, 3> mask_to_iupac_codon(CodonMask mask) {
     std::array<int, 3> result{};
     for (int pos = 0; pos < 3; ++pos) {
         int bits = nucleotides_at_position(mask, pos);
-        result[pos] = static_cast<int>(iupac_from_bits_impl(bits));
+        result[pos] = iupac_from_bits(bits);
     }
     return result;
 }
@@ -186,9 +186,6 @@ CodonMask motif_char_to_mask(char ch) {
             }
         }
         return mask;
-    }
-    if (ch == '*') {
-        return codon_mask_for_aa('*');
     }
     // Check if it's a valid amino acid letter
     if ((ch >= 'A' && ch <= 'Y') || ch == '*') {
