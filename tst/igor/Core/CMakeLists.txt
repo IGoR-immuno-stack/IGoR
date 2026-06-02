@@ -24,7 +24,6 @@ target_compile_definitions(igor_tests PRIVATE
 
 include(Catch)
 catch_discover_tests(igor_tests
-    DL_PATHS "${CONDA_BIN_DIR}"
     DISCOVERY_MODE PRE_TEST
     TEST_SPEC "~[integration]"
     TEST_PREFIX "unit::"
@@ -34,7 +33,6 @@ catch_discover_tests(igor_tests
 )
 
 catch_discover_tests(igor_tests
-    DL_PATHS "${CONDA_BIN_DIR}"
     DISCOVERY_MODE PRE_TEST
     TEST_SPEC "[integration]"
     TEST_PREFIX "integration::"

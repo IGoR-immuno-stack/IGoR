@@ -19,7 +19,6 @@ target_link_libraries(model_tests PRIVATE igor::Model igor::Core Catch2::Catch2W
 target_compile_definitions(model_tests PRIVATE IGOR_MODELS_DIR="${CMAKE_SOURCE_DIR}/models")
 include(Catch)
 catch_discover_tests(model_tests
-    DL_PATHS "${CONDA_BIN_DIR}"
     DISCOVERY_MODE PRE_TEST
 )
 

@@ -24,9 +24,9 @@ target_link_libraries(streaming_tests
 target_compile_definitions(streaming_tests PRIVATE
     IGOR_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test_data")
 
+
 include(Catch)
 catch_discover_tests(streaming_tests
-    DL_PATHS "${CONDA_BIN_DIR}"
     DISCOVERY_MODE PRE_TEST
 )
 

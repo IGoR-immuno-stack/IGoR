@@ -17,7 +17,6 @@ set_target_properties(math_tests PROPERTIES CXX_STANDARD 23)
 target_link_libraries(math_tests PRIVATE igor::Math Catch2::Catch2WithMain)
 include(Catch)
 catch_discover_tests(math_tests
-    DL_PATHS "${CONDA_BIN_DIR}"
     DISCOVERY_MODE PRE_TEST
 )
 
