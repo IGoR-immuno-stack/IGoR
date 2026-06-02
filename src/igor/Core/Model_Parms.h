@@ -128,6 +128,7 @@ public:
     void update_edge_event_name(Rec_Event_name, Rec_Event_name);
 
     void write_model_parms(std::string);
+    void write_model_parms_v2(std::string);
 
     void read_model_parms(std::string);
     void set_fixed_all_events(bool);

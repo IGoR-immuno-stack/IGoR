@@ -140,39 +140,10 @@ void Insertion::iterate(
     base_index = exploration.index_map.at(this->event_index);
     proba_contribution = 1;
 
-    switch ((*this).event_class) {
-
-    case VD_genes: {
-        /*//Get the offset of D alignment and all D related informations
-					string d_seq = constructed_sequences.at(D_gene_seq);
-					int d_offset = chosen_genes.at(D_gene).second.offset; //will crash if no D has been chosen
-					int d_del = deletion_map[make_pair(D_gene,Five_prime)];
-
-
-
-
-					string v_seq = constructed_sequences.at(V_gene_seq);
-
-					//Get the offset of V alignment
-					int v_offset = chosen_genes.at(V_gene).second.offset;
-					int v_seq_size = constructed_sequences.at(V_gene_seq).size();
-
-
-
-					//Compute the number of insertions:
-					//ie the number of nucleotides in the read between the end of V and beginning of D
-
-					int insertions =  (d_offset + d_del) - (v_offset + v_seq_size -1) -1;t(pair<Seq_type,Seq_side>(V_gene_seq,Three_prime)) -1
-					*/
-
-        //if(!(*constructed_sequences.at(D_gene_seq)).empty()){
-        //insertions = seq_offsets.at(pair<Seq_type,Seq_side>(D_gene_seq,Five_prime)) - seq_offsets.at(pair<Seq_type,Seq_side>(V_gene_seq,Three_prime)) -1;
-
-        //TODO get the current memory layer to avoid any error
+    const string &ins_st = this->seq_type;
+    if (ins_st == "VD_ins_seq") {
         //insertions = seq_offsets.at(d_5_pair) - seq_offsets.at(v_3_pair) -1;
         insertions = scenario.get_offset(D_gene_seq, Five_prime) - scenario.get_offset(V_gene_seq, Three_prime) - 1;
-
-        //TODO Think about including in-dels in the insertion process(thus create a real loop on the number of insertion)
 
         proba_contribution = (*this).iterate_common(proba_contribution, insertions, base_index, exploration.index_map,
                                                     model.offset_map, model.model_parameters);
@@ -184,34 +155,7 @@ void Insertion::iterate(
             exploration.downstream_proba_map.set_value(VD_ins_seq, junction_length_best_proba_map.at(insertions),
                                            memory_layer_proba_map_junction);
         }
-        //}
-
-    }
-
-    break;
-
-    case DJ_genes: {
-        /*
-				//Get the offset of D alignment and all D related informations
-				string d_seq = constructed_sequences.at(D_gene_seq);
-				int d_offset = chosen_genes.at(D_gene).second.offset;
-				//Get number of deletions (if no deletion event before, default initialized to 0)
-				//need the number of 3' deletions in case the sequence has already been shortened
-				int d_del_5 = deletion_map[make_pair(D_gene,Five_prime)];
-				int d_del_3 = deletion_map[make_pair(D_gene,Three_prime)];
-
-
-				string j_seq = constructed_sequences.at(J_gene_seq);
-
-				//Get the offset of J alignment
-				int j_offset = chosen_genes.at(J_gene).second.offset;
-				//Get the number of deletions
-				int j_del = deletion_map[make_pair(J_gene,Five_prime)];
-
-				int insertions = (j_offset + j_del) - (d_offset + d_del_3  + d_seq.size() - 1 - d_del_5) -1;
-				*/
-        //if(!(*constructed_sequences.at(D_gene_seq)).empty()){
-        //insertions = seq_offsets.at(pair<Seq_type,Seq_side>(J_gene_seq,Five_prime)) - seq_offsets.at(pair<Seq_type,Seq_side>(D_gene_seq,Three_prime)) -1;
+    } else if (ins_st == "DJ_ins_seq") {
         //insertions = seq_offsets.at(j_5_pair) - seq_offsets.at(d_3_pair) -1;
         insertions = scenario.get_offset(J_gene_seq, Five_prime) - scenario.get_offset(D_gene_seq, Three_prime) - 1;
 
@@ -225,41 +169,7 @@ void Insertion::iterate(
             exploration.downstream_proba_map.set_value(DJ_ins_seq, junction_length_best_proba_map.at(insertions),
                                            memory_layer_proba_map_junction);
         }
-
-        //}
-
-        break;
-    }
-    case VJ_genes: {
-
-        //string v_seq = constructed_sequences.at(V_gene_seq);
-
-        /*
-				 * //Get the offset of V alignment
-					int v_offset = chosen_genes.at(V_gene).second.offset;
-					int original_v_seq_size = chosen_genes.at(V_gene).first.value_str.size();
-
-
-
-
-				//Get the number of deletions
-				//use operator[] to find_or_add (default initialize int to 0 if not found)
-				//TODO check if default initializing to 0 is better and then change the values
-				int v_del = deletion_map[make_pair(V_gene,Three_prime)];
-				*/
-
-        //string j_seq = constructed_sequences.at(J_gene_seq);
-        /*
-				//Get the offset of J alignment
-				int j_offset = chosen_genes.at(J_gene).second.offset;
-				//Get the number of deletions
-				int j_del = deletion_map[make_pair(J_gene,Five_prime)];
-				*/
-        //TODO declare insertion before and call iterate common after, clean code get rid of code duplication
-        //int insertions = (j_offset + j_del) - (v_offset  + (original_v_seq_size ) - v_del )-1;
-        //int insertions = sequence.size() - (v_seq.size() + j_seq.size());
-
-        //insertions = seq_offsets.at(pair<Seq_type,Seq_side>(J_gene_seq,Five_prime)) - seq_offsets.at(pair<Seq_type,Seq_side>(V_gene_seq,Three_prime)) -1;
+    } else if (ins_st == "VJ_ins_seq") {
         //insertions = seq_offsets.at(j_5_pair) - seq_offsets.at(v_3_pair) -1;
         insertions = scenario.get_offset(J_gene_seq, Five_prime) - scenario.get_offset(V_gene_seq, Three_prime) - 1;
         proba_contribution = iterate_common(proba_contribution, insertions, base_index, exploration.index_map, model.offset_map,
@@ -272,13 +182,8 @@ void Insertion::iterate(
             exploration.downstream_proba_map.set_value(VJ_ins_seq, junction_length_best_proba_map.at(insertions),
                                            memory_layer_proba_map_junction);
         }
-
-        break;
-    }
-
-    default:
-        throw invalid_argument(std::string("Unknown gene_class for Insertion: ") + this->event_class);
-        break;
+    } else {
+        throw invalid_argument(std::string("Unknown seq_type for Insertion: ") + ins_st);
     }
 
     if (proba_contribution != 0) {
@@ -345,18 +250,13 @@ queue<int> Insertion::draw_random_realization(
          iter != this->event_realizations.end(); ++iter) {
         prob_count += model_marginals_p[index_map.at(this->get_name()) + (*iter).second.index];
         if (prob_count >= rand) {
-            switch (this->event_class) {
-            case VD_genes:
+            const string &drr_st = this->seq_type;
+            if (drr_st == "VD_ins_seq") {
                 constructed_sequences[VD_ins_seq] = string((*iter).second.value_int, 'I');
-                break;
-            case DJ_genes:
+            } else if (drr_st == "DJ_ins_seq") {
                 constructed_sequences[DJ_ins_seq] = string((*iter).second.value_int, 'I');
-                break;
-            case VJ_genes:
+            } else if (drr_st == "VJ_ins_seq") {
                 constructed_sequences[VJ_ins_seq] = string((*iter).second.value_int, 'I');
-                break;
-            default:
-                break;
             }
             realization_queue.push((*iter).second.index);
             if (offset_map.count(this->get_name()) != 0) {
@@ -375,7 +275,13 @@ queue<int> Insertion::draw_random_realization(
 
 void Insertion::write2txt(ofstream &outfile)
 {
-    outfile << "#Insertion;" << event_class << ";" << event_side << ";" << priority << ";" << nickname << endl;
+    // Derive legacy gene_class from seq_type for backward compatibility
+    string legacy_gene_class;
+    if (seq_type == "VD_ins_seq") legacy_gene_class = "VD_genes";
+    else if (seq_type == "DJ_ins_seq") legacy_gene_class = "DJ_genes";
+    else if (seq_type == "VJ_ins_seq") legacy_gene_class = "VJ_genes";
+    else legacy_gene_class = to_string(event_class);
+    outfile << "#Insertion;" << legacy_gene_class << ";" << event_side << ";" << priority << ";" << nickname << endl;
     for (unordered_map<string, Event_realization>::const_iterator iter = event_realizations.begin();
          iter != event_realizations.end(); ++iter) {
         outfile << "%" << (*iter).second.value_int << ";" << (*iter).second.index << endl;
@@ -391,22 +297,16 @@ void Insertion::initialize_event(
         Seq_offsets_map &seq_offsets, Index_map &index_map)
 {
 
-    switch (this->event_class) {
-
-    case VD_genes:
+    const string &ie_st = this->seq_type;
+    if (ie_st == "VD_ins_seq") {
         downstream_proba_map.request_memory_layer(VD_ins_seq);
         memory_layer_proba_map_junction = downstream_proba_map.get_current_memory_layer(VD_ins_seq);
-        break;
-
-    case DJ_genes:
+    } else if (ie_st == "DJ_ins_seq") {
         downstream_proba_map.request_memory_layer(DJ_ins_seq);
         memory_layer_proba_map_junction = downstream_proba_map.get_current_memory_layer(DJ_ins_seq);
-        break;
-
-    case VJ_genes:
+    } else if (ie_st == "VJ_ins_seq") {
         downstream_proba_map.request_memory_layer(VJ_ins_seq);
         memory_layer_proba_map_junction = downstream_proba_map.get_current_memory_layer(VJ_ins_seq);
-        break;
     }
 
     this->Rec_Event::initialize_event(processed_events, events_map, offset_map, downstream_proba_map,
@@ -461,33 +361,26 @@ void Insertion::initialize_crude_scenario_proba_bound(
         ordered_realization_map.emplace((*iter).second.value_int, (*iter).second);
     }
 
-    switch (this->event_class) {
-        //TODO be careful in case there is both VDJ and VD/DJ (however this should not happen)
-
-    case VD_genes:
+    const string &icsb_st = this->seq_type;
+    //TODO be careful in case there is both VDJ and VD/DJ (however this should not happen)
+    if (icsb_st == "VD_ins_seq") {
         if (events_map.count(make_tuple(Dinuclmarkov_t, string("VD_ins_seq"), Undefined_side))) {
             dinuc_event_p = events_map.at(make_tuple(Dinuclmarkov_t, string("VD_ins_seq"), Undefined_side));
         } else if (events_map.count(make_tuple(Dinuclmarkov_t, string("VDJ_ins_seq"), Undefined_side))) {
             dinuc_event_p = events_map.at(make_tuple(Dinuclmarkov_t, string("VDJ_ins_seq"), Undefined_side));
         }
-        break;
-
-    case VJ_genes:
+    } else if (icsb_st == "VJ_ins_seq") {
         if (events_map.count(make_tuple(Dinuclmarkov_t, string("VJ_ins_seq"), Undefined_side))) {
             dinuc_event_p = events_map.at(make_tuple(Dinuclmarkov_t, string("VJ_ins_seq"), Undefined_side));
         }
-        break;
-
-    case DJ_genes:
+    } else if (icsb_st == "DJ_ins_seq") {
         if (events_map.count(make_tuple(Dinuclmarkov_t, string("DJ_ins_seq"), Undefined_side))) {
             dinuc_event_p = events_map.at(make_tuple(Dinuclmarkov_t, string("DJ_ins_seq"), Undefined_side));
         } else if (events_map.count(make_tuple(Dinuclmarkov_t, string("VDJ_ins_seq"), Undefined_side))) {
             dinuc_event_p = events_map.at(make_tuple(Dinuclmarkov_t, string("VDJ_ins_seq"), Undefined_side));
         }
-        break;
-    default:
-        throw runtime_error("Unknown Gene class for insertion in initialize_scenario_proba_bound()");
-        break;
+    } else {
+        throw runtime_error("Unknown seq_type for insertion in initialize_scenario_proba_bound(): " + icsb_st);
     }
     double dinuc_upper_bound_proba = dinuc_event_p->get_upper_bound_proba();
     for (map<int, double>::iterator iter = upper_bound_per_ins.begin(); iter != upper_bound_per_ins.end(); ++iter) {
@@ -509,29 +402,14 @@ void Insertion::initialize_crude_scenario_proba_bound(
 
 bool Insertion::has_effect_on(Seq_type seq_type) const
 {
-    switch (this->event_class) {
-    case VD_genes:
-        if (seq_type == VJ_ins_seq or seq_type == VD_ins_seq) {
-            return true;
-        } else
-            return false;
-        break;
-
-    case VJ_genes:
-        if (seq_type == VJ_ins_seq) {
-            return true;
-        } else
-            return false;
-        break;
-
-    case DJ_genes:
-        if (seq_type == VJ_ins_seq or seq_type == DJ_ins_seq) {
-            return true;
-        } else
-            return false;
-        break;
-
-    default:
+    const string &heo_st = this->seq_type;
+    if (heo_st == "VD_ins_seq") {
+        return (seq_type == VJ_ins_seq || seq_type == VD_ins_seq);
+    } else if (heo_st == "VJ_ins_seq") {
+        return (seq_type == VJ_ins_seq);
+    } else if (heo_st == "DJ_ins_seq") {
+        return (seq_type == VJ_ins_seq || seq_type == DJ_ins_seq);
+    } else {
         return false;
     }
 }
@@ -548,19 +426,19 @@ void Insertion::iterate_initialize_Len_proba(Seq_type considered_junction, std::
         base_index = base_index_map.at(this->event_index, 0);
 
         //Insert sequence in the right constructed sequence
-        Seq_type seq_type;
-        switch (this->event_class) {
-        case VD_genes:
-            seq_type = VD_ins_seq;
-            break;
-
-        case VJ_ins_seq:
-            seq_type = VJ_ins_seq;
-            break;
-
-        case DJ_ins_seq:
-            seq_type = DJ_ins_seq;
-            break;
+        Seq_type seq_type_enum;
+        const string &iilp_st = this->seq_type;
+        if (iilp_st == "VD_ins_seq") {
+            seq_type_enum = VD_ins_seq;
+        } else if (iilp_st == "VJ_ins_seq") {
+            seq_type_enum = VJ_ins_seq;
+        } else if (iilp_st == "DJ_ins_seq") {
+            seq_type_enum = DJ_ins_seq;
+        } else {
+            Rec_Event::iterate_initialize_Len_proba_wrap_up(considered_junction, length_best_proba_map, model_queue,
+                                                            scenario_proba, model_parameters_point, base_index_map,
+                                                            constructed_sequences, seq_len);
+            return;
         }
 
         for (unordered_map<string, Event_realization>::const_iterator iter = this->event_realizations.begin();
@@ -586,7 +464,7 @@ void Insertion::iterate_initialize_Len_proba(Seq_type considered_junction, std::
 
             //Build an inserted sequence to let the Dinuc know about the number of insertions considered
             inserted_str.assign(iter->second.value_int, -1);
-            constructed_sequences[seq_type] = &inserted_str;
+            constructed_sequences[seq_type_enum] = &inserted_str;
 
             //Update the length and the probability within the recursive call
             Rec_Event::iterate_initialize_Len_proba_wrap_up(
@@ -604,19 +482,16 @@ void Insertion::iterate_initialize_Len_proba(Seq_type considered_junction, std::
 void Insertion::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &model_queue,
                                            const Marginal_array_p &model_parameters_point, Index_map &base_index_map)
 {
-    Seq_type seq_type;
-    switch (this->event_class) {
-    case VD_genes:
-        seq_type = VD_ins_seq;
-        break;
-
-    case VJ_ins_seq:
-        seq_type = VJ_ins_seq;
-        break;
-
-    case DJ_ins_seq:
-        seq_type = DJ_ins_seq;
-        break;
+    Seq_type seq_type_enum;
+    const string &ilpb_st = this->seq_type;
+    if (ilpb_st == "VD_ins_seq") {
+        seq_type_enum = VD_ins_seq;
+    } else if (ilpb_st == "VJ_ins_seq") {
+        seq_type_enum = VJ_ins_seq;
+    } else if (ilpb_st == "DJ_ins_seq") {
+        seq_type_enum = DJ_ins_seq;
+    } else {
+        return; // Unknown seq_type, skip
     }
 
     Seq_type_str_p_map constructed_sequences(6);
@@ -626,9 +501,9 @@ void Insertion::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &model_q
     for (unordered_map<string, Event_realization>::const_iterator iter = this->event_realizations.begin();
          iter != this->event_realizations.end(); ++iter) {
         inserted_str.assign(iter->second.value_int, -1);
-        constructed_sequences[seq_type] = &inserted_str;
+        constructed_sequences[seq_type_enum] = &inserted_str;
         double init_proba = 1.0;
-        this->Rec_Event::iterate_initialize_Len_proba(seq_type, junction_length_best_proba_map, model_queue, init_proba,
+        this->Rec_Event::iterate_initialize_Len_proba(seq_type_enum, junction_length_best_proba_map, model_queue, init_proba,
                                                       model_parameters_point, base_index_map, constructed_sequences);
     }
 }

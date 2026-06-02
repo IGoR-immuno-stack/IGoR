@@ -241,3 +241,234 @@ TEST_CASE("SeqTypeRegistry inferred as VDJ order from legacy format", "[model_fo
     };
     REQUIRE(registry.get_ordered_types() == expected);
 }
+
+// ── Gene_class validation in v2 format ──────────────────────────────────────
+
+// In v2.0 a GeneChoice event may only carry an alignment-purpose gene_class
+// (V_gene, D_gene, J_gene, Undefined_gene).  Junction classes (VD_genes,
+// DJ_genes, VJ_genes, VDJ_genes) are illegal and must produce an error.
+TEST_CASE("v2 format: GeneChoice with junction gene_class throws", "[model_format][v2.0][gene_class]")
+{
+    const std::string file_path = TEST_DATA_DIR + "test_v2_bad_genechoice_gene_class.txt";
+
+    Model_Parms parms;
+    REQUIRE_THROWS_AS(parms.read_model_parms(file_path), std::runtime_error);
+    REQUIRE_THROWS_WITH(
+        parms.read_model_parms(file_path),
+        Catch::Matchers::ContainsSubstring("VD_genes") &&
+        Catch::Matchers::ContainsSubstring("GeneChoice") &&
+        Catch::Matchers::ContainsSubstring("v2.0"));
+}
+
+// In legacy format the junction gene_class values (VJ_gene, VD_genes, …) on
+// Insertion and DinucMarkov events must still be accepted and automatically
+// converted to the corresponding seq_type string.
+TEST_CASE("legacy format: junction gene_class converted to seq_type on Insertion and DinucMarkov",
+          "[model_format][legacy][gene_class]")
+{
+    const std::string file_path = TEST_DATA_DIR + "test_legacy_model_parms.txt";
+
+    Model_Parms parms;
+    REQUIRE_NOTHROW(parms.read_model_parms(file_path));
+
+    // Insertion: VJ_gene (legacy) → seq_type "VJ_ins_seq"
+    auto vj_ins = parms.get_event_pointer("vj_ins", true);
+    REQUIRE(vj_ins != nullptr);
+    REQUIRE(vj_ins->get_type() == Insertion_t);
+    REQUIRE(vj_ins->get_seq_type() == "VJ_ins_seq");
+
+    // DinucMarkov: VJ_gene (legacy) → seq_type "VJ_ins_seq"
+    auto vj_dinucl = parms.get_event_pointer("vj_dinucl", true);
+    REQUIRE(vj_dinucl != nullptr);
+    REQUIRE(vj_dinucl->get_type() == Dinuclmarkov_t);
+    REQUIRE(vj_dinucl->get_seq_type() == "VJ_ins_seq");
+}
+
+// In legacy format GeneChoice gene_class (V_gene, D_gene, J_gene) must be
+// preserved as-is and the seq_type must be the corresponding "*_seq" string.
+TEST_CASE("legacy format: GeneChoice gene_class preserved and seq_type inferred",
+          "[model_format][legacy][gene_class]")
+{
+    const std::string file_path = TEST_DATA_DIR + "test_legacy_model_parms.txt";
+
+    Model_Parms parms;
+    REQUIRE_NOTHROW(parms.read_model_parms(file_path));
+
+    auto v_choice = parms.get_event_pointer("v_choice", true);
+    REQUIRE(v_choice != nullptr);
+    REQUIRE(v_choice->get_class() == V_gene);
+    REQUIRE(v_choice->get_seq_type() == "V_gene_seq");
+
+    auto j_choice = parms.get_event_pointer("j_choice", true);
+    REQUIRE(j_choice != nullptr);
+    REQUIRE(j_choice->get_class() == J_gene);
+    REQUIRE(j_choice->get_seq_type() == "J_gene_seq");
+}
+
+// In v2.0 format Insertion and DinucMarkov must use Undefined_gene as
+// gene_class, and their seq_type must equal the explicit field from the file.
+TEST_CASE("v2 format: Insertion and DinucMarkov use explicit seq_type field",
+          "[model_format][v2.0][gene_class]")
+{
+    const std::string file_path = TEST_DATA_DIR + "test_v2_model_parms.txt";
+
+    Model_Parms parms;
+    REQUIRE_NOTHROW(parms.read_model_parms(file_path));
+
+    auto vj_ins = parms.get_event_pointer("vj_ins", true);
+    REQUIRE(vj_ins != nullptr);
+    REQUIRE(vj_ins->get_type() == Insertion_t);
+    REQUIRE(vj_ins->get_seq_type() == "VJ_ins_seq");
+
+    auto vj_dinucl = parms.get_event_pointer("vj_dinucl", true);
+    REQUIRE(vj_dinucl != nullptr);
+    REQUIRE(vj_dinucl->get_type() == Dinuclmarkov_t);
+    REQUIRE(vj_dinucl->get_seq_type() == "VJ_ins_seq");
+}
+
+// In v2.0 format GeneChoice with valid alignment gene_class must be accepted
+// and the seq_type field must be stored verbatim.
+TEST_CASE("v2 format: GeneChoice with valid gene_class accepted",
+          "[model_format][v2.0][gene_class]")
+{
+    const std::string file_path = TEST_DATA_DIR + "test_v2_model_parms.txt";
+
+    Model_Parms parms;
+    REQUIRE_NOTHROW(parms.read_model_parms(file_path));
+
+    auto v_choice = parms.get_event_pointer("v_choice", true);
+    REQUIRE(v_choice != nullptr);
+    REQUIRE(v_choice->get_class() == V_gene);
+    REQUIRE(v_choice->get_seq_type() == "V_gene_seq");
+
+    auto j_choice = parms.get_event_pointer("j_choice", true);
+    REQUIRE(j_choice != nullptr);
+    REQUIRE(j_choice->get_class() == J_gene);
+    REQUIRE(j_choice->get_seq_type() == "J_gene_seq");
+}
+
+// ── v1/v2 parity tests ──────────────────────────────────────────────────────
+
+// Helper: collect comparable per-event properties from a loaded Model_Parms.
+struct EventSummary {
+    std::string nickname;
+    Event_type  type;
+    Gene_class  gene_class;  // only meaningful for GeneChoice
+    std::string seq_type;
+    Seq_side    side;
+    int         num_realizations;
+};
+
+static std::vector<EventSummary> summarise_events(const Model_Parms &parms)
+{
+    std::vector<EventSummary> out;
+    for (const auto &ev : parms.get_event_list()) {
+        EventSummary s;
+        s.nickname          = ev->get_nickname();
+        s.type              = ev->get_type();
+        s.gene_class        = ev->get_class();
+        s.seq_type          = ev->get_seq_type();
+        s.side              = ev->get_side();
+        s.num_realizations  = static_cast<int>(ev->get_realizations_map().size());
+        out.push_back(s);
+    }
+    // Sort by nickname so ordering differences don't matter.
+    std::sort(out.begin(), out.end(),
+              [](const EventSummary &a, const EventSummary &b) {
+                  return a.nickname < b.nickname;
+              });
+    return out;
+}
+
+static void require_same_events(const Model_Parms &v1_parms, const Model_Parms &v2_parms)
+{
+    auto v1 = summarise_events(v1_parms);
+    auto v2 = summarise_events(v2_parms);
+    REQUIRE(v1.size() == v2.size());
+    for (size_t i = 0; i < v1.size(); ++i) {
+        INFO("Event: " << v1[i].nickname);
+        REQUIRE(v1[i].nickname         == v2[i].nickname);
+        REQUIRE(v1[i].type             == v2[i].type);
+        REQUIRE(v1[i].seq_type         == v2[i].seq_type);
+        REQUIRE(v1[i].num_realizations == v2[i].num_realizations);
+        // For GeneChoice events the alignment gene_class must be preserved.
+        if (v1[i].type == GeneChoice_t) {
+            REQUIRE(v1[i].gene_class == v2[i].gene_class);
+        }
+    }
+}
+
+// VJ legacy vs hand-written v2 counterpart.
+TEST_CASE("v1/v2 parity: VJ model - hand-written v2 file matches legacy",
+          "[model_format][parity][v2.0]")
+{
+    Model_Parms v1_parms, v2_parms;
+    REQUIRE_NOTHROW(v1_parms.read_model_parms(TEST_DATA_DIR + "test_legacy_model_parms.txt"));
+    REQUIRE_NOTHROW(v2_parms.read_model_parms(TEST_DATA_DIR + "test_legacy_model_parms_v2.txt"));
+
+    require_same_events(v1_parms, v2_parms);
+
+    REQUIRE(v1_parms.get_seq_type_registry().get_ordered_types() ==
+            v2_parms.get_seq_type_registry().get_ordered_types());
+}
+
+// VDJ legacy vs hand-written v2 counterpart.
+TEST_CASE("v1/v2 parity: VDJ model - hand-written v2 file matches legacy",
+          "[model_format][parity][v2.0]")
+{
+    Model_Parms v1_parms, v2_parms;
+    REQUIRE_NOTHROW(v1_parms.read_model_parms(TEST_DATA_DIR + "test_legacy_vdj_model_parms.txt"));
+    REQUIRE_NOTHROW(v2_parms.read_model_parms(TEST_DATA_DIR + "test_legacy_vdj_model_parms_v2.txt"));
+
+    require_same_events(v1_parms, v2_parms);
+
+    REQUIRE(v1_parms.get_seq_type_registry().get_ordered_types() ==
+            v2_parms.get_seq_type_registry().get_ordered_types());
+}
+
+// Round-trip: read legacy -> write v2 -> read back -> same as legacy.
+TEST_CASE("v1/v2 parity: write_model_parms_v2 round-trip equals original",
+          "[model_format][parity][v2.0]")
+{
+    const std::string v1_path = TEST_DATA_DIR + "test_legacy_vdj_model_parms.txt";
+    const std::string tmp_v2  = TEST_DATA_DIR + "tmp_roundtrip_v2.txt";
+
+    Model_Parms v1_parms;
+    REQUIRE_NOTHROW(v1_parms.read_model_parms(v1_path));
+
+    REQUIRE_NOTHROW(v1_parms.write_model_parms_v2(tmp_v2));
+
+    Model_Parms v2_parms;
+    REQUIRE_NOTHROW(v2_parms.read_model_parms(tmp_v2));
+
+    require_same_events(v1_parms, v2_parms);
+
+    REQUIRE(v1_parms.get_seq_type_registry().get_ordered_types() ==
+            v2_parms.get_seq_type_registry().get_ordered_types());
+
+    std::filesystem::remove(tmp_v2);
+}
+
+// Round-trip using the large inference model file (covers full V/D/J gene sets).
+TEST_CASE("v1/v2 parity: write_model_parms_v2 round-trip for inference model",
+          "[model_format][parity][v2.0][inference]")
+{
+    const std::string INFER_DIR = std::string(IGOR_SOURCE_DIR) + "/tst/test_data/inference/";
+    const std::string v1_path   = INFER_DIR + "fixed_VJ_TRB_model_parms.txt";
+    const std::string tmp_v2    = INFER_DIR + "tmp_inference_v2.txt";
+
+    Model_Parms v1_parms;
+    REQUIRE_NOTHROW(v1_parms.read_model_parms(v1_path));
+
+    REQUIRE_NOTHROW(v1_parms.write_model_parms_v2(tmp_v2));
+
+    Model_Parms v2_parms;
+    REQUIRE_NOTHROW(v2_parms.read_model_parms(tmp_v2));
+
+    require_same_events(v1_parms, v2_parms);
+
+    REQUIRE(v1_parms.get_seq_type_registry().get_ordered_types() ==
+            v2_parms.get_seq_type_registry().get_ordered_types());
+
+    std::filesystem::remove(tmp_v2);
+}

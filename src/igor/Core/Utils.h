@@ -102,12 +102,12 @@ enum Seq_side { Five_prime = 0, Three_prime = 1, Undefined_side = 2 };
 enum Seq_type { V_gene_seq = 0, VD_ins_seq = 1, D_gene_seq = 2, DJ_ins_seq = 3, J_gene_seq = 4, VJ_ins_seq = 5 };
 enum CORE_EXPORT Gene_class {
     V_gene = 0,
-    VD_genes = 1,
+    VD_genes = 1,   ///< LEGACY: junction class, kept for legacy file read/write only
     D_gene = 2,
-    DJ_genes = 3,
+    DJ_genes = 3,   ///< LEGACY: junction class, kept for legacy file read/write only
     J_gene = 4,
-    VJ_genes = 5,
-    VDJ_genes = 6,
+    VJ_genes = 5,   ///< LEGACY: junction class, kept for legacy file read/write only
+    VDJ_genes = 6,  ///< LEGACY: junction class, kept for legacy file read/write only
     Undefined_gene = 7
 };
 enum Fileformat { CSV_f, FASTA_f, TXT_f, FASTQ_f };

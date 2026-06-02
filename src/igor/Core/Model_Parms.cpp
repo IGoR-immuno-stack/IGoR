@@ -523,9 +523,10 @@ Events_map Model_Parms::get_events_map() const
 {
     Events_map events_map;
     for (list<shared_ptr<Rec_Event>>::const_iterator iter = this->events.begin(); iter != this->events.end(); ++iter) {
-        events_map.emplace(
-                make_tuple((*iter)->get_type(), (*iter)->get_seq_type(), (*iter)->get_side()),
-                (*iter));
+        // DinucMarkov is keyed with Undefined_side: the seq_type already uniquely identifies
+        // which junction it belongs to, and event_side carries direction info only (not identity).
+        Seq_side map_side = ((*iter)->get_type() == Dinuclmarkov_t) ? Undefined_side : (*iter)->get_side();
+        events_map.emplace(make_tuple((*iter)->get_type(), (*iter)->get_seq_type(), map_side), (*iter));
     }
     return events_map;
 }
@@ -534,9 +535,8 @@ Events_map Model_Parms::get_events_map()
 {
     Events_map events_map;
     for (list<shared_ptr<Rec_Event>>::const_iterator iter = this->events.begin(); iter != this->events.end(); ++iter) {
-        events_map.emplace(
-                make_tuple((*iter)->get_type(), (*iter)->get_seq_type(), (*iter)->get_side()),
-                (*iter));
+        Seq_side map_side = ((*iter)->get_type() == Dinuclmarkov_t) ? Undefined_side : (*iter)->get_side();
+        events_map.emplace(make_tuple((*iter)->get_type(), (*iter)->get_seq_type(), map_side), (*iter));
     }
     return events_map;
 }
@@ -560,6 +560,71 @@ void Model_Parms::write_model_parms(string filename)
             outfile << "%" << (*iter)->get_name() << ";" << (*jiter)->get_name() << endl;
         }
     }
+    outfile << "@ErrorRate" << endl;
+    error_rate->write2txt(outfile);
+}
+
+void Model_Parms::write_model_parms_v2(string filename)
+{
+    ofstream outfile(filename);
+
+    // Header
+    outfile << "@Version" << endl;
+    outfile << "2.0" << endl;
+
+    // Seq_type_order from registry
+    outfile << "@Seq_type_order" << endl;
+    const auto &ordered = seq_type_registry.get_ordered_types();
+    outfile << "[";
+    for (size_t i = 0; i < ordered.size(); ++i) {
+        if (i > 0) outfile << ",";
+        outfile << ordered[i];
+    }
+    outfile << "]" << endl;
+
+    // Events in v2 format
+    outfile << "@Event_list" << endl;
+    for (const auto &ev : events) {
+        const string &st = ev->get_seq_type();
+        Event_type evt = ev->get_type();
+        Seq_side side = ev->get_side();
+        int prio = ev->get_priority();
+        const string &nick = ev->get_nickname();
+        const auto &realizations = ev->get_realizations_map();
+
+        if (evt == GeneChoice_t) {
+            outfile << "#GeneChoice;" << ev->get_class() << ";" << st << ";" << side << ";" << prio << ";" << nick << endl;
+            for (const auto &r : realizations) {
+                outfile << "%" << r.second.name << ";" << r.second.value_str << ";" << r.second.index << endl;
+            }
+        } else if (evt == Deletion_t) {
+            outfile << "#Deletion;Undefined_gene;" << st << ";" << side << ";" << prio << ";" << nick << endl;
+            for (const auto &r : realizations) {
+                outfile << "%" << r.second.value_int << ";" << r.second.index << endl;
+            }
+        } else if (evt == Insertion_t) {
+            outfile << "#Insertion;Undefined_gene;" << st << ";" << side << ";" << prio << ";" << nick << endl;
+            for (const auto &r : realizations) {
+                outfile << "%" << r.second.value_int << ";" << r.second.index << endl;
+            }
+        } else if (evt == Dinuclmarkov_t) {
+            outfile << "#DinucMarkov;Undefined_gene;" << st << ";" << side << ";" << prio << ";" << nick << endl;
+            for (const auto &r : realizations) {
+                outfile << "%" << r.second.value_str << ";" << r.second.index << endl;
+            }
+        }
+    }
+
+    // Edges
+    outfile << "@Edges" << endl;
+    for (const auto &ev : events) {
+        const auto &children = edges[ev->get_name()].children;
+        for (const auto &child : children) {
+            outfile << "%" << ev->get_name() << ";" << child->get_name() << endl;
+        }
+    }
+
+    // Error rate
     outfile << "@ErrorRate" << endl;
     error_rate->write2txt(outfile);
 }
@@ -719,11 +784,23 @@ void Model_Parms::read_model_parms(string filename)
                 event_seq_type = legacy_gene_class_to_seq_type(event_class, evt_type);
             } else {
                 // For v2.0 format, convert seq_type to gene_class for internal use
-                Event_type evt_type = (event == "GeneChoice") ? GeneChoice_t : 
+                Event_type evt_type = (event == "GeneChoice") ? GeneChoice_t :
                     (event == "Deletion") ? Deletion_t :
                     (event == "Insertion") ? Insertion_t : Dinuclmarkov_t;
-                // For non-GeneChoice events, derive gene_class from seq_type for backward compatibility
-                if (evt_type != GeneChoice_t) {
+                if (evt_type == GeneChoice_t) {
+                    // In v2.0, GeneChoice gene_class must be an alignment target only:
+                    // V_gene, D_gene, J_gene, or Undefined_gene. Junction classes are illegal.
+                    if (event_class == VD_genes || event_class == DJ_genes ||
+                        event_class == VJ_genes || event_class == VDJ_genes) {
+                        throw runtime_error(
+                            "Invalid gene_class \"" + to_string(event_class) +
+                            "\" for GeneChoice event in v2.0 format file \"" + filename +
+                            "\". In v2.0, GeneChoice gene_class must be V_gene, D_gene, J_gene,"
+                            " or Undefined_gene. Junction classes (VD_genes, DJ_genes, VJ_genes,"
+                            " VDJ_genes) are reserved for legacy format only.");
+                    }
+                } else {
+                    // For non-GeneChoice events, derive gene_class from seq_type for backward compatibility
                     effective_gene_class = seq_type_to_gene_class(seq_type_str, evt_type);
                 }
             }
@@ -798,6 +875,18 @@ void Model_Parms::read_model_parms(string filename)
                 new_event_p->set_priority(priority);
                 new_event_p->set_nickname(nickname);
                 new_event_p->set_seq_type(event_seq_type);
+                // Propagate direction: for legacy files derive from gene_class; for v2 use the parsed event_side.
+                if (format_version < 2.0) {
+                    Seq_side dinucl_side = Undefined_side;
+                    if (event_class == VD_genes || event_class == VJ_genes) {
+                        dinucl_side = Three_prime;
+                    } else if (event_class == DJ_genes) {
+                        dinucl_side = Five_prime;
+                    }
+                    new_event_p->set_event_side(dinucl_side);
+                } else {
+                    new_event_p->set_event_side(event_side);
+                }
                 this->add_event(new_event_p);
                 getline(infile, line_str);
                 while (line_str[0] == '%') {

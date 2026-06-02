@@ -193,6 +193,7 @@ public:
     int get_len_min() const { return this->len_min; };
     const std::string get_seq_type() const { return seq_type; };
     void set_seq_type(std::string st) { seq_type = st; }
+    void set_event_side(Seq_side s) { event_side = s; }
 
     bool operator==(const Rec_Event &) const;
     void update_event_name();

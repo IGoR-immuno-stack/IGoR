@@ -68,6 +68,7 @@ struct FastEventSampler
     Gene_class gene_class;
     Seq_side side;
     std::string name;
+    std::string seq_type;  ///< Sequence type identifier (e.g., "VD_ins_seq") for step 3 migration
     size_t event_index; ///< Index of this event in the event_samplers_ vector
 
     // Dependencies for conditional sampling (generic - works for any model)

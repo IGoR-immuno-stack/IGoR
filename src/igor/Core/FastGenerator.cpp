@@ -83,6 +83,7 @@ void FastGenerator::initialize(const Model_Parms &model_parms, const Model_margi
         sampler.gene_class = event->get_class();
         sampler.side = event->get_side();
         sampler.name = event->get_name();
+        sampler.seq_type = event->get_seq_type();
         sampler.event_index = event_idx;
         sampler.num_realizations = event->size();
 
@@ -380,21 +381,18 @@ void FastGenerator::sample_event(const FastEventSampler &sampler, std::mt19937_6
     case Insertion_t: {
         // For insertion, sampled index directly gives insertion length
         // Create placeholder for dinucleotide model
-        Seq_type seq_type;
-        switch (sampler.gene_class) {
-        case VD_genes:
-            seq_type = VD_ins_seq;
-            break;
-        case DJ_genes:
-            seq_type = DJ_ins_seq;
-            break;
-        case VJ_genes:
-            seq_type = VJ_ins_seq;
-            break;
-        default:
+        Seq_type seq_type_enum;
+        const std::string &st = sampler.seq_type;
+        if (st == "VD_ins_seq") {
+            seq_type_enum = VD_ins_seq;
+        } else if (st == "DJ_ins_seq") {
+            seq_type_enum = DJ_ins_seq;
+        } else if (st == "VJ_ins_seq") {
+            seq_type_enum = VJ_ins_seq;
+        } else {
             return;
         }
-        sequences[seq_type] = std::string(choice_idx, 'I');
+        sequences[seq_type_enum] = std::string(choice_idx, 'I');
         break;
     }
 
@@ -434,8 +432,9 @@ void FastGenerator::sample_dinucl_markov(const FastEventSampler &sampler, std::m
         return 0;
     };
 
-    // Process based on gene class
-    if (sampler.gene_class == VD_genes || sampler.gene_class == VDJ_genes) {
+    // Process based on seq_type string
+    const std::string &st = sampler.seq_type;
+    if (st == "VD_ins_seq") {
         std::string &ins_seq = sequences[VD_ins_seq];
         if (!ins_seq.empty()) {
             int prev_nt = get_last_nt(sequences[V_gene_seq]);
@@ -450,7 +449,7 @@ void FastGenerator::sample_dinucl_markov(const FastEventSampler &sampler, std::m
         }
     }
 
-    if (sampler.gene_class == DJ_genes || sampler.gene_class == VDJ_genes) {
+    if (st == "DJ_ins_seq") {
         std::string &ins_seq = sequences[DJ_ins_seq];
         if (!ins_seq.empty()) {
             // DJ insertions are generated from J side going towards D
@@ -467,7 +466,7 @@ void FastGenerator::sample_dinucl_markov(const FastEventSampler &sampler, std::m
         }
     }
 
-    if (sampler.gene_class == VJ_genes) {
+    if (st == "VJ_ins_seq") {
         std::string &ins_seq = sequences[VJ_ins_seq];
         if (!ins_seq.empty()) {
             int prev_nt = get_last_nt(sequences[V_gene_seq]);
