@@ -240,9 +240,13 @@ void Deletion::iterate(
         }
         Int_Str &previous_str = (*scenario.get_sequence_segment(V_gene_seq, memory_layer_cs - 1));
         vector<int> &v_mismatch_list = *scenario.get_mismatches(V_gene_seq, memory_layer_mismatches - 1);
-        // For exact NT queries, floor == upper bound, so use v_mismatch_list directly.
-        // Avoids data race on shared pruning_mismatch_floor map in OpenMP parallel region.
-        vector<int> &v_floor_mismatch_list = v_mismatch_list;
+        // Floor mismatch list from pruning_mismatch_floor for motif/patched mode;
+        // for exact NT queries, floor == upper bound (both tracks identical).
+        vector<int> v_floor_mismatch_storage;
+        vector<int> *v_floor_mismatch_ptr = query.journaled_query.has_value()
+            ? exploration.pruning_mismatch_floor.at(V_gene_seq, memory_layer_mismatches - 1)
+            : (v_floor_mismatch_storage = v_mismatch_list, std::addressof(v_floor_mismatch_storage));
+        vector<int> &v_floor_mismatch_list = *v_floor_mismatch_ptr;
 
         for (forward_list<Event_realization>::const_iterator iter = (*this).int_value_and_index.begin();
              iter != (*this).int_value_and_index.end(); ++iter) {
@@ -359,8 +363,14 @@ void Deletion::iterate(
                             for (int i = 0; i != (-(*iter).value_int); ++i) {
                                 int qpos = v_3_offset + 1 + i;
                                 bool floor_mismatch = !comp_nt_int(tmp_str[i], query.int_sequence.at(qpos));
-                                bool upper_mismatch = !comp_nt_int(tmp_str[i], query.int_sequence.at(qpos));
-                                // In deletion mode with no journaled_query, floor == upper
+                                // Upper bound: use iupac_intersection + empty_isect for motif/patched mode
+                                bool upper_mismatch;
+                                if (query.journaled_query.has_value()) {
+                                    upper_mismatch = query.journaled_query->empty_isect[qpos]
+                                                  || !comp_nt_int(tmp_str[i], query.journaled_query->iupac_intersection[qpos]);
+                                } else {
+                                    upper_mismatch = (tmp_str[i] != query.int_sequence[qpos]);
+                                }
                                 if (floor_mismatch) {
                                     floor_mismatches_vector.push_back(qpos);
                                 }
@@ -493,6 +503,13 @@ void Deletion::iterate(
 
             Int_Str &previous_str = (*scenario.get_sequence_segment(D_gene_seq, memory_layer_cs - 1));
             vector<int> &d_mismatch_list = *scenario.get_mismatches(D_gene_seq, memory_layer_mismatches - 1);
+            // Floor mismatch list from pruning_mismatch_floor for motif/patched mode;
+            // for exact NT queries, floor == upper bound.
+            vector<int> d_floor_mismatch_storage;
+            vector<int> *d_floor_mismatch_ptr = query.journaled_query.has_value()
+                ? exploration.pruning_mismatch_floor.at(D_gene_seq, memory_layer_mismatches - 1)
+                : (d_floor_mismatch_storage = d_mismatch_list, std::addressof(d_floor_mismatch_storage));
+            vector<int> &d_floor_mismatch_list = *d_floor_mismatch_ptr;
 
             for (forward_list<Event_realization>::const_iterator iter = (*this).int_value_and_index.begin();
                  iter != (*this).int_value_and_index.end(); ++iter) {
@@ -590,12 +607,26 @@ void Deletion::iterate(
                                 new_str = tmp_str + previous_str;
 
                                 mismatches_vector = d_mismatch_list;
+                                floor_mismatches_vector = d_floor_mismatch_list;
 
                                 for (int i = 0; i != (-(*iter).value_int); ++i) {
                                     //Check for errors in reverse order to keep the mismatch vector ordered
-                                    if (d_5_new_offset + i < query.int_sequence.size()
-                                        and (not comp_nt_int(tmp_str[i], query.int_sequence.at(d_5_new_offset + i)))) {
-                                        mismatches_vector.push_back(d_5_new_offset + i);
+                                    int qpos = d_5_new_offset + i;
+                                    if (qpos < (int)query.int_sequence.size()) {
+                                        bool floor_mismatch = !comp_nt_int(tmp_str[i], query.int_sequence.at(qpos));
+                                        bool upper_mismatch;
+                                        if (query.journaled_query.has_value()) {
+                                            upper_mismatch = query.journaled_query->empty_isect[qpos]
+                                                          || !comp_nt_int(tmp_str[i], query.journaled_query->iupac_intersection[qpos]);
+                                        } else {
+                                            upper_mismatch = (tmp_str[i] != query.int_sequence[qpos]);
+                                        }
+                                        if (floor_mismatch) {
+                                            floor_mismatches_vector.push_back(qpos);
+                                        }
+                                        if (upper_mismatch) {
+                                            mismatches_vector.push_back(qpos);
+                                        }
                                     }
                                 }
                                 sort(mismatches_vector.begin(), mismatches_vector.end());
@@ -724,6 +755,13 @@ void Deletion::iterate(
 
             Int_Str &previous_str = (*scenario.get_sequence_segment(D_gene_seq, memory_layer_cs - 1));
             vector<int> &d_mismatch_list = *scenario.get_mismatches(D_gene_seq, memory_layer_mismatches - 1);
+            // Floor mismatch list from pruning_mismatch_floor for motif/patched mode;
+            // for exact NT queries, floor == upper bound.
+            vector<int> d_floor_mismatch_storage;
+            vector<int> *d_floor_mismatch_ptr = query.journaled_query.has_value()
+                ? exploration.pruning_mismatch_floor.at(D_gene_seq, memory_layer_mismatches - 1)
+                : (d_floor_mismatch_storage = d_mismatch_list, std::addressof(d_floor_mismatch_storage));
+            vector<int> &d_floor_mismatch_list = *d_floor_mismatch_ptr;
 
             for (forward_list<Event_realization>::const_iterator iter = (*this).int_value_and_index.begin();
                  iter != (*this).int_value_and_index.end(); ++iter) {
@@ -818,23 +856,25 @@ void Deletion::iterate(
 
                                 //Count mismatches and add them to the mismatches list
                                 mismatches_vector = d_mismatch_list;
+                                floor_mismatches_vector = d_floor_mismatch_list;
 
                                 for (int i = 0; i != (-(*iter).value_int); ++i) {
-                                    /*if(d_3_offset+1+i<0){
-											cout<<"problem"<<endl;
-											cout<<d_3_offset<<endl;
-											cout<<i<<endl;
-
-											cout<<seq_offsets.at(V_gene_seq,Three_prime)<<endl;
-											cout<<seq_offsets.at(D_gene_seq,Five_prime)<<endl;
-											cout<<seq_offsets.at(D_gene_seq,Three_prime)<<endl;
-											cout<<seq_offsets.at(J_gene_seq,Five_prime)<<endl;
-
-										}*/
-
-                                    if (d_3_offset + 1 + i >= 0
-                                        and (not comp_nt_int(tmp_str[i], query.int_sequence.at(d_3_offset + 1 + i)))) {
-                                        mismatches_vector.push_back(d_3_offset + 1 + i);
+                                    int qpos = d_3_offset + 1 + i;
+                                    if (qpos >= 0 && qpos < (int)query.int_sequence.size()) {
+                                        bool floor_mismatch = !comp_nt_int(tmp_str[i], query.int_sequence.at(qpos));
+                                        bool upper_mismatch;
+                                        if (query.journaled_query.has_value()) {
+                                            upper_mismatch = query.journaled_query->empty_isect[qpos]
+                                                          || !comp_nt_int(tmp_str[i], query.journaled_query->iupac_intersection[qpos]);
+                                        } else {
+                                            upper_mismatch = (tmp_str[i] != query.int_sequence[qpos]);
+                                        }
+                                        if (floor_mismatch) {
+                                            floor_mismatches_vector.push_back(qpos);
+                                        }
+                                        if (upper_mismatch) {
+                                            mismatches_vector.push_back(qpos);
+                                        }
                                     }
                                 }
                             } else {
