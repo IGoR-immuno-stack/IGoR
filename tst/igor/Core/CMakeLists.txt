@@ -30,6 +30,7 @@ catch_discover_tests(igor_tests
     PROPERTIES
         TIMEOUT 3600
         LABELS "unit"
+        ENVIRONMENT "PATH=${PIXI_BIN_DIR};$ENV{PATH}"
 )
 
 catch_discover_tests(igor_tests
@@ -39,6 +40,7 @@ catch_discover_tests(igor_tests
     PROPERTIES
         TIMEOUT 3600
         LABELS "integration"
+        ENVIRONMENT "PATH=${PIXI_BIN_DIR};$ENV{PATH}"
 )
 
 ######################################################################

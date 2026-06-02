@@ -28,6 +28,8 @@ target_compile_definitions(streaming_tests PRIVATE
 include(Catch)
 catch_discover_tests(streaming_tests
     DISCOVERY_MODE PRE_TEST
+    PROPERTIES
+        ENVIRONMENT "PATH=${PIXI_BIN_DIR};$ENV{PATH}"
 )
 
 ######################################################################
