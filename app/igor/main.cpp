@@ -21,11 +21,31 @@
 #include <string>
 #include <vector>
 
+#if defined(__unix__) || defined(__APPLE__)
+#include <sys/utsname.h>
+#endif
+
 int igor_legacy_main(int argc, char *argv[]);
 
 namespace fs = std::filesystem;
 
 namespace {
+
+#ifndef IGOR_COMPILER_ID
+#define IGOR_COMPILER_ID "unknown"
+#endif
+#ifndef IGOR_COMPILER_VERSION
+#define IGOR_COMPILER_VERSION "unknown"
+#endif
+#ifndef IGOR_COMPILER_PATH
+#define IGOR_COMPILER_PATH "unknown"
+#endif
+#ifndef IGOR_TARGET_SYSTEM_NAME
+#define IGOR_TARGET_SYSTEM_NAME "unknown"
+#endif
+#ifndef IGOR_TARGET_SYSTEM_PROCESSOR
+#define IGOR_TARGET_SYSTEM_PROCESSOR "unknown"
+#endif
 
 std::string clean_path(std::string s)
 {
@@ -467,6 +487,50 @@ std::string number_text(double value)
     return out.str();
 }
 
+std::string toml_quote(const std::string &value)
+{
+    std::string quoted = "\"";
+    for (char c : value) {
+        switch (c) {
+        case '\\':
+            quoted += "\\\\";
+            break;
+        case '"':
+            quoted += "\\\"";
+            break;
+        case '\n':
+            quoted += "\\n";
+            break;
+        case '\r':
+            quoted += "\\r";
+            break;
+        case '\t':
+            quoted += "\\t";
+            break;
+        default:
+            quoted += c;
+            break;
+        }
+    }
+    quoted += "\"";
+    return quoted;
+}
+
+std::string toml_config_value_text(const std::string &type, const std::string &value)
+{
+    if (type == "bool") {
+        return parse_bool_text(value) ? "true" : "false";
+    }
+    if (type == "int" || type == "uint") {
+        return std::to_string(std::stoll(value));
+    }
+    if (type == "double") {
+        validate_config_value(ConfigKey{ "", "double", "", "" }, value);
+        return value;
+    }
+    return toml_quote(value);
+}
+
 std::string toml_value_to_string(toml::node_view<const toml::node> node, const std::string &key)
 {
     const toml::node *raw = node.node();
@@ -500,33 +564,61 @@ void collect_toml_leaf_keys(const toml::table &table, const std::string &prefix,
     }
 }
 
-void insert_toml_value(toml::table &table, const std::string &key, const std::string &type, const std::string &value)
+std::map<std::string, std::string> raw_toml_leaf_values(const fs::path &path)
 {
-    toml::table *current = &table;
-    const auto parts = split_key(key);
-    for (std::size_t i = 0; i + 1 < parts.size(); ++i) {
-        toml::node *child = current->get(parts[i]);
-        if (child == nullptr) {
-            current->insert(parts[i], toml::table{});
-            child = current->get(parts[i]);
-        }
-        toml::table *next = child->as_table();
-        if (next == nullptr) {
-            throw std::runtime_error("config path conflicts with scalar value: " + key);
-        }
-        current = next;
+    std::map<std::string, std::string> values;
+    std::ifstream in(path);
+    if (!in) {
+        return values;
     }
 
-    const std::string &leaf = parts.back();
-    if (type == "bool") {
-        current->insert_or_assign(leaf, parse_bool_text(value));
-    } else if (type == "int" || type == "uint") {
-        current->insert_or_assign(leaf, static_cast<int64_t>(std::stoll(value)));
-    } else if (type == "double") {
-        current->insert_or_assign(leaf, std::stod(value));
-    } else {
-        current->insert_or_assign(leaf, value);
+    std::vector<std::string> table_path;
+    std::string line;
+    while (std::getline(in, line)) {
+        std::string cleaned;
+        bool in_string = false;
+        bool escaped = false;
+        for (char c : line) {
+            if (!in_string && c == '#') {
+                break;
+            }
+            cleaned += c;
+            if (escaped) {
+                escaped = false;
+            } else if (c == '\\' && in_string) {
+                escaped = true;
+            } else if (c == '"') {
+                in_string = !in_string;
+            }
+        }
+        cleaned = trim(cleaned);
+        if (cleaned.empty()) {
+            continue;
+        }
+        if (cleaned.front() == '[' && cleaned.back() == ']') {
+            table_path = split_key(trim(cleaned.substr(1, cleaned.size() - 2)));
+            continue;
+        }
+        const auto equals = cleaned.find('=');
+        if (equals == std::string::npos) {
+            continue;
+        }
+        std::string key = trim(cleaned.substr(0, equals));
+        std::string value = trim(cleaned.substr(equals + 1));
+        std::string full_key;
+        for (const auto &part : table_path) {
+            if (!full_key.empty()) {
+                full_key += ".";
+            }
+            full_key += part;
+        }
+        if (!full_key.empty()) {
+            full_key += ".";
+        }
+        full_key += key;
+        values[full_key] = value;
     }
+    return values;
 }
 
 Config read_config(const fs::path &workdir, bool require = true)
@@ -541,6 +633,7 @@ Config read_config(const fs::path &workdir, bool require = true)
     }
 
     try {
+        const auto raw_values = raw_toml_leaf_values(path);
         const toml::table parsed = toml::parse_file(path.string());
         std::set<std::string> parsed_keys;
         collect_toml_leaf_keys(parsed, "", parsed_keys);
@@ -550,7 +643,14 @@ Config read_config(const fs::path &workdir, bool require = true)
             }
         }
         for (const auto &key : parsed_keys) {
-            config.set(key, toml_value_to_string(toml_at_path(parsed, key), key));
+            const ConfigKey *schema_key = find_config_key(key);
+            const auto raw = raw_values.find(key);
+            if (schema_key != nullptr && schema_key->type == "double" && raw != raw_values.end() &&
+                !raw->second.empty() && raw->second.front() != '"') {
+                config.set(key, raw->second);
+            } else {
+                config.set(key, toml_value_to_string(toml_at_path(parsed, key), key));
+            }
         }
     } catch (const toml::parse_error &e) {
         throw std::runtime_error("invalid TOML config " + path.string() + ": " + std::string(e.description()));
@@ -566,11 +666,28 @@ void write_config(const fs::path &workdir, const Config &config)
         throw std::runtime_error("cannot write config: " + config_path(workdir).string());
     }
 
-    toml::table table;
+    std::vector<std::string> current_table;
     for (const auto &item : config_schema()) {
-        insert_toml_value(table, item.key, item.type, config.get(item.key));
+        const auto parts = split_key(item.key);
+        const std::vector<std::string> table_parts(parts.begin(), parts.end() - 1);
+        if (table_parts != current_table) {
+            if (!current_table.empty() || out.tellp() > 0) {
+                out << "\n";
+            }
+            if (!table_parts.empty()) {
+                out << "[";
+                for (std::size_t i = 0; i < table_parts.size(); ++i) {
+                    if (i) {
+                        out << ".";
+                    }
+                    out << table_parts[i];
+                }
+                out << "]\n";
+            }
+            current_table = table_parts;
+        }
+        out << parts.back() << " = " << toml_config_value_text(item.type, config.get(item.key)) << "\n";
     }
-    out << table;
 }
 
 void ensure_workdir(const fs::path &workdir)
@@ -789,6 +906,11 @@ void add_existing_input(std::vector<fs::path> &inputs, const fs::path &path)
     }
 }
 
+bool pipeline_has_step(const ResolvedOptions &options, const std::string &step)
+{
+    return std::find(options.pipeline.steps.begin(), options.pipeline.steps.end(), step) != options.pipeline.steps.end();
+}
+
 std::vector<fs::path> manifest_inputs(const std::string &command, const GlobalOptions &global,
                                       const ResolvedOptions &options, const std::vector<std::string> &positional)
 {
@@ -818,6 +940,98 @@ std::vector<fs::path> manifest_inputs(const std::string &command, const GlobalOp
     return inputs;
 }
 
+std::vector<fs::path> pipeline_manifest_inputs(const ResolvedOptions &options)
+{
+    std::vector<fs::path> inputs;
+    if (pipeline_has_step(options, "import-seqs")) {
+        add_existing_input(inputs, options.sequences.input);
+    }
+    if (pipeline_has_step(options, "align")) {
+        add_existing_input(inputs, options.alignment.genomic_v);
+        add_existing_input(inputs, options.alignment.genomic_d);
+        add_existing_input(inputs, options.alignment.genomic_j);
+        add_existing_input(inputs, options.alignment.anchors_v);
+        add_existing_input(inputs, options.alignment.anchors_j);
+    }
+    if ((pipeline_has_step(options, "infer") || pipeline_has_step(options, "evaluate") ||
+         pipeline_has_step(options, "generate")) &&
+        options.model.source == ModelSource::Custom) {
+        add_existing_input(inputs, options.model.parms);
+        add_existing_input(inputs, options.model.marginals);
+    }
+    return inputs;
+}
+
+std::vector<fs::path> manifest_inputs_for(const std::string &command, const GlobalOptions &global,
+                                          const ResolvedOptions &options,
+                                          const std::vector<std::string> &positional)
+{
+    if (command == "run") {
+        return pipeline_manifest_inputs(options);
+    }
+    return manifest_inputs(command, global, options, positional);
+}
+
+struct RuntimeMetadata
+{
+    std::string os_name = "unknown";
+    std::string os_release = "unknown";
+    std::string os_version = "unknown";
+    std::string machine = "unknown";
+};
+
+RuntimeMetadata runtime_metadata()
+{
+    RuntimeMetadata metadata;
+#if defined(__unix__) || defined(__APPLE__)
+    struct utsname info;
+    if (uname(&info) == 0) {
+        metadata.os_name = info.sysname;
+        metadata.os_release = info.release;
+        metadata.os_version = info.version;
+        metadata.machine = info.machine;
+    }
+#endif
+    return metadata;
+}
+
+void write_config_tables(std::ostream &out, const std::string &prefix, const Config &config)
+{
+    std::vector<std::string> current_table;
+    for (const auto &item : config_schema()) {
+        const auto parts = split_key(item.key);
+        std::vector<std::string> table_parts;
+        if (!prefix.empty()) {
+            table_parts.push_back(prefix);
+        }
+        table_parts.insert(table_parts.end(), parts.begin(), parts.end() - 1);
+        if (table_parts != current_table) {
+            out << "\n[";
+            for (std::size_t i = 0; i < table_parts.size(); ++i) {
+                if (i) {
+                    out << ".";
+                }
+                out << table_parts[i];
+            }
+            out << "]\n";
+            current_table = table_parts;
+        }
+        out << parts.back() << " = " << toml_config_value_text(item.type, config.get(item.key)) << "\n";
+    }
+}
+
+std::string joined_argv(const std::vector<std::string> &argv)
+{
+    std::string joined;
+    for (std::size_t i = 0; i < argv.size(); ++i) {
+        if (i) {
+            joined += ' ';
+        }
+        joined += argv[i];
+    }
+    return joined;
+}
+
 fs::path write_manifest(const std::string &command, const std::vector<std::string> &argv, const GlobalOptions &global,
                         const Config &config, const ResolvedOptions &options,
                         const std::vector<std::string> &positional, int status)
@@ -825,70 +1039,58 @@ fs::path write_manifest(const std::string &command, const std::vector<std::strin
     fs::create_directories(global.workdir / ".igor" / "runs");
     fs::path path = global.workdir / ".igor" / "runs" / (timestamp() + "-" + command + ".toml");
 
-    toml::table run;
-    run.insert("command", command);
-    run.insert("status", static_cast<int64_t>(status));
-    run.insert("version", IGOR_VERSION);
-    run.insert("workdir", fs::absolute(global.workdir).string());
-    run.insert("batch", global.batch);
-    run.insert("threads", static_cast<int64_t>(global.threads ? *global.threads : options.generate.threads));
-    run.insert("seed", std::to_string(options.generate.seed));
-    run.insert("argv", [&] {
-        std::string joined;
-        for (std::size_t i = 0; i < argv.size(); ++i) {
-            if (i) {
-                joined += ' ';
-            }
-            joined += argv[i];
-        }
-        return joined;
-    }());
-    if (!positional.empty()) {
-        run.insert("arg0", positional[0]);
-    }
-
-    toml::table build;
-    build.insert("git_commit", IGOR_GIT_COMMIT);
-    build.insert("compiled_at", std::string(__DATE__) + " " + __TIME__);
-    build.insert("cxx_standard", static_cast<int64_t>(__cplusplus));
-
-    toml::table resolved_config;
-    for (const auto &[key, value] : config.values) {
-        const ConfigKey *schema_key = find_config_key(key);
-        if (schema_key == nullptr) {
-            throw std::runtime_error("unknown config key while writing manifest: " + key);
-        }
-        insert_toml_value(resolved_config, key, schema_key->type, value);
-    }
-
-    toml::table inputs;
-    int i = 0;
-    for (const auto &input : manifest_inputs(command, global, options, positional)) {
-        inputs.insert("path" + std::to_string(i), input.string());
-        inputs.insert("sha256_" + std::to_string(i), igor_cli::sha256_file(input));
-        ++i;
-    }
-    inputs.insert("count", static_cast<int64_t>(i));
-
-    toml::table artifacts;
-    artifacts.insert("aligns", (global.workdir / "aligns").string());
-    artifacts.insert("output", (global.workdir / (batch_prefix(global) + "output")).string());
-    artifacts.insert("inference", (global.workdir / (batch_prefix(global) + "inference")).string());
-    artifacts.insert("evaluate", (global.workdir / (batch_prefix(global) + "evaluate")).string());
-    artifacts.insert("generated", (global.workdir / (batch_prefix(global) + "generated")).string());
-
-    toml::table manifest;
-    manifest.insert("run", std::move(run));
-    manifest.insert("build", std::move(build));
-    manifest.insert("resolved_config", std::move(resolved_config));
-    manifest.insert("inputs", std::move(inputs));
-    manifest.insert("artifacts", std::move(artifacts));
-
     std::ofstream out(path);
     if (!out) {
         throw std::runtime_error("cannot write run manifest: " + path.string());
     }
-    out << manifest;
+    const RuntimeMetadata runtime = runtime_metadata();
+
+    out << "[run]\n";
+    out << "command = " << toml_quote(command) << "\n";
+    out << "status = " << static_cast<int64_t>(status) << "\n";
+    out << "version = " << toml_quote(IGOR_VERSION) << "\n";
+    out << "workdir = " << toml_quote(fs::absolute(global.workdir).string()) << "\n";
+    out << "batch = " << toml_quote(global.batch) << "\n";
+    out << "threads = " << static_cast<int64_t>(global.threads ? *global.threads : options.generate.threads) << "\n";
+    out << "seed = " << toml_quote(std::to_string(options.generate.seed)) << "\n";
+    out << "argv = " << toml_quote(joined_argv(argv)) << "\n";
+    if (!positional.empty()) {
+        out << "arg0 = " << toml_quote(positional[0]) << "\n";
+    }
+
+    out << "\n[build]\n";
+    out << "git_commit = " << toml_quote(IGOR_GIT_COMMIT) << "\n";
+    out << "compiled_at = " << toml_quote(std::string(__DATE__) + " " + __TIME__) << "\n";
+    out << "cxx_standard = " << static_cast<int64_t>(__cplusplus) << "\n";
+    out << "compiler_id = " << toml_quote(IGOR_COMPILER_ID) << "\n";
+    out << "compiler_version = " << toml_quote(IGOR_COMPILER_VERSION) << "\n";
+    out << "compiler_path = " << toml_quote(IGOR_COMPILER_PATH) << "\n";
+    out << "target_system = " << toml_quote(IGOR_TARGET_SYSTEM_NAME) << "\n";
+    out << "target_processor = " << toml_quote(IGOR_TARGET_SYSTEM_PROCESSOR) << "\n";
+
+    out << "\n[runtime]\n";
+    out << "os_name = " << toml_quote(runtime.os_name) << "\n";
+    out << "os_release = " << toml_quote(runtime.os_release) << "\n";
+    out << "os_version = " << toml_quote(runtime.os_version) << "\n";
+    out << "machine = " << toml_quote(runtime.machine) << "\n";
+
+    write_config_tables(out, "resolved_config", config);
+
+    out << "\n[inputs]\n";
+    int i = 0;
+    for (const auto &input : manifest_inputs_for(command, global, options, positional)) {
+        out << "path" << i << " = " << toml_quote(input.string()) << "\n";
+        out << "sha256_" << i << " = " << toml_quote(igor_cli::sha256_file(input)) << "\n";
+        ++i;
+    }
+    out << "count = " << static_cast<int64_t>(i) << "\n";
+
+    out << "\n[artifacts]\n";
+    out << "aligns = " << toml_quote((global.workdir / "aligns").string()) << "\n";
+    out << "output = " << toml_quote((global.workdir / (batch_prefix(global) + "output")).string()) << "\n";
+    out << "inference = " << toml_quote((global.workdir / (batch_prefix(global) + "inference")).string()) << "\n";
+    out << "evaluate = " << toml_quote((global.workdir / (batch_prefix(global) + "evaluate")).string()) << "\n";
+    out << "generated = " << toml_quote((global.workdir / (batch_prefix(global) + "generated")).string()) << "\n";
 
     return path;
 }
@@ -942,11 +1144,19 @@ Config read_manifest_config(const fs::path &manifest, std::string &command, Glob
     }
     std::set<std::string> resolved_keys;
     collect_toml_leaf_keys(*resolved_config, "", resolved_keys);
+    const auto raw_values = raw_toml_leaf_values(manifest);
     for (const auto &key : resolved_keys) {
         if (!config.values.contains(key)) {
             throw std::runtime_error("unknown resolved config key in replay manifest: " + key);
         }
-        config.set(key, toml_value_to_string(toml_at_path(*resolved_config, key), key));
+        const ConfigKey *schema_key = find_config_key(key);
+        const auto raw = raw_values.find("resolved_config." + key);
+        if (schema_key != nullptr && schema_key->type == "double" && raw != raw_values.end() && !raw->second.empty() &&
+            raw->second.front() != '"') {
+            config.set(key, raw->second);
+        } else {
+            config.set(key, toml_value_to_string(toml_at_path(*resolved_config, key), key));
+        }
     }
 
     int count = manifest_int(parsed, "inputs.count");
@@ -988,6 +1198,34 @@ int run_command(const std::string &command, const GlobalOptions &global, const C
     auto legacy = command_args(command, global, options, positional);
     int status = run_legacy(legacy);
     fs::path manifest = write_manifest(command, argv, global, config, options, positional, status);
+    std::clog << "Run manifest written to: " << manifest << "\n";
+    return status;
+}
+
+int run_pipeline(const GlobalOptions &global, const Config &config, const std::vector<std::string> &argv)
+{
+    int status = EXIT_SUCCESS;
+    const ResolvedOptions options = resolve_config(config);
+    for (const auto &step : options.pipeline.steps) {
+        if (step == "import-seqs") {
+            if (options.sequences.input.empty()) {
+                throw std::runtime_error("pipeline import-seqs requires config key sequences.input");
+            }
+            status = run_command("import-seqs", global, config, { options.sequences.input.string() }, argv);
+        } else if (step == "align") {
+            status = run_command("align", global, config, { "all" }, argv);
+        } else if (step == "infer" || step == "evaluate") {
+            status = run_command(step, global, config, {}, argv);
+        } else if (step == "generate") {
+            throw std::runtime_error("pipeline generate requires an explicit sequence count and is not supported by `igor run`");
+        } else {
+            throw std::runtime_error("unknown pipeline step: " + step);
+        }
+        if (status != EXIT_SUCCESS) {
+            break;
+        }
+    }
+    fs::path manifest = write_manifest("run", argv, global, config, options, {}, status);
     std::clog << "Run manifest written to: " << manifest << "\n";
     return status;
 }
@@ -1130,6 +1368,9 @@ int main(int argc, char *argv[])
             std::vector<std::string> positional;
             Config config = read_manifest_config(*cli.replay, replay_command, cli.global, positional);
             auto replay_argv = std::vector<std::string>{ "igor", "run", "--replay", cli.replay->string() };
+            if (replay_command == "run") {
+                return run_pipeline(cli.global, config, replay_argv);
+            }
             return run_command(replay_command, cli.global, config, positional, replay_argv);
         }
 
@@ -1148,27 +1389,7 @@ int main(int argc, char *argv[])
             return run_command(cli.command, cli.global, config, { cli.count }, cli.argv);
         }
         if (cli.command == "run") {
-            int status = EXIT_SUCCESS;
-            const ResolvedOptions options = resolve_config(config);
-            for (const auto &step : options.pipeline.steps) {
-                if (step == "import-seqs") {
-                    if (options.sequences.input.empty()) {
-                        throw std::runtime_error("pipeline import-seqs requires config key sequences.input");
-                    }
-                    status = run_command("import-seqs", cli.global, config, { options.sequences.input.string() },
-                                         cli.argv);
-                } else if (step == "align") {
-                    status = run_command("align", cli.global, config, { "all" }, cli.argv);
-                } else if (step == "infer" || step == "evaluate") {
-                    status = run_command(step, cli.global, config, {}, cli.argv);
-                } else {
-                    throw std::runtime_error("unknown pipeline step: " + step);
-                }
-                if (status != EXIT_SUCCESS) {
-                    return status;
-                }
-            }
-            return status;
+            return run_pipeline(cli.global, config, cli.argv);
         }
 
         throw std::runtime_error("unknown command: " + cli.command);

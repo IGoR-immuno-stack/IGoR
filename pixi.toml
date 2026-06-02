@@ -90,7 +90,7 @@ env = { MACOSX_DEPLOYMENT_TARGET = "13.4" }
 [package.host-dependencies]
 # Add dependencies on (header-only) libraries at compile time
 cli11 = ">=2.6.2,<3"
-gsl = "*"/
+gsl = "*"
 catch2 = "3.*"
 sparrow-devel = "*"
 arrow-cpp = "*"

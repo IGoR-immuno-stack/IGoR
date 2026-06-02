@@ -6,6 +6,12 @@ brevity.  Much more detail can be found in the git revision history:
 
 * Unreleased
 
+  Added:
+  - Add full configured pipeline replay and richer reproducibility manifests with runtime and compiler metadata
+
+  Fixed:
+  - Fix Pixi manifest parsing so build and regression tasks can run
+
   Fast parallel sequence generation
 
   New features:

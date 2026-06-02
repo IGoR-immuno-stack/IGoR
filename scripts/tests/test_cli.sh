@@ -33,6 +33,8 @@ $IGORCALL config set model.parms "$TESTREF/demo_inference/final_parms.txt"
 $IGORCALL config set model.marginals "$TESTREF/demo_inference/final_marginals.txt"
 $IGORCALL config set generate.seed 42
 $IGORCALL config set generate.error false
+$IGORCALL config set infer.likelihood_threshold 1e-60
+grep -q '^likelihood_threshold = 1e-60$' "$OUTDIR/.igor/config.toml"
 
 if $IGORCALL config get does.not.exist >/dev/null 2>&1; then
     echo "expected invalid config key to fail" >&2
@@ -70,3 +72,24 @@ if $IGORCALL run --replay "$BAD_MANIFEST" >/dev/null 2>&1; then
     echo "expected replay hash mismatch to fail" >&2
     exit 1
 fi
+
+$IGORCALL config set sequences.input "$TESTINPUT/murugan_naive1_noncoding_demo_seqs.txt"
+$IGORCALL config set pipeline.steps import-seqs,align
+$IGORCALL -b pipe -j 1 run >/dev/null
+RUN_MANIFEST=$(ls -t "$OUTDIR/.igor/runs/"*run.toml | head -1)
+test -f "$RUN_MANIFEST"
+grep -q '^command = "run"$' "$RUN_MANIFEST"
+grep -q '^\[runtime\]$' "$RUN_MANIFEST"
+grep -q '^os_name = ' "$RUN_MANIFEST"
+grep -q '^machine = ' "$RUN_MANIFEST"
+grep -q '^compiler_id = ' "$RUN_MANIFEST"
+grep -q '^compiler_version = ' "$RUN_MANIFEST"
+grep -q '^compiler_path = ' "$RUN_MANIFEST"
+grep -q '^target_system = ' "$RUN_MANIFEST"
+grep -q '^target_processor = ' "$RUN_MANIFEST"
+if grep -q 'indexed_sequences.csv' "$RUN_MANIFEST"; then
+    echo "expected pipeline manifest not to hash pipeline intermediates" >&2
+    exit 1
+fi
+
+$IGORCALL run --replay "$RUN_MANIFEST" >/dev/null
