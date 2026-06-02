@@ -25,6 +25,7 @@ target_compile_definitions(streaming_tests PRIVATE
     IGOR_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test_data")
 
 include(Catch)
+igor_copy_runtime_dlls(streaming_tests)
 catch_discover_tests(streaming_tests)
 
 ######################################################################

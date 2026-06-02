@@ -15,6 +15,23 @@ function(igor_copy_runtime_dlls target)
                 $<TARGET_RUNTIME_DLLS:${target}> $<TARGET_FILE_DIR:${target}>
             COMMAND_EXPAND_LISTS
         )
+        
+        # Pixi / Conda environment DLLs workaround for external libraries
+        if(DEFINED ENV{CONDA_PREFIX})
+            file(GLOB CONDA_DLLS 
+                "$ENV{CONDA_PREFIX}/Library/bin/gsl*.dll"
+                "$ENV{CONDA_PREFIX}/Library/bin/arrow*.dll"
+                "$ENV{CONDA_PREFIX}/Library/bin/parquet*.dll"
+                "$ENV{CONDA_PREFIX}/Library/bin/libomp*.dll"
+                "$ENV{CONDA_PREFIX}/Library/bin/vcomp*.dll"
+            )
+            if(CONDA_DLLS)
+                add_custom_command(TARGET ${target} POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                        ${CONDA_DLLS} $<TARGET_FILE_DIR:${target}>
+                )
+            endif()
+        endif()
     endif()
 endfunction()
 
