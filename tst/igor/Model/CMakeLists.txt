@@ -32,9 +32,6 @@ target_compile_definitions(model_tests
 igor_copy_runtime_dlls(model_tests)
 include(Catch)
 set(_model_tests_dl_paths "$<TARGET_FILE_DIR:model_tests>")
-if(WIN32 AND DEFINED ENV{CONDA_PREFIX})
-    list(APPEND _model_tests_dl_paths "$ENV{CONDA_PREFIX}/Library/bin")
-endif()
 
 catch_discover_tests(model_tests
     DISCOVERY_MODE PRE_TEST

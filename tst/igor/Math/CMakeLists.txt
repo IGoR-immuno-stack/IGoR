@@ -25,9 +25,6 @@ target_link_libraries(math_tests
 igor_copy_runtime_dlls(math_tests)
 include(Catch)
 set(_math_tests_dl_paths "$<TARGET_FILE_DIR:math_tests>")
-if(WIN32 AND DEFINED ENV{CONDA_PREFIX})
-    list(APPEND _math_tests_dl_paths "$ENV{CONDA_PREFIX}/Library/bin")
-endif()
 
 catch_discover_tests(math_tests
     DISCOVERY_MODE PRE_TEST

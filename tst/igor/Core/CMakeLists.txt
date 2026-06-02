@@ -25,9 +25,6 @@ target_compile_definitions(igor_tests PRIVATE
 igor_copy_runtime_dlls(igor_tests)
 include(Catch)
 set(_igor_tests_dl_paths "$<TARGET_FILE_DIR:igor_tests>")
-if(WIN32 AND DEFINED ENV{CONDA_PREFIX})
-    list(APPEND _igor_tests_dl_paths "$ENV{CONDA_PREFIX}/Library/bin")
-endif()
 
 catch_discover_tests(igor_tests
     DISCOVERY_MODE PRE_TEST
