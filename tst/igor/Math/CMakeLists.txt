@@ -13,11 +13,25 @@ set(MATH_TEST_SOURCES
 )
 
 add_executable(math_tests ${MATH_TEST_SOURCES})
+
 set_target_properties(math_tests PROPERTIES CXX_STANDARD 23)
-target_link_libraries(math_tests PRIVATE igor::Math Catch2::Catch2WithMain)
+
+target_link_libraries(math_tests 
+    PRIVATE 
+        igor::Math 
+        Catch2::Catch2WithMain
+)
+
+igor_copy_runtime_dlls(math_tests)
 include(Catch)
+set(_math_tests_dl_paths "$<TARGET_FILE_DIR:math_tests>")
+if(WIN32 AND DEFINED ENV{CONDA_PREFIX})
+    list(APPEND _math_tests_dl_paths "$ENV{CONDA_PREFIX}/Library/bin")
+endif()
+
 catch_discover_tests(math_tests
     DISCOVERY_MODE PRE_TEST
+    DL_PATHS ${_math_tests_dl_paths}
 )
 
 ######################################################################

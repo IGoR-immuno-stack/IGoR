@@ -14,12 +14,31 @@ set(MODEL_TEST_SOURCES
 )
 
 add_executable(model_tests ${MODEL_TEST_SOURCES})
+
 set_target_properties(model_tests PROPERTIES CXX_STANDARD 23)
-target_link_libraries(model_tests PRIVATE igor::Model igor::Core Catch2::Catch2WithMain)
-target_compile_definitions(model_tests PRIVATE IGOR_MODELS_DIR="${CMAKE_SOURCE_DIR}/models")
+
+target_link_libraries(model_tests 
+    PRIVATE 
+        igor::Model 
+        igor::Core 
+        Catch2::Catch2WithMain
+)
+
+target_compile_definitions(model_tests 
+    PRIVATE 
+        IGOR_MODELS_DIR="${CMAKE_SOURCE_DIR}/models"
+)
+
+igor_copy_runtime_dlls(model_tests)
 include(Catch)
+set(_model_tests_dl_paths "$<TARGET_FILE_DIR:model_tests>")
+if(WIN32 AND DEFINED ENV{CONDA_PREFIX})
+    list(APPEND _model_tests_dl_paths "$ENV{CONDA_PREFIX}/Library/bin")
+endif()
+
 catch_discover_tests(model_tests
     DISCOVERY_MODE PRE_TEST
+    DL_PATHS ${_model_tests_dl_paths}
 )
 
 ######################################################################

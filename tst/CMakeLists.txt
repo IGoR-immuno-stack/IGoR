@@ -4,13 +4,17 @@ enable_testing()
 
 find_package(Catch2 3 REQUIRED)
 
-if(WIN32 AND DEFINED ENV{CONDA_PREFIX})
-    message(STATUS "Copying Conda DLLs to ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} to avoid Windows DLL shadowing...")
-    file(GLOB ALL_CONDA_DLLS "$ENV{CONDA_PREFIX}/Library/bin/*.dll")
-    if(ALL_CONDA_DLLS)
-        file(COPY ${ALL_CONDA_DLLS} DESTINATION "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
+function(igor_copy_runtime_dlls target)
+    if(WIN32)
+        add_custom_command(TARGET ${target} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                $<TARGET_RUNTIME_DLLS:${target}>
+                $<TARGET_FILE_DIR:${target}>
+            COMMAND_EXPAND_LISTS
+            VERBATIM
+        )
     endif()
-endif()
+endfunction()
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/igor)
 
