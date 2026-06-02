@@ -493,7 +493,8 @@ shared_ptr<Rec_Event> Model_Parms::get_event_pointer(const string &event_str, bo
                 return (*iter);
             }
         } else {
-            if ((*iter)->get_name() == event_str) {
+            // Accept both legacy names (no seq_type) and v2 names (with seq_type)
+            if ((*iter)->get_name() == event_str || (*iter)->get_v2_name() == event_str) {
                 return (*iter);
             }
         }
@@ -618,12 +619,12 @@ void Model_Parms::write_model_parms_v2(string filename)
         ev->write2txt_v2(outfile);
     }
 
-    // Edges
+    // Edges — use v2-format names (include seq_type between class and side)
     outfile << "@Edges" << endl;
     for (const auto &ev : events) {
         const auto &children = edges[ev->get_name()].children;
         for (const auto &child : children) {
-            outfile << "%" << ev->get_name() << ";" << child->get_name() << endl;
+            outfile << "%" << ev->get_v2_name() << ";" << child->get_v2_name() << endl;
         }
     }
 

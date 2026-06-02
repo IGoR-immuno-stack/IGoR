@@ -126,6 +126,88 @@ TEST_CASE("EventUtils BuildScenarioSequence", "[EventUtils]") {
   }
 }
 
+// Step 9: build_scenario_sequence must eventually use SeqTypeRegistry order
+// rather than hardcoded boolean flags.  These tests document both the current
+// (working) standard behaviour and the desired (not yet implemented) registry-
+// based behaviour.
+TEST_CASE("step9: build_scenario_sequence VJ produces V+VJ_ins+J",
+          "[EventUtils][step9][seq_order]") {
+    Seq_type_str_p_map constructed_sequences(6);
+    Int_Str v_seq = {0, 1};   // A C
+    Int_Str j_seq = {2, 3};   // G T
+    Int_Str vj_ins = {0};     // A
+    constructed_sequences.set_value(V_gene_seq,  &v_seq,  0);
+    constructed_sequences.set_value(J_gene_seq,  &j_seq,  0);
+    constructed_sequences.set_value(VJ_ins_seq,  &vj_ins, 0);
+
+    Int_Str result = build_scenario_sequence(
+            constructed_sequences, true, false, true, false, false, true);
+    Int_Str expected = {0, 1, 0, 2, 3};  // V + VJ_ins + J
+    REQUIRE(static_cast<std::vector<int>>(result) ==
+            static_cast<std::vector<int>>(expected));
+}
+
+TEST_CASE("step9: build_scenario_sequence VDJ order is V+VD+D+DJ+J",
+          "[EventUtils][step9][seq_order]") {
+    Seq_type_str_p_map constructed_sequences(6);
+    Int_Str v_seq  = {0};   Int_Str vd_ins = {1};
+    Int_Str d_seq  = {2};   Int_Str dj_ins = {3};
+    Int_Str j_seq  = {0};
+    constructed_sequences.set_value(V_gene_seq,  &v_seq,  0);
+    constructed_sequences.set_value(VD_ins_seq,  &vd_ins, 0);
+    constructed_sequences.set_value(D_gene_seq,  &d_seq,  0);
+    constructed_sequences.set_value(DJ_ins_seq,  &dj_ins, 0);
+    constructed_sequences.set_value(J_gene_seq,  &j_seq,  0);
+
+    Int_Str result = build_scenario_sequence(
+            constructed_sequences, true, true, true, true, true, false);
+    Int_Str expected = {0, 1, 2, 3, 0};  // V + VD + D + DJ + J
+    REQUIRE(static_cast<std::vector<int>>(result) ==
+            static_cast<std::vector<int>>(expected));
+}
+
+// Tandem-D ordering (V→VD1ins→D1→D1D2ins→D2→DJins→J) cannot be expressed
+TEST_CASE("step9: build_scenario_sequence tandem-D uses registry-based API",
+          "[EventUtils][step9][seq_order]")
+{
+    // The registry-based overload supports arbitrary orderings, including 7-segment
+    // tandem D:   V → VD1_ins → D1 → D1D2_ins → D2 → DJ_ins → J
+    SeqTypeRegistry registry;
+    registry.set_ordered_types({"V_gene_seq", "VD1_ins_seq", "D1_gene_seq",
+                                 "D1D2_ins_seq", "D2_gene_seq", "DJ_ins_seq", "J_gene_seq"});
+
+    Int_Str v    = {0, 0, 0};    // length 3
+    Int_Str vd1  = {1};          // length 1
+    Int_Str d1   = {2, 2};       // length 2
+    Int_Str d1d2 = {3};          // length 1
+    Int_Str d2   = {4, 4};       // length 2
+    Int_Str dj   = {5};          // length 1
+    Int_Str j    = {6, 6, 6};    // length 3
+
+    std::unordered_map<std::string, const Int_Str *> seqs;
+    seqs["V_gene_seq"]   = &v;
+    seqs["VD1_ins_seq"]  = &vd1;
+    seqs["D1_gene_seq"]  = &d1;
+    seqs["D1D2_ins_seq"] = &d1d2;
+    seqs["D2_gene_seq"]  = &d2;
+    seqs["DJ_ins_seq"]   = &dj;
+    seqs["J_gene_seq"]   = &j;
+
+    Int_Str result = EventUtils::build_scenario_sequence(registry, seqs);
+
+    // Expected: v + vd1 + d1 + d1d2 + d2 + dj + j (13 elements total)
+    Int_Str expected;
+    expected.insert(expected.end(), v.begin(),    v.end());
+    expected.insert(expected.end(), vd1.begin(),  vd1.end());
+    expected.insert(expected.end(), d1.begin(),   d1.end());
+    expected.insert(expected.end(), d1d2.begin(), d1d2.end());
+    expected.insert(expected.end(), d2.begin(),   d2.end());
+    expected.insert(expected.end(), dj.begin(),   dj.end());
+    expected.insert(expected.end(), j.begin(),    j.end());
+
+    REQUIRE(result == expected);
+}
+
 TEST_CASE("EventUtils GetInsertionLenMax", "[EventUtils]") {
   Events_map events_map;
 

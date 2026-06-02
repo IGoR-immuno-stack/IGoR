@@ -638,6 +638,123 @@ protected:
 
 typedef Enum_fast_memory_dual_key_map<Seq_type, Seq_side, Seq_Offset> Seq_offsets_map;
 
+/**
+ * String-keyed variant of Enum_fast_memory_dual_key_map.
+ * First key is a std::string (arbitrary seq_type name such as "D1_gene_seq"),
+ * second key K2 is any type castable to int (e.g. Seq_side enum).
+ * Supports the same layered-memory interface as Enum_fast_memory_dual_key_map.
+ */
+template <typename K2, typename V>
+class Str_Dual_key_memory_map {
+public:
+    Str_Dual_key_memory_map() = default;
+
+    V &at(const std::string &key1, const K2 &key2)
+    {
+        auto &entry = get_entry(key1, key2);
+        if (entry.current_layer < 0)
+            throw std::out_of_range("Trying to access uninitialized position in Str_Dual_key_memory_map::at()");
+        return entry.layers[entry.current_layer];
+    }
+
+    const V &at(const std::string &key1, const K2 &key2) const
+    {
+        const auto &entry = get_entry_const(key1, key2);
+        if (entry.current_layer < 0)
+            throw std::out_of_range("Trying to access uninitialized position in Str_Dual_key_memory_map::at()");
+        return entry.layers[entry.current_layer];
+    }
+
+    // Access (and rewind to) a specific memory layer.
+    V &at(const std::string &key1, const K2 &key2, int memory_layer)
+    {
+        auto &entry = get_entry(key1, key2);
+        if (memory_layer > entry.current_layer + 1)
+            throw std::out_of_range("Trying to access uninitialized position in Str_Dual_key_memory_map::at()");
+        if (memory_layer >= static_cast<int>(entry.layers.size()))
+            entry.layers.resize(memory_layer + 1);
+        entry.current_layer = memory_layer;
+        return entry.layers[memory_layer];
+    }
+
+    const V &at(const std::string &key1, const K2 &key2, int memory_layer) const
+    {
+        const auto &entry = get_entry_const(key1, key2);
+        if (memory_layer > entry.current_layer)
+            throw std::out_of_range("Trying to access uninitialized position in Str_Dual_key_memory_map::at()");
+        return entry.layers[memory_layer];
+    }
+
+    int get_current_memory_layer(const std::string &key1, const K2 &key2)
+    {
+        auto it1 = data_.find(key1);
+        if (it1 == data_.end()) return -1;
+        auto it2 = it1->second.find(static_cast<int>(key2));
+        if (it2 == it1->second.end()) return -1;
+        return it2->second.current_layer;
+    }
+
+    bool exist(const std::string &key1, const K2 &key2)
+    {
+        auto it1 = data_.find(key1);
+        if (it1 == data_.end()) return false;
+        auto it2 = it1->second.find(static_cast<int>(key2));
+        if (it2 == it1->second.end()) return false;
+        return it2->second.current_layer >= 0;
+    }
+
+    void request_memory_layer(const std::string &key1, const K2 &key2)
+    {
+        auto &entry = data_[key1][static_cast<int>(key2)];
+        ++entry.current_layer;
+        if (entry.current_layer >= static_cast<int>(entry.layers.size()))
+            entry.layers.emplace_back();
+    }
+
+    void set_value(const std::string &key1, const K2 &key2, V value, int memory_layer)
+    {
+        auto &entry = data_[key1][static_cast<int>(key2)];
+        if (memory_layer > entry.current_layer + 1)
+            throw std::out_of_range(
+                "Trying to access incorrect memory layer in Str_Dual_key_memory_map::set_value()");
+        if (memory_layer >= static_cast<int>(entry.layers.size()))
+            entry.layers.resize(memory_layer + 1);
+        entry.layers[memory_layer] = value;
+        entry.current_layer = memory_layer;
+    }
+
+private:
+    struct LayeredValue {
+        std::vector<V> layers;
+        int current_layer = -1;
+    };
+    std::unordered_map<std::string, std::unordered_map<int, LayeredValue>> data_;
+
+    LayeredValue &get_entry(const std::string &key1, const K2 &key2)
+    {
+        auto it1 = data_.find(key1);
+        if (it1 == data_.end())
+            throw std::out_of_range("Unknown key1 in Str_Dual_key_memory_map::at(): " + key1);
+        auto it2 = it1->second.find(static_cast<int>(key2));
+        if (it2 == it1->second.end())
+            throw std::out_of_range("Unknown key2 in Str_Dual_key_memory_map::at()");
+        return it2->second;
+    }
+
+    const LayeredValue &get_entry_const(const std::string &key1, const K2 &key2) const
+    {
+        auto it1 = data_.find(key1);
+        if (it1 == data_.end())
+            throw std::out_of_range("Unknown key1 in Str_Dual_key_memory_map::at(): " + key1);
+        auto it2 = it1->second.find(static_cast<int>(key2));
+        if (it2 == it1->second.end())
+            throw std::out_of_range("Unknown key2 in Str_Dual_key_memory_map::at()");
+        return it2->second;
+    }
+};
+
+typedef Str_Dual_key_memory_map<Seq_side, Seq_Offset> Str_Seq_offsets_map;
+
 /*
  * Defining a hash functions for Rec_Event, Gene_class and pair<Gene_class,Seq_side>
  */

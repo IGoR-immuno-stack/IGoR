@@ -186,6 +186,13 @@ public:
     };
     const int get_priority() const { return priority; };
     const Rec_Event_name get_name() const { return name; };
+    /// Returns the v2.0-format event name that includes seq_type between
+    /// gene_class and seq_side.  Used in @Edges sections of v2.0 files.
+    /// Falls back to get_name() when seq_type is empty.
+    Rec_Event_name get_v2_name() const;
+    /// Returns the legacy-format event name (without seq_type), even if the
+    /// internal name has been updated to include seq_type.
+    Rec_Event_name get_legacy_name() const;
     const std::string get_nickname() const { return nickname; };
     void set_nickname(std::string name) { nickname = name; }
     Event_type get_type() const { return this->type; }

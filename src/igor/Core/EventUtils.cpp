@@ -56,6 +56,20 @@ Int_Str build_scenario_sequence(Seq_type_str_p_map &constructed_sequences,
   return scenario_resulting_sequence;
 }
 
+Int_Str build_scenario_sequence(
+    const SeqTypeRegistry &registry,
+    const std::unordered_map<std::string, const Int_Str *> &constructed_sequences) {
+
+  Int_Str scenario_resulting_sequence;
+  for (const auto &seq_type : registry.get_ordered_types()) {
+    auto it = constructed_sequences.find(seq_type);
+    if (it != constructed_sequences.end() && it->second != nullptr) {
+      scenario_resulting_sequence += *(it->second);
+    }
+  }
+  return scenario_resulting_sequence;
+}
+
 int get_insertion_len_max(
     const std::string &ins_seq_type,
     const Events_map &events_map) {

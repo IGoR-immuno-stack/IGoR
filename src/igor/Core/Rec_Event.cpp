@@ -104,6 +104,21 @@ void Rec_Event::update_event_name()
             + string("_prio") + to_string(priority) + string("_size") + to_string(this->size());
 }
 
+Rec_Event_name Rec_Event::get_v2_name() const
+{
+    if (seq_type.empty())
+        return name;
+    return string() + this->type + string("_") + this->event_class + string("_") + seq_type
+           + string("_") + this->event_side
+           + string("_prio") + to_string(priority) + string("_size") + to_string(this->size());
+}
+
+Rec_Event_name Rec_Event::get_legacy_name() const
+{
+    return string() + this->type + string("_") + this->event_class + string("_") + this->event_side
+           + string("_prio") + to_string(priority) + string("_size") + to_string(this->size());
+}
+
 void Rec_Event::add_realization(const Event_realization &realization)
 {
     this->event_realizations.insert(make_pair((realization).name, (realization)));

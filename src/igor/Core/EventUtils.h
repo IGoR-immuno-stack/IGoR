@@ -2,6 +2,7 @@
 
 #include <forward_list>
 #include <igor/Core/Rec_Event.h>
+#include <igor/Core/SeqTypeRegistry.h>
 #include <igor/Core/Utils.h>
 #include <memory>
 #include <string>
@@ -27,10 +28,19 @@ CORE_EXPORT GeneChoiceStatus check_gene_choice(
     const Events_map &events_map,
     const std::unordered_set<Rec_Event_name> &processed_events);
 
+/// Legacy (boolean-flag) overload — assembles in hardcoded VDJ or VJ order.
 CORE_EXPORT Int_Str build_scenario_sequence(Seq_type_str_p_map &constructed_sequences,
                                 bool has_v, bool has_d, bool has_j,
                                 bool has_vd_ins, bool has_dj_ins,
                                 bool has_vj_ins);
+
+/// Registry-based overload — assembles in the order defined by the SeqTypeRegistry.
+/// @param registry   Ordered seq_type names (e.g. from Model_Parms::get_seq_type_registry()).
+/// @param constructed_sequences  Map from seq_type string to the corresponding
+///                               sequence fragment (nullptr entries are skipped).
+CORE_EXPORT Int_Str build_scenario_sequence(
+    const SeqTypeRegistry &registry,
+    const std::unordered_map<std::string, const Int_Str *> &constructed_sequences);
 
 CORE_EXPORT void initialize_offset_memory(
     const std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>
