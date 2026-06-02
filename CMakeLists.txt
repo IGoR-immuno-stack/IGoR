@@ -87,9 +87,19 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS "ON")
 ## Build setup
 ## #################################################################
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
+
+if(WIN32)
+  # Prevent Windows.h min/max macros from breaking std::numeric_limits
+  add_compile_definitions(NOMINMAX)
+endif()
+
+if(MSVC)
+  # Ensure __cplusplus macro reports the correct C++ version instead of 199711L
+  add_compile_options(/Zc:__cplusplus)
+endif()
 
 ## ###################################################################
 ## Test setup
@@ -138,8 +148,15 @@ if (APPLE)
   endif()
   set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lpthread")
 else()
+  if(WIN32)
+    set(OpenMP_RUNTIME_MSVC llvm)
+  endif()
   find_package(OpenMP REQUIRED)
 endif()
+
+find_package(Arrow REQUIRED)
+find_package(Parquet REQUIRED)
+find_package(sparrow REQUIRED)
 
 ## #############################################################################
 ## Options

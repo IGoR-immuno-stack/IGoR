@@ -43,6 +43,13 @@
 #include <sys/types.h>
 #if defined(_WIN32)
 
+#  ifndef WIN32_LEAN_AND_MEAN
+#    define WIN32_LEAN_AND_MEAN
+#  endif
+#  ifndef NOMINMAX
+#    define NOMINMAX
+#  endif
+
 #  include <process.h>
 #  include <winsock2.h>
 #  include <windows.h>
@@ -135,10 +142,10 @@ CORE_EXPORT Seq_side str2SeqSide(const std::string &);
 CORE_EXPORT std::string to_string(const Seq_side);
 
 CORE_EXPORT std::ostream &operator<<(std::ostream &, Gene_class);
-std::ostream &operator<<(std::ostream &, Seq_side);
-std::string operator+(const std::string &, Gene_class);
-std::string operator+(const std::string &, Seq_side);
-std::string operator+(const std::string &, Event_type);
+CORE_EXPORT std::ostream &operator<<(std::ostream &, Seq_side);
+CORE_EXPORT std::string operator+(const std::string &, Gene_class);
+CORE_EXPORT std::string operator+(const std::string &, Seq_side);
+CORE_EXPORT std::string operator+(const std::string &, Event_type);
 
 //Type used to describe the array of doubles containing the marginals values
 typedef std::unique_ptr<long double[]> Marginal_array_p;

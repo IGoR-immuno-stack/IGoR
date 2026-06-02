@@ -49,6 +49,7 @@ public:
   void add_to_marginals(long double, Marginal_array_p &) const override {}
   shared_ptr<Rec_Event> copy() override { return nullptr; }
   bool has_effect_on(Seq_type) const override { return false; }
+  std::vector<std::size_t> inherent_shape() const override { return {1}; }
   void iterate_initialize_Len_proba(Seq_type, map<int, double> &,
                                     queue<shared_ptr<Rec_Event>> &, double &,
                                     const Marginal_array_p &, Index_map &,
@@ -126,10 +127,7 @@ TEST_CASE("EventUtils BuildScenarioSequence", "[EventUtils]") {
   }
 }
 
-// Step 9: build_scenario_sequence must eventually use SeqTypeRegistry order
-// rather than hardcoded boolean flags.  These tests document both the current
-// (working) standard behaviour and the desired (not yet implemented) registry-
-// based behaviour.
+// Step 9: build_scenario_sequence using SeqTypeRegistry order.
 TEST_CASE("step9: build_scenario_sequence VJ produces V+VJ_ins+J",
           "[EventUtils][step9][seq_order]") {
     Seq_type_str_p_map constructed_sequences(6);
@@ -166,23 +164,20 @@ TEST_CASE("step9: build_scenario_sequence VDJ order is V+VD+D+DJ+J",
             static_cast<std::vector<int>>(expected));
 }
 
-// Tandem-D ordering (V→VD1ins→D1→D1D2ins→D2→DJins→J) cannot be expressed
 TEST_CASE("step9: build_scenario_sequence tandem-D uses registry-based API",
           "[EventUtils][step9][seq_order]")
 {
-    // The registry-based overload supports arbitrary orderings, including 7-segment
-    // tandem D:   V → VD1_ins → D1 → D1D2_ins → D2 → DJ_ins → J
     SeqTypeRegistry registry;
     registry.set_ordered_types({"V_gene_seq", "VD1_ins_seq", "D1_gene_seq",
                                  "D1D2_ins_seq", "D2_gene_seq", "DJ_ins_seq", "J_gene_seq"});
 
-    Int_Str v    = {0, 0, 0};    // length 3
-    Int_Str vd1  = {1};          // length 1
-    Int_Str d1   = {2, 2};       // length 2
-    Int_Str d1d2 = {3};          // length 1
-    Int_Str d2   = {4, 4};       // length 2
-    Int_Str dj   = {5};          // length 1
-    Int_Str j    = {6, 6, 6};    // length 3
+    Int_Str v    = {0, 0, 0};
+    Int_Str vd1  = {1};
+    Int_Str d1   = {2, 2};
+    Int_Str d1d2 = {3};
+    Int_Str d2   = {4, 4};
+    Int_Str dj   = {5};
+    Int_Str j    = {6, 6, 6};
 
     std::unordered_map<std::string, const Int_Str *> seqs;
     seqs["V_gene_seq"]   = &v;
@@ -195,7 +190,6 @@ TEST_CASE("step9: build_scenario_sequence tandem-D uses registry-based API",
 
     Int_Str result = EventUtils::build_scenario_sequence(registry, seqs);
 
-    // Expected: v + vd1 + d1 + d1d2 + d2 + dj + j (13 elements total)
     Int_Str expected;
     expected.insert(expected.end(), v.begin(),    v.end());
     expected.insert(expected.end(), vd1.begin(),  vd1.end());
@@ -208,16 +202,16 @@ TEST_CASE("step9: build_scenario_sequence tandem-D uses registry-based API",
     REQUIRE(result == expected);
 }
 
+// Create a mock event with specific len_max
+class MockInsertionEvent : public MockEvent {
+public:
+  MockInsertionEvent(string name, int max_len) : MockEvent(name) {
+    this->len_max = max_len;
+  }
+};
+
 TEST_CASE("EventUtils GetInsertionLenMax", "[EventUtils]") {
   Events_map events_map;
-
-  // Create a mock event with specific len_max
-  class MockInsertionEvent : public MockEvent {
-  public:
-    MockInsertionEvent(string name, int max_len) : MockEvent(name) {
-      this->len_max = max_len;
-    }
-  };
 
   auto vd_ins = make_shared<MockInsertionEvent>("VD_ins", 10);
   auto dj_ins = make_shared<MockInsertionEvent>("DJ_ins", 15);
