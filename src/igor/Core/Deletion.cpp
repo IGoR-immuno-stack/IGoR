@@ -326,12 +326,18 @@ void Deletion::iterate(
                         if (end_reached) {
                             //Clear the vector but the capacity remains the same
                             mismatches_vector.clear();
+                            floor_mismatches_vector.clear();
                         } else {
                             ++mis_iter;
                             mismatches_vector.assign(v_mismatch_list.begin(), mis_iter);
+                            floor_mismatches_vector.assign(v_floor_mismatch_list.begin(),
+                                                           std::lower_bound(v_floor_mismatch_list.begin(),
+                                                                            v_floor_mismatch_list.end(),
+                                                                            v_3_new_offset));
                         }
                     } else {
                         mismatches_vector.clear();
+                        floor_mismatches_vector.clear();
                     }
                 } else //Negative deletions
                 {
@@ -406,6 +412,7 @@ void Deletion::iterate(
                 //Discard irrelevant mismatches (assuming the vector of mismatches is ordered) given the number of deletions
 
                 scenario.set_mismatches(V_gene_seq, &mismatches_vector, memory_layer_mismatches);
+                exploration.pruning_mismatch_floor.set_value(V_gene_seq, &floor_mismatches_vector, memory_layer_mismatches);
 
                 //new_tmp_err_w_proba*=proba_contribution;
 
@@ -584,11 +591,16 @@ void Deletion::iterate(
                             }
                             if (end_reached) {
                                 mismatches_vector.clear();
+                                floor_mismatches_vector.clear();
                             } else {
                                 mismatches_vector.assign(mis_iter, d_mismatch_list.end());
+                                auto floor_end = std::lower_bound(d_floor_mismatch_list.begin(),
+                                                                  d_floor_mismatch_list.end(), d_5_new_offset);
+                                floor_mismatches_vector.assign(floor_end, d_floor_mismatch_list.end());
                             }
                         } else {
                             mismatches_vector.clear();
+                            floor_mismatches_vector.clear();
                         }
 
                     } else //Negative deletion
@@ -647,6 +659,7 @@ void Deletion::iterate(
                     scenario.set_offset(D_gene_seq, Five_prime, d_5_new_offset, memory_layer_offset_del);
 
                     scenario.set_mismatches(D_gene_seq, &mismatches_vector, memory_layer_mismatches);
+                    exploration.pruning_mismatch_floor.set_value(D_gene_seq, &floor_mismatches_vector, memory_layer_mismatches);
                     //TODO add mismatches if del_d3 has been processed
 
 
@@ -830,12 +843,18 @@ void Deletion::iterate(
                             if (end_reached) {
                                 //Clear the vector but the capacity remains the same
                                 mismatches_vector.clear();
+                                floor_mismatches_vector.clear();
                             } else {
                                 ++mis_iter;
                                 mismatches_vector.assign(d_mismatch_list.begin(), mis_iter);
+                                floor_mismatches_vector.assign(d_floor_mismatch_list.begin(),
+                                                               std::lower_bound(d_floor_mismatch_list.begin(),
+                                                                                d_floor_mismatch_list.end(),
+                                                                                d_3_new_offset));
                             }
                         } else {
                             mismatches_vector.clear();
+                            floor_mismatches_vector.clear();
                         }
 
                     } else //Negative deletion
@@ -1027,6 +1046,13 @@ void Deletion::iterate(
 
         Int_Str &previous_str = (*scenario.get_sequence_segment(J_gene_seq, memory_layer_cs - 1));
         vector<int> &j_mismatch_list = *scenario.get_mismatches(J_gene_seq, memory_layer_mismatches - 1);
+        // Floor mismatch list from pruning_mismatch_floor for motif/patched mode;
+        // for exact NT queries, floor == upper bound (both tracks identical).
+        vector<int> j_floor_mismatch_storage;
+        vector<int> *j_floor_mismatch_ptr = query.journaled_query.has_value()
+            ? exploration.pruning_mismatch_floor.at(J_gene_seq, memory_layer_mismatches - 1)
+            : (j_floor_mismatch_storage = j_mismatch_list, std::addressof(j_floor_mismatch_storage));
+        vector<int> &j_floor_mismatch_list = *j_floor_mismatch_ptr;
         for (forward_list<Event_realization>::const_iterator iter = (*this).int_value_and_index.begin();
              iter != (*this).int_value_and_index.end(); ++iter) {
             if ((int)previous_str.size() > (*iter).value_int) {
@@ -1093,11 +1119,16 @@ void Deletion::iterate(
                         }
                         if (end_reached) {
                             mismatches_vector.clear();
+                            floor_mismatches_vector.clear();
                         } else {
                             mismatches_vector.assign(mis_iter, j_mismatch_list.end());
+                            auto floor_end = std::lower_bound(j_floor_mismatch_list.begin(),
+                                                              j_floor_mismatch_list.end(), j_5_new_offset);
+                            floor_mismatches_vector.assign(floor_end, j_floor_mismatch_list.end());
                         }
                     } else {
                         mismatches_vector.clear();
+                        floor_mismatches_vector.clear();
                     }
 
                 } else //Negative deletion
@@ -1117,8 +1148,9 @@ void Deletion::iterate(
 
                         //cout<<"prev_str: "<<previous_str<<endl;
                         //cout<<"new str:  "<<new_str<<endl;
-                        //Count mismatches and add them to the mismatches list
+                        //Two-track mismatch computation: floor + upper bound
                         mismatches_vector = j_mismatch_list;
+                        floor_mismatches_vector = j_floor_mismatch_list;
                         /*							cout<<"mismatch_vect : ";
 							for(vector<int>::const_iterator test = mismatches_vector.begin() ; test != mismatches_vector.end() ; test++){
 								cout<<(*test)<<";";
@@ -1126,11 +1158,25 @@ void Deletion::iterate(
 							cout<<endl;*/
                         for (int i = 0; i != (-(*iter).value_int); ++i) {
                             //Check for errors in reverse order to keep the mismatch vector ordered
-                            if (not comp_nt_int(tmp_str[i], query.int_sequence.at(j_5_new_offset + i))) {
-                                mismatches_vector.push_back(j_5_new_offset + i);
+                            int qpos = j_5_new_offset + i;
+                            bool floor_mismatch = !comp_nt_int(tmp_str[i], query.int_sequence.at(qpos));
+                            // Upper bound: use iupac_intersection + empty_isect for motif/patched mode
+                            bool upper_mismatch;
+                            if (query.journaled_query.has_value()) {
+                                upper_mismatch = query.journaled_query->empty_isect[qpos]
+                                              || !comp_nt_int(tmp_str[i], query.journaled_query->iupac_intersection[qpos]);
+                            } else {
+                                upper_mismatch = (tmp_str[i] != query.int_sequence[qpos]);
+                            }
+                            if (floor_mismatch) {
+                                floor_mismatches_vector.push_back(qpos);
+                            }
+                            if (upper_mismatch) {
+                                mismatches_vector.push_back(qpos);
                             }
                         }
                         sort(mismatches_vector.begin(), mismatches_vector.end());
+                        sort(floor_mismatches_vector.begin(), floor_mismatches_vector.end());
                         /*							cout<<"prev_v_3_offset: "<<v_3_offset<<endl;
 							cout<<"seq: "<<int_sequence<<endl;
 							cout<<"new_mismatch_vect : ";
@@ -1154,6 +1200,7 @@ void Deletion::iterate(
                 scenario.set_offset(J_gene_seq, Five_prime, j_5_new_offset, memory_layer_offset_del);
 
                 scenario.set_mismatches(J_gene_seq, &mismatches_vector, memory_layer_mismatches);
+                exploration.pruning_mismatch_floor.set_value(J_gene_seq, &floor_mismatches_vector, memory_layer_mismatches);
 
                 //new_tmp_err_w_proba*=proba_contribution;
 
