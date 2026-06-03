@@ -107,6 +107,12 @@ jobs:
           else:
               print("igor_tests.exe missing")
 
+          model_exe = bindir / "model_tests.exe"
+          if model_exe.exists():
+              run([str(model_exe), "--list-tests"], "model_tests bootstrap")
+          else:
+              print("model_tests.exe missing")
+
           # where.exe diagnostics
           where_exe = shutil.which("where")
           if where_exe:
@@ -118,6 +124,8 @@ jobs:
           if dumpbin:
               run([dumpbin, "/DEPENDENTS", str(exe)], "dumpbin igor_tests.exe")
               run([dumpbin, "/DEPENDENTS", str(bindir / "igorCore.dll")], "dumpbin igorCore.dll")
+              run([dumpbin, "/DEPENDENTS", str(model_exe)], "dumpbin model_tests.exe")
+              run([dumpbin, "/DEPENDENTS", str(bindir / "igorModel.dll")], "dumpbin igorModel.dll")
           else:
               print("dumpbin not found in PATH")
 
