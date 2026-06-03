@@ -1073,7 +1073,7 @@ AAPgenResult GenModel::compute_aa_pgen(
     // Use a reasonable upper bound for the number of events
     size_t num_events = model_parms.get_event_list().size();
     if (num_events == 0 || num_events > 100) {
-        return {0.0, 0};  // Invalid model
+        return {0.0, 0ULL};  // Invalid model
     }
     shared_ptr<Next_event_ptr> next_event_ptr_arr(
         new Next_event_ptr[num_events],
@@ -1132,7 +1132,7 @@ AAPgenResult GenModel::compute_aa_pgen(
         first_event->iterate(query, model_ctx, scenario, exploration, accumulation);
     } catch (const std::exception& e) {
         // Return zero Pgen on error
-        return {0.0, 0};
+        return {0.0, 0ULL};
     }
 
     // 11. Return result
