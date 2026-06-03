@@ -100,6 +100,21 @@ jobs:
               print(f"{exe_name} exit code: {result.returncode}")
           PY
 
+          echo "=== where openmp runtimes ==="
+          pixi run cmd /c "where libomp.dll || exit /b 0"
+          pixi run cmd /c "where libiomp5md.dll || exit /b 0"
+          pixi run cmd /c "where vcomp140.dll || exit /b 0"
+          pixi run cmd /c "where libgomp-1.dll || exit /b 0"
+
+          echo "=== dumpbin dependents (igor_tests.exe) ==="
+          pixi run cmd /c "\"%VSINSTALLDIR%\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\dumpbin.exe\" /DEPENDENTS build\\bin\\igor_tests.exe"
+
+          echo "=== dumpbin dependents (igorCore.dll) ==="
+          pixi run cmd /c "\"%VSINSTALLDIR%\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\dumpbin.exe\" /DEPENDENTS build\\bin\\igorCore.dll"
+
+          echo "=== test with KMP_DUPLICATE_LIB_OK ==="
+          pixi run cmd /c "set KMP_DUPLICATE_LIB_OK=TRUE && build\\bin\\igor_tests.exe --list-test-names-only && echo ExitCode=%ERRORLEVEL%"
+
       - name: Configure project
         if: matrix.os == 'ubuntu-latest'
         run: pixi run configure_debug
