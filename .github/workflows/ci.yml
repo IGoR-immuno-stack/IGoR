@@ -73,47 +73,66 @@ jobs:
           pixi run python - <<'PY'
           import os
           import pathlib
+          import shutil
           import subprocess
+
+          def run(args, title):
+              print(f"\n=== {title} ===")
+              print("CMD:", " ".join(args))
+              p = subprocess.run(args, text=True, capture_output=True)
+              print("RC:", p.returncode)
+              if p.stdout:
+                  print(p.stdout)
+              if p.stderr:
+                  print("STDERR:")
+                  print(p.stderr)
 
           print("CONDA_PREFIX =", os.environ.get("CONDA_PREFIX"))
           print("PATH =", os.environ.get("PATH"))
 
           bindir = pathlib.Path("build/bin")
-          print("DLLs in build/bin:")
-          if bindir.exists():
-              for path in sorted(bindir.glob("*.dll")):
-                  print("  ", path.name)
+          print("\nDLLs in build/bin:")
+          for path in sorted(bindir.glob("*.dll")):
+              print(" ", path.name)
 
           envbin = pathlib.Path(os.environ["CONDA_PREFIX"]) / "Library" / "bin"
-          for pattern in ("gsl*.dll", "*omp*.dll", "*vcomp*.dll"):
-              print(f"{pattern} in CONDA env:")
+          for pattern in ("gsl*.dll", "libomp*.dll", "libiomp5md.dll", "vcomp*.dll", "libgomp*.dll"):
+              print(f"\n{pattern} in CONDA env:")
               for path in sorted(envbin.glob(pattern)):
-                  print("  ", path.name)
+                  print(" ", path.name)
 
-          for exe_name in ("igor_tests.exe", "model_tests.exe", "math_tests.exe", "streaming_tests.exe"):
-              exe = bindir / exe_name
-              if not exe.exists():
-                  print(f"{exe_name}: missing")
-                  continue
-              print(f"Running {exe_name} --list-test-names-only")
-              result = subprocess.run([str(exe), "--list-test-names-only"], text=True)
-              print(f"{exe_name} exit code: {result.returncode}")
+          exe = bindir / "igor_tests.exe"
+          if exe.exists():
+              run([str(exe), "--list-test-names-only"], "igor_tests bootstrap")
+          else:
+              print("igor_tests.exe missing")
+
+          # where.exe diagnostics
+          where_exe = shutil.which("where")
+          if where_exe:
+              for name in ("libomp.dll", "libiomp5md.dll", "vcomp140.dll", "libgomp-1.dll"):
+                  run([where_exe, name], f"where {name}")
+
+          # dumpbin diagnostics
+          dumpbin = shutil.which("dumpbin")
+          if dumpbin:
+              run([dumpbin, "/DEPENDENTS", str(exe)], "dumpbin igor_tests.exe")
+              run([dumpbin, "/DEPENDENTS", str(bindir / "igorCore.dll")], "dumpbin igorCore.dll")
+          else:
+              print("dumpbin not found in PATH")
+
+          # OpenMP conflict probe
+          env = os.environ.copy()
+          env["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+          print("\n=== test with KMP_DUPLICATE_LIB_OK ===")
+          p = subprocess.run([str(exe), "--list-test-names-only"], text=True, capture_output=True, env=env)
+          print("RC:", p.returncode)
+          if p.stdout:
+              print(p.stdout)
+          if p.stderr:
+              print("STDERR:")
+              print(p.stderr)
           PY
-
-          echo "=== where openmp runtimes ==="
-          pixi run cmd /c "where libomp.dll || exit /b 0"
-          pixi run cmd /c "where libiomp5md.dll || exit /b 0"
-          pixi run cmd /c "where vcomp140.dll || exit /b 0"
-          pixi run cmd /c "where libgomp-1.dll || exit /b 0"
-
-          echo "=== dumpbin dependents (igor_tests.exe) ==="
-          pixi run cmd /c "\"%VSINSTALLDIR%\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\dumpbin.exe\" /DEPENDENTS build\\bin\\igor_tests.exe"
-
-          echo "=== dumpbin dependents (igorCore.dll) ==="
-          pixi run cmd /c "\"%VSINSTALLDIR%\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\dumpbin.exe\" /DEPENDENTS build\\bin\\igorCore.dll"
-
-          echo "=== test with KMP_DUPLICATE_LIB_OK ==="
-          pixi run cmd /c "set KMP_DUPLICATE_LIB_OK=TRUE && build\\bin\\igor_tests.exe --list-test-names-only && echo ExitCode=%ERRORLEVEL%"
 
       - name: Configure project
         if: matrix.os == 'ubuntu-latest'
