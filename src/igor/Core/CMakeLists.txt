@@ -112,9 +112,7 @@ target_link_libraries(${PROJECT_NAME} PUBLIC GSL::gsl)
 if(APPLE)
   target_link_libraries(${PROJECT_NAME} PRIVATE OpenMP::OpenMP)
 else()
-  if(NOT WIN32) # Temporairement désactivé sous Windows pour tester l'hypothèse de conflit OpenMP
-    target_link_libraries(${PROJECT_NAME} PRIVATE OpenMP::OpenMP_CXX)
-  endif()
+  target_link_libraries(${PROJECT_NAME} PRIVATE OpenMP::OpenMP_CXX)
 endif()
 
 if(WIN32)
