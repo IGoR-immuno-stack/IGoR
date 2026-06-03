@@ -94,40 +94,5 @@ const LegacyEventsMap &empty_legacy_events_map()
     return kEmptyLegacyEventsMap;
 }
 
-SeqEventsMap build_seq_events_map(const LegacyEventsMap &events_map)
-{
-    SeqEventsMap seq_events_map;
-    seq_events_map.reserve(events_map.size());
-    for (const auto &entry : events_map) {
-        tuple<Event_type, Seq_type, Seq_side> seq_key;
-        if (!try_event_key_to_seq_key(get<0>(entry.first), get<1>(entry.first), get<2>(entry.first),
-                                                   seq_key)) {
-            continue;
-        }
-        seq_events_map.emplace(seq_key, entry.second);
-    }
-    return seq_events_map;
-}
-
-GeneChoiceStatus check_gene_choice_seq_type(
-        Gene_class gene, const SeqEventsMap &events_map, const unordered_set<Rec_Event_name> &processed_events)
-{
-    GeneChoiceStatus status{ false, false, nullptr };
-    Seq_type gene_seq = V_gene_seq;
-    if (!try_gene_class_to_gene_seq_type(gene, gene_seq)) {
-        return status;
-    }
-
-    shared_ptr<Rec_Event> event_ptr;
-    if (!EventUtils::try_get_event(events_map, GeneChoice_t, gene_seq, Undefined_side, event_ptr)) {
-        return status;
-    }
-
-    status.exists = true;
-    status.chosen = processed_events.count(event_ptr->get_name()) != 0;
-    status.event_ptr = event_ptr;
-    return status;
-}
-
 } // namespace migration
 } // namespace igor

@@ -218,12 +218,6 @@ public:
             const std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &,
             Downstream_scenario_proba_bound_map &, Seq_type_str_p_map &, Safety_bool_map &, std::shared_ptr<Error_rate>,
             Mismatch_vectors_map &, Seq_offsets_map &, Index_map &);
-    virtual void initialize_event(
-            std::unordered_set<Rec_Event_name> &,
-            const std::unordered_map<std::tuple<Event_type, Seq_type, Seq_side>, std::shared_ptr<Rec_Event>> &,
-            const std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &,
-            Downstream_scenario_proba_bound_map &, Seq_type_str_p_map &, Safety_bool_map &, std::shared_ptr<Error_rate>,
-            Mismatch_vectors_map &, Seq_offsets_map &, Index_map &);
 
 private:
     void initialize_event_common(

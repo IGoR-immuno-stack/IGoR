@@ -3,25 +3,49 @@
 
 namespace EventUtils {
 
-
-
-bool has_insertion_seq_type(
-    const std::unordered_map<std::tuple<Event_type, Seq_type, Seq_side>,
-                             std::shared_ptr<Rec_Event>> &events_map,
-    Seq_type seq_type)
+std::string seq_type_to_string(Seq_type seq_type)
 {
-  auto key = std::make_tuple(Insertion_t, seq_type, Undefined_side);
-  return events_map.find(key) != events_map.end();
+    switch (seq_type) {
+    case V_gene_seq:  return "V_gene_seq";
+    case VD_ins_seq:  return "VD_ins_seq";
+    case D_gene_seq:  return "D_gene_seq";
+    case DJ_ins_seq:  return "DJ_ins_seq";
+    case J_gene_seq:  return "J_gene_seq";
+    case VJ_ins_seq:  return "VJ_ins_seq";
+    default:          return "Undefined_seq";
+    }
 }
 
+bool has_insertion_seq_type(
+    const Events_map &events_map,
+    Seq_type seq_type)
+{
+    auto key = std::make_tuple(Insertion_t, seq_type_to_string(seq_type), Undefined_side);
+    return events_map.count(key) != 0;
+}
 
+bool try_get_event(
+    const Events_map &events_map,
+    Event_type event_type,
+    Seq_type seq_type,
+    Seq_side seq_side,
+    std::shared_ptr<Rec_Event> &event_ptr)
+{
+    auto key = std::make_tuple(event_type, seq_type_to_string(seq_type), seq_side);
+    auto it = events_map.find(key);
+    if (it != events_map.end()) {
+        event_ptr = it->second;
+        return true;
+    }
+    return false;
+}
 
-GeneChoiceStatus check_gene_choice(
+igor::migration::GeneChoiceStatus check_gene_choice(
     const std::string &gene_seq_type,
     const Events_map &events_map,
     const std::unordered_set<Rec_Event_name> &processed_events) {
 
-  GeneChoiceStatus status;
+  igor::migration::GeneChoiceStatus status;
   status.exists = false;
   status.chosen = false;
   status.event_ptr = nullptr;

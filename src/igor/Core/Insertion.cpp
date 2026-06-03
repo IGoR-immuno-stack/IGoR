@@ -322,7 +322,7 @@ void Insertion::initialize_event(
     downstream_proba_map.request_memory_layer(seq_type);
     memory_layer_proba_map_junction = downstream_proba_map.get_current_memory_layer(seq_type);
 
-    this->Rec_Event::initialize_event(processed_events, igor::migration::empty_legacy_events_map(), offset_map, downstream_proba_map,
+    this->Rec_Event::initialize_event(processed_events, events_map, offset_map, downstream_proba_map,
                                       constructed_sequences, safety_set, error_rate_p, mismatches_list, seq_offsets,
                                       index_map);
 }
@@ -411,61 +411,6 @@ void Insertion::initialize_crude_scenario_proba_bound(
 
     //Apply the computed upper bound
     downstream_proba_bound *= event_upper_bound_proba;
-}
-
-void Insertion::initialize_crude_scenario_proba_bound(
-        double &downstream_proba_bound, forward_list<double *> &updated_proba_list,
-        const unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map)
-{
-    // Convert the Gene_class map to a Seq_type map.
-    // Two-pass strategy: specific keys (VD/DJ/VJ) always win over VDJ aliases.
-    // Pass 1 — insert specific (non-VDJ) keys.
-    // Pass 2 — insert VDJ aliases only where the key is still absent.
-    unordered_map<tuple<Event_type, Seq_type, Seq_side>, shared_ptr<Rec_Event>> seq_events_map;
-    seq_events_map.reserve(events_map.size() * 2); // worst case: every entry expands to 2
-
-    // Pass 1: specific (non-VDJ) entries
-    for (const auto &entry : events_map) {
-        Event_type event_type = get<0>(entry.first);
-        Gene_class gene_class = get<1>(entry.first);
-        Seq_side seq_side = get<2>(entry.first);
-
-        if (gene_class == VDJ_genes) {
-            continue; // handled in pass 2
-        }
-
-        Seq_type seq_type = V_gene_seq;
-        bool converted = false;
-        if (event_type == Insertion_t || event_type == Dinuclmarkov_t) {
-            converted = igor::migration::try_insertion_gene_class_to_seq_type(gene_class, seq_type);
-        } else {
-            converted = igor::migration::try_gene_class_to_gene_seq_type(gene_class, seq_type);
-        }
-
-        if (converted) {
-            seq_events_map.emplace(make_tuple(event_type, seq_type, seq_side), entry.second);
-        }
-    }
-
-    // Pass 2: VDJ aliases — inserted only if no specific key already occupies the slot.
-    for (const auto &entry : events_map) {
-        Event_type event_type = get<0>(entry.first);
-        Gene_class gene_class = get<1>(entry.first);
-        Seq_side seq_side = get<2>(entry.first);
-
-        if (gene_class != VDJ_genes) {
-            continue;
-        }
-        if (event_type != Insertion_t && event_type != Dinuclmarkov_t) {
-            continue;
-        }
-
-        // emplace is a no-op if the key already exists (specific wins).
-        seq_events_map.emplace(make_tuple(event_type, VD_ins_seq, seq_side), entry.second);
-        seq_events_map.emplace(make_tuple(event_type, DJ_ins_seq, seq_side), entry.second);
-    }
-
-    this->initialize_crude_scenario_proba_bound(downstream_proba_bound, updated_proba_list, seq_events_map);
 }
 
 bool Insertion::has_effect_on(Seq_type seq_type) const

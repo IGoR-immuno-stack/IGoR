@@ -365,6 +365,17 @@ double Hypermutation_global_errorrate::compute_scenario_error_probability(
     return result;
 }
 
+double Hypermutation_global_errorrate::compute_error_probability_impl(
+        double scenario_probability, const string &original_sequence, Seq_type_str_p_map &constructed_sequences,
+        const Seq_offsets_map &seq_offsets,
+        Mismatch_vectors_map &mismatches_lists, double &seq_max_prob_scenario, const double &proba_threshold_factor)
+{
+    static const Events_map empty_map;
+    return this->compare_sequences_error_prob(
+        scenario_probability, original_sequence, constructed_sequences, seq_offsets,
+        empty_map, mismatches_lists, seq_max_prob_scenario, proba_threshold_factor);
+}
+
 double Hypermutation_global_errorrate::compare_sequences_error_prob(
         double scenario_probability, const string &original_sequence, Seq_type_str_p_map &constructed_sequences,
         const Seq_offsets_map &seq_offsets,

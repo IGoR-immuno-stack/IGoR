@@ -199,17 +199,6 @@ void Rec_Event::iterate(double &scenario_proba, Downstream_scenario_proba_bound_
                        Safety_bool_map &safety_set, Mismatch_vectors_map &mismatches_lists,
                        double &seq_max_prob_scenario, double &proba_threshold_factor)
 {
-    unordered_map<tuple<Event_type, Seq_type, Seq_side>, shared_ptr<Rec_Event>> events_map_seq_type;
-    events_map_seq_type.reserve(events_map.size());
-    for (const auto &event_entry : events_map) {
-        tuple<Event_type, Seq_type, Seq_side> seq_key;
-        if (igor::migration::try_event_key_to_seq_key(get<0>(event_entry.first), get<1>(event_entry.first),
-                                                 get<2>(event_entry.first), seq_key)) {
-            events_map_seq_type.emplace(seq_key, event_entry.second);
-        }
-    }
-
-
     // Input query context
     QuerySequenceContext query(
         sequence,
@@ -217,11 +206,11 @@ void Rec_Event::iterate(double &scenario_proba, Downstream_scenario_proba_bound_
         allowed_realizations  // Legacy param name, stored as gene_alignments
     );
 
-    // Model configuration context
+    // Model configuration context — Events_map is already string-keyed, pass directly.
     ModelContext model(
         model_parameters_point,
         offset_map,
-        events_map_seq_type,
+        events_map,
         queue<shared_ptr<Rec_Event>>()  // Never used by legacy iterate()
     );
 
@@ -315,7 +304,7 @@ void Rec_Event::iterate_wrap_up(
     } else {
 
         long double scenario_error_w_proba = error_rate_p->compare_sequences_error_prob(
-            scenario_proba, sequence, constructed_sequences, seq_offsets, mismatches_lists,
+            scenario_proba, sequence, constructed_sequences, seq_offsets, events_map, mismatches_lists,
                 seq_max_prob_scenario, proba_threshold_factor);
 
         //TODO add a monitor of the likelihood at each iteration
@@ -432,17 +421,6 @@ void Rec_Event::initialize_event(
     initialize_event_common(processed_events, offset_map, downstream_proba_map, index_map);
 }
 
-void Rec_Event::initialize_event(
-        unordered_set<Rec_Event_name> &processed_events,
-        const unordered_map<tuple<Event_type, Seq_type, Seq_side>, shared_ptr<Rec_Event>> &events_map,
-        const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
-        Downstream_scenario_proba_bound_map &downstream_proba_map, Seq_type_str_p_map &constructed_sequences,
-        Safety_bool_map &safety_set, shared_ptr<Error_rate> error_rate_p, Mismatch_vectors_map &mismatches_list,
-        Seq_offsets_map &seq_offsets, Index_map &index_map)
-{
-    initialize_event_common(processed_events, offset_map, downstream_proba_map, index_map);
-}
-
 void Rec_Event::initialize_event_common(
         unordered_set<Rec_Event_name> &processed_events,
         const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
@@ -525,14 +503,6 @@ void Rec_Event::initialize_crude_scenario_proba_bound(
     } else {
         throw logic_error("Updated events should overload Rec_event::initialize_scenario_proba_bound()");
     }
-}
-
-void Rec_Event::initialize_crude_scenario_proba_bound(
-        double &downstream_proba_bound, forward_list<double *> &updated_proba_list,
-        const unordered_map<tuple<Event_type, Seq_type, Seq_side>, shared_ptr<Rec_Event>> &events_map)
-{
-    this->initialize_crude_scenario_proba_bound(downstream_proba_bound, updated_proba_list,
-                                                build_legacy_events_map(events_map));
 }
 
 /*

@@ -1574,7 +1574,7 @@ void Deletion::initialize_event(
         j_5_min_del = 0;
         j_5_max_del = 0;
     }
-    this->Rec_Event::initialize_event(processed_events, igor::migration::empty_legacy_events_map(), offset_map, downstream_proba_map,
+    this->Rec_Event::initialize_event(processed_events, events_map, offset_map, downstream_proba_map,
                                       constructed_sequences, safety_set, error_rate_p, mismatches_list, seq_offsets,
                                       index_map);
 }

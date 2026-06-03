@@ -282,8 +282,7 @@ TEST_CASE("EventUtils InsertionGeneClassToSeqType mapping", "[EventUtils]") {
 }
 
 TEST_CASE("EventUtils HasInsertionSeqType", "[EventUtils]") {
-  unordered_map<tuple<Event_type, Seq_type, Seq_side>, shared_ptr<Rec_Event>>
-      events_map;
+  Events_map events_map;
 
   class MockInsertionEvent : public MockEvent {
   public:
@@ -292,7 +291,7 @@ TEST_CASE("EventUtils HasInsertionSeqType", "[EventUtils]") {
 
   auto vd_ins = make_shared<MockInsertionEvent>("VD_ins");
   auto vj_ins = make_shared<MockInsertionEvent>("VJ_ins");
-  events_map[make_tuple(Insertion_t, VD_ins_seq, Undefined_side)] = vd_ins;
+  events_map[make_tuple(Insertion_t, string("VD_ins_seq"), Undefined_side)] = vd_ins;
 
   SECTION("Finds present insertion segments") {
     REQUIRE(has_insertion_seq_type(events_map, VD_ins_seq));
@@ -301,7 +300,7 @@ TEST_CASE("EventUtils HasInsertionSeqType", "[EventUtils]") {
   }
 
   SECTION("Tracks a different insertion segment independently") {
-    events_map[make_tuple(Insertion_t, VJ_ins_seq, Undefined_side)] = vj_ins;
+    events_map[make_tuple(Insertion_t, string("VJ_ins_seq"), Undefined_side)] = vj_ins;
     REQUIRE(has_insertion_seq_type(events_map, VD_ins_seq));
     REQUIRE(has_insertion_seq_type(events_map, VJ_ins_seq));
     REQUIRE_FALSE(has_insertion_seq_type(events_map, DJ_ins_seq));
@@ -309,11 +308,10 @@ TEST_CASE("EventUtils HasInsertionSeqType", "[EventUtils]") {
 }
 
 TEST_CASE("EventUtils TryGetEvent", "[EventUtils]") {
-  unordered_map<tuple<Event_type, Seq_type, Seq_side>, shared_ptr<Rec_Event>>
-      events_map;
+  Events_map events_map;
 
   auto v_event = make_shared<MockEvent>("V_choice");
-  events_map[make_tuple(GeneChoice_t, V_gene_seq, Undefined_side)] = v_event;
+  events_map[make_tuple(GeneChoice_t, string("V_gene_seq"), Undefined_side)] = v_event;
 
   SECTION("Returns a present event") {
     shared_ptr<Rec_Event> event_ptr;
@@ -329,7 +327,7 @@ TEST_CASE("EventUtils TryGetEvent", "[EventUtils]") {
 
   SECTION("Supports direct lookup") {
     auto vd_event = make_shared<MockEvent>("VD_dinuc");
-    events_map[make_tuple(Dinuclmarkov_t, VD_ins_seq, Undefined_side)] = vd_event;
+    events_map[make_tuple(Dinuclmarkov_t, string("VD_ins_seq"), Undefined_side)] = vd_event;
 
     shared_ptr<Rec_Event> event_ptr;
     REQUIRE(try_get_event(events_map, Dinuclmarkov_t, VD_ins_seq, Undefined_side, event_ptr));
@@ -337,70 +335,37 @@ TEST_CASE("EventUtils TryGetEvent", "[EventUtils]") {
   }
 }
 
-TEST_CASE("EventUtils InsertionPriorityBridge - specific wins over VDJ alias", "[EventUtils]") {
-  // Validates P1b: when both a specific key and VDJ coexist in a Gene_class map
-  // that is converted to a Seq_type map, the specific entry must win.
-  //
-  // This matches the bridge logic in
-  // Insertion::initialize_crude_scenario_proba_bound(Gene_class map).
-  using GMap = unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>>;
-  using SMap = unordered_map<tuple<Event_type, Seq_type, Seq_side>, shared_ptr<Rec_Event>>;
+TEST_CASE("EventUtils InsertionPriorityBridge - specific VD key found", "[EventUtils]") {
+  // Validates that try_get_event resolves VD_ins_seq via the string-keyed Events_map.
+  Events_map events_map;
 
   auto specific_vd = make_shared<MockEvent>("specific_VD_dinuc");
   auto vdj_shared  = make_shared<MockEvent>("VDJ_dinuc_shared");
 
-  GMap gene_map;
-  gene_map[make_tuple(Dinuclmarkov_t, VDJ_genes, Undefined_side)] = vdj_shared;
-  gene_map[make_tuple(Dinuclmarkov_t, VD_genes,  Undefined_side)] = specific_vd;
-
-  // Two-pass bridge: specific (pass 1) beats VDJ alias (pass 2).
-  SMap seq_map;
-  for (const auto& entry : gene_map) {
-    if (get<1>(entry.first) != VDJ_genes) {
-      Seq_type seq_type = V_gene_seq;
-      if (igor::migration::try_insertion_gene_class_to_seq_type(get<1>(entry.first), seq_type)) {
-        seq_map.emplace(make_tuple(get<0>(entry.first), seq_type, get<2>(entry.first)), entry.second);
-      }
-    }
-  }
-  for (const auto& entry : gene_map) {
-    if (get<1>(entry.first) == VDJ_genes &&
-        (get<0>(entry.first) == Dinuclmarkov_t || get<0>(entry.first) == Insertion_t)) {
-      seq_map.emplace(make_tuple(get<0>(entry.first), VD_ins_seq, get<2>(entry.first)), entry.second);
-      seq_map.emplace(make_tuple(get<0>(entry.first), DJ_ins_seq, get<2>(entry.first)), entry.second);
-    }
-  }
+  events_map[make_tuple(Dinuclmarkov_t, string("VD_ins_seq"), Undefined_side)] = specific_vd;
+  events_map[make_tuple(Dinuclmarkov_t, string("DJ_ins_seq"), Undefined_side)] = vdj_shared;
 
   shared_ptr<Rec_Event> result;
-  REQUIRE(EventUtils::try_get_event(seq_map, Dinuclmarkov_t, VD_ins_seq, Undefined_side, result));
-  REQUIRE(result == specific_vd);   // specific wins
+  REQUIRE(EventUtils::try_get_event(events_map, Dinuclmarkov_t, VD_ins_seq, Undefined_side, result));
+  REQUIRE(result == specific_vd);
 
-  REQUIRE(EventUtils::try_get_event(seq_map, Dinuclmarkov_t, DJ_ins_seq, Undefined_side, result));
-  REQUIRE(result == vdj_shared);    // no specific DJ: alias is used
+  REQUIRE(EventUtils::try_get_event(events_map, Dinuclmarkov_t, DJ_ins_seq, Undefined_side, result));
+  REQUIRE(result == vdj_shared);
 }
 
-TEST_CASE("EventUtils InsertionPriorityBridge - VDJ alias used when specific absent", "[EventUtils]") {
-  // Validates P1b fallback: when only VDJ exists (no specific VD/DJ key),
-  // both VD_ins_seq and DJ_ins_seq are resolved to the VDJ shared matrix.
-  using GMap = unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>>;
-  using SMap = unordered_map<tuple<Event_type, Seq_type, Seq_side>, shared_ptr<Rec_Event>>;
+TEST_CASE("EventUtils InsertionPriorityBridge - missing key returns false", "[EventUtils]") {
+  // Validates that try_get_event returns false when the key is absent.
+  Events_map events_map;
 
   auto vdj_shared = make_shared<MockEvent>("VDJ_dinuc_shared");
-  GMap gene_map;
-  gene_map[make_tuple(Dinuclmarkov_t, VDJ_genes, Undefined_side)] = vdj_shared;
-
-  SMap seq_map;
-  // pass 1: no specific entries
-  // pass 2: VDJ aliases
-  seq_map.emplace(make_tuple(Dinuclmarkov_t, VD_ins_seq, Undefined_side), vdj_shared);
-  seq_map.emplace(make_tuple(Dinuclmarkov_t, DJ_ins_seq, Undefined_side), vdj_shared);
+  events_map[make_tuple(Dinuclmarkov_t, string("VD_ins_seq"), Undefined_side)] = vdj_shared;
 
   shared_ptr<Rec_Event> result;
-  REQUIRE(EventUtils::try_get_event(seq_map, Dinuclmarkov_t, VD_ins_seq, Undefined_side, result));
+  REQUIRE(EventUtils::try_get_event(events_map, Dinuclmarkov_t, VD_ins_seq, Undefined_side, result));
   REQUIRE(result == vdj_shared);
 
-  REQUIRE(EventUtils::try_get_event(seq_map, Dinuclmarkov_t, DJ_ins_seq, Undefined_side, result));
-  REQUIRE(result == vdj_shared);
+  // DJ is absent
+  REQUIRE_FALSE(EventUtils::try_get_event(events_map, Dinuclmarkov_t, DJ_ins_seq, Undefined_side, result));
 }
 
 
@@ -439,53 +404,32 @@ public:
 };
 
 TEST_CASE("Insertion Bridge Integration", "[Insertion]") {
-  using GMap = unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>>;
-  
   Insertion ins_vd(VD_genes, std::make_pair(0, 10));
-  
-  SECTION("Fallback to VDJ_genes alias") {
-    GMap gene_map;
-    auto vdj_shared = make_shared<MockDinucEvent>("VDJ_dinuc");
-    gene_map[make_tuple(Dinuclmarkov_t, VDJ_genes, Undefined_side)] = vdj_shared;
-    
+
+  SECTION("VD dinuc event found via string key") {
+    Events_map events_map;
+    auto vd_shared = make_shared<MockDinucEvent>("VD_dinuc");
+    events_map[make_tuple(Dinuclmarkov_t, string("VD_ins_seq"), Undefined_side)] = vd_shared;
+
     double downstream_bound = 1.0;
-    forward_list<double*> updated_list = { vdj_shared->get_updated_ptr() };
-    
-    REQUIRE_NOTHROW(ins_vd.initialize_crude_scenario_proba_bound(downstream_bound, updated_list, gene_map));
-    
-    // The specific logic in Insertion::initialize_crude_scenario_proba_bound removes the updated ptr
-    // of the Dinuclmarkov event it used. We check that it's gone.
+    forward_list<double*> updated_list = { vd_shared->get_updated_ptr() };
+
+    REQUIRE_NOTHROW(ins_vd.initialize_crude_scenario_proba_bound(downstream_bound, updated_list, events_map));
+
+    // initialize_crude_scenario_proba_bound removes the dinuc updated ptr from the list
     REQUIRE(distance(updated_list.begin(), updated_list.end()) == 0);
-  }
-  
-  SECTION("Specific VD_genes wins over VDJ_genes alias") {
-    GMap gene_map;
-    auto vdj_shared = make_shared<MockDinucEvent>("VDJ_dinuc");
-    auto vd_specific = make_shared<MockDinucEvent>("VD_dinuc_specific");
-    
-    gene_map[make_tuple(Dinuclmarkov_t, VDJ_genes, Undefined_side)] = vdj_shared;
-    gene_map[make_tuple(Dinuclmarkov_t, VD_genes, Undefined_side)] = vd_specific;
-    
-    double downstream_bound = 1.0;
-    forward_list<double*> updated_list = { vdj_shared->get_updated_ptr(), vd_specific->get_updated_ptr() };
-    
-    REQUIRE_NOTHROW(ins_vd.initialize_crude_scenario_proba_bound(downstream_bound, updated_list, gene_map));
-    
-    // It should have removed the VD_specific ptr, leaving only VDJ_shared
-    REQUIRE(distance(updated_list.begin(), updated_list.end()) == 1);
-    REQUIRE(updated_list.front() == vdj_shared->get_updated_ptr());
   }
 
   SECTION("Throws if no compatible dinuc event found") {
-    GMap gene_map;
-    // We add an unrelated event
-    gene_map[make_tuple(Dinuclmarkov_t, J_gene, Undefined_side)] = make_shared<MockDinucEvent>("J_dinuc");
-    
+    Events_map events_map;
+    // Add a J dinuc — not compatible with VD insertion
+    events_map[make_tuple(Dinuclmarkov_t, string("J_gene_seq"), Undefined_side)] = make_shared<MockDinucEvent>("J_dinuc");
+
     double downstream_bound = 1.0;
     forward_list<double*> updated_list;
-    
+
     // VD_genes Insertion shouldn't find anything and will throw
-    REQUIRE_THROWS_AS(ins_vd.initialize_crude_scenario_proba_bound(downstream_bound, updated_list, gene_map), runtime_error);
+    REQUIRE_THROWS_AS(ins_vd.initialize_crude_scenario_proba_bound(downstream_bound, updated_list, events_map), runtime_error);
   }
 }
 
@@ -494,14 +438,14 @@ public:
   static void test_initialization() {
     Deletion del_event;
     del_event.event_class = V_gene;
-    
-    // Create mock objects for initialize_event
+
+    // Create mock objects for initialize_event — use string-keyed Events_map
     std::unordered_set<Rec_Event_name> processed_events;
-    std::unordered_map<std::tuple<Event_type, Seq_type, Seq_side>, std::shared_ptr<Rec_Event>> seq_events_map;
-    
+    Events_map events_map;
+
     // Create a mock gene choice in the map to simulate it being present
     std::shared_ptr<Rec_Event> mock_v = std::make_shared<MockEvent>("V_choice");
-    seq_events_map[std::make_tuple(GeneChoice_t, V_gene_seq, Undefined_side)] = mock_v;
+    events_map[std::make_tuple(GeneChoice_t, std::string("V_gene_seq"), Undefined_side)] = mock_v;
 
     std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> offset_map;
     Downstream_scenario_proba_bound_map downstream_proba_map(6);
@@ -517,11 +461,12 @@ public:
     del_event.d_chosen = true;
     del_event.j_chosen = true;
 
-    del_event.initialize_event(processed_events, seq_events_map, offset_map, downstream_proba_map, 
-                               constructed_sequences, safety_set, error_rate_p, mismatches_list, 
+    del_event.initialize_event(processed_events, events_map, offset_map, downstream_proba_map,
+                               constructed_sequences, safety_set, error_rate_p, mismatches_list,
                                seq_offsets, index_map);
-    
-    // Since MockEvent does not set chosen, check v_chosen state based on mock defaults (chosen is usually true if it exists, wait, GeneChoiceStatus sets chosen if the event was processed. Since processed_events doesn't contain "V_choice", chosen will be false).
+
+    // GeneChoiceStatus sets chosen only if the event is in processed_events.
+    // Since processed_events is empty, chosen will be false even though V exists.
     REQUIRE(del_event.v_chosen == false);
     REQUIRE(del_event.d_chosen == false);
     REQUIRE(del_event.j_chosen == false);

@@ -4,6 +4,7 @@
 #include <igor/Core/Rec_Event.h>
 #include <igor/Core/SeqTypeRegistry.h>
 #include <igor/Core/Utils.h>
+#include <igor/Core/gene_to_seqtype_migr.h>
 #include <memory>
 #include <string>
 #include <tuple>
@@ -17,22 +18,21 @@
 namespace EventUtils {
 
 CORE_EXPORT bool has_insertion_seq_type(
-    const std::unordered_map<std::tuple<Event_type, Seq_type, Seq_side>,
-                             std::shared_ptr<Rec_Event>> &events_map,
+    const Events_map &events_map,
     Seq_type seq_type);
 
 CORE_EXPORT bool try_get_event(
-    const std::unordered_map<std::tuple<Event_type, Seq_type, Seq_side>,
-                             std::shared_ptr<Rec_Event>> &events_map,
+    const Events_map &events_map,
     Event_type event_type,
     Seq_type seq_type,
     Seq_side seq_side,
     std::shared_ptr<Rec_Event> &event_ptr);
 
-
+/// Convert a Seq_type enum value to its canonical string name used in Events_map keys.
+CORE_EXPORT std::string seq_type_to_string(Seq_type seq_type);
 
 // gene_seq_type: seq_type of the GeneChoice event to look up (e.g. "V_gene_seq")
-CORE_EXPORT GeneChoiceStatus check_gene_choice(
+CORE_EXPORT igor::migration::GeneChoiceStatus check_gene_choice(
     const std::string &gene_seq_type,
     const Events_map &events_map,
     const std::unordered_set<Rec_Event_name> &processed_events);

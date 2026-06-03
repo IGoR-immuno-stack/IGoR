@@ -56,18 +56,6 @@ void Error_rate::initialize(
     //This method is called if no other method is supplied in the instantiated class
 }
 
-void Error_rate::initialize(
-        const unordered_map<tuple<Event_type, Seq_type, Seq_side>, shared_ptr<Rec_Event>> &events_map)
-{
-    unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> legacy_events_map;
-    legacy_events_map.reserve(events_map.size());
-    for (const auto &event_entry : events_map) {
-        const shared_ptr<Rec_Event> &event = event_entry.second;
-        legacy_events_map.emplace(make_tuple(event->get_type(), event->get_class(), event->get_side()), event);
-    }
-    initialize(legacy_events_map);
-}
-
 void Error_rate::norm_weights_by_seq_likelihood(Marginal_array_p &single_seq_marginal_array,
                                                 const size_t marginal_array_size,
                                                 const double seq_weight /*=1 by default*/)
@@ -115,6 +103,7 @@ double Error_rate::compute_scenario_error_probability(
         query.sequence,
         scenario.constructed_sequences,
         scenario.seq_offsets,
+        model.events_map,
         scenario.mismatches_lists,
         exploration.seq_max_prob_scenario,
         exploration.proba_threshold_factor

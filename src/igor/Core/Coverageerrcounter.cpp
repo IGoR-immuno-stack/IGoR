@@ -417,7 +417,7 @@ void Coverage_err_counter::initialize_counter(const Model_Parms &parms, const Mo
         fstreams_created = true;
     }
     positions = new size_t[record_Npoint_occurence];
-    auto events_map = parms.get_events_map_seq_type();
+    auto events_map = parms.get_events_map();
 
     if (count_on_v) {
         //Initialize V pointers

@@ -17,7 +17,6 @@ namespace igor {
 namespace migration {
 
 using LegacyEventsMap = std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>>;
-using SeqEventsMap = std::unordered_map<std::tuple<Event_type, Seq_type, Seq_side>, std::shared_ptr<Rec_Event>>;
 
 CORE_EXPORT bool try_gene_class_to_gene_seq_type(Gene_class gene, Seq_type &seq_type);
 
@@ -38,13 +37,6 @@ struct GeneChoiceStatus {
 };
 
 CORE_EXPORT const LegacyEventsMap &empty_legacy_events_map();
-
-CORE_EXPORT SeqEventsMap build_seq_events_map(const LegacyEventsMap &events_map);
-
-CORE_EXPORT GeneChoiceStatus check_gene_choice_seq_type(
-    Gene_class gene, 
-    const SeqEventsMap &events_map, 
-    const std::unordered_set<Rec_Event_name> &processed_events);
 
 } // namespace migration
 } // namespace igor
