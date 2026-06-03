@@ -63,6 +63,11 @@ public:
 
     //Constructor
     Deletion();
+    Deletion(Seq_type, Seq_side, std::pair<int, int>);
+    Deletion(Seq_type, Seq_side);
+    Deletion(Seq_type, Seq_side, std::unordered_map<std::string, Event_realization> &);
+
+    // Legacy Gene_class based constructors
     Deletion(Gene_class, Seq_side, std::pair<int, int>);
     Deletion(Gene_class, Seq_side);
     Deletion(Gene_class, Seq_side, std::unordered_map<std::string, Event_realization> &);
@@ -169,6 +174,8 @@ private:
     bool v_chosen;
     bool d_chosen;
     bool j_chosen;
+
+    Seq_type target_seq_type;
 
     //D_del bool
     bool d_del_opposite_side_processed;
