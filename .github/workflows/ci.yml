@@ -59,7 +59,7 @@ jobs:
         run: pixi run submodule-update
 
       - name: Clean Pixi Enviroment
-        run: pixi run clean --all-platforms
+        run: pixi run clean
 
       - name: Configure project
         if: matrix.os != 'ubuntu-latest'
