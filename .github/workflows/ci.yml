@@ -103,14 +103,14 @@ jobs:
 
           exe = bindir / "igor_tests.exe"
           if exe.exists():
-              run([str(exe), "--list-test-names-only"], "igor_tests bootstrap")
+              run([str(exe), "--list-tests"], "igor_tests bootstrap")
           else:
               print("igor_tests.exe missing")
 
           # where.exe diagnostics
           where_exe = shutil.which("where")
           if where_exe:
-              for name in ("libomp.dll", "libiomp5md.dll", "vcomp140.dll", "libgomp-1.dll"):
+              for name in ("libomp.dll", "libomp140.x86_64.dll",  "libiomp5md.dll", "vcomp140.dll", "libgomp-1.dll"):
                   run([where_exe, name], f"where {name}")
 
           # dumpbin diagnostics
@@ -125,7 +125,7 @@ jobs:
           env = os.environ.copy()
           env["KMP_DUPLICATE_LIB_OK"] = "TRUE"
           print("\n=== test with KMP_DUPLICATE_LIB_OK ===")
-          p = subprocess.run([str(exe), "--list-test-names-only"], text=True, capture_output=True, env=env)
+          p = subprocess.run([str(exe), "--list-tests"], text=True, capture_output=True, env=env)
           print("RC:", p.returncode)
           if p.stdout:
               print(p.stdout)

@@ -5,7 +5,7 @@ set(CORE_TEST_SOURCES
     test_EventUtils.cpp
     test_fast_sampling.cpp
     #test_generation.cpp
-    #test_inference.cpp
+    test_inference.cpp
     test_sanity.cpp
     test_utils.cpp
 )
