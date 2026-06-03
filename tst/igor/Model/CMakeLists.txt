@@ -28,6 +28,7 @@ target_link_libraries(model_tests
 target_compile_definitions(model_tests
     PRIVATE
         IGOR_MODELS_DIR="${CMAKE_SOURCE_DIR}/models"
+        IGOR_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
 )
 
 igor_copy_runtime_dlls(model_tests)
