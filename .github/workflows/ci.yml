@@ -68,19 +68,27 @@ jobs:
 
       - name: Debug Windows test bootstrap
         if: matrix.os == 'windows-latest'
-        shell: powershell
+        shell: bash
         run: |
-          Write-Host "CONDA_PREFIX=$env:CONDA_PREFIX"
-          Write-Host "PATH=$env:PATH"
-          Write-Host "DLLs in build/bin:"
-          Get-ChildItem build/bin/*.dll -ErrorAction SilentlyContinue | Select-Object Name
-          Write-Host "OpenMP DLLs in CONDA_PREFIX:"
-          Get-ChildItem "$env:CONDA_PREFIX/Library/bin/*omp*.dll" -ErrorAction SilentlyContinue | Select-Object Name
-          Write-Host "OpenMP DLLs in build/bin:"
-          Get-ChildItem "build/bin/*omp*.dll" -ErrorAction SilentlyContinue | Select-Object Name
-          $env:PATH = "$pwd/build/bin;$env:PATH"
-          & "$pwd/build/bin/igor_tests.exe" --list-test-names-only
-          Write-Host "ExitCode=$LASTEXITCODE"
+          pixi run python - <<'PY'
+          import os
+          import pathlib
+          import subprocess
+
+          print("CONDA_PREFIX =", os.environ.get("CONDA_PREFIX"))
+          print("PATH =", os.environ.get("PATH"))
+
+          bindir = pathlib.Path("build/bin")
+          print("DLLs in build/bin:")
+          if bindir.exists():
+              for path in sorted(bindir.glob("*.dll")):
+                  print(path.name)
+
+          exe = bindir / "igor_tests.exe"
+          print("Running:", exe)
+          result = subprocess.run([str(exe), "--list-test-names-only"], text=True)
+          print("Exit code:", result.returncode)
+          PY
 
       - name: Configure project
         if: matrix.os == 'ubuntu-latest'
