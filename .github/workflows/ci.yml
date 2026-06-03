@@ -126,6 +126,9 @@ jobs:
               run([dumpbin, "/DEPENDENTS", str(bindir / "igorCore.dll")], "dumpbin igorCore.dll")
               run([dumpbin, "/DEPENDENTS", str(model_exe)], "dumpbin model_tests.exe")
               run([dumpbin, "/DEPENDENTS", str(bindir / "igorModel.dll")], "dumpbin igorModel.dll")
+          gsl_dll = envbin / "gsl-28.dll"
+          if gsl_dll.exists() and dumpbin:
+            run([dumpbin, "/DEPENDENTS", str(gsl_dll)], "dumpbin gsl-28.dll (conda)")
           else:
               print("dumpbin not found in PATH")
 
@@ -134,6 +137,8 @@ jobs:
           env["KMP_DUPLICATE_LIB_OK"] = "TRUE"
           print("\n=== test with KMP_DUPLICATE_LIB_OK ===")
           p = subprocess.run([str(exe), "--list-tests"], text=True, capture_output=True, env=env)
+          print("\n=== model_tests with KMP_DUPLICATE_LIB_OK ===")
+          p = subprocess.run([str(model_exe), "--list-tests"], text=True, capture_output=True, env=env)
           print("RC:", p.returncode)
           if p.stdout:
               print(p.stdout)
