@@ -82,6 +82,14 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: pixi run test_debug
 
+      - name: Upload CTest logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ctest-logs-${{ matrix.os }}
+          path: build/Testing/Temporary/
+          retention-days: 7
+
       - name: Generate coverage report
         if: matrix.os == 'self-hosted'
         run: pixi run coverage
@@ -101,11 +109,19 @@ jobs:
 
       - name: Run regression tests
         if: matrix.os == 'ubuntu-latest'
-        run: pixi run test_regression
+        run: pixi run test_regression -k
 
       - name: Run PARTIAL regression tests
         if: matrix.os != 'ubuntu-latest'
         run: pixi run test_align
+
+      - name: Upload regression reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: regression-reports-${{ matrix.os }}
+          path: regression_reports/
+          retention-days: 7
 
       - name: Build conda package
         run: pixi build --output-dir=bundle
