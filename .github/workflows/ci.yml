@@ -66,6 +66,22 @@ jobs:
         if: matrix.os != 'ubuntu-latest'
         run: pixi run build
 
+      - name: Debug Windows test bootstrap
+        if: matrix.os == 'windows-latest'
+        shell: powershell
+        run: |
+          Write-Host "CONDA_PREFIX=$env:CONDA_PREFIX"
+          Write-Host "PATH=$env:PATH"
+          Write-Host "DLLs in build/bin:"
+          Get-ChildItem build/bin/*.dll -ErrorAction SilentlyContinue | Select-Object Name
+          Write-Host "OpenMP DLLs in CONDA_PREFIX:"
+          Get-ChildItem "$env:CONDA_PREFIX/Library/bin/*omp*.dll" -ErrorAction SilentlyContinue | Select-Object Name
+          Write-Host "OpenMP DLLs in build/bin:"
+          Get-ChildItem "build/bin/*omp*.dll" -ErrorAction SilentlyContinue | Select-Object Name
+          $env:PATH = "$pwd/build/bin;$env:PATH"
+          & "$pwd/build/bin/igor_tests.exe" --list-test-names-only
+          Write-Host "ExitCode=$LASTEXITCODE"
+
       - name: Configure project
         if: matrix.os == 'ubuntu-latest'
         run: pixi run configure_debug
@@ -73,7 +89,7 @@ jobs:
       - name: Build project
         if: matrix.os == 'ubuntu-latest'
         run: pixi run build_debug
-        
+
       - name: Run C++ tests
         if: matrix.os != 'ubuntu-latest'
         run: pixi run test
