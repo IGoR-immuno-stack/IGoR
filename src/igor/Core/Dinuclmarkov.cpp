@@ -36,22 +36,21 @@ struct DinuclTraversalSpec {
     Seq_type target_seq;
     Seq_type anchor_seq;
     Seq_side anchor_side;
-    bool reverse_traversal;
 };
 
 vector<DinuclTraversalSpec> get_dinucl_traversal_specs(Gene_class gene_class)
 {
     switch (gene_class) {
     case VD_genes:
-        return { { VD_ins_seq, V_gene_seq, Five_prime, false } };
+        return { { VD_ins_seq, V_gene_seq, Three_prime } };
     case DJ_genes:
-        return { { DJ_ins_seq, J_gene_seq, Five_prime, true } };
+        return { { DJ_ins_seq, J_gene_seq, Five_prime } };
     case VJ_genes:
-        return { { VJ_ins_seq, V_gene_seq, Five_prime, false } };
+        return { { VJ_ins_seq, V_gene_seq, Three_prime } };
     case VDJ_genes:
         return {
-            { VD_ins_seq, V_gene_seq, Five_prime, false },
-            { DJ_ins_seq, J_gene_seq, Five_prime, true },
+            { VD_ins_seq, V_gene_seq, Three_prime },
+            { DJ_ins_seq, J_gene_seq, Five_prime },
         };
     default:
         return {};
@@ -169,7 +168,11 @@ void Dinucl_markov::iterate(
             break;
         }
 
-        if (spec.reverse_traversal) {
+        bool reverse_traversal = (spec.anchor_side == Five_prime);
+
+        if (reverse_traversal) {
+            // For reverse traversal (DJ), the insertion is 5' of the anchor (J).
+            // Start of insertion is anchor_offset - insertion_size
             const size_t char_index = scenario.get_offset(spec.anchor_seq, spec.anchor_side) - target_seq.size();
             data_seq_substr = query.int_sequence.substr(char_index, target_seq.size());
             previous_nt_str = previous_seq.front();
@@ -177,9 +180,10 @@ void Dinucl_markov::iterate(
             iterate_common(indices_array_for_target(spec.target_seq), previous_nt_str, target_seq, model.model_parameters);
             reverse(target_seq.begin(), target_seq.end());
         } else {
-            previous_seq_size = previous_seq.size();
-            data_seq_substr = query.int_sequence.substr(
-                    scenario.get_offset(spec.anchor_seq, spec.anchor_side) + previous_seq_size, target_seq.size());
+            // For forward traversal (VD, VJ), the insertion is 3' of the anchor (V).
+            // The start of insertion is 3'_offset + 1
+            const size_t start_index = scenario.get_offset(spec.anchor_seq, spec.anchor_side) + 1;
+            data_seq_substr = query.int_sequence.substr(start_index, target_seq.size());
             previous_nt_str = previous_seq.back();
             iterate_common(indices_array_for_target(spec.target_seq), previous_nt_str, target_seq, model.model_parameters);
         }
@@ -218,7 +222,9 @@ queue<int> Dinucl_markov::draw_random_realization(
     for (const auto &spec : traversal_specs) {
         string &target_ins_seq = constructed_sequences.at(spec.target_seq);
         string anchor_seq = constructed_sequences.at(spec.anchor_seq);
-        if (spec.reverse_traversal) {
+        
+        bool reverse_traversal = (spec.anchor_side == Five_prime);
+        if (reverse_traversal) {
             reverse(anchor_seq.begin(), anchor_seq.end());
         }
 
@@ -229,7 +235,7 @@ queue<int> Dinucl_markov::draw_random_realization(
             tmp.pop();
         }
 
-        if (spec.reverse_traversal) {
+        if (reverse_traversal) {
             reverse(target_ins_seq.begin(), target_ins_seq.end());
         }
     }
