@@ -13,6 +13,23 @@ function(igor_copy_runtime_dlls target)
             COMMAND_EXPAND_LISTS
             VERBATIM
         )
+
+        if(DEFINED ENV{CONDA_PREFIX})
+            set(_conda_bin "$ENV{CONDA_PREFIX}/Library/bin")
+            file(GLOB _igor_runtime_extra
+                "${_conda_bin}/libomp140.x86_64.dll"
+                "${_conda_bin}/gsl-*.dll"
+            )
+            if(_igor_runtime_extra)
+                add_custom_command(TARGET ${target} POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                        ${_igor_runtime_extra}
+                        $<TARGET_FILE_DIR:${target}>
+                    COMMAND_EXPAND_LISTS
+                    VERBATIM
+                )
+            endif()
+        endif()
     endif()
 endfunction()
 
