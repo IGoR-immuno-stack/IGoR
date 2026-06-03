@@ -26,7 +26,10 @@ using Creator = std::function<HandlerPtr<T>(EventPtr, const math::Tensor<T>&)>;
 
 namespace detail {
 template <typename T>
-std::unordered_map<Event_type, Creator<T>> creators;
+inline std::unordered_map<Event_type, Creator<T>>& get_creators() {
+    static std::unordered_map<Event_type, Creator<T>> creators;
+    return creators;
+}
 }
 
 /**

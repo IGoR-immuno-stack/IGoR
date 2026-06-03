@@ -12,8 +12,8 @@ template HandlerPtr<long double> create<long double>(Event_type, EventPtr, math:
 
 bool is_registered(Event_type type)
 {
-    auto registered_double = detail::creators<double>.find(type) != detail::creators<double>.end();
-    auto registered_long_double = detail::creators<long double>.find(type) != detail::creators<long double>.end();
+    auto registered_double = detail::get_creators<double>().find(type) != detail::get_creators<double>().end();
+    auto registered_long_double = detail::get_creators<long double>().find(type) != detail::get_creators<long double>().end();
     return registered_double || registered_long_double;
 }
 

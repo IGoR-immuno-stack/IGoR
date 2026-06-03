@@ -11,14 +11,14 @@ void register_creator(Event_type type, Creator<T> func)
     if (!func) {
         throw std::invalid_argument("InferenceHandlerFactory: Null creator");
     }
-    detail::creators<T>[type] = func;
+    detail::get_creators<T>()[type] = func;
 }
 
 template <typename T>
 HandlerPtr<T> create(Event_type type, EventPtr event, math::Tensor<T>& weights)
 {
-    auto it = detail::creators<T>.find(type);
-    if (it == detail::creators<T>.end()) {
+    auto it = detail::get_creators<T>().find(type);
+    if (it == detail::get_creators<T>().end()) {
         throw std::runtime_error("InferenceHandlerFactory: No creator registered");
     }
     return it->second(event, weights);

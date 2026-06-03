@@ -14,7 +14,10 @@ namespace igor::model::event_factory {
 namespace detail {
 
 // Registry mapping Event_type to event creator functions
-std::unordered_map<Event_type, EventCreator> creators;
+std::unordered_map<Event_type, EventCreator>& get_creators() {
+    static std::unordered_map<Event_type, EventCreator> creators;
+    return creators;
+}
 
 // Helper to get event type name for error messages
 std::string event_type_name(Event_type type) {
@@ -36,13 +39,13 @@ void register_creator(Event_type type, EventCreator func)
             "EventFactory::register_creator: Cannot register null creator for " +
             detail::event_type_name(type));
     }
-    detail::creators[type] = func;
+    detail::get_creators()[type] = func;
 }
 
 EventPtr create(Event_type type)
 {
-    auto it = detail::creators.find(type);
-    if (it == detail::creators.end()) {
+    auto it = detail::get_creators().find(type);
+    if (it == detail::get_creators().end()) {
         throw std::runtime_error(
             "EventFactory: No creator registered for type: " +
             detail::event_type_name(type));
@@ -53,7 +56,7 @@ EventPtr create(Event_type type)
 
 bool is_registered(Event_type type)
 {
-    return detail::creators.find(type) != detail::creators.end();
+    return detail::get_creators().find(type) != detail::get_creators().end();
 }
 
 // Register Core events within this translation unit to handle dependency cycle

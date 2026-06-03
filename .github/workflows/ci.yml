@@ -131,6 +131,11 @@ jobs:
             run([dumpbin, "/DEPENDENTS", str(gsl_dll)], "dumpbin gsl-28.dll (conda)")
           else:
               print("dumpbin not found in PATH")
+          conda_lib_bin = pathlib.Path(os.environ["CONDA_PREFIX"]) / "Library" / "bin"
+          for dll_name in ("libcblas.dll", "libopenblas.dll", "openblas.dll", "libiomp5md.dll"):
+            dll = conda_lib_bin / dll_name
+            if dll.exists() and dumpbin:
+              run([dumpbin, "/DEPENDENTS", str(dll)], f"dumpbin {dll_name} (conda)")
 
           # OpenMP conflict probe
           env = os.environ.copy()
