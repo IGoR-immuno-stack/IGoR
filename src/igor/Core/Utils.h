@@ -404,7 +404,21 @@ public:
     {
         assert(key <= range - 1);
         //Cannot fill memory layer without filling the ones downstream
-        assert(memory_layer <= (memory_layer_ptr[key] + 1));
+        //Exception: first call (memory_layer_ptr[key] == -1) can set any layer
+        assert(memory_layer_ptr[key] == -1 || memory_layer <= (memory_layer_ptr[key] + 1));
+        //Ensure buffer is large enough for this memory layer
+        if (memory_layer >= max_layer) {
+            int new_max_layer = memory_layer + 1;
+            V *new_value_ptr = new V[range * (new_max_layer + 1)];
+            for (size_t i = 0; i != range; ++i) {
+                for (size_t j = 0; j != max_layer; ++j) {
+                    (*(new_value_ptr + i + j * range)) = (*(value_ptr_arr + i + j * range));
+                }
+            }
+            delete[] value_ptr_arr;
+            value_ptr_arr = new_value_ptr;
+            max_layer = new_max_layer;
+        }
         (*(value_ptr_arr + key + memory_layer * range)) = value;
         //Setting a value at a given layer invalidate upper layers
         memory_layer_ptr[key] = memory_layer;

@@ -358,7 +358,7 @@ bool GenModel::infer_model(
             }
             //Compute upper proba bounds for downstream scenarios for each event
             // Only one thread should do this initialization to avoid data races on shared Gene_choice state
-            #pragma omp single nowait
+            #pragma omp single
             {
                 double downstream_proba_bound = 1;
                 forward_list<double *> updated_proba_list;
@@ -385,7 +385,7 @@ bool GenModel::infer_model(
 
             //Now let all the events in the need of it get their own updated copy of the marginals
             // Only one thread should do this initialization to avoid data races
-            #pragma omp single nowait
+            #pragma omp single
             {
                 init_single_thread_model_queue = single_thread_model_queue;
                 while (!init_single_thread_model_queue.empty()) {
@@ -401,7 +401,7 @@ bool GenModel::infer_model(
             //Loop over sequences in parallel, using the number of threads declared previously when declaring the parallel section
             //Use dynamic scheduling to avoid loss of time due to synchronization
             auto num_seqs = sequence_util_ptr->size(); // MSVC can't use iterators with openmp !
-#pragma omp for schedule(dynamic) nowait
+#pragma omp for schedule(dynamic)
             for (auto i = 0; i < num_seqs; ++i) {
 
                 const auto &seq = (*sequence_util_ptr)[i]; // index access

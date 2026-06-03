@@ -543,7 +543,7 @@ void Gene_choice::iterate(
                     for (auto d_position_iter = vj_length_d_position_proba.begin() + range.first;
                          d_position_iter != vj_length_d_position_proba.begin() + range.second; ++d_position_iter) {
 
-                        const Event_realization &d_real = this->event_realizations.at(d_position_iter->d_gene_name);
+                        const Event_realization &d_real = this->event_realizations.at(std::string(d_position_iter->d_gene_name));
 
                         //d_5_off is v 3' offset + vd junction length
                         d_5_off = v_offset + d_position_iter->vd_len;
@@ -1436,6 +1436,7 @@ void Gene_choice::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &model
 
         if (v_chosen and j_chosen) {
             int junction_len;
+            size_t start_idx = vj_length_d_position_proba.size();
 
             //Loop over D gene choices
             for (unordered_map<string, Event_realization>::const_iterator d_gene_iter =
@@ -1460,22 +1461,16 @@ void Gene_choice::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &model
                         junction_len = d_gene_iter->second.value_str.size() + vd_len_iter->first + dj_len_iter->first;
 
                         D_position_info new_info;
-                        new_info.d_gene_name = d_gene_iter->first;  // Copy string key
+                        new_info.d_gene_name = d_gene_iter->first.c_str();  // Store pointer to string in event_realizations
                         new_info.vd_len = vd_len_iter->first;
                         new_info.dj_len = dj_len_iter->first;
                         new_info.proba = d_gene_max_proba * vd_len_iter->second * dj_len_iter->second;
-
-                        // Track the range for this junction_len
-                        if (vj_length_d_position_range.find(junction_len) == vj_length_d_position_range.end()) {
-                            vj_length_d_position_range[junction_len] =
-                                    std::make_pair(vj_length_d_position_proba.size(), vj_length_d_position_proba.size());
-                        }
-                        vj_length_d_position_range[junction_len].second = vj_length_d_position_proba.size() + 1;
-
                         vj_length_d_position_proba.push_back(new_info);
                     }
                 }
             }
+            size_t end_idx = vj_length_d_position_proba.size();
+            vj_length_d_position_range[junction_len] = std::make_pair(start_idx, end_idx);
 
             //Now sort in decreasing order of probability (according to the model)
             sort(vj_length_d_position_proba.begin(), vj_length_d_position_proba.end(), D_position_tuple);

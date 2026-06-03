@@ -201,7 +201,7 @@ private:
     // Store as flat vector of tuples to avoid heap corruption issues
     // with nested map<vector<tuple<string, ...>>>
     struct D_position_info {
-        std::string d_gene_name;  // Copy of event_realizations key (avoids dangling pointer)
+        const char* d_gene_name;  // Pointer to event_realizations key (no copy)
         int vd_len;
         int dj_len;
         double proba;
