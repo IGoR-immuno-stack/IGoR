@@ -87,9 +87,9 @@ struct ParsedScenario {
  * extracting gene indices, deletion lengths, and insertion lengths.
  */
 static ParsedScenario parse_scenario(
-        const std::queue<std::queue<int>>& scenario,
-        const std::vector<EventInfo>& event_infos,
-        const Model_Parms& parms)
+    const std::queue<std::queue<int>>& scenario,
+    const std::vector<EventInfo>& event_infos,
+    const Model_Parms& parms)
 {
     ParsedScenario parsed;
 
@@ -128,7 +128,6 @@ static ParsedScenario parse_scenario(
         auto gene_class = ev_ptr->get_class();
 
         if (event_type == Event_type::GeneChoice_t) {
-            // Get gene name from realization
             auto realizations = ev_ptr->get_realizations_map();
             for (const auto& [name, real] : realizations) {
                 if (real.index == realization_idx) {
@@ -199,12 +198,12 @@ static ParsedScenario parse_scenario(
  * for mismatches against the sequence (which contains insertion nucleotides).
  */
 static Alignment_data create_v_mock_alignment(
-        const std::string& sequence,
-        const ParsedScenario& scenario,
-        const std::unordered_map<std::string, std::string>& gene_templates)
+    const std::string& sequence,
+    const ParsedScenario& scenario,
+    const std::unordered_map<std::string, std::string>& gene_templates)
 {
     const std::string& v_template = gene_templates.at(scenario.v_gene_name);
-    int v_len = v_template.length();
+    int v_len = static_cast<int>(v_template.length());
     int v_del = scenario.v_3p_del;
 
     // Check for mismatches only in the deleted region
@@ -233,14 +232,14 @@ static Alignment_data create_v_mock_alignment(
  * Similar to V but checks the 5' deleted region (before the aligned portion).
  */
 static Alignment_data create_j_mock_alignment(
-        const std::string& sequence,
-        const ParsedScenario& scenario,
-        const std::unordered_map<std::string, std::string>& gene_templates)
+    const std::string& sequence,
+    const ParsedScenario& scenario,
+    const std::unordered_map<std::string, std::string>& gene_templates)
 {
     const std::string& j_template = gene_templates.at(scenario.j_gene_name);
-    int j_len = j_template.length();
+    int j_len = static_cast<int>(j_template.length());
     int j_del = scenario.j_5p_del;
-    int j_offset = sequence.length() - j_len;
+    int j_offset = static_cast<int>(sequence.length()) - j_len;
 
     // Check for mismatches only in the deleted region (5' of aligned portion)
     std::vector<int> mismatches;
@@ -255,7 +254,7 @@ static Alignment_data create_j_mock_alignment(
 
     Alignment_data j_align(scenario.j_gene_name, j_offset);
     j_align.five_p_offset = j_offset - j_del;
-    j_align.three_p_offset = sequence.length() - 1;
+    j_align.three_p_offset = static_cast<int>(sequence.length()) - 1;
     j_align.align_length = j_len - j_del;
     j_align.mismatches = mismatches;
     j_align.insertions = {};
@@ -283,10 +282,10 @@ static Alignment_data create_j_mock_alignment(
  * @param relative_kl_threshold_dinuc Threshold for dinucleotide (e.g., 0.0005 = 0.05%)
  */
 static void validate_comparison_row(
-        ComparisonRow& row,
-        double relative_kl_degradation_threshold,
-        double relative_kl_degradation_threshold_inslen,
-        double relative_kl_threshold_dinuc)
+    ComparisonRow& row,
+    double relative_kl_degradation_threshold,
+    double relative_kl_degradation_threshold_inslen,
+    double relative_kl_threshold_dinuc)
 {
     if (row.is_insertion_dinuc_pair) {
         // Length component: use relative degradation
@@ -327,13 +326,13 @@ static void validate_comparison_row(
  * isolating the inference-specific divergence from sampling noise.
  */
 static std::vector<ComparisonRow> compare_inference_to_ground_truth(
-        const std::vector<EventInfo>& ground_truth_events,
-        const Model_marginals& inferred_marginals,
-        const Model_Parms& inferred_parms,
-        const std::map<size_t, double>& sampling_baseline_kl,
-        double relative_kl_degradation_threshold,
-        double relative_kl_degradation_threshold_inslen,
-        double relative_kl_threshold_dinuc)
+    const std::vector<EventInfo>& ground_truth_events,
+    const Model_marginals& inferred_marginals,
+    const Model_Parms& inferred_parms,
+    const std::map<size_t, double>& sampling_baseline_kl,
+    double relative_kl_degradation_threshold,
+    double relative_kl_degradation_threshold_inslen,
+    double relative_kl_threshold_dinuc)
 {
     // Compute inferred marginals for all events
     std::map<size_t, std::vector<double>> inferred_marginals_map;
@@ -347,6 +346,7 @@ static std::vector<ComparisonRow> compare_inference_to_ground_truth(
         for (int i = 0; i < gt_ev.num_realizations; ++i) {
             marginal[i] = static_cast<double>(inferred_probs.get()[i]);
         }
+
         inferred_marginals_map[gt_ev.queue_position] = marginal;
     }
 
@@ -368,40 +368,52 @@ static std::vector<ComparisonRow> compare_inference_to_ground_truth(
             auto ev_ptr = inferred_parms.get_event_pointer(pair.ins_event->name);
             auto realizations = ev_ptr->get_realizations_map();
             std::vector<int> ins_lengths(pair.ins_event->num_realizations, 0);
-            for (const auto &[key, real] : realizations) {
+            for (const auto& [key, real] : realizations) {
                 ins_lengths[real.index] = real.value_int;
             }
 
             // Compute combined entropy for ground truth
             pair.combined_H = insertion_dinuc_entropy(
-                    pair.ins_event->model_marginal,
-                    ins_lengths,
-                    pair.dinuc_event->dinuc_T);
+                pair.ins_event->model_marginal,
+                ins_lengths,
+                pair.dinuc_event->dinuc_T);
         }
     }
 
     // Build comparison rows with combined D_KL computation
     auto rows = build_comparison_rows(
-            ground_truth_events,
-            inferred_marginals_map,
-            ins_dinuc_pairs,
-            &inferred_parms,
-            &inferred_marginals,
-            true,  // compute_combined_kl
-            nullptr,  // No threshold function - validation done separately
-            &sampling_baseline_kl);  // Pass sampling baseline for display
+        ground_truth_events,
+        inferred_marginals_map,
+        ins_dinuc_pairs,
+        &inferred_parms,
+        &inferred_marginals,
+        true,  // compute_combined_kl
+        nullptr,  // No threshold function - validation done separately
+        &sampling_baseline_kl);  // Pass sampling baseline for display
 
     // Validate each row using relative degradation thresholds
     for (auto& row : rows) {
-        validate_comparison_row(row, relative_kl_degradation_threshold, relative_kl_degradation_threshold_inslen, relative_kl_threshold_dinuc);
+        validate_comparison_row( row, relative_kl_degradation_threshold, relative_kl_degradation_threshold_inslen, relative_kl_threshold_dinuc);
     }
 
     return rows;
 }
 
 // ---------------------------------------------------------------------------
-// THE TEST
+// Test helper
 // ---------------------------------------------------------------------------
+
+struct InferenceTestConfig {
+    std::string model_parms_path;
+    std::string model_marginals_path;
+    std::string model_label;
+    int sample_size = 0;
+    double relative_kl_degradation_threshold = 0.10;
+    double relative_kl_degradation_threshold_inslen = 0.15;
+    double relative_kl_threshold_dinuc_model = 0.001;
+    int num_iterations = 20;
+    bool test_convergence = true;
+};
 
 /**
  * @brief Validate inference convergence using sampling baseline and relative KL degradation
@@ -424,56 +436,19 @@ static std::vector<ComparisonRow> compare_inference_to_ground_truth(
  * The relative degradation metric isolates inference quality from sampling noise,
  * making validation robust across different event types and sample sizes.
  */
-TEST_CASE("Inference recovers ground truth model", "[integration][inference][slow][!mayfail]")
+static void run_inference_recovery_test(const InferenceTestConfig& cfg)
 {
-    std::string model_parms_path;
-    std::string model_marginals_path;
-    std::string model_label;
-    int sample_size = 0;
-    double relative_kl_degradation_threshold = 0.10;  // Max 10% relative degradation from sampling
-    double relative_kl_degradation_threshold_inslen = 0.15;  // Max 10% relative degradation from sampling
-    double relative_kl_threshold_dinuc_model = .001;  // Dinuc Model heavily sampled, sampling Kl not estimated
-    int num_iterations = 20;
-    bool test_convergence = true;
-
-    SECTION("human TCR alpha (VJ) - N=100 - smoke test") {
-        model_parms_path = MODELS_DIR + "/human/tcr_alpha/models/model_parms.txt";
-        model_marginals_path = MODELS_DIR + "/human/tcr_alpha/models/model_marginals.txt";
-        model_label = "human/tcr_alpha";
-        sample_size = 100;
-        test_convergence = false;  // Only test inference pipeline execution
-    }
-
-    SECTION("human TCR alpha (VJ) - N=10000 - thorough validation") {
-        model_parms_path = MODELS_DIR + "/human/tcr_alpha/models/model_parms.txt";
-        model_marginals_path = MODELS_DIR + "/human/tcr_alpha/models/model_marginals.txt";
-        model_label = "human/tcr_alpha";
-        sample_size = 10000;
-        relative_kl_degradation_threshold = 0.05;  // Max 5% relative degradation (stricter)
-        relative_kl_degradation_threshold_inslen = 0.10;  // FIXME: issue with the inference?
-    }
-
-    SECTION("Fixed VJ TCR beta (VDJ) - N=3000 - shallow validation") {
-        model_parms_path = TEST_MODELS_DIR + "/fixed_VJ_TRB_model_parms.txt";
-        model_marginals_path = TEST_MODELS_DIR + "/fixed_VJ_TRB_marginals.txt";
-        model_label = "human/fixed_vj_tcr_beta";
-        sample_size = 3000;
-        relative_kl_degradation_threshold = 0.15;  // Max 10% relative degradation (loose)
-        relative_kl_degradation_threshold_inslen = 0.20;  // FIXME: issue with the inference?
-        num_iterations = 20;
-    }
-
     // ------------------------------------------------------------------
     // 1. Load ground truth model
     // ------------------------------------------------------------------
-    INFO("Testing inference with model: " << model_label);
-    INFO("Sample size: " << sample_size);
+    INFO("Testing inference with model: " << cfg.model_label);
+    INFO("Sample size: " << cfg.sample_size);
 
     Model_Parms truth_parms;
-    truth_parms.read_model_parms(model_parms_path);
+    truth_parms.read_model_parms(cfg.model_parms_path);
 
     Model_marginals truth_marginals(truth_parms);
-    truth_marginals.txt2marginals(model_marginals_path, truth_parms);
+    truth_marginals.txt2marginals(cfg.model_marginals_path, truth_parms);
 
     auto truth_events = build_event_info(truth_parms, truth_marginals);
 
@@ -522,19 +497,20 @@ TEST_CASE("Inference recovers ground truth model", "[integration][inference][slo
     // ------------------------------------------------------------------
     // 3. Generate sequences with scenarios
     // ------------------------------------------------------------------
-    std::cout << "\n=== Generating " << sample_size << " sequences ===" << std::endl;
+    std::cout << "\n=== Generating " << cfg.sample_size << " sequences ===" << std::endl;
     // Create a 0 error rate
     Single_error_rate null_error_model = Single_error_rate(0.0);
     truth_parms.set_error_ratep(&null_error_model);
     GenModel gen_model(truth_parms, truth_marginals);
-    auto scenarios = gen_model.generate_sequences(sample_size, /*generate_errors=*/false);
+    auto scenarios = gen_model.generate_sequences(cfg.sample_size, /*generate_errors=*/false);
 
     // Count generated sequences
     size_t actual_count = 0;
     for (auto it = scenarios.begin(); it != scenarios.end(); ++it) {
         ++actual_count;
     }
-    REQUIRE(actual_count == static_cast<size_t>(sample_size));
+
+    REQUIRE(actual_count == static_cast<size_t>(cfg.sample_size));
     std::cout << "Generated " << actual_count << " sequences" << std::endl;
 
     // ------------------------------------------------------------------
@@ -544,7 +520,7 @@ TEST_CASE("Inference recovers ground truth model", "[integration][inference][slo
 
     // Compute empirical marginals from generated scenarios
     auto empirical_marginals_map = compute_all_empirical_marginals(
-            scenarios, truth_events, actual_count);
+        scenarios, truth_events, actual_count);
 
     // Compute sampling baseline D_KL for each event
     std::map<size_t, double> sampling_baseline_kl;
@@ -565,9 +541,10 @@ TEST_CASE("Inference recovers ground truth model", "[integration][inference][slo
     // ------------------------------------------------------------------
     std::cout << "\n=== Creating mock alignments ===" << std::endl;
 
-    std::vector<std::tuple<int, std::string,
-        std::unordered_map<Gene_class, std::vector<Alignment_data>>>>
-        sequences_with_alignments;
+    std::vector<std::tuple<
+        int,
+        std::string,
+        std::unordered_map<Gene_class, std::vector<Alignment_data>>>> sequences_with_alignments;
 
     int seq_idx = 0;
     for (const auto& [seq, scenario] : scenarios) {
@@ -576,8 +553,6 @@ TEST_CASE("Inference recovers ground truth model", "[integration][inference][slo
 
         // Create V alignment
         Alignment_data v_align = create_v_mock_alignment(seq, parsed, gene_templates);
-
-        // Create J alignment
         Alignment_data j_align = create_j_mock_alignment(seq, parsed, gene_templates);
 
         // Create empty D alignment (required for VDJ models)
@@ -599,9 +574,9 @@ TEST_CASE("Inference recovers ground truth model", "[integration][inference][slo
     // ------------------------------------------------------------------
     // 5. Set up debug logging directory (if enabled)
     // ------------------------------------------------------------------
-    std::string inference_dir = "";  // Disable file logging by default
-    #ifdef DEBUG_INFERENCE_TEST
-    inference_dir = "/tmp/igor_inference_test_" + std::to_string(sample_size) + "/";
+    std::string inference_dir = "";
+#ifdef DEBUG_INFERENCE_TEST
+    inference_dir = "/tmp/igor_inference_test_" + std::to_string(cfg.sample_size) + "/";
     std::cout << "\n=== Debug mode enabled ===" << std::endl;
     std::cout << "Output directory: " << inference_dir << std::endl;
 
@@ -621,27 +596,26 @@ TEST_CASE("Inference recovers ground truth model", "[integration][inference][slo
     // Write alignments to file for debugging
     std::cout << "\n=== Writing alignments to file for debugging ===" << std::endl;
 
-    // Extract V gene alignments
     std::unordered_map<int, std::forward_list<Alignment_data>> v_alignments;
-    for (const auto& [seq_idx, seq, aligns_map] : sequences_with_alignments) {
+    for (const auto& [seq_idx2, seq, aligns_map] : sequences_with_alignments) {
         if (aligns_map.count(V_gene) > 0) {
             std::forward_list<Alignment_data> v_list;
             for (const auto& align : aligns_map.at(V_gene)) {
                 v_list.push_front(align);
             }
-            v_alignments[seq_idx] = v_list;
+            v_alignments[seq_idx2] = v_list;
         }
     }
 
     // Extract J gene alignments
     std::unordered_map<int, std::forward_list<Alignment_data>> j_alignments;
-    for (const auto& [seq_idx, seq, aligns_map] : sequences_with_alignments) {
+    for (const auto& [seq_idx2, seq, aligns_map] : sequences_with_alignments) {
         if (aligns_map.count(J_gene) > 0) {
             std::forward_list<Alignment_data> j_list;
             for (const auto& align : aligns_map.at(J_gene)) {
                 j_list.push_front(align);
             }
-            j_alignments[seq_idx] = j_list;
+            j_alignments[seq_idx2] = j_list;
         }
     }
 
@@ -652,7 +626,7 @@ TEST_CASE("Inference recovers ground truth model", "[integration][inference][slo
 
     aligner.write_alignments_seq_csv(inference_dir + "J_alignments.csv", j_alignments);
     std::cout << "Wrote J alignments to: " << inference_dir << "J_alignments.csv" << std::endl;
-    #endif
+#endif
 
     // ------------------------------------------------------------------
     // 6. Initialize inference with uniform marginals
@@ -668,11 +642,11 @@ TEST_CASE("Inference recovers ground truth model", "[integration][inference][slo
 
     GenModel inference_model(truth_parms, initial_marginals);
 
-    std::cout << "Inference iterations: " << num_iterations << std::endl;
+    std::cout << "Inference iterations: " << cfg.num_iterations << std::endl;
 
     bool failed = inference_model.infer_model(
         sequences_with_alignments,
-        num_iterations,
+        cfg.num_iterations,
         inference_dir,
         /*fast_iter=*/true,
         /*likelihood_threshold=*/0.0,
@@ -690,7 +664,7 @@ TEST_CASE("Inference recovers ground truth model", "[integration][inference][slo
 
     // The initial_marginals object now contains the inferred marginals
     // after GenModel.infer_model() completes
-    Model_Parms inferred_parms = truth_parms;  // Structure is the same
+    Model_Parms inferred_parms = truth_parms;
     const Model_marginals& inferred_marginals = inference_model.get_marginals();
 
     // ------------------------------------------------------------------
@@ -698,16 +672,15 @@ TEST_CASE("Inference recovers ground truth model", "[integration][inference][slo
     // ------------------------------------------------------------------
     std::cout << "\n=== Comparing inferred model to ground truth ===" << std::endl;
 
-    if (test_convergence){
-
+    if (cfg.test_convergence) {
         auto rows = compare_inference_to_ground_truth(
             truth_events,
             inferred_marginals,
             inferred_parms,
             sampling_baseline_kl,
-            relative_kl_degradation_threshold,
-            relative_kl_degradation_threshold_inslen,
-            relative_kl_threshold_dinuc_model);
+            cfg.relative_kl_degradation_threshold,
+            cfg.relative_kl_degradation_threshold_inslen,
+            cfg.relative_kl_threshold_dinuc_model);
 
         print_comparison_table(rows, "H_truth", "H_infer", /*show_sampling_baseline=*/true);
 
@@ -717,44 +690,47 @@ TEST_CASE("Inference recovers ground truth model", "[integration][inference][slo
             INFO("Event: " << row.event_nickname);
 
             if (row.is_insertion_dinuc_pair) {
-                INFO("  Combined (len+dinuc) - D_KL=" << row.kl_combined
-                    << ", baseline=" << row.kl_combined_sampling_baseline
-                    << ", H_truth=" << row.H_combined_reference
-                    << ", H_inferred=" << row.H_combined_compared);
-                INFO("  Ins length - D_KL=" << row.kl_length
-                    << ", baseline=" << row.kl_length_sampling_baseline
-                    << ", H_truth=" << row.H_length_reference
-                    << ", H_inferred=" << row.H_length_compared);
-                INFO("  Dinuc Markov - D_KL=" << row.kl_dinuc
-                    << ", h_truth=" << row.h_dinuc_reference
-                    << ", h_inferred=" << row.h_dinuc_compared);
+                INFO(" Combined (len+dinuc) - D_KL=" << row.kl_combined
+                     << ", baseline=" << row.kl_combined_sampling_baseline
+                     << ", H_truth=" << row.H_combined_reference
+                     << ", H_inferred=" << row.H_combined_compared);
+                INFO(" Ins length - D_KL=" << row.kl_length
+                     << ", baseline=" << row.kl_length_sampling_baseline
+                     << ", H_truth=" << row.H_length_reference
+                     << ", H_inferred=" << row.H_length_compared);
+                INFO(" Dinuc Markov - D_KL=" << row.kl_dinuc
+                     << ", h_truth=" << row.h_dinuc_reference
+                     << ", h_inferred=" << row.h_dinuc_compared);
 
                 // Validate components (passes flags already set)
                 if (row.kl_length_sampling_baseline >= 0.0 && row.H_length_reference > 0.0) {
                     double relative_degradation =
                         (row.kl_length - row.kl_length_sampling_baseline) / row.H_length_reference;
-                    INFO("  Length relative degradation: " << (relative_degradation * 100)
-                         << "% (threshold: " << (relative_kl_degradation_threshold_inslen * 100) << "%)");
+                    INFO(" Length relative degradation: " << (relative_degradation * 100)
+                         << "% (threshold: " << (cfg.relative_kl_degradation_threshold_inslen * 100) << "%)");
                 }
+
                 if (row.kl_dinuc > 0.0 && row.h_dinuc_reference > 0.0) {
                     double relative_kl = row.kl_dinuc / row.h_dinuc_reference;
-                    INFO("  Dinuc relative D_KL: " << (relative_kl * 100)
-                         << "% (threshold: " << (relative_kl_threshold_dinuc_model * 100) << "%)");
+                    INFO(" Dinuc relative D_KL: " << (relative_kl * 100)
+                         << "% (threshold: " << (cfg.relative_kl_threshold_dinuc_model * 100) << "%)");
                 }
 
                 // Print diagnostics if length validation fails
                 if (!row.passes_length && !row.reference_marginal.empty()) {
-                    print_distribution_diagnostics(row.event_nickname + " (length)",
-                                                  row.reference_marginal,
-                                                  row.compared_marginal,
-                                                  0.01);
+                    print_distribution_diagnostics(
+                        row.event_nickname + " (length)",
+                        row.reference_marginal,
+                        row.compared_marginal,
+                        0.01);
                 }
 
                 // Print diagnostics if dinuc validation fails
                 if (!row.passes_dinuc) {
-                    print_dinuc_matrix_diagnostics(row.event_nickname + " (dinuc)",
-                                                  row.reference_dinuc_T,
-                                                  row.compared_dinuc_T);
+                    print_dinuc_matrix_diagnostics(
+                        row.event_nickname + " (dinuc)",
+                        row.reference_dinuc_T,
+                        row.compared_dinuc_T);
                 }
 
                 CHECK(row.passes_length);
@@ -770,15 +746,16 @@ TEST_CASE("Inference recovers ground truth model", "[integration][inference][slo
                     double relative_degradation =
                         (row.kl_divergence - row.kl_sampling_baseline) / row.H_reference;
                     INFO("Relative degradation: " << (relative_degradation * 100)
-                         << "% (threshold: " << (relative_kl_degradation_threshold * 100) << "%)");
+                         << "% (threshold: " << (cfg.relative_kl_degradation_threshold * 100) << "%)");
                 }
 
                 // Print diagnostics if validation fails
                 if (!row.passes && !row.reference_marginal.empty()) {
-                    print_distribution_diagnostics(row.event_nickname,
-                                                  row.reference_marginal,
-                                                  row.compared_marginal,
-                                                  0.01);  // Highlight differences > 1%
+                    print_distribution_diagnostics(
+                        row.event_nickname,
+                        row.reference_marginal,
+                        row.compared_marginal,
+                        0.01);
                 }
 
                 CHECK(row.passes);
@@ -787,4 +764,51 @@ TEST_CASE("Inference recovers ground truth model", "[integration][inference][slo
     }
 
     std::cout << "\n=== Inference test completed ===" << std::endl;
+}
+
+// ---------------------------------------------------------------------------
+// THE TESTS
+// ---------------------------------------------------------------------------
+
+// this test should take around 0.5 second
+TEST_CASE("Inference recovers ground truth model - smoke", "[integration][inference][!mayfail]")
+{
+    InferenceTestConfig cfg;
+    cfg.model_parms_path = MODELS_DIR + "/human/tcr_alpha/models/model_parms.txt";
+    cfg.model_marginals_path = MODELS_DIR + "/human/tcr_alpha/models/model_marginals.txt";
+    cfg.model_label = "human/tcr_alpha";
+    cfg.sample_size = 100;
+    cfg.test_convergence = false;
+
+    run_inference_recovery_test(cfg);
+}
+
+TEST_CASE("Inference recovers ground truth model - convergence", "[integration][inference][slow][!mayfail]")
+{
+    // this test should take around 5 seconds
+    SECTION("human TCR alpha (VJ) - N=10000 - thorough validation") {
+        InferenceTestConfig cfg;
+        cfg.model_parms_path = MODELS_DIR + "/human/tcr_alpha/models/model_parms.txt";
+        cfg.model_marginals_path = MODELS_DIR + "/human/tcr_alpha/models/model_marginals.txt";
+        cfg.model_label = "human/tcr_alpha";
+        cfg.sample_size = 10000;
+        cfg.relative_kl_degradation_threshold = 0.05;
+        cfg.relative_kl_degradation_threshold_inslen = 0.10;
+
+        run_inference_recovery_test(cfg);
+    }
+
+    // this test should take around 200 seconds
+    SECTION("Fixed VJ TCR beta (VDJ) - N=3000 - shallow validation") {
+        InferenceTestConfig cfg;
+        cfg.model_parms_path = TEST_MODELS_DIR + "/fixed_VJ_TRB_model_parms.txt";
+        cfg.model_marginals_path = TEST_MODELS_DIR + "/fixed_VJ_TRB_marginals.txt";
+        cfg.model_label = "human/fixed_vj_tcr_beta";
+        cfg.sample_size = 3000;
+        cfg.relative_kl_degradation_threshold = 0.15;
+        cfg.relative_kl_degradation_threshold_inslen = 0.20;
+        cfg.num_iterations = 20;
+
+        run_inference_recovery_test(cfg);
+    }
 }
