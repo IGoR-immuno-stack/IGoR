@@ -4,6 +4,16 @@
 
 namespace igor::model::sampling_handler_factory {
 
+namespace detail {
+template <typename T>
+std::unordered_map<Event_type, Creator<T>>& get_creators() {
+    static std::unordered_map<Event_type, Creator<T>> creators;
+    return creators;
+}
+template std::unordered_map<Event_type, Creator<double>>& get_creators<double>();
+template std::unordered_map<Event_type, Creator<long double>>& get_creators<long double>();
+}
+
 template void register_creator<double>(Event_type, Creator<double>);
 template void register_creator<long double>(Event_type, Creator<long double>);
 

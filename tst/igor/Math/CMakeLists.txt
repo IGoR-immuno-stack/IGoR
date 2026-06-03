@@ -22,14 +22,8 @@ target_link_libraries(math_tests
         Catch2::Catch2WithMain
 )
 
-#igor_copy_runtime_dlls(math_tests)
 include(Catch)
-#set(_math_tests_dl_paths "$<TARGET_FILE_DIR:math_tests>")
-
-catch_discover_tests(math_tests
-    #DISCOVERY_MODE PRE_TEST
-    #DL_PATHS ${_math_tests_dl_paths}
-)
+catch_discover_tests(math_tests)
 
 ######################################################################
 ### CMakeLists.txt ends here
