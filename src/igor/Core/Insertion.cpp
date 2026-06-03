@@ -26,8 +26,6 @@
 
 #include <igor/Core/Insertion.h>
 
-#include <algorithm>
-
 using namespace std;
 Insertion::Insertion() : Insertion(Undefined_gene)
 {
@@ -38,8 +36,8 @@ Insertion::Insertion() : Insertion(Undefined_gene)
 Insertion::Insertion(Gene_class genes, pair<int, int> ins_range) : Insertion(genes)
 { //FIXME nonsense new
 
-    int min_ins = std::min(ins_range.first, ins_range.second);
-    int max_ins = std::max(ins_range.first, ins_range.second);
+    int min_ins = min(ins_range.first, ins_range.second);
+    int max_ins = max(ins_range.first, ins_range.second);
 
     this->type = Event_type::Insertion_t;
     this->len_max = max_ins;
@@ -122,16 +120,12 @@ bool Insertion::add_realization(int insertion_number)
     return 0;
 }
 
-std::vector<std::size_t> Insertion::inherent_shape() const {
-    return { event_realizations.size() };
-}
-
 /**
  * @brief Context-based iterate() implementation
- *
+ * 
  * Unpacks 5 context objects into legacy parameters and delegates
  * to the existing iterate() implementation.
- *
+ * 
  * NOTE: Some const_casts are required because legacy iterate() signatures
  * accept non-const references even though they don't modify model data.
  * These casts are safe and will be eliminated when legacy interface is removed.

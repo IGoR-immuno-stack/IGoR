@@ -178,7 +178,7 @@ bool GenModel::infer_model(
         events_map_ref,
         model_queue
     );
-
+    
     for (map<size_t, shared_ptr<Counter>>::const_iterator iter = counters_list.begin(); iter != counters_list.end();
          ++iter) {
         (*iter).second->initialize(model_context);
@@ -344,7 +344,7 @@ bool GenModel::infer_model(
                 events_map,
                 single_thread_model_queue
             );
-
+            
             for (map<size_t, shared_ptr<Counter>>::iterator iter = single_thread_counter_list.begin();
                  iter != single_thread_counter_list.end(); ++iter) {
                 (*iter).second->initialize(single_thread_model_context);
@@ -424,7 +424,7 @@ bool GenModel::infer_model(
 				 * Call iterate on the first event
 				 * The method will be called recursively for each event, this is equivalent to a nested loop and enumerates all possible scenarios
 				 * The weight of each recombination scenario is added to the single_seq_marginals on the fly
-				 *
+				 * 
 				 * Context-based interface
 				 */
                 try {
@@ -845,7 +845,7 @@ void output_CDR3_gen_data(size_t seq_index, std::pair<std::string, std::queue<st
     tuple<string, size_t, size_t, string> *j_gene_anchors = nullptr;
 
     size_t i = 0;
-    while ((i != std::max(func_data_cast->v_event_queue_position, func_data_cast->j_event_queue_position) + 1)
+    while ((i != max(func_data_cast->v_event_queue_position, func_data_cast->j_event_queue_position) + 1)
            and (not seq_and_real.second.empty())) {
         if (i == func_data_cast->v_event_queue_position) {
             v_gene_anchors = &func_data_cast->v_anchors.at(seq_and_real.second.front().front());

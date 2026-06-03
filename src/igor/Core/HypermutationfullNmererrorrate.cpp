@@ -303,7 +303,7 @@ const double &Hypermutation_full_Nmer_errorrate::get_err_rate_upper_bound(size_t
                 (probas_vector[probas_vector.size() / 2 - 1] + probas_vector[probas_vector.size() / 2]) / 2.0;
 
         //Need to increase the matrix size (anyway the matrix is at very most read_len^2
-        Matrix<double> new_bound_mat(std::max(this->max_err, n_errors + 10), std::max(this->max_noerr, n_error_free + 10));
+        Matrix<double> new_bound_mat(max(this->max_err, n_errors + 10), max(this->max_noerr, n_error_free + 10));
         for (size_t i = 0; i != new_bound_mat.get_n_rows(); ++i) {
             for (size_t j = 0; j != new_bound_mat.get_n_cols(); ++j) {
                 if (i < this->max_err and j < this->max_noerr) {
@@ -364,11 +364,11 @@ void Hypermutation_full_Nmer_errorrate::build_upper_bound_matrix(size_t m, size_
 
 /**
  * @brief Context-based error probability computation (bridge implementation)
- *
+ * 
  * Bridge implementation that unpacks contexts and delegates to legacy method.
  * The hypermutation models are complex (N-mer context-dependent mutation rates,
  * boundary handling, learning counters) so we preserve the existing logic.
- *
+ * 
  * Unlike Single_error_rate, hypermutation models always accumulate (no threshold pruning)
  * and update learning counters during iterate(). Future refactoring could separate
  * probability computation from learning accumulation.
@@ -390,10 +390,10 @@ double Hypermutation_full_Nmer_errorrate::compute_scenario_error_probability(
         exploration.seq_max_prob_scenario,
         exploration.proba_threshold_factor
     );
-
+    
     // Store in ScenarioContext for Counter access
     scenario.scenario_error_w_proba = result;
-
+    
     return result;
 }
 

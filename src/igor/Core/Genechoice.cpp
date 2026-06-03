@@ -161,10 +161,6 @@ bool Gene_choice::add_realization(string gene_name, string gene_sequence)
     return 1;
 }
 
-std::vector<std::size_t> Gene_choice::inherent_shape() const {
-    return { event_realizations.size() };
-}
-
 void Gene_choice::set_genomic_templates(const vector<pair<string, string>> &genomic_templates)
 {
     //First remove previous realizations
