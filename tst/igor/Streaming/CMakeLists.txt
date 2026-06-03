@@ -25,16 +25,16 @@ target_compile_definitions(streaming_tests PRIVATE
     IGOR_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test_data")
 
 
-igor_copy_runtime_dlls(streaming_tests)
+3igor_copy_runtime_dlls(streaming_tests)
 include(Catch)
-set(_streaming_tests_dl_paths "$<TARGET_FILE_DIR:streaming_tests>")
-if(WIN32 AND DEFINED ENV{CONDA_PREFIX})
-    list(APPEND _streaming_tests_dl_paths "$ENV{CONDA_PREFIX}/Library/bin")
-endif()
+#set(_streaming_tests_dl_paths "$<TARGET_FILE_DIR:streaming_tests>")
+#if(WIN32 AND DEFINED ENV{CONDA_PREFIX})
+#    list(APPEND _streaming_tests_dl_paths "$ENV{CONDA_PREFIX}/Library/bin")
+#endif()
 
 catch_discover_tests(streaming_tests
-    DISCOVERY_MODE PRE_TEST
-    DL_PATHS ${_streaming_tests_dl_paths}
+    #DISCOVERY_MODE PRE_TEST
+    #DL_PATHS ${_streaming_tests_dl_paths}
 )
 
 ######################################################################

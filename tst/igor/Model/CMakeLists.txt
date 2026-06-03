@@ -11,7 +11,6 @@ set(MODEL_TEST_SOURCES
     test_SamplingEngine.cpp
     test_SamplingHandlers.cpp
     test_Topology.cpp
-    ../Core/test_generation.cpp
 )
 
 add_executable(model_tests ${MODEL_TEST_SOURCES})
@@ -28,16 +27,15 @@ target_link_libraries(model_tests
 target_compile_definitions(model_tests
     PRIVATE
         IGOR_MODELS_DIR="${CMAKE_SOURCE_DIR}/models"
-        IGOR_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
 )
 
-igor_copy_runtime_dlls(model_tests)
+#igor_copy_runtime_dlls(model_tests)
 include(Catch)
-set(_model_tests_dl_paths "$<TARGET_FILE_DIR:model_tests>")
+#set(_model_tests_dl_paths "$<TARGET_FILE_DIR:model_tests>")
 
 catch_discover_tests(model_tests
-    DISCOVERY_MODE PRE_TEST
-    DL_PATHS ${_model_tests_dl_paths}
+    #DISCOVERY_MODE PRE_TEST
+    #DL_PATHS ${_model_tests_dl_paths}
 )
 
 ######################################################################
