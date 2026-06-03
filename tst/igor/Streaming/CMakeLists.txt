@@ -25,7 +25,7 @@ target_compile_definitions(streaming_tests PRIVATE
     IGOR_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test_data")
 
 
-3igor_copy_runtime_dlls(streaming_tests)
+#igor_copy_runtime_dlls(streaming_tests)
 include(Catch)
 #set(_streaming_tests_dl_paths "$<TARGET_FILE_DIR:streaming_tests>")
 #if(WIN32 AND DEFINED ENV{CONDA_PREFIX})
