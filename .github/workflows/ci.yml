@@ -82,12 +82,22 @@ jobs:
           print("DLLs in build/bin:")
           if bindir.exists():
               for path in sorted(bindir.glob("*.dll")):
-                  print(path.name)
+                  print("  ", path.name)
 
-          exe = bindir / "igor_tests.exe"
-          print("Running:", exe)
-          result = subprocess.run([str(exe), "--list-test-names-only"], text=True)
-          print("Exit code:", result.returncode)
+          envbin = pathlib.Path(os.environ["CONDA_PREFIX"]) / "Library" / "bin"
+          for pattern in ("gsl*.dll", "*omp*.dll", "*vcomp*.dll"):
+              print(f"{pattern} in CONDA env:")
+              for path in sorted(envbin.glob(pattern)):
+                  print("  ", path.name)
+
+          for exe_name in ("igor_tests.exe", "model_tests.exe", "math_tests.exe", "streaming_tests.exe"):
+              exe = bindir / exe_name
+              if not exe.exists():
+                  print(f"{exe_name}: missing")
+                  continue
+              print(f"Running {exe_name} --list-test-names-only")
+              result = subprocess.run([str(exe), "--list-test-names-only"], text=True)
+              print(f"{exe_name} exit code: {result.returncode}")
           PY
 
       - name: Configure project
