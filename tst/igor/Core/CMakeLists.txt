@@ -21,24 +21,15 @@ target_link_libraries(igor_tests
 target_compile_definitions(igor_tests PRIVATE
     IGOR_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 
-
-#igor_copy_runtime_dlls(igor_tests)
 include(Catch)
-#set(_igor_tests_dl_paths "$<TARGET_FILE_DIR:igor_tests>")
-
 catch_discover_tests(igor_tests
-    #DISCOVERY_MODE PRE_TEST
     TEST_SPEC "~[integration]"
     TEST_PREFIX "unit::"
-    #DL_PATHS ${_igor_tests_dl_paths}
     PROPERTIES TIMEOUT 3600 LABELS "unit"
 )
-
 catch_discover_tests(igor_tests
-    #DISCOVERY_MODE PRE_TEST
     TEST_SPEC "[integration]"
     TEST_PREFIX "integration::"
-    #DL_PATHS ${_igor_tests_dl_paths}
     PROPERTIES TIMEOUT 3600 LABELS "integration"
 )
 

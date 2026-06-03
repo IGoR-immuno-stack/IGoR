@@ -29,14 +29,8 @@ target_compile_definitions(model_tests
         IGOR_MODELS_DIR="${CMAKE_SOURCE_DIR}/models"
 )
 
-#igor_copy_runtime_dlls(model_tests)
 include(Catch)
-#set(_model_tests_dl_paths "$<TARGET_FILE_DIR:model_tests>")
-
-catch_discover_tests(model_tests
-    #DISCOVERY_MODE PRE_TEST
-    #DL_PATHS ${_model_tests_dl_paths}
-)
+catch_discover_tests(model_tests)
 
 ######################################################################
 ### CMakeLists.txt ends here
