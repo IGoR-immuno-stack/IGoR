@@ -900,7 +900,7 @@ TEST_CASE("Markov AA sum: frame offset handling", "[aa_pgen][phase6]") {
 
 TEST_CASE("AAPgenResult struct", "[aa_pgen][phase7]") {
     // Verify AAPgenResult struct is properly defined
-    AAPgenResult result{0.5, 100};
+    AAPgenResult result{0.5, 100ULL};
     REQUIRE(result.pgen == 0.5);
     REQUIRE(result.n_scenarios == 100);
 }
