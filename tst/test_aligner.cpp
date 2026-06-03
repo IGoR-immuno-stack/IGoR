@@ -259,6 +259,121 @@ void assert_alignment_set_matches(const std::forward_list<Alignment_data>& align
 
 } // namespace
 
+TEST_CASE("Aligner V gene dummy alignments.", "[aligner][V_gene][dummy]")
+{
+
+    /*
+    * A nucleotides for NT of germline of interest
+    * T nucleotides for other NT in the read, or to make a germline variation allowing to constrain alignment.
+    * G nucleotides for mismatches
+    * C nucleotides for penalized gaps
+    * 
+    * Score costs with are set with prime numbers such that total score is easy to debug. 
+    */
+    const Matrix<double> matrix = build_test_score_matrix(7, 11);
+    const int gap_penalty = 13;
+    std::string query_read;
+    std::string germline_ref;
+    std::string expected_cigar;
+    double expected_score;
+
+
+    SECTION("complete alignment")
+    {
+        query_read = std::string(20, 'A');
+        germline_ref = std::string(20, 'A');
+        expected_cigar = "20=";
+        expected_score = 140;
+    }
+
+    SECTION("short read")
+    {
+        query_read = std::string(5, 'A')+std::string(1, 'T');
+        germline_ref = std::string(19, 'A')+std::string(1, 'T');
+        expected_cigar = "14D6=";
+        expected_score = 42;
+    }
+
+    SECTION("partial overlap read, no 3' deletion")
+    {
+        query_read = std::string(6, 'A')+std::string(14, 'T');
+        germline_ref = std::string(19, 'A')+std::string(1, 'T');
+        expected_cigar = "13D7=13I";
+        expected_score = 49;
+    }
+
+    SECTION("partial overlap read, single free 3' deletion")
+    {
+        query_read = std::string(6, 'A')+std::string(14, 'T');
+        germline_ref = std::string(19, 'A')+std::string(1, 'T')+std::string(1, 'A');
+        expected_cigar = "13D7=1D13I";
+        expected_score = 49;
+    }
+
+    // TODO below
+    SECTION("partial overlap read, three free 3' deletion")
+    {
+        query_read = std::string(6, 'A')+std::string(14, 'T');
+        germline_ref = std::string(19, 'A')+std::string(1, 'T')+std::string(3, 'A');
+        expected_cigar = "13D7=3D13I";
+        expected_score = 49;
+    }
+
+    SECTION("penalized trailing germline")
+    {
+        // FIXME
+        query_read = std::string(6, 'A')+std::string(14, 'T');
+        germline_ref = std::string(19, 'A')+std::string(1, 'T');
+        expected_cigar = "13D7=";
+        expected_score = 49;
+    }
+
+    SECTION("mismatch in long match")
+    {
+        query_read = "AAACAAAAACAAAAACAAAA";
+        germline_ref = std::string(20, 'A');
+        expected_cigar = "3=1X5=1X5=1X4=";
+        expected_score = 25;
+    }
+
+    SECTION("mismatch in first NT")
+    {
+        query_read = "AAACAAAAACAAAAACAAAA";
+        germline_ref = std::string(20, 'A');
+        expected_cigar = "3=1X5=1X5=1X4=";
+        expected_score = 25;
+    }
+
+    SECTION("mismatch in last NT")
+    {
+        query_read = "AAACAAAAACAAAAACAAAA";
+        germline_ref = std::string(20, 'A');
+        expected_cigar = "3=1X5=1X5=1X4=";
+        expected_score = 25;
+    }
+
+    SECTION("penalized insertion")
+    {
+        query_read = std::string(5, 'A') + "C" + std::string(15, 'A');
+        germline_ref = std::string(20, 'A');
+        expected_cigar = "5=1I15=";
+        expected_score = 38;
+    }
+
+    SECTION("penalized deletion")
+    {
+        query_read = std::string(19, 'A');
+        germline_ref = std::string(20, 'A');
+        expected_cigar = "19=1D";
+        expected_score = 36;
+    }
+
+    const std::vector<std::pair<std::string, std::string>> genomic_templates = {{"g1", germline_ref}};
+    auto aligner = make_legacy_aligner(matrix, gap_penalty, V_gene, genomic_templates);
+    const auto alignments = aligner.align_seq(query_read, -1000.0, true, true, INT16_MIN, INT16_MAX);
+    assert_best_alignment_matches(alignments, query_read, genomic_templates, {"g1", expected_cigar, expected_score});
+}
+
 TEST_CASE("Aligner V gene best alignment matches expected CIGAR and score on realistic data.", "[aligner][V_gene][realistic]")
 {
     // Align a single query to a single reference, check that best alignment matches
@@ -315,6 +430,7 @@ TEST_CASE("Aligner V gene best alignment matches expected CIGAR and score on rea
     assert_best_alignment_matches(alignments, query_read, genomic_templates, {"g1", expected_cigar, expected_score});
 
 }
+
 
 TEST_CASE("Legacy Aligner best alignment supports mismatch and indel CIGAR assertions", "[aligner][sw][cigar]")
 {
