@@ -94,12 +94,9 @@ public:
     void initialize_crude_scenario_proba_bound(
             double &, std::forward_list<double *> &,
             const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> &) override;
-<<<<<<< HEAD
     void initialize_crude_scenario_proba_bound(
             double &, std::forward_list<double *> &,
             const std::unordered_map<std::tuple<Event_type, Seq_type, Seq_side>, std::shared_ptr<Rec_Event>> &) override;
-=======
->>>>>>> develop
 
     //Proba bound related computation methods
     bool has_effect_on(Seq_type) const override;
