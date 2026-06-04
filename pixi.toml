@@ -94,11 +94,13 @@ gsl = "*"
 catch2 = "3.*"
 sparrow-devel = "*"
 arrow-cpp = "*"
+tomlplusplus = ">=3.3.0,<4"
 
 [package.run-dependencies]
 gsl = "*"
 arrow-cpp = "*"
 sparrow-devel = "*"
+tomlplusplus = ">=3.3.0,<4"
 
 [target.linux-64.dependencies]
 valgrind = ">=3.26.0,<4"
