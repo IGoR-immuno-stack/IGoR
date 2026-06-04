@@ -771,7 +771,7 @@ static void run_inference_recovery_test(const InferenceTestConfig& cfg)
 // ---------------------------------------------------------------------------
 
 // this test should take around 0.5 second
-TEST_CASE("Inference recovers ground truth model - smoke", "[integration][inference][!mayfail]")
+TEST_CASE("Inference recovers ground truth model - smoke", "[integration][inference]")
 {
     InferenceTestConfig cfg;
     cfg.model_parms_path = MODELS_DIR + "/human/tcr_alpha/models/model_parms.txt";
