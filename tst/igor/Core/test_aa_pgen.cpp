@@ -538,7 +538,8 @@ TEST_CASE("QuerySequenceContext: motif mode (with journaled_query)", "[aa_pgen][
     Int_Str iupac_seq = {int_A, int_T, int_G, int_Y, int_T, int_N};
     std::unordered_map<Gene_class, std::vector<Alignment_data>> gene_alignments;
 
-    QuerySequenceContext q("ML", iupac_seq, gene_alignments, std::move(jq));
+    std::string seq_str = "ML";
+    QuerySequenceContext q(seq_str, iupac_seq, gene_alignments, std::move(jq));
 
     REQUIRE(q.sequence == "ML");
     REQUIRE(q.int_sequence == iupac_seq);
@@ -556,7 +557,8 @@ TEST_CASE("QuerySequenceContext: motif with frame_offset", "[aa_pgen][phase3]") 
     iupac_seq[4] = int_G;
     std::unordered_map<Gene_class, std::vector<Alignment_data>> gene_alignments;
 
-    QuerySequenceContext q("M", iupac_seq, gene_alignments, std::move(jq));
+    std::string seq_str = "M";
+    QuerySequenceContext q(seq_str, iupac_seq, gene_alignments, std::move(jq));
 
     REQUIRE(q.journaled_query.has_value());
     // Codon at positions 2,3,4 should have exact IUPAC
