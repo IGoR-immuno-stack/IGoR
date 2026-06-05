@@ -106,7 +106,7 @@ ParquetReader::read_sequences(const std::string &input_path)
     // Read the entire file as a record_batch
     sparrow::record_batch batch = read_batch(input_path);
 
-    // Convert record_batch to vector format
+    // Convert record_batch to legacy vector format
     std::vector<std::tuple<int, std::string,
                           std::unordered_map<Gene_class, std::vector<Alignment_data>>>> sequences;
 

@@ -21,7 +21,6 @@ using namespace EventUtils;
 class MockEvent : public Rec_Event {
 public:
   MockEvent(string name) : Rec_Event() { this->name = name; }
-
   void
   iterate(QuerySequenceContext& query,
           const ModelContext& model,

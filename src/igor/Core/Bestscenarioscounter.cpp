@@ -315,43 +315,46 @@ void Best_scenarios_counter::add_checked(shared_ptr<Counter> counter)
 
 void Best_scenarios_counter::dump_sequence_data(int seq_index, int iteration_n)
 {
-
+    stringstream ss;
     size_t counter = 1;
     for (vector<tuple<double, queue<vector<int>>, list<int>>>::reverse_iterator iter =
                  this->best_scenarios_vec.rbegin();
          iter != this->best_scenarios_vec.rend(); ++iter) {
-        (*this->output_scenario_file_ptr.get()) << seq_index << ";" << counter << ";" << get<0>(*iter);
+        ss << seq_index << ";" << counter << ";" << get<0>(*iter);
         queue<vector<int>> &scenario_queue = get<1>(*iter);
         //Loop over events
         while (not scenario_queue.empty()) {
             const vector<int> &real_vec = scenario_queue.front();
-            (*this->output_scenario_file_ptr.get()) << ";(";
+            ss << ";(";
             //Loop over event realizations
             for (vector<int>::const_iterator jter = real_vec.begin(); jter != real_vec.end(); ++jter) {
-                (*this->output_scenario_file_ptr.get()) << (*jter);
+                ss << (*jter);
                 if (jter != real_vec.end() - 1) {
-                    (*this->output_scenario_file_ptr.get()) << ",";
+                    ss << ",";
                 }
             }
-            (*this->output_scenario_file_ptr.get()) << ")";
+            ss << ")";
             scenario_queue.pop();
         }
-        (*this->output_scenario_file_ptr.get()) << ";(";
+        ss << ";(";
         //Loop over mismatches
         list<int> &mismatches_list = get<2>(*iter);
         list<int>::const_iterator util_iter = mismatches_list.end();
         --util_iter;
         for (list<int>::const_iterator kter = mismatches_list.begin(); kter != mismatches_list.end(); ++kter) {
-            (*this->output_scenario_file_ptr.get()) << (*kter);
+            ss << (*kter);
             if (kter != util_iter) {
-                (*this->output_scenario_file_ptr.get()) << ",";
+                ss << ",";
             }
         }
-        (*this->output_scenario_file_ptr.get()) << ")" << endl;
-
+        ss << ")" << "\n";
         ++counter;
     }
-
+    string str = ss.str();
+#pragma omp critical(dump_best_scenarios)
+    {
+        (*this->output_scenario_file_ptr.get()) << str;
+    }
     best_scenarios_vec.clear();
 }
 

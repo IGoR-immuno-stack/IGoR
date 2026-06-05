@@ -12,6 +12,8 @@ on:
   pull_request:
     branches: [ master, develop , feature/*]
   workflow_dispatch:  # permit manual launch
+  schedule:
+    - cron: "0 2 * * *" # tous les jours à 02:00 UTC
 
 # # stop previous workflows in case on multiple pushes
 # concurrency:
@@ -76,14 +78,14 @@ jobs:
       - name: Build project
         if: matrix.os == 'ubuntu-latest'
         run: pixi run build_debug
-        
+
       - name: Run C++ tests
         if: matrix.os != 'ubuntu-latest'
-        run: pixi run test
+        run: pixi run test_unit
 
       - name: Run C++ tests
         if: matrix.os == 'ubuntu-latest'
-        run: pixi run test_debug
+        run: pixi run test_unit_debug
 
       - name: Upload CTest logs on failure
         if: failure()
@@ -161,3 +163,40 @@ jobs:
           echo "- **Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Runner:** $(hostname)" >> $GITHUB_STEP_SUMMARY
           echo "- **Pixi version:** $(pixi --version)" >> $GITHUB_STEP_SUMMARY
+
+
+  nightly-build:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pixi
+        uses: prefix-dev/setup-pixi@v0.8.1
+        with:
+          pixi-version: v0.69.0
+          cache: true
+
+      - name: Initialize submodules
+        run: pixi run submodule-update
+
+      - name: Clean Pixi Enviroment
+        run: pixi run clean
+
+      - name: Configure project
+        run: pixi run configure
+
+      - name: Build project
+        run: pixi run build
+
+      - name: Run all C++ ctests
+        run: pixi run test
+
+      - name: Run regression tests
+        run: pixi run test_regression

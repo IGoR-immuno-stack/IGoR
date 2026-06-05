@@ -66,7 +66,7 @@ public:
         Deletion(Seq_type, Seq_side, std::pair<int, int>);
         Deletion(Seq_type, Seq_side);
         Deletion(Seq_type, Seq_side, std::unordered_map<std::string, Event_realization> &);
-        virtual ~Deletion();
+        ~Deletion() override;
 
     //Virtual methods
     std::shared_ptr<Rec_Event> copy() override;
@@ -92,10 +92,10 @@ public:
     std::queue<int> draw_random_realization(
             const Marginal_array_p &, std::unordered_map<Rec_Event_name, int> &,
             const std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &,
-            std::unordered_map<Seq_type, std::string> &, std::mt19937_64 &) const;
-    void write2txt(std::ofstream &);
-    void write2txt_legacy(std::ofstream &);
-    void write2txt_v2(std::ofstream &);
+            std::unordered_map<Seq_type, std::string> &, std::mt19937_64 &) const override;
+    void write2txt(std::ofstream &) override;
+    void write2txt_legacy(std::ofstream &) override;
+    void write2txt_v2(std::ofstream &) override;
     void initialize_event(
             std::unordered_set<Rec_Event_name> &,
             const Events_map &,
