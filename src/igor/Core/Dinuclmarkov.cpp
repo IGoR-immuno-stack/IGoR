@@ -315,8 +315,13 @@ void Dinucl_markov::write2txt_legacy(ofstream &outfile)
     if (seq_type == "VD_ins_seq") legacy_gene_class = to_string(VD_genes);
     else if (seq_type == "DJ_ins_seq") legacy_gene_class = to_string(DJ_genes);
     else if (seq_type == "VJ_ins_seq") legacy_gene_class = to_string(VJ_genes);
+<<<<<<< HEAD
     else legacy_gene_class = to_string(Undefined_gene);
     outfile << "#DinucMarkov;" << legacy_gene_class << ";" << event_side << ";" << priority << ";" << nickname << endl;
+=======
+    else legacy_gene_class = to_string(event_class);
+    outfile << "#DinucMarkov;" << legacy_gene_class << ";" << Undefined_side << ";" << priority << ";" << nickname << endl;
+>>>>>>> 36be2224e4e3197940dc157ebeab67988eb699a9
     for (unordered_map<string, Event_realization>::const_iterator iter = event_realizations.begin();
          iter != event_realizations.end(); ++iter) {
         outfile << "%" << (*iter).second.value_str << ";" << (*iter).second.index << endl;
