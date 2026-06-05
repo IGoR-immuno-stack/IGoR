@@ -70,16 +70,25 @@ int get_int_value(const sparrow::record_batch &batch, const std::string &column_
         const auto &column = batch.get_column(column_name);
         auto value = column[row_index];
 
-        // Use visitor pattern to extract int from nullable_variant
+        // Use generic extraction pattern for nullable_variant
         return std::visit([&default_value](auto&& arg) -> int {
             using T = std::decay_t<decltype(arg)>;
-            // Handle various integer types that sparrow might use
-            if constexpr (std::is_same_v<T, sparrow::nullable<const int&>> ||
-                          std::is_same_v<T, sparrow::nullable<const int32_t&>> ||
-                          std::is_same_v<T, sparrow::nullable<const long long&>>) {
-                if (arg.has_value()) {
-                    return static_cast<int>(arg.get());
+            if constexpr (requires { arg.has_value(); arg.get(); }) {
+                using ValT = std::decay_t<decltype(arg.get())>;
+                if constexpr (std::is_arithmetic_v<ValT>) {
+                    if (arg.has_value()) {
+                        return static_cast<int>(arg.get());
+                    }
                 }
+            } else if constexpr (requires { arg.has_value(); arg.value(); }) {
+                using ValT = std::decay_t<decltype(arg.value())>;
+                if constexpr (std::is_arithmetic_v<ValT>) {
+                    if (arg.has_value()) {
+                        return static_cast<int>(arg.value());
+                    }
+                }
+            } else if constexpr (std::is_arithmetic_v<T>) {
+                return static_cast<int>(arg);
             }
             return default_value;
         }, value);
@@ -100,14 +109,25 @@ double get_double_value(const sparrow::record_batch &batch, const std::string &c
         const auto &column = batch.get_column(column_name);
         auto value = column[row_index];
 
-        // Use visitor pattern to extract double from nullable_variant
+        // Use generic extraction pattern for nullable_variant
         return std::visit([&default_value](auto&& arg) -> double {
             using T = std::decay_t<decltype(arg)>;
-            if constexpr (std::is_same_v<T, sparrow::nullable<const double&>> ||
-                          std::is_same_v<T, sparrow::nullable<const float&>>) {
-                if (arg.has_value()) {
-                    return static_cast<double>(arg.get());
+            if constexpr (requires { arg.has_value(); arg.get(); }) {
+                using ValT = std::decay_t<decltype(arg.get())>;
+                if constexpr (std::is_arithmetic_v<ValT>) {
+                    if (arg.has_value()) {
+                        return static_cast<double>(arg.get());
+                    }
                 }
+            } else if constexpr (requires { arg.has_value(); arg.value(); }) {
+                using ValT = std::decay_t<decltype(arg.value())>;
+                if constexpr (std::is_arithmetic_v<ValT>) {
+                    if (arg.has_value()) {
+                        return static_cast<double>(arg.value());
+                    }
+                }
+            } else if constexpr (std::is_arithmetic_v<T>) {
+                return static_cast<double>(arg);
             }
             return default_value;
         }, value);
@@ -128,17 +148,25 @@ size_t get_size_t_value(const sparrow::record_batch &batch, const std::string &c
         const auto &column = batch.get_column(column_name);
         auto value = column[row_index];
 
-        // Use visitor pattern to extract size_t from nullable_variant
+        // Use generic extraction pattern for nullable_variant
         return std::visit([&default_value](auto&& arg) -> size_t {
             using T = std::decay_t<decltype(arg)>;
-            // Handle various unsigned integer types that sparrow might use
-            if constexpr (std::is_same_v<T, sparrow::nullable<const uint64_t&>> ||
-                          std::is_same_v<T, sparrow::nullable<const size_t&>> ||
-                          std::is_same_v<T, sparrow::nullable<const unsigned long long&>> ||
-                          std::is_same_v<T, sparrow::nullable<const uint32_t&>>) {
-                if (arg.has_value()) {
-                    return static_cast<size_t>(arg.get());
+            if constexpr (requires { arg.has_value(); arg.get(); }) {
+                using ValT = std::decay_t<decltype(arg.get())>;
+                if constexpr (std::is_arithmetic_v<ValT>) {
+                    if (arg.has_value()) {
+                        return static_cast<size_t>(arg.get());
+                    }
                 }
+            } else if constexpr (requires { arg.has_value(); arg.value(); }) {
+                using ValT = std::decay_t<decltype(arg.value())>;
+                if constexpr (std::is_arithmetic_v<ValT>) {
+                    if (arg.has_value()) {
+                        return static_cast<size_t>(arg.value());
+                    }
+                }
+            } else if constexpr (std::is_arithmetic_v<T>) {
+                return static_cast<size_t>(arg);
             }
             return default_value;
         }, value);

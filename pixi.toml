@@ -1,6 +1,6 @@
 [workspace]
 authors = ["Erwan Demairy <Erwan.Demairy@inria.fr>"]
-channels = ["conda-forge"]
+channels = ["igor-immuno", "conda-forge"]
 preview = ["pixi-build"]
 name = "igor"
 platforms = ["linux-64", "osx-arm64", "osx-64", "win-64"]
@@ -14,6 +14,7 @@ doxygen = "~=1.8"
 catch2 = "3.*"
 ninja = "*"
 anaconda-client = "*"
+mdspan = "*"  # Kokkos reference implementation
 sparrow-devel = "*"
 arrow-cpp = "*"
 
@@ -23,10 +24,13 @@ clang-tools = ">=19.1.7,<22"
 [target.linux.dependencies]
 valgrind = "*"
 
+[target.linux-64.dependencies]
+valgrind = ">=3.26.0,<4"
+
 [tasks]
 clean = "rm -fr build && rm -fr build_cov"
-configure_debug = "cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug"
 configure = "cmake -S . -B build -G Ninja"
+configure_debug = "cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug"
 configure_coverage = "cmake -S . -B build_cov -DBUILD_DOC_DOXYGEN=ON -DENABLE_COVERAGE=ON  -DCMAKE_CXX_SCAN_FOR_MODULES=OFF"
 build = {cmd="cmake --build build --parallel", depends-on = "configure"}
 build_debug = {cmd="cmake --build build --parallel", depends-on = "configure_debug"}
@@ -79,20 +83,17 @@ version = "*"
 extra-args = ["-DCMAKE_BUILD_TYPE=Release"]
 env = { MACOSX_DEPLOYMENT_TARGET = "13.4" }
 
-
 [package.build-dependencies]
 
 [package.host-dependencies]
 # Add dependencies on (header-only) libraries at compile time
 gsl = "*"
 catch2 = "3.*"
+mdspan = "*"  # Kokkos reference implementation
 sparrow-devel = "*"
 arrow-cpp = "*"
 
 [package.run-dependencies]
 gsl = "*"
-arrow-cpp = "*"
 sparrow-devel = "*"
-
-[target.linux-64.dependencies]
-valgrind = ">=3.26.0,<4"
+arrow-cpp = "*"

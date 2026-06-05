@@ -57,6 +57,7 @@ class CORE_EXPORT Dinucl_markov : public Rec_Event
 {
 public:
     //Constructors
+    Dinucl_markov();
     Dinucl_markov(Gene_class); //TODO should be scalable on one side easily (mono di tri quadri nucl)
     //Destructor
     ~Dinucl_markov() override;
@@ -83,6 +84,7 @@ public:
             AccumulationContext& accumulation) override;
 
     void add_realization(int);
+    std::vector<std::size_t> inherent_shape() const override;
     std::queue<int> draw_random_realization(
             const Marginal_array_p &, std::unordered_map<Rec_Event_name, int> &,
             const std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &,

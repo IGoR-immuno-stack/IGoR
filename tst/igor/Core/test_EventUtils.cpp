@@ -48,6 +48,7 @@ public:
   void add_to_marginals(long double, Marginal_array_p &) const override {}
   shared_ptr<Rec_Event> copy() override { return nullptr; }
   bool has_effect_on(Seq_type) const override { return false; }
+  std::vector<std::size_t> inherent_shape() const override { return {1}; }
   void iterate_initialize_Len_proba(Seq_type, map<int, double> &,
                                     queue<shared_ptr<Rec_Event>> &, double &,
                                     const Marginal_array_p &, Index_map &,
@@ -126,17 +127,17 @@ TEST_CASE("EventUtils BuildScenarioSequence", "[EventUtils]") {
   }
 }
 
+// Create a mock event with specific len_max
+class MockInsertionEvent : public MockEvent {
+public:
+  MockInsertionEvent(string name, int max_len) : MockEvent(name) {
+    this->len_max = max_len;
+  }
+};
+
 TEST_CASE("EventUtils GetInsertionLenMax", "[EventUtils]") {
   unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>>
       events_map;
-
-  // Create a mock event with specific len_max
-  class MockInsertionEvent : public MockEvent {
-  public:
-    MockInsertionEvent(string name, int max_len) : MockEvent(name) {
-      this->len_max = max_len;
-    }
-  };
 
   auto vd_ins = make_shared<MockInsertionEvent>("VD_ins", 10);
   auto dj_ins = make_shared<MockInsertionEvent>("DJ_ins", 15);

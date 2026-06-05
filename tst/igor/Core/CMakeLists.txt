@@ -15,6 +15,7 @@ add_executable(igor_tests ${CORE_TEST_SOURCES})
 target_link_libraries(igor_tests
     PRIVATE
         igor::Core
+        igor::Model
         Catch2::Catch2WithMain)
 
 target_compile_definitions(igor_tests PRIVATE
@@ -24,17 +25,12 @@ include(Catch)
 catch_discover_tests(igor_tests
     TEST_SPEC "~[integration]~[slow]"
     TEST_PREFIX "unit::"
-    PROPERTIES
-        TIMEOUT 3600
-        LABELS "unit"
+    PROPERTIES TIMEOUT 3600 LABELS "unit"
 )
-
 catch_discover_tests(igor_tests
     TEST_SPEC "[integration]"
     TEST_PREFIX "integration::"
-    PROPERTIES
-        TIMEOUT 3600
-        LABELS "integration"
+    PROPERTIES TIMEOUT 3600 LABELS "integration"
 )
 
 ######################################################################

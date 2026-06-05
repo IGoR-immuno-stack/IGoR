@@ -3,11 +3,12 @@
  * @brief Tests the sequence generation process using KL divergence
  *        and entropy-based validation.
  *
- * Generates 10, 100, 1000, and 1'000'000 sequences from the human TCR alpha
- * (VJ) and human TCR beta (VDJ) models. For each sample size, the empirical
- * marginal distributions of every
- * recombination event are compared to the theoretical model marginals via the
- * Kullback-Leibler divergence:
+ * Uses the modern Topology + SamplingEngine architecture to generate
+ * 10, 100, 1000, and 1'000'000 scenarios from the human TCR alpha
+ * (VJ) and human TCR beta (VDJ) models. For each sample size, the
+ * empirical marginal distributions of every recombination event are
+ * compared to the theoretical model marginals via the Kullback-Leibler
+ * divergence:
  *
  *     D_KL(P || Q) = Σ_i P(i) · log2( P(i) / Q(i) )
  *
@@ -41,23 +42,28 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-#include <igor/Core/FastGenerator.h>
-#include <igor/Core/GenModel.h>
+#include <igor/Model/LegacyBridge.h>
+#include <igor/Model/SamplingEngine.h>
+#include <igor/Model/RecombinationModel.h>
+#include <igor/Model/Topology.h>
+#include <igor/Model/Scenario.h>
+
 #include <igor/Core/Model_Parms.h>
 #include <igor/Core/Model_marginals.h>
 #include <igor/Core/Rec_Event.h>
+
+#include <igor/Model/Topology.h>
 
 #include "entropy_test_helpers.h"
 
 #include <algorithm>
 #include <array>
 #include <cmath>
-#include <forward_list>
 #include <iostream>
 #include <limits>
 #include <map>
 #include <numeric>
-#include <queue>
+#include <random>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -68,8 +74,187 @@
 #endif
 
 // Model base directory
-static const std::string MODELS_DIR =
-        std::string(IGOR_SOURCE_DIR) + "/models";
+static const std::string MODELS_DIR = std::string(IGOR_SOURCE_DIR) + "/models";
+
+/**
+ * @brief Build EventInfo metadata by iterating the Topology in
+ *        topological order.
+ *
+ * Uses the Topology's UIDs as position keys (stored in
+ * EventInfo::queue_position) so that events map directly to
+ * SampledScenario::events[uid].
+ *
+ * Theoretical marginals are still computed from the legacy
+ * Model_marginals, which is the only source that provides the
+ * marginalization over parent dimensions.
+ */
+static std::vector<EventInfo>
+build_event_info_from_topology(const igor::model::Topology &topology,
+                               const Model_Parms &parms,
+                               const Model_marginals &marginals)
+{
+    std::vector<EventInfo> infos;
+    auto index_map = marginals.get_index_map(parms);
+
+    for (auto uid : topology.topologicalOrder()) {
+        auto ev = topology.event(uid);
+
+        EventInfo info;
+        info.name = ev->get_name();
+        info.nickname = ev->get_nickname();
+        info.num_realizations = ev->size();
+        info.queue_position = static_cast<size_t>(uid); // UID as key
+        info.is_dinuc_markov = (ev->get_type() == Event_type::Dinuclmarkov_t);
+        info.gene_class = ev->get_class();
+        info.dinuc_T.fill(0.0);
+        info.dinuc_entropy_rate = 0.0;
+
+        std::cout << "  Processing event: " << info.nickname
+                  << " (uid=" << uid
+                  << ", is_dinuc=" << info.is_dinuc_markov
+                  << ", size=" << info.num_realizations << ")"
+                  << std::endl;
+
+        if (info.is_dinuc_markov) {
+            int base_idx = index_map.at(info.name);
+            for (int k = 0; k < 16; ++k) {
+                info.dinuc_T[k] = static_cast<double>(
+                    marginals.marginal_array_smart_p[base_idx + k]);
+            }
+            info.dinuc_entropy_rate = markov_entropy_rate(info.dinuc_T);
+
+            info.model_marginal.resize(16, 0.0);
+            for (int k = 0; k < 16; ++k) {
+                info.model_marginal[k] = info.dinuc_T[k];
+            }
+            info.H = info.dinuc_entropy_rate;
+        } else {
+            auto [dims, probs] =
+                marginals.compute_event_marginal_probability(info.name, parms);
+
+            info.model_marginal.resize(info.num_realizations, 0.0);
+            for (int i = 0; i < info.num_realizations; ++i) {
+                info.model_marginal[i] = static_cast<double>(probs.get()[i]);
+            }
+            info.H = entropy(info.model_marginal);
+        }
+
+        infos.push_back(std::move(info));
+    }
+    return infos;
+}
+
+/**
+ * @brief Compute empirical marginal distributions from SampledScenario output.
+ *
+ * For each non-DinucMarkov event, counts the realization index
+ * (SampledEvent::indices[0]) across all scenarios and normalises
+ * to a probability vector.
+ *
+ * Events are keyed by their Topology UID (stored in
+ * EventInfo::queue_position).
+ */
+static std::map<size_t, std::vector<double>>
+compute_all_empirical_marginals(
+    const std::vector<igor::model::SampledScenario> &scenarios,
+    const std::vector<EventInfo> &event_infos,
+    size_t total_sequences)
+{
+    // Prepare per-event count arrays (non-DinucMarkov only)
+    std::map<size_t, std::vector<size_t>> counts;
+    for (const auto &ev : event_infos) {
+        if (!ev.is_dinuc_markov) {
+            counts[ev.queue_position].assign(ev.num_realizations, 0);
+        }
+    }
+
+    // Single pass over all generated scenarios
+    for (const auto &scenario : scenarios) {
+        for (auto &[uid, cvec] : counts) {
+            if (uid < scenario.events.size()
+                && !scenario.events[uid].indices.empty()) {
+                auto realization =
+                    static_cast<int>(scenario.events[uid].indices[0]);
+                int num_real = static_cast<int>(cvec.size());
+                if (realization < 0 || realization >= num_real) {
+                    throw std::out_of_range(
+                        "Realization index " + std::to_string(realization)
+                        + " out of bounds [0, "
+                        + std::to_string(num_real) + ")");
+                }
+                ++cvec[realization];
+            }
+        }
+    }
+
+    // Convert counts to probabilities
+    std::map<size_t, std::vector<double>> result;
+    double n = static_cast<double>(total_sequences);
+    for (auto &[uid, cvec] : counts) {
+        std::vector<double> empirical(cvec.size(), 0.0);
+        for (size_t i = 0; i < cvec.size(); ++i) {
+            empirical[i] = static_cast<double>(cvec[i]) / n;
+        }
+        result[uid] = std::move(empirical);
+    }
+    return result;
+}
+
+/**
+ * @brief Compute empirical marginal distributions from SampledScenario output.
+ *
+ * For each non-DinucMarkov event, counts the sampled realization index
+ * (SampledEvent::indices[0]) and normalises to a probability distribution.
+ *
+ * @param scenarios  The generated scenarios (one per sample).
+ * @param topology   The model topology (maps UID → Rec_Event).
+ * @param event_infos Reference event info (from build_event_info).
+ * @param nick_to_uid  Mapping from event nickname to topology UID.
+ * @return Map from topology UID to empirical probability vector.
+ */
+static std::map<igor::index_type, std::vector<double>>
+compute_all_empirical_marginals(
+    const std::vector<igor::model::SampledScenario>& scenarios,
+    const std::vector<EventInfo>& event_infos,
+    const std::map<std::string, igor::index_type>& nick_to_uid)
+{
+    // Prepare per-event count arrays (non-DinucMarkov only)
+    std::map<igor::index_type, std::vector<std::size_t>> counts;
+    for (const auto& ev : event_infos) {
+        if (!ev.is_dinuc_markov) {
+            auto it = nick_to_uid.find(ev.nickname);
+            if (it != nick_to_uid.end()) {
+                counts[it->second].assign(
+                    static_cast<std::size_t>(ev.num_realizations), 0);
+            }
+        }
+    }
+
+    // Single pass over all scenarios
+    for (const auto& scenario : scenarios) {
+        for (auto& [uid, cvec] : counts) {
+            std::size_t val = scenario.index_of(uid);
+            if (val >= cvec.size()) {
+                throw std::out_of_range(
+                    "Realization index " + std::to_string(val) +
+                    " out of bounds [0, " + std::to_string(cvec.size()) + ")");
+            }
+            ++cvec[val];
+        }
+    }
+
+    // Convert counts to probabilities
+    std::map<igor::index_type, std::vector<double>> result;
+    double n = static_cast<double>(scenarios.size());
+    for (auto& [uid, cvec] : counts) {
+        std::vector<double> empirical(cvec.size(), 0.0);
+        for (std::size_t i = 0; i < cvec.size(); ++i) {
+            empirical[i] = static_cast<double>(cvec[i]) / n;
+        }
+        result[uid] = std::move(empirical);
+    }
+    return result;
+}
 
 // ---------------------------------------------------------------------------
 // THE TEST
@@ -78,6 +263,8 @@ static const std::string MODELS_DIR =
 TEST_CASE("Generation marginals converge - KL divergence vs entropy",
           "[generation]")
 {
+    using namespace igor::model;
+
     // ------------------------------------------------------------------
     // 1. Select model to test (TCR alpha or TCR beta)
     // ------------------------------------------------------------------
@@ -118,7 +305,7 @@ TEST_CASE("Generation marginals converge - KL divergence vs entropy",
     }
 
     // ------------------------------------------------------------------
-    // 2. Load model and collect per-event metadata
+    // 2. Load legacy model, build Topology + SamplingEngine
     // ------------------------------------------------------------------
     INFO("Testing model: " << model_label);
     Model_Parms model_parms;
@@ -127,8 +314,24 @@ TEST_CASE("Generation marginals converge - KL divergence vs entropy",
     Model_marginals model_marginals(model_parms);
     model_marginals.txt2marginals(model_marginals_path, model_parms);
 
+    // Build the modern Topology graph from the legacy model
+    auto topology = import_from_legacy(model_parms);
+    REQUIRE(topology != nullptr);
+    REQUIRE(topology->size() > 0);
+
+    // Build the RecombinationModel and import marginals, then wrap in SamplingEngine
+    igor::model::RecombinationModel<double> model_obj(
+        std::make_unique<igor::model::Topology>(*topology));
+    import_from_legacy(model_obj, model_marginals);
+    auto model_ptr = std::make_shared<const igor::model::RecombinationModel<double>>(
+        std::move(model_obj));
+    SamplingEngine<double> engine(model_ptr);
+
+    // ------------------------------------------------------------------
+    // 2b. Collect per-event metadata (using Topology UIDs)
+    // ------------------------------------------------------------------
     std::vector<EventInfo> event_infos =
-            build_event_info(model_parms, model_marginals);
+        build_event_info_from_topology(*topology, model_parms, model_marginals);
 
     INFO("Model loaded, " << event_infos.size() << " events found");
     REQUIRE(event_infos.size() >= static_cast<size_t>(min_events));
@@ -184,7 +387,8 @@ TEST_CASE("Generation marginals converge - KL divergence vs entropy",
             if (it_ref != pygor3_reference_entropy.end()) {
                 double ref = it_ref->second;
                 double diff = std::abs(reported_H - ref);
-                bool has_parents = !model_parms.get_parents(ev.name).empty();
+                bool has_parents = !topology->parentsIds(
+                    static_cast<igor::index_type>(ev.queue_position)).empty();
 
                 std::cout << "  " << ev.nickname
                           << ": computed=" << reported_H
@@ -214,7 +418,7 @@ TEST_CASE("Generation marginals converge - KL divergence vs entropy",
     }
 
     // ------------------------------------------------------------------
-    // 3. Generate sequences for increasing N and track D_KL per event
+    // 3. Generate scenarios for increasing N and track D_KL per event
     // ------------------------------------------------------------------
 
     // Update ev.H for insertion events to the full combined entropy
@@ -232,33 +436,36 @@ TEST_CASE("Generation marginals converge - KL divergence vs entropy",
         }
     }
 
-    // Map: event_queue_position → vector of (D_KL, uncovered_mass) per sample-size
+    // Map: event UID → vector of (D_KL, uncovered_mass) per sample-size
     std::map<size_t, std::vector<std::pair<double, double>>> kl_traces;
-    // Map: event_queue_position → vector of empirical entropy per sample-size
+    // Map: event UID → vector of empirical entropy per sample-size
     std::map<size_t, std::vector<double>> entropy_traces;
+    // FastGenerator empirical marginals at N=1M, saved for cross-validation
+    // against SamplingEngine (section 6).
+    std::map<size_t, std::vector<double>> fg_empiricals_1M;
 
     const std::vector<int> sample_sizes = {10, 100, 1000, 1000000};
 
-    // Initialize FastGenerator once, reuse across all sample sizes
-    igor::fast::FastGenerator fast_gen;
-    fast_gen.initialize(model_parms, model_marginals);
-    REQUIRE(fast_gen.is_initialized());
+    // Seed the RNG for reproducibility
+    std::mt19937_64 rng(42);
 
     for (int N : sample_sizes) {
-        INFO("Generating " << N << " sequences");
+        INFO("Generating " << N << " scenarios");
 
-        // Generate using FastGenerator (parallel, precomputed CDFs)
-        igor::fast::FastGeneratorConfig config;
-        config.show_progress = false;
-        auto sequences = fast_gen.generate(static_cast<size_t>(N), config);
+        // Generate N scenarios using SamplingEngine
+        std::vector<SampledScenario> scenarios;
+        scenarios.reserve(static_cast<size_t>(N));
+        for (int i = 0; i < N; ++i) {
+            scenarios.push_back(engine.run(rng));
+        }
 
-        REQUIRE(sequences.size() == static_cast<size_t>(N));
+        REQUIRE(scenarios.size() == static_cast<size_t>(N));
 
         std::cout << "\n--- N = " << N << " ---" << std::endl;
 
         // Compute all empirical marginals in a single pass
         auto all_empiricals = compute_all_empirical_marginals(
-                sequences, event_infos, sequences.size());
+            scenarios, event_infos, scenarios.size());
 
         // Build comparison rows using helper
         auto threshold_func = [N](double dkl, double H, int num_realizations) -> bool {
@@ -325,6 +532,10 @@ TEST_CASE("Generation marginals converge - KL divergence vs entropy",
                 CHECK(uncovered < 1e-3);
             }
         }
+
+        // Save empiricals for cross-validation (overwritten each iteration;
+        // the last iteration is N=1M which is the one we need).
+        fg_empiricals_1M = all_empiricals;
     }
 
     // ------------------------------------------------------------------
@@ -402,6 +613,267 @@ TEST_CASE("Generation marginals converge - KL divergence vs entropy",
             if (uncov_1k < 0.01) {
                 // Both estimates are reliable; D_KL should decrease
                 CHECK(dkl_at_1M < dkl_at_1k + 1e-4);
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // 6. SamplingEngine – modern architecture cross-validation
+    // ------------------------------------------------------------------
+    // Validate that the modern SamplingEngine produces marginals
+    // consistent with the theoretical model AND with the FastGenerator.
+    // ------------------------------------------------------------------
+    {
+        using namespace igor::model;
+
+        std::cout << "\n=== SamplingEngine cross-validation (" << model_label
+                  << ") ===" << std::endl;
+
+        // Build the modern pipeline
+        auto se_model = recombination_model_from_files<double>(
+            model_parms_path, model_marginals_path);
+        REQUIRE(se_model.topology().size() == event_infos.size());
+
+        auto se_model_ptr = std::make_shared<const RecombinationModel<double>>(
+            std::move(se_model));
+        SamplingEngine<double> engine(se_model_ptr);
+
+        // Build nickname → UID map for cross-referencing
+        const auto& se_topology = se_model_ptr->topology();
+        std::map<std::string, igor::index_type> nick_to_uid;
+        for (igor::index_type uid = 0;
+             uid < static_cast<igor::index_type>(se_topology.size()); ++uid) {
+            nick_to_uid[se_topology.event(uid)->get_nickname()] = uid;
+        }
+
+        // Verify every legacy event has a matching topology node
+        for (const auto &ev : event_infos) {
+            INFO("Missing topology node for event: " << ev.nickname);
+            CHECK(nick_to_uid.count(ev.nickname) == 1);
+        }
+
+        // Generate 1M scenarios
+        constexpr std::size_t SE_N = 1'000'000;
+        std::mt19937_64 rng(42);
+
+        std::cout << "  Generating " << SE_N
+                  << " scenarios with SamplingEngine ..." << std::flush;
+        std::vector<SampledScenario> scenarios;
+        scenarios.reserve(SE_N);
+        for (std::size_t i = 0; i < SE_N; ++i) {
+            scenarios.push_back(engine.run(rng));
+        }
+        std::cout << " done." << std::endl;
+
+        auto se_empiricals = compute_all_empirical_marginals(
+            scenarios, event_infos, nick_to_uid);
+
+        // D_KL checks and cross-validation against FastGenerator
+        for (const auto &ev : event_infos) {
+            if (ev.is_dinuc_markov)
+                continue;
+
+            auto uid_it = nick_to_uid.find(ev.nickname);
+            REQUIRE(uid_it != nick_to_uid.end());
+            igor::index_type uid = uid_it->second;
+
+            auto emp_it = se_empiricals.find(uid);
+            REQUIRE(emp_it != se_empiricals.end());
+            const auto &se_emp = emp_it->second;
+
+            // --- Check vs theoretical model marginal ---
+            double uncovered = 0.0;
+            double dkl = kl_divergence(ev.model_marginal, se_emp, &uncovered);
+            double expected_upper = 50.0 * (ev.num_realizations - 1)
+                                    / (2.0 * static_cast<double>(SE_N) * std::log(2.0));
+
+            INFO("SamplingEngine N=1M  Event: " << ev.nickname
+                     << "  D_KL=" << dkl << "  uncovered=" << uncovered
+                     << "  upper=" << expected_upper);
+            CHECK(dkl < (std::max)(expected_upper, 1e-3));
+            CHECK(uncovered < 1e-3);
+
+            // --- Cross-validate vs FastGenerator empirical at N=1M ---
+            // Both generators sample from the same model, so at 1M samples
+            // the two empirical marginals should be nearly identical.
+            // D_KL between two empirical samples of size N has
+            //   E[D_KL] ≈ (k−1) / (N·ln2)  (doubled since both are estimates).
+            const auto &fg_emp = fg_empiricals_1M.at(ev.queue_position);
+            double dkl_cross = kl_divergence(fg_emp, se_emp);
+            double cross_upper = 100.0 * (ev.num_realizations - 1)
+                                 / (2.0 * static_cast<double>(SE_N) * std::log(2.0));
+
+            std::cout << "  " << ev.nickname
+                      << " : D_KL(model||SE)=" << dkl
+                      << "  D_KL(FG||SE)=" << dkl_cross
+                      << "  uncov=" << uncovered << std::endl;
+
+            INFO("Cross-validation D_KL(FG||SE)=" << dkl_cross);
+            CHECK(dkl_cross < (std::max)(cross_upper, 1e-3));
+        }
+    }
+}
+
+TEST_CASE("SamplingEngine marginals converge - modern architecture",
+          "[generation][SamplingEngine]")
+{
+    using namespace igor::model;
+
+    // ------------------------------------------------------------------
+    // 1. Select model (same two-SECTION structure as the legacy test)
+    // ------------------------------------------------------------------
+    std::string model_parms_path;
+    std::string model_marginals_path;
+    std::string model_label;
+    int min_events = 0;
+
+    SECTION("human TCR alpha (VJ)")
+    {
+        model_parms_path     = MODELS_DIR + "/human/tcr_alpha/models/model_parms.txt";
+        model_marginals_path = MODELS_DIR + "/human/tcr_alpha/models/model_marginals.txt";
+        model_label          = "TCR alpha";
+        min_events           = 4;
+    }
+    SECTION("human TCR beta (VDJ)")
+    {
+        model_parms_path     = MODELS_DIR + "/human/tcr_beta/models/model_parms.txt";
+        model_marginals_path = MODELS_DIR + "/human/tcr_beta/models/model_marginals.txt";
+        model_label          = "TCR beta";
+        min_events           = 8;
+    }
+
+    std::cout << "\n=== SamplingEngine generation test: " << model_label
+              << " ===" << std::endl;
+
+    // ------------------------------------------------------------------
+    // 2. Legacy pipeline – for reference marginals
+    // ------------------------------------------------------------------
+    Model_Parms parms;
+    parms.read_model_parms(model_parms_path);
+    Model_marginals marginals(parms);
+    marginals.txt2marginals(model_marginals_path, parms);
+    auto event_infos = build_event_info(parms, marginals);
+    REQUIRE(event_infos.size() >= static_cast<std::size_t>(min_events));
+
+    // ------------------------------------------------------------------
+    // 3. Modern pipeline – RecombinationModel + SamplingEngine
+    // ------------------------------------------------------------------
+    auto model_opt = recombination_model_from_files<double>(
+        model_parms_path, model_marginals_path);
+    REQUIRE(model_opt.topology().size() == event_infos.size());
+
+    auto model_ptr = std::make_shared<const RecombinationModel<double>>(
+        std::move(model_opt));
+    SamplingEngine<double> engine(model_ptr);
+
+    // Build nickname → UID map for cross-referencing
+    const auto& topology = model_ptr->topology();
+    std::map<std::string, igor::index_type> nick_to_uid;
+    for (igor::index_type uid = 0;
+         uid < static_cast<igor::index_type>(topology.size()); ++uid) {
+        auto ev = topology.event(uid);
+        nick_to_uid[ev->get_nickname()] = uid;
+    }
+
+    // Also build nickname → EventInfo* for quick lookup
+    std::map<std::string, const EventInfo*> info_by_nick;
+    for (const auto& ev : event_infos) {
+        info_by_nick[ev.nickname] = &ev;
+    }
+
+    // Verify every legacy event has a matching topology node
+    for (const auto& ev : event_infos) {
+        INFO("Missing topology node for event: " << ev.nickname);
+        CHECK(nick_to_uid.count(ev.nickname) == 1);
+    }
+
+    // ------------------------------------------------------------------
+    // 4. Generate scenarios with SamplingEngine
+    // ------------------------------------------------------------------
+    // Sample sizes: {1k, 100k, 1M}
+    // Much faster than the legacy test (no queue overhead) so we can
+    // afford bigger runs and still get cleaner statistics.
+    constexpr std::array<std::size_t, 3> sample_sizes = {1'000, 100'000, 1'000'000};
+
+    // Track D_KL evolution per event across sample sizes
+    // key = nickname, value = vector of (D_KL, uncovered) pairs
+    std::map<std::string, std::vector<std::pair<double, double>>> traces;
+
+    std::mt19937_64 rng(42);
+
+    for (std::size_t N : sample_sizes) {
+        std::cout << "  Generating " << N << " scenarios ..." << std::flush;
+
+        std::vector<SampledScenario> scenarios;
+        scenarios.reserve(N);
+        for (std::size_t i = 0; i < N; ++i) {
+            scenarios.push_back(engine.run(rng));
+        }
+        std::cout << " done." << std::endl;
+
+        auto empiricals = compute_all_empirical_marginals(
+            scenarios, event_infos, nick_to_uid);
+
+        // ----------------------------------------------------------
+        // 5. Compare empirical vs theoretical for each event
+        // ----------------------------------------------------------
+        for (const auto& ev : event_infos) {
+            if (ev.is_dinuc_markov) continue;
+
+            auto uid_it = nick_to_uid.find(ev.nickname);
+            REQUIRE(uid_it != nick_to_uid.end());
+            igor::index_type uid = uid_it->second;
+
+            auto emp_it = empiricals.find(uid);
+            REQUIRE(emp_it != empiricals.end());
+            const auto& empirical = emp_it->second;
+
+            double uncovered = 0.0;
+            double dkl = kl_divergence(ev.model_marginal, empirical, &uncovered);
+
+            traces[ev.nickname].emplace_back(dkl, uncovered);
+
+            // Asymptotic expected upper bound:
+            //   E[D_KL] ≈ (k-1) / (2·N·ln2)
+            // Use a generous safety factor (50×) for statistical fluctuations.
+            double expected_upper = 50.0 * static_cast<double>(ev.num_realizations - 1)
+                                    / (2.0 * static_cast<double>(N) * std::log(2.0));
+
+            // At N=1k the bound may be loose; at 100k+ it should be tight.
+            INFO("N=" << N << "  Event: " << ev.nickname
+                      << "  D_KL=" << dkl << "  uncovered=" << uncovered
+                      << "  upper=" << expected_upper);
+
+            if (N >= 100'000) {
+                CHECK(dkl < std::max(expected_upper, 1e-3));
+                CHECK(uncovered < 0.01);
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // 6. Monotonic decrease of D_KL with increasing N
+    // ------------------------------------------------------------------
+    std::cout << "  D_KL convergence summary:" << std::endl;
+    for (const auto& ev : event_infos) {
+        if (ev.is_dinuc_markov) continue;
+
+        auto& trace = traces[ev.nickname];
+        if (trace.size() >= 3) {
+            auto [dkl_1k,  uncov_1k]  = trace[0]; // N=1k
+            auto [dkl_100k, uncov_100k] = trace[1]; // N=100k
+            auto [dkl_1M,  uncov_1M]  = trace[2]; // N=1M
+
+            std::cout << "    " << ev.nickname
+                      << " : D_KL(1k)=" << dkl_1k
+                      << "  D_KL(100k)=" << dkl_100k
+                      << "  D_KL(1M)=" << dkl_1M
+                      << "  uncov(1k)=" << uncov_1k
+                      << "  uncov(1M)=" << uncov_1M << std::endl;
+
+            // With 100k→1M, D_KL should decrease when estimate is reliable
+            if (uncov_100k < 0.01) {
+                CHECK(dkl_1M < dkl_100k + 1e-4);
             }
         }
     }

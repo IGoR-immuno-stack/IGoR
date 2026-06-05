@@ -28,6 +28,10 @@
 
 using namespace std;
 
+Dinucl_markov::Dinucl_markov() : Dinucl_markov(Undefined_gene)
+{
+}
+
 Dinucl_markov::Dinucl_markov(Gene_class gene) : Rec_Event(), total_nucl_count(0)
 {
     this->type = Event_type::Dinuclmarkov_t;
@@ -515,6 +519,10 @@ void Dinucl_markov::initialize_crude_scenario_proba_bound(
     this->scenario_downstream_upper_bound_proba = downstream_proba_bound;
     this->updated_proba_bounds_list = updated_proba_list;
     updated_proba_list.push_front(this->updated_upper_bound_proba);
+}
+
+std::vector<std::size_t> Dinucl_markov::inherent_shape() const {
+    return { 4, 4 };
 }
 
 bool Dinucl_markov::has_effect_on(Seq_type seq_type) const

@@ -162,6 +162,10 @@ void Deletion::add_realization(int del_number)
     this->update_event_name();
 }
 
+std::vector<std::size_t> Deletion::inherent_shape() const {
+    return { event_realizations.size() };
+}
+
 /**
  * @brief Context-based iterate() implementation
  *

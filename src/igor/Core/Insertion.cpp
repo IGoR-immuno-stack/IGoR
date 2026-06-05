@@ -121,6 +121,10 @@ bool Insertion::add_realization(int insertion_number)
     return 0;
 }
 
+std::vector<std::size_t> Insertion::inherent_shape() const {
+    return { event_realizations.size() };
+}
+
 /**
  * @brief Context-based iterate() implementation
  *
