@@ -101,6 +101,20 @@ inline uint32_t portable_gethostid()
 #include <stdio.h>
 #include <unordered_map>
 
+#if defined(_MSC_VER)
+#  include <intrin.h>
+#endif
+
+// Cross-platform population count (number of set bits)
+inline int popcountll(uint64_t x)
+{
+#if defined(_MSC_VER)
+    return __popcnt64(x);
+#else
+    return __builtin_popcountll(x);
+#endif
+}
+
 class Rec_Event;
 
 enum Event_type { GeneChoice_t, Deletion_t, Insertion_t, Dinuclmarkov_t, Undefined_t };

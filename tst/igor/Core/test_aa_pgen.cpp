@@ -15,6 +15,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <igor/Core/EventUtils.h>
+#include <igor/Core/Utils.h>
 #include <igor/Core/JournaledQuery.h>
 #include <igor/Core/QuerySequenceContext.h>
 #include <igor/Core/Aligner.h>
@@ -95,12 +96,12 @@ TEST_CASE("Genetic code: codon_mask_for_aa", "[aa_pgen][phase1][genetic_code]") 
   // Met: exactly one codon (ATG = codon_index(0,3,2) = 0*16+3*4+2 = 14)
   CodonMask mask_M = codon_mask_for_aa('M');
   REQUIRE((mask_M >> 14) & 1);
-  REQUIRE(__builtin_popcountll(mask_M) == 1);
+  REQUIRE(popcountll(mask_M) == 1);
 
   // Trp: exactly one codon (TGG = codon_index(3,2,3) = 3*16+2*4+3 = 58)
   CodonMask mask_W = codon_mask_for_aa('W');
   REQUIRE((mask_W >> 58) & 1);
-  REQUIRE(__builtin_popcountll(mask_W) == 1);
+  REQUIRE(popcountll(mask_W) == 1);
 
   // Leu: 6 codons (TTA, TTG, CTT, CTC, CTA, CTG)
   // TTA = codon_index(3,3,0) = 60, TTG = codon_index(3,3,2) = 62
@@ -115,7 +116,7 @@ TEST_CASE("Genetic code: codon_mask_for_aa", "[aa_pgen][phase1][genetic_code]") 
   // TTA: n0=T(3), n1=T(3), n2=A(0) → 3*16+3*4+0 = 48+12+0 = 60
   // TTG: n0=T(3), n1=T(3), n2=G(2) → 3*16+3*4+2 = 48+12+2 = 62
   CodonMask mask_L = codon_mask_for_aa('L');
-  REQUIRE(__builtin_popcountll(mask_L) == 6);
+  REQUIRE(popcountll(mask_L) == 6);
   REQUIRE((mask_L >> 60) & 1); // TTA
   REQUIRE((mask_L >> 62) & 1); // TTG
   REQUIRE((mask_L >> 31) & 1); // CTT
@@ -125,15 +126,15 @@ TEST_CASE("Genetic code: codon_mask_for_aa", "[aa_pgen][phase1][genetic_code]") 
 
   // Arg: 6 codons
   CodonMask mask_R = codon_mask_for_aa('R');
-  REQUIRE(__builtin_popcountll(mask_R) == 6);
+  REQUIRE(popcountll(mask_R) == 6);
 
   // Ser: 6 codons
   CodonMask mask_S = codon_mask_for_aa('S');
-  REQUIRE(__builtin_popcountll(mask_S) == 6);
+  REQUIRE(popcountll(mask_S) == 6);
 
   // Stop: 3 codons
   CodonMask mask_stop = codon_mask_for_aa('*');
-  REQUIRE(__builtin_popcountll(mask_stop) == 3);
+  REQUIRE(popcountll(mask_stop) == 3);
 
   // Unknown AA: should return 0
   CodonMask mask_unknown = codon_mask_for_aa('Z');
@@ -204,15 +205,15 @@ TEST_CASE("Genetic code: motif_char_to_mask", "[aa_pgen][phase1][genetic_code]")
   // Single AA
   CodonMask mask_M = motif_char_to_mask('M');
   REQUIRE(mask_M == codon_mask_for_aa('M'));
-  REQUIRE(__builtin_popcountll(mask_M) == 1);
+  REQUIRE(popcountll(mask_M) == 1);
 
   // Wildcard X: all 20 standard AAs, 61 non-stop codons
   CodonMask mask_X = motif_char_to_mask('X');
-  REQUIRE(__builtin_popcountll(mask_X) == 61);
+  REQUIRE(popcountll(mask_X) == 61);
 
   // Stop character
   CodonMask mask_stop = motif_char_to_mask('*');
-  REQUIRE(__builtin_popcountll(mask_stop) == 3);
+  REQUIRE(popcountll(mask_stop) == 3);
 
   // Invalid character throws
   REQUIRE_THROWS_AS(motif_char_to_mask('!'), std::invalid_argument);
@@ -1059,7 +1060,7 @@ TEST_CASE("BUG #2: compute_markov_aa_sum codon mask decoding is incorrect", "[aa
     //   which nucleotides appear at position codon_pos.
 
     CodonMask leu_mask = codon_mask_for_aa('L');
-    REQUIRE(__builtin_popcountll(leu_mask) == 6);
+    REQUIRE(popcountll(leu_mask) == 6);
 
     // The buggy code checks: (mask >> (n * 16)) & 1  for codon_pos=0
     //   n=3 (T): checks bit 48 (3*16) → TAA (stop) → NOT in Leu mask
