@@ -357,26 +357,22 @@ bool GenModel::infer_model(
                 cerr << "Initializing probability bounds..." << endl;
             }
             //Compute upper proba bounds for downstream scenarios for each event
-            // Only one thread should do this initialization to avoid data races on shared Gene_choice state
-            #pragma omp single
-            {
-                double downstream_proba_bound = 1;
-                forward_list<double *> updated_proba_list;
-                while (!init_single_thread_stack.empty()) {
-                    shared_ptr<Rec_Event> last_proba_init_event = init_single_thread_stack.top();
-                    queue<shared_ptr<Rec_Event>> tmp_init_proba_single_thread_model_queue = single_thread_model_queue;
-                    init_single_thread_stack.pop();
-                    while (tmp_init_proba_single_thread_model_queue.front() != last_proba_init_event) {
-                        tmp_init_proba_single_thread_model_queue.pop();
-                    }
+            double downstream_proba_bound = 1;
+            forward_list<double *> updated_proba_list;
+            while (!init_single_thread_stack.empty()) {
+                shared_ptr<Rec_Event> last_proba_init_event = init_single_thread_stack.top();
+                queue<shared_ptr<Rec_Event>> tmp_init_proba_single_thread_model_queue = single_thread_model_queue;
+                init_single_thread_stack.pop();
+                while (tmp_init_proba_single_thread_model_queue.front() != last_proba_init_event) {
                     tmp_init_proba_single_thread_model_queue.pop();
-                    last_proba_init_event->initialize_crude_scenario_proba_bound(downstream_proba_bound, updated_proba_list,
-                                                                                 events_map);
-
-                    last_proba_init_event->initialize_Len_proba_bound(tmp_init_proba_single_thread_model_queue,
-                                                                      single_thread_model_marginals.marginal_array_smart_p,
-                                                                      index_mapp);
                 }
+                tmp_init_proba_single_thread_model_queue.pop();
+                last_proba_init_event->initialize_crude_scenario_proba_bound(downstream_proba_bound, updated_proba_list,
+                                                                             events_map);
+
+                last_proba_init_event->initialize_Len_proba_bound(tmp_init_proba_single_thread_model_queue,
+                                                                  single_thread_model_marginals.marginal_array_smart_p,
+                                                                  index_mapp);
             }
 #pragma omp single nowait
             {
@@ -384,15 +380,11 @@ bool GenModel::infer_model(
             }
 
             //Now let all the events in the need of it get their own updated copy of the marginals
-            // Only one thread should do this initialization to avoid data races
-            #pragma omp single
-            {
-                init_single_thread_model_queue = single_thread_model_queue;
-                while (!init_single_thread_model_queue.empty()) {
-                    init_single_thread_model_queue.front()->update_event_internal_probas(
-                            single_thread_model_marginals.marginal_array_smart_p, index_map);
-                    init_single_thread_model_queue.pop();
-                }
+            init_single_thread_model_queue = single_thread_model_queue;
+            while (!init_single_thread_model_queue.empty()) {
+                init_single_thread_model_queue.front()->update_event_internal_probas(
+                        single_thread_model_marginals.marginal_array_smart_p, index_map);
+                init_single_thread_model_queue.pop();
             }
 
             chrono::system_clock::time_point single_seq_begin;
@@ -401,7 +393,7 @@ bool GenModel::infer_model(
             //Loop over sequences in parallel, using the number of threads declared previously when declaring the parallel section
             //Use dynamic scheduling to avoid loss of time due to synchronization
             auto num_seqs = sequence_util_ptr->size(); // MSVC can't use iterators with openmp !
-#pragma omp for schedule(dynamic)
+#pragma omp for schedule(dynamic) nowait
             for (auto i = 0; i < num_seqs; ++i) {
 
                 const auto &seq = (*sequence_util_ptr)[i]; // index access
