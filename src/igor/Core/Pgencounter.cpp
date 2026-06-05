@@ -174,18 +174,16 @@ void Pgen_counter::count_scenario(
 
 void Pgen_counter::dump_sequence_data(int seq_index, int iteration_n)
 {
-
     double log_P_gen_estimate = 0;
+    stringstream ss;
     for (unordered_map<Int_Str, pair<double, long double>>::const_iterator iter = sequence_Pgens_map.begin();
          iter != sequence_Pgens_map.end(); ++iter) {
         if (output_Pgen_estimator) {
             log_P_gen_estimate += (*iter).second.second / read_likelihood * log((*iter).second.first);
         } else {
-            if (output_sequences) {
-                //(*output_pgen_file_ptr)<<seq_index<<";"<<(*iter).first<<";"<<(*iter).second.first<<";"<<(*iter).second.second/read_likelihood<<endl;
-            } else {
-                (*output_pgen_file_ptr.get()) << seq_index << ";" << (*iter).second.first << ";"
-                                              << (*iter).second.second / read_likelihood << endl;
+            if (!output_sequences) {
+                ss << seq_index << ";" << (*iter).second.first << ";"
+                   << (*iter).second.second / read_likelihood << "\n";
             }
         }
     }
@@ -193,7 +191,13 @@ void Pgen_counter::dump_sequence_data(int seq_index, int iteration_n)
         log_P_gen_estimate = std::nan("");
     }
     if (output_Pgen_estimator) {
-        (*output_pgen_file_ptr.get()) << seq_index << ";" << exp(log_P_gen_estimate) << endl;
+        ss << seq_index << ";" << exp(log_P_gen_estimate) << "\n";
+    }
+    if (!ss.str().empty()) {
+#pragma omp critical(dump_pgen_counter)
+        {
+            (*output_pgen_file_ptr.get()) << ss.str();
+        }
     }
     //Reset counters
     read_likelihood = 0.0;
