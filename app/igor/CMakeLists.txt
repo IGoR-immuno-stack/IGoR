@@ -32,6 +32,9 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
   IGOR_TARGET_SYSTEM_NAME="${CMAKE_SYSTEM_NAME}"
   IGOR_TARGET_SYSTEM_PROCESSOR="${CMAKE_SYSTEM_PROCESSOR}")
 
+find_package(OpenSSL REQUIRED)
+target_link_libraries(${PROJECT_NAME} PRIVATE OpenSSL::Crypto)
+
 target_link_libraries(${PROJECT_NAME} PRIVATE igor::Core)
 target_link_libraries(${PROJECT_NAME} PRIVATE GSL::gsl)
 target_link_libraries(${PROJECT_NAME} PRIVATE CLI11::CLI11)
