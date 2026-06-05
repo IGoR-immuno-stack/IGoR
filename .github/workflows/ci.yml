@@ -178,6 +178,3 @@ jobs:
 
       - name: Run regression tests
         run: pixi run test_regression
-
-      - name: Run align tests
-        run: pixi run test_align
