@@ -293,21 +293,31 @@ void Errors_counter::add_checked(shared_ptr<Counter> counter)
 
 void Errors_counter::dump_sequence_data(int seq_index, int iteration_n)
 {
-
     //Output individual scenarios stats
     if (this->output_scenarios) {
+        stringstream ss_scenarios;
         size_t counter = 1;
         for (auto iter = this->best_scenarios_vec.rbegin(); iter != this->best_scenarios_vec.rend(); ++iter) {
-            (*this->output_scenario_errors_file_ptr.get()) << seq_index << ";" << counter << ";" << get<0>(*iter) << ";"
-                                                           << get<1>(*iter) << ";" << get<2>(*iter) << endl;
+            ss_scenarios << seq_index << ";" << counter << ";" << get<0>(*iter) << ";"
+                         << get<1>(*iter) << ";" << get<2>(*iter) << "\n";
             ++counter;
+        }
+        string str_scenarios = ss_scenarios.str();
+#pragma omp critical(dump_errors_scenarios)
+        {
+            (*this->output_scenario_errors_file_ptr.get()) << str_scenarios;
         }
     }
 
     //Output sequence stats
-    (*this->output_sequence_averaged_errors_file_ptr.get())
-            << seq_index << ";" << this->sequence_average_n_genomic << ";" << this->sequence_average_n_mismatches << ";"
-            << this->sequence_average_error_freq << endl;
+    stringstream ss_seq;
+    ss_seq << seq_index << ";" << this->sequence_average_n_genomic << ";" << this->sequence_average_n_mismatches
+           << ";" << this->sequence_average_error_freq << "\n";
+    string str_seq = ss_seq.str();
+#pragma omp critical(dump_errors_seq)
+    {
+        (*this->output_sequence_averaged_errors_file_ptr.get()) << str_seq;
+    }
 
     best_scenarios_vec.clear();
     this->sequence_average_n_genomic = 0;

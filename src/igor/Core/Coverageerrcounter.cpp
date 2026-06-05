@@ -837,6 +837,7 @@ void Coverage_err_counter::dump_cov_and_err_arrays(int iteration_n, int seq_inde
                                                    size_t n_real, pair<size_t, double *> *coverage_array_p,
                                                    pair<size_t, double *> *error_array_p)
 {
+    stringstream ss;
     for (i = 0; i != n_real; ++i) {
 
         tmp_len_util = pow(coverage_array_p[i].first, record_Npoint_occurence);
@@ -844,9 +845,9 @@ void Coverage_err_counter::dump_cov_and_err_arrays(int iteration_n, int seq_inde
         tmp_err_p = error_array_p[i].second;
 
         if (dump_individual_seqs) {
-            (*outfile_ptr.get()) << iteration_n << ";" << seq_index << ";" << i << ";(";
+            ss << iteration_n << ";" << seq_index << ";" << i << ";(";
         } else {
-            (*outfile_ptr.get()) << iteration_n << ";" << i << ";(";
+            ss << iteration_n << ";" << i << ";(";
         }
 
         //Symmetrize the array
@@ -854,24 +855,29 @@ void Coverage_err_counter::dump_cov_and_err_arrays(int iteration_n, int seq_inde
         //Output it
         for (size_t j = 0; j != tmp_len_util; ++j) {
             if (j != 0)
-                (*outfile_ptr.get()) << ",";
-            (*outfile_ptr.get()) << tmp_cov_p[j];
+                ss << ",";
+            ss << tmp_cov_p[j];
 
             tmp_cov_p[j] = 0;
         }
-        (*outfile_ptr.get()) << ");(";
+        ss << ");(";
 
         //Symmetrize the array
         this->symmetrize_counter_array(tmp_err_p, 0, 0, coverage_array_p[i].first);
         //Output error array
         for (size_t j = 0; j != tmp_len_util; ++j) {
             if (j != 0)
-                (*outfile_ptr.get()) << ",";
-            (*outfile_ptr.get()) << tmp_err_p[j];
+                ss << ",";
+            ss << tmp_err_p[j];
 
             tmp_err_p[j] = 0;
         }
-        (*outfile_ptr.get()) << ")" << endl;
+        ss << ")" << "\n";
+    }
+    string str = ss.str();
+#pragma omp critical(dump_coverage_err_counter)
+    {
+        (*outfile_ptr.get()) << str;
     }
 }
 
