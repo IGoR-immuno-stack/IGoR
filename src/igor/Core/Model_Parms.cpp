@@ -838,9 +838,8 @@ void Model_Parms::read_model_parms(string filename)
                             Event_realization(to_string(value_int), value_int, "", Int_Str(), index)));
                     getline(infile, line_str);
                 }
-                // Use effective_gene_class for backward compatibility
                 shared_ptr<Deletion> new_event_p =
-                        shared_ptr<Deletion>(new Deletion(effective_gene_class, event_side, event_realizations));
+                        shared_ptr<Deletion>(new Deletion(str2SeqType(event_seq_type), event_side, event_realizations));
                 new_event_p->set_priority(priority);
                 new_event_p->set_nickname(nickname);
                 new_event_p->set_seq_type(event_seq_type);

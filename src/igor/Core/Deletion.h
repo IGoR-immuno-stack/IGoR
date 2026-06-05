@@ -63,9 +63,9 @@ public:
 
         //Constructor
         Deletion();
-        Deletion(Gene_class, Seq_side, std::pair<int, int>);
-        Deletion(Gene_class, Seq_side);
-        Deletion(Gene_class, Seq_side, std::unordered_map<std::string, Event_realization> &);
+        Deletion(Seq_type, Seq_side, std::pair<int, int>);
+        Deletion(Seq_type, Seq_side);
+        Deletion(Seq_type, Seq_side, std::unordered_map<std::string, Event_realization> &);
         virtual ~Deletion();
 
     //Virtual methods
