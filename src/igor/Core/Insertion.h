@@ -60,10 +60,10 @@ public:
     Insertion(Gene_class, std::unordered_map<std::string, Event_realization> &);
 
     //Destructor
-    virtual ~Insertion();
+    ~Insertion() override;
 
     //virtual methods
-    std::shared_ptr<Rec_Event> copy();
+    std::shared_ptr<Rec_Event> copy() override;
     inline void
     iterate(double &, Downstream_scenario_proba_bound_map &, const std::string &, const Int_Str &, Index_map &,
             const std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &,
@@ -79,35 +79,35 @@ public:
             const ModelContext& model,
             ScenarioContext& scenario,
             ExplorationContext& exploration,
-            AccumulationContext& accumulation);
+            AccumulationContext& accumulation) override;
 
     bool add_realization(int);
     std::queue<int> draw_random_realization(
             const Marginal_array_p &, std::unordered_map<Rec_Event_name, int> &,
             const std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &,
-            std::unordered_map<Seq_type, std::string> &, std::mt19937_64 &) const;
-    void write2txt(std::ofstream &);
+            std::unordered_map<Seq_type, std::string> &, std::mt19937_64 &) const override;
+    void write2txt(std::ofstream &) override;
 
     void initialize_event(
             std::unordered_set<Rec_Event_name> &,
             const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> &,
             const std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &,
             Downstream_scenario_proba_bound_map &, Seq_type_str_p_map &, Safety_bool_map &, std::shared_ptr<Error_rate>,
-            Mismatch_vectors_map &, Seq_offsets_map &, Index_map &);
-    void add_to_marginals(long double, Marginal_array_p &) const;
-    void set_crude_upper_bound_proba(size_t, size_t, Marginal_array_p &);
+            Mismatch_vectors_map &, Seq_offsets_map &, Index_map &) override;
+    void add_to_marginals(long double, Marginal_array_p &) const override;
+    void set_crude_upper_bound_proba(size_t, size_t, Marginal_array_p &) override;
     void initialize_crude_scenario_proba_bound(
             double &, std::forward_list<double *> &,
-            const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> &);
+            const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> &) override;
 
     //Proba bound related computation methods
-    bool has_effect_on(Seq_type) const;
+    bool has_effect_on(Seq_type) const override;
     void iterate_initialize_Len_proba(Seq_type considered_junction, std::map<int, double> &length_best_proba_map,
                                       std::queue<std::shared_ptr<Rec_Event>> &model_queue, double &scenario_proba,
                                       const Marginal_array_p &model_parameters_point, Index_map &base_index_map,
-                                      Seq_type_str_p_map &constructed_sequences, int &seq_len) const;
+                                      Seq_type_str_p_map &constructed_sequences, int &seq_len) const override;
     void initialize_Len_proba_bound(std::queue<std::shared_ptr<Rec_Event>> &model_queue,
-                                    const Marginal_array_p &model_parameters_point, Index_map &base_index_map);
+                                    const Marginal_array_p &model_parameters_point, Index_map &base_index_map) override;
 
 private:
     inline double iterate_common(
