@@ -23,7 +23,7 @@ target_compile_definitions(igor_tests PRIVATE
 
 include(Catch)
 catch_discover_tests(igor_tests
-    TEST_SPEC "~[integration]"
+    TEST_SPEC "~[integration]~[slow]"
     TEST_PREFIX "unit::"
     PROPERTIES TIMEOUT 3600 LABELS "unit"
 )
