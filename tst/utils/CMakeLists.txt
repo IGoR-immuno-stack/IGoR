@@ -7,7 +7,7 @@ add_executable(igor_utils_tests
 )
 
 target_include_directories(igor_utils_tests PRIVATE
-    ${CMAKE_SOURCE_DIR}/app/igor)   # pour sha256_openssl.h
+    ${CMAKE_SOURCE_DIR}/app/igor)  # find sha256_openssl.h
 
 target_link_libraries(igor_utils_tests
     PRIVATE

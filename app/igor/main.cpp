@@ -1,4 +1,4 @@
-#include "sha256.h"
+#include "sha256_openssl.h"
 
 #include <CLI/CLI.hpp>
 #include <toml++/toml.h>
