@@ -484,31 +484,27 @@ bool GenModel::infer_model(
                 //Normalize the weights on the single_seq_marginal so that each sequence has the same weight when merged to the single_thread_marginals
                 single_thread_err_rate->norm_weights_by_seq_likelihood(single_seq_marginals.marginal_array_smart_p,
                                                                        single_seq_marginals.get_length());
-                // Atomically capture the counter value so formatting can happen outside any lock
-                size_t my_seq_processed;
-#pragma omp atomic capture
-                my_seq_processed = ++sequences_processed;
-
-                // Pre-format the log line outside the critical section (formatting is CPU-bound, not worth locking)
-                stringstream ss_log;
-                ss_log << iteration_accomplished << ";" << my_seq_processed << ";" << get<0>(seq) << ";"
-                       << get<1>(seq) << ";" << get<2>(seq).at(V_gene).size() << ";"
-                       << get<2>(seq).at(J_gene).size() << ";" << single_thread_err_rate->get_seq_likelihood()
-                       << ";" << single_thread_err_rate->get_seq_mean_error_number() << ";"
-                       << single_thread_err_rate->debug_number_scenarios << ";" << max_proba_scenario << ";"
-                       << seq_time.count() << "\n";  // \n avoids endl's fflush() inside the lock
-                string seq_log_str = ss_log.str();
+                seq_time = chrono::system_clock::now() - single_seq_begin;
 #pragma omp critical(dump_seq_info)
                 {
-                    log_file << seq_log_str;
+                    ++sequences_processed;
+                    //Output useful infos in the log file
+                    //log_file<<iteration_accomplished<<";"<<sequences_processed<<";"<<(seq).first<<";"<<(seq).second.at(V_gene).size()<<";"<<(seq).second.at(D_gene).size()<<";"<<(seq).second.at(J_gene).size()<<";"<<single_thread_err_rate->get_seq_probability()<<";"<<single_thread_err_rate->get_seq_likelihood()<<";"<<single_thread_err_rate->debug_number_scenarios<<";"<<max_proba_scenario<<endl;
+                    log_file << iteration_accomplished << ";" << sequences_processed << ";" << get<0>(seq) << ";"
+                             << get<1>(seq) << ";" << get<2>(seq).at(V_gene).size() << ";"
+                             << get<2>(seq).at(J_gene).size() << ";" << single_thread_err_rate->get_seq_likelihood()
+                             << ";" << single_thread_err_rate->get_seq_mean_error_number() << ";"
+                             << single_thread_err_rate->debug_number_scenarios << ";" << max_proba_scenario << ";"
+                             << seq_time.count() << endl;
                 }
-
                 for (map<size_t, shared_ptr<Counter>>::iterator iter = single_thread_counter_list.begin();
                      iter != single_thread_counter_list.end(); ++iter) {
                     iter->second->count_sequence(single_thread_err_rate->get_seq_likelihood(), single_seq_marginals,
                                                  single_thread_model_parms);
-                    // dump_sequence_data handles its own fine-grained omp critical internally
-                    (*iter).second->dump_sequence_data(get<0>(seq), iteration_accomplished);
+#pragma omp critical(dump_counters)
+                    {
+                        (*iter).second->dump_sequence_data(get<0>(seq), iteration_accomplished);
+                    }
                 }
 
                 if (single_thread_err_rate->get_seq_mean_error_number() <= mean_number_seq_err_thresh) {
@@ -522,16 +518,15 @@ bool GenModel::infer_model(
                     single_thread_err_rate->clean_seq_counters();
                 }
 
-                // Check condition before acquiring the lock — 99% of sequences skip the lock entirely
-                if (my_seq_processed % 100 == 0) {
 #pragma omp critical(update_progress_bar)
-                    {
-                        show_progress_bar(cerr, my_seq_processed / total_number_seqs,
+                {
+                    if (sequences_processed % 100 == 0) {
+                        //Output current progress to cerr
+                        show_progress_bar(cerr, sequences_processed / total_number_seqs,
                                           "Iteration " + to_string(iteration_accomplished + 1), 50);
                     }
                 }
             }
-
 
 //Merge single thread error_rates and marginals
 #pragma omp critical(merge_marginals_and_er)

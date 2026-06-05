@@ -32,12 +32,6 @@ using namespace std;
 
 namespace {
 
-struct DinuclTraversalSpec {
-    Seq_type target_seq;
-    Seq_type anchor_seq;
-    Seq_side anchor_side;
-};
-
 vector<DinuclTraversalSpec> get_dinucl_traversal_specs(Gene_class gene_class)
 {
     switch (gene_class) {
@@ -74,6 +68,7 @@ Dinucl_markov::Dinucl_markov(Gene_class gene) : Rec_Event(), total_nucl_count(0)
     updated_upper_bound_proba = new double;
 
     dinuc_proba_matrix = Matrix<double>(15, 15);
+    this->traversal_specs = get_dinucl_traversal_specs(event_class);
     this->update_event_name();
 }
 
@@ -128,8 +123,7 @@ void Dinucl_markov::iterate(
     //Clear all previous scenario realizations
     current_realizations_index_vec.clear();
 
-    const auto traversal_specs = get_dinucl_traversal_specs(event_class);
-    if (traversal_specs.empty()) {
+    if (this->traversal_specs.empty()) {
         throw invalid_argument(std::string("Unknown gene class for DincuclMarkov model: ") + this->event_class);
     }
 
@@ -214,8 +208,7 @@ queue<int> Dinucl_markov::draw_random_realization(
     int index = index_map.at(this->get_name());
     queue<int> realization_queue;
 
-    const auto traversal_specs = get_dinucl_traversal_specs(event_class);
-    if (traversal_specs.empty()) {
+    if (this->traversal_specs.empty()) {
         throw invalid_argument(std::string("Unknown gene class for DincuclMarkov model: ") + this->event_class);
     }
 
@@ -426,8 +419,7 @@ void Dinucl_markov::initialize_event(
     max_vj_ins = EventUtils::get_insertion_len_max(VJ_ins_seq, events_map);
     max_dj_ins = EventUtils::get_insertion_len_max(DJ_ins_seq, events_map);
 
-    const auto traversal_specs = get_dinucl_traversal_specs(this->event_class);
-    if (traversal_specs.empty()) {
+    if (this->traversal_specs.empty()) {
         throw invalid_argument(std::string("Unknown gene class for DincuclMarkov model: ") + this->event_class);
     }
 
@@ -463,8 +455,7 @@ void Dinucl_markov::add_to_marginals(long double scenario_proba, Marginal_array_
         }
     }
 
-    const auto traversal_specs = get_dinucl_traversal_specs(event_class);
-    for (const auto &spec : traversal_specs) {
+    for (const auto &spec : this->traversal_specs) {
         const int *indices = nullptr;
         size_t seq_size = 0;
         switch (spec.target_seq) {

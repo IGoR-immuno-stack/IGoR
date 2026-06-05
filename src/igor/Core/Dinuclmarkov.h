@@ -41,6 +41,12 @@
 
 #include <igorCoreExport.h>
 
+struct DinuclTraversalSpec {
+    Seq_type target_seq;
+    Seq_type anchor_seq;
+    Seq_side anchor_side;
+};
+
 /**
  * \class Dinucl_markov Dinucl_markov.h
  * \brief Dinucleotide insertion Markov model.
@@ -111,6 +117,8 @@ private:
     double *updated_upper_bound_proba =
             nullptr; //This points to a double modified by the Insertion event given the number of insertion
     Matrix<double> dinuc_proba_matrix;
+    
+    std::vector<DinuclTraversalSpec> traversal_specs;
 
     int total_nucl_count;
     //Int_Str vd_seq;//&
