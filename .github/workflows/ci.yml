@@ -170,6 +170,9 @@ jobs:
       - name: Initialize submodules
         run: pixi run submodule-update
 
+      - name: Clean Pixi Enviroment
+        run: pixi run clean
+
       - name: Configure project
         run: pixi run configure
 
