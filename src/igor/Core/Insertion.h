@@ -57,10 +57,10 @@ public:
 
     //Constructors
     Insertion();
-    Insertion(Gene_class, std::pair<int, int>);
-    Insertion(Gene_class, std::forward_list<int>);
-    Insertion(Gene_class);
-    Insertion(Gene_class, std::unordered_map<std::string, Event_realization> &);
+    Insertion(Seq_type, std::pair<int, int>);
+    Insertion(Seq_type, std::forward_list<int>);
+    Insertion(Seq_type);
+    Insertion(Seq_type, std::unordered_map<std::string, Event_realization> &);
 
     //Destructor
     ~Insertion() override;
@@ -148,6 +148,7 @@ private:
     double *dinuc_updated_bound;
 
     int memory_layer_proba_map_junction;
+    Seq_type ins_seq_type;
 
     //Pre create pairs to call seq_offsets (otherwise cost of creating a pair at each call)
     //std::pair<Seq_type,Seq_side> d_5_pair = std::make_pair (D_gene_seq,Five_prime);

@@ -181,18 +181,18 @@ int main(int argc, char* argv[]) {
 	j_5_del.set_nickname("j_5_del");
 	j_5_del.set_priority(5);
 
-	Insertion vd_ins(VD_genes,make_pair(0,30));
+	Insertion vd_ins(VD_ins_seq,make_pair(0,30));
 	vd_ins.set_nickname("vd_ins");
 	vd_ins.set_priority(4);
-	Insertion dj_ins(DJ_genes,make_pair(0,30));
+	Insertion dj_ins(DJ_ins_seq,make_pair(0,30));
 	dj_ins.set_nickname("dj_ins");
 	dj_ins.set_priority(2);
 
-	Dinucl_markov markov_model_vd(VD_genes);
+	Dinucl_markov markov_model_vd(VD_ins_seq);
 	markov_model_vd.set_nickname("vd_dinucl");
 	markov_model_vd.set_priority(3);
 
-	Dinucl_markov markov_model_dj(DJ_genes);
+	Dinucl_markov markov_model_dj(DJ_ins_seq);
 	markov_model_dj.set_nickname("dj_dinucl");
 	markov_model_dj.set_priority(1);
 
@@ -250,7 +250,7 @@ int main(int argc, char* argv[]) {
 	//Instantiate a Counter
 	map<size_t,shared_ptr<Counter>> counters_list;
 	 //Collect gene coverage and errors
-	shared_ptr<Counter> coverage_counter_ptr(new Coverage_err_counter(cl_path + "/run_demo/",VJ_genes,1,false,false));
+	shared_ptr<Counter> coverage_counter_ptr(new Coverage_err_counter(cl_path + "/run_demo/",V_gene,1,false,false));
 	counters_list.emplace(0,coverage_counter_ptr);
 
 	 //Collect 10 best scenarios per sequence during the last iteration

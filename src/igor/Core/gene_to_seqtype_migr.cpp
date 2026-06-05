@@ -6,6 +6,23 @@ using namespace std;
 namespace igor {
 namespace migration {
 
+bool try_gene_class_to_gene_seq_type(Gene_class_legacy gene, Seq_type &seq_type)
+{
+  switch (gene) {
+  case V_gene_legacy:
+    seq_type = V_gene_seq;
+    return true;
+  case D_gene_legacy:
+    seq_type = D_gene_seq;
+    return true;
+  case J_gene_legacy:
+    seq_type = J_gene_seq;
+    return true;
+  default:
+    return false;
+  }
+}
+
 bool try_gene_class_to_gene_seq_type(Gene_class gene, Seq_type &seq_type)
 {
   switch (gene) {
@@ -23,7 +40,7 @@ bool try_gene_class_to_gene_seq_type(Gene_class gene, Seq_type &seq_type)
   }
 }
 
-bool try_insertion_gene_class_to_seq_type(Gene_class gene_pair, Seq_type &seq_type)
+bool try_insertion_gene_class_to_seq_type(Gene_class_legacy gene_pair, Seq_type &seq_type)
 {
   switch (gene_pair) {
   case VD_genes:
@@ -40,7 +57,13 @@ bool try_insertion_gene_class_to_seq_type(Gene_class gene_pair, Seq_type &seq_ty
   }
 }
 
-bool try_insertion_seq_type_to_gene_class(Seq_type seq_type, Gene_class &gene_pair)
+bool try_insertion_gene_class_to_seq_type(Gene_class /*gene_pair*/, Seq_type & /*seq_type*/)
+{
+  // Gene_class (new slim enum) has no junction/insertion types; always fails.
+  return false;
+}
+
+bool try_insertion_seq_type_to_gene_class(Seq_type seq_type, Gene_class_legacy &gene_pair)
 {
   switch (seq_type) {
   case VD_ins_seq:
@@ -59,7 +82,7 @@ bool try_insertion_seq_type_to_gene_class(Seq_type seq_type, Gene_class &gene_pa
 
 bool try_event_key_to_seq_key(
     Event_type event_type,
-    Gene_class gene_class,
+    Gene_class_legacy gene_class,
     Seq_side seq_side,
     std::tuple<Event_type, Seq_type, Seq_side> &seq_key)
 {

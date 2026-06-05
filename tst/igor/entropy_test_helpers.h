@@ -47,7 +47,7 @@ struct EventInfo
     bool is_dinuc_markov; ///< skip empirical check for DinucMarkov
     std::vector<double> model_marginal; ///< P(realization) marginalised over parents
     double H; ///< entropy of the marginal
-    Gene_class gene_class; ///< gene class (VD_genes, DJ_genes, VJ_genes …)
+    Gene_class_legacy gene_class; ///< gene class (VD_genes, DJ_genes, VJ_genes …)
     std::array<double, 16> dinuc_T; ///< transition matrix (only for DinucMarkov)
     double dinuc_entropy_rate; ///< Markov entropy rate h (only for DinucMarkov)
 };
@@ -621,7 +621,7 @@ static inline void print_dinuc_matrix_diagnostics(
 static inline std::vector<ComparisonRow> build_comparison_rows(
         const std::vector<EventInfo> &event_infos,
         const std::map<size_t, std::vector<double>> &compared_marginals,
-        const std::map<Gene_class, InsDinucPair> &ins_dinuc_pairs,
+        const std::map<Gene_class_legacy, InsDinucPair> &ins_dinuc_pairs,
         const Model_Parms *compared_parms = nullptr,
         const Model_marginals *compared_model = nullptr,
         bool compute_combined_kl = false,
@@ -913,7 +913,18 @@ static inline std::vector<EventInfo> build_event_info(const Model_Parms &parms, 
         info.num_realizations = ev->size();
         info.queue_position = pos;
         info.is_dinuc_markov = (ev->get_type() == Event_type::Dinuclmarkov_t);
-        info.gene_class = ev->get_class();
+        // For Insertion/Dinuclmarkov, derive the legacy junction class from seq_type string
+        // (event_class is always Undefined_gene for these events after the refactor).
+        {
+            const std::string &st = ev->get_seq_type();
+            if (st == "VD_ins_seq")      info.gene_class = VD_genes;
+            else if (st == "DJ_ins_seq") info.gene_class = DJ_genes;
+            else if (st == "VJ_ins_seq") info.gene_class = VJ_genes;
+            else if (st == "V_gene_seq") info.gene_class = V_gene_legacy;
+            else if (st == "D_gene_seq") info.gene_class = D_gene_legacy;
+            else if (st == "J_gene_seq") info.gene_class = J_gene_legacy;
+            else                         info.gene_class = Undefined_gene_legacy;
+        }
         info.dinuc_T.fill(0.0);
         info.dinuc_entropy_rate = 0.0;
 
@@ -970,24 +981,24 @@ static inline std::vector<EventInfo> build_event_info(const Model_Parms &parms, 
  * 
  * Following pygor3's get_df_entropy_decomposition(), insertion events
  * like "vj_ins" are paired with their DinucMarkov partner "vj_dinucl"
- * (sharing the same Gene_class). The combined entropy H_total is computed
+ * (sharing the same Gene_class_legacy). The combined entropy H_total is computed
  * using insertion_dinuc_entropy() and the EventInfo.H for insertion events
  * is updated to reflect the full combined entropy.
  * 
  * @param events Vector of EventInfo (modified in-place)
  * @param parms Model parameters (to extract insertion length realizations)
  * @param print_decomposition Whether to print entropy decomposition table
- * @return Map of Gene_class to InsDinucPair for reference
+ * @return Map of Gene_class_legacy to InsDinucPair for reference
  */
-static inline std::map<Gene_class, InsDinucPair> 
+static inline std::map<Gene_class_legacy, InsDinucPair> 
 compute_combined_insertion_dinuc_entropy(
         std::vector<EventInfo> &events,
         const Model_Parms &parms,
         bool print_decomposition = true)
 {
-    std::map<Gene_class, InsDinucPair> ins_dinuc_pairs;
+    std::map<Gene_class_legacy, InsDinucPair> ins_dinuc_pairs;
 
-    // 1. Identify insertion and DinucMarkov event pairs by Gene_class
+    // 1. Identify insertion and DinucMarkov event pairs by Gene_class_legacy
     for (const auto &ev : events) {
         if (ev.is_dinuc_markov) {
             ins_dinuc_pairs[ev.gene_class].dinuc_event = &ev;

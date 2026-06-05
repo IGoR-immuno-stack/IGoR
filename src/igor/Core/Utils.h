@@ -107,16 +107,34 @@ enum Event_type { GeneChoice_t, Deletion_t, Insertion_t, Dinuclmarkov_t, Undefin
 enum Event_safety { VD_safe = 0, DJ_safe = 1, VJ_safe = 2 };
 enum Seq_side { Five_prime = 0, Three_prime = 1, Undefined_side = 2 };
 enum Seq_type { V_gene_seq = 0, VD_ins_seq = 1, D_gene_seq = 2, DJ_ins_seq = 3, J_gene_seq = 4, VJ_ins_seq = 5 };
+/// Slim gene class: only the three fundamental gene types plus Undefined.
+/// Use this everywhere in runtime code. Junction/compound values (VD, DJ, VJ, VDJ)
+/// belong to Gene_class_legacy and are only used at legacy file I/O boundaries.
 enum CORE_EXPORT Gene_class {
     V_gene = 0,
+    D_gene = 1,
+    J_gene = 2,
+    Undefined_gene = 3
+};
+
+CORE_EXPORT Gene_class str2GeneClassNew(const std::string &);
+CORE_EXPORT std::string to_string(const Gene_class);
+CORE_EXPORT std::ostream &operator<<(std::ostream &, Gene_class);
+CORE_EXPORT std::string operator+(const std::string &, Gene_class);
+
+enum CORE_EXPORT Gene_class_legacy {
+    V_gene_legacy = 0,
     VD_genes = 1,   ///< LEGACY: junction class, kept for legacy file read/write only
-    D_gene = 2,
+    D_gene_legacy = 2,
     DJ_genes = 3,   ///< LEGACY: junction class, kept for legacy file read/write only
-    J_gene = 4,
+    J_gene_legacy = 4,
     VJ_genes = 5,   ///< LEGACY: junction class, kept for legacy file read/write only
     VDJ_genes = 6,  ///< LEGACY: junction class, kept for legacy file read/write only
-    Undefined_gene = 7
+    Undefined_gene_legacy = 7
 };
+
+/// Convert legacy gene class (base gene only, not junction) to new Gene_class.
+CORE_EXPORT Gene_class gene_class_legacy_to_new(Gene_class_legacy);
 enum Fileformat { CSV_f, FASTA_f, TXT_f, FASTQ_f };
 enum Int_nt {
     int_A = 0,
@@ -136,14 +154,16 @@ enum Int_nt {
     int_N = 14
 };
 
-CORE_EXPORT Gene_class str2GeneClass(const std::string &);
-CORE_EXPORT std::string to_string(const Gene_class);
+CORE_EXPORT Seq_type str2SeqType(const std::string &);
+CORE_EXPORT std::string to_string(const Seq_type);
+CORE_EXPORT Gene_class_legacy str2GeneClass(const std::string &);
+CORE_EXPORT std::string to_string(const Gene_class_legacy);
 CORE_EXPORT Seq_side str2SeqSide(const std::string &);
 CORE_EXPORT std::string to_string(const Seq_side);
 
-CORE_EXPORT std::ostream &operator<<(std::ostream &, Gene_class);
+CORE_EXPORT std::ostream &operator<<(std::ostream &, Gene_class_legacy);
 CORE_EXPORT std::ostream &operator<<(std::ostream &, Seq_side);
-CORE_EXPORT std::string operator+(const std::string &, Gene_class);
+CORE_EXPORT std::string operator+(const std::string &, Gene_class_legacy);
 CORE_EXPORT std::string operator+(const std::string &, Seq_side);
 CORE_EXPORT std::string operator+(const std::string &, Event_type);
 
@@ -763,7 +783,7 @@ private:
 typedef Str_Dual_key_memory_map<Seq_side, Seq_Offset> Str_Seq_offsets_map;
 
 /*
- * Defining a hash functions for Rec_Event, Gene_class and pair<Gene_class,Seq_side>
+ * Defining a hash functions for Rec_Event, Gene_class_legacy and pair<Gene_class_legacy,Seq_side>
  */
 namespace std {
 /*
@@ -802,21 +822,27 @@ struct hash<Gene_class>
 };
 
 template <>
-struct hash<std::pair<Gene_class, Seq_side>>
+struct hash<Gene_class_legacy>
 {
-    std::size_t operator()(const pair<Gene_class, Seq_side> &gene_pair) const
+    std::size_t operator()(const Gene_class_legacy &gene) const { return hash<int>()(gene); }
+};
+
+template <>
+struct hash<std::pair<Gene_class_legacy, Seq_side>>
+{
+    std::size_t operator()(const pair<Gene_class_legacy, Seq_side> &gene_pair) const
     {
-        return (hash<Gene_class>()(gene_pair.first) ^ (hash<int>()(gene_pair.second) << 1)) >> 1;
+        return (hash<Gene_class_legacy>()(gene_pair.first) ^ (hash<int>()(gene_pair.second) << 1)) >> 1;
     }
 };
 
 template <>
-struct hash<std::tuple<Event_type, Gene_class, Seq_side>>
+struct hash<std::tuple<Event_type, Gene_class_legacy, Seq_side>>
 {
-    std::size_t operator()(const std::tuple<Event_type, Gene_class, Seq_side> &event_triplet) const
+    std::size_t operator()(const std::tuple<Event_type, Gene_class_legacy, Seq_side> &event_triplet) const
     {
         Event_type ev_type;
-        Gene_class g_class;
+        Gene_class_legacy g_class;
         Seq_side s_side;
         std::tie(ev_type, g_class, s_side) = event_triplet;
         return ((hash<int>()(ev_type) ^ (hash<int>()(g_class) << 1) >> 1) ^ (hash<int>()(s_side) << 1));

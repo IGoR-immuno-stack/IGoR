@@ -32,15 +32,27 @@
 
 using namespace std;
 
+namespace {
+/// Convert the seq_type string (e.g. "VD_ins_seq") to a Seq_type enum value.
+/// Returns false when the string is not a recognised insertion seq_type.
+bool insertion_seq_type_str_to_enum(const std::string &seq_type_str, Seq_type &out)
+{
+    if (seq_type_str == "VD_ins_seq") { out = VD_ins_seq; return true; }
+    if (seq_type_str == "DJ_ins_seq") { out = DJ_ins_seq; return true; }
+    if (seq_type_str == "VJ_ins_seq") { out = VJ_ins_seq; return true; }
+    return false;
+}
+} // namespace
 
 
-Insertion::Insertion() : Insertion(Undefined_gene)
+
+Insertion::Insertion() : Insertion(VD_ins_seq)
 {
     this->type = Event_type::Insertion_t;
     this->update_event_name();
 }
 
-Insertion::Insertion(Gene_class genes, pair<int, int> ins_range) : Insertion(genes)
+Insertion::Insertion(Seq_type seq_type, pair<int, int> ins_range) : Insertion(seq_type)
 { //FIXME nonsense new
 
     int min_ins = std::min(ins_range.first, ins_range.second);
@@ -56,8 +68,9 @@ Insertion::Insertion(Gene_class genes, pair<int, int> ins_range) : Insertion(gen
     this->update_event_name();
 }
 
-Insertion::Insertion(Gene_class gene)
-    : Rec_Event(gene, Undefined_side),
+Insertion::Insertion(Seq_type seq_type)
+    : Rec_Event(Undefined_gene, Undefined_side),
+      ins_seq_type(seq_type),
       proba_contribution(-1),
       previous_index(-1),
       insertions(-1),
@@ -79,7 +92,7 @@ Insertion::Insertion(Gene_class gene)
     this->update_event_name();
 }
 
-Insertion::Insertion(Gene_class gene, unordered_map<string, Event_realization> &realizations) : Insertion(gene)
+Insertion::Insertion(Seq_type seq_type, unordered_map<string, Event_realization> &realizations) : Insertion(seq_type)
 {
     this->event_realizations = realizations;
 
@@ -104,7 +117,7 @@ shared_ptr<Rec_Event> Insertion::copy()
 {
     //TODO check this kind of copy for memory leak
     shared_ptr<Insertion> new_insertion_p =
-            shared_ptr<Insertion>(new Insertion(this->event_class, this->event_realizations));
+            shared_ptr<Insertion>(new Insertion(this->ins_seq_type, this->event_realizations));
     new_insertion_p->priority = this->priority;
     new_insertion_p->nickname = this->nickname;
     new_insertion_p->fixed = this->fixed;
@@ -258,7 +271,7 @@ queue<int> Insertion::draw_random_realization(
         prob_count += model_marginals_p[index_map.at(this->get_name()) + (*iter).second.index];
         if (prob_count >= rand) {
             Seq_type seq_type = VD_ins_seq;
-            if (igor::migration::try_insertion_gene_class_to_seq_type(this->event_class, seq_type)) {
+            if (insertion_seq_type_str_to_enum(this->seq_type, seq_type)) {
                 constructed_sequences[seq_type] = string((*iter).second.value_int, 'I');
             }
             realization_queue.push((*iter).second.index);
@@ -289,7 +302,7 @@ void Insertion::write2txt_legacy(ofstream &outfile)
     if (seq_type == "VD_ins_seq") legacy_gene_class = to_string(VD_genes);
     else if (seq_type == "DJ_ins_seq") legacy_gene_class = to_string(DJ_genes);
     else if (seq_type == "VJ_ins_seq") legacy_gene_class = to_string(VJ_genes);
-    else legacy_gene_class = to_string(event_class);
+    else legacy_gene_class = to_string(Undefined_gene);
     outfile << "#Insertion;" << legacy_gene_class << ";" << event_side << ";" << priority << ";" << nickname << endl;
     for (unordered_map<string, Event_realization>::const_iterator iter = event_realizations.begin();
          iter != event_realizations.end(); ++iter) {
@@ -315,7 +328,7 @@ void Insertion::initialize_event(
         Seq_offsets_map &seq_offsets, Index_map &index_map)
 {
     Seq_type seq_type = VD_ins_seq;
-    if (!igor::migration::try_insertion_gene_class_to_seq_type(this->event_class, seq_type)) {
+    if (!insertion_seq_type_str_to_enum(this->seq_type, seq_type)) {
         throw runtime_error("Unknown insertion event_class in initialize_event");
     }
 
@@ -374,23 +387,21 @@ void Insertion::initialize_crude_scenario_proba_bound(
         ordered_realization_map.emplace((*iter).second.value_int, (*iter).second);
     }
 
-    switch (this->event_class) {
-    case VD_genes:
-        // Look up the VD dinuclotide matrix only; VDJ alias handled by the legacy bridge.
+    switch (this->ins_seq_type) {
+    case VD_ins_seq:
         EventUtils::try_get_event(events_map, Dinuclmarkov_t, VD_ins_seq, Undefined_side, dinuc_event_p);
         break;
 
-    case VJ_genes:
+    case VJ_ins_seq:
         EventUtils::try_get_event(events_map, Dinuclmarkov_t, VJ_ins_seq, Undefined_side, dinuc_event_p);
         break;
 
-    case DJ_genes:
-        // Look up the DJ dinucleotide matrix only; VDJ alias handled by the legacy bridge.
+    case DJ_ins_seq:
         EventUtils::try_get_event(events_map, Dinuclmarkov_t, DJ_ins_seq, Undefined_side, dinuc_event_p);
         break;
 
     default:
-        throw runtime_error("Unknown event_class for insertion in initialize_scenario_proba_bound()");
+        throw runtime_error("Unknown ins_seq_type for insertion in initialize_scenario_proba_bound()");
     }
     if (!dinuc_event_p) {
         throw runtime_error("Could not find associated Dinuclmarkov event for Insertion bounds");
@@ -440,7 +451,7 @@ void Insertion::iterate_initialize_Len_proba(Seq_type considered_junction, std::
 
         //Insert sequence in the right constructed sequence
         Seq_type seq_type = VD_ins_seq;
-        if (!igor::migration::try_insertion_gene_class_to_seq_type(this->event_class, seq_type)) {
+        if (!insertion_seq_type_str_to_enum(this->seq_type, seq_type)) {
             throw runtime_error("Unknown insertion event_class in iterate_initialize_Len_proba");
         }
 
@@ -486,7 +497,7 @@ void Insertion::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &model_q
                                            const Marginal_array_p &model_parameters_point, Index_map &base_index_map)
 {
     Seq_type seq_type = VD_ins_seq;
-    if (!igor::migration::try_insertion_gene_class_to_seq_type(this->event_class, seq_type)) {
+    if (!insertion_seq_type_str_to_enum(this->seq_type, seq_type)) {
         throw runtime_error("Unknown insertion event_class in initialize_Len_proba_bound");
     }
 

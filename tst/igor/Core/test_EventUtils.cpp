@@ -373,10 +373,10 @@ TEST_CASE("EventUtils TryEventKeyToSeqKey", "[EventUtils]") {
   tuple<Event_type, Seq_type, Seq_side> seq_key;
 
   SECTION("GeneChoice and Deletion mapping") {
-    REQUIRE(igor::migration::try_event_key_to_seq_key(GeneChoice_t, V_gene, Undefined_side, seq_key));
+    REQUIRE(igor::migration::try_event_key_to_seq_key(GeneChoice_t, V_gene_legacy, Undefined_side, seq_key));
     REQUIRE(seq_key == make_tuple(GeneChoice_t, V_gene_seq, Undefined_side));
 
-    REQUIRE(igor::migration::try_event_key_to_seq_key(Deletion_t, J_gene, Five_prime, seq_key));
+    REQUIRE(igor::migration::try_event_key_to_seq_key(Deletion_t, J_gene_legacy, Five_prime, seq_key));
     REQUIRE(seq_key == make_tuple(Deletion_t, J_gene_seq, Five_prime));
   }
 
@@ -404,7 +404,7 @@ public:
 };
 
 TEST_CASE("Insertion Bridge Integration", "[Insertion]") {
-  Insertion ins_vd(VD_genes, std::make_pair(0, 10));
+  Insertion ins_vd(VD_ins_seq, std::make_pair(0, 10));
 
   SECTION("VD dinuc event found via string key") {
     Events_map events_map;

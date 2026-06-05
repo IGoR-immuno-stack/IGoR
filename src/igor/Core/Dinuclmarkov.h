@@ -61,7 +61,7 @@ public:
         using Rec_Event::initialize_crude_scenario_proba_bound;
 
     //Constructors
-    Dinucl_markov(Gene_class); //TODO should be scalable on one side easily (mono di tri quadri nucl)
+    Dinucl_markov(Seq_type); //TODO should be scalable on one side easily (mono di tri quadri nucl)
     //Destructor
     ~Dinucl_markov() override;
 
@@ -159,6 +159,7 @@ private:
 
     int memory_layer_proba_map_junction_1;
     int memory_layer_proba_map_junction_2;
+    Seq_type ins_seq_type;
 
     //std::pair<Seq_type,Seq_side> v_5_pair = std::make_pair (V_gene_seq,Five_prime);
     //std::pair<Seq_type,Seq_side> j_5_pair = std::make_pair (J_gene_seq,Five_prime);

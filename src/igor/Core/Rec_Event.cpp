@@ -32,17 +32,17 @@
 
 using namespace std;
 
-unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>>
+unordered_map<tuple<Event_type, Gene_class_legacy, Seq_side>, shared_ptr<Rec_Event>>
 build_legacy_events_map(const unordered_map<tuple<Event_type, Seq_type, Seq_side>, shared_ptr<Rec_Event>> &events_map)
 {
-    unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> legacy_events_map;
+    unordered_map<tuple<Event_type, Gene_class_legacy, Seq_side>, shared_ptr<Rec_Event>> legacy_events_map;
     legacy_events_map.reserve(events_map.size());
     for (const auto &entry : events_map) {
         Event_type event_type = get<0>(entry.first);
         Seq_type seq_type = get<1>(entry.first);
         Seq_side seq_side = get<2>(entry.first);
 
-        Gene_class gene_class = Undefined_gene;
+        Gene_class_legacy gene_class = Undefined_gene_legacy;
         bool converted = false;
 
         if (event_type == Insertion_t || event_type == Dinuclmarkov_t) {
@@ -50,15 +50,15 @@ build_legacy_events_map(const unordered_map<tuple<Event_type, Seq_type, Seq_side
         } else {
             switch (seq_type) {
             case V_gene_seq:
-                gene_class = V_gene;
+                gene_class = V_gene_legacy;
                 converted = true;
                 break;
             case D_gene_seq:
-                gene_class = D_gene;
+                gene_class = D_gene_legacy;
                 converted = true;
                 break;
             case J_gene_seq:
-                gene_class = J_gene;
+                gene_class = J_gene_legacy;
                 converted = true;
                 break;
             default:

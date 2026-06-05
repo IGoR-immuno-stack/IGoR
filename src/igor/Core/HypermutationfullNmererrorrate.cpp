@@ -32,8 +32,8 @@ using namespace EventUtils;
 
 
 
-Hypermutation_full_Nmer_errorrate::Hypermutation_full_Nmer_errorrate(size_t nmer_width, Gene_class learn,
-                                                                     Gene_class apply, double starting_flat_value,
+Hypermutation_full_Nmer_errorrate::Hypermutation_full_Nmer_errorrate(size_t nmer_width, Gene_class_legacy learn,
+                                                                     Gene_class_legacy apply, double starting_flat_value,
                                                                      size_t n_observed_thresh /*=0*/)
     : Error_rate(),
       n_observed_Nmer_threshold(n_observed_thresh),
@@ -80,8 +80,8 @@ Hypermutation_full_Nmer_errorrate::Hypermutation_full_Nmer_errorrate(size_t nmer
 
     if (fmod(nmer_width, 2) == 0) {
         throw runtime_error("Cannot instanciate hypermutation full Nmer error rate with an even size Nmer(need to be "
-                            "symmetric) in Hypermutation_full_Nmer_errorrate(size_t nmer_width , Gene_class learn , "
-                            "Gene_class apply , double starting_flat_value)");
+                            "symmetric) in Hypermutation_full_Nmer_errorrate(size_t nmer_width , Gene_class_legacy learn , "
+                            "Gene_class_legacy apply , double starting_flat_value)");
     }
 
     size_t array_size = pow(4, mutation_Nmer_size);
@@ -90,7 +90,7 @@ Hypermutation_full_Nmer_errorrate::Hypermutation_full_Nmer_errorrate(size_t nmer
         throw invalid_argument(
                 "The starting flat value for the hypermutation probability must lie between 0 and 1, passed value is "
                 + to_string(starting_flat_value)
-                + " in Hypermutation_full_Nmer_errorrate(size_t nmer_width , Gene_class learn , Gene_class apply , "
+                + " in Hypermutation_full_Nmer_errorrate(size_t nmer_width , Gene_class_legacy learn , Gene_class_legacy apply , "
                   "double starting_flat_value)");
     }
 
@@ -153,8 +153,8 @@ Hypermutation_full_Nmer_errorrate::Hypermutation_full_Nmer_errorrate(size_t nmer
     output_Nmer_stat = false;
 }
 
-Hypermutation_full_Nmer_errorrate::Hypermutation_full_Nmer_errorrate(size_t nmer_width, Gene_class learn,
-                                                                     Gene_class apply,
+Hypermutation_full_Nmer_errorrate::Hypermutation_full_Nmer_errorrate(size_t nmer_width, Gene_class_legacy learn,
+                                                                     Gene_class_legacy apply,
                                                                      vector<double> init_Nmer_mutations_probas,
                                                                      size_t n_observed_thresh /*=0*/)
     : Hypermutation_full_Nmer_errorrate(nmer_width, learn, apply, 0, n_observed_thresh)
@@ -167,27 +167,27 @@ Hypermutation_full_Nmer_errorrate::Hypermutation_full_Nmer_errorrate(size_t nmer
                 throw invalid_argument("The starting values for the hypermutation probabilities must lie between 0 and "
                                        "1, passed value is "
                                        + to_string(init_Nmer_mutations_probas[i]) + "for Nmer index " + to_string(i)
-                                       + " in Hypermutation_full_Nmer_errorrate(size_t nmer_width , Gene_class learn , "
-                                         "Gene_class apply , vector<double> init_Nmer_mutations_probas)");
+                                       + " in Hypermutation_full_Nmer_errorrate(size_t nmer_width , Gene_class_legacy learn , "
+                                         "Gene_class_legacy apply , vector<double> init_Nmer_mutations_probas)");
             }
         }
     } else {
         throw runtime_error(
                 "Size of Nmer mutation probabilities vector does not match the expected size in "
-                "Hypermutation_full_Nmer_errorrate(size_t,Gene_class,Gene_class,double,std::vector<double>)");
+                "Hypermutation_full_Nmer_errorrate(size_t,Gene_class_legacy,Gene_class_legacy,double,std::vector<double>)");
     }
 }
 
-Hypermutation_full_Nmer_errorrate::Hypermutation_full_Nmer_errorrate(size_t nmer_width, Gene_class learn,
-                                                                     Gene_class apply, double starting_flat_value,
+Hypermutation_full_Nmer_errorrate::Hypermutation_full_Nmer_errorrate(size_t nmer_width, Gene_class_legacy learn,
+                                                                     Gene_class_legacy apply, double starting_flat_value,
                                                                      string filename, size_t n_observed_thresh /*=0*/)
     : Hypermutation_full_Nmer_errorrate(nmer_width, learn, apply, starting_flat_value, n_observed_thresh)
 {
     this->set_output_Nmer_stream(filename);
 }
 
-Hypermutation_full_Nmer_errorrate::Hypermutation_full_Nmer_errorrate(size_t nmer_width, Gene_class learn,
-                                                                     Gene_class apply,
+Hypermutation_full_Nmer_errorrate::Hypermutation_full_Nmer_errorrate(size_t nmer_width, Gene_class_legacy learn,
+                                                                     Gene_class_legacy apply,
                                                                      vector<double> init_Nmer_mutations_probas,
                                                                      string filename, size_t n_observed_thresh /*=0*/)
     : Hypermutation_full_Nmer_errorrate(nmer_width, learn, apply, init_Nmer_mutations_probas, n_observed_thresh)

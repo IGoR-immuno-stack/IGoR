@@ -39,20 +39,15 @@ struct DinuclTraversalSpec {
     bool reverse_traversal;
 };
 
-vector<DinuclTraversalSpec> get_dinucl_traversal_specs(Gene_class gene_class)
+vector<DinuclTraversalSpec> get_dinucl_traversal_specs(Seq_type seq_type)
 {
-    switch (gene_class) {
-    case VD_genes:
+    switch (seq_type) {
+    case VD_ins_seq:
         return { { VD_ins_seq, V_gene_seq, Five_prime, false } };
-    case DJ_genes:
+    case DJ_ins_seq:
         return { { DJ_ins_seq, J_gene_seq, Five_prime, true } };
-    case VJ_genes:
-        return { { VJ_ins_seq, V_gene_seq, Five_prime, false } };
-    case VDJ_genes:
-        return {
-            { VD_ins_seq, V_gene_seq, Five_prime, false },
-            { DJ_ins_seq, J_gene_seq, Five_prime, true },
-        };
+    case VJ_ins_seq:
+        return { { VJ_ins_seq, J_gene_seq, Five_prime, true } };
     default:
         return {};
     }
@@ -60,10 +55,9 @@ vector<DinuclTraversalSpec> get_dinucl_traversal_specs(Gene_class gene_class)
 
 } // namespace
 
-Dinucl_markov::Dinucl_markov(Gene_class gene) : Rec_Event(), total_nucl_count(0)
+Dinucl_markov::Dinucl_markov(Seq_type seq_type) : Rec_Event(), total_nucl_count(0), ins_seq_type(seq_type)
 {
     this->type = Event_type::Dinuclmarkov_t;
-    event_class = gene;
     //Same indexes as Aligner::nt2int
 
     event_realizations.emplace("A", Event_realization("A", INT16_MAX, "A", Int_Str(), 0));
@@ -94,7 +88,7 @@ Dinucl_markov::~Dinucl_markov()
 shared_ptr<Rec_Event> Dinucl_markov::copy()
 {
     //TODO rewrite this by invoking a copy constructor?
-    shared_ptr<Dinucl_markov> new_dinucl_markov_p = shared_ptr<Dinucl_markov>(new Dinucl_markov(this->event_class));
+    shared_ptr<Dinucl_markov> new_dinucl_markov_p = shared_ptr<Dinucl_markov>(new Dinucl_markov(this->ins_seq_type));
     new_dinucl_markov_p->priority = this->priority;
     new_dinucl_markov_p->nickname = this->nickname;
     new_dinucl_markov_p->fixed = this->fixed;
@@ -131,9 +125,9 @@ void Dinucl_markov::iterate(
     //Clear all previous scenario realizations
     current_realizations_index_vec.clear();
 
-    const auto traversal_specs = get_dinucl_traversal_specs(event_class);
+    const auto traversal_specs = get_dinucl_traversal_specs(ins_seq_type);
     if (traversal_specs.empty()) {
-        throw invalid_argument(std::string("Unknown gene class for DincuclMarkov model: ") + this->event_class);
+        throw invalid_argument(std::string("Unknown seq_type for DinuclMarkov model: ") + to_string(this->ins_seq_type));
     }
 
     auto indices_array_for_target = [&](Seq_type seq_type) -> int * {
@@ -212,9 +206,9 @@ queue<int> Dinucl_markov::draw_random_realization(
     int index = index_map.at(this->get_name());
     queue<int> realization_queue;
 
-    const auto traversal_specs = get_dinucl_traversal_specs(event_class);
+    const auto traversal_specs = get_dinucl_traversal_specs(ins_seq_type);
     if (traversal_specs.empty()) {
-        throw invalid_argument(std::string("Unknown gene class for DincuclMarkov model: ") + this->event_class);
+        throw invalid_argument(std::string("Unknown seq_type for DinuclMarkov model: ") + to_string(this->ins_seq_type));
     }
 
     for (const auto &spec : traversal_specs) {
@@ -320,7 +314,7 @@ void Dinucl_markov::write2txt_legacy(ofstream &outfile)
     if (seq_type == "VD_ins_seq") legacy_gene_class = to_string(VD_genes);
     else if (seq_type == "DJ_ins_seq") legacy_gene_class = to_string(DJ_genes);
     else if (seq_type == "VJ_ins_seq") legacy_gene_class = to_string(VJ_genes);
-    else legacy_gene_class = to_string(event_class);
+    else legacy_gene_class = to_string(Undefined_gene);
     outfile << "#DinucMarkov;" << legacy_gene_class << ";" << event_side << ";" << priority << ";" << nickname << endl;
     for (unordered_map<string, Event_realization>::const_iterator iter = event_realizations.begin();
          iter != event_realizations.end(); ++iter) {
@@ -443,9 +437,9 @@ void Dinucl_markov::initialize_event(
     max_vj_ins = EventUtils::get_insertion_len_max("VJ_ins_seq", events_map);
     max_dj_ins = EventUtils::get_insertion_len_max("DJ_ins_seq", events_map);
 
-    const auto traversal_specs = get_dinucl_traversal_specs(this->event_class);
+    const auto traversal_specs = get_dinucl_traversal_specs(this->ins_seq_type);
     if (traversal_specs.empty()) {
-        throw invalid_argument(std::string("Unknown gene class for DincuclMarkov model: ") + this->event_class);
+        throw invalid_argument(std::string("Unknown seq_type for DinuclMarkov model: ") + to_string(this->ins_seq_type));
     }
 
     for (const auto &spec : traversal_specs) {
@@ -480,7 +474,7 @@ void Dinucl_markov::add_to_marginals(long double scenario_proba, Marginal_array_
         }
     }
 
-    const auto traversal_specs = get_dinucl_traversal_specs(event_class);
+    const auto traversal_specs = get_dinucl_traversal_specs(ins_seq_type);
     for (const auto &spec : traversal_specs) {
         const int *indices = nullptr;
         size_t seq_size = 0;

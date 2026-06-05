@@ -77,20 +77,9 @@ Coverage_err_counter::Coverage_err_counter(string path, Gene_class count_on, siz
       j_5_del_value_p(NULL)
 {
 
-    if (count_on == V_gene | count_on == VJ_genes | count_on == VD_genes | count_on == VDJ_genes) {
-        count_on_v = true;
-    } else
-        count_on_v = false;
-
-    if (count_on == D_gene | count_on == DJ_genes | count_on == VD_genes | count_on == VDJ_genes) {
-        count_on_d = true;
-    } else
-        count_on_d = false;
-
-    if (count_on == J_gene | count_on == VJ_genes | count_on == DJ_genes | count_on == VDJ_genes) {
-        count_on_j = true;
-    } else
-        count_on_j = false;
+    count_on_v = (count_on == V_gene);
+    count_on_d = (count_on == D_gene);
+    count_on_j = (count_on == J_gene);
 }
 
 Coverage_err_counter::~Coverage_err_counter()

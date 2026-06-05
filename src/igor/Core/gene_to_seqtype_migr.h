@@ -16,17 +16,19 @@
 namespace igor {
 namespace migration {
 
-using LegacyEventsMap = std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>>;
+using LegacyEventsMap = std::unordered_map<std::tuple<Event_type, Gene_class_legacy, Seq_side>, std::shared_ptr<Rec_Event>>;
 
+CORE_EXPORT bool try_gene_class_to_gene_seq_type(Gene_class_legacy gene, Seq_type &seq_type);
 CORE_EXPORT bool try_gene_class_to_gene_seq_type(Gene_class gene, Seq_type &seq_type);
 
+CORE_EXPORT bool try_insertion_gene_class_to_seq_type(Gene_class_legacy gene_pair, Seq_type &seq_type);
 CORE_EXPORT bool try_insertion_gene_class_to_seq_type(Gene_class gene_pair, Seq_type &seq_type);
 
-CORE_EXPORT bool try_insertion_seq_type_to_gene_class(Seq_type seq_type, Gene_class &gene_pair);
+CORE_EXPORT bool try_insertion_seq_type_to_gene_class(Seq_type seq_type, Gene_class_legacy &gene_pair);
 
 CORE_EXPORT bool try_event_key_to_seq_key(
     Event_type event_type,
-    Gene_class gene_class,
+    Gene_class_legacy gene_class,
     Seq_side seq_side,
     std::tuple<Event_type, Seq_type, Seq_side> &seq_key);
 

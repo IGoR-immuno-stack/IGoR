@@ -917,12 +917,11 @@ int main(int argc, char *argv[])
                     Gene_class chosen_gc;
                     ++carg_i;
                     try {
-                        chosen_gc = str2GeneClass(string(argv[carg_i]));
+                        chosen_gc = gene_class_legacy_to_new(str2GeneClass(string(argv[carg_i])));
                     } catch (exception &e) {
                         return terminate_IGoR_with_error_message(
                                 "Unknown argument \"" + string(argv[carg_i])
-                                + "\" to specify coverage target!\n Supported arguments are: V_gene, VD_genes, D_gene, "
-                                  "DJ_gene, VJ_gene, J_gene, VDJ_genes");
+                                + "\" to specify coverage target!\n Supported arguments are: V_gene, D_gene, J_gene");
                     }
                     shared_ptr<Counter> coverage_counter_ptr(
                             new Coverage_err_counter(cl_path + "output/", chosen_gc, 1, false, false));
@@ -1624,18 +1623,18 @@ int main(int argc, char *argv[])
         j_5_del.set_nickname("j_5_del");
         j_5_del.set_priority(5);
 
-        Insertion vd_ins(VD_genes, make_pair(0, 30));
+        Insertion vd_ins(VD_ins_seq, make_pair(0, 30));
         vd_ins.set_nickname("vd_ins");
         vd_ins.set_priority(4);
-        Insertion dj_ins(DJ_genes, make_pair(0, 30));
+        Insertion dj_ins(DJ_ins_seq, make_pair(0, 30));
         dj_ins.set_nickname("dj_ins");
         dj_ins.set_priority(2);
 
-        Dinucl_markov markov_model_vd(VD_genes);
+        Dinucl_markov markov_model_vd(VD_ins_seq);
         markov_model_vd.set_nickname("vd_dinucl");
         markov_model_vd.set_priority(3);
 
-        Dinucl_markov markov_model_dj(DJ_genes);
+        Dinucl_markov markov_model_dj(DJ_ins_seq);
         markov_model_dj.set_nickname("dj_dinucl");
         markov_model_dj.set_priority(1);
 
@@ -1691,8 +1690,11 @@ int main(int argc, char *argv[])
         map<size_t, shared_ptr<Counter>> counters_list;
         //Collect gene coverage and errors
         shared_ptr<Counter> coverage_counter_ptr(
-                new Coverage_err_counter(cl_path + "/run_demo/", VJ_genes, 1, false, false));
+                new Coverage_err_counter(cl_path + "/run_demo/", V_gene, 1, false, false));
         counters_list.emplace(0, coverage_counter_ptr);
+        shared_ptr<Counter> coverage_counter_j_ptr(
+                new Coverage_err_counter(cl_path + "/run_demo/", J_gene, 1, false, false));
+        counters_list.emplace(4, coverage_counter_j_ptr);
 
         //Collect 10 best scenarios per sequence during the last iteration
         shared_ptr<Counter> best_sc_ptr(new Best_scenarios_counter(10, cl_path + "/run_demo/", true));

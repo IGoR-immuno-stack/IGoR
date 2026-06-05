@@ -132,9 +132,9 @@ std::optional<Alignment_data> extract_alignment(
     // Determine prefix based on gene class
     std::string prefix;
     switch (gene_class) {
-        case V_gene: prefix = "v_"; break;
-        case D_gene: prefix = "d_"; break;
-        case J_gene: prefix = "j_"; break;
+        case Gene_class::V_gene: prefix = "v_"; break;
+        case Gene_class::D_gene: prefix = "d_"; break;
+        case Gene_class::J_gene: prefix = "j_"; break;
         default: return std::nullopt;
     }
 
@@ -349,19 +349,19 @@ std::vector<SequenceData> read_sequences(const std::string& filepath, Delimiter 
         // Extract alignments for V, D, J genes
         std::unordered_map<Gene_class, std::vector<Alignment_data>> alignments;
 
-        auto v_align = extract_alignment(fields, col_idx, V_gene);
+        auto v_align = extract_alignment(fields, col_idx, Gene_class::V_gene);
         if (v_align) {
-            alignments[V_gene].push_back(*v_align);
+            alignments[Gene_class::V_gene].push_back(*v_align);
         }
 
-        auto d_align = extract_alignment(fields, col_idx, D_gene);
+        auto d_align = extract_alignment(fields, col_idx, Gene_class::D_gene);
         if (d_align) {
-            alignments[D_gene].push_back(*d_align);
+            alignments[Gene_class::D_gene].push_back(*d_align);
         }
 
-        auto j_align = extract_alignment(fields, col_idx, J_gene);
+        auto j_align = extract_alignment(fields, col_idx, Gene_class::J_gene);
         if (j_align) {
-            alignments[J_gene].push_back(*j_align);
+            alignments[Gene_class::J_gene].push_back(*j_align);
         }
 
         sequences.emplace_back(seq_id, sequence, alignments);

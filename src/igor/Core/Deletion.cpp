@@ -43,7 +43,7 @@ Seq_type get_deletion_target_seq_type(Gene_class gene_class)
     case J_gene:
         return J_gene_seq;
     default:
-        throw invalid_argument(std::string("Unknown gene for deletions : ") + gene_class);
+        throw invalid_argument(std::string("Unknown gene for deletions : ") + to_string(gene_class));
     }
 }
 

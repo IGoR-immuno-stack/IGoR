@@ -245,7 +245,7 @@ TEST_CASE("SeqTypeRegistry inferred as VDJ order from legacy format", "[model_fo
     REQUIRE(registry.get_ordered_types() == expected);
 }
 
-// ── Gene_class validation in v2 format ──────────────────────────────────────
+// ── Gene_class_legacy validation in v2 format ──────────────────────────────────────
 
 // In v2.0 a GeneChoice event may only carry an alignment-purpose gene_class
 // (V_gene, D_gene, J_gene, Undefined_gene).  Junction classes (VD_genes,
@@ -356,7 +356,7 @@ TEST_CASE("v2 format: GeneChoice with valid gene_class accepted",
 struct EventSummary {
     std::string nickname;
     Event_type  type;
-    Gene_class  gene_class;  // only meaningful for GeneChoice
+    Gene_class_legacy  gene_class;  // only meaningful for GeneChoice
     std::string seq_type;
     Seq_side    side;
     int         num_realizations;

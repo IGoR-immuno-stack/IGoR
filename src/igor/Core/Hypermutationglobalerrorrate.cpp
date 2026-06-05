@@ -34,7 +34,7 @@ using namespace std;
 
 //ofstream debug_stream("/tmp/debug_stream.csv");
 
-/*Hypermutation_global_errorrate::Hypermutation_global_errorrate(size_t nmer_width , Gene_class learn , Gene_class apply , double starting_flat_value): Error_rate() , mutation_Nmer_size(nmer_width) , learn_on(learn) , apply_to(apply) , ei_nucleotide_contributions((new double [4*nmer_width])) , R(starting_flat_value) , n_v_real(0) , n_j_real(0) , n_d_real(0) ,
+/*Hypermutation_global_errorrate::Hypermutation_global_errorrate(size_t nmer_width , Gene_class_legacy learn , Gene_class_legacy apply , double starting_flat_value): Error_rate() , mutation_Nmer_size(nmer_width) , learn_on(learn) , apply_to(apply) , ei_nucleotide_contributions((new double [4*nmer_width])) , R(starting_flat_value) , n_v_real(0) , n_j_real(0) , n_d_real(0) ,
 		v_gene_nucleotide_coverage_p(NULL) , v_gene_per_nucleotide_error_p(NULL),d_gene_nucleotide_coverage_p(NULL) , d_gene_per_nucleotide_error_p(NULL),j_gene_nucleotide_coverage_p(NULL) , j_gene_per_nucleotide_error_p(NULL),
 		v_gene_nucleotide_coverage_seq_p(NULL) , v_gene_per_nucleotide_error_seq_p(NULL) , d_gene_nucleotide_coverage_seq_p(NULL) , d_gene_per_nucleotide_error_seq_p(NULL) , j_gene_nucleotide_coverage_seq_p(NULL) , j_gene_per_nucleotide_error_seq_p(NULL) ,
 		dj_ins(true) , vd_ins(true) , vj_ins(true) , v_gene(true) , d_gene(true) , j_gene(true) ,
@@ -44,7 +44,7 @@ using namespace std;
 		i(-1) , j(-1) , v_3_del_value_corr(INT16_MAX) , d_5_del_value_corr(INT16_MAX) , d_3_del_value_corr(INT16_MAX) , j_5_del_value_corr(INT16_MAX) , tmp_cov_p(NULL) , tmp_err_p(NULL) , tmp_corr_len(-1) , tmp_len_util(-1) , scenario_new_proba(-1) ,
 		largest_nuc_adress(-1), tmp_int_nt(-1) , Nmer_index(-1){*/
 
-Hypermutation_global_errorrate::Hypermutation_global_errorrate(size_t nmer_width, Gene_class learn, Gene_class apply,
+Hypermutation_global_errorrate::Hypermutation_global_errorrate(size_t nmer_width, Gene_class_legacy learn, Gene_class_legacy apply,
                                                                double starting_flat_value)
     : Error_rate(),
       mutation_Nmer_size(nmer_width),
@@ -169,7 +169,7 @@ Hypermutation_global_errorrate::Hypermutation_global_errorrate(size_t nmer_width
     output_Nmer_stat = false;
 }
 
-Hypermutation_global_errorrate::Hypermutation_global_errorrate(size_t nmer_width, Gene_class learn, Gene_class apply,
+Hypermutation_global_errorrate::Hypermutation_global_errorrate(size_t nmer_width, Gene_class_legacy learn, Gene_class_legacy apply,
                                                                double starting_flat_value,
                                                                vector<double> ei_contributions)
     : Hypermutation_global_errorrate(nmer_width, learn, apply, starting_flat_value)
@@ -180,20 +180,20 @@ Hypermutation_global_errorrate::Hypermutation_global_errorrate(size_t nmer_width
         }
     } else {
         throw runtime_error("Size of ei contribution vector does not match the expected size in "
-                            "Hypermutation_global_errorrate(size_t,Gene_class,Gene_class,double,std::vector<double>)");
+                            "Hypermutation_global_errorrate(size_t,Gene_class_legacy,Gene_class_legacy,double,std::vector<double>)");
     }
 
     this->update_Nmers_proba(0, 0, 1);
 }
 
-Hypermutation_global_errorrate::Hypermutation_global_errorrate(size_t nmer_width, Gene_class learn, Gene_class apply,
+Hypermutation_global_errorrate::Hypermutation_global_errorrate(size_t nmer_width, Gene_class_legacy learn, Gene_class_legacy apply,
                                                                double starting_flat_value, string filename)
     : Hypermutation_global_errorrate(nmer_width, learn, apply, starting_flat_value)
 {
     this->set_output_Nmer_stream(filename);
 }
 
-Hypermutation_global_errorrate::Hypermutation_global_errorrate(size_t nmer_width, Gene_class learn, Gene_class apply,
+Hypermutation_global_errorrate::Hypermutation_global_errorrate(size_t nmer_width, Gene_class_legacy learn, Gene_class_legacy apply,
                                                                double starting_flat_value,
                                                                vector<double> ei_contributions, string filename)
     : Hypermutation_global_errorrate(nmer_width, learn, apply, starting_flat_value, ei_contributions)

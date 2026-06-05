@@ -636,16 +636,16 @@ void Model_Parms::write_model_parms_v2(string filename)
 }
 
 /**
- * Helper function to convert legacy Gene_class to seq_type string for v2.0 format
+ * Helper function to convert legacy Gene_class_legacy to seq_type string for v2.0 format
  */
-static std::string legacy_gene_class_to_seq_type(Gene_class gene_class, Event_type event_type)
+static std::string legacy_gene_class_to_seq_type(Gene_class_legacy gene_class, Event_type event_type)
 {
     switch (gene_class) {
-    case V_gene:
+    case V_gene_legacy:
         return "V_gene_seq";
-    case D_gene:
+    case D_gene_legacy:
         return "D_gene_seq";
-    case J_gene:
+    case J_gene_legacy:
         return "J_gene_seq";
     case VD_genes:
         return "VD_ins_seq";
@@ -660,7 +660,8 @@ static std::string legacy_gene_class_to_seq_type(Gene_class gene_class, Event_ty
 
 /**
  * Helper function to convert v2.0 seq_type to Gene_class for internal use
- * This ensures backward compatibility with existing code
+ * For junction seq_types (VD, DJ, VJ) that have no direct Gene_class equivalent,
+ * returns Undefined_gene since the constructor will use the seq_type string instead.
  */
 static Gene_class seq_type_to_gene_class(const std::string& seq_type, Event_type event_type)
 {
@@ -670,14 +671,8 @@ static Gene_class seq_type_to_gene_class(const std::string& seq_type, Event_type
         return D_gene;
     } else if (seq_type == "J_gene_seq") {
         return J_gene;
-    } else if (seq_type == "VD_ins_seq") {
-        return VD_genes;
-    } else if (seq_type == "DJ_ins_seq") {
-        return DJ_genes;
-    } else if (seq_type == "VJ_ins_seq") {
-        return VJ_genes;
     } else {
-        // For unknown seq_types, try to infer from the event type
+        // Junction seq_types (VD_ins_seq, DJ_ins_seq, VJ_ins_seq) and unknowns
         return Undefined_gene;
     }
 }
@@ -730,11 +725,11 @@ void Model_Parms::read_model_parms(string filename)
             string event = line_str.substr(1, semicolon_index - 1);
             size_t next_semicolon_index = line_str.find(";", semicolon_index + 1);
             string event_class_str = line_str.substr(semicolon_index + 1, (next_semicolon_index - semicolon_index - 1));
-            Gene_class event_class;
+            Gene_class_legacy event_class;
             try {
                 event_class = str2GeneClass(event_class_str);
             } catch (exception &e) {
-                throw runtime_error("Unknown Gene_class\"" + event_class_str + "\" in model file: \"" + filename
+                throw runtime_error("Unknown Gene_class_legacy\"" + event_class_str + "\" in model file: \"" + filename
                                     + "\"");
             }
             
@@ -780,7 +775,7 @@ void Model_Parms::read_model_parms(string filename)
             
             // Determine seq_type and effective gene_class for v2.0 format conversion
             string event_seq_type = seq_type_str;
-            Gene_class effective_gene_class = event_class;
+            Gene_class effective_gene_class = gene_class_legacy_to_new(event_class);
             
             if (format_version < 2.0) {
                 // For legacy format, infer seq_type from gene_class and event type
@@ -824,9 +819,8 @@ void Model_Parms::read_model_parms(string filename)
                             Event_realization(to_string(value_int), value_int, "", Int_Str(), index)));
                     getline(infile, line_str);
                 }
-                // Use effective_gene_class for backward compatibility
                 shared_ptr<Insertion> new_event_p =
-                        shared_ptr<Insertion>(new Insertion(effective_gene_class, event_realizations));
+                        shared_ptr<Insertion>(new Insertion(str2SeqType(event_seq_type), event_realizations));
                 new_event_p->set_priority(priority);
                 new_event_p->set_nickname(nickname);
                 new_event_p->set_seq_type(event_seq_type);
@@ -867,17 +861,16 @@ void Model_Parms::read_model_parms(string filename)
                             name, Event_realization(name, INT16_MAX, value_str, nt2int(value_str), index)));
                     getline(infile, line_str);
                 }
-                // For GeneChoice, use the original event_class (not effective_gene_class) since gene_class matters for alignment
+                // For GeneChoice, use the effective_gene_class (Gene_class) derived from the legacy event_class
                 shared_ptr<Gene_choice> new_event_p = shared_ptr<Gene_choice>(new Gene_choice(
-                        event_class,
+                        effective_gene_class,
                         event_realizations));
                 new_event_p->set_priority(priority);
                 new_event_p->set_nickname(nickname);
                 new_event_p->set_seq_type(event_seq_type);
                 this->add_event(new_event_p);
             } else if (event == string("DinucMarkov")) {
-                // Use effective_gene_class for backward compatibility
-                shared_ptr<Dinucl_markov> new_event_p = shared_ptr<Dinucl_markov>(new Dinucl_markov(effective_gene_class));
+                shared_ptr<Dinucl_markov> new_event_p = shared_ptr<Dinucl_markov>(new Dinucl_markov(str2SeqType(event_seq_type)));
                 new_event_p->set_priority(priority);
                 new_event_p->set_nickname(nickname);
                 new_event_p->set_seq_type(event_seq_type);
@@ -953,23 +946,23 @@ void Model_Parms::read_model_parms(string filename)
                     stoi(line_str.substr(semicolon_index + 1, (next_semicolon_index - semicolon_index - 1)));
             semicolon_index = next_semicolon_index;
             next_semicolon_index = line_str.find(";", semicolon_index + 1);
-            Gene_class learn_on;
+            Gene_class_legacy learn_on;
             try {
                 learn_on = str2GeneClass(
                         line_str.substr(semicolon_index + 1, (next_semicolon_index - semicolon_index - 1)));
             } catch (exception &e) {
-                throw runtime_error("Unknown Gene_class\""
+                throw runtime_error("Unknown Gene_class_legacy\""
                                     + line_str.substr(semicolon_index + 1, (next_semicolon_index - semicolon_index - 1))
                                     + "\" for Hypermutationglobalerrorrate in model file: " + filename);
             }
             semicolon_index = next_semicolon_index;
             next_semicolon_index = line_str.find(";", semicolon_index + 1);
-            Gene_class apply_on;
+            Gene_class_legacy apply_on;
             try {
                 apply_on = str2GeneClass(
                         line_str.substr(semicolon_index + 1, (next_semicolon_index - semicolon_index - 1)));
             } catch (exception &e) {
-                throw runtime_error("Unknown Gene_class\""
+                throw runtime_error("Unknown Gene_class_legacy\""
                                     + line_str.substr(semicolon_index + 1, (next_semicolon_index - semicolon_index - 1))
                                     + "\" for Hypermutationglobalerrorrate in model file: " + filename);
             }
@@ -1004,23 +997,23 @@ void Model_Parms::read_model_parms(string filename)
                     stoi(line_str.substr(semicolon_index + 1, (next_semicolon_index - semicolon_index - 1)));
             semicolon_index = next_semicolon_index;
             next_semicolon_index = line_str.find(";", semicolon_index + 1);
-            Gene_class learn_on;
+            Gene_class_legacy learn_on;
             try {
                 learn_on = str2GeneClass(
                         line_str.substr(semicolon_index + 1, (next_semicolon_index - semicolon_index - 1)));
             } catch (exception &e) {
-                throw runtime_error("Unknown Gene_class\""
+                throw runtime_error("Unknown Gene_class_legacy\""
                                     + line_str.substr(semicolon_index + 1, (next_semicolon_index - semicolon_index - 1))
                                     + "\" for Hypermutationglobalerrorrate in model file: " + filename);
             }
             semicolon_index = next_semicolon_index;
             next_semicolon_index = line_str.find(";", semicolon_index + 1);
-            Gene_class apply_on;
+            Gene_class_legacy apply_on;
             try {
                 apply_on = str2GeneClass(
                         line_str.substr(semicolon_index + 1, (next_semicolon_index - semicolon_index - 1)));
             } catch (exception &e) {
-                throw runtime_error("Unknown Gene_class\""
+                throw runtime_error("Unknown Gene_class_legacy\""
                                     + line_str.substr(semicolon_index + 1, (next_semicolon_index - semicolon_index - 1))
                                     + "\" for Hypermutationglobalerrorrate in model file: " + filename);
             }
