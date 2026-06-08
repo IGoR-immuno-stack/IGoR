@@ -1,11 +1,9 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
-
-
 #include <igor/Core/Aligner.h>
 #ifdef IGOR_WITH_SEQAN2
-#include <igor/Core/SeqAn2Aligner.h>
+#  include <igor/Core/SeqAn2Aligner.h>
 #endif
 
 #include <algorithm>
@@ -22,13 +20,15 @@ using Catch::Matchers::WithinRel;
 
 namespace {
 
-struct ExpectedAlignment {
+struct ExpectedAlignment
+{
     std::string gene_name;
     std::string cigar;
     double score;
 };
 
-struct ActualAlignment {
+struct ActualAlignment
+{
     std::string gene_name;
     std::string cigar;
     double score;
@@ -43,8 +43,8 @@ Matrix<double> build_test_score_matrix(double match_score = 2.0, double mismatch
     return Matrix<double>(15, 15, values);
 }
 
-Aligner make_legacy_aligner(const Matrix<double>& matrix, int gap_penalty, Gene_class gene_class,
-                            const std::vector<std::pair<std::string, std::string>>& genomic_templates)
+Aligner make_legacy_aligner(const Matrix<double> &matrix, int gap_penalty, Gene_class gene_class,
+                            const std::vector<std::pair<std::string, std::string>> &genomic_templates)
 {
     Aligner aligner(matrix, gap_penalty, gene_class);
     aligner.set_genomic_sequences(genomic_templates);
@@ -52,8 +52,9 @@ Aligner make_legacy_aligner(const Matrix<double>& matrix, int gap_penalty, Gene_
 }
 
 #ifdef IGOR_WITH_SEQAN2
-std::unique_ptr<SeqAn2Aligner> make_seqan2_aligner(const Matrix<double>& matrix, int gap_penalty, Gene_class gene_class,
-                                                   const std::vector<std::pair<std::string, std::string>>& genomic_templates)
+std::unique_ptr<SeqAn2Aligner>
+make_seqan2_aligner(const Matrix<double> &matrix, int gap_penalty, Gene_class gene_class,
+                    const std::vector<std::pair<std::string, std::string>> &genomic_templates)
 {
     auto aligner = std::make_unique<SeqAn2Aligner>(matrix, gap_penalty, gene_class, AlignmentPreset::with_band(20));
     aligner->set_genomic_sequences(genomic_templates);
@@ -61,10 +62,10 @@ std::unique_ptr<SeqAn2Aligner> make_seqan2_aligner(const Matrix<double>& matrix,
 }
 #endif
 
-std::string find_germline_sequence(const std::vector<std::pair<std::string, std::string>>& genomic_templates,
-                                   const std::string& gene_name)
+std::string find_germline_sequence(const std::vector<std::pair<std::string, std::string>> &genomic_templates,
+                                   const std::string &gene_name)
 {
-    for (const auto& entry : genomic_templates) {
+    for (const auto &entry : genomic_templates) {
         if (entry.first == gene_name) {
             return entry.second;
         }
@@ -72,18 +73,19 @@ std::string find_germline_sequence(const std::vector<std::pair<std::string, std:
     return std::string();
 }
 
-std::pair<std::string, std::string> find_genomic_template(
-    const std::vector<std::pair<std::string, std::string>>& genomic_templates, const std::string& gene_name)
+std::pair<std::string, std::string>
+find_genomic_template(const std::vector<std::pair<std::string, std::string>> &genomic_templates,
+                      const std::string &gene_name)
 {
-    for (const auto& entry : genomic_templates) {
+    for (const auto &entry : genomic_templates) {
         if (entry.first == gene_name) {
             return entry;
         }
     }
-    return std::pair<std::string, std::string>{};
+    return std::pair<std::string, std::string>{ };
 }
 
-std::string cigar_visual(const std::string& cigar, const std::string& read, const std::string& germline)
+std::string cigar_visual(const std::string &cigar, const std::string &read, const std::string &germline)
 {
     std::string read_gapped;
     std::string match_line;
@@ -105,7 +107,7 @@ std::string cigar_visual(const std::string& cigar, const std::string& read, cons
         }
     };
 
-    for (const auto& entry : parse_cigar(cigar)) {
+    for (const auto &entry : parse_cigar(cigar)) {
         const int count = entry.first;
         const char op = entry.second;
         for (int i = 0; i < count; ++i) {
@@ -145,20 +147,19 @@ std::string cigar_visual(const std::string& cigar, const std::string& read, cons
     std::ostringstream out;
     const std::size_t width = 100;
     for (std::size_t i = 0; i < read_gapped.size(); i += width) {
-        out << "\n      read " << read_gapped.substr(i, width)
-            << "\n           " << match_line.substr(i, width)
+        out << "\n      read " << read_gapped.substr(i, width) << "\n           " << match_line.substr(i, width)
             << "\n      germ " << germ_gapped.substr(i, width);
     }
     return out.str();
 }
 
-std::vector<ActualAlignment> normalize_actuals(const std::forward_list<Alignment_data>& alignments)
+std::vector<ActualAlignment> normalize_actuals(const std::forward_list<Alignment_data> &alignments)
 {
     std::vector<ActualAlignment> normalized;
-    for (const auto& aln : alignments) {
-        normalized.push_back({aln.gene_name, alignment_data_to_cigar(aln), aln.score});
+    for (const auto &aln : alignments) {
+        normalized.push_back({ aln.gene_name, alignment_data_to_cigar(aln), aln.score });
     }
-    std::sort(normalized.begin(), normalized.end(), [](const ActualAlignment& a, const ActualAlignment& b) {
+    std::sort(normalized.begin(), normalized.end(), [](const ActualAlignment &a, const ActualAlignment &b) {
         return std::tie(a.gene_name, a.cigar, a.score) < std::tie(b.gene_name, b.cigar, b.score);
     });
     return normalized;
@@ -166,24 +167,23 @@ std::vector<ActualAlignment> normalize_actuals(const std::forward_list<Alignment
 
 std::vector<ExpectedAlignment> normalize_expected(std::vector<ExpectedAlignment> expected)
 {
-    std::sort(expected.begin(), expected.end(), [](const ExpectedAlignment& a, const ExpectedAlignment& b) {
+    std::sort(expected.begin(), expected.end(), [](const ExpectedAlignment &a, const ExpectedAlignment &b) {
         return std::tie(a.gene_name, a.cigar, a.score) < std::tie(b.gene_name, b.cigar, b.score);
     });
     return expected;
 }
 
-ActualAlignment best_alignment(const std::forward_list<Alignment_data>& alignments)
+ActualAlignment best_alignment(const std::forward_list<Alignment_data> &alignments)
 {
-    auto best_it = std::max_element(
-        alignments.begin(), alignments.end(),
-        [](const Alignment_data& a, const Alignment_data& b) { return a.score < b.score; });
+    auto best_it = std::max_element(alignments.begin(), alignments.end(),
+                                    [](const Alignment_data &a, const Alignment_data &b) { return a.score < b.score; });
     REQUIRE(best_it != alignments.end());
-    return {best_it->gene_name, alignment_data_to_cigar(*best_it), best_it->score};
+    return { best_it->gene_name, alignment_data_to_cigar(*best_it), best_it->score };
 }
 
-void add_cigar_visual_info(const std::string& query,
-                           const std::vector<std::pair<std::string, std::string>>& genomic_templates,
-                           const std::string& label, const std::string& gene_name, const std::string& cigar)
+void add_cigar_visual_info(const std::string &query,
+                           const std::vector<std::pair<std::string, std::string>> &genomic_templates,
+                           const std::string &label, const std::string &gene_name, const std::string &cigar)
 {
     const std::string germline = find_germline_sequence(genomic_templates, gene_name);
     if (germline.empty()) {
@@ -193,17 +193,18 @@ void add_cigar_visual_info(const std::string& query,
     INFO(label << " gene=" << gene_name << " cigar=" << cigar << cigar_visual(cigar, query, germline));
 }
 
-void assert_alignment_matches(const Alignment_data& alignment, const std::string& query,
-                              const std::pair<std::string, std::string>& genomic_template,
-                              const ExpectedAlignment& expected)
+void assert_alignment_matches(const Alignment_data &alignment, const std::string &query,
+                              const std::pair<std::string, std::string> &genomic_template,
+                              const ExpectedAlignment &expected)
 {
-    const std::string actual_cigar = alignment_data_to_cigar_full_span(alignment, query.length(), genomic_template.second.length());
+    const std::string actual_cigar =
+            alignment_data_to_cigar_full_span(alignment, query.length(), genomic_template.second.length());
 
     INFO("expected: gene=" << expected.gene_name << " cigar=" << expected.cigar << " score=" << expected.score);
     INFO("actual: gene=" << alignment.gene_name << " cigar=" << actual_cigar << " score=" << alignment.score);
 
     if (actual_cigar != expected.cigar) {
-        const std::vector<std::pair<std::string, std::string>> templates = {genomic_template};
+        const std::vector<std::pair<std::string, std::string>> templates = { genomic_template };
         add_cigar_visual_info(query, templates, "expected", expected.gene_name, expected.cigar);
         add_cigar_visual_info(query, templates, "actual", alignment.gene_name, actual_cigar);
     }
@@ -213,14 +214,13 @@ void assert_alignment_matches(const Alignment_data& alignment, const std::string
     REQUIRE_THAT(alignment.score, WithinRel(expected.score));
 }
 
-void assert_best_alignment_matches(const std::forward_list<Alignment_data>& alignments, const std::string& query,
-                                   const std::vector<std::pair<std::string, std::string>>& genomic_templates,
-                                   const ExpectedAlignment& expected)
+void assert_best_alignment_matches(const std::forward_list<Alignment_data> &alignments, const std::string &query,
+                                   const std::vector<std::pair<std::string, std::string>> &genomic_templates,
+                                   const ExpectedAlignment &expected)
 {
     REQUIRE(!alignments.empty());
-    auto best_it = std::max_element(
-        alignments.begin(), alignments.end(),
-        [](const Alignment_data& a, const Alignment_data& b) { return a.score < b.score; });
+    auto best_it = std::max_element(alignments.begin(), alignments.end(),
+                                    [](const Alignment_data &a, const Alignment_data &b) { return a.score < b.score; });
     REQUIRE(best_it != alignments.end());
 
     auto genomic_template = find_genomic_template(genomic_templates, expected.gene_name);
@@ -230,17 +230,17 @@ void assert_best_alignment_matches(const std::forward_list<Alignment_data>& alig
     assert_alignment_matches(*best_it, query, genomic_template, expected);
 }
 
-void assert_alignment_set_matches(const std::forward_list<Alignment_data>& alignments, const std::string& query,
-                                  const std::vector<std::pair<std::string, std::string>>& genomic_templates,
+void assert_alignment_set_matches(const std::forward_list<Alignment_data> &alignments, const std::string &query,
+                                  const std::vector<std::pair<std::string, std::string>> &genomic_templates,
                                   std::vector<ExpectedAlignment> expected)
 {
-    std::vector<const Alignment_data*> actual;
-    for (const auto& aln : alignments) {
+    std::vector<const Alignment_data *> actual;
+    for (const auto &aln : alignments) {
         actual.push_back(&aln);
     }
-    std::sort(actual.begin(), actual.end(), [](const Alignment_data* a, const Alignment_data* b) {
-         return std::make_tuple(a->gene_name, alignment_data_to_cigar(*a), a->score) <
-             std::make_tuple(b->gene_name, alignment_data_to_cigar(*b), b->score);
+    std::sort(actual.begin(), actual.end(), [](const Alignment_data *a, const Alignment_data *b) {
+        return std::make_tuple(a->gene_name, alignment_data_to_cigar(*a), a->score)
+                < std::make_tuple(b->gene_name, alignment_data_to_cigar(*b), b->score);
     });
     expected = normalize_expected(std::move(expected));
 
@@ -270,13 +270,12 @@ TEST_CASE("Aligner V gene dummy alignments.", "[aligner][V_gene][dummy]")
     * 
     * Score costs with are set with prime numbers such that total score is easy to debug. 
     */
-    const Matrix<double> matrix = build_test_score_matrix(7, 11);
+    const Matrix<double> matrix = build_test_score_matrix(7, -11);
     const int gap_penalty = 13;
     std::string query_read;
     std::string germline_ref;
     std::string expected_cigar;
     double expected_score;
-
 
     SECTION("complete alignment")
     {
@@ -288,68 +287,69 @@ TEST_CASE("Aligner V gene dummy alignments.", "[aligner][V_gene][dummy]")
 
     SECTION("short read")
     {
-        query_read = std::string(5, 'A')+std::string(1, 'T');
-        germline_ref = std::string(19, 'A')+std::string(1, 'T');
+        query_read = std::string(5, 'A') + std::string(1, 'T');
+        germline_ref = std::string(19, 'A') + std::string(1, 'T');
         expected_cigar = "14D6=";
         expected_score = 42;
     }
 
     SECTION("partial overlap read, no 3' deletion")
     {
-        query_read = std::string(6, 'A')+std::string(14, 'T');
-        germline_ref = std::string(19, 'A')+std::string(1, 'T');
+        query_read = std::string(6, 'A') + std::string(14, 'T');
+        germline_ref = std::string(19, 'A') + std::string(1, 'T');
         expected_cigar = "13D7=13I";
         expected_score = 49;
     }
 
     SECTION("partial overlap read, single free 3' deletion")
     {
-        query_read = std::string(6, 'A')+std::string(14, 'T');
-        germline_ref = std::string(19, 'A')+std::string(1, 'T')+std::string(1, 'A');
+        query_read = std::string(6, 'A') + std::string(14, 'T');
+        germline_ref = std::string(19, 'A') + std::string(1, 'T') + std::string(1, 'A');
         expected_cigar = "13D7=1D13I";
         expected_score = 49;
     }
 
-    // TODO below
     SECTION("partial overlap read, three free 3' deletion")
     {
-        query_read = std::string(6, 'A')+std::string(14, 'T');
-        germline_ref = std::string(19, 'A')+std::string(1, 'T')+std::string(3, 'A');
+        query_read = std::string(6, 'A') + std::string(14, 'T');
+        germline_ref = std::string(19, 'A') + std::string(1, 'T') + std::string(3, 'A');
         expected_cigar = "13D7=3D13I";
         expected_score = 49;
     }
 
     SECTION("penalized trailing germline")
     {
-        // FIXME
-        query_read = std::string(6, 'A')+std::string(14, 'T');
-        germline_ref = std::string(19, 'A')+std::string(1, 'T');
-        expected_cigar = "13D7=";
-        expected_score = 49;
+        query_read = std::string(14, 'T');
+        germline_ref = std::string(6, 'A') + std::string(14, 'T') + std::string(2, 'A');
+        expected_cigar = "6D14=2D";
+        expected_score = 72;
     }
 
     SECTION("mismatch in long match")
     {
-        query_read = "AAACAAAAACAAAAACAAAA";
+        query_read = std::string(20, 'A');
+        query_read[4] = 'G';
         germline_ref = std::string(20, 'A');
-        expected_cigar = "3=1X5=1X5=1X4=";
-        expected_score = 25;
+        expected_cigar = "4=1X15=";
+        expected_score = 122;
     }
 
     SECTION("mismatch in first NT")
     {
-        query_read = "AAACAAAAACAAAAACAAAA";
+        query_read = std::string(20, 'A');
+        query_read[0] = 'G';
         germline_ref = std::string(20, 'A');
-        expected_cigar = "3=1X5=1X5=1X4=";
-        expected_score = 25;
+        expected_cigar = "1X19=";
+        expected_score = 122;
     }
 
-    SECTION("mismatch in last NT")
+    SECTION("mismatch in last NT seen as free gap")
     {
-        query_read = "AAACAAAAACAAAAACAAAA";
+        query_read = std::string(20, 'A');
+        query_read[19] = 'G';
         germline_ref = std::string(20, 'A');
-        expected_cigar = "3=1X5=1X5=1X4=";
-        expected_score = 25;
+        expected_cigar = "19=1D1I";
+        expected_score = 133;
     }
 
     SECTION("penalized insertion")
@@ -357,24 +357,25 @@ TEST_CASE("Aligner V gene dummy alignments.", "[aligner][V_gene][dummy]")
         query_read = std::string(5, 'A') + "C" + std::string(15, 'A');
         germline_ref = std::string(20, 'A');
         expected_cigar = "5=1I15=";
-        expected_score = 38;
+        expected_score = 127;
     }
 
     SECTION("penalized deletion")
     {
-        query_read = std::string(19, 'A');
-        germline_ref = std::string(20, 'A');
-        expected_cigar = "19=1D";
-        expected_score = 36;
+        query_read = "T" + std::string(17, 'A') + "T";
+        germline_ref = "T" + std::string(7, 'A') + "T" + std::string(10, 'A') + "T";
+        expected_cigar = "8=1D11=";
+        expected_score = 120;
     }
 
-    const std::vector<std::pair<std::string, std::string>> genomic_templates = {{"g1", germline_ref}};
+    const std::vector<std::pair<std::string, std::string>> genomic_templates = { { "g1", germline_ref } };
     auto aligner = make_legacy_aligner(matrix, gap_penalty, V_gene, genomic_templates);
     const auto alignments = aligner.align_seq(query_read, -1000.0, true, true, INT16_MIN, INT16_MAX);
-    assert_best_alignment_matches(alignments, query_read, genomic_templates, {"g1", expected_cigar, expected_score});
+    assert_best_alignment_matches(alignments, query_read, genomic_templates, { "g1", expected_cigar, expected_score });
 }
 
-TEST_CASE("Aligner V gene best alignment matches expected CIGAR and score on realistic data.", "[aligner][V_gene][realistic]")
+TEST_CASE("Aligner V gene best alignment matches expected CIGAR and score on realistic data.",
+          "[aligner][V_gene][realistic]")
 {
     // Align a single query to a single reference, check that best alignment matches
     const Matrix<double> matrix = build_test_score_matrix(5.0, -14.0);
@@ -386,79 +387,91 @@ TEST_CASE("Aligner V gene best alignment matches expected CIGAR and score on rea
 
     SECTION("Long match without V deletions")
     {
-        query_read="ACTCAGCTGCGTATCTCTGCACCAGCAGCCAAGATATAGGACTAGATTCACAGATACGCA";
-        germline_ref="GATACTGGAATTACCCAGACACCAAAATACCTGGTCACAGCAATGGGGAGTAAAAGGACAATGAAACGTGAGCATCTGGGACATGATTCTATGTATTGGTACAGACAGAAAGCTAAGAAATCCCTGGAGTTCATGTTTTACTACAACTGTAAGGAATTCATTGAAAACAAGACTGTGCCAAATCACTTCACACCTGAATGCCCTGACAGCTCTCGCTTATACCTTCATGTGGTCGCACTGCAGCAAGAAGACTCAGCTGCGTATCTCTGCACCAGCAGCCAAGA";
-        expected_cigar="250D34=26I";
-        expected_score=170;
+        query_read = "ACTCAGCTGCGTATCTCTGCACCAGCAGCCAAGATATAGGACTAGATTCACAGATACGCA";
+        germline_ref = "GATACTGGAATTACCCAGACACCAAAATACCTGGTCACAGCAATGGGGAGTAAAAGGACAATGAAACGTGAGCATCTGGGACATGATTCTATGTA"
+                       "TTGGTACAGACAGAAAGCTAAGAAATCCCTGGAGTTCATGTTTTACTACAACTGTAAGGAATTCATTGAAAACAAGACTGTGCCAAATCACTTCA"
+                       "CACCTGAATGCCCTGACAGCTCTCGCTTATACCTTCATGTGGTCGCACTGCAGCAAGAAGACTCAGCTGCGTATCTCTGCACCAGCAGCCAAGA";
+        expected_cigar = "250D34=26I";
+        expected_score = 170;
     }
 
     SECTION("Long match with single V deletion")
     {
-        query_read="ACTCTGCTGTGTATTTCTGTGCCAGCAGCCAAGTGTGTCCCGGACAGACGACTATGGCTA";
-        germline_ref="GACACAGCTGTTTCCCAGACTCCAAAATACCTGGTCACACAGATGGGAAACGACAAGTCCATTAAATGTGAACAAAATCTGGGCCATGATACTATGTATTGGTATAAACAGGACTCTAAGAAATTTCTGAAGATAATGTTTAGCTACAATAACAAGGAGATCATTATAAATGAAACAGTTCCAAATCGATTCTCACCTAAATCTCCAGACAAAGCTAAATTAAATCTTCACATCAATTCCCTGGAGCTTGGTGACTCTGCTGTGTATTTCTGTGCCAGCAGCCAAGA";
-        expected_cigar="253D33=1D27I";
-        expected_score=165;
+        query_read = "ACTCTGCTGTGTATTTCTGTGCCAGCAGCCAAGTGTGTCCCGGACAGACGACTATGGCTA";
+        germline_ref =
+                "GACACAGCTGTTTCCCAGACTCCAAAATACCTGGTCACACAGATGGGAAACGACAAGTCCATTAAATGTGAACAAAATCTGGGCCATGATACTATGTATTGG"
+                "TATAAACAGGACTCTAAGAAATTTCTGAAGATAATGTTTAGCTACAATAACAAGGAGATCATTATAAATGAAACAGTTCCAAATCGATTCTCACCTAAATCT"
+                "CCAGACAAAGCTAAATTAAATCTTCACATCAATTCCCTGGAGCTTGGTGACTCTGCTGTGTATTTCTGTGCCAGCAGCCAAGA";
+        expected_cigar = "253D33=1D27I";
+        expected_score = 165;
     }
 
     SECTION("Long match with long V deletions")
     {
-        query_read="CCAACCAGACAGCTCTTTACTTCTGTGCCACCCTACGAACAGGGAAAGGAACACTGAAGC";
-        germline_ref="GATGCTGATGTTACCCAGACCCCAAGGAATAGGATCACAAAGACAGGAAAGAGGATTATGCTGGAATGTTCTCAGACTAAGGGTCATGATAGAATGTACTGGTATCGACAAGACCCAGGACTGGGCCTACGGTTGATCTATTACTCCTTTGATGTCAAAGATATAAACAAAGGAGAGATCTCTGATGGATACAGTGTCTCTCGACAGGCACAGGCTAAATTCTCCCTGTCCCTAGAGTCTGCCATCCCCAACCAGACAGCTCTTTACTTCTGTGCCACCAGTGATTTG";
-        expected_cigar="247D32=9D28I";
-        expected_score=160;
+        query_read = "CCAACCAGACAGCTCTTTACTTCTGTGCCACCCTACGAACAGGGAAAGGAACACTGAAGC";
+        germline_ref =
+                "GATGCTGATGTTACCCAGACCCCAAGGAATAGGATCACAAAGACAGGAAAGAGGATTATGCTGGAATGTTCTCAGACTAAGGGTCATGATAGAATGTACTGG"
+                "TATCGACAAGACCCAGGACTGGGCCTACGGTTGATCTATTACTCCTTTGATGTCAAAGATATAAACAAAGGAGAGATCTCTGATGGATACAGTGTCTCTCGA"
+                "CAGGCACAGGCTAAATTCTCCCTGTCCCTAGAGTCTGCCATCCCCAACCAGACAGCTCTTTACTTCTGTGCCACCAGTGATTTG";
+        expected_cigar = "247D32=9D28I";
+        expected_score = 160;
     }
 
     SECTION("Random NT mismatch")
     {
-        query_read="CAGACAGCTCTTTACTTCTGTGTCACCAGTGATTTGCACTGGACAGGGGGAAGAGACCCA";
-        germline_ref="GATGCTGATGTTACCCAGACCCCAAGGAATAGGATCACAAAGACAGGAAAGAGGATTATGCTGGAATGTTCTCAGACTAAGGGTCATGATAGAATGTACTGGTATCGACAAGACCCAGGACTGGGCCTACGGTTGATCTATTACTCCTTTGATGTCAAAGATATAAACAAAGGAGAGATCTCTGATGGATACAGTGTCTCTCGACAGGCACAGGCTAAATTCTCCCTGTCCCTAGAGTCTGCCATCCCCAACCAGACAGCTCTTTACTTCTGTGCCACCAGTGATTTG";
-        expected_cigar="252D22=1X13=24I";
-        expected_score=161;
+        query_read = "CAGACAGCTCTTTACTTCTGTGTCACCAGTGATTTGCACTGGACAGGGGGAAGAGACCCA";
+        germline_ref =
+                "GATGCTGATGTTACCCAGACCCCAAGGAATAGGATCACAAAGACAGGAAAGAGGATTATGCTGGAATGTTCTCAGACTAAGGGTCATGATAGAATGTACTGG"
+                "TATCGACAAGACCCAGGACTGGGCCTACGGTTGATCTATTACTCCTTTGATGTCAAAGATATAAACAAAGGAGAGATCTCTGATGGATACAGTGTCTCTCGA"
+                "CAGGCACAGGCTAAATTCTCCCTGTCCCTAGAGTCTGCCATCCCCAACCAGACAGCTCTTTACTTCTGTGCCACCAGTGATTTG";
+        expected_cigar = "252D22=1X13=24I";
+        expected_score = 161;
     }
 
     SECTION("First NT mismatch")
     {
-        query_read="GCTGTGTACTTCTGTGCCAGCAGTTCGGGACTAGCGGGGAATGCCAGCCGCAGATACGCA";
-        germline_ref="AATGCTGGTGTCACTCAGACCCCAAAATTCCGCATCCTGAAGATAGGACAGAGCATGACACTGCAGTGTGCCCAGGATATGAACCATAACTACATGTACTGGTATCGACAAGACCCAGGCATGGGGCTGAAGCTGATTTATTATTCAGTTGGTGCTGGTATCACTGACAAAGGAGAAGTCCCGAATGGCTACAACGTCTCCAGATCAACCACAGAGGATTTCCCGCTCAGGCTGGAGTTGGCTGCTCCCTCCCAGACATCTGTGTACTTCTGTGCCAGCAGTTACTC";
-        expected_cigar="258D1X24=4D35I";
-        expected_score=106;
+        query_read = "GCTGTGTACTTCTGTGCCAGCAGTTCGGGACTAGCGGGGAATGCCAGCCGCAGATACGCA";
+        germline_ref =
+                "AATGCTGGTGTCACTCAGACCCCAAAATTCCGCATCCTGAAGATAGGACAGAGCATGACACTGCAGTGTGCCCAGGATATGAACCATAACTACATGTACTGG"
+                "TATCGACAAGACCCAGGCATGGGGCTGAAGCTGATTTATTATTCAGTTGGTGCTGGTATCACTGACAAAGGAGAAGTCCCGAATGGCTACAACGTCTCCAGA"
+                "TCAACCACAGAGGATTTCCCGCTCAGGCTGGAGTTGGCTGCTCCCTCCCAGACATCTGTGTACTTCTGTGCCAGCAGTTACTC";
+        expected_cigar = "258D1X24=4D35I";
+        expected_score = 106;
     }
 
-    const std::vector<std::pair<std::string, std::string>> genomic_templates = {{"g1", germline_ref}};
+    const std::vector<std::pair<std::string, std::string>> genomic_templates = { { "g1", germline_ref } };
     auto aligner = make_legacy_aligner(matrix, gap_penalty, V_gene, genomic_templates);
     const auto alignments = aligner.align_seq(query_read, -1000.0, true, true, INT16_MIN, INT16_MAX);
-    assert_best_alignment_matches(alignments, query_read, genomic_templates, {"g1", expected_cigar, expected_score});
-
+    assert_best_alignment_matches(alignments, query_read, genomic_templates, { "g1", expected_cigar, expected_score });
 }
-
 
 TEST_CASE("Legacy Aligner best alignment supports mismatch and indel CIGAR assertions", "[aligner][sw][cigar]")
 {
     const Matrix<double> matrix = build_test_score_matrix();
     const int gap_penalty = 2;
-    const std::vector<std::pair<std::string, std::string>> genomic_templates = {{"g1", "LALALA"}};
+    const std::vector<std::pair<std::string, std::string>> genomic_templates = { { "g1", "LALALA" } };
 
     SECTION("single mismatch")
     {
         auto aligner = make_legacy_aligner(matrix, gap_penalty, D_gene, genomic_templates);
         const auto alignments = aligner.align_seq("ACGTTCGT", -1000.0, true, true, INT16_MIN, INT16_MAX);
-        assert_best_alignment_matches(alignments, "ACGTTCGT", genomic_templates, {"g1", "4=1X3=", 13.0});
+        assert_best_alignment_matches(alignments, "ACGTTCGT", genomic_templates, { "g1", "4=1X3=", 13.0 });
     }
 
     SECTION("single insertion in read")
     {
-        const std::vector<std::pair<std::string, std::string>> genomic_templates = {{"g1", "ACGTACGT"}};
+        const std::vector<std::pair<std::string, std::string>> genomic_templates = { { "g1", "ACGTACGT" } };
         auto aligner = make_legacy_aligner(matrix, gap_penalty, D_gene, genomic_templates);
         const auto alignments = aligner.align_seq("ACGTTACGT", -1000.0, true, true, INT16_MIN, INT16_MAX);
-        assert_best_alignment_matches(alignments, "ACGTTACGT", genomic_templates, {"g1", "4=1I4=", 14.0});
+        assert_best_alignment_matches(alignments, "ACGTTACGT", genomic_templates, { "g1", "4=1I4=", 14.0 });
     }
 
     SECTION("single deletion in read")
     {
-        const std::vector<std::pair<std::string, std::string>> genomic_templates = {{"g1", "ACGTACGT"}};
+        const std::vector<std::pair<std::string, std::string>> genomic_templates = { { "g1", "ACGTACGT" } };
         auto aligner = make_legacy_aligner(matrix, gap_penalty, D_gene, genomic_templates);
         const auto alignments = aligner.align_seq("ACGACGT", -1000.0, true, true, INT16_MIN, INT16_MAX);
-        assert_best_alignment_matches(alignments, "ACGACGT", genomic_templates, {"g1", "3=1D4=", 12.0});
+        assert_best_alignment_matches(alignments, "ACGACGT", genomic_templates, { "g1", "3=1D4=", 12.0 });
     }
 }
 
@@ -467,42 +480,42 @@ TEST_CASE("Legacy Aligner strict set matching when best_only is false", "[aligne
     const Matrix<double> matrix = build_test_score_matrix();
     const int gap_penalty = 2;
     const std::string query = "ACGT";
-    const std::vector<std::pair<std::string, std::string>> genomic_templates = {{"g1", "ACGT"}, {"g2", "ACGT"}};
+    const std::vector<std::pair<std::string, std::string>> genomic_templates = { { "g1", "ACGT" }, { "g2", "ACGT" } };
 
     auto aligner = make_legacy_aligner(matrix, gap_penalty, D_gene, genomic_templates);
     const auto alignments = aligner.align_seq(query, -1000.0, false, false, INT16_MIN, INT16_MAX);
 
-    assert_alignment_set_matches(alignments, query, genomic_templates,
-                                 {{"g1", "4=", 8.0}, {"g2", "4=", 8.0}});
+    assert_alignment_set_matches(alignments, query, genomic_templates, { { "g1", "4=", 8.0 }, { "g2", "4=", 8.0 } });
 }
 
 TEST_CASE("Legacy Aligner align_seqs supports indexed CIGAR assertions", "[aligner][sw][cigar]")
 {
     const Matrix<double> matrix = build_test_score_matrix();
     const int gap_penalty = 2;
-    const std::vector<std::pair<std::string, std::string>> genomic_templates = {{"g1", "ACGTACGT"}};
+    const std::vector<std::pair<std::string, std::string>> genomic_templates = { { "g1", "ACGTACGT" } };
 
     auto aligner = make_legacy_aligner(matrix, gap_penalty, D_gene, genomic_templates);
 
     const std::vector<std::pair<const int, const std::string>> reads = {
-        {10, "ACGTACGT"},
-        {11, "ACGT"},
+        { 10, "ACGTACGT" },
+        { 11, "ACGT" },
     };
 
     const auto indexed = aligner.align_seqs(reads, -1000.0, true, true);
 
     REQUIRE(indexed.count(10) == 1);
     REQUIRE(indexed.count(11) == 1);
-    assert_best_alignment_matches(indexed.at(10), "ACGTACGT", genomic_templates, {"g1", "8=", 16.0});
-    assert_best_alignment_matches(indexed.at(11), "ACGT", genomic_templates, {"g1", "4=", 8.0});
+    assert_best_alignment_matches(indexed.at(10), "ACGTACGT", genomic_templates, { "g1", "8=", 16.0 });
+    assert_best_alignment_matches(indexed.at(11), "ACGT", genomic_templates, { "g1", "4=", 8.0 });
 }
 
 #ifdef IGOR_WITH_SEQAN2
-TEST_CASE("Legacy and SeqAn2 best alignments share CIGAR and score on deterministic cases", "[aligner][sw][cigar][seqan2]")
+TEST_CASE("Legacy and SeqAn2 best alignments share CIGAR and score on deterministic cases",
+          "[aligner][sw][cigar][seqan2]")
 {
     const Matrix<double> matrix = build_test_score_matrix();
     const int gap_penalty = 2;
-    const std::vector<std::pair<std::string, std::string>> genomic_templates = {{"g1", "ACGTACGT"}};
+    const std::vector<std::pair<std::string, std::string>> genomic_templates = { { "g1", "ACGTACGT" } };
 
     auto legacy = make_legacy_aligner(matrix, gap_penalty, D_gene, genomic_templates);
     auto seqan2 = make_seqan2_aligner(matrix, gap_penalty, D_gene, genomic_templates);
@@ -516,8 +529,10 @@ TEST_CASE("Legacy and SeqAn2 best alignments share CIGAR and score on determinis
         const ActualAlignment legacy_best = best_alignment(legacy_alns);
         const ActualAlignment seqan2_best = best_alignment(seqan2_alns);
 
-        INFO("legacy: gene=" << legacy_best.gene_name << " cigar=" << legacy_best.cigar << " score=" << legacy_best.score);
-        INFO("seqan2: gene=" << seqan2_best.gene_name << " cigar=" << seqan2_best.cigar << " score=" << seqan2_best.score);
+        INFO("legacy: gene=" << legacy_best.gene_name << " cigar=" << legacy_best.cigar
+                             << " score=" << legacy_best.score);
+        INFO("seqan2: gene=" << seqan2_best.gene_name << " cigar=" << seqan2_best.cigar
+                             << " score=" << seqan2_best.score);
 
         if (legacy_best.cigar != seqan2_best.cigar) {
             add_cigar_visual_info(query, genomic_templates, "legacy", legacy_best.gene_name, legacy_best.cigar);
@@ -538,8 +553,10 @@ TEST_CASE("Legacy and SeqAn2 best alignments share CIGAR and score on determinis
         const ActualAlignment legacy_best = best_alignment(legacy_alns);
         const ActualAlignment seqan2_best = best_alignment(seqan2_alns);
 
-        INFO("legacy: gene=" << legacy_best.gene_name << " cigar=" << legacy_best.cigar << " score=" << legacy_best.score);
-        INFO("seqan2: gene=" << seqan2_best.gene_name << " cigar=" << seqan2_best.cigar << " score=" << seqan2_best.score);
+        INFO("legacy: gene=" << legacy_best.gene_name << " cigar=" << legacy_best.cigar
+                             << " score=" << legacy_best.score);
+        INFO("seqan2: gene=" << seqan2_best.gene_name << " cigar=" << seqan2_best.cigar
+                             << " score=" << seqan2_best.score);
 
         if (legacy_best.cigar != seqan2_best.cigar) {
             add_cigar_visual_info(query, genomic_templates, "legacy", legacy_best.gene_name, legacy_best.cigar);
