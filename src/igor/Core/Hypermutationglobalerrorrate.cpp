@@ -24,6 +24,7 @@
  *
  */
 
+#include "Utils.h"
 #include <igor/Core/EventUtils.h>
 #include <igor/Core/Hypermutationglobalerrorrate.h>
 #include <igor/Core/EventUtils.h>
@@ -128,32 +129,32 @@ Hypermutation_global_errorrate::Hypermutation_global_errorrate(size_t nmer_width
 	}*/
 
     //Initialize booleans
-    if (apply_to == V_gene | apply_to == VJ_genes | apply_to == VD_genes | apply_to == VDJ_genes) {
+    if (apply_to == V_gene_legacy | apply_to == VJ_genes | apply_to == VD_genes | apply_to == VDJ_genes) {
         apply_to_v = true;
     } else
         apply_to_v = false;
 
-    if (apply_to == D_gene | apply_to == DJ_genes | apply_to == VD_genes | apply_to == VDJ_genes) {
+    if (apply_to == D_gene_legacy | apply_to == DJ_genes | apply_to == VD_genes | apply_to == VDJ_genes) {
         apply_to_d = true;
     } else
         apply_to_d = false;
 
-    if (apply_to == J_gene | apply_to == VJ_genes | apply_to == DJ_genes | apply_to == VDJ_genes) {
+    if (apply_to == J_gene_legacy | apply_to == VJ_genes | apply_to == DJ_genes | apply_to == VDJ_genes) {
         apply_to_j = true;
     } else
         apply_to_j = false;
 
-    if (learn_on == V_gene | learn_on == VJ_genes | learn_on == VD_genes | learn_on == VDJ_genes) {
+    if (learn_on == V_gene_legacy | learn_on == VJ_genes | learn_on == VD_genes | learn_on == VDJ_genes) {
         learn_on_v = true;
     } else
         learn_on_v = false;
 
-    if (learn_on == D_gene | learn_on == DJ_genes | learn_on == VD_genes | learn_on == VDJ_genes) {
+    if (learn_on == D_gene_legacy | learn_on == DJ_genes | learn_on == VD_genes | learn_on == VDJ_genes) {
         learn_on_d = true;
     } else
         learn_on_d = false;
 
-    if (learn_on == J_gene | learn_on == VJ_genes | learn_on == DJ_genes | learn_on == VDJ_genes) {
+    if (learn_on == J_gene_legacy | learn_on == VJ_genes | learn_on == DJ_genes | learn_on == VDJ_genes) {
         learn_on_j = true;
     } else
         learn_on_j = false;
@@ -1543,7 +1544,7 @@ void Hypermutation_global_errorrate::initialize(
         }
 
     } else {
-        if (learn_on == V_gene | learn_on == VJ_genes | learn_on == VD_genes | learn_on == VDJ_genes) {
+        if (learn_on == V_gene_legacy| learn_on == VJ_genes | learn_on == VD_genes | learn_on == VDJ_genes) {
             cout << "Exception caught during initialization of Hypermutation global error rate" << endl;
             cout << "Exception caught trying to initialize V gene pointers" << endl;
             cout << endl << "throwing exception now..." << endl;
@@ -1575,7 +1576,7 @@ void Hypermutation_global_errorrate::initialize(
         }
 
     } else {
-        if (learn_on == D_gene | learn_on == DJ_genes | learn_on == VD_genes | learn_on == VDJ_genes) {
+        if (learn_on == D_gene_legacy | learn_on == DJ_genes | learn_on == VD_genes | learn_on == VDJ_genes) {
             cout << "Exception caught during initialization of Hypermutation global error rate" << endl;
             cout << "Exception caught trying to initialize D gene pointers" << endl;
             cout << endl << "throwing exception now..." << endl;
@@ -1607,7 +1608,7 @@ void Hypermutation_global_errorrate::initialize(
             j_5_del_value_p = &no_del_buffer;
         }
     } else {
-        if (learn_on == J_gene | learn_on == DJ_genes | learn_on == VJ_genes | learn_on == VDJ_genes) {
+        if (learn_on == J_gene_legacy | learn_on == DJ_genes | learn_on == VJ_genes | learn_on == VDJ_genes) {
             cout << "Exception caught during initialization of Hypermutation global error rate" << endl;
             cout << "Exception caught trying to initialize J gene pointers" << endl;
             cout << endl << "throwing exception now..." << endl;
