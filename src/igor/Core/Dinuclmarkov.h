@@ -41,6 +41,12 @@
 
 #include <igorCoreExport.h>
 
+struct DinuclTraversalSpec {
+    Seq_type target_seq;
+    Seq_type anchor_seq;
+    Seq_side anchor_side;
+};
+
 /**
  * \class Dinucl_markov Dinucl_markov.h
  * \brief Dinucleotide insertion Markov model.
@@ -160,6 +166,7 @@ private:
     int memory_layer_proba_map_junction_1;
     int memory_layer_proba_map_junction_2;
     Seq_type ins_seq_type;
+    std::vector<DinuclTraversalSpec> traversal_specs;
 
     //std::pair<Seq_type,Seq_side> v_5_pair = std::make_pair (V_gene_seq,Five_prime);
     //std::pair<Seq_type,Seq_side> j_5_pair = std::make_pair (J_gene_seq,Five_prime);

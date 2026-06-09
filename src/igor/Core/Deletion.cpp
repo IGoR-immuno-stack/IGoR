@@ -111,6 +111,7 @@ Deletion::Deletion(Seq_type target_seq, Seq_side del_side, pair<int, int> del_ra
 
 Deletion::Deletion(Seq_type target_seq, Seq_side side)
     : Rec_Event(get_deletion_gene_class(target_seq), side),
+      target_seq_type(target_seq),
       new_scenario_proba(-1),
       d_3_max_del(INT16_MAX),
       v_3_new_offset(INT16_MAX),
@@ -196,7 +197,7 @@ Deletion::~Deletion()
 shared_ptr<Rec_Event> Deletion::copy()
 {
     shared_ptr<Deletion> new_deletion_p = shared_ptr<Deletion>(
-            new Deletion(get_deletion_target_seq_type(this->event_class), this->event_side,
+            new Deletion(this->target_seq_type, this->event_side,
                          this->event_realizations)); //FIXME remove this new for all events and for the error rates
     new_deletion_p->priority = this->priority;
     new_deletion_p->nickname = this->nickname;
@@ -248,7 +249,7 @@ void Deletion::iterate(
     //unordered_map<Rec_Event_name,int> base_index_map_copy(base_index_map);
     //unordered_map<Seq_type,vector<int>*> mismatches_lists_copy (mismatches_lists);
 
-    const Seq_type target_seq_type = get_deletion_target_seq_type(this->event_class);
+    const Seq_type target_seq_type = this->target_seq_type;
 
     switch (target_seq_type) {
 
@@ -1261,7 +1262,7 @@ queue<int> Deletion::draw_random_realization(
          iter != this->event_realizations.end(); ++iter) {
         prob_count += model_marginals_p[index_map.at(this->get_name()) + (*iter).second.index];
         if (prob_count >= rand) {
-            const Seq_type target_seq_type = get_deletion_target_seq_type(this->event_class);
+            const Seq_type target_seq_type = this->target_seq_type;
 
             switch (target_seq_type) {
 
@@ -1399,7 +1400,7 @@ void Deletion::initialize_event(
     auto j_status = EventUtils::check_gene_choice("J_gene_seq", events_map, processed_events);
     j_chosen = j_status.chosen;
 
-    const Seq_type target_seq_type = get_deletion_target_seq_type(this->event_class);
+    const Seq_type target_seq_type = this->target_seq_type;
 
     switch (target_seq_type) {
     case V_gene_seq:
@@ -1695,7 +1696,7 @@ bool del_numb_compare(const Event_realization &real1, const Event_realization &r
 bool Deletion::has_effect_on(Seq_type seq_type) const
 {
     const auto effective_junctions =
-            get_deletion_effective_junctions(get_deletion_target_seq_type(this->event_class), this->event_side);
+            get_deletion_effective_junctions(this->target_seq_type, this->event_side);
     return find(effective_junctions.begin(), effective_junctions.end(), seq_type) != effective_junctions.end();
 }
 
@@ -1744,7 +1745,7 @@ void Deletion::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &model_qu
 {
     Seq_type_str_p_map constructed_sequences(6);
     const auto effective_junctions =
-            get_deletion_effective_junctions(get_deletion_target_seq_type(this->event_class), this->event_side);
+            get_deletion_effective_junctions(this->target_seq_type, this->event_side);
     if (effective_junctions.empty()) {
         throw invalid_argument(std::string("Unknown gene for deletions : ") + this->event_class);
     }

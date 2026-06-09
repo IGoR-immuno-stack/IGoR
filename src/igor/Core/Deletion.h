@@ -114,6 +114,8 @@ public:
                                     const Marginal_array_p &model_parameters_point, Index_map &base_index_map) override;
 
 private:
+    Seq_type target_seq_type;
+
     inline void iterate_common(
             std::forward_list<Event_realization>::const_iterator &, Index_map &,
             const std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &,

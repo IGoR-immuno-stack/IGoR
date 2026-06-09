@@ -32,13 +32,7 @@ using namespace std;
 
 namespace {
 
-struct DinuclTraversalSpec {
-    Seq_type target_seq;
-    Seq_type anchor_seq;
-    Seq_side anchor_side;
-};
-
-vector<DinuclTraversalSpec> get_dinucl_traversal_specs(Seq_type seq_type)
+std::vector<DinuclTraversalSpec> get_dinucl_traversal_specs(Seq_type seq_type)
 {
     switch (seq_type) {
     case VD_ins_seq:
@@ -68,6 +62,7 @@ Dinucl_markov::Dinucl_markov(Seq_type seq_type) : Rec_Event(), total_nucl_count(
     updated_upper_bound_proba = new double;
 
     dinuc_proba_matrix = Matrix<double>(15, 15);
+    this->traversal_specs = get_dinucl_traversal_specs(this->ins_seq_type);
     this->update_event_name();
 }
 
@@ -124,8 +119,7 @@ void Dinucl_markov::iterate(
     //Clear all previous scenario realizations
     current_realizations_index_vec.clear();
 
-    const auto traversal_specs = get_dinucl_traversal_specs(ins_seq_type);
-    if (traversal_specs.empty()) {
+    if (this->traversal_specs.empty()) {
         throw invalid_argument(std::string("Unknown seq_type for DinuclMarkov model: ") + to_string(this->ins_seq_type));
     }
 
@@ -146,7 +140,7 @@ void Dinucl_markov::iterate(
         return (seq_type == DJ_ins_seq) ? memory_layer_proba_map_junction_2 : memory_layer_proba_map_junction_1;
     };
 
-    for (const auto &spec : traversal_specs) {
+    for (const auto &spec : this->traversal_specs) {
         previous_seq = (*scenario.get_sequence_segment(spec.anchor_seq));
         Int_Str &target_seq = (*scenario.get_sequence_segment(spec.target_seq));
 
@@ -206,12 +200,11 @@ queue<int> Dinucl_markov::draw_random_realization(
     int index = index_map.at(this->get_name());
     queue<int> realization_queue;
 
-    const auto traversal_specs = get_dinucl_traversal_specs(ins_seq_type);
-    if (traversal_specs.empty()) {
+    if (this->traversal_specs.empty()) {
         throw invalid_argument(std::string("Unknown seq_type for DinuclMarkov model: ") + to_string(this->ins_seq_type));
     }
 
-    for (const auto &spec : traversal_specs) {
+    for (const auto &spec : this->traversal_specs) {
         string &target_ins_seq = constructed_sequences.at(spec.target_seq);
         string anchor_seq = constructed_sequences.at(spec.anchor_seq);
         bool reverse_traversal = (spec.anchor_side == Five_prime);
@@ -438,12 +431,11 @@ void Dinucl_markov::initialize_event(
     max_vj_ins = EventUtils::get_insertion_len_max("VJ_ins_seq", events_map);
     max_dj_ins = EventUtils::get_insertion_len_max("DJ_ins_seq", events_map);
 
-    const auto traversal_specs = get_dinucl_traversal_specs(this->ins_seq_type);
-    if (traversal_specs.empty()) {
+    if (this->traversal_specs.empty()) {
         throw invalid_argument(std::string("Unknown seq_type for DinuclMarkov model: ") + to_string(this->ins_seq_type));
     }
 
-    for (const auto &spec : traversal_specs) {
+    for (const auto &spec : this->traversal_specs) {
         downstream_proba_map.request_memory_layer(spec.target_seq);
         int layer = downstream_proba_map.get_current_memory_layer(spec.target_seq);
         if (spec.target_seq == DJ_ins_seq) {
@@ -475,8 +467,7 @@ void Dinucl_markov::add_to_marginals(long double scenario_proba, Marginal_array_
         }
     }
 
-    const auto traversal_specs = get_dinucl_traversal_specs(ins_seq_type);
-    for (const auto &spec : traversal_specs) {
+    for (const auto &spec : this->traversal_specs) {
         const int *indices = nullptr;
         size_t seq_size = 0;
         switch (spec.target_seq) {
