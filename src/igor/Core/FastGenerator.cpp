@@ -282,7 +282,7 @@ size_t FastGenerator::compute_condition_index(const FastEventSampler &sampler, c
 void FastGenerator::apply_gene_choice(const FastEventSampler &sampler, size_t choice_idx,
                                       std::unordered_map<Seq_type, std::string> &sequences) const
 {
-    Seq_type seq_type = V_gene_seq;
+    Seq_type seq_type;
     if (!igor::migration::try_gene_class_to_gene_seq_type(sampler.gene_class, seq_type)) {
         return;
     }
@@ -301,7 +301,7 @@ void FastGenerator::apply_deletion(const FastEventSampler &sampler, size_t del_i
 
     int num_del = sampler.deletion_idx_to_value[del_idx];
 
-    Seq_type seq_type = V_gene_seq;
+    Seq_type seq_type;
     if (!igor::migration::try_gene_class_to_gene_seq_type(sampler.gene_class, seq_type)) {
         return;
     }

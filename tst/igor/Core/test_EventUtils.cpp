@@ -241,7 +241,7 @@ TEST_CASE("EventUtils GetInsertionLenMax", "[EventUtils]") {
 }
 
 TEST_CASE("EventUtils GeneClassToSeqType mapping", "[EventUtils]") {
-  Seq_type seq_type = V_gene_seq;
+  Seq_type seq_type;
 
   SECTION("Valid mappings") {
     REQUIRE(igor::migration::try_gene_class_to_gene_seq_type(V_gene, seq_type));
