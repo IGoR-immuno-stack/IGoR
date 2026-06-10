@@ -203,7 +203,7 @@ public:
     void set_event_side(Seq_side s) { event_side = s; }
 
     bool operator==(const Rec_Event &) const;
-    void update_event_name();
+    virtual void update_event_name();
     virtual std::queue<int> draw_random_realization(
             const Marginal_array_p &, std::unordered_map<Rec_Event_name, int> &,
             const std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &,

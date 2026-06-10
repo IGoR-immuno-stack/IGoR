@@ -613,3 +613,16 @@ void Dinucl_markov::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &mod
 	 * =>no in/dels
 	 */
 }
+
+void Dinucl_markov::update_event_name()
+{
+    std::string seq_type_str;
+    switch (ins_seq_type) {
+    case VD_ins_seq: seq_type_str = "VD_genes"; break;
+    case DJ_ins_seq: seq_type_str = "DJ_gene"; break;
+    case VJ_ins_seq: seq_type_str = "VJ_gene"; break;
+    default: seq_type_str = to_string(this->event_class); break;
+    }
+    this->name = string() + this->type + "_" + seq_type_str + "_" + to_string(this->event_side)
+                 + "_prio" + to_string(priority) + "_size" + to_string(this->size());
+}

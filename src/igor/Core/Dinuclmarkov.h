@@ -110,6 +110,8 @@ public:
     void write2txt_legacy(std::ofstream &) override;
     void write2txt_v2(std::ofstream &) override;
     void ind_normalize(Marginal_array_p &, size_t) const override;
+    
+    void update_event_name() override;
     void initialize_event(
             std::unordered_set<Rec_Event_name> &,
             const Events_map &,

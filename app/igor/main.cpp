@@ -914,18 +914,38 @@ int main(int argc, char *argv[])
                             new Best_scenarios_counter(n_record_scenarios, cl_path + "output/", true));
                     cl_counters_list.emplace(cl_counters_list.size(), best_sc_ptr);
                 } else if (string(argv[carg_i]) == "--coverage") {
-                    Gene_class chosen_gc;
+                    string coverage_arg;
                     ++carg_i;
-                    try {
-                        chosen_gc = gene_class_legacy_to_new(str2GeneClass(string(argv[carg_i])));
-                    } catch (exception &e) {
+                    coverage_arg = string(argv[carg_i]);
+                    
+                    auto make_coverage = [&](Gene_class gc) {
+                        return shared_ptr<Counter>(new Coverage_err_counter(cl_path + "output/", gc, 1, false, false));
+                    };
+
+                    if (coverage_arg == "V_gene") {
+                        cl_counters_list.emplace(cl_counters_list.size(), make_coverage(V_gene));
+                    } else if (coverage_arg == "D_gene") {
+                        cl_counters_list.emplace(cl_counters_list.size(), make_coverage(D_gene));
+                    } else if (coverage_arg == "J_gene") {
+                        cl_counters_list.emplace(cl_counters_list.size(), make_coverage(J_gene));
+                    } else if (coverage_arg == "VJ_gene") {
+                        cl_counters_list.emplace(cl_counters_list.size(), make_coverage(V_gene));
+                        cl_counters_list.emplace(cl_counters_list.size(), make_coverage(J_gene));
+                    } else if (coverage_arg == "VD_genes") {
+                        cl_counters_list.emplace(cl_counters_list.size(), make_coverage(V_gene));
+                        cl_counters_list.emplace(cl_counters_list.size(), make_coverage(D_gene));
+                    } else if (coverage_arg == "DJ_gene") {
+                        cl_counters_list.emplace(cl_counters_list.size(), make_coverage(D_gene));
+                        cl_counters_list.emplace(cl_counters_list.size(), make_coverage(J_gene));
+                    } else if (coverage_arg == "VDJ_genes") {
+                        cl_counters_list.emplace(cl_counters_list.size(), make_coverage(V_gene));
+                        cl_counters_list.emplace(cl_counters_list.size(), make_coverage(D_gene));
+                        cl_counters_list.emplace(cl_counters_list.size(), make_coverage(J_gene));
+                    } else {
                         return terminate_IGoR_with_error_message(
-                                "Unknown argument \"" + string(argv[carg_i])
-                                + "\" to specify coverage target!\n Supported arguments are: V_gene, D_gene, J_gene");
+                                "Unknown argument \"" + coverage_arg
+                                + "\" to specify coverage target!\n Supported arguments are: V_gene, D_gene, J_gene, VD_genes, DJ_gene, VJ_gene, VDJ_genes");
                     }
-                    shared_ptr<Counter> coverage_counter_ptr(
-                            new Coverage_err_counter(cl_path + "output/", chosen_gc, 1, false, false));
-                    cl_counters_list.emplace(cl_counters_list.size(), coverage_counter_ptr);
                 } else {
                     return terminate_IGoR_with_error_message("Unknown subargument \"" + string(argv[carg_i])
                                                              + "\" to specify outputs");
