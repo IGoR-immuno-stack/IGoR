@@ -114,7 +114,7 @@ public:
                                     const Marginal_array_p &model_parameters_point, Index_map &base_index_map) override;
 
 private:
-    const Seq_type target_seq_type;
+    Seq_type target_seq_type;
 
     inline void iterate_common(
             std::forward_list<Event_realization>::const_iterator &, Index_map &,
