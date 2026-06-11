@@ -86,7 +86,7 @@ bool try_event_key_to_seq_key(
     Seq_side seq_side,
     std::tuple<Event_type, Seq_type, Seq_side> &seq_key)
 {
-  Seq_type seq_type = V_gene_seq;
+  Seq_type seq_type;
   bool mapped = false;
 
   switch (event_type) {
