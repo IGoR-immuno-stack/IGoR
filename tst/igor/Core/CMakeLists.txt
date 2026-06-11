@@ -6,6 +6,7 @@ set(CORE_TEST_SOURCES
     test_fast_sampling.cpp
     test_generation.cpp
     test_inference.cpp
+    test_platform_diagnostic.cpp
     test_sanity.cpp
     test_utils.cpp
 )
@@ -22,7 +23,7 @@ target_compile_definitions(igor_tests PRIVATE
 
 include(Catch)
 catch_discover_tests(igor_tests
-    TEST_SPEC "~[integration]~[slow]"
+    TEST_SPEC "~[integration]~[slow]~[platform-diagnostic]"
     TEST_PREFIX "unit::"
     PROPERTIES
         TIMEOUT 3600

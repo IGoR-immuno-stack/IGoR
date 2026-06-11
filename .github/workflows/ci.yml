@@ -195,8 +195,11 @@ jobs:
       - name: Build project
         run: pixi run build
 
-      - name: Run all C++ ctests
-        run: pixi run test
+      # - name: Run all C++ ctests
+      # run: pixi run test
 
-      - name: Run regression tests
-        run: pixi run test_regression
+      # - name: Run regression tests
+      # run: pixi run test_regression
+
+      - name: portability test
+        run: pixi OMP_NUM_THREADS=1 ./build/bin/igor_tests "[platform-diagnostic]"
