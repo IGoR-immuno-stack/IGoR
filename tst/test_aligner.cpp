@@ -181,16 +181,19 @@ ActualAlignment best_alignment(const std::forward_list<Alignment_data> &alignmen
     return { best_it->gene_name, alignment_data_to_cigar(*best_it), best_it->score };
 }
 
-void add_cigar_visual_info(const std::string &query,
+std::string add_cigar_visual_info(const std::string &query,
                            const std::vector<std::pair<std::string, std::string>> &genomic_templates,
                            const std::string &label, const std::string &gene_name, const std::string &cigar)
 {
     const std::string germline = find_germline_sequence(genomic_templates, gene_name);
     if (germline.empty()) {
-        INFO(label << " gene=" << gene_name << " has no matching germline sequence for visual explanation");
-        return;
+        std::ostringstream msg;
+        msg << label << " gene=" << gene_name << " has no matching germline sequence for visual explanation";
+        return msg.str();
     }
-    INFO(label << " gene=" << gene_name << " cigar=" << cigar << cigar_visual(cigar, query, germline));
+    std::ostringstream msg;
+    msg << label << " gene=" << gene_name << " cigar=" << cigar << cigar_visual(cigar, query, germline);
+    return msg.str();
 }
 
 void assert_alignment_matches(const Alignment_data &alignment, const std::string &query,
@@ -203,11 +206,9 @@ void assert_alignment_matches(const Alignment_data &alignment, const std::string
     INFO("expected: gene=" << expected.gene_name << " cigar=" << expected.cigar << " score=" << expected.score);
     INFO("actual: gene=" << alignment.gene_name << " cigar=" << actual_cigar << " score=" << alignment.score);
 
-    if (actual_cigar != expected.cigar) {
         const std::vector<std::pair<std::string, std::string>> templates = { genomic_template };
-        add_cigar_visual_info(query, templates, "expected", expected.gene_name, expected.cigar);
-        add_cigar_visual_info(query, templates, "actual", alignment.gene_name, actual_cigar);
-    }
+    INFO(add_cigar_visual_info(query, templates, "expected", expected.gene_name, expected.cigar));
+    INFO(add_cigar_visual_info(query, templates, "actual", alignment.gene_name, actual_cigar));
 
     REQUIRE(alignment.gene_name == expected.gene_name);
     REQUIRE(actual_cigar == expected.cigar);
@@ -535,8 +536,8 @@ TEST_CASE("Legacy and SeqAn2 best alignments share CIGAR and score on determinis
                              << " score=" << seqan2_best.score);
 
         if (legacy_best.cigar != seqan2_best.cigar) {
-            add_cigar_visual_info(query, genomic_templates, "legacy", legacy_best.gene_name, legacy_best.cigar);
-            add_cigar_visual_info(query, genomic_templates, "seqan2", seqan2_best.gene_name, seqan2_best.cigar);
+            INFO(add_cigar_visual_info(query, genomic_templates, "legacy", legacy_best.gene_name, legacy_best.cigar));
+            INFO(add_cigar_visual_info(query, genomic_templates, "seqan2", seqan2_best.gene_name, seqan2_best.cigar));
         }
 
         REQUIRE(legacy_best.gene_name == seqan2_best.gene_name);
@@ -559,8 +560,8 @@ TEST_CASE("Legacy and SeqAn2 best alignments share CIGAR and score on determinis
                              << " score=" << seqan2_best.score);
 
         if (legacy_best.cigar != seqan2_best.cigar) {
-            add_cigar_visual_info(query, genomic_templates, "legacy", legacy_best.gene_name, legacy_best.cigar);
-            add_cigar_visual_info(query, genomic_templates, "seqan2", seqan2_best.gene_name, seqan2_best.cigar);
+            INFO(add_cigar_visual_info(query, genomic_templates, "legacy", legacy_best.gene_name, legacy_best.cigar));
+            INFO(add_cigar_visual_info(query, genomic_templates, "seqan2", seqan2_best.gene_name, seqan2_best.cigar));
         }
 
         REQUIRE(legacy_best.gene_name == seqan2_best.gene_name);
