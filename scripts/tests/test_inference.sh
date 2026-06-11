@@ -4,20 +4,41 @@ set -euo pipefail
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 source $SCRIPT_DIR/config.sh
 OUTDIR="${1:-$(mktemp -d)}"
-IGORCALL="$IGORBIN -set_wd $OUTDIR"
+IGORCALL="$IGORBIN -w $OUTDIR -j 1"
+
+$IGORCALL init
+$IGORCALL config set model.source custom
+$IGORCALL config set model.parms "$TESTINPUT/TRB_model_parms.txt"
+$IGORCALL config set model.marginals "$TESTINPUT/TRB_uniform_model_marginals.txt"
+$IGORCALL config set infer.iterations 4
 
 # Copy reference alignment files
-if [[ ! -d "$OUTDIR/aligns" ]]; then
-    cp -r "$TESTREF/aligns" "$OUTDIR"
-fi
+mkdir -p "$OUTDIR/aligns"
+cp "$TESTREF"/aligns/* "$OUTDIR/aligns/"
 
 # Run the inference with the demo parameters
-$IGORCALL -batch demo -set_custom_model "$TESTINPUT/TRB_model_parms.txt" "$TESTINPUT/TRB_uniform_model_marginals.txt" -infer --N_iter 4  --L_thresh 1e-35 --P_ratio_thresh 0.0001 -output --scenarios 10 --Pgen --coverage VJ_gene
+$IGORCALL config set infer.likelihood_threshold 1e-35
+$IGORCALL config set infer.probability_ratio_threshold 0.0001
+$IGORCALL config set output.scenarios 10
+$IGORCALL config set output.Pgen true
+$IGORCALL config set output.coverage VJ_gene
+$IGORCALL -b demo infer
 
 # Run the inference with the default parameters
-$IGORCALL -batch default -set_custom_model "$TESTINPUT/TRB_model_parms.txt" "$TESTINPUT/TRB_uniform_model_marginals.txt" -infer --N_iter 4 
+$IGORCALL config set infer.likelihood_threshold 1e-60
+$IGORCALL config set infer.probability_ratio_threshold 1e-5
+$IGORCALL config set output.scenarios 0
+$IGORCALL config set output.Pgen false
+$IGORCALL config set output.coverage ""
+$IGORCALL -b default infer
 # Evaluate sequences to generate outputs
-$IGORCALL -batch default -load_last_inferred -evaluate --L_thresh 1e-35 --P_ratio_thresh 0.0001 -output --scenarios 10 --Pgen --coverage VJ_gene
+$IGORCALL config set model.source last_inferred
+$IGORCALL config set evaluate.likelihood_threshold 1e-35
+$IGORCALL config set evaluate.probability_ratio_threshold 0.0001
+$IGORCALL config set output.scenarios 10
+$IGORCALL config set output.Pgen true
+$IGORCALL config set output.coverage VJ_gene
+$IGORCALL -b default evaluate
 
 # ------------------------------------------------------------------
 # 2️⃣ Test output file regression

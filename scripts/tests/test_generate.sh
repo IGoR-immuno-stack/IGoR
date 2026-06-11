@@ -4,17 +4,28 @@ set -euo pipefail
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 source $SCRIPT_DIR/config.sh
 OUTDIR="${1:-$(mktemp -d)}" # Create a temp dir if none passed
-IGORCALL="$IGORBIN -set_wd $OUTDIR"
+IGORCALL="$IGORBIN -w $OUTDIR"
+
+$IGORCALL init
+$IGORCALL config set model.source custom
+$IGORCALL config set model.parms "$TESTREF/demo_inference/final_parms.txt"
+$IGORCALL config set model.marginals "$TESTREF/demo_inference/final_marginals.txt"
+$IGORCALL config set generate.error true
+$IGORCALL config set generate.fast false
 
 ###################################################
 # Generate sequences with fixed seeds
 ###################################################
 
 # Generate random sequences with a single thread for reproducibility
-$IGORCALL -batch seed42 -threads 1 -set_custom_model "$TESTREF/demo_inference/final_parms.txt" "$TESTREF/demo_inference/final_marginals.txt" -generate 100 --seed 42 
-$IGORCALL -batch seedRd -threads 1 -set_custom_model "$TESTREF/demo_inference/final_parms.txt" "$TESTREF/demo_inference/final_marginals.txt" -generate 100 --seed 8557 
+$IGORCALL config set generate.seed 42
+$IGORCALL -b seed42 -j 1 generate 100
+$IGORCALL config set generate.seed 8557
+$IGORCALL -b seedRd -j 1 generate 100
 # Check generation without error
-$IGORCALL -batch noerr -threads 1 -set_custom_model "$TESTREF/demo_inference/final_parms.txt" "$TESTREF/demo_inference/final_marginals.txt" -generate 100 --seed 35863 --noerr
+$IGORCALL config set generate.seed 35863
+$IGORCALL config set generate.error false
+$IGORCALL -b noerr -j 1 generate 100
 
 # ------------------------------------------------------------------
 # 2️⃣ Test output file regression

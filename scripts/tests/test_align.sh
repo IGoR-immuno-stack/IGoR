@@ -4,29 +4,41 @@ set -euo pipefail
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 source $SCRIPT_DIR/config.sh
 OUTDIR="${1:-$(mktemp -d)}" # Create a temp dir if none passed
-IGORCALL="$IGORBIN -set_wd $OUTDIR"
+IGORCALL="$IGORBIN -w $OUTDIR"
+
+$IGORCALL init
+$IGORCALL config set genomic.V "$TESTINPUT/genomicVs_with_primers.fasta"
+$IGORCALL config set genomic.D "$TESTINPUT/genomicDs.fasta"
+$IGORCALL config set genomic.J "$TESTINPUT/genomicJs_all_curated.fasta"
 
 ###################################################
 # Align sequences with default parameters
 ###################################################
 
 # Read files
-$IGORCALL -batch default -read_seqs "$TESTINPUT/murugan_naive1_noncoding_demo_seqs.txt"
+$IGORCALL -b default import-seqs "$TESTINPUT/murugan_naive1_noncoding_demo_seqs.txt"
 # Run alignments with the demo parameters
-$IGORCALL -batch default -align --V -set_genomic --V "$TESTINPUT/genomicVs_with_primers.fasta"
-$IGORCALL -batch default -align --D -set_genomic --D "$TESTINPUT/genomicDs.fasta"
-$IGORCALL -batch default -align --J -set_genomic --J "$TESTINPUT/genomicJs_all_curated.fasta" 
+$IGORCALL -b default align --gene V
+$IGORCALL -b default align --gene D
+$IGORCALL -b default align --gene J
 
 ###################################################
 # Align sequences with demo parameters
 ###################################################
 
 # Read files
-$IGORCALL -batch demo -read_seqs "$TESTINPUT/murugan_naive1_noncoding_demo_seqs.txt"
+$IGORCALL -b demo import-seqs "$TESTINPUT/murugan_naive1_noncoding_demo_seqs.txt"
 # Run alignments with the demo parameters
-$IGORCALL -batch demo -align --V ---thresh 50 ---offset_bounds -999 -155 ---best_align_only true ---gap_penalty 50 -set_genomic --V "$TESTINPUT/genomicVs_with_primers.fasta"
-$IGORCALL -batch demo -align --D ---thresh 0 ---gap_penalty 50 -set_genomic --D "$TESTINPUT/genomicDs.fasta"
-$IGORCALL -batch demo -align --J ---thresh 10 ---offset_bounds 42 48 ---best_align_only true ---gap_penalty 50 -set_genomic --J "$TESTINPUT/genomicJs_all_curated.fasta" 
+$IGORCALL config set alignment.V.threshold 50
+$IGORCALL config set alignment.V.left_offset -999
+$IGORCALL config set alignment.V.right_offset -155
+$IGORCALL config set alignment.D.threshold 0
+$IGORCALL config set alignment.J.threshold 10
+$IGORCALL config set alignment.J.left_offset 42
+$IGORCALL config set alignment.J.right_offset 48
+$IGORCALL -b demo align --gene V
+$IGORCALL -b demo align --gene D
+$IGORCALL -b demo align --gene J
 # ------------------------------------------------------------------
 # 2️⃣ Test output file regression
 # ------------------------------------------------------------------

@@ -52,6 +52,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <filesystem>
 #include <forward_list>
 #include <iostream>
 #include <limits>
@@ -70,6 +71,19 @@
 // Model base directory
 static const std::string MODELS_DIR =
         std::string(IGOR_SOURCE_DIR) + "/models";
+
+static bool required_model_files_exist(const std::string& parms_path,
+                                       const std::string& marginals_path,
+                                       const std::string& model_label)
+{
+    if (std::filesystem::exists(parms_path) &&
+        std::filesystem::exists(marginals_path)) {
+        return true;
+    }
+    WARN("Skipping " << model_label
+                     << " generation convergence test because model fixtures are missing");
+    return false;
+}
 
 // ---------------------------------------------------------------------------
 // THE TEST
@@ -120,6 +134,10 @@ TEST_CASE("Generation marginals converge - KL divergence vs entropy",
     // ------------------------------------------------------------------
     // 2. Load model and collect per-event metadata
     // ------------------------------------------------------------------
+    if (!required_model_files_exist(model_parms_path, model_marginals_path, model_label)) {
+        return;
+    }
+
     INFO("Testing model: " << model_label);
     Model_Parms model_parms;
     model_parms.read_model_parms(model_parms_path);

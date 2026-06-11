@@ -6,9 +6,17 @@ brevity.  Much more detail can be found in the git revision history:
 
 * Unreleased
 
+  Added:
+  - Add full configured pipeline replay and richer reproducibility manifests with runtime and compiler metadata
+
+  Fixed:
+  - Fix Pixi manifest parsing so build and regression tasks can run
+
   Fast parallel sequence generation
 
   New features:
+  - Route the POSIX-style command interface through CLI11 for consistent help,
+    version, and option validation
   - Add fast parallel sequence generator (FastGenerator) with 100x+ speedup
     using precomputed CDFs, binary search/alias method sampling, and OpenMP
     multi-threading
