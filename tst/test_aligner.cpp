@@ -182,8 +182,8 @@ ActualAlignment best_alignment(const std::forward_list<Alignment_data> &alignmen
 }
 
 std::string add_cigar_visual_info(const std::string &query,
-                           const std::vector<std::pair<std::string, std::string>> &genomic_templates,
-                           const std::string &label, const std::string &gene_name, const std::string &cigar)
+                                  const std::vector<std::pair<std::string, std::string>> &genomic_templates,
+                                  const std::string &label, const std::string &gene_name, const std::string &cigar)
 {
     const std::string germline = find_germline_sequence(genomic_templates, gene_name);
     if (germline.empty()) {
@@ -206,7 +206,7 @@ void assert_alignment_matches(const Alignment_data &alignment, const std::string
     INFO("expected: gene=" << expected.gene_name << " cigar=" << expected.cigar << " score=" << expected.score);
     INFO("actual: gene=" << alignment.gene_name << " cigar=" << actual_cigar << " score=" << alignment.score);
 
-        const std::vector<std::pair<std::string, std::string>> templates = { genomic_template };
+    const std::vector<std::pair<std::string, std::string>> templates = { genomic_template };
     INFO(add_cigar_visual_info(query, templates, "expected", expected.gene_name, expected.cigar));
     INFO(add_cigar_visual_info(query, templates, "actual", alignment.gene_name, actual_cigar));
 
@@ -371,6 +371,142 @@ TEST_CASE("Aligner V gene dummy alignments.", "[aligner][V_gene][dummy]")
 
     const std::vector<std::pair<std::string, std::string>> genomic_templates = { { "g1", germline_ref } };
     auto aligner = make_legacy_aligner(matrix, gap_penalty, V_gene, genomic_templates);
+    const auto alignments = aligner.align_seq(query_read, -1000.0, true, true, INT16_MIN, INT16_MAX);
+    assert_best_alignment_matches(alignments, query_read, genomic_templates, { "g1", expected_cigar, expected_score });
+}
+ 
+TEST_CASE("Aligner D gene dummy local alignments.", "[aligner][D_gene][dummy]")
+{
+
+    /*
+    * A nucleotides for matching core of germline/read.
+    * T nucleotides for flanking context to shape local overlap.
+    * G nucleotides for mismatches.
+    * C nucleotides for penalized indels in the core.
+    *
+    * Scores are prime-valued for easier manual debugging.
+    */
+    const Matrix<double> matrix = build_test_score_matrix(7, -11);
+    const int gap_penalty = 13;
+    std::string query_read;
+    std::string germline_ref;
+    std::string expected_cigar;
+    double expected_score;
+
+    SECTION("complete local alignment")
+    {
+        query_read = std::string(20, 'A');
+        germline_ref = std::string(20, 'A');
+        expected_cigar = "20=";
+        expected_score = 140;
+    }
+
+    SECTION("short local core in long read")
+    {
+        query_read = std::string(4, 'T') + std::string(6, 'A') + std::string(4, 'T');
+        germline_ref = std::string(6, 'A');
+        expected_cigar = "4I6=4I";
+        expected_score = 42;
+    }
+
+    SECTION("long local core in long read")
+    {
+        query_read = std::string(2, 'T') + std::string(16, 'A') + std::string(2, 'T');
+        germline_ref = std::string(16, 'A');
+        expected_cigar = "2I16=2I";
+        expected_score = 112;
+    }
+
+    SECTION("mismatch in several places")
+    {
+        query_read = "AAAGAAAAGAAAAGAA";
+        germline_ref = std::string(16, 'A');
+        expected_cigar = "3=1X4=1X4=1X2=";
+        expected_score = 58;
+    }
+
+    SECTION("left mismatch shortens alignment")
+    {
+        query_read = "AGAGAAAAGAAAAGAA";
+        germline_ref = std::string(16, 'A');
+        expected_cigar = "4I4=1X4=1X2=";
+        expected_score = 48;
+    }
+
+    SECTION("right mismatch shortens alignment")
+    {
+        query_read = "AAAGAAAAGAAAGGAA";
+        germline_ref = std::string(16, 'A');
+        expected_cigar = "3=1X4=1X3=4D4I";
+        expected_score = 48;
+    }
+
+    SECTION("local overlap with one trailing germline base")
+    {
+        query_read = std::string(8, 'A');
+        germline_ref = std::string(8, 'A') + std::string(1, 'T');
+        expected_cigar = "8=1D";
+        expected_score = 56;
+    }
+
+    SECTION("local overlap with three trailing germline bases")
+    {
+        query_read = std::string(8, 'A');
+        germline_ref = std::string(8, 'A') + std::string(3, 'T');
+        expected_cigar = "8=3D";
+        expected_score = 56;
+    }
+
+    SECTION("local overlap with five trailing germline bases")
+    {
+        query_read = std::string(8, 'A');
+        germline_ref = std::string(8, 'A') + std::string(5, 'T');
+        expected_cigar = "8=5D";
+        expected_score = 56;
+    }
+
+    SECTION("local overlap with one leading germline base")
+    {
+        query_read = std::string(8, 'A');
+        germline_ref = std::string(1, 'T') + std::string(8, 'A');
+        expected_cigar = "1D8=";
+        expected_score = 56;
+    }
+
+    SECTION("local overlap with three leading germline bases")
+    {
+        query_read = std::string(8, 'A');
+        germline_ref = std::string(3, 'T') + std::string(8, 'A');
+        expected_cigar = "3D8=";
+        expected_score = 56;
+    }
+
+    SECTION("local overlap with five leading germline bases")
+    {
+        query_read = std::string(8, 'A');
+        germline_ref = std::string(5, 'T') + std::string(8, 'A');
+        expected_cigar = "5D8=";
+        expected_score = 56;
+    }
+
+    SECTION("penalized insertion in core")
+    {
+        query_read = std::string(5, 'T') + std::string(5, 'A') + "C" + std::string(5, 'T');
+        germline_ref = std::string(5, 'T') + std::string(5, 'A') + std::string(5, 'T');
+        expected_cigar = "10=1I5=";
+        expected_score = 92;
+    }
+
+    SECTION("penalized deletion in core")
+    {
+        query_read = std::string(5, 'T') + std::string(5, 'A') + std::string(5, 'T');
+        germline_ref = std::string(5, 'T') + std::string(5, 'A') + "C" + std::string(5, 'T');
+        expected_cigar = "10=1D5=";
+        expected_score = 92;
+    }
+
+    const std::vector<std::pair<std::string, std::string>> genomic_templates = { { "g1", germline_ref } };
+    auto aligner = make_legacy_aligner(matrix, gap_penalty, D_gene, genomic_templates);
     const auto alignments = aligner.align_seq(query_read, -1000.0, true, true, INT16_MIN, INT16_MAX);
     assert_best_alignment_matches(alignments, query_read, genomic_templates, { "g1", expected_cigar, expected_score });
 }
