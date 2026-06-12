@@ -29,11 +29,11 @@ CORE_EXPORT bool try_get_event(
     std::shared_ptr<Rec_Event> &event_ptr);
 
 /// Convert a Seq_type enum value to its canonical string name used in Events_map keys.
-CORE_EXPORT std::string seq_type_to_string(Seq_type seq_type);
+CORE_EXPORT Seq_type_String seq_type_to_string(Seq_type seq_type);
 
 // gene_seq_type: seq_type of the GeneChoice event to look up (e.g. "V_gene_seq")
 CORE_EXPORT igor::migration::GeneChoiceStatus check_gene_choice(
-    const std::string &gene_seq_type,
+    const Seq_type_String &gene_seq_type,
     const Events_map &events_map,
     const std::unordered_set<Rec_Event_name> &processed_events);
 
@@ -49,7 +49,7 @@ CORE_EXPORT Int_Str build_scenario_sequence(Seq_type_str_p_map &constructed_sequ
 ///                               sequence fragment (nullptr entries are skipped).
 CORE_EXPORT Int_Str build_scenario_sequence(
     const SeqTypeRegistry &registry,
-    const std::unordered_map<std::string, const Int_Str *> &constructed_sequences);
+    const std::unordered_map<Seq_type_String, const Int_Str *> &constructed_sequences);
 
 CORE_EXPORT void initialize_offset_memory(
     const std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>
@@ -59,6 +59,6 @@ CORE_EXPORT void initialize_offset_memory(
 
 // ins_seq_type: seq_type of the Insertion event to look up (e.g. "VD_ins_seq")
 CORE_EXPORT int get_insertion_len_max(
-    const std::string &ins_seq_type,
+    const Seq_type_String &ins_seq_type,
     const Events_map &events_map);
 } // namespace EventUtils

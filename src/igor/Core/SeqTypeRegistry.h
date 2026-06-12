@@ -22,6 +22,8 @@
 
 #pragma once
 
+#include <igor/Core/Utils.h>
+
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -49,7 +51,7 @@ public:
      * Replace the registry contents with a new ordered list of seq_type names.
      * The order must reflect the 5'→3' direction of the constructed sequence.
      */
-    void set_ordered_types(const std::vector<std::string> &types)
+    void set_ordered_types(const std::vector<Seq_type_String> &types)
     {
         ordered_seq_types = types;
         type_to_index.clear();
@@ -59,16 +61,16 @@ public:
     }
 
     /** Return the ordered list of seq_type names (5'→3'). */
-    const std::vector<std::string> &get_ordered_types() const { return ordered_seq_types; }
+    const std::vector<Seq_type_String> &get_ordered_types() const { return ordered_seq_types; }
 
     /** Return true if the given seq_type is registered. */
-    bool contains(const std::string &seq_type) const { return type_to_index.count(seq_type) > 0; }
+    bool contains(const Seq_type_String &seq_type) const { return type_to_index.count(seq_type) > 0; }
 
     /**
      * Return the zero-based position of seq_type in the 5'→3' order.
      * \throws std::out_of_range if seq_type is not registered.
      */
-    size_t index_of(const std::string &seq_type) const
+    size_t index_of(const Seq_type_String &seq_type) const
     {
         auto it = type_to_index.find(seq_type);
         if (it == type_to_index.end()) {
@@ -81,7 +83,7 @@ public:
      * Return the seq_type immediately to the left (5' side) of the given seq_type,
      * or std::nullopt if seq_type is the leftmost segment or is not registered.
      */
-    std::optional<std::string> get_left_neighbor(const std::string &seq_type) const
+    std::optional<Seq_type_String> get_left_neighbor(const Seq_type_String &seq_type) const
     {
         auto it = type_to_index.find(seq_type);
         if (it == type_to_index.end() || it->second == 0) {
@@ -94,7 +96,7 @@ public:
      * Return the seq_type immediately to the right (3' side) of the given seq_type,
      * or std::nullopt if seq_type is the rightmost segment or is not registered.
      */
-    std::optional<std::string> get_right_neighbor(const std::string &seq_type) const
+    std::optional<Seq_type_String> get_right_neighbor(const Seq_type_String &seq_type) const
     {
         auto it = type_to_index.find(seq_type);
         if (it == type_to_index.end() || it->second + 1 >= ordered_seq_types.size()) {
@@ -107,6 +109,6 @@ public:
     size_t size() const { return ordered_seq_types.size(); }
 
 private:
-    std::vector<std::string> ordered_seq_types;
-    std::unordered_map<std::string, size_t> type_to_index;
+    std::vector<Seq_type_String> ordered_seq_types;
+    std::unordered_map<Seq_type_String, size_t> type_to_index;
 };

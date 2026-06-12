@@ -107,6 +107,7 @@ enum Event_type { GeneChoice_t, Deletion_t, Insertion_t, Dinuclmarkov_t, Undefin
 enum Event_safety { VD_safe = 0, DJ_safe = 1, VJ_safe = 2 };
 enum Seq_side { Five_prime = 0, Three_prime = 1, Undefined_side = 2 };
 enum Seq_type { V_gene_seq = 0, VD_ins_seq = 1, D_gene_seq = 2, DJ_ins_seq = 3, J_gene_seq = 4, VJ_ins_seq = 5 };
+using Seq_type_String = std::string;
 /// Slim gene class: only the three fundamental gene types plus Undefined.
 /// Use this everywhere in runtime code. Junction/compound values (VD, DJ, VJ, VDJ)
 /// belong to Gene_class_legacy and are only used at legacy file I/O boundaries.
@@ -154,8 +155,8 @@ enum Int_nt {
     int_N = 14
 };
 
-CORE_EXPORT Seq_type str2SeqType(const std::string &);
-CORE_EXPORT std::string to_string(const Seq_type);
+CORE_EXPORT Seq_type str2SeqType(const Seq_type_String &);
+CORE_EXPORT Seq_type_String to_string(const Seq_type);
 CORE_EXPORT Gene_class_legacy str2GeneClass(const std::string &);
 CORE_EXPORT std::string to_string(const Gene_class_legacy);
 CORE_EXPORT Seq_side str2SeqSide(const std::string &);
@@ -667,7 +668,7 @@ typedef Enum_fast_memory_dual_key_map<Seq_type, Seq_side, Seq_Offset> Seq_offset
 
 /**
  * String-keyed variant of Enum_fast_memory_dual_key_map.
- * First key is a std::string (arbitrary seq_type name such as "D1_gene_seq"),
+ * First key is Seq_type_String (arbitrary seq_type name such as "D1_gene_seq"),
  * second key K2 is any type castable to int (e.g. Seq_side enum).
  * Supports the same layered-memory interface as Enum_fast_memory_dual_key_map.
  */
@@ -676,7 +677,7 @@ class Str_Dual_key_memory_map {
 public:
     Str_Dual_key_memory_map() = default;
 
-    V &at(const std::string &key1, const K2 &key2)
+    V &at(const Seq_type_String &key1, const K2 &key2)
     {
         auto &entry = get_entry(key1, key2);
         if (entry.current_layer < 0)
@@ -684,7 +685,7 @@ public:
         return entry.layers[entry.current_layer];
     }
 
-    const V &at(const std::string &key1, const K2 &key2) const
+    const V &at(const Seq_type_String &key1, const K2 &key2) const
     {
         const auto &entry = get_entry_const(key1, key2);
         if (entry.current_layer < 0)
@@ -693,7 +694,7 @@ public:
     }
 
     // Access (and rewind to) a specific memory layer.
-    V &at(const std::string &key1, const K2 &key2, int memory_layer)
+    V &at(const Seq_type_String &key1, const K2 &key2, int memory_layer)
     {
         auto &entry = get_entry(key1, key2);
         if (memory_layer > entry.current_layer + 1)
@@ -704,7 +705,7 @@ public:
         return entry.layers[memory_layer];
     }
 
-    const V &at(const std::string &key1, const K2 &key2, int memory_layer) const
+    const V &at(const Seq_type_String &key1, const K2 &key2, int memory_layer) const
     {
         const auto &entry = get_entry_const(key1, key2);
         if (memory_layer > entry.current_layer)
@@ -712,7 +713,7 @@ public:
         return entry.layers[memory_layer];
     }
 
-    int get_current_memory_layer(const std::string &key1, const K2 &key2)
+    int get_current_memory_layer(const Seq_type_String &key1, const K2 &key2)
     {
         auto it1 = data_.find(key1);
         if (it1 == data_.end()) return -1;
@@ -721,7 +722,7 @@ public:
         return it2->second.current_layer;
     }
 
-    bool exist(const std::string &key1, const K2 &key2)
+    bool exist(const Seq_type_String &key1, const K2 &key2)
     {
         auto it1 = data_.find(key1);
         if (it1 == data_.end()) return false;
@@ -730,7 +731,7 @@ public:
         return it2->second.current_layer >= 0;
     }
 
-    void request_memory_layer(const std::string &key1, const K2 &key2)
+    void request_memory_layer(const Seq_type_String &key1, const K2 &key2)
     {
         auto &entry = data_[key1][static_cast<int>(key2)];
         ++entry.current_layer;
@@ -738,7 +739,7 @@ public:
             entry.layers.emplace_back();
     }
 
-    void set_value(const std::string &key1, const K2 &key2, V value, int memory_layer)
+    void set_value(const Seq_type_String &key1, const K2 &key2, V value, int memory_layer)
     {
         auto &entry = data_[key1][static_cast<int>(key2)];
         if (memory_layer > entry.current_layer + 1)
@@ -755,9 +756,9 @@ private:
         std::vector<V> layers;
         int current_layer = -1;
     };
-    std::unordered_map<std::string, std::unordered_map<int, LayeredValue>> data_;
+    std::unordered_map<Seq_type_String, std::unordered_map<int, LayeredValue>> data_;
 
-    LayeredValue &get_entry(const std::string &key1, const K2 &key2)
+    LayeredValue &get_entry(const Seq_type_String &key1, const K2 &key2)
     {
         auto it1 = data_.find(key1);
         if (it1 == data_.end())
@@ -768,7 +769,7 @@ private:
         return it2->second;
     }
 
-    const LayeredValue &get_entry_const(const std::string &key1, const K2 &key2) const
+    const LayeredValue &get_entry_const(const Seq_type_String &key1, const K2 &key2) const
     {
         auto it1 = data_.find(key1);
         if (it1 == data_.end())
@@ -850,15 +851,15 @@ struct hash<std::tuple<Event_type, Gene_class_legacy, Seq_side>>
 };
 
 template <>
-struct hash<std::tuple<Event_type, std::string, Seq_side>>
+struct hash<std::tuple<Event_type, Seq_type_String, Seq_side>>
 {
-    std::size_t operator()(const std::tuple<Event_type, std::string, Seq_side> &event_triplet) const
+    std::size_t operator()(const std::tuple<Event_type, Seq_type_String, Seq_side> &event_triplet) const
     {
         Event_type ev_type;
-        std::string seq_type_str;
+        Seq_type_String seq_type_str;
         Seq_side s_side;
         std::tie(ev_type, seq_type_str, s_side) = event_triplet;
-        return ((hash<int>()(ev_type) ^ (hash<std::string>()(seq_type_str) << 1) >> 1)
+        return ((hash<int>()(ev_type) ^ (hash<Seq_type_String>()(seq_type_str) << 1) >> 1)
                 ^ (hash<int>()(s_side) << 1));
     }
 };
@@ -882,7 +883,7 @@ struct hash<Event_safety>
 // v2.0 events map: keyed by (Event_type, seq_type string, Seq_side) so that
 // multiple events of the same type and side but different seq_types (e.g. two
 // D-gene deletions on D1 vs D2 in a tandem-D model) can coexist unambiguously.
-typedef std::unordered_map<std::tuple<Event_type, std::string, Seq_side>,
+typedef std::unordered_map<std::tuple<Event_type, Seq_type_String, Seq_side>,
                            std::shared_ptr<Rec_Event>>
         Events_map;
 

@@ -37,7 +37,7 @@ using namespace std;
 namespace {
 /// Convert the seq_type string (e.g. "VD_ins_seq") to a Seq_type enum value.
 /// Returns false when the string is not a recognised insertion seq_type.
-bool insertion_seq_type_str_to_enum(const std::string &seq_type_str, Seq_type &out)
+bool insertion_seq_type_str_to_enum(const Seq_type_String &seq_type_str, Seq_type &out)
 {
     if (seq_type_str == "VD_ins_seq") { out = VD_ins_seq; return true; }
     if (seq_type_str == "DJ_ins_seq") { out = DJ_ins_seq; return true; }
@@ -519,7 +519,7 @@ void Insertion::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &model_q
 
 void Insertion::update_event_name()
 {
-    std::string seq_type_str;
+    Seq_type_String seq_type_str;
     switch (ins_seq_type) {
     case VD_ins_seq: seq_type_str = "VD_genes"; break;
     case DJ_ins_seq: seq_type_str = "DJ_gene"; break;

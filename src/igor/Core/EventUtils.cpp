@@ -3,7 +3,7 @@
 
 namespace EventUtils {
 
-std::string seq_type_to_string(Seq_type seq_type)
+Seq_type_String seq_type_to_string(Seq_type seq_type)
 {
     switch (seq_type) {
     case V_gene_seq:  return "V_gene_seq";
@@ -41,7 +41,7 @@ bool try_get_event(
 }
 
 igor::migration::GeneChoiceStatus check_gene_choice(
-    const std::string &gene_seq_type,
+  const Seq_type_String &gene_seq_type,
     const Events_map &events_map,
     const std::unordered_set<Rec_Event_name> &processed_events) {
 
@@ -96,7 +96,7 @@ Int_Str build_scenario_sequence(Seq_type_str_p_map &constructed_sequences,
 
 Int_Str build_scenario_sequence(
     const SeqTypeRegistry &registry,
-    const std::unordered_map<std::string, const Int_Str *> &constructed_sequences) {
+  const std::unordered_map<Seq_type_String, const Int_Str *> &constructed_sequences) {
 
   Int_Str scenario_resulting_sequence;
   for (const auto &seq_type : registry.get_ordered_types()) {
@@ -109,7 +109,7 @@ Int_Str build_scenario_sequence(
 }
 
 int get_insertion_len_max(
-    const std::string &ins_seq_type,
+  const Seq_type_String &ins_seq_type,
     const Events_map &events_map) {
   auto key = std::make_tuple(Insertion_t, ins_seq_type, Undefined_side);
   if (events_map.count(key) != 0) {

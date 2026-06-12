@@ -126,6 +126,7 @@ static ParsedScenario parse_scenario(
         auto ev_ptr = parms.get_event_pointer(ev_info->name);
         auto event_type = ev_ptr->get_type();
         auto gene_class = ev_ptr->get_class();
+        const std::string seq_type = ev_ptr->get_seq_type();
 
         if (event_type == Event_type::GeneChoice_t) {
             auto realizations = ev_ptr->get_realizations_map();
@@ -169,11 +170,11 @@ static ParsedScenario parse_scenario(
             for (const auto& [name, real] : realizations) {
                 if (real.index == realization_idx) {
                     int ins_value = real.value_int;
-                    if (gene_class == VD_genes) {
+                    if (seq_type == "VD_ins_seq") {
                         parsed.vd_ins = ins_value;
-                    } else if (gene_class == DJ_genes) {
+                    } else if (seq_type == "DJ_ins_seq") {
                         parsed.dj_ins = ins_value;
-                    } else if (gene_class == VJ_genes) {
+                    } else if (seq_type == "VJ_ins_seq") {
                         parsed.vj_ins = ins_value;
                     }
                     break;

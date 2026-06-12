@@ -198,8 +198,8 @@ public:
     Event_type get_type() const { return this->type; }
     int get_len_max() const { return this->len_max; };
     int get_len_min() const { return this->len_min; };
-    const std::string get_seq_type() const { return seq_type; };
-    void set_seq_type(std::string st) { seq_type = st; }
+    const Seq_type_String get_seq_type() const { return seq_type; };
+    void set_seq_type(const Seq_type_String &st) { seq_type = st; }
     void set_event_side(Seq_side s) { event_side = s; }
 
     bool operator==(const Rec_Event &) const;
@@ -301,7 +301,7 @@ protected:
     Seq_side event_side;
     Rec_Event_name name; //Construct the name in a smart way so that it is unique
     std::string nickname;
-    std::string seq_type; // Seq_type for v2.0 format (e.g., "V_gene_seq", "VD_ins_seq")
+    Seq_type_String seq_type; // Seq_type for v2.0 format (e.g., "V_gene_seq", "VD_ins_seq")
     int len_min;
     int len_max;
     Event_type type;

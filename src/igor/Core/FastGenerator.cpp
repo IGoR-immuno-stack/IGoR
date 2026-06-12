@@ -67,7 +67,7 @@ void FastGenerator::initialize(const Model_Parms &model_parms, const Model_margi
     // Check for D gene
     has_d_gene_ = false;
     auto events_map = model_parms.get_events_map();
-    if (events_map.count(std::make_tuple(GeneChoice_t, std::string("D_gene_seq"), Undefined_side)) > 0) {
+    if (events_map.count(std::make_tuple(GeneChoice_t, Seq_type_String("D_gene_seq"), Undefined_side)) > 0) {
         has_d_gene_ = true;
     }
 
@@ -408,7 +408,7 @@ void FastGenerator::sample_dinucl_markov(const FastEventSampler &sampler, std::m
     };
 
     // Process based on seq_type string
-    const std::string &st = sampler.seq_type;
+    const Seq_type_String &st = sampler.seq_type;
     if (st == "VD_ins_seq") {
         std::string &ins_seq = sequences[VD_ins_seq];
         if (!ins_seq.empty()) {

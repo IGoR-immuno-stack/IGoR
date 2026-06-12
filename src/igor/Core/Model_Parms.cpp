@@ -551,13 +551,13 @@ Events_map Model_Parms::get_events_map()
  */
 bool Model_Parms::requires_extended_format() const
 {
-    static const std::unordered_set<std::string> legacy_seq_types = {
+    static const std::unordered_set<Seq_type_String> legacy_seq_types = {
         "V_gene_seq", "VD_ins_seq", "D_gene_seq", "DJ_ins_seq", "J_gene_seq", "VJ_ins_seq"
     };
-    static const std::vector<std::string> vdj_order = {
+    static const std::vector<Seq_type_String> vdj_order = {
         "V_gene_seq", "VD_ins_seq", "D_gene_seq", "DJ_ins_seq", "J_gene_seq"
     };
-    static const std::vector<std::string> vj_order = {
+    static const std::vector<Seq_type_String> vj_order = {
         "V_gene_seq", "VJ_ins_seq", "J_gene_seq"
     };
 
@@ -638,7 +638,7 @@ void Model_Parms::write_model_parms_v2(string filename)
 /**
  * Helper function to convert legacy Gene_class_legacy to seq_type string for v2.0 format
  */
-static std::string legacy_gene_class_to_seq_type(Gene_class_legacy gene_class, Event_type event_type)
+static Seq_type_String legacy_gene_class_to_seq_type(Gene_class_legacy gene_class, Event_type event_type)
 {
     switch (gene_class) {
     case V_gene_legacy:
@@ -663,7 +663,7 @@ static std::string legacy_gene_class_to_seq_type(Gene_class_legacy gene_class, E
  * For junction seq_types (VD, DJ, VJ) that have no direct Gene_class equivalent,
  * returns Undefined_gene since the constructor will use the seq_type string instead.
  */
-static Gene_class seq_type_to_gene_class(const std::string& seq_type, Event_type event_type)
+static Gene_class seq_type_to_gene_class(const Seq_type_String& seq_type, Event_type event_type)
 {
     if (seq_type == "V_gene_seq") {
         return V_gene;
@@ -690,7 +690,7 @@ void Model_Parms::read_model_parms(string filename)
     
     // Check for version section (v2.0 format)
     double format_version = 1.0;  // Default to legacy format
-    vector<std::string> seq_type_order;
+    vector<Seq_type_String> seq_type_order;
     
     if (line_str == string("@Version")) {
         getline(infile, line_str);
@@ -734,7 +734,7 @@ void Model_Parms::read_model_parms(string filename)
             }
             
             // For v2.0 format, check if there's a seq_type field
-            string seq_type_str;
+            Seq_type_String seq_type_str;
             size_t side_semicolon_index;
             
             if (format_version >= 2.0) {
@@ -774,7 +774,7 @@ void Model_Parms::read_model_parms(string filename)
             cerr << event << " read" << endl;
             
             // Determine seq_type and effective gene_class for v2.0 format conversion
-            string event_seq_type = seq_type_str;
+            Seq_type_String event_seq_type = seq_type_str;
             Gene_class effective_gene_class = gene_class_legacy_to_new(event_class);
             
             if (format_version < 2.0) {
