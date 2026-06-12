@@ -352,12 +352,12 @@ static std::vector<ComparisonRow> compare_inference_to_ground_truth(
 
     // Build insertion+dinuc pairs with combined entropy computed
     // (reuse from ground truth events which already have combined_H)
-    std::map<Gene_class_legacy, InsDinucPair> ins_dinuc_pairs;
+    std::map<std::string, InsDinucPair> ins_dinuc_pairs;
     for (const auto& ev : ground_truth_events) {
         if (ev.is_dinuc_markov) {
-            ins_dinuc_pairs[ev.gene_class].dinuc_event = &ev;
+            ins_dinuc_pairs[ev.seq_type].dinuc_event = &ev;
         } else if (ev.nickname.find("_ins") != std::string::npos) {
-            ins_dinuc_pairs[ev.gene_class].ins_event = &ev;
+            ins_dinuc_pairs[ev.seq_type].ins_event = &ev;
         }
     }
 

@@ -187,7 +187,7 @@ TEST_CASE("Generation marginals converge - KL divergence vs entropy",
 
             // Determine the reported entropy for this event
             double reported_H;
-            auto it_pair = ins_dinuc_pairs.find(ev.gene_class);
+            auto it_pair = ins_dinuc_pairs.find(ev.seq_type);
             bool is_combined_ins =
                     it_pair != ins_dinuc_pairs.end() &&
                     it_pair->second.ins_event == &ev &&
@@ -240,7 +240,7 @@ TEST_CASE("Generation marginals converge - KL divergence vs entropy",
     // printouts reference the total information content of the pair.
     for (auto &ev : event_infos) {
         if (ev.is_dinuc_markov) continue;
-        auto it = ins_dinuc_pairs.find(ev.gene_class);
+        auto it = ins_dinuc_pairs.find(ev.seq_type);
         if (it != ins_dinuc_pairs.end() &&
             it->second.ins_event &&
             it->second.ins_event->queue_position == ev.queue_position &&
