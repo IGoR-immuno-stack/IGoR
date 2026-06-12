@@ -18,7 +18,7 @@ mkdir -p "$REPORT_BASE_DIR"
 GEN_SIZES=(1000 10000 100000 1000000)
 PIPELINE_SIZES=(100 500 1000)
 
-IGORCALL="$IGORBIN -set_wd $BENCH_DIR"
+IGORCALL="$IGORBIN -w $BENCH_DIR"
 MODEL_PARMS="$TESTREF/demo_inference/final_parms.txt"
 MODEL_MARGINALS="$TESTREF/demo_inference/final_marginals.txt"
 GENOMIC_V="$TESTINPUT/genomicVs_with_primers.fasta"
@@ -246,7 +246,7 @@ run_standalone_generation() {
     local idx="$1"
     local n_seqs="$2"
     local batch_name="gen_${n_seqs}"
-    local cmd="$IGORCALL -batch $batch_name -threads 1 -set_custom_model \"$MODEL_PARMS\" \"$MODEL_MARGINALS\" -generate $n_seqs --seed 12345"
+    local cmd="$IGORCALL init && $IGORCALL config set model.source custom && $IGORCALL config set model.parms \"$MODEL_PARMS\" && $IGORCALL config set model.marginals \"$MODEL_MARGINALS\" && $IGORCALL config set generate.seed 12345 && $IGORCALL -b $batch_name -j 1 generate $n_seqs"
 
     echo ""
     echo "------------------------------------------------------------------"
@@ -268,34 +268,34 @@ run_pipeline_bench() {
     CURRENT_CONTEXT="Pipeline (N=$n_seqs, T=$n_threads)"
 
     # 1. Pipeline Generation
-    local gen_cmd="$IGORCALL -batch $pfx -threads 1 -set_custom_model \"$MODEL_PARMS\" \"$MODEL_MARGINALS\" -generate $n_seqs --seed 12345"
+    local gen_cmd="$IGORCALL init && $IGORCALL config set model.source custom && $IGORCALL config set model.parms \"$MODEL_PARMS\" && $IGORCALL config set model.marginals \"$MODEL_MARGINALS\" && $IGORCALL config set generate.seed 12345 && $IGORCALL -b $pfx -j 1 generate $n_seqs"
     run_step "Generation" "$gen_cmd"
 
     local seq_file="$BENCH_DIR/${pfx}_generated/generated_seqs_werr.csv"
 
     # 2. Pipeline Read
-    local read_cmd="$IGORCALL -batch $pfx -read_seqs \"$seq_file\""
+    local read_cmd="$IGORCALL -b $pfx import-seqs \"$seq_file\""
     run_step "Read Seqs" "$read_cmd"
 
     # 3. Pipeline Align
     if [ "$VERBOSE" = true ]; then
-        local align_v="$IGORCALL -batch $pfx -threads $n_threads -align --V -set_genomic --V \"$GENOMIC_V\""
+        local align_v="$IGORCALL config set genomic.V \"$GENOMIC_V\" && $IGORCALL -b $pfx -j $n_threads align --gene V"
         run_step "Align (V)" "$align_v"
 
-        local align_d="$IGORCALL -batch $pfx -threads $n_threads -align --D -set_genomic --D \"$GENOMIC_D\""
+        local align_d="$IGORCALL config set genomic.D \"$GENOMIC_D\" && $IGORCALL -b $pfx -j $n_threads align --gene D"
         run_step "Align (D)" "$align_d"
 
-        local align_j="$IGORCALL -batch $pfx -threads $n_threads -align --J -set_genomic --J \"$GENOMIC_J\""
+        local align_j="$IGORCALL config set genomic.J \"$GENOMIC_J\" && $IGORCALL -b $pfx -j $n_threads align --gene J"
         run_step "Align (J)" "$align_j"
     else
-        local align_cmd="$IGORCALL -batch $pfx -threads $n_threads -align --V -set_genomic --V \"$GENOMIC_V\" && \
-                         $IGORCALL -batch $pfx -threads $n_threads -align --D -set_genomic --D \"$GENOMIC_D\" && \
-                         $IGORCALL -batch $pfx -threads $n_threads -align --J -set_genomic --J \"$GENOMIC_J\""
+        local align_cmd="$IGORCALL config set genomic.V \"$GENOMIC_V\" && $IGORCALL -b $pfx -j $n_threads align --gene V && \
+                         $IGORCALL config set genomic.D \"$GENOMIC_D\" && $IGORCALL -b $pfx -j $n_threads align --gene D && \
+                         $IGORCALL config set genomic.J \"$GENOMIC_J\" && $IGORCALL -b $pfx -j $n_threads align --gene J"
         run_step "Alignment" "$align_cmd"
     fi
 
     # 4. Pipeline Infer
-    local infer_cmd="$IGORCALL -batch $pfx -threads $n_threads -set_custom_model \"$MODEL_PARMS\" \"$MODEL_MARGINALS\" -infer --N_iter 2"
+    local infer_cmd="$IGORCALL config set model.source custom && $IGORCALL config set model.parms \"$MODEL_PARMS\" && $IGORCALL config set model.marginals \"$MODEL_MARGINALS\" && $IGORCALL config set infer.iterations 2 && $IGORCALL -b $pfx -j $n_threads infer"
     run_step "Inference (2 iter)" "$infer_cmd"
 }
 
