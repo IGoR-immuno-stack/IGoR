@@ -93,29 +93,107 @@ struct GenerationTestConfig {
     std::string model_parms_path;
     std::string model_marginals_path;
     std::string model_label;
-    std::vector<int> sample_sizes;
+    size_t sample_size = 0;
+    std::vector<size_t> sample_size_reduction_factors;
     bool test_convergence = true;
     std::map<std::string, double> pygor3_reference_entropy;
 };
+
+static std::vector<size_t> build_sample_schedule(const GenerationTestConfig& cfg)
+{
+    std::vector<size_t> sample_sizes;
+    sample_sizes.push_back(cfg.sample_size);
+
+    for (size_t factor : cfg.sample_size_reduction_factors) {
+        if (factor <= 1) {
+            continue;
+        }
+        size_t reduced = cfg.sample_size / factor;
+        if (reduced > 0) {
+            sample_sizes.push_back(reduced);
+        }
+    }
+
+    std::sort(sample_sizes.begin(), sample_sizes.end());
+    sample_sizes.erase(std::unique(sample_sizes.begin(), sample_sizes.end()), sample_sizes.end());
+    return sample_sizes;
+}
+
+namespace {
+constexpr double kDklSafetyFactor = 50.0;
+constexpr double kMonotonicGapFactor = 5.0;
+}  // namespace
+
+/**
+ * @brief Leading-order expectation for sampling-induced D_KL at finite N.
+ *
+ * For an event with k realizations sampled N times from the true model,
+ * the plug-in KL estimator has asymptotic expectation:
+ *
+ *   E[D_KL(P||Q_hat)] ~= (k - 1) / (2 * N * ln 2)
+ */
+static double expected_large_sample_dkl(int num_realizations, size_t sample_size)
+{
+    return (num_realizations - 1) / (2.0 * static_cast<double>(sample_size) * std::log(2.0));
+}
+
+/**
+ * @brief Heuristic high-confidence scale for finite-sample D_KL.
+ *
+ * This is not a strict probabilistic upper bound; it is a safety-scaled
+ * expectation used as a robust acceptance threshold in CI.
+ */
+static double large_sample_dkl_scale(int num_realizations, size_t sample_size)
+{
+    return kDklSafetyFactor * expected_large_sample_dkl(num_realizations, sample_size);
+}
+
+/**
+ * @brief Monotonicity tolerance from expected D_KL gap across sample sizes.
+ *
+ * When N increases from N_prev to N_last, the expected sampling-induced D_KL
+ * decreases. We allow non-monotonic fluctuations proportional to this expected
+ * gap. The proportionality factor accounts for estimator variance and skew.
+ */
+static double dkl_monotonicity_tolerance(int num_realizations,
+                                         size_t prev_sample_size,
+                                         size_t last_sample_size)
+{
+    const double expected_prev =
+        expected_large_sample_dkl(num_realizations, prev_sample_size);
+    const double expected_last =
+        expected_large_sample_dkl(num_realizations, last_sample_size);
+    return kMonotonicGapFactor * std::abs(expected_prev - expected_last);
+}
+
+static bool passes_large_sample_dkl_threshold(double dkl, int num_realizations, size_t sample_size)
+{
+    return dkl < large_sample_dkl_scale(num_realizations, sample_size);
+}
+
+static double uncovered_mass_upper(size_t sample_size)
+{
+    return (std::max)(1000.0 / static_cast<double>(sample_size), 1e-4);
+}
 
 // ---------------------------------------------------------------------------
 // Test implementation
 // ---------------------------------------------------------------------------
 
 /**
- * @brief Run generation convergence test with configurable sample sizes
+ * @brief Run generation convergence test with a primary sample size and reductions
  *
  * Test workflow:
  * 1. Load ground truth model and event metadata
  * 2. Compute combined insertion+dinucleotide entropy
  * 3. Cross-validate entropy against pygor3 reference (if available)
- * 4. Generate sequences for each sample size
- * 5. For each sample size, compute empirical marginals and D_KL per event
+ * 4. Build sample schedule from the primary sample size and reduction factors
+ * 5. Generate sequences for each schedule point and compute empirical marginals
  * 6. If test_convergence=true, perform:
  *    - Empirical entropy convergence to theoretical entropy
  *    - Monotonic decrease check of D_KL with increasing N
  *
- * @param cfg GenerationTestConfig with model paths, sample sizes, and options
+ * @param cfg GenerationTestConfig with model paths, sampling schedule, and options
  */
 static void run_generation_convergence_test(const GenerationTestConfig& cfg)
 {
@@ -127,11 +205,16 @@ static void run_generation_convergence_test(const GenerationTestConfig& cfg)
     }
 
     INFO("Testing model: " << cfg.model_label);
-    INFO("Sample sizes: " << [&cfg]() {
+    REQUIRE(((not cfg.test_convergence) or (cfg.sample_size >= 1000000)));
+
+    const std::vector<size_t> sample_sizes = build_sample_schedule(cfg);
+    REQUIRE(!sample_sizes.empty());
+
+    INFO("Sample sizes: " << [&sample_sizes]() {
         std::ostringstream oss;
-        for (size_t i = 0; i < cfg.sample_sizes.size(); ++i) {
+        for (size_t i = 0; i < sample_sizes.size(); ++i) {
             if (i > 0) oss << ", ";
-            oss << cfg.sample_sizes[i];
+            oss << sample_sizes[i];
         }
         return oss.str();
     }());
@@ -259,15 +342,15 @@ static void run_generation_convergence_test(const GenerationTestConfig& cfg)
     fast_gen.initialize(model_parms, model_marginals);
     REQUIRE(fast_gen.is_initialized());
 
-    for (int N : cfg.sample_sizes) {
+    for (size_t N : sample_sizes) {
         INFO("Generating " << N << " sequences");
 
         // Generate using FastGenerator (parallel, precomputed CDFs)
         igor::fast::FastGeneratorConfig config;
         config.show_progress = false;
-        auto sequences = fast_gen.generate(static_cast<size_t>(N), config);
+        auto sequences = fast_gen.generate(N, config);
 
-        REQUIRE(sequences.size() == static_cast<size_t>(N));
+        REQUIRE(sequences.size() == N);
 
         std::cout << "\n--- N = " << N << " ---" << std::endl;
 
@@ -276,18 +359,8 @@ static void run_generation_convergence_test(const GenerationTestConfig& cfg)
                 sequences, event_infos, sequences.size());
 
         // Build comparison rows using helper
-        auto threshold_func = [N](double dkl, double H, int num_realizations) -> bool {
-            if (N == 10) {
-                return std::isfinite(dkl);
-            } else if (N == 100) {
-                return dkl < (std::max)(H, 1.0);
-            } else if (N == 1000) {
-                return dkl < (std::max)(H, 1.0) * 0.1;
-            } else if (N == 1000000) {
-                double expected_upper = 50.0 * (num_realizations - 1) / (2.0 * N * std::log(2.0));
-                return dkl < (std::max)(expected_upper, 1e-3);
-            }
-            return true;
+        auto threshold_func = [N](double dkl, double /*H*/, int num_realizations) -> bool {
+            return passes_large_sample_dkl_threshold(dkl, num_realizations, N);
         };
 
         auto rows = build_comparison_rows(
@@ -314,31 +387,8 @@ static void run_generation_convergence_test(const GenerationTestConfig& cfg)
             // uncovered bins are skipped, so we only check finiteness)
             CHECK(std::isfinite(dkl));
 
-            if (N == 10) {
-                // With only 10 samples, D_KL can be very large
-                // and many bins will be uncovered.
-                // No bound check at this sample size.
-            } else if (N == 100) {
-                // Loose bound: D_KL should be within the same order as H
-                CHECK(dkl < (std::max)(ev.H, 1.0));
-            } else if (N == 1000) {
-                // Tighter: D_KL should be at most a tenth of H
-                CHECK(dkl < (std::max)(ev.H, 1.0) * 0.1);
-                // Most of the distribution should be covered
-                CHECK(uncovered < 0.1);
-            } else if (N == 1000000) {
-                // Very tight: D_KL should be negligible compared to H.
-                // Asymptotic expectation: D_KL ≈ (k−1)/(2·N·ln2).
-                // The estimator variance follows χ²(k−1), so we use a
-                // 50× safety factor to avoid flaky CI failures across
-                // many events and two model sections.
-                double expected_upper =
-                        50.0 * (ev.num_realizations - 1) / (2.0 * N * std::log(2.0));
-                CHECK(dkl < (std::max)(expected_upper, 1e-3));
-                // At 1M samples, essentially all bins should be covered
-                // (rare alleles with P~1e-6 may still be missed)
-                CHECK(uncovered < 1e-3);
-            }
+            CHECK(passes_large_sample_dkl_threshold(dkl, ev.num_realizations, N));
+            CHECK(uncovered < uncovered_mass_upper(N));
         }
     }
 
@@ -362,11 +412,11 @@ static void run_generation_convergence_test(const GenerationTestConfig& cfg)
         if (ev.is_dinuc_markov) continue;
 
         const auto &htrace = entropy_traces.at(ev.queue_position);
-        if (htrace.size() >= 2 && cfg.sample_sizes.size() >= 2) {
+        if (htrace.size() >= 2 && sample_sizes.size() >= 2) {
             // Use last sample size for entropy convergence check
             size_t last_idx = htrace.size() - 1;
             double H_emp_last = htrace[last_idx];
-            int N_last = cfg.sample_sizes[last_idx];
+            size_t N_last = sample_sizes[last_idx];
 
             // H_emp is the empirical entropy of the marginal distribution
             // for this event only (e.g. insertion-length distribution),
@@ -380,7 +430,7 @@ static void run_generation_convergence_test(const GenerationTestConfig& cfg)
             // conservative upper estimate (Var ≤ E²).
             // Use 5σ + 50× bias for a CI-safe tolerance.
             double bias =
-                    50.0 * (ev.num_realizations - 1) / (2.0 * N_last * std::log(2.0));
+                        50.0 * (ev.num_realizations - 1) / (2.0 * static_cast<double>(N_last) * std::log(2.0));
             double stdev_bound = 5.0 * H_theo / std::sqrt(N_last);
             double tolerance = bias + stdev_bound;
             double diff = std::abs(H_emp_last - H_theo);
@@ -400,7 +450,7 @@ static void run_generation_convergence_test(const GenerationTestConfig& cfg)
     // ------------------------------------------------------------------
     // 4. Check monotonic decrease of D_KL with increasing N
     // ------------------------------------------------------------------
-    if (cfg.sample_sizes.size() >= 2) {
+    if (sample_sizes.size() >= 2) {
         std::cout << "\n=== Monotonic decrease check ===" << std::endl;
         for (const auto &ev : event_infos) {
             if (ev.is_dinuc_markov) continue;
@@ -422,8 +472,8 @@ static void run_generation_convergence_test(const GenerationTestConfig& cfg)
                 size_t idx_last = trace.size() - 1;
                 auto [dkl_prev, uncov_prev] = trace[idx_prev];
                 auto [dkl_last, uncov_last] = trace[idx_last];
-                int N_prev = cfg.sample_sizes[idx_prev];
-                int N_last = cfg.sample_sizes[idx_last];
+                size_t N_prev = sample_sizes[idx_prev];
+                size_t N_last = sample_sizes[idx_last];
 
                 std::cout << "  " << ev.nickname
                           << " : D_KL(N=" << N_prev << ")=" << dkl_prev
@@ -431,8 +481,12 @@ static void run_generation_convergence_test(const GenerationTestConfig& cfg)
                           << "  uncov(" << N_prev << ")=" << uncov_prev
                           << "  uncov(" << N_last << ")=" << uncov_last << std::endl;
                 if (uncov_prev < 0.01) {
-                    // Both estimates are reliable; D_KL should decrease
-                    CHECK(dkl_last < dkl_prev + 1e-4);
+                    // Both estimates are reliable. Allow residual finite-N
+                    // fluctuations up to the predicted upper-bound drop.
+                    const double tol = dkl_monotonicity_tolerance(
+                            ev.num_realizations, N_prev, N_last);
+                    std::cout << "D_KL decrease computed tolerance: " << tol <<std::endl;
+                    CHECK(dkl_last < dkl_prev + tol);
                 }
             }
         }
@@ -447,14 +501,15 @@ static void run_generation_convergence_test(const GenerationTestConfig& cfg)
 
 TEST_CASE("Generation marginals converge - integration", "[generation][integration]")
 {
-    // Fast integration test: only small sample sizes (10, 100)
-    // No convergence assertions, just verify generation works correctly
+    // Integration test: large sample generation path only.
+    // No convergence assertions.
     SECTION("human TCR alpha (VJ)") {
         GenerationTestConfig cfg;
         cfg.model_parms_path = MODELS_DIR + "/human/tcr_alpha/models/model_parms.txt";
         cfg.model_marginals_path = MODELS_DIR + "/human/tcr_alpha/models/model_marginals.txt";
         cfg.model_label = "human/tcr_alpha";
-        cfg.sample_sizes = {10, 100};
+        cfg.sample_size = 100;
+        cfg.sample_size_reduction_factors = {10};
         cfg.test_convergence = false;
         run_generation_convergence_test(cfg);
     }
@@ -464,7 +519,8 @@ TEST_CASE("Generation marginals converge - integration", "[generation][integrati
         cfg.model_parms_path = MODELS_DIR + "/human/tcr_beta/models/model_parms.txt";
         cfg.model_marginals_path = MODELS_DIR + "/human/tcr_beta/models/model_marginals.txt";
         cfg.model_label = "human/tcr_beta";
-        cfg.sample_sizes = {10, 100};
+        cfg.sample_size = 100;
+        cfg.sample_size_reduction_factors = {10};
         cfg.test_convergence = false;
         // No pygor3 reference for integration test
         run_generation_convergence_test(cfg);
@@ -473,24 +529,25 @@ TEST_CASE("Generation marginals converge - integration", "[generation][integrati
 
 TEST_CASE("Generation marginals converge - convergence", "[generation][convergence][slow]")
 {
-    // Convergence test: larger sample sizes (1000, 1000000)
-    // Full validation including entropy convergence and monotonic decrease checks
-    SECTION("human TCR alpha (VJ) - N=1000, 1M - thorough validation") {
+    // Convergence test: high-N schedule with reduced-N checkpoints for monotonic D_KL checks.
+    SECTION("human TCR alpha (VJ) - N=1M with N/10 monotonic checkpoint") {
         GenerationTestConfig cfg;
         cfg.model_parms_path = MODELS_DIR + "/human/tcr_alpha/models/model_parms.txt";
         cfg.model_marginals_path = MODELS_DIR + "/human/tcr_alpha/models/model_marginals.txt";
         cfg.model_label = "human/tcr_alpha";
-        cfg.sample_sizes = {1000, 1000000};
+        cfg.sample_size = 1e6;
+        cfg.sample_size_reduction_factors = {10};
         cfg.test_convergence = true;
         run_generation_convergence_test(cfg);
     }
 
-    SECTION("human TCR beta (VDJ) - N=1000, 1M - with pygor3 cross-validation") {
+    SECTION("human TCR beta (VDJ) - N=1M with N/10 checkpoint and pygor3 cross-validation") {
         GenerationTestConfig cfg;
         cfg.model_parms_path = MODELS_DIR + "/human/tcr_beta/models/model_parms.txt";
         cfg.model_marginals_path = MODELS_DIR + "/human/tcr_beta/models/model_marginals.txt";
         cfg.model_label = "human/tcr_beta";
-        cfg.sample_sizes = {1000, 1000000};
+        cfg.sample_size = 1e7;
+        cfg.sample_size_reduction_factors = {10};
         cfg.test_convergence = true;
         // Reference entropies from pygor3 tutorial:
         // https://pygor3.readthedocs.io/en/latest/Tutorial.html#Entropy
