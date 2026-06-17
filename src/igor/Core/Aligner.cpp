@@ -1814,10 +1814,10 @@ list<pair<int, Alignment_data>> Aligner::sw_align(const Int_Str &int_data_sequen
                     end_of_alignment = true;
                     break;
                 } else if (row_memory_matrix(i, j) == 0) {
-                    deletions.push_front(flip_factor * j + flip_mis * int_genomic_sequence_copy.size());
+                    deletions.push_front(flip_factor * (j - 1) + flip_mis * int_genomic_sequence_copy.size());
                 } //TODO check the behavior of this and how to handle in-dels
                 else if (col_memory_matrix(i, j) == 0) {
-                    insertions.push_front(flip_factor * i + flip_mis * int_data_sequence_copy.size());
+                    insertions.push_front(flip_factor * (i - 1) + flip_mis * int_data_sequence_copy.size());
                 }
                 int i_temp = i;
                 i -= row_memory_matrix(i_temp, j);
@@ -1834,7 +1834,7 @@ list<pair<int, Alignment_data>> Aligner::sw_align(const Int_Str &int_data_sequen
 
             if ((offset >= min_offset)
                 && (offset
-                   <= max_offset)) { //TODO reduce computation time by truncating the alignment from the beginning?
+                   <= max_offset)) { //TODO reduce computation time by truncating the alignment from the beginning? = banded alignment
                 //TODO change this and use incorporate_in_dels(), should probably change the list inside alignment data also to have the actual corresponding indices
                 //TODO return the actual inserted/deleted sequences in the alignment data??
                 Int_Str dat_seq;
