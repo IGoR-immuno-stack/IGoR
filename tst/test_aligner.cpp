@@ -286,11 +286,11 @@ TEST_CASE("Aligner V gene dummy alignments.", "[aligner][V_gene][dummy]")
         expected_score = 140;
     }
 
-    SECTION("short read")
+    SECTION("short read, free leading reference deletion")
     {
         query_read = std::string(5, 'A') + std::string(1, 'T');
-        germline_ref = std::string(19, 'A') + std::string(1, 'T');
-        expected_cigar = "14D6=";
+        germline_ref = std::string(9, 'A') + std::string(1, 'T');
+        expected_cigar = "4D6=";
         expected_score = 42;
     }
 
@@ -318,12 +318,12 @@ TEST_CASE("Aligner V gene dummy alignments.", "[aligner][V_gene][dummy]")
         expected_score = 49;
     }
 
-    SECTION("penalized trailing germline")
+    SECTION("free trailing germline treated as deletion")
     {
         query_read = std::string(14, 'T');
         germline_ref = std::string(6, 'A') + std::string(14, 'T') + std::string(2, 'A');
         expected_cigar = "6D14=2D";
-        expected_score = 72;
+        expected_score = 98;
     }
 
     SECTION("mismatch in long match")
@@ -429,7 +429,7 @@ TEST_CASE("Aligner D gene dummy local alignments.", "[aligner][D_gene][dummy]")
     {
         query_read = "AGAGAAAAGAAAAGAA";
         germline_ref = std::string(16, 'A');
-        expected_cigar = "4I4=1X4=1X2=";
+        expected_cigar = "4D4I4=1X4=1X2=";
         expected_score = 48;
     }
 
