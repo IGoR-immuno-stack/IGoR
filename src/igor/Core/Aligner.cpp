@@ -1574,10 +1574,12 @@ void Aligner::sw_align_common(const Int_Str &int_data_sequence, const Int_Str &i
 {
     int genomic_gap_score = score_matrix(i, j - 1) - gap_penalty;
     int data_gap_score = score_matrix(i - 1, j) - gap_penalty;
-    int subs_score =
-            score_matrix(i - 1, j - 1) + substitution_matrix(int_data_sequence.at(i), int_genomic_sequence.at(j));
+    int subs_score = score_matrix(i - 1, j - 1)
+            + substitution_matrix(int_data_sequence.at(i - 1), int_genomic_sequence.at(j - 1));
 
     if ((subs_score >= data_gap_score) && (subs_score >= genomic_gap_score) && ((!local_align) || (subs_score > 0)) ) {
+        // Retained move is a match or mismatch
+        // FIXME: using >= means that branching/convergent alignments at traceback will be ignored
         score_matrix(i, j) = subs_score;
         row_memory_matrix(i, j) = 1;
         col_memory_matrix(i, j) = 1;
@@ -1610,8 +1612,8 @@ void Aligner::sw_align_common(const Int_Str &int_data_sequence, const Int_Str &i
         //TODO check this
         alignment_numb_tracker(i, j) = alignment_numb_tracker(i - 1, j - 1);
     }
-    //Keep max score in memory
 
+    //Keep max score in memory
     if (alignment_numb_tracker(i, j) != -1) {
         if (score_matrix(i, j) > max_score[alignment_numb_tracker(i, j)]) {
             int &tmp = alignment_numb_tracker(i, j);
@@ -1633,6 +1635,11 @@ list<pair<int, Alignment_data>> Aligner::sw_align(const Int_Str &int_data_sequen
                                                   int max_offset)
 {
 
+    /*Convention:
+        - data_sequence is the query, and is the vertical sequence in the matrix (i indexed)
+        - genomic_sequence is the reference, and the horizontal sequence in the matrix (j indexed)
+        - The alignment matrix and other utilities are of size sequence size + 1. The extra first row/column allows to initialize the algorithm (especially for the score matrix).
+    */
     Int_Str int_data_sequence_copy = int_data_sequence;
     Int_Str int_genomic_sequence_copy = int_genomic_sequence;
     int offset_change = 0;
@@ -1660,8 +1667,8 @@ list<pair<int, Alignment_data>> Aligner::sw_align(const Int_Str &int_data_sequen
 
 	}
 */
-    int n_rows = int_data_sequence_copy.size();
-    int n_cols = int_genomic_sequence_copy.size();
+    int n_rows = int_data_sequence_copy.size()+1;
+    int n_cols = int_genomic_sequence_copy.size()+1;
 
     Matrix<double> score_matrix(n_rows, n_cols);
     Matrix<int> col_memory_matrix(n_rows, n_cols);
@@ -1669,7 +1676,16 @@ list<pair<int, Alignment_data>> Aligner::sw_align(const Int_Str &int_data_sequen
     Matrix<int> alignment_numb_tracker(n_rows, n_cols);
 
     for (int i = 0; i != n_rows; ++i) {
-        score_matrix(i, 0) = 0;
+        if (local_align){
+            // free leading deletion in query
+            // vanilla SW local alignment
+            score_matrix(i, 0) = 0;
+        }
+        else{
+            // penalized leading deletion in query
+            // akin to global alignment on the left/5'        
+            score_matrix(i, 0) = -i*gap_penalty;
+        }
         col_memory_matrix(i, 0) = 0;
         row_memory_matrix(i, 0) = 0;
         for (int j = 0; j != n_cols; ++j) {
@@ -1677,14 +1693,11 @@ list<pair<int, Alignment_data>> Aligner::sw_align(const Int_Str &int_data_sequen
         }
     }
     for (int j = 0; j != n_cols; ++j) {
+        // free leading insertion in query
         score_matrix(0, j) = 0;
         col_memory_matrix(0, j) = 0;
         row_memory_matrix(0, j) = 0;
     }
-
-    /*	int max_row_coord;
-	int max_col_coord;
-	int max_score = 0;*/
 
     vector<int> max_row_coord;
     vector<int> max_col_coord;
@@ -1707,7 +1720,7 @@ list<pair<int, Alignment_data>> Aligner::sw_align(const Int_Str &int_data_sequen
 
         //TODO test first if the whole genomic seq has been spanned (usually shorter than the data seq??)
 
-        //Always start at index 1 since first column and first raw are filled with 0
+        //Always start at index 1 since first column and first row are initialization values
         if (explored_row_coord == n_rows && !last_column_explored) {
             //If all the rows have been explored
             for (int i = 1; i != n_rows; ++i) {
@@ -1769,7 +1782,6 @@ list<pair<int, Alignment_data>> Aligner::sw_align(const Int_Str &int_data_sequen
 	}*/
     for (size_t align = 0; align != max_score.size(); ++align) {
         if (max_score[align] >= score_threshold) {
-            //if( (!best_only) | (max_score[align]==max_align_score) ){
 
             forward_list<int> insertions;
             forward_list<int> deletions;
@@ -1780,7 +1792,7 @@ list<pair<int, Alignment_data>> Aligner::sw_align(const Int_Str &int_data_sequen
             int i = max_row_coord[align];
             int j = max_col_coord[align];
 
-            size_t end_align_offset = i;
+            size_t end_align_offset = i - 1; // Matrix starts with an extra row
 
             //If sequence has been flip compute how the offset and insertion/deletion should be changed
             int flip_factor;
@@ -1796,41 +1808,11 @@ list<pair<int, Alignment_data>> Aligner::sw_align(const Int_Str &int_data_sequen
                 flip_mis = 0;
             }
 
-            /*
-				cout<<"int_data_seq: "<<int_data_sequence<<endl;
-				cout<<"int_genomicseq: "<<int_genomic_sequence<<endl;
-				cout<<score_matrix(max_row_coord,max_col_coord)<<endl;
-
-					ofstream temp1(string("/home/quentin/Desktop/output_test/seq_gen_check/alignment_check/output_matrices/score_matrix.csv"));
-					for(int a = 0 ; a!=n_rows ; a++){
-						for(int b =0 ; b!=n_cols ; b++){
-							temp1<<score_matrix(a,b)<<";";
-						}
-						temp1<<endl;
-					}
-
-					ofstream temp2(string("/home/quentin/Desktop/output_test/seq_gen_check/alignment_check/output_matrices/row_memory_matrix.csv"));
-					for(int a = 0 ; a!=n_rows ; a++){
-						for(int b =0 ; b!=n_cols ; b++){
-							temp2<<row_memory_matrix(a,b)<<";";
-						}
-						temp2<<endl;
-					}
-
-					ofstream temp3(string("/home/quentin/Desktop/output_test/seq_gen_check/alignment_check/output_matrices/col_memory_matrix.csv"));
-					for(int a = 0 ; a!=n_rows ; a++){
-						for(int b =0 ; b!=n_cols ; b++){
-							temp3<<col_memory_matrix(a,b)<<";";
-						}
-						temp3<<endl;
-					}
-			*/
             //TODO correct this to get the alignment until the end (not just until the best scoring nucl)
-
             while (!end_of_alignment) {
-
                 if ((row_memory_matrix(i, j) == 0) && (col_memory_matrix(i, j) == 0)) {
                     end_of_alignment = true;
+                    break;
                 } else if (row_memory_matrix(i, j) == 0) {
                     deletions.push_front(flip_factor * j + flip_mis * int_genomic_sequence_copy.size());
                 } //TODO check the behavior of this and how to handle in-dels
