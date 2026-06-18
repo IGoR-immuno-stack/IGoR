@@ -30,11 +30,11 @@
 #pragma once
 
 #include <igor/Core/Rec_Event.h>
+#include <igor/Core/SeqTypeRegistry.h>
 #include <igor/Core/Utils.h>
 #include <igor/Core/IntStr.h>
 #include <list>
 #include <unordered_map>
-#include <set>
 #include <string>
 #include <queue>
 #include <igor/Core/Errorrate.h>
@@ -45,7 +45,6 @@
 #include <igor/Core/Dinuclmarkov.h>
 #include <igor/Core/Hypermutationglobalerrorrate.h>
 #include <igor/Core/HypermutationfullNmererrorrate.h>
-#include <stdexcept>
 #include <memory>
 
 #include <igorCoreExport.h>
@@ -128,7 +127,10 @@ public:
 
     void update_edge_event_name(Rec_Event_name, Rec_Event_name);
 
+    bool requires_extended_format() const;
     void write_model_parms(std::string);
+    void write_model_parms_legacy(std::string);
+    void write_model_parms_v2(std::string);
 
     void read_model_parms(std::string);
     void set_fixed_all_events(bool);
@@ -138,9 +140,14 @@ public:
 
     std::unordered_map<Rec_Event_name, Adjacency_list> get_edges() const { return edges; }
 
-    const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>>
-    get_events_map() const;
-    std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> get_events_map();
+    const SeqTypeRegistry &get_seq_type_registry() const { return seq_type_registry; }
+
+    Events_map get_events_map() const;
+    Events_map get_events_map();
+
+    const std::unordered_map<std::tuple<Event_type, Seq_type, Seq_side>, std::shared_ptr<Rec_Event>>
+    get_events_map_seq_type() const;
+    std::unordered_map<std::tuple<Event_type, Seq_type, Seq_side>, std::shared_ptr<Rec_Event>> get_events_map_seq_type();
 
     void set_error_ratep(Error_rate *Er_r)
     {
@@ -154,4 +161,5 @@ private:
     std::list<std::shared_ptr<Rec_Event>> events;
     std::unordered_map<Rec_Event_name, Adjacency_list> edges;
     std::shared_ptr<Error_rate> error_rate;
+    SeqTypeRegistry seq_type_registry;
 };

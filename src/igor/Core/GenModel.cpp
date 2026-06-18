@@ -171,7 +171,7 @@ bool GenModel::infer_model(
     // Construct ModelContext for counter initialization
     unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> offset_map =
             model_marginals.get_offsets_map(model_parms, model_queue);
-    const auto& events_map_ref = model_parms.get_events_map();  // Store reference to avoid temporary
+    Events_map events_map_ref = model_parms.get_events_map();
     ModelContext model_context(
         model_marginals.marginal_array_smart_p,
         offset_map,
@@ -242,7 +242,7 @@ bool GenModel::infer_model(
             Model_marginals single_thread_model_marginals(model_marginals);
             Model_marginals single_thread_marginals(single_thread_model_parms);
             shared_ptr<Error_rate> single_thread_err_rate = single_thread_model_parms.get_err_rate_p();
-            unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> events_map =
+            Events_map events_map =
                     single_thread_model_parms.get_events_map();
             map<size_t, shared_ptr<Counter>> single_thread_counter_list;
             for (map<size_t, shared_ptr<Counter>>::const_iterator iter = this->counters_list.begin();
@@ -304,7 +304,7 @@ bool GenModel::infer_model(
                 init_single_thread_stack.push(first_init_event);
                 init_single_thread_model_queue.pop();
                 (*first_init_event)
-                        .initialize_event(init_processed_events, events_map, single_thread_offset_map,
+                    .initialize_event(init_processed_events, events_map, single_thread_offset_map,
                                           downstream_proba_map, constructed_sequences, safety_set,
                                           single_thread_err_rate, mismatches_lists, seq_offsets, index_mapp);
                 (*first_init_event).set_viterbi_run(viterbi_like);
@@ -364,8 +364,8 @@ bool GenModel::infer_model(
                     tmp_init_proba_single_thread_model_queue.pop();
                 }
                 tmp_init_proba_single_thread_model_queue.pop();
-                last_proba_init_event->initialize_crude_scenario_proba_bound(downstream_proba_bound, updated_proba_list,
-                                                                             events_map);
+                last_proba_init_event->initialize_crude_scenario_proba_bound(downstream_proba_bound,
+                                                                             updated_proba_list, events_map);
 
                 last_proba_init_event->initialize_Len_proba_bound(tmp_init_proba_single_thread_model_queue,
                                                                   single_thread_model_marginals.marginal_array_smart_p,
@@ -439,7 +439,7 @@ bool GenModel::infer_model(
                     ModelContext model(
                         single_thread_model_marginals.marginal_array_smart_p,  // model_parameters
                         single_thread_offset_map,                              // offset_map
-                        events_map,                                            // events_map
+                        events_map,                                        // events_map
                         single_thread_model_queue                              // model_queue
                     );
 

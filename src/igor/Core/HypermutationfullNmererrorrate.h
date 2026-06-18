@@ -49,11 +49,11 @@ class CORE_EXPORT Hypermutation_full_Nmer_errorrate : public Error_rate
 {
 public:
 public:
-    Hypermutation_full_Nmer_errorrate(size_t, Gene_class, Gene_class, double, size_t = 0);
-    Hypermutation_full_Nmer_errorrate(size_t, Gene_class, Gene_class, std::vector<double>, size_t = 0);
-    Hypermutation_full_Nmer_errorrate(size_t, Gene_class, Gene_class, double, std::string, size_t = 0);
-    Hypermutation_full_Nmer_errorrate(size_t, Gene_class, Gene_class, std::vector<double>, std::string, size_t = 0);
-    //Hypermutation_full_Nmer_errorrate(size_t,Gene_class,Gene_class, ??); Constructor to read or copy the error rate
+    Hypermutation_full_Nmer_errorrate(size_t, Gene_class_legacy, Gene_class_legacy, double, size_t = 0);
+    Hypermutation_full_Nmer_errorrate(size_t, Gene_class_legacy, Gene_class_legacy, std::vector<double>, size_t = 0);
+    Hypermutation_full_Nmer_errorrate(size_t, Gene_class_legacy, Gene_class_legacy, double, std::string, size_t = 0);
+    Hypermutation_full_Nmer_errorrate(size_t, Gene_class_legacy, Gene_class_legacy, std::vector<double>, std::string, size_t = 0);
+    //Hypermutation_full_Nmer_errorrate(size_t,Gene_class_legacy,Gene_class_legacy, ??); Constructor to read or copy the error rate
     ~Hypermutation_full_Nmer_errorrate();
 
     // Context-based interface (bridge to legacy implementation)
@@ -67,11 +67,11 @@ public:
     // Legacy interface (preserved for backward compatibility)
     double compare_sequences_error_prob(
             double, const std::string &, Seq_type_str_p_map &, const Seq_offsets_map &,
-            const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> &,
+            const Events_map &,
             Mismatch_vectors_map &, double &, const double &) override;
     void update() override;
     void
-    initialize(const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> &) override;
+    initialize(const Events_map &) override;
     void add_to_norm_counter() override;
     void clean_seq_counters() override;
     void clean_all_counters();
@@ -88,10 +88,14 @@ public:
     uint64_t generate_random_mutation_probas(double, double);
 
 private:
+    double compute_error_probability_impl(
+        double, const std::string &, Seq_type_str_p_map &, const Seq_offsets_map &,
+        Mismatch_vectors_map &, double &, const double &);
+
     void introduce_uniform_transversion(char &, std::mt19937_64 &, std::uniform_real_distribution<double> &) const;
 
-    Gene_class learn_on;
-    Gene_class apply_to;
+    Gene_class_legacy learn_on;
+    Gene_class_legacy apply_to;
     size_t mutation_Nmer_size;
 
     double *Nmer_mutation_proba;

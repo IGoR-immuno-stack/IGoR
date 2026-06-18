@@ -31,10 +31,12 @@ __pycache__
 
 build
 build-*
+build_*
 public
 *.gcov
 coverage_report
 default.profdata
+regression_reports/*
 
 ## ###################################################################
 ## Install tree

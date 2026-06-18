@@ -44,6 +44,7 @@ target_sources(${PROJECT_NAME}
     FastSampling.cpp
     GenModel.cpp
     Genechoice.cpp
+    gene_to_seqtype_migr.cpp
     HypermutationfullNmererrorrate.cpp
     Hypermutationglobalerrorrate.cpp
     Insertion.cpp
@@ -77,6 +78,7 @@ target_sources(${PROJECT_NAME}
       FastSampling.h
       GenModel.h
       Genechoice.h
+      gene_to_seqtype_migr.h
       HypermutationfullNmererrorrate.h
       Hypermutationglobalerrorrate.h
       Insertion.h
@@ -89,6 +91,7 @@ target_sources(${PROJECT_NAME}
       Rec_Event.h
       Scenario.h
       ScenarioContext.h
+      SeqTypeRegistry.h
       Singleerrorrate.h
       Utils.h
       ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_PROJECT_NAME}${PROJECT_NAME}Export.h

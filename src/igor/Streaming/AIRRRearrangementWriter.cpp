@@ -119,9 +119,9 @@ void write_sequence_row(
     out << seq.index << delim << seq.sequence;
 
     // V, D, J alignments
-    write_alignment_fields(out, get_alignment(seq.alignments, V_gene), delim);
-    write_alignment_fields(out, get_alignment(seq.alignments, D_gene), delim);
-    write_alignment_fields(out, get_alignment(seq.alignments, J_gene), delim);
+    write_alignment_fields(out, get_alignment(seq.alignments, Gene_class::V_gene), delim);
+    write_alignment_fields(out, get_alignment(seq.alignments, Gene_class::D_gene), delim);
+    write_alignment_fields(out, get_alignment(seq.alignments, Gene_class::J_gene), delim);
 
     out << "\n";
 }

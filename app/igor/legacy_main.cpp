@@ -413,7 +413,7 @@ int igor_legacy_main(int argc, char *argv[])
 
             //Check if the model contains a D gene event in order to load the alignments
             auto events_map = cl_model_parms.get_events_map();
-            if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, D_gene, Undefined_side)) > 0) {
+            if (events_map.count(make_tuple(GeneChoice_t, string("D_gene_seq"), Undefined_side)) > 0) {
                 has_D = true;
             }
         }
@@ -914,19 +914,38 @@ int igor_legacy_main(int argc, char *argv[])
                             new Best_scenarios_counter(n_record_scenarios, cl_path + "output/", true));
                     cl_counters_list.emplace(cl_counters_list.size(), best_sc_ptr);
                 } else if (string(argv[carg_i]) == "--coverage") {
-                    Gene_class chosen_gc;
+                    string coverage_arg;
                     ++carg_i;
-                    try {
-                        chosen_gc = str2GeneClass(string(argv[carg_i]));
-                    } catch (exception &e) {
+                    coverage_arg = string(argv[carg_i]);
+                    
+                    auto make_coverage = [&](Gene_class gc) {
+                        return shared_ptr<Counter>(new Coverage_err_counter(cl_path + "output/", gc, 1, false, false));
+                    };
+
+                    if (coverage_arg == "V_gene") {
+                        cl_counters_list.emplace(cl_counters_list.size(), make_coverage(V_gene));
+                    } else if (coverage_arg == "D_gene") {
+                        cl_counters_list.emplace(cl_counters_list.size(), make_coverage(D_gene));
+                    } else if (coverage_arg == "J_gene") {
+                        cl_counters_list.emplace(cl_counters_list.size(), make_coverage(J_gene));
+                    } else if (coverage_arg == "VJ_gene") {
+                        cl_counters_list.emplace(cl_counters_list.size(), make_coverage(V_gene));
+                        cl_counters_list.emplace(cl_counters_list.size(), make_coverage(J_gene));
+                    } else if (coverage_arg == "VD_genes") {
+                        cl_counters_list.emplace(cl_counters_list.size(), make_coverage(V_gene));
+                        cl_counters_list.emplace(cl_counters_list.size(), make_coverage(D_gene));
+                    } else if (coverage_arg == "DJ_gene") {
+                        cl_counters_list.emplace(cl_counters_list.size(), make_coverage(D_gene));
+                        cl_counters_list.emplace(cl_counters_list.size(), make_coverage(J_gene));
+                    } else if (coverage_arg == "VDJ_genes") {
+                        cl_counters_list.emplace(cl_counters_list.size(), make_coverage(V_gene));
+                        cl_counters_list.emplace(cl_counters_list.size(), make_coverage(D_gene));
+                        cl_counters_list.emplace(cl_counters_list.size(), make_coverage(J_gene));
+                    } else {
                         return terminate_IGoR_with_error_message(
-                                "Unknown argument \"" + string(argv[carg_i])
-                                + "\" to specify coverage target!\n Supported arguments are: V_gene, VD_genes, D_gene, "
-                                  "DJ_gene, VJ_gene, J_gene, VDJ_genes");
+                                "Unknown argument \"" + coverage_arg
+                                + "\" to specify coverage target!\n Supported arguments are: V_gene, D_gene, J_gene, VD_genes, DJ_gene, VJ_gene, VDJ_genes");
                     }
-                    shared_ptr<Counter> coverage_counter_ptr(
-                            new Coverage_err_counter(cl_path + "output/", chosen_gc, 1, false, false));
-                    cl_counters_list.emplace(cl_counters_list.size(), coverage_counter_ptr);
                 } else {
                     return terminate_IGoR_with_error_message("Unknown subargument \"" + string(argv[carg_i])
                                                              + "\" to specify outputs");
@@ -1253,7 +1272,7 @@ int igor_legacy_main(int argc, char *argv[])
 
             //Check if the model contains a D gene event in order to load the alignments
             auto events_map = cl_model_parms.get_events_map();
-            if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, D_gene, Undefined_side)) > 0) {
+            if (events_map.count(make_tuple(GeneChoice_t, string("D_gene_seq"), Undefined_side)) > 0) {
                 has_D = true;
             }
         } catch (exception &e) {
@@ -1293,11 +1312,10 @@ int igor_legacy_main(int argc, char *argv[])
 	 */
     if ((infer or evaluate or generate)) {
         bool any_custom_gene = false;
-        unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> tmp_events_map =
-                cl_model_parms.get_events_map();
+        Events_map tmp_events_map = cl_model_parms.get_events_map();
         if (custom_v) {
             shared_ptr<Rec_Event> v_choice =
-                    tmp_events_map.at(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, V_gene, Undefined_side));
+                    tmp_events_map.at(make_tuple(GeneChoice_t, string("V_gene_seq"), Undefined_side));
             shared_ptr<Gene_choice> v_choice_gc = dynamic_pointer_cast<Gene_choice>(v_choice);
             bool any_genomic_difference = false;
             unordered_map<string, Event_realization> realization_map_copy = v_choice_gc->get_realizations_map();
@@ -1336,7 +1354,7 @@ int igor_legacy_main(int argc, char *argv[])
         }
         if (has_D and custom_d) {
             shared_ptr<Rec_Event> d_choice =
-                    tmp_events_map.at(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, D_gene, Undefined_side));
+                    tmp_events_map.at(make_tuple(GeneChoice_t, string("D_gene_seq"), Undefined_side));
             shared_ptr<Gene_choice> d_choice_gc = dynamic_pointer_cast<Gene_choice>(d_choice);
             bool any_genomic_difference = false;
             unordered_map<string, Event_realization> realization_map_copy = d_choice_gc->get_realizations_map();
@@ -1375,7 +1393,7 @@ int igor_legacy_main(int argc, char *argv[])
         }
         if (custom_j) {
             shared_ptr<Rec_Event> j_choice =
-                    tmp_events_map.at(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, J_gene, Undefined_side));
+                    tmp_events_map.at(make_tuple(GeneChoice_t, string("J_gene_seq"), Undefined_side));
             shared_ptr<Gene_choice> j_choice_gc = dynamic_pointer_cast<Gene_choice>(j_choice);
             bool any_genomic_difference = false;
             unordered_map<string, Event_realization> realization_map_copy = j_choice_gc->get_realizations_map();
@@ -1612,31 +1630,31 @@ int igor_legacy_main(int argc, char *argv[])
         j_choice.set_nickname("j_choice");
         j_choice.set_priority(7);
 
-        Deletion v_3_del(V_gene, Three_prime, make_pair(-4, 16)); //16
+        Deletion v_3_del(V_gene_seq, Three_prime, make_pair(-4, 16)); //16
         v_3_del.set_nickname("v_3_del");
         v_3_del.set_priority(5);
-        Deletion d_5_del(D_gene, Five_prime, make_pair(-4, 16));
+        Deletion d_5_del(D_gene_seq, Five_prime, make_pair(-4, 16));
         d_5_del.set_nickname("d_5_del");
         d_5_del.set_priority(5);
-        Deletion d_3_del(D_gene, Three_prime, make_pair(-4, 16));
+        Deletion d_3_del(D_gene_seq, Three_prime, make_pair(-4, 16));
         d_3_del.set_nickname("d_3_del");
         d_3_del.set_priority(5);
-        Deletion j_5_del(J_gene, Five_prime, make_pair(-4, 18));
+        Deletion j_5_del(J_gene_seq, Five_prime, make_pair(-4, 18));
         j_5_del.set_nickname("j_5_del");
         j_5_del.set_priority(5);
 
-        Insertion vd_ins(VD_genes, make_pair(0, 30));
+        Insertion vd_ins(VD_ins_seq, make_pair(0, 30));
         vd_ins.set_nickname("vd_ins");
         vd_ins.set_priority(4);
-        Insertion dj_ins(DJ_genes, make_pair(0, 30));
+        Insertion dj_ins(DJ_ins_seq, make_pair(0, 30));
         dj_ins.set_nickname("dj_ins");
         dj_ins.set_priority(2);
 
-        Dinucl_markov markov_model_vd(VD_genes);
+        Dinucl_markov markov_model_vd(VD_ins_seq);
         markov_model_vd.set_nickname("vd_dinucl");
         markov_model_vd.set_priority(3);
 
-        Dinucl_markov markov_model_dj(DJ_genes);
+        Dinucl_markov markov_model_dj(DJ_ins_seq);
         markov_model_dj.set_nickname("dj_dinucl");
         markov_model_dj.set_priority(1);
 
@@ -1692,8 +1710,11 @@ int igor_legacy_main(int argc, char *argv[])
         map<size_t, shared_ptr<Counter>> counters_list;
         //Collect gene coverage and errors
         shared_ptr<Counter> coverage_counter_ptr(
-                new Coverage_err_counter(cl_path + "/run_demo/", VJ_genes, 1, false, false));
+                new Coverage_err_counter(cl_path + "/run_demo/", V_gene, 1, false, false));
         counters_list.emplace(0, coverage_counter_ptr);
+        shared_ptr<Counter> coverage_counter_j_ptr(
+                new Coverage_err_counter(cl_path + "/run_demo/", J_gene, 1, false, false));
+        counters_list.emplace(4, coverage_counter_j_ptr);
 
         //Collect 10 best scenarios per sequence during the last iteration
         shared_ptr<Counter> best_sc_ptr(new Best_scenarios_counter(10, cl_path + "/run_demo/", true));
@@ -2220,9 +2241,9 @@ int igor_legacy_main(int argc, char *argv[])
                     //Get V and J event
                     auto events_map = cl_model_parms.get_events_map();
                     shared_ptr<const Rec_Event> v_event_ptr =
-                            events_map.at(make_tuple(GeneChoice_t, V_gene, Undefined_side));
+                            events_map.at(make_tuple(GeneChoice_t, string("V_gene_seq"), Undefined_side));
                     shared_ptr<const Rec_Event> j_event_ptr =
-                            events_map.at(make_tuple(GeneChoice_t, J_gene, Undefined_side));
+                            events_map.at(make_tuple(GeneChoice_t, string("J_gene_seq"), Undefined_side));
 
                     //Get V and J event positions on the queue
                     auto model_queue = cl_model_parms.get_model_queue();

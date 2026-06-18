@@ -114,7 +114,7 @@ public:
     [[deprecated("Use count_scenario(const Scenario&, const QuerySequenceContext&, const ModelContext&)")]]
     virtual void
     count_scenario(long double, double, const std::string &, Seq_type_str_p_map &, const Seq_offsets_map &,
-                   const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> &,
+                   const Events_map &,
                    Mismatch_vectors_map &);
                    
     // TODO: Consider refactoring count_sequence to use contexts (future enhancement)

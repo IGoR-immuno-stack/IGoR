@@ -48,6 +48,7 @@ struct QuerySequenceContext {
     // Genomic template alignments per gene class
     // Currently used to constrain gene choice realizations
     // Maps Gene_class → vector of Alignment_data (from Aligner)
+    // Only V_gene, D_gene, J_gene keys are valid (not junction classes).
     //
     // FUTURE: May generalize to support realization constraints on
     // any RecEvent type, not just gene choices. Consider separating

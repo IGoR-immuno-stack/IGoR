@@ -26,12 +26,31 @@
 #include <igor/Core/Dinuclmarkov.h>
 #include <igor/Core/EventUtils.h>
 
+#include <vector>
+
 using namespace std;
 
-Dinucl_markov::Dinucl_markov(Gene_class gene) : Rec_Event(), total_nucl_count(0)
+namespace {
+
+std::vector<DinuclTraversalSpec> get_dinucl_traversal_specs(Seq_type seq_type)
+{
+    switch (seq_type) {
+    case VD_ins_seq:
+        return { { VD_ins_seq, V_gene_seq, Three_prime } };
+    case DJ_ins_seq:
+        return { { DJ_ins_seq, J_gene_seq, Five_prime } };
+    case VJ_ins_seq:
+        return { { VJ_ins_seq, V_gene_seq, Three_prime } };
+    default:
+        return {};
+    }
+}
+
+} // namespace
+
+Dinucl_markov::Dinucl_markov(Seq_type seq_type) : Rec_Event(), total_nucl_count(0), ins_seq_type(seq_type)
 {
     this->type = Event_type::Dinuclmarkov_t;
-    event_class = gene;
     //Same indexes as Aligner::nt2int
 
     event_realizations.emplace("A", Event_realization("A", INT16_MAX, "A", Int_Str(), 0));
@@ -43,6 +62,7 @@ Dinucl_markov::Dinucl_markov(Gene_class gene) : Rec_Event(), total_nucl_count(0)
     updated_upper_bound_proba = new double;
 
     dinuc_proba_matrix = Matrix<double>(15, 15);
+    this->traversal_specs = get_dinucl_traversal_specs(this->ins_seq_type);
     this->update_event_name();
 }
 
@@ -62,12 +82,14 @@ Dinucl_markov::~Dinucl_markov()
 shared_ptr<Rec_Event> Dinucl_markov::copy()
 {
     //TODO rewrite this by invoking a copy constructor?
-    shared_ptr<Dinucl_markov> new_dinucl_markov_p = shared_ptr<Dinucl_markov>(new Dinucl_markov(this->event_class));
+    shared_ptr<Dinucl_markov> new_dinucl_markov_p = shared_ptr<Dinucl_markov>(new Dinucl_markov(this->ins_seq_type));
     new_dinucl_markov_p->priority = this->priority;
     new_dinucl_markov_p->nickname = this->nickname;
     new_dinucl_markov_p->fixed = this->fixed;
     new_dinucl_markov_p->update_event_name();
     new_dinucl_markov_p->set_event_identifier(this->event_index);
+    new_dinucl_markov_p->set_seq_type(this->get_seq_type());
+    new_dinucl_markov_p->set_event_side(this->get_side());
     return new_dinucl_markov_p;
 }
 
@@ -78,10 +100,10 @@ int Dinucl_markov::size() const
 
 /**
  * @brief Context-based iterate() implementation
- * 
+ *
  * Unpacks 5 context objects into legacy parameters and delegates
  * to the existing iterate() implementation.
- * 
+ *
 
  */
 void Dinucl_markov::iterate(
@@ -97,72 +119,62 @@ void Dinucl_markov::iterate(
     //Clear all previous scenario realizations
     current_realizations_index_vec.clear();
 
-    correct_class = 0;
-    //For now do not include possible sequencing error
-    if (event_class == VD_genes || event_class == VDJ_genes) {
-        correct_class = 1;
-        previous_seq = (*scenario.get_sequence_segment(V_gene_seq));
-        Int_Str &vd_seq = (*scenario.get_sequence_segment(VD_ins_seq));
-        vd_seq_size = vd_seq.size();
-        previous_seq_size = previous_seq.size();
-        //data_seq_substr = sequence.substr(seq_offsets.at(pair<Seq_type,Seq_side>(V_gene_seq,Five_prime)) + previous_seq_size , vd_seq.size());
-        //data_seq_substr = sequence.substr(seq_offsets.at(v_5_pair) + previous_seq_size , vd_seq.size());//TODO check this
-        //data_seq_substr = int_sequence.substr(seq_offsets.at(v_5_pair) + previous_seq_size , vd_seq.size());
-        data_seq_substr = query.int_sequence.substr(scenario.get_offset(V_gene_seq, Five_prime) + previous_seq_size,
-                                              vd_seq.size()); //FIXME use precomputed vd seq size
-
-        previous_nt_str = previous_seq.back();
-        iterate_common(vd_realizations_indices, previous_nt_str, vd_seq, model.model_parameters);
-        exploration.downstream_proba_map.set_value(VD_ins_seq, 1.0, memory_layer_proba_map_junction_1);
-        //constructed_sequences.at(VD_ins_seq) = &vd_seq;
+    if (this->traversal_specs.empty()) {
+        throw invalid_argument(std::string("Unknown seq_type for DinuclMarkov model: ") + to_string(this->ins_seq_type));
     }
-    if (event_class == DJ_genes || event_class == VDJ_genes) {
-        correct_class = 1;
-        /*		//TODO check the side taken into account for the first nucleotide
-		string d_seq = constructed_sequences.at(D_gene_seq);
-		size_t d_seq_size = d_seq.size();
 
-		size_t char_index = seq_offsets.at(pair<Seq_type,Seq_side>(V_gene_seq,Five_prime)) + constructed_sequences.at(V_gene_seq).size() + constructed_sequences.at(VD_ins_seq).size() + d_seq_size ;//TODO rewrite this and once deletion mechanism has been rewritten
-		string data_seq_substr = sequence.substr(char_index , constructed_sequences.at(DJ_ins_seq).size());
-		new_scenario_proba = iterate_common(new_scenario_proba , prev_seq.substr(prev_seq_size-1,1) , data_seq_substr , constructed_sequences.at(DJ_ins_seq) , base_index , write_index_list , model_parameters_point);
-		*/
-        previous_seq = (*scenario.get_sequence_segment(J_gene_seq));
-        Int_Str &dj_seq = (*scenario.get_sequence_segment(DJ_ins_seq));
-        dj_seq_size = dj_seq.size();
-        //string& constr_ins_seq = constructed_sequences.at(DJ_ins_seq);
+    auto indices_array_for_target = [&](Seq_type seq_type) -> int * {
+        switch (seq_type) {
+        case VD_ins_seq:
+            return vd_realizations_indices;
+        case DJ_ins_seq:
+            return dj_realizations_indices;
+        case VJ_ins_seq:
+            return vj_realizations_indices;
+        default:
+            return nullptr;
+        }
+    };
 
-        //size_t char_index = seq_offsets.at(pair<Seq_type,Seq_side>(J_gene_seq,Five_prime)) -dj_seq.size();
-        //size_t char_index = seq_offsets.at(j_5_pair) -dj_seq.size();
-        size_t char_index = scenario.get_offset(J_gene_seq, Five_prime) - dj_seq.size();
+    auto memory_layer_for_target = [&](Seq_type seq_type) -> int {
+        return (seq_type == DJ_ins_seq) ? memory_layer_proba_map_junction_2 : memory_layer_proba_map_junction_1;
+    };
 
-        //data_seq_substr = sequence.substr(char_index , dj_seq.size());
-        data_seq_substr = query.int_sequence.substr(char_index, dj_seq.size());
+    for (const auto &spec : this->traversal_specs) {
+        previous_seq = (*scenario.get_sequence_segment(spec.anchor_seq));
+        Int_Str &target_seq = (*scenario.get_sequence_segment(spec.target_seq));
 
-        previous_nt_str = previous_seq.front();
-        reverse(data_seq_substr.begin(), data_seq_substr.end());
-        iterate_common(dj_realizations_indices, previous_nt_str, dj_seq, model.model_parameters);
-        reverse(dj_seq.begin(), dj_seq.end());
+        switch (spec.target_seq) {
+        case VD_ins_seq:
+            vd_seq_size = target_seq.size();
+            break;
+        case DJ_ins_seq:
+            dj_seq_size = target_seq.size();
+            break;
+        case VJ_ins_seq:
+            vj_seq_size = target_seq.size();
+            break;
+        default:
+            break;
+        }
 
-        exploration.downstream_proba_map.set_value(DJ_ins_seq, 1.0, memory_layer_proba_map_junction_2);
-    }
-    if (event_class == VJ_genes) {
-        correct_class = 1;
-        previous_seq = (*scenario.get_sequence_segment(V_gene_seq));
-        Int_Str &vj_seq = (*scenario.get_sequence_segment(VJ_ins_seq));
-        vj_seq_size = vj_seq.size();
-        previous_seq_size = previous_seq.size();
-        //data_seq_substr = sequence.substr(seq_offsets.at(v_5_pair) + previous_seq_size , vj_seq.size());
-        //data_seq_substr = int_sequence.substr(seq_offsets.at(v_5_pair) + previous_seq_size , vj_seq.size());
-        data_seq_substr =
-                query.int_sequence.substr(scenario.get_offset(V_gene_seq, Five_prime) + previous_seq_size, vj_seq.size());
+        bool reverse_traversal = (spec.anchor_side == Five_prime);
 
-        previous_nt_str = previous_seq.back();
-        iterate_common(vj_realizations_indices, previous_nt_str, vj_seq, model.model_parameters);
+        if (reverse_traversal) {
+            const size_t char_index = scenario.get_offset(spec.anchor_seq, spec.anchor_side) - target_seq.size();
+            data_seq_substr = query.int_sequence.substr(char_index, target_seq.size());
+            previous_nt_str = previous_seq.front();
+            reverse(data_seq_substr.begin(), data_seq_substr.end());
+            iterate_common(indices_array_for_target(spec.target_seq), previous_nt_str, target_seq, model.model_parameters);
+            reverse(target_seq.begin(), target_seq.end());
+        } else {
+            const size_t start_index = scenario.get_offset(spec.anchor_seq, spec.anchor_side) + 1;
+            data_seq_substr = query.int_sequence.substr(start_index, target_seq.size());
+            previous_nt_str = previous_seq.back();
+            iterate_common(indices_array_for_target(spec.target_seq), previous_nt_str, target_seq, model.model_parameters);
+        }
 
-        exploration.downstream_proba_map.set_value(VJ_ins_seq, 1.0, memory_layer_proba_map_junction_1);
-    }
-    if (!correct_class) {
-        throw invalid_argument(std::string("Unknown gene class for DincuclMarkov model: ") + this->event_class);
+        exploration.downstream_proba_map.set_value(spec.target_seq, 1.0, memory_layer_for_target(spec.target_seq));
     }
 
     scenario.scenario_proba *= proba_contribution;
@@ -185,50 +197,33 @@ queue<int> Dinucl_markov::draw_random_realization(
 {
 
     uniform_real_distribution<double> distribution(0.0, 1.0);
-    bool correct_class = 0;
     int index = index_map.at(this->get_name());
     queue<int> realization_queue;
 
-    if (event_class == VD_genes || event_class == VDJ_genes) {
-        correct_class = 1;
-        string &vd_ins_seq = constructed_sequences.at(VD_ins_seq);
-        string v_seq = constructed_sequences.at(V_gene_seq);
+    if (this->traversal_specs.empty()) {
+        throw invalid_argument(std::string("Unknown seq_type for DinuclMarkov model: ") + to_string(this->ins_seq_type));
+    }
 
-        queue<int> tmp = this->draw_random_common(v_seq, vd_ins_seq, model_marginals_p, index, distribution, generator);
+    for (const auto &spec : this->traversal_specs) {
+        string &target_ins_seq = constructed_sequences.at(spec.target_seq);
+        string anchor_seq = constructed_sequences.at(spec.anchor_seq);
+        bool reverse_traversal = (spec.anchor_side == Five_prime);
+        if (reverse_traversal) {
+            reverse(anchor_seq.begin(), anchor_seq.end());
+        }
+
+        queue<int> tmp = this->draw_random_common(anchor_seq, target_ins_seq, model_marginals_p, index, distribution,
+                                                  generator);
         while (!tmp.empty()) {
             realization_queue.push(tmp.front());
             tmp.pop();
         }
-    }
-    if (event_class == DJ_genes || event_class == VDJ_genes) {
-        correct_class = 1;
 
-        string &dj_ins_seq = constructed_sequences.at(DJ_ins_seq);
-        string j_seq = constructed_sequences.at(J_gene_seq);
-        reverse(j_seq.begin(), j_seq.end());
-
-        queue<int> tmp = this->draw_random_common(j_seq, dj_ins_seq, model_marginals_p, index, distribution, generator);
-        while (!tmp.empty()) {
-            realization_queue.push(tmp.front());
-            tmp.pop();
-        }
-        reverse(dj_ins_seq.begin(), dj_ins_seq.end());
-    }
-    if (event_class == VJ_genes) {
-        correct_class = 1;
-
-        string &vj_ins_seq = constructed_sequences.at(VJ_ins_seq);
-        string v_seq = constructed_sequences.at(V_gene_seq);
-
-        queue<int> tmp = this->draw_random_common(v_seq, vj_ins_seq, model_marginals_p, index, distribution, generator);
-        while (!tmp.empty()) {
-            realization_queue.push(tmp.front());
-            tmp.pop();
+        if (reverse_traversal) {
+            reverse(target_ins_seq.begin(), target_ins_seq.end());
         }
     }
-    if (!correct_class) {
-        throw invalid_argument(std::string("Unknown gene class for DincuclMarkov model: ") + this->event_class);
-    }
+
     return realization_queue;
 }
 
@@ -302,7 +297,28 @@ queue<int> Dinucl_markov::draw_random_common(const string &previous_seq, string 
 
 void Dinucl_markov::write2txt(ofstream &outfile)
 {
-    outfile << "#DinucMarkov;" << event_class << ";" << event_side << ";" << priority << ";" << nickname << endl;
+    write2txt_legacy(outfile);
+}
+
+void Dinucl_markov::write2txt_legacy(ofstream &outfile)
+{
+    // Derive legacy gene_class from seq_type for backward compatibility
+    // Use to_string() to match the exact strings expected by str2GeneClass()
+    string legacy_gene_class;
+    if (seq_type == "VD_ins_seq") legacy_gene_class = to_string(VD_genes);
+    else if (seq_type == "DJ_ins_seq") legacy_gene_class = to_string(DJ_genes);
+    else if (seq_type == "VJ_ins_seq") legacy_gene_class = to_string(VJ_genes);
+    else legacy_gene_class = to_string(Undefined_gene);
+    outfile << "#DinucMarkov;" << legacy_gene_class << ";" << Undefined_side << ";" << priority << ";" << nickname << endl;
+    for (unordered_map<string, Event_realization>::const_iterator iter = event_realizations.begin();
+         iter != event_realizations.end(); ++iter) {
+        outfile << "%" << (*iter).second.value_str << ";" << (*iter).second.index << endl;
+    }
+}
+
+void Dinucl_markov::write2txt_v2(ofstream &outfile)
+{
+    outfile << "#DinucMarkov;Undefined_gene;" << seq_type << ";" << event_side << ";" << priority << ";" << nickname << endl;
     for (unordered_map<string, Event_realization>::const_iterator iter = event_realizations.begin();
          iter != event_realizations.end(); ++iter) {
         outfile << "%" << (*iter).second.value_str << ";" << (*iter).second.index << endl;
@@ -404,28 +420,29 @@ void Dinucl_markov::ind_normalize(Marginal_array_p &marginal_array_p, size_t bas
 
 void Dinucl_markov::initialize_event(
         unordered_set<Rec_Event_name> &processed_events,
-        const unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map,
+        const Events_map &events_map,
         const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
         Downstream_scenario_proba_bound_map &downstream_proba_map, Seq_type_str_p_map &constructed_sequences,
         Safety_bool_map &safety_set, shared_ptr<Error_rate> error_rate_p, Mismatch_vectors_map &mismatches_list,
         Seq_offsets_map &seq_offsets, Index_map &index_map)
 {
 
-    max_vd_ins = EventUtils::get_insertion_len_max(VD_genes, events_map);
-    max_vj_ins = EventUtils::get_insertion_len_max(VJ_genes, events_map);
-    max_dj_ins = EventUtils::get_insertion_len_max(DJ_genes, events_map);
+    max_vd_ins = EventUtils::get_insertion_len_max("VD_ins_seq", events_map);
+    max_vj_ins = EventUtils::get_insertion_len_max("VJ_ins_seq", events_map);
+    max_dj_ins = EventUtils::get_insertion_len_max("DJ_ins_seq", events_map);
 
-    if ((this->event_class == VD_genes) or (this->event_class == VDJ_genes)) {
-        downstream_proba_map.request_memory_layer(VD_ins_seq);
-        memory_layer_proba_map_junction_1 = downstream_proba_map.get_current_memory_layer(VD_ins_seq);
+    if (this->traversal_specs.empty()) {
+        throw invalid_argument(std::string("Unknown seq_type for DinuclMarkov model: ") + to_string(this->ins_seq_type));
     }
-    if ((this->event_class == DJ_genes) or (this->event_class == VDJ_genes)) {
-        downstream_proba_map.request_memory_layer(DJ_ins_seq);
-        memory_layer_proba_map_junction_2 = downstream_proba_map.get_current_memory_layer(DJ_ins_seq);
-    }
-    if (this->event_class == VJ_genes) {
-        downstream_proba_map.request_memory_layer(VJ_ins_seq);
-        memory_layer_proba_map_junction_1 = downstream_proba_map.get_current_memory_layer(VJ_ins_seq);
+
+    for (const auto &spec : this->traversal_specs) {
+        downstream_proba_map.request_memory_layer(spec.target_seq);
+        int layer = downstream_proba_map.get_current_memory_layer(spec.target_seq);
+        if (spec.target_seq == DJ_ins_seq) {
+            memory_layer_proba_map_junction_2 = layer;
+        } else {
+            memory_layer_proba_map_junction_1 = layer;
+        }
     }
 
     vd_realizations_indices = new int[max_vd_ins];
@@ -450,24 +467,29 @@ void Dinucl_markov::add_to_marginals(long double scenario_proba, Marginal_array_
         }
     }
 
-    if (event_class == VD_genes || event_class == VDJ_genes) {
-        for (size_t i = 0; i != vd_seq_size; ++i) {
-            if (vd_realizations_indices[i] >= 0) {
-                updated_marginals[vd_realizations_indices[i]] += scenario_proba;
-            }
+    for (const auto &spec : this->traversal_specs) {
+        const int *indices = nullptr;
+        size_t seq_size = 0;
+        switch (spec.target_seq) {
+        case VD_ins_seq:
+            indices = vd_realizations_indices;
+            seq_size = vd_seq_size;
+            break;
+        case DJ_ins_seq:
+            indices = dj_realizations_indices;
+            seq_size = dj_seq_size;
+            break;
+        case VJ_ins_seq:
+            indices = vj_realizations_indices;
+            seq_size = vj_seq_size;
+            break;
+        default:
+            break;
         }
-    }
-    if (event_class == DJ_genes || event_class == VDJ_genes) {
-        for (size_t i = 0; i != dj_seq_size; ++i) {
-            if (dj_realizations_indices[i] >= 0) {
-                updated_marginals[dj_realizations_indices[i]] += scenario_proba;
-            }
-        }
-    }
-    if (event_class == VJ_genes) {
-        for (size_t i = 0; i != vj_seq_size; ++i) {
-            if (vj_realizations_indices[i] >= 0) {
-                updated_marginals[vj_realizations_indices[i]] += scenario_proba;
+
+        for (size_t i = 0; i != seq_size; ++i) {
+            if (indices[i] >= 0) {
+                updated_marginals[indices[i]] += scenario_proba;
             }
         }
     }
@@ -510,47 +532,24 @@ double *Dinucl_markov::get_updated_ptr()
 
 void Dinucl_markov::initialize_crude_scenario_proba_bound(
         double &downstream_proba_bound, forward_list<double *> &updated_proba_list,
-        const unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map)
+        const Events_map &events_map)
 {
     this->scenario_downstream_upper_bound_proba = downstream_proba_bound;
     this->updated_proba_bounds_list = updated_proba_list;
     updated_proba_list.push_front(this->updated_upper_bound_proba);
 }
 
-bool Dinucl_markov::has_effect_on(Seq_type seq_type) const
+bool Dinucl_markov::has_effect_on(Seq_type seq_type_param) const
 {
-    switch (this->event_class) {
-    case VD_genes:
-        if (seq_type == VJ_ins_seq or seq_type == VD_ins_seq) {
-            return true;
-        } else
-            return false;
-        break;
-
-    case VJ_genes:
-        if (seq_type == VJ_ins_seq) {
-            return true;
-        } else
-            return false;
-        break;
-
-    case DJ_genes:
-        if (seq_type == VJ_ins_seq or seq_type == DJ_ins_seq) {
-            return true;
-        } else
-            return false;
-        break;
-
-    case VDJ_genes:
-        if (seq_type == VJ_ins_seq or seq_type == VD_ins_seq or seq_type == DJ_ins_seq) {
-            return true;
-        } else
-            return false;
-
-    default:
-        return false;
-        break;
+    const string &heo_dm_st = this->seq_type;
+    if (heo_dm_st == "VD_ins_seq") {
+        return (seq_type_param == VJ_ins_seq || seq_type_param == VD_ins_seq);
+    } else if (heo_dm_st == "VJ_ins_seq") {
+        return (seq_type_param == VJ_ins_seq);
+    } else if (heo_dm_st == "DJ_ins_seq") {
+        return (seq_type_param == VJ_ins_seq || seq_type_param == DJ_ins_seq);
     }
+    return false;
 }
 
 void Dinucl_markov::iterate_initialize_Len_proba(Seq_type considered_junction,
@@ -563,7 +562,8 @@ void Dinucl_markov::iterate_initialize_Len_proba(Seq_type considered_junction,
     base_index = base_index_map.at(this->event_index, 0);
 
     correct_class = 0;
-    if (event_class == VD_genes or event_class == VDJ_genes) {
+    const string &iilp_dm_st = this->seq_type;
+    if (iilp_dm_st == "VD_ins_seq") {
         correct_class = 1;
         if (this->has_effect_on(considered_junction)) {
             if (constructed_sequences.exist(VD_ins_seq)) {
@@ -572,7 +572,7 @@ void Dinucl_markov::iterate_initialize_Len_proba(Seq_type considered_junction,
             //Otherwise the proba contribution is 1
         }
     }
-    if (event_class == DJ_genes or event_class == VDJ_genes) {
+    if (iilp_dm_st == "DJ_ins_seq") {
         correct_class = 1;
         if (this->has_effect_on(considered_junction)) {
             if (constructed_sequences.exist(DJ_ins_seq)) {
@@ -581,7 +581,7 @@ void Dinucl_markov::iterate_initialize_Len_proba(Seq_type considered_junction,
             //Otherwise the proba contribution is 1
         }
     }
-    if (event_class == VJ_genes) {
+    if (iilp_dm_st == "VJ_ins_seq") {
         correct_class = 1;
         if (this->has_effect_on(considered_junction)) {
             if (constructed_sequences.exist(VJ_ins_seq)) {
@@ -591,7 +591,7 @@ void Dinucl_markov::iterate_initialize_Len_proba(Seq_type considered_junction,
         }
     }
     if (!correct_class) {
-        throw invalid_argument(std::string("Unknown gene class for DincuclMarkov model: ") + this->event_class);
+        throw invalid_argument(std::string("Unknown seq_type for DinuclMarkov model: ") + iilp_dm_st);
     }
 
     //TODO use a better proba bound for this dinucleotide markov model
@@ -612,4 +612,17 @@ void Dinucl_markov::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &mod
 	 * =>no errors
 	 * =>no in/dels
 	 */
+}
+
+void Dinucl_markov::update_event_name()
+{
+    Seq_type_String seq_type_str;
+    switch (ins_seq_type) {
+    case VD_ins_seq: seq_type_str = "VD_genes"; break;
+    case DJ_ins_seq: seq_type_str = "DJ_gene"; break;
+    case VJ_ins_seq: seq_type_str = "VJ_gene"; break;
+    default: seq_type_str = to_string(this->event_class); break;
+    }
+    this->name = string() + this->type + "_" + seq_type_str + "_" + to_string(this->event_side)
+                 + "_prio" + to_string(priority) + "_size" + to_string(this->size());
 }
