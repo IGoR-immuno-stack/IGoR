@@ -202,8 +202,10 @@ private:
     Gene_class gene;
     bool local_align;
     bool flip_seqs;
-    void sw_align_common(const Int_Str &, const Int_Str &, const int, const int, Matrix<double> &, Matrix<int> &,
-                         Matrix<int> &, Matrix<int> &, std::vector<int> &, std::vector<int> &, std::vector<int> &);
+    void fill_sw_score_matrix(const Int_Str &, const Int_Str &, Matrix<double> &, Matrix<int> &, Matrix<int> &,
+                              Matrix<int> &, std::vector<int> &, std::vector<int> &, std::vector<int> &);
+    void fill_sw_matrix_cell(const Int_Str &, const Int_Str &, const int, const int, Matrix<double> &, Matrix<int> &,
+                             Matrix<int> &, Matrix<int> &, std::vector<int> &, std::vector<int> &, std::vector<int> &);
     std::list<std::pair<int, Alignment_data>> sw_align(const Int_Str &, const Int_Str &, double, bool, int, int);
     std::unordered_map<std::string, std::pair<int, int>> build_genomic_bounds_map(int, int) const;
 };
@@ -213,8 +215,8 @@ CORE_EXPORT std::string alignment_data_to_cigar(const Alignment_data &aln);
 CORE_EXPORT std::string alignment_data_to_cigar_full_span(const Alignment_data &aln, size_t sequence_length,
                                                           size_t germline_length);
 CORE_EXPORT Alignment_data alignment_data_from_cigar(const std::string &gene_name, const std::string &cigar,
-                                                     int seq_start_1based, int seq_end_1based,
-                                                     int ref_start_1based, int ref_end_1based, double score);
+                                                     int seq_start_1based, int seq_end_1based, int ref_start_1based,
+                                                     int ref_end_1based, double score);
 CORE_EXPORT int alignment_data_sequence_start(const Alignment_data &aln);
 CORE_EXPORT int alignment_data_sequence_end(const Alignment_data &aln);
 CORE_EXPORT int alignment_data_germline_start(const Alignment_data &aln);

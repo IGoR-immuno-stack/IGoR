@@ -801,9 +801,12 @@ static string cigar_ops_to_string(const vector<pair<int, char>> &ops)
 
 static void append_cigar_run(vector<pair<int, char>> &ops, int count, char op)
 {
-    if (count <= 0) return;
-    if (!ops.empty() && ops.back().second == op) ops.back().first += count;
-    else ops.push_back(make_pair(count, op));
+    if (count <= 0)
+        return;
+    if (!ops.empty() && ops.back().second == op)
+        ops.back().first += count;
+    else
+        ops.push_back(make_pair(count, op));
 }
 
 std::string alignment_data_to_cigar(const Alignment_data &aln)
@@ -880,8 +883,7 @@ std::string alignment_data_to_cigar_full_span(const Alignment_data &aln, size_t 
 }
 
 Alignment_data alignment_data_from_cigar(const std::string &gene_name, const std::string &cigar, int seq_start_1based,
-                                         int seq_end_1based, int ref_start_1based, int /*ref_end_1based*/,
-                                         double score)
+                                         int seq_end_1based, int ref_start_1based, int /*ref_end_1based*/, double score)
 {
     int offset = seq_start_1based - ref_start_1based;
     size_t five_p_offset = static_cast<size_t>(seq_start_1based - 1);
@@ -933,10 +935,22 @@ Alignment_data alignment_data_from_cigar(const std::string &gene_name, const std
                           mismatches, score);
 }
 
-int alignment_data_sequence_start(const Alignment_data &aln) { return static_cast<int>(aln.five_p_offset) + 1; }
-int alignment_data_sequence_end(const Alignment_data &aln) { return static_cast<int>(aln.three_p_offset) + 1; }
-int alignment_data_germline_start(const Alignment_data &aln) { return static_cast<int>(aln.five_p_offset) - aln.offset + 1; }
-int alignment_data_germline_end(const Alignment_data &aln) { return static_cast<int>(aln.three_p_offset) - aln.offset + 1; }
+int alignment_data_sequence_start(const Alignment_data &aln)
+{
+    return static_cast<int>(aln.five_p_offset) + 1;
+}
+int alignment_data_sequence_end(const Alignment_data &aln)
+{
+    return static_cast<int>(aln.three_p_offset) + 1;
+}
+int alignment_data_germline_start(const Alignment_data &aln)
+{
+    return static_cast<int>(aln.five_p_offset) - aln.offset + 1;
+}
+int alignment_data_germline_end(const Alignment_data &aln)
+{
+    return static_cast<int>(aln.three_p_offset) - aln.offset + 1;
+}
 
 /*
  * This method reads the indexed sequences from a given file(@filename)
@@ -1092,9 +1106,8 @@ unordered_map<int, vector<Alignment_data>> read_alignments_seq_csv(const string 
                     align_length = static_cast<size_t>(stoul(len_substr));
                     five_p_offset = static_cast<size_t>(max(0, offset));
                     size_t deletion_count = distance(deletions.begin(), deletions.end());
-                    three_p_offset = (align_length > deletion_count)
-                                             ? five_p_offset + align_length - 1 - deletion_count
-                                             : five_p_offset;
+                    three_p_offset = (align_length > deletion_count) ? five_p_offset + align_length - 1 - deletion_count
+                                                                     : five_p_offset;
                 }
             } else {
                 string len_substr = line_str.substr(mism_sep + 1, len_sep - mism_sep - 1);
@@ -1105,9 +1118,8 @@ unordered_map<int, vector<Alignment_data>> read_alignments_seq_csv(const string 
                 if (five_sep == string::npos) {
                     five_p_offset = static_cast<size_t>(max(0, offset));
                     size_t deletion_count = distance(deletions.begin(), deletions.end());
-                    three_p_offset = (align_length > deletion_count)
-                                             ? five_p_offset + align_length - 1 - deletion_count
-                                             : five_p_offset;
+                    three_p_offset = (align_length > deletion_count) ? five_p_offset + align_length - 1 - deletion_count
+                                                                     : five_p_offset;
                 } else {
                     string five_substr = line_str.substr(len_sep + 1, five_sep - len_sep - 1);
                     string three_substr = line_str.substr(five_sep + 1);
@@ -1118,8 +1130,8 @@ unordered_map<int, vector<Alignment_data>> read_alignments_seq_csv(const string 
                     } else {
                         size_t deletion_count = distance(deletions.begin(), deletions.end());
                         three_p_offset = (align_length > deletion_count)
-                                                 ? five_p_offset + align_length - 1 - deletion_count
-                                                 : five_p_offset;
+                                ? five_p_offset + align_length - 1 - deletion_count
+                                : five_p_offset;
                     }
                 }
             }
@@ -1131,10 +1143,11 @@ unordered_map<int, vector<Alignment_data>> read_alignments_seq_csv(const string 
     return indexed_alignments;
 }
 
-unordered_map<int, forward_list<Alignment_data>> Aligner::read_alignments_seq_csv(string filename, double score_threshold,
-                                                                                 bool allow_in_dels)
+unordered_map<int, forward_list<Alignment_data>>
+Aligner::read_alignments_seq_csv(string filename, double score_threshold, bool allow_in_dels)
 {
-    unordered_map<int, vector<Alignment_data>> parsed = ::read_alignments_seq_csv(filename, score_threshold, allow_in_dels);
+    unordered_map<int, vector<Alignment_data>> parsed =
+            ::read_alignments_seq_csv(filename, score_threshold, allow_in_dels);
     unordered_map<int, forward_list<Alignment_data>> converted;
     for (const auto &entry : parsed) {
         for (auto it = entry.second.rbegin(); it != entry.second.rend(); ++it) {
@@ -1567,17 +1580,336 @@ vector<pair<const int, const string>> sample_indexed_seq(const vector<pair<const
     return vector<pair<const int, const string>>(indexed_seqs_copy.begin(), indexed_seqs_copy.begin() + sample_size);
 }
 
-void Aligner::sw_align_common(const Int_Str &int_data_sequence, const Int_Str &int_genomic_sequence, const int i,
-                              const int j, Matrix<double> &score_matrix, Matrix<int> &row_memory_matrix,
-                              Matrix<int> &col_memory_matrix, Matrix<int> &alignment_numb_tracker,
-                              vector<int> &max_score, vector<int> &max_row_coord, vector<int> &max_col_coord)
+namespace {
+
+struct SwPreparedInputs
+{
+    Int_Str data_sequence;
+    Int_Str genomic_sequence;
+    int offset_change;
+};
+
+struct SwReconstructionResult
+{
+    list<pair<int, Alignment_data>> alignments;
+    double max_align_score;
+};
+
+/**
+ * Prepare Smith-Waterman inputs before DP matrix allocation.
+ *
+ * Coordinates: sequences remain in 0-based nucleotide indexing, while the DP matrix
+ * will use +1 row/column padding on top of these prepared strings.
+ * Mutation: returns copied sequences so callers can safely reverse in place.
+ */
+SwPreparedInputs prepare_sw_inputs(const Int_Str &int_data_sequence, const Int_Str &int_genomic_sequence,
+                                   bool flip_sequences)
+{
+    SwPreparedInputs prepared{ int_data_sequence, int_genomic_sequence, 0 };
+    if (flip_sequences) {
+        reverse(prepared.data_sequence.begin(), prepared.data_sequence.end());
+        reverse(prepared.genomic_sequence.begin(), prepared.genomic_sequence.end());
+    }
+    return prepared;
+}
+
+/**
+ * Initialize score and traceback support matrices.
+ *
+ * Coordinates: the DP matrices use +1 padded dimensions where row 0 and column 0 are
+ * initialization boundaries. Matrix values are written using this padded convention.
+ * Mutation: fully initializes score and tracker matrices for all cells.
+ */
+void initialize_sw_matrices(Matrix<double> &score_matrix, Matrix<int> &col_memory_matrix,
+                            Matrix<int> &row_memory_matrix, Matrix<int> &alignment_numb_tracker, int n_rows, int n_cols,
+                            bool local_align, int gap_penalty)
+{
+    for (int i = 0; i != n_rows; ++i) {
+        if (local_align) {
+            // free leading deletion in query
+            // vanilla SW local alignment
+            score_matrix(i, 0) = 0;
+        } else {
+            // penalized leading deletion in query
+            // akin to global alignment on the left/5'
+            score_matrix(i, 0) = -i * gap_penalty;
+        }
+        col_memory_matrix(i, 0) = 0;
+        row_memory_matrix(i, 0) = 0;
+        for (int j = 0; j != n_cols; ++j) {
+            alignment_numb_tracker(i, j) = -1;
+        }
+    }
+
+    for (int j = 0; j != n_cols; ++j) {
+        // free leading insertion in query
+        score_matrix(0, j) = 0;
+        col_memory_matrix(0, j) = 0;
+        row_memory_matrix(0, j) = 0;
+    }
+}
+
+/**
+ * Trace back candidate alignments from max-score endpoints and build Alignment_data objects.
+ *
+ * Coordinates: matrix coordinates are 1-based padded indices; produced insertion/deletion/
+ * mismatch coordinates keep the 0 based conventions currently used by Alignment_data.
+ * Mutation: reads DP matrices and appends to the result list.
+ */
+SwReconstructionResult traceback_sw_alignments(const Int_Str &int_data_sequence, const Int_Str &int_genomic_sequence,
+                                               const Int_Str &int_data_sequence_copy,
+                                               const Int_Str &int_genomic_sequence_copy,
+                                               const Matrix<int> &col_memory_matrix,
+                                               const Matrix<int> &row_memory_matrix, const vector<int> &max_score,
+                                               const vector<int> &max_row_coord, const vector<int> &max_col_coord,
+                                               double score_threshold, int min_offset, int max_offset, bool flip_seqs,
+                                               int offset_change)
+{
+    SwReconstructionResult output;
+    output.max_align_score = 0;
+
+    for (size_t align = 0; align != max_score.size(); ++align) {
+        if (max_score[align] >= score_threshold) {
+
+            forward_list<int> insertions;
+            forward_list<int> deletions;
+            size_t align_length = 0;
+
+            bool end_of_alignment = false;
+
+            int i = max_row_coord[align];
+            int j = max_col_coord[align];
+
+            size_t end_align_offset = i - 1; // Matrix starts with an extra row
+
+            // If sequence has been flipped compute how offset and insertion/deletion should be changed
+            int flip_factor;
+            int flip_offset;
+            int flip_mis;
+            if (flip_seqs) {
+                flip_factor = -1;
+                flip_mis = 1;
+                flip_offset = int_data_sequence.size() - int_genomic_sequence.size();
+            } else {
+                flip_factor = 1;
+                flip_offset = 0;
+                flip_mis = 0;
+            }
+
+            // TODO correct this to get the alignment until the end (not just until the best scoring nucl)
+            while (!end_of_alignment) {
+                if ((row_memory_matrix(i, j) == 0) && (col_memory_matrix(i, j) == 0)) {
+                    end_of_alignment = true;
+                    break;
+                } else if (row_memory_matrix(i, j) == 0) {
+                    deletions.push_front(flip_factor * (j - 1) + flip_mis * int_genomic_sequence_copy.size());
+                } // TODO check the behavior of this and how to handle in-dels
+                else if (col_memory_matrix(i, j) == 0) {
+                    insertions.push_front(flip_factor * (i - 1) + flip_mis * int_data_sequence_copy.size());
+                }
+                int i_temp = i;
+                i -= row_memory_matrix(i_temp, j);
+                j -= col_memory_matrix(i_temp, j);
+                ++align_length;
+            }
+
+            size_t begin_align_offset = flip_factor * i + flip_mis * int_data_sequence_copy.size();
+            end_align_offset = flip_factor * end_align_offset + flip_mis * int_data_sequence_copy.size();
+
+            // Offset is the place where the first letter of the genomic sequence aligns
+            // if the alignment does not start from the beginning need to extrapolate
+            int offset = flip_factor * (i - j) + flip_offset + offset_change;
+
+            if ((offset >= min_offset)
+                && (offset
+                    <= max_offset)) { // TODO reduce computation time by truncating alignment from the beginning? = banded alignment
+                // TODO change this and use incorporate_in_dels(), should probably change the list inside alignment data also to have the actual corresponding indices
+                // TODO return the actual inserted/deleted sequences in the alignment data??
+                Int_Str dat_seq;
+                Int_Str gen_seq;
+                vector<int> mismatches;
+                bool neg_offset = offset < 0;
+                size_t n_del = distance(deletions.begin(), deletions.end());
+                size_t n_ins = distance(insertions.begin(), insertions.end());
+                if (neg_offset) {
+                    gen_seq = int_genomic_sequence.substr(-offset, Int_Str::npos);
+                    dat_seq = int_data_sequence.substr(0, gen_seq.size() + n_ins);
+                } else {
+                    dat_seq = int_data_sequence.substr(offset, Int_Str::npos);
+                    gen_seq = int_genomic_sequence;
+                }
+
+                if ((dat_seq.size() + n_del) > (gen_seq.size() + n_ins)) {
+                    dat_seq = dat_seq.substr(0, gen_seq.size() + n_ins - n_del);
+                } else {
+                    gen_seq = gen_seq.substr(0, dat_seq.size() + n_del - n_ins);
+                }
+
+                size_t dat_ind = 0;
+                size_t gen_ind = 0;
+
+                while (dat_ind != dat_seq.size()) {
+
+                    if (neg_offset) {
+                        if (count(deletions.begin(), deletions.end(), gen_ind - offset) != 0) {
+                            // The considered genomic nucleotide is deleted
+                            ++gen_ind;
+                        } else if (count(insertions.begin(), insertions.end(), dat_ind) != 0) {
+                            // The considered data nucleotide is an insertion
+                            ++dat_ind;
+                        } else {
+                            if (not(comp_nt_int(gen_seq.at(gen_ind), dat_seq.at(dat_ind)))) {
+                                mismatches.emplace_back(dat_ind);
+                            }
+                            ++dat_ind;
+                            ++gen_ind;
+                        }
+                    } else {
+                        if (count(deletions.begin(), deletions.end(), gen_ind) != 0) {
+                            // The considered genomic nucleotide is deleted
+                            ++gen_ind;
+                        } else if (count(insertions.begin(), insertions.end(), dat_ind + offset) != 0) {
+                            // The considered data nucleotide is an insertion
+                            ++dat_ind;
+                        } else {
+                            if ((gen_seq.at(gen_ind) != dat_seq.at(dat_ind))) {
+                                mismatches.emplace_back(dat_ind + offset);
+                            }
+                            ++dat_ind;
+                            ++gen_ind;
+                        }
+                    }
+                }
+
+                if (max_score[align] > output.max_align_score) {
+                    output.max_align_score = max_score[align];
+                }
+                output.alignments.emplace_back(pair<int, Alignment_data>(
+                        max_score[align],
+                        Alignment_data(offset, begin_align_offset, end_align_offset, align_length, insertions,
+                                       deletions, mismatches, max_score[align])));
+            }
+        }
+    }
+
+    return output;
+}
+
+/**
+ * Retain only alignments whose score equals the best score currently present.
+ *
+ * Coordinates: no coordinate conversion is applied here; this is score-only filtering.
+ * Mutation: erases lower-scoring alignments from the provided list.
+ */
+void retain_best_only_alignments(list<pair<int, Alignment_data>> &seq_alignments_results, double max_align_score)
+{
+    if (seq_alignments_results.size() <= 1) {
+        return;
+    }
+    for (list<pair<int, Alignment_data>>::iterator align = seq_alignments_results.begin();
+         align != seq_alignments_results.end(); ++align) {
+        if ((*align).first < max_align_score) {
+            align = seq_alignments_results.erase(align);
+            --align;
+        }
+    }
+}
+
+} // namespace
+
+/**
+ * Fill the Smith-Waterman score matrix and alignment trackers.
+ *
+ * Coordinates: this routine fills the +1 padded DP matrix starting at cell (1,1).
+ * Mutation: updates score/traceback matrices and max-score trackers in place.
+ */
+void Aligner::fill_sw_score_matrix(const Int_Str &int_data_sequence, const Int_Str &int_genomic_sequence,
+                                   Matrix<double> &score_matrix, Matrix<int> &row_memory_matrix,
+                                   Matrix<int> &col_memory_matrix, Matrix<int> &alignment_numb_tracker,
+                                   vector<int> &max_score, vector<int> &max_row_coord, vector<int> &max_col_coord)
+{
+    const int n_rows = int_data_sequence.size() + 1;
+    const int n_cols = int_genomic_sequence.size() + 1;
+
+    bool matrix_complete = false;
+    int explored_row_coord = 1;
+    int explored_col_coord = 1;
+    bool last_column_explored = false;
+
+    while (!matrix_complete) {
+
+        // For efficiency the score_matrix is filled by squares at first
+        // once the size of the square reaches the size of one of the sequence
+        // it fills the rest
+
+        // TODO test first if the whole genomic seq has been spanned (usually shorter than the data seq??)
+
+        // Always start at index 1 since first column and first row are initialization values
+        if (explored_row_coord == n_rows && !last_column_explored) {
+            // If all the rows have been explored
+            for (int i = 1; i != n_rows; ++i) {
+                // Explore next missing column
+                fill_sw_matrix_cell(int_data_sequence, int_genomic_sequence, i, explored_col_coord - 1, score_matrix,
+                                    row_memory_matrix, col_memory_matrix, alignment_numb_tracker, max_score,
+                                    max_row_coord, max_col_coord);
+            }
+
+        } else if (explored_col_coord == n_cols) {
+            // If all columns have been explored
+            for (int j = 1; j != n_cols; ++j) {
+                // Explore next missing row
+                fill_sw_matrix_cell(int_data_sequence, int_genomic_sequence, explored_row_coord - 1, j, score_matrix,
+                                    row_memory_matrix, col_memory_matrix, alignment_numb_tracker, max_score,
+                                    max_row_coord, max_col_coord);
+            }
+            if (!last_column_explored) {
+                last_column_explored = true;
+            } // By construction
+        } else {
+            int i = 1;
+            int j = 1;
+
+            while ((i != explored_row_coord) && (j != explored_col_coord)) {
+                fill_sw_matrix_cell(int_data_sequence, int_genomic_sequence, i, explored_col_coord, score_matrix,
+                                    row_memory_matrix, col_memory_matrix, alignment_numb_tracker, max_score,
+                                    max_row_coord, max_col_coord);
+                ++i;
+                fill_sw_matrix_cell(int_data_sequence, int_genomic_sequence, explored_row_coord, j, score_matrix,
+                                    row_memory_matrix, col_memory_matrix, alignment_numb_tracker, max_score,
+                                    max_row_coord, max_col_coord);
+                ++j;
+            }
+            // Fill last angle of the square
+            fill_sw_matrix_cell(int_data_sequence, int_genomic_sequence, explored_row_coord, explored_col_coord,
+                                score_matrix, row_memory_matrix, col_memory_matrix, alignment_numb_tracker, max_score,
+                                max_row_coord, max_col_coord);
+        }
+
+        if ((explored_row_coord == n_rows) && (explored_col_coord == n_cols)) {
+            matrix_complete = true;
+        }
+        if (explored_row_coord != n_rows) {
+            ++explored_row_coord;
+        }
+        if (explored_col_coord != n_cols) {
+            ++explored_col_coord;
+        }
+    }
+}
+/*
+    Performs a single move of the dynamic programming matrices.
+*/
+void Aligner::fill_sw_matrix_cell(const Int_Str &int_data_sequence, const Int_Str &int_genomic_sequence, const int i,
+                                  const int j, Matrix<double> &score_matrix, Matrix<int> &row_memory_matrix,
+                                  Matrix<int> &col_memory_matrix, Matrix<int> &alignment_numb_tracker,
+                                  vector<int> &max_score, vector<int> &max_row_coord, vector<int> &max_col_coord)
 {
     int genomic_gap_score = score_matrix(i, j - 1) - gap_penalty;
     int data_gap_score = score_matrix(i - 1, j) - gap_penalty;
     int subs_score = score_matrix(i - 1, j - 1)
             + substitution_matrix(int_data_sequence.at(i - 1), int_genomic_sequence.at(j - 1));
 
-    if ((subs_score >= data_gap_score) && (subs_score >= genomic_gap_score) && ((!local_align) || (subs_score > 0)) ) {
+    if ((subs_score >= data_gap_score) && (subs_score >= genomic_gap_score) && ((!local_align) || (subs_score > 0))) {
         // Retained move is a match or mismatch
         // FIXME: using >= means that branching/convergent alignments at traceback will be ignored
         score_matrix(i, j) = subs_score;
@@ -1640,14 +1972,7 @@ list<pair<int, Alignment_data>> Aligner::sw_align(const Int_Str &int_data_sequen
         - genomic_sequence is the reference, and the horizontal sequence in the matrix (j indexed)
         - The alignment matrix and other utilities are of size sequence size + 1. The extra first row/column allows to initialize the algorithm (especially for the score matrix).
     */
-    Int_Str int_data_sequence_copy = int_data_sequence;
-    Int_Str int_genomic_sequence_copy = int_genomic_sequence;
-    int offset_change = 0;
-
-    if (flip_seqs) {
-        reverse(int_data_sequence_copy.begin(), int_data_sequence_copy.end());
-        reverse(int_genomic_sequence_copy.begin(), int_genomic_sequence_copy.end());
-    }
+    const SwPreparedInputs prepared_inputs = prepare_sw_inputs(int_data_sequence, int_genomic_sequence, flip_seqs);
 
     /*if(min_offset<0){
 		//Remove nucleotides that cannot be in the alignment
@@ -1667,252 +1992,33 @@ list<pair<int, Alignment_data>> Aligner::sw_align(const Int_Str &int_data_sequen
 
 	}
 */
-    int n_rows = int_data_sequence_copy.size()+1;
-    int n_cols = int_genomic_sequence_copy.size()+1;
+    int n_rows = prepared_inputs.data_sequence.size() + 1;
+    int n_cols = prepared_inputs.genomic_sequence.size() + 1;
 
     Matrix<double> score_matrix(n_rows, n_cols);
     Matrix<int> col_memory_matrix(n_rows, n_cols);
     Matrix<int> row_memory_matrix(n_rows, n_cols);
     Matrix<int> alignment_numb_tracker(n_rows, n_cols);
 
-    for (int i = 0; i != n_rows; ++i) {
-        if (local_align){
-            // free leading deletion in query
-            // vanilla SW local alignment
-            score_matrix(i, 0) = 0;
-        }
-        else{
-            // penalized leading deletion in query
-            // akin to global alignment on the left/5'        
-            score_matrix(i, 0) = -i*gap_penalty;
-        }
-        col_memory_matrix(i, 0) = 0;
-        row_memory_matrix(i, 0) = 0;
-        for (int j = 0; j != n_cols; ++j) {
-            alignment_numb_tracker(i, j) = -1;
-        }
-    }
-    for (int j = 0; j != n_cols; ++j) {
-        // free leading insertion in query
-        score_matrix(0, j) = 0;
-        col_memory_matrix(0, j) = 0;
-        row_memory_matrix(0, j) = 0;
-    }
+    initialize_sw_matrices(score_matrix, col_memory_matrix, row_memory_matrix, alignment_numb_tracker, n_rows, n_cols,
+                           local_align, gap_penalty);
 
     vector<int> max_row_coord;
     vector<int> max_col_coord;
     vector<int> max_score;
 
-    bool matrix_complete = false;
+    fill_sw_score_matrix(prepared_inputs.data_sequence, prepared_inputs.genomic_sequence, score_matrix,
+                         row_memory_matrix, col_memory_matrix, alignment_numb_tracker, max_score, max_row_coord,
+                         max_col_coord);
 
-    int explored_row_coord = 1;
-    int explored_col_coord = 1;
+    const SwReconstructionResult reconstruction = traceback_sw_alignments(
+            int_data_sequence, int_genomic_sequence, prepared_inputs.data_sequence, prepared_inputs.genomic_sequence,
+            col_memory_matrix, row_memory_matrix, max_score, max_row_coord, max_col_coord, score_threshold, min_offset,
+            max_offset, flip_seqs, prepared_inputs.offset_change);
 
-    bool last_column_explored = false;
-    bool corner_case;
-    (n_rows - 1 == n_cols) ? corner_case = true : corner_case = false;
-
-    while (!matrix_complete) {
-
-        //For efficiency the score_matrix is filled by squares at first
-        //once the size of the square reaches the size of one of the sequence
-        //it fills the rest
-
-        //TODO test first if the whole genomic seq has been spanned (usually shorter than the data seq??)
-
-        //Always start at index 1 since first column and first row are initialization values
-        if (explored_row_coord == n_rows && !last_column_explored) {
-            //If all the rows have been explored
-            for (int i = 1; i != n_rows; ++i) {
-                //Explore next missing column
-                sw_align_common(int_data_sequence_copy, int_genomic_sequence_copy, i, explored_col_coord - 1,
-                                score_matrix, row_memory_matrix, col_memory_matrix, alignment_numb_tracker, max_score,
-                                max_row_coord, max_col_coord);
-            }
-
-        } else if (explored_col_coord == n_cols) {
-            //If all colmuns have been explored
-            for (int j = 1; j != n_cols; ++j) {
-                //Explore next missing row
-                sw_align_common(int_data_sequence_copy, int_genomic_sequence_copy, explored_row_coord - 1, j,
-                                score_matrix, row_memory_matrix, col_memory_matrix, alignment_numb_tracker, max_score,
-                                max_row_coord, max_col_coord);
-            }
-            if (!last_column_explored) {
-                last_column_explored = true;
-            } //By construction
-        } else {
-            int i = 1;
-            int j = 1;
-
-            while ((i != explored_row_coord) && (j != explored_col_coord)) {
-                sw_align_common(int_data_sequence_copy, int_genomic_sequence_copy, i, explored_col_coord, score_matrix,
-                                row_memory_matrix, col_memory_matrix, alignment_numb_tracker, max_score, max_row_coord,
-                                max_col_coord);
-                ++i;
-                sw_align_common(int_data_sequence_copy, int_genomic_sequence_copy, explored_row_coord, j, score_matrix,
-                                row_memory_matrix, col_memory_matrix, alignment_numb_tracker, max_score, max_row_coord,
-                                max_col_coord);
-                ++j;
-            }
-            //Fill last angle of the square
-            sw_align_common(int_data_sequence_copy, int_genomic_sequence_copy, explored_row_coord, explored_col_coord,
-                            score_matrix, row_memory_matrix, col_memory_matrix, alignment_numb_tracker, max_score,
-                            max_row_coord, max_col_coord);
-        }
-
-        if ((explored_row_coord == n_rows) && (explored_col_coord == n_cols)) {
-            matrix_complete = true;
-        }
-        if (explored_row_coord != n_rows) {
-            ++explored_row_coord;
-        }
-        if (explored_col_coord != n_cols) {
-            ++explored_col_coord;
-        }
-    }
-
-    //Reconstruct the alignments
-    list<pair<int, Alignment_data>> seq_alignments_results;
-    double max_align_score = 0;
-    /*for(size_t align = 0 ; align!=max_score.size() ; align++){
-		if(max_score[align]>max_align_score){
-			max_align_score = max_score[align];
-		}
-	}*/
-    for (size_t align = 0; align != max_score.size(); ++align) {
-        if (max_score[align] >= score_threshold) {
-
-            forward_list<int> insertions;
-            forward_list<int> deletions;
-            size_t align_length = 0;
-
-            bool end_of_alignment = false;
-
-            int i = max_row_coord[align];
-            int j = max_col_coord[align];
-
-            size_t end_align_offset = i - 1; // Matrix starts with an extra row
-
-            //If sequence has been flip compute how the offset and insertion/deletion should be changed
-            int flip_factor;
-            int flip_offset;
-            int flip_mis;
-            if (flip_seqs) {
-                flip_factor = -1;
-                flip_mis = 1;
-                flip_offset = int_data_sequence.size() - int_genomic_sequence.size();
-            } else {
-                flip_factor = 1;
-                flip_offset = 0;
-                flip_mis = 0;
-            }
-
-            //TODO correct this to get the alignment until the end (not just until the best scoring nucl)
-            while (!end_of_alignment) {
-                if ((row_memory_matrix(i, j) == 0) && (col_memory_matrix(i, j) == 0)) {
-                    end_of_alignment = true;
-                    break;
-                } else if (row_memory_matrix(i, j) == 0) {
-                    deletions.push_front(flip_factor * (j - 1) + flip_mis * int_genomic_sequence_copy.size());
-                } //TODO check the behavior of this and how to handle in-dels
-                else if (col_memory_matrix(i, j) == 0) {
-                    insertions.push_front(flip_factor * (i - 1) + flip_mis * int_data_sequence_copy.size());
-                }
-                int i_temp = i;
-                i -= row_memory_matrix(i_temp, j);
-                j -= col_memory_matrix(i_temp, j);
-                ++align_length;
-            }
-
-            size_t begin_align_offset = flip_factor * i + flip_mis * int_data_sequence_copy.size();
-            end_align_offset = flip_factor * end_align_offset + flip_mis * int_data_sequence_copy.size();
-
-            //Offset is the place where the first letter of the genomic sequence aligns
-            //if the alignment does not start from the beginning need to extrapolate
-            int offset = flip_factor * (i - j) + flip_offset + offset_change;
-
-            if ((offset >= min_offset)
-                && (offset
-                   <= max_offset)) { //TODO reduce computation time by truncating the alignment from the beginning? = banded alignment
-                //TODO change this and use incorporate_in_dels(), should probably change the list inside alignment data also to have the actual corresponding indices
-                //TODO return the actual inserted/deleted sequences in the alignment data??
-                Int_Str dat_seq;
-                Int_Str gen_seq;
-                vector<int> mismatches;
-                bool neg_offset = offset < 0;
-                size_t n_del = distance(deletions.begin(), deletions.end());
-                size_t n_ins = distance(insertions.begin(), insertions.end());
-                if (neg_offset) {
-                    gen_seq = int_genomic_sequence.substr(-offset, Int_Str::npos);
-                    dat_seq = int_data_sequence.substr(0, gen_seq.size() + n_ins);
-                } else {
-                    dat_seq = int_data_sequence.substr(offset, Int_Str::npos);
-                    gen_seq = int_genomic_sequence;
-                }
-
-                if ((dat_seq.size() + n_del) > (gen_seq.size() + n_ins)) {
-                    dat_seq = dat_seq.substr(0, gen_seq.size() + n_ins - n_del);
-                } else {
-                    gen_seq = gen_seq.substr(0, dat_seq.size() + n_del - n_ins);
-                }
-
-                /*					cout<<"---------------------------------"<<endl;
-					cout<<dat_seq.size()+n_del<<endl;
-					cout<<gen_seq.size()+n_ins<<endl;*/
-                size_t dat_ind = 0;
-                size_t gen_ind = 0;
-
-                while (dat_ind != dat_seq.size()) {
-
-                    if (neg_offset) {
-                        if (count(deletions.begin(), deletions.end(), gen_ind - offset) != 0) {
-                            //The considered genomic nucleotide is deleted
-                            ++gen_ind;
-                        } else if (count(insertions.begin(), insertions.end(), dat_ind) != 0) {
-                            //The considered data nucleotide is an insertion
-                            ++dat_ind;
-                        } else {
-                            if (not(comp_nt_int(gen_seq.at(gen_ind), dat_seq.at(dat_ind)))) {
-                                mismatches.emplace_back(dat_ind);
-                            }
-                            ++dat_ind;
-                            ++gen_ind;
-                        }
-                    } else {
-                        if (count(deletions.begin(), deletions.end(), gen_ind) != 0) {
-                            //The considered genomic nucleotide is deleted
-                            ++gen_ind;
-                        } else if (count(insertions.begin(), insertions.end(), dat_ind + offset) != 0) {
-                            //The considered data nucleotide is an insertion
-                            ++dat_ind;
-                        } else {
-                            if ((gen_seq.at(gen_ind) != dat_seq.at(dat_ind))) {
-                                mismatches.emplace_back(dat_ind + offset);
-                            }
-                            ++dat_ind;
-                            ++gen_ind;
-                        }
-                    }
-                }
-                if (max_score[align] > max_align_score) {
-                    max_align_score = max_score[align];
-                }
-                seq_alignments_results.emplace_back(pair<int, Alignment_data>(
-                        max_score[align],
-                        Alignment_data(offset, begin_align_offset, end_align_offset, align_length, insertions,
-                                       deletions, mismatches, max_score[align])));
-            }
-        }
-    }
-    if (best_only && (seq_alignments_results.size() > 1)) {
-        for (list<pair<int, Alignment_data>>::iterator align = seq_alignments_results.begin();
-             align != seq_alignments_results.end(); ++align) {
-            if ((*align).first < max_align_score) {
-                align = seq_alignments_results.erase(align);
-                --align;
-            }
-        }
+    list<pair<int, Alignment_data>> seq_alignments_results = reconstruction.alignments;
+    if (best_only) {
+        retain_best_only_alignments(seq_alignments_results, reconstruction.max_align_score);
     }
 
     return seq_alignments_results;
