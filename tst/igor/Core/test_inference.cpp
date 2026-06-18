@@ -783,7 +783,7 @@ TEST_CASE("Inference recovers ground truth model - smoke", "[integration][infere
     run_inference_recovery_test(cfg);
 }
 
-TEST_CASE("Inference recovers ground truth model - convergence", "[integration][inference][slow][!mayfail]")
+TEST_CASE("Inference recovers ground truth model - convergence", "[convergence][inference][slow][!mayfail]")
 {
     // this test should take around 5 seconds
     SECTION("human TCR alpha (VJ) - N=10000 - thorough validation") {
