@@ -995,6 +995,7 @@ AAPgenResult GenModel::compute_aa_pgen(
     // 2. Align IUPAC union reference against all gene templates
     // Convert Int_Str to string for alignment
     std::string iupac_nt_str;
+    iupac_nt_str.reserve(jq.iupac_union.size());
     for (int nt : jq.iupac_union) {
         switch (nt) {
             case 0: iupac_nt_str += 'A'; break;
@@ -1006,12 +1007,63 @@ AAPgenResult GenModel::compute_aa_pgen(
         }
     }
 
-    // Get gene alignments (simplified - uses basic alignment)
+    // Get gene alignments by aligning the IUPAC reference against all gene templates
     std::unordered_map<Gene_class, std::vector<Alignment_data>> gene_alignments;
-    // For now, we use a simplified approach: get alignments from the model's gene templates
-    // In a full implementation, this would call model.align_all_genes(iupac_nt_str, ...)
-    // For the AA Pgen use case, we rely on the existing gene template matching
-    // The key insight is that the JournaledQuery constrains which scenarios are valid
+    
+    // Get the events map to find GeneChoice events for V, D, J genes
+    const auto& events_map = model_parms.get_events_map();
+    
+    // Helper lambda to extract genomic templates from a GeneChoice event
+    auto get_templates = [](const std::shared_ptr<Rec_Event>& gene_event) -> std::vector<std::pair<std::string, std::string>> {
+        std::vector<std::pair<std::string, std::string>> templates;
+        auto realizations = gene_event->get_realizations_map();
+        for (const auto& [name, real] : realizations) {
+            templates.emplace_back(name, real.value_str);
+        }
+        return templates;
+    };
+    
+    // Align V gene templates
+    auto v_key = std::make_tuple(Event_type::GeneChoice_t, Gene_class::V_gene, Seq_side::Undefined_side);
+    if (events_map.count(v_key)) {
+        auto v_gene_choice = events_map.at(v_key);
+        Aligner v_aligner;
+        v_aligner.set_genomic_sequences(get_templates(v_gene_choice));
+        auto v_alignments = v_aligner.align_seq(iupac_nt_str, -10.0, false, 0, iupac_nt_str.size(), false);
+        std::vector<Alignment_data> v_align_vec;
+        for (const auto& ad : v_alignments) {
+            v_align_vec.push_back(ad);
+        }
+        gene_alignments[Gene_class::V_gene] = std::move(v_align_vec);
+    }
+    
+    // Align D gene templates
+    auto d_key = std::make_tuple(Event_type::GeneChoice_t, Gene_class::D_gene, Seq_side::Undefined_side);
+    if (events_map.count(d_key)) {
+        auto d_gene_choice = events_map.at(d_key);
+        Aligner d_aligner;
+        d_aligner.set_genomic_sequences(get_templates(d_gene_choice));
+        auto d_alignments = d_aligner.align_seq(iupac_nt_str, -10.0, false, 0, iupac_nt_str.size(), false);
+        std::vector<Alignment_data> d_align_vec;
+        for (const auto& ad : d_alignments) {
+            d_align_vec.push_back(ad);
+        }
+        gene_alignments[Gene_class::D_gene] = std::move(d_align_vec);
+    }
+    
+    // Align J gene templates
+    auto j_key = std::make_tuple(Event_type::GeneChoice_t, Gene_class::J_gene, Seq_side::Undefined_side);
+    if (events_map.count(j_key)) {
+        auto j_gene_choice = events_map.at(j_key);
+        Aligner j_aligner;
+        j_aligner.set_genomic_sequences(get_templates(j_gene_choice));
+        auto j_alignments = j_aligner.align_seq(iupac_nt_str, -10.0, false, 0, iupac_nt_str.size(), false);
+        std::vector<Alignment_data> j_align_vec;
+        for (const auto& ad : j_alignments) {
+            j_align_vec.push_back(ad);
+        }
+        gene_alignments[Gene_class::J_gene] = std::move(j_align_vec);
+    }
 
     // 3. Construct QuerySequenceContext in patched/motif mode
     QuerySequenceContext query(iupac_nt_str, jq.iupac_union, gene_alignments, jq);
@@ -1031,10 +1083,10 @@ AAPgenResult GenModel::compute_aa_pgen(
 
     // 5. Get model queue and set up contexts
     queue<shared_ptr<Rec_Event>> model_queue = model_parms.get_model_queue();
-    Index_map index_map(6);  // 6 events max
+    size_t num_events = model_parms.get_event_list().size();
+    Index_map index_map(num_events);  // size for all events
     unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> offset_map =
         model_marginals.get_offsets_map(model_parms, model_queue);
-    const auto& events_map = model_parms.get_events_map();
 
     // 6. Initialize events
     unordered_set<Rec_Event_name> processed_events;
@@ -1062,8 +1114,7 @@ AAPgenResult GenModel::compute_aa_pgen(
     model_queue = model_parms.get_model_queue();
 
     // Set up next event pointer array
-    // Use a reasonable upper bound for the number of events
-    size_t num_events = model_parms.get_event_list().size();
+    // num_events already computed above
     if (num_events == 0 || num_events > 100) {
         return {0.0, 0ULL};  // Invalid model
     }

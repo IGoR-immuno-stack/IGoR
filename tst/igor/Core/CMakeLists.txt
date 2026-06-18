@@ -2,6 +2,7 @@
 
 set(CORE_TEST_SOURCES
     test_aa_pgen.cpp
+    test_aa_pgen_bugs.cpp
     test_Contexts.cpp
     test_EventUtils.cpp
     test_fast_sampling.cpp
