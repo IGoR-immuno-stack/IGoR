@@ -1,6 +1,8 @@
 ### CMakeLists.txt ---
 
 set(CORE_TEST_SOURCES
+    test_aligner.cpp
+    test_alignment_cigar.cpp
     test_Contexts.cpp
     test_EventUtils.cpp
     test_fast_sampling.cpp
