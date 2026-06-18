@@ -37,5 +37,13 @@ catch_discover_tests(igor_tests
         LABELS "integration"
 )
 
+catch_discover_tests(igor_tests
+    TEST_SPEC "[convergence]"
+    TEST_PREFIX "convergence::"
+    PROPERTIES
+        TIMEOUT 3600
+        LABELS "convergence"
+)
+
 ######################################################################
 ### CMakeLists.txt ends here
