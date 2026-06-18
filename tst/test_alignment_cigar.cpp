@@ -34,6 +34,13 @@ TEST_CASE("alignment data to CIGAR basic cases", "[cigar]")
     REQUIRE(alignment_data_to_cigar(Alignment_data("g", 0, 0, 9, 12, {}, {5,4}, {}, 10)) == "4=2D6=");
 }
 
+TEST_CASE("alignment data full-span CIGAR includes terminal gaps", "[cigar]")
+{
+    Alignment_data aln("gene", -237, 0, 52, 53, {50, 51}, {}, {}, 246.0);
+    REQUIRE(alignment_data_to_cigar(aln) == "50=2I1=");
+    REQUIRE(alignment_data_to_cigar_full_span(aln, 60, 288) == "237D50=2I1=7I");
+}
+
 TEST_CASE("alignment data CIGAR mixed round trip", "[cigar]")
 {
     Alignment_data aln("gene", -2, 0, 9, 12, {6}, {3, 4}, {2, 8}, 42.0);
