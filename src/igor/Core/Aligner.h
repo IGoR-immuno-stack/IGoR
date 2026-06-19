@@ -135,6 +135,9 @@ struct Alignment_data
  * Alignments can be made in parallel using openMP
  *
  */
+/// Internal DP workspace for sw_align; defined in Aligner.cpp.
+struct SwDPState;
+
 class CORE_EXPORT Aligner
 {
 public:
@@ -202,10 +205,8 @@ private:
     Gene_class gene;
     bool local_align;
     bool flip_seqs;
-    void fill_sw_score_matrix(const Int_Str &, const Int_Str &, Matrix<double> &, Matrix<int> &, Matrix<int> &,
-                              Matrix<int> &, std::vector<int> &, std::vector<int> &, std::vector<int> &);
-    void fill_sw_matrix_cell(const Int_Str &, const Int_Str &, const int, const int, Matrix<double> &, Matrix<int> &,
-                             Matrix<int> &, Matrix<int> &, std::vector<int> &, std::vector<int> &, std::vector<int> &);
+    void fill_sw_score_matrix(const Int_Str &, const Int_Str &, SwDPState &);
+    void fill_sw_matrix_cell(const Int_Str &, const Int_Str &, int, int, SwDPState &);
     std::list<std::pair<int, Alignment_data>> sw_align(const Int_Str &, const Int_Str &, double, bool, int, int);
     std::unordered_map<std::string, std::pair<int, int>> build_genomic_bounds_map(int, int) const;
 };
