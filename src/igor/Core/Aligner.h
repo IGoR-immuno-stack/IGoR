@@ -136,6 +136,7 @@ struct Alignment_data
  *
  */
 /// Internal DP workspace for sw_align; defined in Aligner.cpp.
+struct SwDPConfig;
 struct SwDPState;
 
 class CORE_EXPORT Aligner
@@ -203,11 +204,9 @@ private:
     Matrix<double> substitution_matrix;
     int gap_penalty;
     Gene_class gene;
-    bool local_align;
-    bool flip_seqs;
-    void fill_sw_score_matrix(const Int_Str &, const Int_Str &, SwDPState &);
-    void fill_sw_matrix_cell(const Int_Str &, const Int_Str &, int, int, SwDPState &);
-    std::list<std::pair<int, Alignment_data>> sw_align(const Int_Str &, const Int_Str &, double, bool, int, int);
+        void fill_sw_score_matrix(const Int_Str &, const Int_Str &, SwDPState &, const SwDPConfig &);
+        void fill_sw_matrix_cell(const Int_Str &, const Int_Str &, int, int, SwDPState &, const SwDPConfig &);
+    std::list<std::pair<int, Alignment_data>> sw_align(const Int_Str &, const Int_Str &, bool, const SwDPConfig &);
     std::unordered_map<std::string, std::pair<int, int>> build_genomic_bounds_map(int, int) const;
 };
 
