@@ -260,7 +260,7 @@ void assert_alignment_set_matches(const std::forward_list<Alignment_data> &align
 
 } // namespace
 
-TEST_CASE("Aligner V gene dummy alignments.", "[aligner][V_gene][dummy]")
+TEST_CASE("Aligner V gene multiplex dummy alignments.", "[aligner][V_gene][dummy]")
 {
 
     /*
@@ -507,6 +507,121 @@ TEST_CASE("Aligner D gene dummy local alignments.", "[aligner][D_gene][dummy]")
 
     const std::vector<std::pair<std::string, std::string>> genomic_templates = { { "g1", germline_ref } };
     auto aligner = make_legacy_aligner(matrix, gap_penalty, D_gene, genomic_templates);
+    const auto alignments = aligner.align_seq(query_read, -1000.0, true, true, INT16_MIN, INT16_MAX);
+    assert_best_alignment_matches(alignments, query_read, genomic_templates, { "g1", expected_cigar, expected_score });
+}
+
+TEST_CASE("Aligner J gene multiplex dummy alignments.", "[aligner][J_gene][dummy]")
+{
+
+    /*
+    * A nucleotides for NT of germline of interest
+    * T nucleotides for other NT in the read, or to make a germline variation allowing to constrain alignment.
+    * G nucleotides for mismatches
+    * C nucleotides for penalized gaps
+    * 
+    * Score costs are set with prime numbers such that total score mismatch is easier to debug. 
+    */
+    const Matrix<double> matrix = build_test_score_matrix(7, -11);
+    const int gap_penalty = 13;
+    std::string query_read;
+    std::string germline_ref;
+    std::string expected_cigar;
+    double expected_score;
+
+    SECTION("complete alignment")
+    {
+        query_read = std::string(20, 'A');
+        germline_ref = std::string(20, 'A');
+        expected_cigar = "20=";
+        expected_score = 140;
+    }
+
+    SECTION("short read, free trailing reference deletion")
+    {
+        query_read = std::string(1, 'T') + std::string(5, 'A');
+        germline_ref = std::string(1, 'T') + std::string(9, 'A');
+        expected_cigar = "6=4D";
+        expected_score = 42;
+    }
+
+    SECTION("partial overlap read, no 5' deletion")
+    {
+        query_read = std::string(14, 'T') + std::string(6, 'A');
+        germline_ref = std::string(1, 'T') + std::string(19, 'A');
+        expected_cigar = "13I7=13D";
+        expected_score = 49;
+    }
+
+    SECTION("partial overlap read, single free 5' deletion")
+    {
+        query_read = std::string(14, 'T') + std::string(6, 'A');
+        germline_ref = std::string(1, 'A') + std::string(1, 'T') + std::string(19, 'A');
+        expected_cigar = "1D13I7=13D";
+        expected_score = 49;
+    }
+
+    SECTION("partial overlap read, three free 5' deletion")
+    {
+        query_read = std::string(14, 'T') + std::string(6, 'A');
+        germline_ref = std::string(3, 'A') + std::string(1, 'T') + std::string(19, 'A');
+        expected_cigar = "3D13I7=13D";
+        expected_score = 49;
+    }
+
+    SECTION("free leading germline treated as deletion")
+    {
+        query_read = std::string(14, 'T');
+        germline_ref = std::string(2, 'A') + std::string(14, 'T') + std::string(6, 'A');
+        expected_cigar = "2D14=6D";
+        expected_score = 98;
+    }
+
+    SECTION("mismatch in long match")
+    {
+        query_read = std::string(20, 'A');
+        query_read[4] = 'G';
+        germline_ref = std::string(20, 'A');
+        expected_cigar = "4=1X15=";
+        expected_score = 122;
+    }
+
+    SECTION("mismatch in last NT")
+    {
+        query_read = std::string(20, 'A');
+        query_read[19] = 'G';
+        germline_ref = std::string(20, 'A');
+        expected_cigar = "19=1X";
+        expected_score = 122;
+    }
+
+    SECTION("mismatch in first NT seen as free gap")
+    {
+        query_read = std::string(19, 'A') + std::string(1, 'T');
+        query_read[0] = 'G';
+        germline_ref = std::string(19, 'A') + std::string(1, 'T');
+        expected_cigar = "1D1I19=";
+        expected_score = 133;
+    }
+
+    SECTION("penalized insertion")
+    {
+        query_read = std::string(5, 'A') + "C" + std::string(15, 'A');
+        germline_ref = std::string(20, 'A');
+        expected_cigar = "5=1I15=";
+        expected_score = 127;
+    }
+
+    SECTION("penalized deletion")
+    {
+        query_read = "T" + std::string(17, 'A') + "T";
+        germline_ref = "T" + std::string(7, 'A') + "T" + std::string(10, 'A') + "T";
+        expected_cigar = "8=1D11=";
+        expected_score = 120;
+    }
+
+    const std::vector<std::pair<std::string, std::string>> genomic_templates = { { "g1", germline_ref } };
+    auto aligner = make_legacy_aligner(matrix, gap_penalty, J_gene, genomic_templates);
     const auto alignments = aligner.align_seq(query_read, -1000.0, true, true, INT16_MIN, INT16_MAX);
     assert_best_alignment_matches(alignments, query_read, genomic_templates, { "g1", expected_cigar, expected_score });
 }
