@@ -71,7 +71,7 @@ SwAlignmentMode default_sw_alignment_mode_for_gene(Gene_class gene)
 {
     switch (gene) {
     case V_gene:
-        return { true, false, false, false, false };
+        return { false, false, true, false, false };
     case D_gene:
         return { true, true, true, true, false };
     case J_gene:
