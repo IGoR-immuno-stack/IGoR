@@ -1937,6 +1937,11 @@ SwReconstructionResult traceback_sw_alignments(const Int_Str &int_data_sequence,
             int j = dp.max_col_coord[align];
             int i_start = i; // Save the original starting position for end offset calculation
 
+            //dp.score_matrix.print();
+
+            //cout<<prepared.data_sequence.at(5)<<endl;
+            //cout<<prepared.genomic_sequence.at(5)<<endl;
+
             // TODO correct this to get the alignment until the end (not just until the best scoring nucl)
             while (!end_of_alignment) {
                 if (dp.row_memory_matrix(i, j) == 0) {
@@ -2193,34 +2198,25 @@ list<pair<int, Alignment_data>> sw_align(const Int_Str &int_data_sequence, const
         - genomic_sequence is the reference, and the horizontal sequence in the matrix (j indexed)
         - The alignment matrix and other utilities are of size sequence size + 1. The extra first row/column allows to initialize the algorithm (especially for the score matrix).
     */
-    const SwPreparedInputs prepared_inputs = prepare_sw_inputs(int_data_sequence, int_genomic_sequence, config);
-    /*if(config.min_offset<0){
-		//Remove nucleotides that cannot be in the alignment
-		//This is not true because of in/dels
-		if(int_genomic_sequence.size()>(-config.min_offset + int_data_sequence.size())){
-			short_int_genomic_sequence.erase((-config.min_offset + int_data_sequence.size()),string::npos);
-		}
-	}
-	else{
-
-	}*/
-    /*if(max_offset<0){
-		int_genomic_sequence_copy.erase(0,-max_offset);
-		offset_change = max_offset;
-	}
-	else{
-
-	}
-*/
+    const SwDPConfig effective_config = {
+        config.score_threshold,
+        config.best_only,
+        config.min_offset,
+        config.max_offset,
+        config.substitution_matrix,
+        config.gap_penalty,
+        effective_sw_mode_for_dp(config)
+    };
+    const SwPreparedInputs prepared_inputs = prepare_sw_inputs(int_data_sequence, int_genomic_sequence, effective_config);
     const int n_rows = static_cast<int>(prepared_inputs.data_sequence.size()) + 1;
     const int n_cols = static_cast<int>(prepared_inputs.genomic_sequence.size()) + 1;
 
     SwDPState dp(n_rows, n_cols);
-    initialize_sw_matrices(dp, config);
-    fill_sw_score_matrix(prepared_inputs.data_sequence, prepared_inputs.genomic_sequence, dp, config);
+    initialize_sw_matrices(dp, effective_config);
+    fill_sw_score_matrix(prepared_inputs.data_sequence, prepared_inputs.genomic_sequence, dp, effective_config);
 
     const SwReconstructionResult reconstruction =
-            traceback_sw_alignments(int_data_sequence, int_genomic_sequence, prepared_inputs, dp, config);
+            traceback_sw_alignments(int_data_sequence, int_genomic_sequence, prepared_inputs, dp, effective_config);
 
     list<pair<int, Alignment_data>> seq_alignments_results = reconstruction.alignments;
     if (best_only) {
