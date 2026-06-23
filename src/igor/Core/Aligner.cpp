@@ -1974,17 +1974,20 @@ SwReconstructionResult traceback_sw_alignments(const Int_Str &int_data_sequence,
             //int offset = convert_matrix_coords_to_offset(i, j, data_seq_size, genomic_seq_size, prepared.offset_change, flip_seqs);
             size_t begin_align_offset = convert_matrix_row_to_query_pos(i, data_seq_size, flip_seqs);
             size_t end_align_offset = convert_matrix_row_to_query_pos(i_start, data_seq_size, flip_seqs);
+            int offset;
             if (flip_seqs) {
                 // reverse offset order
                 std::swap(begin_align_offset, end_align_offset);
-            }
-
-            /*
+                offset = begin_align_offset;
+            } else {
+                /*
              * FIXME: this does not really make sense for local alignments. 
               It boils down to assuming that leading deletions would align 1 to 1 with the read.
               But it is what is expected by the legacy alignment data representation.
              * */
-            int offset = begin_align_offset - convert_matrix_col_to_ref_pos(j, genomic_seq_size, flip_seqs);
+
+                offset = begin_align_offset - convert_matrix_col_to_ref_pos(j, genomic_seq_size, flip_seqs);
+            }
 
             if ((offset >= min_offset) && (offset <= max_offset)) {
                 // TODO reduce computation time by truncating alignment from the beginning? = banded alignment
