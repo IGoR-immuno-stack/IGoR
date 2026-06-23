@@ -1942,7 +1942,7 @@ SwReconstructionResult traceback_sw_alignments(const Int_Str &int_data_sequence,
                 if (dp.row_memory_matrix(i, j) == 0) {
                     // Deletion: use column coordinate (j) to get reference position
                     deletions.emplace_back(convert_matrix_col_to_ref_pos(j, genomic_seq_size, flip_seqs));
-                } // TODO check the behavior of this and how to handle in-dels
+                }
                 else if (dp.col_memory_matrix(i, j) == 0) {
                     // Insertion: use row coordinate (i) to get query position
                     insertions.emplace_back(convert_matrix_row_to_query_pos(i, data_seq_size, flip_seqs));
@@ -1978,12 +1978,13 @@ SwReconstructionResult traceback_sw_alignments(const Int_Str &int_data_sequence,
                 // reverse offset order
                 std::swap(begin_align_offset, end_align_offset);
             }
-            int offset;
-            if (begin_align_offset > 0) {
-                offset = begin_align_offset;
-            } else {
-                offset = -convert_matrix_col_to_ref_pos(j, genomic_seq_size, flip_seqs);
-            }
+
+            /*
+             * FIXME: this does not really make sense for local alignments. 
+              It boils down to assuming that leading deletions would align 1 to 1 with the read.
+              But it is what is expected by the legacy alignment data representation.
+             * */
+            int offset = begin_align_offset - convert_matrix_col_to_ref_pos(j, genomic_seq_size, flip_seqs);
 
             if ((offset >= min_offset) && (offset <= max_offset)) {
                 // TODO reduce computation time by truncating alignment from the beginning? = banded alignment
