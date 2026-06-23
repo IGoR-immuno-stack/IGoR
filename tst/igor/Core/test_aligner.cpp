@@ -710,4 +710,163 @@ TEST_CASE("Legacy Aligner strict set matching when best_only is false", "[aligne
     assert_alignment_set_matches(alignments, query, genomic_templates, { { "g1", "4=", 8.0 }, { "g2", "4=", 8.0 } });
 }
 
+// Tests for coordinate conversion functions used in traceback_sw_alignments
+namespace swalign {
+
+SwDPConfig mock_DP_config(bool reversed){
+    auto mode = SwAlignmentMode({false, false, false, false, reversed});
+    return SwDPConfig ({INT16_MAX, false, INT16_MIN, INT16_MAX, Matrix<double>(), 0, mode});
+}
+
+/* TEST_CASE("Coordinate conversion for Smith-Waterman traceback", "[aligner][coordinate_conversion]")
+{
+    // Section input
+    Int_Str data_seq;
+    Int_Str genomic_seq;
+    bool reverse;
+    std::vector<int> mismatches; // unused, post hoc computed in current impl
+    std::vector<int> insertions; 
+    std::vector<int> deletions; 
+
+    // Section expectations
+    int expect_offset;
+    int expect_five_p_offset;
+    int expect_three_p_offset;
+    std::vector<int> exp_insertions; 
+    std::vector<int> exp_deletions; 
+
+    SECTION("compute_flip_coordinates_params: normal sequences (flip_seqs=false)")
+    {
+        // Test input
+        data_seq = ::nt2int("ACGT");
+        genomic_seq = ::nt2int("GCTA");
+        reverse = false;
+        
+        
+    }
+
+    SECTION("compute_flip_coordinates_params: flipped sequences (flip_seqs=true)")
+    {
+        SwPreparedInputs prepared{ Int_Str(), Int_Str(), 0 };
+        Int_Str data_seq = ::nt2int("ACGT");     // size = 4
+        Int_Str genomic_seq = ::nt2int("GCTA");   // size = 4
+        
+        auto params = compute_flip_coordinates_params(prepared, data_seq, genomic_seq, true);
+        
+        // For flipped sequences, we expect reverse transformation
+        REQUIRE(params.flip_factor == -1);
+        REQUIRE(params.flip_offset == 0);  // 4 - 4 = 0
+        REQUIRE(params.flip_mis == 1);
+        REQUIRE(params.data_seq_size == 4);
+        REQUIRE(params.genomic_seq_size == 4);
+    }
+
+    SECTION("compute_flip_coordinates_params: flipped sequences with different lengths")
+    {
+        SwPreparedInputs prepared{ Int_Str(), Int_Str(), 0 };
+        Int_Str data_seq = ::nt2int("ACGTACGT");   // size = 8
+        Int_Str genomic_seq = ::nt2int("GCTA");      // size = 4
+        
+        auto params = compute_flip_coordinates_params(prepared, data_seq, genomic_seq, true);
+        
+        // For flipped sequences with different lengths
+        REQUIRE(params.flip_factor == -1);
+        REQUIRE(params.flip_offset == 4);  // 8 - 4 = 4
+        REQUIRE(params.flip_mis == 1);
+        REQUIRE(params.data_seq_size == 8);
+        REQUIRE(params.genomic_seq_size == 4);
+    }
+
+    SECTION("convert_traceback_coordinate: insertion in normal sequences")
+    {
+        FlipCoordinatesParams params{ 1, 0, 0, 0, 0 };
+        
+        // Test insertion coordinate conversion (i=5, j=3)
+        int result = convert_traceback_coordinate(5, 3, params, true);
+        REQUIRE(result == 4);  // (5-1) = 4
+    }
+
+    SECTION("convert_traceback_coordinate: deletion in normal sequences")
+    {
+        FlipCoordinatesParams params{ 1, 0, 0, 0, 0 };
+        
+        // Test deletion coordinate conversion (i=5, j=3)
+        int result = convert_traceback_coordinate(5, 3, params, false);
+        REQUIRE(result == 2);  // (3-1) = 2
+    }
+
+    SECTION("convert_traceback_coordinate: insertion in flipped sequences")
+    {
+        FlipCoordinatesParams params{ -1, 0, 1, 8, 4 };  // data_seq_size=8, genomic_seq_size=4
+        
+        // Test insertion coordinate conversion (i=5, j=3)
+        // Expected: -1 * (5-1) + 1 * 8 = -4 + 8 = 4
+        int result = convert_traceback_coordinate(5, 3, params, true);
+        REQUIRE(result == 4);
+    }
+
+    SECTION("convert_traceback_coordinate: deletion in flipped sequences")
+    {
+        FlipCoordinatesParams params{ -1, 0, 1, 8, 4 };  // data_seq_size=8, genomic_seq_size=4
+        
+        // Test deletion coordinate conversion (i=5, j=3)
+        // Expected: -1 * (3-1) + 1 * 4 = -2 + 4 = 2
+        int result = convert_traceback_coordinate(5, 3, params, false);
+        REQUIRE(result == 2);
+    }
+
+    SECTION("convert_alignment_boundaries: normal sequences")
+    {
+        FlipCoordinatesParams params{ 1, 0, 0, 0, 0 };
+        
+        // Test with i=5, j=3, end_align_offset=4
+        auto [offset, begin_align_offset, end_align_offset] = 
+            convert_alignment_boundaries(5, 3, 4, params, 0);
+        
+        REQUIRE(offset == 2);              // 1 * (5-3) + 0 + 0 = 2
+        REQUIRE(begin_align_offset == 5);    // 1 * 5 + 0 * 0 = 5
+        REQUIRE(end_align_offset == 4);      // 1 * 4 + 0 * 0 = 4
+    }
+
+    SECTION("convert_alignment_boundaries: flipped sequences")
+    {
+        FlipCoordinatesParams params{ -1, 4, 1, 8, 4 };  // flip_factor=-1, flip_offset=4, flip_mis=1, data_seq_size=8
+        
+        // Test with i=5, j=3, end_align_offset=4
+        auto [offset, begin_align_offset, end_align_offset] = 
+            convert_alignment_boundaries(5, 3, 4, params, 0);
+        
+        // offset = -1 * (5-3) + 4 + 0 = -2 + 4 = 2
+        REQUIRE(offset == 2);
+        // begin_align_offset = -1 * 5 + 1 * 8 = -5 + 8 = 3
+        REQUIRE(begin_align_offset == 3);
+        // end_align_offset = -1 * 4 + 1 * 8 = -4 + 8 = 4
+        REQUIRE(end_align_offset == 4);
+    }
+
+    SECTION("convert_alignment_boundaries: flipped sequences with offset_change")
+    {
+        FlipCoordinatesParams params{ -1, 2, 1, 6, 4 };  // flip_factor=-1, flip_offset=2, flip_mis=1, data_seq_size=6
+        
+        // Test with i=5, j=3, end_align_offset=4, offset_change=1
+        auto [offset, begin_align_offset, end_align_offset] = 
+            convert_alignment_boundaries(5, 3, 4, params, 1);
+        
+        // offset = -1 * (5-3) + 2 + 1 = -2 + 2 + 1 = 1
+        REQUIRE(offset == 1);
+        // begin_align_offset = -1 * 5 + 1 * 6 = -5 + 6 = 1
+        REQUIRE(begin_align_offset == 1);
+        // end_align_offset = -1 * 4 + 1 * 6 = -4 + 6 = 2
+        REQUIRE(end_align_offset == 2);
+    }
+
+        SwDPConfig config = mock_DP_config(reverse);
+        auto prepared = prepare_sw_inputs(data_seq, genomic_seq, config);
+        auto params = compute_flip_coordinates_params(prepared, data_seq, genomic_seq, false);
+        convert_alignment_boundaries();
+        convert_traceback_coordinate();
+
+} */
+
+} // namespace swalign
 

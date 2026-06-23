@@ -135,9 +135,6 @@ struct Alignment_data
  * Alignments can be made in parallel using openMP
  *
  */
-/// Internal DP workspace for sw_align; defined in Aligner.cpp.
-struct SwDPConfig;
-struct SwDPState;
 
 class CORE_EXPORT Aligner
 {
@@ -204,9 +201,6 @@ private:
     Matrix<double> substitution_matrix;
     int gap_penalty;
     Gene_class gene;
-        void fill_sw_score_matrix(const Int_Str &, const Int_Str &, SwDPState &, const SwDPConfig &);
-        void fill_sw_matrix_cell(const Int_Str &, const Int_Str &, int, int, SwDPState &, const SwDPConfig &);
-    std::list<std::pair<int, Alignment_data>> sw_align(const Int_Str &, const Int_Str &, bool, const SwDPConfig &);
     std::unordered_map<std::string, std::pair<int, int>> build_genomic_bounds_map(int, int) const;
 };
 
@@ -263,11 +257,61 @@ CORE_EXPORT std::tuple<bool, int, int> extract_min_max_genomic_templates_offsets
         const std::unordered_map<std::string, std::pair<int, int>> &genomic_offset_bounds);
 CORE_EXPORT std::forward_list<Alignment_data> extract_best_gene_alignments(const std::forward_list<Alignment_data> &);
 
-/*
-	namespace substitution_matrices{
-		//from: ftp://ftp.ncbi.nih.gov/blast/matrices/NUC.4.4
-		static Matrix<int> nuc44_sub_matrix(4,4,{5,-4,-4,-4 , -4 ,5,-4,-4 , -4,-4,5,-4 , -4,-4,-4,5});
+
+struct SwAlignmentMode
+{
+    bool data_leading_free;
+    bool data_trailing_free;
+    bool genomic_leading_free;
+    bool genomic_trailing_free;
+    bool reverse_sequences;
+
+    bool is_local_alignment() const
+    {
+        return data_leading_free && data_trailing_free && genomic_leading_free && genomic_trailing_free;
+    }
+};
+/**
+ * Run-policy for one Smith-Waterman alignment call.
+ *
+ * Bundles the scalar parameters and alignment mode that govern how a single
+ * sw_align invocation prepares its inputs and filters its results, so they can
+ * be passed as a unit instead of several separate arguments.
+ *
+ * Fields
+ * ------
+ * score_threshold  Minimum score an alignment must reach to be returned.
+ * min_offset       Lower bound on the offset (genomic-vs-query position).
+ * max_offset       Upper bound on the offset.
+ * alignment_mode    Boundary and orientation policy for the DP run.
+ */
+struct SwDPConfig
+{
+    double score_threshold;
+    bool best_only;
+    int min_offset;
+    int max_offset;
+    Matrix<double> substitution_matrix;
+    int gap_penalty;
+    SwAlignmentMode alignment_mode;
+};
+std::list<std::pair<int, Alignment_data>> sw_align(const Int_Str &, const Int_Str &, bool, const SwDPConfig &);
+
+namespace swalign {
+
+// Forward declare internal structs
+struct SwDPState;
+struct SwPreparedInputs;
 
 
-	}
-	*/
+SwPreparedInputs prepare_sw_inputs(const Int_Str &int_data_sequence, const Int_Str &int_genomic_sequence,
+                                   const SwDPConfig &config);
+// Coordinate conversion functions
+size_t convert_matrix_row_to_query_pos(int i, size_t data_seq_size, bool flip_seqs);
+size_t convert_matrix_col_to_ref_pos(int j, size_t genomic_seq_size, bool flip_seqs);
+int convert_matrix_coords_to_offset(int i, int j, size_t data_seq_size, size_t genomic_seq_size,
+                                    int offset_change, bool flip_seqs);
+void fill_sw_score_matrix(const Int_Str &, const Int_Str &, SwDPState &, const SwDPConfig &);
+void fill_sw_matrix_cell(const Int_Str &, const Int_Str &, int, int, SwDPState &, const SwDPConfig &);
+} // namespace swalign
+
