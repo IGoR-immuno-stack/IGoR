@@ -257,6 +257,18 @@ public:
     const int &get_n_rows() const { return rows; }
     const int &get_n_cols() const { return cols; }
 
+    // Debug print
+    void print(std::ostream &out = std::cout) const {
+        out << rows << "x" << cols << " Matrix\n";
+        for (int i = 0; i < rows; ++i) {
+            for (int j = 0; j < cols; ++j) {
+                if (j != 0) out << " ";
+                out << array_p[i + j * rows];
+            }
+            out << "\n";
+        }
+    }
+
 private:
     int rows;
     int cols;
