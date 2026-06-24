@@ -2,9 +2,6 @@
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
 #include <igor/Core/Aligner.h>
-#ifdef IGOR_WITH_SEQAN2
-#  include <igor/Core/SeqAn2Aligner.h>
-#endif
 
 #include <algorithm>
 #include <cmath>
@@ -50,17 +47,6 @@ Aligner make_legacy_aligner(const Matrix<double> &matrix, int gap_penalty, Gene_
     aligner.set_genomic_sequences(genomic_templates);
     return aligner;
 }
-
-#ifdef IGOR_WITH_SEQAN2
-std::unique_ptr<SeqAn2Aligner>
-make_seqan2_aligner(const Matrix<double> &matrix, int gap_penalty, Gene_class gene_class,
-                    const std::vector<std::pair<std::string, std::string>> &genomic_templates)
-{
-    auto aligner = std::make_unique<SeqAn2Aligner>(matrix, gap_penalty, gene_class, AlignmentPreset::with_band(20));
-    aligner->set_genomic_sequences(genomic_templates);
-    return aligner;
-}
-#endif
 
 std::string find_germline_sequence(const std::vector<std::pair<std::string, std::string>> &genomic_templates,
                                    const std::string &gene_name)
