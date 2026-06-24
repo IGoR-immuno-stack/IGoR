@@ -1908,7 +1908,7 @@ SwReconstructionResult traceback_sw_alignments(const Int_Str &int_data_sequence,
 {
     double score_threshold = config.score_threshold;
     const double best_score = *std::max_element(dp.max_score.begin(), dp.max_score.end());
-    if(config.best_only && best_score>= config.score_threshold){
+    if (config.best_only && best_score >= config.score_threshold) {
         score_threshold = best_score;
     }
     const int min_offset = config.min_offset;
@@ -1920,8 +1920,6 @@ SwReconstructionResult traceback_sw_alignments(const Int_Str &int_data_sequence,
     // Get sequence sizes for coordinate conversion
     const size_t data_seq_size = int_data_sequence.size();
     const size_t genomic_seq_size = int_genomic_sequence.size();
-
-
 
     for (size_t align = 0; align != dp.max_score.size(); ++align) {
         if (dp.max_score[align] >= score_threshold) {
@@ -1935,26 +1933,23 @@ SwReconstructionResult traceback_sw_alignments(const Int_Str &int_data_sequence,
 
             int i = dp.max_row_coord[align];
             int j = dp.max_col_coord[align];
-            int i_start = i; // Save the original starting position for end offset calculation
-
-            //dp.score_matrix.print();
-
-            //cout<<prepared.data_sequence.at(5)<<endl;
-            //cout<<prepared.genomic_sequence.at(5)<<endl;
+            // Save the original starting position for end offset calculation
+            int i_start = i;
+            int j_start = j;
 
             // TODO correct this to get the alignment until the end (not just until the best scoring nucl)
             while (!end_of_alignment) {
                 if (dp.row_memory_matrix(i, j) == 0) {
                     // Deletion: use column coordinate (j) to get reference position
                     deletions.emplace_back(convert_matrix_col_to_ref_pos(j, genomic_seq_size, flip_seqs));
-                }
-                else if (dp.col_memory_matrix(i, j) == 0) {
+                } else if (dp.col_memory_matrix(i, j) == 0) {
                     // Insertion: use row coordinate (i) to get query position
                     insertions.emplace_back(convert_matrix_row_to_query_pos(i, data_seq_size, flip_seqs));
                 } else {
                     if (!comp_nt_int(
                                 prepared.data_sequence.at(convert_matrix_row_to_query_pos(i, data_seq_size, false)),
-                                prepared.genomic_sequence.at(convert_matrix_col_to_ref_pos(j, genomic_seq_size, false)))) {
+                                prepared.genomic_sequence.at(
+                                        convert_matrix_col_to_ref_pos(j, genomic_seq_size, false)))) {
                         mismatches.emplace_back(convert_matrix_row_to_query_pos(i, data_seq_size, flip_seqs));
                     }
                 }
@@ -1965,11 +1960,9 @@ SwReconstructionResult traceback_sw_alignments(const Int_Str &int_data_sequence,
                 j -= dp.col_memory_matrix(i_temp, j);
                 if ((dp.row_memory_matrix(i, j) == 0) && (dp.col_memory_matrix(i, j) == 0)) {
                     end_of_alignment = true;
-                    //if (i == 0 || j == 0) { 
-                        // undo last move to remain away from initialization values
-                        i += dp.row_memory_matrix(i_temp, j_temp);
-                        j += dp.col_memory_matrix(i_temp, j_temp);
-                    //}
+                    // undo last move to remain away from initialization values
+                    i += dp.row_memory_matrix(i_temp, j_temp);
+                    j += dp.col_memory_matrix(i_temp, j_temp);
                     break;
                 }
             }
@@ -1983,7 +1976,8 @@ SwReconstructionResult traceback_sw_alignments(const Int_Str &int_data_sequence,
             if (flip_seqs) {
                 // reverse offset order
                 std::swap(begin_align_offset, end_align_offset);
-                offset = begin_align_offset;
+                // assume that leading deletions (reverse trailing, hence j_start) would align 1 to 1 with the read.
+                offset = begin_align_offset - convert_matrix_col_to_ref_pos(j_start, genomic_seq_size, true);
             } else {
                 /*
              * FIXME: this does not really make sense for local alignments. 
