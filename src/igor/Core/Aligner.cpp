@@ -1012,157 +1012,124 @@ unordered_map<int, vector<Alignment_data>> read_alignments_seq_csv(const string 
     //get rid of the first line
     getline(infile, line_str);
     while (getline(infile, line_str)) {
-
-        //find the semicolons in the line
-        size_t index_sep = line_str.find(';');
-        size_t name_sep = line_str.find(';', index_sep + 1);
-        size_t score_sep = line_str.find(';', name_sep + 1);
-        size_t off_sep = line_str.find(';', score_sep + 1);
-        size_t ins_sep = line_str.find(';', off_sep + 1);
-        size_t del_sep = line_str.find(';', ins_sep + 1);
-        size_t mism_sep = line_str.find(';', del_sep + 1);
-
-        int index = stoi(line_str.substr(0, index_sep));
-        string gene_name = line_str.substr((index_sep + 1), (name_sep - index_sep - 1));
-        double score = stod(line_str.substr((name_sep + 1), (score_sep - name_sep - 1)));
-        int offset = stoi(line_str.substr((score_sep + 1), (off_sep - score_sep - 1)));
-        forward_list<int> insertions;
-        forward_list<int> deletions;
-        vector<int> mismatches; //TODO preallocate memory given the length of the string
-
-        if (score < score_threshold) {
-            continue;
-        }
-
-        //Define a scope
-        {
-            //Get the index of insertions from comma separated integers surrounded by curly braces
-
-            string ins_substr =
-                    line_str.substr((off_sep + 2), (ins_sep - off_sep - 3)); //get rid of curly braces at the same time
-
-            size_t comma_index = ins_substr.find(',');
-            if (comma_index != string::npos) {
-                insertions.push_front(stoi(ins_substr.substr(0, (comma_index))));
-                while (comma_index != string::npos) {
-                    size_t next_comma_index = ins_substr.find(',', (comma_index + 1));
-                    insertions.push_front(
-                            stoi(ins_substr.substr((comma_index + 1), (next_comma_index - comma_index - 1))));
-                    comma_index = next_comma_index;
-                }
-            } else {
-                if (!ins_substr.empty()) {
-                    insertions.push_front(stoi(ins_substr));
-                }
+        auto align  = parse_single_alignment_csv_line(line_str);
+        if(align.second.score>= score_threshold){
+            if(allow_in_dels || (align.second.deletions.empty() && align.second.insertions.empty())){
+                    indexed_alignments[align.first].push_back(align.second);
             }
         }
-
-        {
-            //Same with deletions
-
-            string del_substr =
-                    line_str.substr((ins_sep + 2), (del_sep - ins_sep - 3)); //get rid of curly braces at the same time
-
-            size_t comma_index = del_substr.find(',');
-            if (comma_index != string::npos) {
-                deletions.push_front(stoi(del_substr.substr(0, (comma_index))));
-                while (comma_index != string::npos) {
-                    size_t next_comma_index = del_substr.find(',', (comma_index + 1));
-                    deletions.push_front(
-                            stoi(del_substr.substr((comma_index + 1), (next_comma_index - comma_index - 1))));
-                    comma_index = next_comma_index;
-                }
-            } else {
-                if (!del_substr.empty()) {
-                    try {
-                        deletions.push_front(stoi(del_substr));
-                    } catch (exception &except) {
-                        cerr << del_substr << " cannot be casted as an integer in line:" << endl;
-                        cerr << line_str << endl;
-                        cerr << "Throwing exception now" << endl;
-                        throw except;
-                    }
-                }
-            }
-        }
-        if (!allow_in_dels && (!insertions.empty() || !deletions.empty())) {
-            continue;
-        }
-
-        {
-            //Same with mismatches
-            string mismatch_substr;
-            if (mism_sep == string::npos) {
-                //TODO remove this, this ensure compatibility with previous versions
-                mismatch_substr = line_str.substr(
-                        (del_sep + 2), (line_str.size() - del_sep - 3)); //get rid of curly braces at the same time
-            } else {
-                mismatch_substr = line_str.substr((del_sep + 2),
-                                                  (mism_sep - del_sep - 3)); //get rid of curly braces at the same time
-            }
-
-            size_t comma_index = mismatch_substr.find(',');
-            if (comma_index != string::npos) {
-                mismatches.push_back(stoi(mismatch_substr.substr(0, (comma_index))));
-                while (comma_index != string::npos) {
-                    size_t next_comma_index = mismatch_substr.find(',', (comma_index + 1));
-                    mismatches.push_back(
-                            stoi(mismatch_substr.substr((comma_index + 1), (next_comma_index - comma_index - 1))));
-                    comma_index = next_comma_index;
-                }
-            } else {
-                if (!mismatch_substr.empty()) {
-                    mismatches.push_back(stoi(mismatch_substr));
-                }
-            }
-        }
-
-        size_t align_length = 0;
-        size_t five_p_offset = 0;
-        size_t three_p_offset = 0;
-        if (mism_sep != string::npos) {
-            size_t len_sep = line_str.find(';', mism_sep + 1);
-            if (len_sep == string::npos) {
-                string len_substr = line_str.substr(mism_sep + 1);
-                if (!len_substr.empty()) {
-                    align_length = static_cast<size_t>(stoul(len_substr));
-                    five_p_offset = static_cast<size_t>(max(0, offset));
-                    size_t deletion_count = distance(deletions.begin(), deletions.end());
-                    three_p_offset = (align_length > deletion_count) ? five_p_offset + align_length - 1 - deletion_count
-                                                                     : five_p_offset;
-                }
-            } else {
-                string len_substr = line_str.substr(mism_sep + 1, len_sep - mism_sep - 1);
-                if (!len_substr.empty()) {
-                    align_length = static_cast<size_t>(stoul(len_substr));
-                }
-                size_t five_sep = line_str.find(';', len_sep + 1);
-                if (five_sep == string::npos) {
-                    five_p_offset = static_cast<size_t>(max(0, offset));
-                    size_t deletion_count = distance(deletions.begin(), deletions.end());
-                    three_p_offset = (align_length > deletion_count) ? five_p_offset + align_length - 1 - deletion_count
-                                                                     : five_p_offset;
-                } else {
-                    string five_substr = line_str.substr(len_sep + 1, five_sep - len_sep - 1);
-                    string three_substr = line_str.substr(five_sep + 1);
-                    five_p_offset = five_substr.empty() ? static_cast<size_t>(max(0, offset))
-                                                        : static_cast<size_t>(stoul(five_substr));
-                    if (!three_substr.empty()) {
-                        three_p_offset = static_cast<size_t>(stoul(three_substr));
-                    } else {
-                        size_t deletion_count = distance(deletions.begin(), deletions.end());
-                        three_p_offset = (align_length > deletion_count)
-                                ? five_p_offset + align_length - 1 - deletion_count
-                                : five_p_offset;
-                    }
-                }
-            }
-        }
-
-        indexed_alignments[index].push_back(Alignment_data(gene_name, offset, five_p_offset, three_p_offset,
-                                                           align_length, insertions, deletions, mismatches, score));
     }
     return indexed_alignments;
+}
+
+std::pair<int, Alignment_data> parse_single_alignment_csv_line(const string &line)
+{
+    size_t index_sep = line.find(';');
+    size_t name_sep = line.find(';', index_sep + 1);
+    size_t score_sep = line.find(';', name_sep + 1);
+    size_t off_sep = line.find(';', score_sep + 1);
+    size_t ins_sep = line.find(';', off_sep + 1);
+    size_t del_sep = line.find(';', ins_sep + 1);
+    size_t mism_sep = line.find(';', del_sep + 1);
+
+    int index = stoi(line.substr(0, index_sep));
+    string gene_name = line.substr((index_sep + 1), (name_sep - index_sep - 1));
+    double score = stod(line.substr((name_sep + 1), (score_sep - name_sep - 1)));
+    int offset = stoi(line.substr((score_sep + 1), (off_sep - score_sep - 1)));
+    forward_list<int> insertions;
+    forward_list<int> deletions;
+    vector<int> mismatches;
+
+    string ins_substr = line.substr((off_sep + 2), (ins_sep - off_sep - 3));
+    size_t comma_index = ins_substr.find(',');
+    if (comma_index != string::npos) {
+        insertions.push_front(stoi(ins_substr.substr(0, comma_index)));
+        while (comma_index != string::npos) {
+            size_t next_comma_index = ins_substr.find(',', (comma_index + 1));
+            insertions.push_front(stoi(ins_substr.substr((comma_index + 1), (next_comma_index - comma_index - 1))));
+            comma_index = next_comma_index;
+        }
+    } else if (!ins_substr.empty()) {
+        insertions.push_front(stoi(ins_substr));
+    }
+
+    string del_substr = line.substr((ins_sep + 2), (del_sep - ins_sep - 3));
+    comma_index = del_substr.find(',');
+    if (comma_index != string::npos) {
+        deletions.push_front(stoi(del_substr.substr(0, comma_index)));
+        while (comma_index != string::npos) {
+            size_t next_comma_index = del_substr.find(',', (comma_index + 1));
+            deletions.push_front(stoi(del_substr.substr((comma_index + 1), (next_comma_index - comma_index - 1))));
+            comma_index = next_comma_index;
+        }
+    } else if (!del_substr.empty()) {
+        deletions.push_front(stoi(del_substr));
+    }
+
+    string mismatch_substr;
+    if (mism_sep == string::npos) {
+        mismatch_substr = line.substr((del_sep + 2), (line.size() - del_sep - 3));
+    } else {
+        mismatch_substr = line.substr((del_sep + 2), (mism_sep - del_sep - 3));
+    }
+
+    comma_index = mismatch_substr.find(',');
+    if (comma_index != string::npos) {
+        mismatches.push_back(stoi(mismatch_substr.substr(0, comma_index)));
+        while (comma_index != string::npos) {
+            size_t next_comma_index = mismatch_substr.find(',', (comma_index + 1));
+            mismatches.push_back(stoi(mismatch_substr.substr((comma_index + 1), (next_comma_index - comma_index - 1))));
+            comma_index = next_comma_index;
+        }
+    } else if (!mismatch_substr.empty()) {
+        mismatches.push_back(stoi(mismatch_substr));
+    }
+
+    size_t align_length = 0;
+    size_t five_p_offset = 0;
+    size_t three_p_offset = 0;
+
+    if (mism_sep != string::npos) {
+        size_t len_sep = line.find(';', mism_sep + 1);
+        if (len_sep == string::npos) {
+            string len_substr = line.substr(mism_sep + 1);
+            if (!len_substr.empty()) {
+                align_length = static_cast<size_t>(stoul(len_substr));
+                five_p_offset = static_cast<size_t>(max(0, offset));
+                size_t deletion_count = distance(deletions.begin(), deletions.end());
+                three_p_offset = (align_length > deletion_count) ? five_p_offset + align_length - 1 - deletion_count
+                                                                 : five_p_offset;
+            }
+        } else {
+            string len_substr = line.substr(mism_sep + 1, len_sep - mism_sep - 1);
+            if (!len_substr.empty()) {
+                align_length = static_cast<size_t>(stoul(len_substr));
+            }
+            size_t five_sep = line.find(';', len_sep + 1);
+            if (five_sep == string::npos) {
+                five_p_offset = static_cast<size_t>(max(0, offset));
+                size_t deletion_count = distance(deletions.begin(), deletions.end());
+                three_p_offset = (align_length > deletion_count) ? five_p_offset + align_length - 1 - deletion_count
+                                                                 : five_p_offset;
+            } else {
+                string five_substr = line.substr(len_sep + 1, five_sep - len_sep - 1);
+                string three_substr = line.substr(five_sep + 1);
+                five_p_offset = five_substr.empty() ? static_cast<size_t>(max(0, offset))
+                                                    : static_cast<size_t>(stoul(five_substr));
+                if (!three_substr.empty()) {
+                    three_p_offset = static_cast<size_t>(stoul(three_substr));
+                } else {
+                    size_t deletion_count = distance(deletions.begin(), deletions.end());
+                    three_p_offset = (align_length > deletion_count)
+                            ? five_p_offset + align_length - 1 - deletion_count
+                            : five_p_offset;
+                }
+            }
+        }
+    }
+
+    return { index, Alignment_data(gene_name, offset, five_p_offset, three_p_offset,
+                          align_length, insertions, deletions, mismatches, score) };
 }
 
 unordered_map<int, forward_list<Alignment_data>>

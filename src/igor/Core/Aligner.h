@@ -216,6 +216,7 @@ CORE_EXPORT int alignment_data_sequence_end(const Alignment_data &aln);
 CORE_EXPORT int alignment_data_germline_start(const Alignment_data &aln);
 CORE_EXPORT int alignment_data_germline_end(const Alignment_data &aln);
 
+std::pair<int, Alignment_data> parse_single_alignment_csv_line(const std::string &line);
 CORE_EXPORT std::unordered_map<int, std::pair<std::string, std::unordered_map<Gene_class, std::vector<Alignment_data>>>>
 read_alignments_seq_csv(const std::string &, Gene_class, double, bool,
                         const std::vector<std::pair<const int, const std::string>> &);
