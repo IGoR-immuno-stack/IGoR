@@ -974,6 +974,73 @@ int alignment_data_germline_end(const Alignment_data &aln)
     return static_cast<int>(aln.three_p_offset) - aln.offset + 1;
 }
 
+/**
+ * Extend alignment mismatches to regions outside the core alignment by comparing sequences directly.
+ * This standalone function is useful for importing alignments from external software (igblast, mixcr, etc.)
+ * where we only have the core CIGAR alignment data, not the DP matrices.
+ * 
+ * This function assumes no indels in the extended regions and simply compares sequences directly,
+ * skipping positions that are insertions or deletions.
+ * 
+ * \param int_data_sequence     Query sequence (0-based).
+ * \param int_genomic_sequence  Reference sequence (0-based).
+ * \param offset               Alignment offset (index on the target sequence where the first nucleotide 
+ *                             of the FULL genomic template aligns).
+ * \param five_p_offset         5' position (0-based) of the first aligned nucleotide in the target sequence.
+ * \param three_p_offset        3' position (0-based) of the last aligned nucleotide in the target sequence.
+ * \param insertions            Indices on the TARGET of inserted nucleotides.
+ * \param deletions            Indices on the GENOMIC TEMPLATE of deleted nucleotides.
+ * \return Vector of mismatch positions (0-based query coordinates) found in the extended regions.
+ */
+vector<int> extend_alignment_mismatches(const Int_Str &int_data_sequence, const Int_Str &int_genomic_sequence,
+                                        int offset, size_t five_p_offset, size_t three_p_offset,
+                                        const forward_list<int> &insertions, const forward_list<int> &deletions)
+{
+    vector<int> extended_mismatches;
+
+    // Convert forward_lists to unordered_sets for efficient lookup
+    unordered_set<int> insertion_set(insertions.begin(), insertions.end());
+    unordered_set<int> deletion_set(deletions.begin(), deletions.end());
+
+    // 5' extension (left of alignment)
+    // Start from beginning of sequences up to five_p_offset
+    for (size_t i = 0; i < five_p_offset; ++i) {
+        size_t ref_pos = i + offset; // Reference position accounting for offset
+
+        // Skip if this position is an insertion or deletion
+        if (insertion_set.count(static_cast<int>(i)) || deletion_set.count(static_cast<int>(ref_pos))) {
+            continue;
+        }
+
+        // Check if we're within sequence bounds
+        if (i < int_data_sequence.size() && ref_pos < int_genomic_sequence.size()) {
+            if (!comp_nt_int(int_genomic_sequence[ref_pos], int_data_sequence[i])) {
+                extended_mismatches.push_back(static_cast<int>(i));
+            }
+        }
+    }
+
+    // 3' extension (right of alignment)
+    // Start from end of alignment to end of sequences
+    for (size_t i = three_p_offset + 1; i < int_data_sequence.size(); ++i) {
+        size_t ref_pos = i + offset; // Reference position accounting for offset
+
+        // Skip if this position is an insertion or deletion
+        if (insertion_set.count(static_cast<int>(i)) || deletion_set.count(static_cast<int>(ref_pos))) {
+            continue;
+        }
+
+        // Check if we're within sequence bounds
+        if (i < int_data_sequence.size() && ref_pos < int_genomic_sequence.size()) {
+            if (!comp_nt_int(int_genomic_sequence[ref_pos], int_data_sequence[i])) {
+                extended_mismatches.push_back(static_cast<int>(i));
+            }
+        }
+    }
+
+    return extended_mismatches;
+}
+
 /*
  * This method reads the indexed sequences from a given file(@filename)
  * The structure of the file is assumed to be the same as the one created by the Aligner::write_indexed_seq_csv method
@@ -1012,10 +1079,10 @@ unordered_map<int, vector<Alignment_data>> read_alignments_seq_csv(const string 
     //get rid of the first line
     getline(infile, line_str);
     while (getline(infile, line_str)) {
-        auto align  = parse_single_alignment_csv_line(line_str);
-        if(align.second.score>= score_threshold){
-            if(allow_in_dels || (align.second.deletions.empty() && align.second.insertions.empty())){
-                    indexed_alignments[align.first].push_back(align.second);
+        auto align = parse_single_alignment_csv_line(line_str);
+        if (align.second.score >= score_threshold) {
+            if (allow_in_dels || (align.second.deletions.empty() && align.second.insertions.empty())) {
+                indexed_alignments[align.first].push_back(align.second);
             }
         }
     }
@@ -1120,16 +1187,59 @@ std::pair<int, Alignment_data> parse_single_alignment_csv_line(const string &lin
                     three_p_offset = static_cast<size_t>(stoul(three_substr));
                 } else {
                     size_t deletion_count = distance(deletions.begin(), deletions.end());
-                    three_p_offset = (align_length > deletion_count)
-                            ? five_p_offset + align_length - 1 - deletion_count
-                            : five_p_offset;
+                    three_p_offset = (align_length > deletion_count) ? five_p_offset + align_length - 1 - deletion_count
+                                                                     : five_p_offset;
                 }
             }
         }
     }
 
-    return { index, Alignment_data(gene_name, offset, five_p_offset, three_p_offset,
-                          align_length, insertions, deletions, mismatches, score) };
+    return { index,
+             Alignment_data(gene_name, offset, five_p_offset, three_p_offset, align_length, insertions, deletions,
+                            mismatches, score) };
+}
+
+/**
+ * Compare two Alignment_data objects for equality.
+ * Two alignments are considered equal if they have:
+ * - Same gene name
+ * - Same offset
+ * - Same five_p_offset and three_p_offset
+ * - Same insertions, deletions, mismatches (as sets, order-independent)
+ * - Same align_length
+ * - Same score (within tolerance)
+ *
+ * \param a First alignment to compare
+ * \param b Second alignment to compare
+ * \param score_tolerance Tolerance for score comparison (default: 1e-9)
+ * \return true if alignments are considered equal, false otherwise
+ */
+bool alignment_data_equal(const Alignment_data &a, const Alignment_data &b, double score_tolerance = 1e-9)
+{
+    // Check basic fields
+    if (a.gene_name != b.gene_name) return false;
+    if (a.offset != b.offset) return false;
+    if (a.five_p_offset != b.five_p_offset) return false;
+    if (a.three_p_offset != b.three_p_offset) return false;
+    if (a.align_length != b.align_length) return false;
+    if (fabs(a.score - b.score) > score_tolerance) return false;
+    
+    // Check insertions (convert to sets for order-independent comparison)
+    unordered_set<int> a_ins(a.insertions.begin(), a.insertions.end());
+    unordered_set<int> b_ins(b.insertions.begin(), b.insertions.end());
+    if (a_ins != b_ins) return false;
+    
+    // Check deletions
+    unordered_set<int> a_del(a.deletions.begin(), a.deletions.end());
+    unordered_set<int> b_del(b.deletions.begin(), b.deletions.end());
+    if (a_del != b_del) return false;
+    
+    // Check mismatches (already sorted, but compare as sets to be safe)
+    unordered_set<int> a_mis(a.mismatches.begin(), a.mismatches.end());
+    unordered_set<int> b_mis(b.mismatches.begin(), b.mismatches.end());
+    if (a_mis != b_mis) return false;
+    
+    return true;
 }
 
 unordered_map<int, forward_list<Alignment_data>>
@@ -1832,6 +1942,121 @@ void initialize_sw_matrices(SwDPState &dp, const SwDPConfig &config)
 }
 
 /**
+ * Extend alignment mismatches to the 5' (left) side assuming no indels in the extended region.
+ * This function extends from the start of the core alignment (i, j) towards lower indices
+ * by making diagonal moves only, checking for mismatches along the way.
+ * Only applicable for local alignments where data_leading_free is true.
+ *
+ * \param prepared           Prepared (possibly flipped) copy sequences and offset_change.
+ * \param i_start            Matrix row coordinate (1-based) of the start of the core alignment.
+ * \param j_start            Matrix column coordinate (1-based) of the start of the core alignment.
+ * \param data_seq_size      Size of the original (unflipped) query sequence.
+ * \param genomic_seq_size   Size of the original (unflipped) reference sequence.
+ * \param flip_seqs          Whether sequences were flipped for alignment.
+ * \param matrix_n_rows      Total number of rows in the DP matrix.
+ * \param matrix_n_cols      Total number of columns in the DP matrix.
+ * \return Vector of mismatch positions (0-based query coordinates) found in the 5' extended region.
+ */
+vector<int> ungapped_extend_align_5p_from_dp(const SwPreparedInputs &prepared, int i_start, int j_start,
+                                             size_t data_seq_size, size_t genomic_seq_size, bool flip_seqs,
+                                             int matrix_n_rows, int matrix_n_cols)
+{
+    vector<int> extended_mismatches;
+
+    // Extend 5' (towards lower indices) - always diagonal, no indels assumed
+    // Start from the position just before the alignment start
+    int i = i_start - 1;
+    int j = j_start - 1;
+
+    // Continue while we're within matrix boundaries (greater than 1 because matrices are +1 padded)
+    while (i >= 1 && j >= 1) {
+        if (!comp_nt_int(prepared.data_sequence.at(convert_matrix_row_to_query_pos(i, data_seq_size, false)),
+                         prepared.genomic_sequence.at(convert_matrix_col_to_ref_pos(j, genomic_seq_size, false)))) {
+            extended_mismatches.push_back(convert_matrix_row_to_query_pos(i, data_seq_size, flip_seqs));
+        }
+        --i;
+        --j;
+    }
+
+    // Reverse to maintain order from 5' to alignment start (increasing query coordinates)
+    reverse(extended_mismatches.begin(), extended_mismatches.end());
+    return extended_mismatches;
+}
+
+/**
+ * Extend alignment mismatches to the 3' (right) side assuming no indels in the extended region.
+ * This function extends from the end of the core alignment (i_end, j_end) towards higher indices
+ * by making diagonal moves only, checking for mismatches along the way.
+ * Applicable for both local and semi-global alignments.
+ *
+ * \param prepared           Prepared (possibly flipped) copy sequences and offset_change.
+ * \param i_end              Matrix row coordinate (1-based) of the end of the core alignment.
+ * \param j_end              Matrix column coordinate (1-based) of the end of the core alignment.
+ * \param data_seq_size      Size of the original (unflipped) query sequence.
+ * \param genomic_seq_size   Size of the original (unflipped) reference sequence.
+ * \param flip_seqs          Whether sequences were flipped for alignment.
+ * \param matrix_n_rows      Total number of rows in the DP matrix.
+ * \param matrix_n_cols      Total number of columns in the DP matrix.
+ * \return Vector of mismatch positions (0-based query coordinates) found in the 3' extended region.
+ */
+vector<int> ungapped_extend_align_3p_from_dp(const SwPreparedInputs &prepared, int i_end, int j_end,
+                                             size_t data_seq_size, size_t genomic_seq_size, bool flip_seqs,
+                                             int matrix_n_rows, int matrix_n_cols)
+{
+    vector<int> extended_mismatches;
+
+    // Extend 3' (towards higher indices) - always diagonal, no indels assumed
+    // Start from the position just after the alignment end
+    int i = i_end + 1;
+    int j = j_end + 1;
+
+    // Continue while we're within matrix boundaries
+    while (i < matrix_n_rows && j < matrix_n_cols) {
+        if (!comp_nt_int(prepared.data_sequence.at(convert_matrix_row_to_query_pos(i, data_seq_size, false)),
+                         prepared.genomic_sequence.at(convert_matrix_col_to_ref_pos(j, genomic_seq_size, false)))) {
+            extended_mismatches.push_back(convert_matrix_row_to_query_pos(i, data_seq_size, flip_seqs));
+        }
+        ++i;
+        ++j;
+    }
+
+    return extended_mismatches;
+}
+
+/**
+ * Merge and sort mismatch vectors from core alignment and extended regions.
+ *
+ * \param core_mismatches       Mismatches from the core alignment.
+ * \param extended_mismatches   Mismatches from extended regions (5' and/or 3').
+ * \return Sorted vector containing all mismatches (core + extended).
+ */
+vector<int> merge_and_sort_mismatches(const vector<int> &core_mismatches, const vector<int> &extended_mismatches)
+{
+    vector<int> all_mismatches = core_mismatches;
+    all_mismatches.insert(all_mismatches.end(), extended_mismatches.begin(), extended_mismatches.end());
+    sort(all_mismatches.begin(), all_mismatches.end());
+    return all_mismatches;
+}
+
+/**
+ * Merge and sort mismatch vectors from multiple sources (core + 5' extension + 3' extension).
+ *
+ * \param core_mismatches       Mismatches from the core alignment.
+ * \param extended_5p_mismatches Mismatches from 5' extended region.
+ * \param extended_3p_mismatches Mismatches from 3' extended region.
+ * \return Sorted vector containing all mismatches (core + 5' extended + 3' extended).
+ */
+vector<int> merge_and_sort_mismatches(const vector<int> &core_mismatches, const vector<int> &extended_5p_mismatches,
+                                      const vector<int> &extended_3p_mismatches)
+{
+    vector<int> all_mismatches = core_mismatches;
+    all_mismatches.insert(all_mismatches.end(), extended_5p_mismatches.begin(), extended_5p_mismatches.end());
+    all_mismatches.insert(all_mismatches.end(), extended_3p_mismatches.begin(), extended_3p_mismatches.end());
+    sort(all_mismatches.begin(), all_mismatches.end());
+    return all_mismatches;
+}
+
+/**
  * Trace back candidate alignments from max-score endpoints and build Alignment_data objects.
  *
  * Coordinates: dp matrix coordinates are 1-based padded indices; produced insertion/deletion/
@@ -1875,8 +2100,8 @@ SwReconstructionResult traceback_sw_alignments(const Int_Str &int_data_sequence,
             int i = dp.max_row_coord[align];
             int j = dp.max_col_coord[align];
             // Save the original starting position for end offset calculation
-            int i_start = i;
-            int j_start = j;
+            int i_end = i;
+            int j_end = j;
 
             // TODO correct this to get the alignment until the end (not just until the best scoring nucl)
             while (!end_of_alignment) {
@@ -1912,27 +2137,50 @@ SwReconstructionResult traceback_sw_alignments(const Int_Str &int_data_sequence,
             // i, j are now at the start of the alignment (5' end after traceback)
             //int offset = convert_matrix_coords_to_offset(i, j, data_seq_size, genomic_seq_size, prepared.offset_change, flip_seqs);
             size_t begin_align_offset = convert_matrix_row_to_query_pos(i, data_seq_size, flip_seqs);
-            size_t end_align_offset = convert_matrix_row_to_query_pos(i_start, data_seq_size, flip_seqs);
+            size_t end_align_offset = convert_matrix_row_to_query_pos(i_end, data_seq_size, flip_seqs);
             int offset;
             if (flip_seqs) {
                 // reverse offset order
                 std::swap(begin_align_offset, end_align_offset);
-                // assume that leading deletions (reverse trailing, hence j_start) would align 1 to 1 with the read.
-                offset = begin_align_offset - convert_matrix_col_to_ref_pos(j_start, genomic_seq_size, true);
+                // assume that leading deletions (reverse trailing, hence j_end) would align 1 to 1 with the read.
+                offset = begin_align_offset - convert_matrix_col_to_ref_pos(j_end, genomic_seq_size, true);
             } else {
                 /*
              * FIXME: this does not really make sense for local alignments. 
               It boils down to assuming that leading deletions would align 1 to 1 with the read.
               But it is what is expected by the legacy alignment data representation.
              * */
-
                 offset = begin_align_offset - convert_matrix_col_to_ref_pos(j, genomic_seq_size, flip_seqs);
+                // reverse containers that have been filled via push back
+                reverse(mismatches.begin(), mismatches.end());
+                reverse(insertions.begin(), insertions.end());
+                reverse(deletions.begin(), deletions.end());
             }
 
             if ((offset >= min_offset) && (offset <= max_offset)) {
                 // TODO reduce computation time by truncating alignment from the beginning? = banded alignment
                 // TODO change this and use incorporate_in_dels(), should probably change the list inside alignment data also to have the actual corresponding indices
                 // TODO return the actual inserted/deleted sequences in the alignment data??
+
+                // Extend alignment to capture mismatches in deleted V/J nucleotides
+                // For now, always extend in both directions (will be refined later)
+                vector<int> extended_mismatches_5p;
+                vector<int> extended_mismatches_3p;
+
+                if(! config.alignment_mode.is_local_alignment()){
+                    // 5' extension: extend from the start of the alignment
+                    extended_mismatches_5p = ungapped_extend_align_5p_from_dp(
+                            prepared, i, j, data_seq_size, genomic_seq_size, flip_seqs, dp.n_rows, dp.n_cols);
+                }
+                
+                // 3' extension: extend from the end of the alignment  
+                extended_mismatches_3p = ungapped_extend_align_3p_from_dp(
+                        prepared, i_end, j_end, data_seq_size, genomic_seq_size, flip_seqs, dp.n_rows, dp.n_cols);
+
+                // Merge core mismatches with extended mismatches and sort
+                // TODO avoid sorting ops with proper design
+                vector<int> all_mismatches =
+                        merge_and_sort_mismatches(mismatches, extended_mismatches_5p, extended_mismatches_3p);
 
                 if (dp.max_score[align] > output.max_align_score) {
                     output.max_align_score = dp.max_score[align];
@@ -1941,7 +2189,7 @@ SwReconstructionResult traceback_sw_alignments(const Int_Str &int_data_sequence,
                         dp.max_score[align],
                         Alignment_data(offset, begin_align_offset, end_align_offset, align_length,
                                        forward_list(insertions.rbegin(), insertions.rend()),
-                                       forward_list(deletions.rbegin(), deletions.rend()), mismatches,
+                                       forward_list(deletions.rbegin(), deletions.rend()), all_mismatches,
                                        dp.max_score[align])));
             }
         }

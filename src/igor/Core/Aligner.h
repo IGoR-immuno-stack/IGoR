@@ -30,6 +30,8 @@
 #include <unordered_map>
 #include <set>
 #include <utility>
+#include <vector>
+#include <unordered_set>
 #include <fstream>
 #include <algorithm>
 #include <iostream>
@@ -58,6 +60,9 @@
  * - deletions : indices on the GENOMIC TEMPLATE of deleted nucleotides
  * - alignment length
  * - list of mismatches (that lie event outside the best alignment to allow IGoR to know mismatch positions in advance while exploring different deletions numbers)
+ *   NOTE: The mismatches vector may contain mismatches beyond the five_p_offset to three_p_offset range,
+ *   representing mismatches in the extended alignment regions (e.g., in deleted V/J nucleotides).
+ *   The vector is SORTED and contains ALL mismatches (both within the core alignment and in extended regions).
  * - the alignment score
  */
 struct Alignment_data
@@ -215,8 +220,12 @@ CORE_EXPORT int alignment_data_sequence_start(const Alignment_data &aln);
 CORE_EXPORT int alignment_data_sequence_end(const Alignment_data &aln);
 CORE_EXPORT int alignment_data_germline_start(const Alignment_data &aln);
 CORE_EXPORT int alignment_data_germline_end(const Alignment_data &aln);
+// Standalone function for external alignment import
+std::vector<int> extend_alignment_mismatches(const Int_Str &int_data_sequence, const Int_Str &int_genomic_sequence,
+                                        const Alignment_data aln);
 
 std::pair<int, Alignment_data> parse_single_alignment_csv_line(const std::string &line);
+CORE_EXPORT bool alignment_data_equal(const Alignment_data &a, const Alignment_data &b, double score_tolerance = 1e-9);
 CORE_EXPORT std::unordered_map<int, std::pair<std::string, std::unordered_map<Gene_class, std::vector<Alignment_data>>>>
 read_alignments_seq_csv(const std::string &, Gene_class, double, bool,
                         const std::vector<std::pair<const int, const std::string>> &);
@@ -257,7 +266,6 @@ CORE_EXPORT Matrix<double> read_substitution_matrix(const std::string &, std::st
 CORE_EXPORT std::tuple<bool, int, int> extract_min_max_genomic_templates_offsets(
         const std::unordered_map<std::string, std::pair<int, int>> &genomic_offset_bounds);
 CORE_EXPORT std::forward_list<Alignment_data> extract_best_gene_alignments(const std::forward_list<Alignment_data> &);
-
 
 struct SwAlignmentMode
 {
@@ -304,15 +312,28 @@ namespace swalign {
 struct SwDPState;
 struct SwPreparedInputs;
 
-
 SwPreparedInputs prepare_sw_inputs(const Int_Str &int_data_sequence, const Int_Str &int_genomic_sequence,
                                    const SwDPConfig &config);
 // Coordinate conversion functions
 size_t convert_matrix_row_to_query_pos(int i, size_t data_seq_size, bool flip_seqs);
 size_t convert_matrix_col_to_ref_pos(int j, size_t genomic_seq_size, bool flip_seqs);
-int convert_matrix_coords_to_offset(int i, int j, size_t data_seq_size, size_t genomic_seq_size,
-                                    int offset_change, bool flip_seqs);
+int convert_matrix_coords_to_offset(int i, int j, size_t data_seq_size, size_t genomic_seq_size, int offset_change,
+                                    bool flip_seqs);
 void fill_sw_score_matrix(const Int_Str &, const Int_Str &, SwDPState &, const SwDPConfig &);
 void fill_sw_matrix_cell(const Int_Str &, const Int_Str &, int, int, SwDPState &, const SwDPConfig &);
-} // namespace swalign
 
+// Alignment extension functions for capturing mismatches in extended regions
+std::vector<int> ungapped_extend_align_5p_from_dp(const SwPreparedInputs &prepared, int i_start, int j_start,
+                                             size_t data_seq_size, size_t genomic_seq_size, bool flip_seqs,
+                                             int matrix_n_rows, int matrix_n_cols);
+
+std::vector<int> ungapped_extend_align_3p_from_dp(const SwPreparedInputs &prepared, int i_end, int j_end,
+                                             size_t data_seq_size, size_t genomic_seq_size, bool flip_seqs,
+                                             int matrix_n_rows, int matrix_n_cols);
+
+// Helper functions for merging and sorting mismatches
+std::vector<int> merge_and_sort_mismatches(const std::vector<int> &core_mismatches, const std::vector<int> &extended_mismatches);
+std::vector<int> merge_and_sort_mismatches(const std::vector<int> &core_mismatches, const std::vector<int> &extended_5p_mismatches,
+                                      const std::vector<int> &extended_3p_mismatches);
+
+} // namespace swalign
