@@ -244,6 +244,38 @@ void assert_alignment_set_matches(const std::forward_list<Alignment_data> &align
     }
 }
 
+std::string alignment_data_visual(const Alignment_data &aln, const std::string &query, const std::string &germline)
+{
+    const std::string cigar = alignment_data_to_cigar_full_span(aln, query.length(), germline.length());
+    return cigar_visual(cigar, query, germline);
+}
+
+void assert_alignment_data_matches(const Alignment_data &actual, 
+                                   const std::string &expected_csv_line,
+                                   const std::string &query,
+                                   const std::vector<std::pair<std::string, std::string>> &genomic_templates)
+{
+    const auto parsed = parse_single_alignment_csv_line(expected_csv_line);
+    const Alignment_data expected = parsed.second;
+    auto genomic_template = find_genomic_template(genomic_templates, expected.gene_name);
+
+    const std::string actual_cigar = alignment_data_to_cigar_full_span(actual, query.length(), genomic_template.second.length());
+    const std::string expected_cigar = alignment_data_to_cigar_full_span(expected, query.length(), genomic_template.second.length());
+
+    INFO("expected: gene=" << expected.gene_name << " cigar=" << expected_cigar << " score=" << expected.score);
+    INFO("actual: gene=" << actual.gene_name << " cigar=" << actual_cigar << " score=" << actual.score);
+
+    std::vector<std::pair<std::string, std::string>> templates = { genomic_template };
+    INFO("expected: gene=" << expected.gene_name << " cigar=" << expected_cigar 
+         << cigar_visual(expected_cigar, query, genomic_template.second));
+    INFO("actual: gene=" << actual.gene_name << " cigar=" << actual_cigar 
+         << cigar_visual(actual_cigar, query, genomic_template.second));
+
+    REQUIRE(actual.gene_name == expected.gene_name);
+    REQUIRE(actual_cigar == expected_cigar);
+    REQUIRE_THAT(actual.score, WithinRel(expected.score));
+}
+
 } // namespace
 
 TEST_CASE("Aligner V gene multiplex dummy alignments.", "[aligner][V_gene][dummy]")
@@ -694,4 +726,65 @@ TEST_CASE("Legacy Aligner strict set matching when best_only is false", "[aligne
     const auto alignments = aligner.align_seq(query, -1000.0, false, false, INT16_MIN, INT16_MAX);
 
     assert_alignment_set_matches(alignments, query, genomic_templates, { { "g1", "4=", 8.0 }, { "g2", "4=", 8.0 } });
+}
+
+TEST_CASE("Aligner V gene best alignment matches expected CSV format data",
+          "[aligner][V_gene][legacy_csv]")
+{
+    const Matrix<double> matrix = build_test_score_matrix(5.0, -14.0);
+    const int gap_penalty = 30;
+    std::string query_read;
+    std::string germline_ref;
+    std::string expected_csv_line;
+
+    SECTION("Long match without V deletions")
+    {
+        query_read = "ACTCAGCTGCGTATCTCTGCACCAGCAGCCAAGATATAGGACTAGATTCACAGATACGCA";
+        germline_ref = "GATACTGGAATTACCCAGACACCAAAATACCTGGTCACAGCAATGGGGAGTAAAAGGACAATGAAACGTGAGCATCTGGGACATGATTCTATGTA"
+                       "TTGGTACAGACAGAAAGCTAAGAAATCCCTGGAGTTCATGTTTTACTACAACTGTAAGGAATTCATTGAAAACAAGACTGTGCCAAATCACTTCA"
+                       "CACCTGAATGCCCTGACAGCTCTCGCTTATACCTTCATGTGGTCGCACTGCAGCAAGAAGACTCAGCTGCGTATCTCTGCACCAGCAGCCAAGA";
+        expected_csv_line = "0;g1;170;-241;{};{};{2,3,4,10,19,22,23,29,44,48};48;0;47";
+    }
+
+    SECTION("Long match with single V deletion")
+    {
+        query_read = "ACTCTGCTGTGTATTTCTGTGCCAGCAGCCAAGTGTGTCCCGGACAGACGACTATGGCTA";
+        germline_ref =
+                "GACACAGCTGTTTCCCAGACTCCAAAATACCTGGTCACACAGATGGGAAACGACAAGTCCATTAAATGTGAACAAAATCTGGGCCATGATACTATGTATTGG"
+                "TATAAACAGGACTCTAAGAAATTTCTGAAGATAATGTTTAGCTACAATAACAAGGAGATCATTATAAATGAAACAGTTCCAAATCGATTCTCACCTAAATCT"
+                "CCAGACAAAGCTAAATTAAATCTTCACATCAATTCCCTGGAGCTTGGTGACTCTGCTGTGTATTTCTGTGCCAGCAGCCAAGA";
+        expected_csv_line = "0;g1;165;-253;{};{26};{12,21,22,26,27,30,31,32};32;0;31";
+    }
+
+    const std::vector<std::pair<std::string, std::string>> genomic_templates = { { "g1", germline_ref } };
+    auto aligner = make_legacy_aligner(matrix, gap_penalty, V_gene, genomic_templates);
+    const auto alignments = aligner.align_seq(query_read, -1000.0, true, true, INT16_MIN, INT16_MAX);
+    REQUIRE(!alignments.empty());
+    auto best_it = std::max_element(alignments.begin(), alignments.end(),
+                                    [](const Alignment_data &a, const Alignment_data &b) { return a.score < b.score; });
+    assert_alignment_data_matches(*best_it, expected_csv_line, query_read, genomic_templates);
+}
+
+TEST_CASE("zzz",
+          "[aligner][V_gene][legacy_csv][!shouldfail]")
+{
+    const Matrix<double> matrix = build_test_score_matrix(5.0, -14.0);
+    const int gap_penalty = 30;
+    std::string query_read;
+    std::string germline_ref;
+    std::string expected_csv_line;
+    std::string obtained_csv_line;
+
+    SECTION("Long match without V deletions")
+    {
+        query_read = "TCAGAACCCAGGGACTCAGCTGTGTATTTTTGTGCTAGTGGTTTGGTACAATCAGCCCCA";
+        germline_ref =
+                "gaagctggagttgcccagtctcccagatataagattatagagaaaaggcagagtgtggctttttggtgcaatcctatatctggccatgctaccctttactggtaccagcagatcctgggacagggcccaaagcttctgattcagtttcagaataacggtgtagtggatgattcacagttgcctaaggatcgattttctgcagagaggctcaaaggagtagactccactctcaagatccagcctgcaaagcttgaggactcggccgtgtatctctgtgccagcagcttaga";
+        expected_csv_line = "1;g1;125;-238;{};{};{1,10,13,19,23,44,45,48};44;0;43";
+        obtained_csv_line = "1;g1;125;-238;{};{};{1,10,13,19,23};44;0;43";
+    }
+
+    const std::vector<std::pair<std::string, std::string>> genomic_templates = { { "g1", germline_ref } };
+    auto align = parse_single_alignment_csv_line(obtained_csv_line);
+    assert_alignment_data_matches(align.second, expected_csv_line, query_read, genomic_templates);
 }
