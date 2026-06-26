@@ -59,7 +59,7 @@
  * - insertions : indices on the TARGET of inserted nucleotides
  * - deletions : indices on the GENOMIC TEMPLATE of deleted nucleotides
  * - alignment length
- * - list of mismatches (that lie event outside the best alignment to allow IGoR to know mismatch positions in advance while exploring different deletions numbers)
+ * - list of mismatches (that lie even outside the best alignment to allow IGoR to know mismatch positions in advance while exploring different deletions numbers)
  *   NOTE: The mismatches vector may contain mismatches beyond the five_p_offset to three_p_offset range,
  *   representing mismatches in the extended alignment regions (e.g., in deleted V/J nucleotides).
  *   The vector is SORTED and contains ALL mismatches (both within the core alignment and in extended regions).
@@ -225,7 +225,6 @@ std::vector<int> extend_alignment_mismatches(const Int_Str &int_data_sequence, c
                                         const Alignment_data aln);
 
 std::pair<int, Alignment_data> parse_single_alignment_csv_line(const std::string &line);
-CORE_EXPORT bool alignment_data_equal(const Alignment_data &a, const Alignment_data &b, double score_tolerance = 1e-9);
 CORE_EXPORT std::unordered_map<int, std::pair<std::string, std::unordered_map<Gene_class, std::vector<Alignment_data>>>>
 read_alignments_seq_csv(const std::string &, Gene_class, double, bool,
                         const std::vector<std::pair<const int, const std::string>> &);
@@ -335,5 +334,12 @@ std::vector<int> ungapped_extend_align_3p_from_dp(const SwPreparedInputs &prepar
 std::vector<int> merge_and_sort_mismatches(const std::vector<int> &core_mismatches, const std::vector<int> &extended_mismatches);
 std::vector<int> merge_and_sort_mismatches(const std::vector<int> &core_mismatches, const std::vector<int> &extended_5p_mismatches,
                                       const std::vector<int> &extended_3p_mismatches);
+
+// Extended mismatch identification functions (compute on-demand from existing fields)
+std::vector<int> get_5p_extended_mismatches(const Alignment_data& aln);
+std::vector<int> get_3p_extended_mismatches(const Alignment_data& aln);
+std::vector<int> get_extended_mismatches(const Alignment_data& aln);
+std::vector<int> get_core_mismatches(const Alignment_data& aln);
+bool validate_mismatch_categorization(const Alignment_data& aln);
 
 } // namespace swalign

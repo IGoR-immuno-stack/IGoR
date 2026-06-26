@@ -28,6 +28,7 @@
 
 #include <cctype>
 #include <unordered_set>
+#include <cmath>
 
 using namespace std;
 
@@ -1199,49 +1200,6 @@ std::pair<int, Alignment_data> parse_single_alignment_csv_line(const string &lin
                             mismatches, score) };
 }
 
-/**
- * Compare two Alignment_data objects for equality.
- * Two alignments are considered equal if they have:
- * - Same gene name
- * - Same offset
- * - Same five_p_offset and three_p_offset
- * - Same insertions, deletions, mismatches (as sets, order-independent)
- * - Same align_length
- * - Same score (within tolerance)
- *
- * \param a First alignment to compare
- * \param b Second alignment to compare
- * \param score_tolerance Tolerance for score comparison (default: 1e-9)
- * \return true if alignments are considered equal, false otherwise
- */
-bool alignment_data_equal(const Alignment_data &a, const Alignment_data &b, double score_tolerance = 1e-9)
-{
-    // Check basic fields
-    if (a.gene_name != b.gene_name) return false;
-    if (a.offset != b.offset) return false;
-    if (a.five_p_offset != b.five_p_offset) return false;
-    if (a.three_p_offset != b.three_p_offset) return false;
-    if (a.align_length != b.align_length) return false;
-    if (fabs(a.score - b.score) > score_tolerance) return false;
-    
-    // Check insertions (convert to sets for order-independent comparison)
-    unordered_set<int> a_ins(a.insertions.begin(), a.insertions.end());
-    unordered_set<int> b_ins(b.insertions.begin(), b.insertions.end());
-    if (a_ins != b_ins) return false;
-    
-    // Check deletions
-    unordered_set<int> a_del(a.deletions.begin(), a.deletions.end());
-    unordered_set<int> b_del(b.deletions.begin(), b.deletions.end());
-    if (a_del != b_del) return false;
-    
-    // Check mismatches (already sorted, but compare as sets to be safe)
-    unordered_set<int> a_mis(a.mismatches.begin(), a.mismatches.end());
-    unordered_set<int> b_mis(b.mismatches.begin(), b.mismatches.end());
-    if (a_mis != b_mis) return false;
-    
-    return true;
-}
-
 unordered_map<int, forward_list<Alignment_data>>
 Aligner::read_alignments_seq_csv(string filename, double score_threshold, bool allow_in_dels)
 {
@@ -2340,6 +2298,118 @@ void fill_sw_matrix_cell(const Int_Str &int_data_sequence, const Int_Str &int_ge
             dp.max_col_coord[tmp] = j;
         }
     }
+}
+
+/**
+ * Extract 5' extended mismatches from existing alignment data.
+ * These are mismatches that occur before the alignment start (position < five_p_offset).
+ *
+ * \param aln Alignment_data with combined mismatches
+ * \return Vector of 5' extended mismatch positions (0-based, target sequence coordinates)
+ */
+vector<int> get_5p_extended_mismatches(const Alignment_data& aln)
+{
+    vector<int> extended;
+    for (int pos : aln.mismatches) {
+        if (pos < aln.five_p_offset) {
+            extended.push_back(pos);
+        }
+    }
+    return extended;
+}
+
+/**
+ * Extract 3' extended mismatches from existing alignment data.
+ * These are mismatches that occur after the alignment end (position > three_p_offset).
+ *
+ * \param aln Alignment_data with combined mismatches
+ * \return Vector of 3' extended mismatch positions (0-based, target sequence coordinates)
+ */
+vector<int> get_3p_extended_mismatches(const Alignment_data& aln)
+{
+    vector<int> extended;
+    for (int pos : aln.mismatches) {
+        if (pos > aln.three_p_offset) {
+            extended.push_back(pos);
+        }
+    }
+    return extended;
+}
+
+/**
+ * Extract all extended mismatches (5' + 3') from existing alignment data.
+ *
+ * \param aln Alignment_data with combined mismatches
+ * \return Vector of all extended mismatch positions (0-based, target sequence coordinates)
+ */
+vector<int> get_extended_mismatches(const Alignment_data& aln)
+{
+    vector<int> extended;
+    for (int pos : aln.mismatches) {
+        if (pos < aln.five_p_offset || pos > aln.three_p_offset) {
+            extended.push_back(pos);
+        }
+    }
+    return extended;
+}
+
+/**
+ * Extract core mismatches from existing alignment data.
+ * These are mismatches within the alignment bounds [five_p_offset, three_p_offset].
+ *
+ * \param aln Alignment_data with combined mismatches
+ * \return Vector of core mismatch positions (0-based, target sequence coordinates)
+ */
+vector<int> get_core_mismatches(const Alignment_data& aln)
+{
+    vector<int> core;
+    for (int pos : aln.mismatches) {
+        if (pos >= aln.five_p_offset && pos <= aln.three_p_offset) {
+            core.push_back(pos);
+        }
+    }
+    return core;
+}
+
+/**
+ * Validate that all mismatches are properly categorized between core and extended regions.
+ * Ensures: core + extended = all mismatches, no overlaps.
+ *
+ * \param aln Alignment_data with combined mismatches
+ * \return true if categorization is valid, false otherwise
+ */
+bool validate_mismatch_categorization(const Alignment_data& aln)
+{
+    vector<int> core = get_core_mismatches(aln);
+    vector<int> extended = get_extended_mismatches(aln);
+    
+    // Check that core + extended = all mismatches
+    unordered_set<int> all_from_parts;
+    for (int pos : core) all_from_parts.insert(pos);
+    for (int pos : extended) all_from_parts.insert(pos);
+    
+    // Check no overlaps
+    unordered_set<int> core_set(core.begin(), core.end());
+    unordered_set<int> extended_set(extended.begin(), extended.end());
+    for (int pos : core_set) {
+        if (extended_set.count(pos) > 0) {
+            return false; // Overlap found
+        }
+    }
+    
+    // Check we have all mismatches
+    if (all_from_parts.size() != aln.mismatches.size()) {
+        return false;
+    }
+    
+    // Check all mismatches are accounted for
+    for (int pos : aln.mismatches) {
+        if (all_from_parts.count(pos) == 0) {
+            return false;
+        }
+    }
+    
+    return true;
 }
 
 } // namespace swalign
