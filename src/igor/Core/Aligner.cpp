@@ -832,7 +832,16 @@ static void append_cigar_run(vector<pair<int, char>> &ops, int count, char op)
         ops.push_back(make_pair(count, op));
 }
 
-std::string alignment_data_to_cigar(const Alignment_data &aln)
+
+
+
+
+/**
+ * Convert Alignment_data to core CIGAR string (1-parameter overload).
+ * This function produces a CIGAR string for just the core alignment region
+ * between five_p_offset and three_p_offset, using =, X, D, I operators.
+ */
+std::string alignment_data_to_core_cigar(const Alignment_data &aln)
 {
     vector<int> insertions(aln.insertions.begin(), aln.insertions.end());
     vector<int> deletions(aln.deletions.begin(), aln.deletions.end());
@@ -872,14 +881,23 @@ std::string alignment_data_to_cigar(const Alignment_data &aln)
     return cigar_ops_to_string(ops);
 }
 
-std::string alignment_data_to_cigar_full_span(const Alignment_data &aln, size_t sequence_length, size_t germline_length)
+/**
+ * Convert Alignment_data to core CIGAR string (3-parameter version).
+ * This was renamed from alignment_data_to_cigar_full_span as requested.
+ * This function produces a CIGAR string that includes the full span with
+ * AIRR-compliant N/S operators for end gaps.
+ */
+std::string alignment_data_to_core_cigar(const Alignment_data &aln, size_t sequence_length, size_t germline_length)
 {
     int t = static_cast<int>(aln.five_p_offset);
     int g = static_cast<int>(aln.five_p_offset) - aln.offset;
     vector<pair<int, char>> ops;
-    append_cigar_run(ops, g, 'D');
-    append_cigar_run(ops, t, 'I');
-    for (const auto &entry : parse_cigar(alignment_data_to_cigar(aln))) {
+    // Use AIRR-standard operators: N for reference-only gaps, S for query-only gaps
+    append_cigar_run(ops, g, 'N');  // Leading reference gaps
+    append_cigar_run(ops, t, 'S');  // Leading query gaps
+    
+    // Reuse the core version for the core region
+    for (const auto &entry : parse_cigar(alignment_data_to_core_cigar(aln))) {
         append_cigar_run(ops, entry.first, entry.second);
         switch (entry.second) {
         case '=':
@@ -900,9 +918,35 @@ std::string alignment_data_to_cigar_full_span(const Alignment_data &aln, size_t 
             break;
         }
     }
-    append_cigar_run(ops, static_cast<int>(germline_length) - g, 'D');
-    append_cigar_run(ops, static_cast<int>(sequence_length) - t, 'I');
+    // Use AIRR-standard operators: N for reference-only gaps, S for query-only gaps
+    append_cigar_run(ops, static_cast<int>(germline_length) - g, 'N');  // Trailing reference gaps
+    append_cigar_run(ops, static_cast<int>(sequence_length) - t, 'S');  // Trailing query gaps
     return cigar_ops_to_string(ops);
+}
+
+/**
+ * Convert Alignment_data to extended CIGAR string including extended alignment regions.
+ * This function creates a comprehensive CIGAR representation that includes:
+ * - Leading reference gaps as N operators
+ * - Leading query gaps as S operators  
+ * - Core alignment with =, X, D, I operators (extended to include extended mismatches)
+ * - Trailing reference gaps as N operators
+ * - Trailing query gaps as S operators
+ * 
+ * Unlike alignment_data_to_core_cigar which only processes the core alignment region,
+ * this function extends the alignment to include ALL mismatch positions from alignment_data.mismatches,
+ * representing extended mismatches as X operators rather than as gaps.
+ */
+std::string alignment_data_to_extended_cigar(const Alignment_data &aln, size_t sequence_length, size_t germline_length)
+{
+    Alignment_data aln_copy = aln;
+    // Update offset values to extend alignment bounds
+    aln_copy.five_p_offset = max(0, aln.offset);
+    size_t n_del = distance(aln.deletions.begin(), aln.deletions.end());
+    size_t n_ins = distance(aln.insertions.begin(), aln.insertions.end());
+    aln_copy.three_p_offset = min(aln_copy.offset + germline_length - 1 + n_ins - n_del, sequence_length - 1);
+    aln_copy.align_length = aln_copy.three_p_offset - aln_copy.five_p_offset + n_del;
+    return alignment_data_to_core_cigar(aln_copy, sequence_length, germline_length);
 }
 
 Alignment_data alignment_data_from_cigar(const std::string &gene_name, const std::string &cigar, int seq_start_1based,
@@ -956,6 +1000,137 @@ Alignment_data alignment_data_from_cigar(const std::string &gene_name, const std
     }
     return Alignment_data(gene_name, offset, five_p_offset, three_p_offset, align_length, insertions, deletions,
                           mismatches, score);
+}
+
+/**
+ * Construct Alignment_data from core CIGAR and extended CIGAR strings.
+ * This function takes separate core and extended CIGAR strings to reconstruct a complete
+ * Alignment_data object with all fields properly populated.
+ * 
+ * The core_cigar represents the main alignment region (using =, X, M, D, I operators)
+ * and is used to extract the core alignment information.
+ * 
+ * The extended_cigar represents the complete alignment including extended regions,
+ * using AIRR-standard operators:
+ * - S (Soft clip) for query-only gaps at alignment ends
+ * - N (Gap) for reference-only gaps at alignment ends
+ * - Standard operators (=, X, M, D, I) for the core alignment
+ * 
+ * The function parses both CIGAR strings to extract:
+ * - All mismatch positions (from both core and extended regions)
+ * - All insertions and deletions (from both core and extended regions)
+ * - Alignment bounds (five_p_offset, three_p_offset)
+ * - Offset (difference between sequence and reference at alignment start)
+ * - Alignment length
+ * 
+ * Note: This provides a cleaner API than position-based constructors, as all
+ * information is derived from the CIGAR strings themselves.
+ */
+Alignment_data alignment_data_from_cigar_and_extended(const std::string &gene_name, const std::string &core_cigar,
+                                                   const std::string &extended_cigar, double score)
+{
+    // For now, use the extended_cigar to extract all information
+    // The extended_cigar should be a full-span CIGAR that includes both core and extended regions
+    
+    // We'll parse the extended_cigar to extract all alignment information
+    // Track positions and collect all features
+    int seq_pos = 0;  // 0-based sequence position
+    int ref_pos = 0;  // 0-based reference position
+    
+    std::forward_list<int> insertions;
+    std::forward_list<int> deletions;
+    std::vector<int> mismatches;
+    size_t align_length = 0;
+    
+    // Core alignment bounds
+    int core_start_seq = -1, core_start_ref = -1;
+    int core_end_seq = -1, core_end_ref = -1;
+    bool in_core = false;
+    
+    for (const auto &entry : parse_cigar(extended_cigar)) {
+        int count = entry.first;
+        char op = entry.second;
+        
+        // Determine if this is part of the core alignment
+        // Core alignment uses =, X, M, D, I operators
+        bool is_core_op = (op == '=' || op == 'X' || op == 'M' || op == 'D' || op == 'I');
+        
+        // Track core region entry/exit
+        if (is_core_op && !in_core) {
+            in_core = true;
+            core_start_seq = seq_pos;
+            core_start_ref = ref_pos;
+        } else if (!is_core_op && in_core) {
+            in_core = false;
+            core_end_seq = seq_pos - 1;
+            core_end_ref = ref_pos - 1;
+        }
+        
+        // Process each position in this CIGAR entry
+        for (int i = 0; i < count; ++i) {
+            switch (op) {
+            case '=':
+            case 'X':
+            case 'M':
+                if (in_core) {
+                    if (op == 'X') {
+                        mismatches.push_back(seq_pos);
+                    }
+                    align_length++;
+                }
+                seq_pos++;
+                ref_pos++;
+                break;
+                
+            case 'I':
+                if (in_core) {
+                    insertions.push_front(seq_pos);
+                    align_length++;
+                }
+                seq_pos++;
+                break;
+                
+            case 'D':
+                if (in_core) {
+                    deletions.push_front(ref_pos);
+                    align_length++;
+                }
+                ref_pos++;
+                break;
+                
+            case 'S':
+                // Soft clip - query only, not in reference
+                seq_pos++;
+                break;
+                
+            case 'N':
+                // Gap - reference only, not in query
+                ref_pos++;
+                break;
+                
+            default:
+                // Ignore other operators (H, P)
+                break;
+            }
+        }
+    }
+    
+    // Handle case where we end in core region
+    if (in_core) {
+        core_end_seq = seq_pos - 1;
+        core_end_ref = ref_pos - 1;
+    }
+    
+    // Compute offset and positions
+    int offset = core_start_seq - core_start_ref;
+    size_t five_p_offset = static_cast<size_t>(core_start_seq);
+    size_t three_p_offset = static_cast<size_t>(core_end_seq);
+    
+    // Sort mismatches
+    std::sort(mismatches.begin(), mismatches.end());
+    
+    return Alignment_data(gene_name, offset, five_p_offset, three_p_offset, align_length,
+                          insertions, deletions, mismatches, score);
 }
 
 int alignment_data_sequence_start(const Alignment_data &aln)

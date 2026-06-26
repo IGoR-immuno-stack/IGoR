@@ -20,7 +20,8 @@ namespace {
 struct ExpectedAlignment
 {
     std::string gene_name;
-    std::string cigar;
+    std::string core_cigar;
+    std::string extended_cigar;
     double score;
 };
 
@@ -143,7 +144,7 @@ std::vector<ActualAlignment> normalize_actuals(const std::forward_list<Alignment
 {
     std::vector<ActualAlignment> normalized;
     for (const auto &aln : alignments) {
-        normalized.push_back({ aln.gene_name, alignment_data_to_cigar(aln), aln.score });
+        normalized.push_back({ aln.gene_name, alignment_data_to_core_cigar(aln), aln.score });
     }
     std::sort(normalized.begin(), normalized.end(), [](const ActualAlignment &a, const ActualAlignment &b) {
         return std::tie(a.gene_name, a.cigar, a.score) < std::tie(b.gene_name, b.cigar, b.score);
@@ -154,7 +155,7 @@ std::vector<ActualAlignment> normalize_actuals(const std::forward_list<Alignment
 std::vector<ExpectedAlignment> normalize_expected(std::vector<ExpectedAlignment> expected)
 {
     std::sort(expected.begin(), expected.end(), [](const ExpectedAlignment &a, const ExpectedAlignment &b) {
-        return std::tie(a.gene_name, a.cigar, a.score) < std::tie(b.gene_name, b.cigar, b.score);
+        return std::tie(a.gene_name, a.core_cigar, a.extended_cigar, a.score) < std::tie(b.gene_name, b.core_cigar, b.extended_cigar, b.score);
     });
     return expected;
 }
@@ -164,7 +165,7 @@ ActualAlignment best_alignment(const std::forward_list<Alignment_data> &alignmen
     auto best_it = std::max_element(alignments.begin(), alignments.end(),
                                     [](const Alignment_data &a, const Alignment_data &b) { return a.score < b.score; });
     REQUIRE(best_it != alignments.end());
-    return { best_it->gene_name, alignment_data_to_cigar(*best_it), best_it->score };
+    return { best_it->gene_name, alignment_data_to_core_cigar(*best_it), best_it->score };
 }
 
 /**
@@ -230,18 +231,24 @@ void assert_alignment_matches(const Alignment_data &alignment, const std::string
                               const std::pair<std::string, std::string> &genomic_template,
                               const ExpectedAlignment &expected)
 {
-    const std::string actual_cigar =
-            alignment_data_to_cigar_full_span(alignment, query.length(), genomic_template.second.length());
+    const std::string actual_core_cigar = alignment_data_to_core_cigar(alignment, query.length(), genomic_template.second.length());
+    const std::string actual_extended_cigar = alignment_data_to_extended_cigar(alignment, query.length(), genomic_template.second.length());
 
-    INFO("expected: gene=" << expected.gene_name << " cigar=" << expected.cigar << " score=" << expected.score);
-    INFO("actual: gene=" << alignment.gene_name << " cigar=" << actual_cigar << " score=" << alignment.score);
+    INFO("expected: gene=" << expected.gene_name << " core_cigar=" << expected.core_cigar << " extended_cigar=" << expected.extended_cigar << " score=" << expected.score);
+    INFO("actual: gene=" << alignment.gene_name << " core_cigar=" << actual_core_cigar << " extended_cigar=" << actual_extended_cigar << " score=" << alignment.score);
+
 
     const std::vector<std::pair<std::string, std::string>> templates = { genomic_template };
-    INFO(add_cigar_visual_info(query, templates, "expected", expected.gene_name, expected.cigar));
-    INFO(add_cigar_visual_info(query, templates, "actual", alignment.gene_name, actual_cigar));
+    INFO("=== CORE CIGAR COMPARISON ===");
+    INFO(add_cigar_visual_info(query, templates, "expected", expected.gene_name, expected.core_cigar));
+    INFO(add_cigar_visual_info(query, templates, "actual", alignment.gene_name, actual_core_cigar));
+    INFO("=== EXTENDED CIGAR COMPARISON ===");
+    INFO(add_cigar_visual_info(query, templates, "expected", expected.gene_name, expected.extended_cigar));
+    INFO(add_cigar_visual_info(query, templates, "actual", alignment.gene_name, actual_extended_cigar));
 
     REQUIRE(alignment.gene_name == expected.gene_name);
-    REQUIRE(actual_cigar == expected.cigar);
+    REQUIRE(actual_core_cigar == expected.core_cigar);
+    REQUIRE(actual_extended_cigar == expected.extended_cigar);
     REQUIRE_THAT(alignment.score, WithinRel(expected.score));
 }
 
@@ -270,8 +277,8 @@ void assert_alignment_set_matches(const std::forward_list<Alignment_data> &align
         actual.push_back(&aln);
     }
     std::sort(actual.begin(), actual.end(), [](const Alignment_data *a, const Alignment_data *b) {
-        return std::make_tuple(a->gene_name, alignment_data_to_cigar(*a), a->score)
-                < std::make_tuple(b->gene_name, alignment_data_to_cigar(*b), b->score);
+        return std::make_tuple(a->gene_name, alignment_data_to_core_cigar(*a), a->score)
+                < std::make_tuple(b->gene_name, alignment_data_to_core_cigar(*b), b->score);
     });
     expected = normalize_expected(std::move(expected));
 
@@ -290,7 +297,7 @@ void assert_alignment_set_matches(const std::forward_list<Alignment_data> &align
 
 std::string alignment_data_visual(const Alignment_data &aln, const std::string &query, const std::string &germline)
 {
-    const std::string cigar = alignment_data_to_cigar_full_span(aln, query.length(), germline.length());
+    const std::string cigar = alignment_data_to_extended_cigar(aln, query.length(), germline.length());
     return cigar_visual(cigar, query, germline);
 }
 
@@ -303,20 +310,20 @@ void assert_alignment_data_matches(const Alignment_data &actual,
     const Alignment_data expected = parsed.second;
     auto genomic_template = find_genomic_template(genomic_templates, expected.gene_name);
 
-    const std::string actual_cigar = alignment_data_to_cigar_full_span(actual, query.length(), genomic_template.second.length());
-    const std::string expected_cigar = alignment_data_to_cigar_full_span(expected, query.length(), genomic_template.second.length());
+    const std::string actual_extended_cigar = alignment_data_to_extended_cigar(actual, query.length(), genomic_template.second.length());
+    const std::string expected_extended_cigar = alignment_data_to_extended_cigar(expected, query.length(), genomic_template.second.length());
 
-    INFO("expected: gene=" << expected.gene_name << " cigar=" << expected_cigar << " score=" << expected.score);
-    INFO("actual: gene=" << actual.gene_name << " cigar=" << actual_cigar << " score=" << actual.score);
+    INFO("expected: gene=" << expected.gene_name << " extended_cigar=" << expected_extended_cigar << " score=" << expected.score);
+    INFO("actual: gene=" << actual.gene_name << " extended_cigar=" << actual_extended_cigar << " score=" << actual.score);
 
     std::vector<std::pair<std::string, std::string>> templates = { genomic_template };
-    INFO("expected: gene=" << expected.gene_name << " cigar=" << expected_cigar 
-         << cigar_visual(expected_cigar, query, genomic_template.second));
-    INFO("actual: gene=" << actual.gene_name << " cigar=" << actual_cigar 
-         << cigar_visual(actual_cigar, query, genomic_template.second));
+    INFO("expected: gene=" << expected.gene_name << " extended_cigar=" << expected_extended_cigar 
+         << cigar_visual(expected_extended_cigar, query, genomic_template.second));
+    INFO("actual: gene=" << actual.gene_name << " extended_cigar=" << actual_extended_cigar 
+         << cigar_visual(actual_extended_cigar, query, genomic_template.second));
 
     REQUIRE(actual.gene_name == expected.gene_name);
-    REQUIRE(actual_cigar == expected_cigar);
+    REQUIRE(actual_extended_cigar == expected_extended_cigar);
     REQUIRE(align_compare(actual,expected));
     REQUIRE_THAT(actual.score, WithinRel(expected.score));
 }
@@ -338,14 +345,16 @@ TEST_CASE("Aligner V gene multiplex dummy alignments.", "[aligner][V_gene][dummy
     const int gap_penalty = 13;
     std::string query_read;
     std::string germline_ref;
-    std::string expected_cigar;
+    std::string expected_core_cigar;
+    std::string expected_extended_cigar;
     double expected_score;
 
     SECTION("complete alignment")
     {
         query_read = std::string(20, 'A');
         germline_ref = std::string(20, 'A');
-        expected_cigar = "20=";
+        expected_core_cigar = "20=";
+        expected_extended_cigar = expected_core_cigar;
         expected_score = 140;
     }
 
@@ -353,7 +362,8 @@ TEST_CASE("Aligner V gene multiplex dummy alignments.", "[aligner][V_gene][dummy
     {
         query_read = std::string(5, 'A') + std::string(1, 'T');
         germline_ref = std::string(9, 'A') + std::string(1, 'T');
-        expected_cigar = "4D6=";
+        expected_core_cigar = "4N6=";
+        expected_extended_cigar = expected_core_cigar;  // Extended: N for reference-only gaps
         expected_score = 42;
     }
 
@@ -361,7 +371,8 @@ TEST_CASE("Aligner V gene multiplex dummy alignments.", "[aligner][V_gene][dummy
     {
         query_read = std::string(6, 'A') + std::string(14, 'T');
         germline_ref = std::string(19, 'A') + std::string(1, 'T');
-        expected_cigar = "13D7=13I";
+        expected_core_cigar = "13N7=13S";
+        expected_extended_cigar = expected_core_cigar;  // Extended: N for ref gaps, S for query gaps
         expected_score = 49;
     }
 
@@ -369,7 +380,8 @@ TEST_CASE("Aligner V gene multiplex dummy alignments.", "[aligner][V_gene][dummy
     {
         query_read = std::string(6, 'A') + std::string(14, 'T');
         germline_ref = std::string(19, 'A') + std::string(1, 'T') + std::string(1, 'A');
-        expected_cigar = "13D7=1D13I";
+        expected_core_cigar = "13N7=1N13S";
+        expected_extended_cigar = "13N7=1X12S";  // Extended: N for ref gaps, S for query gaps
         expected_score = 49;
     }
 
@@ -377,7 +389,8 @@ TEST_CASE("Aligner V gene multiplex dummy alignments.", "[aligner][V_gene][dummy
     {
         query_read = std::string(6, 'A') + std::string(14, 'T');
         germline_ref = std::string(19, 'A') + std::string(1, 'T') + std::string(3, 'A');
-        expected_cigar = "13D7=3D13I";
+        expected_core_cigar = "13N7=3N13S";
+        expected_extended_cigar = "13N7=3X10S";  // Extended: N for ref gaps, S for query gaps
         expected_score = 49;
     }
 
@@ -385,7 +398,8 @@ TEST_CASE("Aligner V gene multiplex dummy alignments.", "[aligner][V_gene][dummy
     {
         query_read = std::string(14, 'T');
         germline_ref = std::string(6, 'A') + std::string(14, 'T') + std::string(2, 'A');
-        expected_cigar = "6D14=2D";
+        expected_core_cigar = "6N14=2N";
+        expected_extended_cigar = expected_core_cigar;  // Extended: N for reference gaps
         expected_score = 98;
     }
 
@@ -394,7 +408,8 @@ TEST_CASE("Aligner V gene multiplex dummy alignments.", "[aligner][V_gene][dummy
         query_read = std::string(20, 'A');
         query_read[4] = 'G';
         germline_ref = std::string(20, 'A');
-        expected_cigar = "4=1X15=";
+        expected_core_cigar = "4=1X15=";
+        expected_extended_cigar = expected_core_cigar;
         expected_score = 122;
     }
 
@@ -403,7 +418,8 @@ TEST_CASE("Aligner V gene multiplex dummy alignments.", "[aligner][V_gene][dummy
         query_read = std::string(20, 'A');
         query_read[0] = 'G';
         germline_ref = std::string(20, 'A');
-        expected_cigar = "1X19=";
+        expected_core_cigar = "1X19=";
+        expected_extended_cigar = expected_core_cigar;
         expected_score = 122;
     }
 
@@ -412,7 +428,8 @@ TEST_CASE("Aligner V gene multiplex dummy alignments.", "[aligner][V_gene][dummy
         query_read = std::string(20, 'A');
         query_read[19] = 'G';
         germline_ref = std::string(20, 'A');
-        expected_cigar = "19=1D1I";
+        expected_core_cigar = "19=1N1S";
+        expected_extended_cigar = "19=1X";  // Extended: trailing query gap S
         expected_score = 133;
     }
 
@@ -420,7 +437,8 @@ TEST_CASE("Aligner V gene multiplex dummy alignments.", "[aligner][V_gene][dummy
     {
         query_read = std::string(5, 'A') + "C" + std::string(15, 'A');
         germline_ref = std::string(20, 'A');
-        expected_cigar = "5=1I15=";
+        expected_core_cigar = "5=1I15=";  // Core insertion - keep I
+        expected_extended_cigar = expected_core_cigar;
         expected_score = 127;
     }
 
@@ -428,14 +446,15 @@ TEST_CASE("Aligner V gene multiplex dummy alignments.", "[aligner][V_gene][dummy
     {
         query_read = "T" + std::string(17, 'A') + "T";
         germline_ref = "T" + std::string(7, 'A') + "T" + std::string(10, 'A') + "T";
-        expected_cigar = "8=1D11=";
+        expected_core_cigar = "8=1D11=";  // Core deletion - keep D
+        expected_extended_cigar = expected_core_cigar;
         expected_score = 120;
     }
 
     const std::vector<std::pair<std::string, std::string>> genomic_templates = { { "g1", germline_ref } };
     auto aligner = make_legacy_aligner(matrix, gap_penalty, V_gene, genomic_templates);
     const auto alignments = aligner.align_seq(query_read, -1000.0, true, true, INT16_MIN, INT16_MAX);
-    assert_best_alignment_matches(alignments, query_read, genomic_templates, { "g1", expected_cigar, expected_score });
+    assert_best_alignment_matches(alignments, query_read, genomic_templates, { "g1", expected_core_cigar, expected_extended_cigar, expected_score });
 }
 
 TEST_CASE("Aligner D gene dummy local alignments.", "[aligner][D_gene][dummy]")
@@ -453,14 +472,16 @@ TEST_CASE("Aligner D gene dummy local alignments.", "[aligner][D_gene][dummy]")
     const int gap_penalty = 13;
     std::string query_read;
     std::string germline_ref;
-    std::string expected_cigar;
+    std::string expected_core_cigar;
+    std::string expected_extended_cigar;
     double expected_score;
 
     SECTION("complete local alignment")
     {
         query_read = std::string(20, 'A');
         germline_ref = std::string(20, 'A');
-        expected_cigar = "20=";
+        expected_core_cigar = "20=";
+        expected_extended_cigar = expected_core_cigar;
         expected_score = 140;
     }
 
@@ -468,7 +489,8 @@ TEST_CASE("Aligner D gene dummy local alignments.", "[aligner][D_gene][dummy]")
     {
         query_read = std::string(4, 'T') + std::string(6, 'A') + std::string(4, 'T');
         germline_ref = std::string(6, 'A');
-        expected_cigar = "4I6=4I";
+        expected_core_cigar = "4S6=4S";  // Updated to AIRR: S for query gaps at ends
+        expected_extended_cigar = expected_core_cigar;
         expected_score = 42;
     }
 
@@ -476,7 +498,8 @@ TEST_CASE("Aligner D gene dummy local alignments.", "[aligner][D_gene][dummy]")
     {
         query_read = std::string(2, 'T') + std::string(16, 'A') + std::string(2, 'T');
         germline_ref = std::string(16, 'A');
-        expected_cigar = "2I16=2I";
+        expected_core_cigar = "2S16=2S";  // Updated to AIRR: S for query gaps at ends
+        expected_extended_cigar = expected_core_cigar;
         expected_score = 112;
     }
 
@@ -484,7 +507,8 @@ TEST_CASE("Aligner D gene dummy local alignments.", "[aligner][D_gene][dummy]")
     {
         query_read = "AAAGAAAAGAAAAGAA";
         germline_ref = std::string(16, 'A');
-        expected_cigar = "3=1X4=1X4=1X2=";
+        expected_core_cigar = "3=1X4=1X4=1X2=";
+        expected_extended_cigar = expected_core_cigar;
         expected_score = 58;
     }
 
@@ -492,7 +516,8 @@ TEST_CASE("Aligner D gene dummy local alignments.", "[aligner][D_gene][dummy]")
     {
         query_read = "AGAGAAAAGAAAAGAA";
         germline_ref = std::string(16, 'A');
-        expected_cigar = "4D4I4=1X4=1X2=";
+        expected_core_cigar = "4N4S4=1X4=1X2=";  // Updated to AIRR: N for ref gaps, S for query gaps
+        expected_extended_cigar = "1=1X1=1X4=1X4=1X2=";
         expected_score = 48;
     }
 
@@ -500,7 +525,8 @@ TEST_CASE("Aligner D gene dummy local alignments.", "[aligner][D_gene][dummy]")
     {
         query_read = "AAAGAAAAGAAAGGAA";
         germline_ref = std::string(16, 'A');
-        expected_cigar = "3=1X4=1X3=4D4I";
+        expected_core_cigar = "3=1X4=1X3=4N4S";  // Updated to AIRR: N for ref gaps, S for query gaps
+        expected_extended_cigar = "3=1X4=1X3=2X2=";
         expected_score = 48;
     }
 
@@ -508,7 +534,8 @@ TEST_CASE("Aligner D gene dummy local alignments.", "[aligner][D_gene][dummy]")
     {
         query_read = std::string(8, 'A');
         germline_ref = std::string(8, 'A') + std::string(1, 'T');
-        expected_cigar = "8=1D";
+        expected_core_cigar = "8=1N";  // Updated to AIRR: N for trailing reference gaps
+        expected_extended_cigar = expected_core_cigar;
         expected_score = 56;
     }
 
@@ -516,7 +543,8 @@ TEST_CASE("Aligner D gene dummy local alignments.", "[aligner][D_gene][dummy]")
     {
         query_read = std::string(8, 'A');
         germline_ref = std::string(8, 'A') + std::string(3, 'T');
-        expected_cigar = "8=3D";
+        expected_core_cigar = "8=3N";  // Updated to AIRR: N for trailing reference gaps
+        expected_extended_cigar = expected_core_cigar;
         expected_score = 56;
     }
 
@@ -524,7 +552,8 @@ TEST_CASE("Aligner D gene dummy local alignments.", "[aligner][D_gene][dummy]")
     {
         query_read = std::string(8, 'A');
         germline_ref = std::string(8, 'A') + std::string(5, 'T');
-        expected_cigar = "8=5D";
+        expected_core_cigar = "8=5N";  // Updated to AIRR: N for trailing reference gaps
+        expected_extended_cigar = expected_core_cigar;
         expected_score = 56;
     }
 
@@ -532,7 +561,8 @@ TEST_CASE("Aligner D gene dummy local alignments.", "[aligner][D_gene][dummy]")
     {
         query_read = std::string(8, 'A');
         germline_ref = std::string(1, 'T') + std::string(8, 'A');
-        expected_cigar = "1D8=";
+        expected_core_cigar = "1N8=";  // Updated to AIRR: N for leading reference gaps
+        expected_extended_cigar = expected_core_cigar;
         expected_score = 56;
     }
 
@@ -540,7 +570,8 @@ TEST_CASE("Aligner D gene dummy local alignments.", "[aligner][D_gene][dummy]")
     {
         query_read = std::string(8, 'A');
         germline_ref = std::string(3, 'T') + std::string(8, 'A');
-        expected_cigar = "3D8=";
+        expected_core_cigar = "3N8=";  // Updated to AIRR: N for leading reference gaps
+        expected_extended_cigar = expected_core_cigar;
         expected_score = 56;
     }
 
@@ -548,7 +579,8 @@ TEST_CASE("Aligner D gene dummy local alignments.", "[aligner][D_gene][dummy]")
     {
         query_read = std::string(8, 'A');
         germline_ref = std::string(5, 'T') + std::string(8, 'A');
-        expected_cigar = "5D8=";
+        expected_core_cigar = "5N8=";  // Updated to AIRR: N for leading reference gaps
+        expected_extended_cigar = expected_core_cigar;
         expected_score = 56;
     }
 
@@ -556,7 +588,8 @@ TEST_CASE("Aligner D gene dummy local alignments.", "[aligner][D_gene][dummy]")
     {
         query_read = std::string(5, 'T') + std::string(5, 'A') + "C" + std::string(5, 'T');
         germline_ref = std::string(5, 'T') + std::string(5, 'A') + std::string(5, 'T');
-        expected_cigar = "10=1I5=";
+        expected_core_cigar = "10=1I5=";  // Core insertion - keep I
+        expected_extended_cigar = expected_core_cigar;
         expected_score = 92;
     }
 
@@ -564,14 +597,15 @@ TEST_CASE("Aligner D gene dummy local alignments.", "[aligner][D_gene][dummy]")
     {
         query_read = std::string(5, 'T') + std::string(5, 'A') + std::string(5, 'T');
         germline_ref = std::string(5, 'T') + std::string(5, 'A') + "C" + std::string(5, 'T');
-        expected_cigar = "10=1D5=";
+        expected_core_cigar = "10=1D5=";  // Core deletion - keep D
+        expected_extended_cigar = expected_core_cigar;
         expected_score = 92;
     }
 
     const std::vector<std::pair<std::string, std::string>> genomic_templates = { { "g1", germline_ref } };
     auto aligner = make_legacy_aligner(matrix, gap_penalty, D_gene, genomic_templates);
     const auto alignments = aligner.align_seq(query_read, -1000.0, true, true, INT16_MIN, INT16_MAX);
-    assert_best_alignment_matches(alignments, query_read, genomic_templates, { "g1", expected_cigar, expected_score });
+    assert_best_alignment_matches(alignments, query_read, genomic_templates, { "g1", expected_core_cigar, expected_extended_cigar, expected_score });
 }
 
 TEST_CASE("Aligner J gene multiplex dummy alignments.", "[aligner][J_gene][dummy]")
@@ -589,14 +623,16 @@ TEST_CASE("Aligner J gene multiplex dummy alignments.", "[aligner][J_gene][dummy
     const int gap_penalty = 13;
     std::string query_read;
     std::string germline_ref;
-    std::string expected_cigar;
+    std::string expected_core_cigar;
+    std::string expected_extended_cigar;
     double expected_score;
 
     SECTION("complete alignment")
     {
         query_read = std::string(20, 'A');
         germline_ref = std::string(20, 'A');
-        expected_cigar = "20=";
+        expected_core_cigar = "20=";
+        expected_extended_cigar = expected_core_cigar;
         expected_score = 140;
     }
 
@@ -604,7 +640,8 @@ TEST_CASE("Aligner J gene multiplex dummy alignments.", "[aligner][J_gene][dummy
     {
         query_read = std::string(1, 'T') + std::string(5, 'A');
         germline_ref = std::string(1, 'T') + std::string(9, 'A');
-        expected_cigar = "6=4D";
+        expected_core_cigar = "6=4N";  // Updated to AIRR: N for trailing reference gaps
+        expected_extended_cigar = expected_core_cigar;
         expected_score = 42;
     }
 
@@ -612,7 +649,8 @@ TEST_CASE("Aligner J gene multiplex dummy alignments.", "[aligner][J_gene][dummy
     {
         query_read = std::string(14, 'T') + std::string(6, 'A');
         germline_ref = std::string(1, 'T') + std::string(19, 'A');
-        expected_cigar = "13I7=13D";
+        expected_core_cigar = "13S7=13N";  // Updated to AIRR: S for query gaps, N for ref gaps
+        expected_extended_cigar = expected_core_cigar;
         expected_score = 49;
     }
 
@@ -620,7 +658,8 @@ TEST_CASE("Aligner J gene multiplex dummy alignments.", "[aligner][J_gene][dummy
     {
         query_read = std::string(14, 'T') + std::string(6, 'A');
         germline_ref = std::string(1, 'A') + std::string(1, 'T') + std::string(19, 'A');
-        expected_cigar = "1D13I7=13D";
+        expected_core_cigar = "1N13S7=13N";  // Updated to AIRR: N for ref gaps, S for query gaps
+        expected_extended_cigar = "12S1X7=13N";
         expected_score = 49;
     }
 
@@ -628,7 +667,8 @@ TEST_CASE("Aligner J gene multiplex dummy alignments.", "[aligner][J_gene][dummy
     {
         query_read = std::string(14, 'T') + std::string(6, 'A');
         germline_ref = std::string(3, 'A') + std::string(1, 'T') + std::string(19, 'A');
-        expected_cigar = "3D13I7=13D";
+        expected_core_cigar = "3N13S7=13N";  // Updated to AIRR: N for ref gaps, S for query gaps
+        expected_extended_cigar = "10S3X7=13N";
         expected_score = 49;
     }
 
@@ -636,7 +676,8 @@ TEST_CASE("Aligner J gene multiplex dummy alignments.", "[aligner][J_gene][dummy
     {
         query_read = std::string(14, 'T');
         germline_ref = std::string(2, 'A') + std::string(14, 'T') + std::string(6, 'A');
-        expected_cigar = "2D14=6D";
+        expected_core_cigar = "2N14=6N";  // Updated to AIRR: N for reference gaps
+        expected_extended_cigar = expected_core_cigar;
         expected_score = 98;
     }
 
@@ -645,7 +686,8 @@ TEST_CASE("Aligner J gene multiplex dummy alignments.", "[aligner][J_gene][dummy
         query_read = std::string(20, 'A');
         query_read[4] = 'G';
         germline_ref = std::string(20, 'A');
-        expected_cigar = "4=1X15=";
+        expected_core_cigar = "4=1X15=";
+        expected_extended_cigar = expected_core_cigar;
         expected_score = 122;
     }
 
@@ -654,7 +696,8 @@ TEST_CASE("Aligner J gene multiplex dummy alignments.", "[aligner][J_gene][dummy
         query_read = std::string(20, 'A');
         query_read[19] = 'G';
         germline_ref = std::string(20, 'A');
-        expected_cigar = "19=1X";
+        expected_core_cigar = "19=1X";
+        expected_extended_cigar = expected_core_cigar;
         expected_score = 122;
     }
 
@@ -663,7 +706,8 @@ TEST_CASE("Aligner J gene multiplex dummy alignments.", "[aligner][J_gene][dummy
         query_read = std::string(19, 'A') + std::string(1, 'T');
         query_read[0] = 'G';
         germline_ref = std::string(19, 'A') + std::string(1, 'T');
-        expected_cigar = "1D1I19=";
+        expected_core_cigar = "1N1S19=";  // Updated to AIRR: N for ref gap, S for query gap
+        expected_extended_cigar = "1X19=";
         expected_score = 133;
     }
 
@@ -671,7 +715,8 @@ TEST_CASE("Aligner J gene multiplex dummy alignments.", "[aligner][J_gene][dummy
     {
         query_read = std::string(5, 'A') + "C" + std::string(15, 'A');
         germline_ref = std::string(20, 'A');
-        expected_cigar = "5=1I15=";
+        expected_core_cigar = "5=1I15=";  // Core insertion - keep I
+        expected_extended_cigar = expected_core_cigar;
         expected_score = 127;
     }
 
@@ -679,14 +724,15 @@ TEST_CASE("Aligner J gene multiplex dummy alignments.", "[aligner][J_gene][dummy
     {
         query_read = "T" + std::string(17, 'A') + "T";
         germline_ref = "T" + std::string(7, 'A') + "T" + std::string(10, 'A') + "T";
-        expected_cigar = "8=1D11=";
+        expected_core_cigar = "8=1D11=";  // Core deletion - keep D
+        expected_extended_cigar = expected_core_cigar;
         expected_score = 120;
     }
 
     const std::vector<std::pair<std::string, std::string>> genomic_templates = { { "g1", germline_ref } };
     auto aligner = make_legacy_aligner(matrix, gap_penalty, J_gene, genomic_templates);
     const auto alignments = aligner.align_seq(query_read, -1000.0, true, true, INT16_MIN, INT16_MAX);
-    assert_best_alignment_matches(alignments, query_read, genomic_templates, { "g1", expected_cigar, expected_score });
+    assert_best_alignment_matches(alignments, query_read, genomic_templates, { "g1", expected_core_cigar, expected_extended_cigar, expected_score });
 }
 
 TEST_CASE("Aligner V gene best alignment matches expected CIGAR and score on realistic data.",
@@ -697,7 +743,8 @@ TEST_CASE("Aligner V gene best alignment matches expected CIGAR and score on rea
     const int gap_penalty = 30;
     std::string query_read;
     std::string germline_ref;
-    std::string expected_cigar;
+    std::string expected_core_cigar;
+    std::string expected_extended_cigar;
     double expected_score;
 
     SECTION("Long match without V deletions")
@@ -706,7 +753,8 @@ TEST_CASE("Aligner V gene best alignment matches expected CIGAR and score on rea
         germline_ref = "GATACTGGAATTACCCAGACACCAAAATACCTGGTCACAGCAATGGGGAGTAAAAGGACAATGAAACGTGAGCATCTGGGACATGATTCTATGTA"
                        "TTGGTACAGACAGAAAGCTAAGAAATCCCTGGAGTTCATGTTTTACTACAACTGTAAGGAATTCATTGAAAACAAGACTGTGCCAAATCACTTCA"
                        "CACCTGAATGCCCTGACAGCTCTCGCTTATACCTTCATGTGGTCGCACTGCAGCAAGAAGACTCAGCTGCGTATCTCTGCACCAGCAGCCAAGA";
-        expected_cigar = "250D34=26I";
+        expected_core_cigar = "250N34=26S";  // Updated to AIRR: N for ref gaps, S for query gaps
+        expected_extended_cigar = expected_core_cigar;
         expected_score = 170;
     }
 
@@ -717,7 +765,8 @@ TEST_CASE("Aligner V gene best alignment matches expected CIGAR and score on rea
                 "GACACAGCTGTTTCCCAGACTCCAAAATACCTGGTCACACAGATGGGAAACGACAAGTCCATTAAATGTGAACAAAATCTGGGCCATGATACTATGTATTGG"
                 "TATAAACAGGACTCTAAGAAATTTCTGAAGATAATGTTTAGCTACAATAACAAGGAGATCATTATAAATGAAACAGTTCCAAATCGATTCTCACCTAAATCT"
                 "CCAGACAAAGCTAAATTAAATCTTCACATCAATTCCCTGGAGCTTGGTGACTCTGCTGTGTATTTCTGTGCCAGCAGCCAAGA";
-        expected_cigar = "253D33=1D27I";
+        expected_core_cigar = "253N33=1N27S";  // Updated to AIRR: N for ref gaps, S for query gaps
+        expected_extended_cigar = "253N33=1X26S";
         expected_score = 165;
     }
 
@@ -728,7 +777,8 @@ TEST_CASE("Aligner V gene best alignment matches expected CIGAR and score on rea
                 "GATGCTGATGTTACCCAGACCCCAAGGAATAGGATCACAAAGACAGGAAAGAGGATTATGCTGGAATGTTCTCAGACTAAGGGTCATGATAGAATGTACTGG"
                 "TATCGACAAGACCCAGGACTGGGCCTACGGTTGATCTATTACTCCTTTGATGTCAAAGATATAAACAAAGGAGAGATCTCTGATGGATACAGTGTCTCTCGA"
                 "CAGGCACAGGCTAAATTCTCCCTGTCCCTAGAGTCTGCCATCCCCAACCAGACAGCTCTTTACTTCTGTGCCACCAGTGATTTG";
-        expected_cigar = "247D32=9D28I";
+        expected_core_cigar = "247N32=9N28S";  // Updated to AIRR: N for ref gaps, S for query gaps
+        expected_extended_cigar = "247N32=9X19S";
         expected_score = 160;
     }
 
@@ -739,7 +789,8 @@ TEST_CASE("Aligner V gene best alignment matches expected CIGAR and score on rea
                 "GATGCTGATGTTACCCAGACCCCAAGGAATAGGATCACAAAGACAGGAAAGAGGATTATGCTGGAATGTTCTCAGACTAAGGGTCATGATAGAATGTACTGG"
                 "TATCGACAAGACCCAGGACTGGGCCTACGGTTGATCTATTACTCCTTTGATGTCAAAGATATAAACAAAGGAGAGATCTCTGATGGATACAGTGTCTCTCGA"
                 "CAGGCACAGGCTAAATTCTCCCTGTCCCTAGAGTCTGCCATCCCCAACCAGACAGCTCTTTACTTCTGTGCCACCAGTGATTTG";
-        expected_cigar = "252D22=1X13=24I";
+        expected_core_cigar = "252N22=1X13=24S";  // Updated to AIRR: N for ref gaps, S for query gaps
+        expected_extended_cigar = expected_core_cigar;
         expected_score = 161;
     }
 
@@ -750,14 +801,15 @@ TEST_CASE("Aligner V gene best alignment matches expected CIGAR and score on rea
                 "AATGCTGGTGTCACTCAGACCCCAAAATTCCGCATCCTGAAGATAGGACAGAGCATGACACTGCAGTGTGCCCAGGATATGAACCATAACTACATGTACTGG"
                 "TATCGACAAGACCCAGGCATGGGGCTGAAGCTGATTTATTATTCAGTTGGTGCTGGTATCACTGACAAAGGAGAAGTCCCGAATGGCTACAACGTCTCCAGA"
                 "TCAACCACAGAGGATTTCCCGCTCAGGCTGGAGTTGGCTGCTCCCTCCCAGACATCTGTGTACTTCTGTGCCAGCAGTTACTC";
-        expected_cigar = "258D1X24=4D35I";
+        expected_core_cigar = "258N1X24=4N35S";  // Updated to AIRR: N for ref gaps, S for query gaps
+        expected_extended_cigar = "258N1X24=4X31S";
         expected_score = 106;
     }
 
     const std::vector<std::pair<std::string, std::string>> genomic_templates = { { "g1", germline_ref } };
     auto aligner = make_legacy_aligner(matrix, gap_penalty, V_gene, genomic_templates);
     const auto alignments = aligner.align_seq(query_read, -1000.0, true, true, INT16_MIN, INT16_MAX);
-    assert_best_alignment_matches(alignments, query_read, genomic_templates, { "g1", expected_cigar, expected_score });
+    assert_best_alignment_matches(alignments, query_read, genomic_templates, { "g1", expected_core_cigar, expected_extended_cigar, expected_score });
 }
 
 TEST_CASE("Legacy Aligner strict set matching when best_only is false", "[aligner][sw][cigar]")
@@ -770,7 +822,7 @@ TEST_CASE("Legacy Aligner strict set matching when best_only is false", "[aligne
     auto aligner = make_legacy_aligner(matrix, gap_penalty, D_gene, genomic_templates);
     const auto alignments = aligner.align_seq(query, -1000.0, false, false, INT16_MIN, INT16_MAX);
 
-    assert_alignment_set_matches(alignments, query, genomic_templates, { { "g1", "4=", 8.0 }, { "g2", "4=", 8.0 } });
+    assert_alignment_set_matches(alignments, query, genomic_templates, { { "g1", "4=", "4=", 8.0 }, { "g2", "4=", "4=", 8.0 } });
 }
 
 TEST_CASE("Aligner V gene best alignment matches expected CSV format data",
@@ -810,7 +862,7 @@ TEST_CASE("Aligner V gene best alignment matches expected CSV format data",
     assert_alignment_data_matches(*best_it, expected_csv_line, query_read, genomic_templates);
 }
 
-TEST_CASE("zzz",
+TEST_CASE("Dropping extended gaps must trigger failure of Alignment data comparison.",
           "[aligner][V_gene][legacy_csv][!shouldfail]")
 {
     const Matrix<double> matrix = build_test_score_matrix(5.0, -14.0);

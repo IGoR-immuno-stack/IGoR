@@ -210,12 +210,16 @@ private:
 };
 
 CORE_EXPORT std::vector<std::pair<int, char>> parse_cigar(const std::string &cigar);
-CORE_EXPORT std::string alignment_data_to_cigar(const Alignment_data &aln);
-CORE_EXPORT std::string alignment_data_to_cigar_full_span(const Alignment_data &aln, size_t sequence_length,
-                                                          size_t germline_length);
+CORE_EXPORT std::string alignment_data_to_core_cigar(const Alignment_data &aln);
+CORE_EXPORT std::string alignment_data_to_core_cigar(const Alignment_data &aln, size_t sequence_length,
+                                                           size_t germline_length);
+CORE_EXPORT std::string alignment_data_to_extended_cigar(const Alignment_data &aln, size_t sequence_length,
+                                                           size_t germline_length);
 CORE_EXPORT Alignment_data alignment_data_from_cigar(const std::string &gene_name, const std::string &cigar,
                                                      int seq_start_1based, int seq_end_1based, int ref_start_1based,
                                                      int ref_end_1based, double score);
+CORE_EXPORT Alignment_data alignment_data_from_cigar_and_extended(const std::string &gene_name, const std::string &core_cigar,
+                                                                 const std::string &extended_cigar, double score);
 CORE_EXPORT int alignment_data_sequence_start(const Alignment_data &aln);
 CORE_EXPORT int alignment_data_sequence_end(const Alignment_data &aln);
 CORE_EXPORT int alignment_data_germline_start(const Alignment_data &aln);
