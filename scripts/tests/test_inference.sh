@@ -4,7 +4,7 @@ set -euo pipefail
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 source $SCRIPT_DIR/config.sh
 OUTDIR="${1:-$(mktemp -d)}"
-IGORCALL="$IGORBIN -w $OUTDIR -j 1"
+IGORCALL="$IGORBIN -w $OUTDIR"
 
 $IGORCALL init
 $IGORCALL config set model.source custom
