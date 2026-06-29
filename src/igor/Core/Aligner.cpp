@@ -2300,7 +2300,7 @@ SwReconstructionResult traceback_sw_alignments(const Int_Str &int_data_sequence,
                 vector<int> extended_mismatches_5p;
                 vector<int> extended_mismatches_3p;
 
-                if(! config.alignment_mode.is_local_alignment()){
+                if(config.alignment_mode.is_local_alignment()){
                     // 5' extension: extend from the start of the alignment
                     extended_mismatches_5p = ungapped_extend_align_5p_from_dp(
                             prepared, i, j, data_seq_size, genomic_seq_size, flip_seqs, dp.n_rows, dp.n_cols);
