@@ -1004,133 +1004,191 @@ Alignment_data alignment_data_from_cigar(const std::string &gene_name, const std
 
 /**
  * Construct Alignment_data from core CIGAR and extended CIGAR strings.
- * This function takes separate core and extended CIGAR strings to reconstruct a complete
- * Alignment_data object with all fields properly populated.
  * 
- * The core_cigar represents the main alignment region (using =, X, M, D, I operators)
- * and is used to extract the core alignment information.
+ * Rules:
+ * - offset: if extended CIGAR has leading N, offset = - (number of leading N)
+ *           if extended CIGAR has leading S, offset = + (number of leading S)
+ *           there should never be both leading N and S (invalid extended CIGAR)
+ * - five_p_offset = number of leading "S" in the core CIGAR
+ * - three_p_offset = five_p_offset + (number of =, X, M, I in core CIGAR) - 1
+ * - align_length = count of =, X, M, I, D in core CIGAR
  * 
- * The extended_cigar represents the complete alignment including extended regions,
- * using AIRR-standard operators:
- * - S (Soft clip) for query-only gaps at alignment ends
- * - N (Gap) for reference-only gaps at alignment ends
- * - Standard operators (=, X, M, D, I) for the core alignment
+ * The extended_cigar is used to extract ALL mismatches (X operators).
+ * The core_cigar is used to extract insertions (I) and deletions (D).
  * 
- * The function parses both CIGAR strings to extract:
- * - All mismatch positions (from both core and extended regions)
- * - All insertions and deletions (from both core and extended regions)
- * - Alignment bounds (five_p_offset, three_p_offset)
- * - Offset (difference between sequence and reference at alignment start)
- * - Alignment length
- * 
- * Note: This provides a cleaner API than position-based constructors, as all
- * information is derived from the CIGAR strings themselves.
+ * Validation: Extended CIGAR should not have both leading N and S,
+ * and should not have both trailing N and S.
  */
 Alignment_data alignment_data_from_cigar_and_extended(const std::string &gene_name, const std::string &core_cigar,
-                                                   const std::string &extended_cigar, double score)
+                                                      const std::string &extended_cigar, double score)
 {
-    // For now, use the extended_cigar to extract all information
-    // The extended_cigar should be a full-span CIGAR that includes both core and extended regions
-    
-    // We'll parse the extended_cigar to extract all alignment information
-    // Track positions and collect all features
-    int seq_pos = 0;  // 0-based sequence position
-    int ref_pos = 0;  // 0-based reference position
-    
-    std::forward_list<int> insertions;
-    std::forward_list<int> deletions;
+    // Parse extended CIGAR once
+    const auto ext_entries = parse_cigar(extended_cigar);
+
+    // Validate and compute offset from extended CIGAR
+    int offset = 0;
+    bool has_leading_n = false;
+    bool has_leading_s = false;
+    bool has_trailing_n = false;
+    bool has_trailing_s = false;
+    bool seen_non_gap = false;
+
+    // Find last non-gap index and check leading gaps
+    size_t last_non_gap_index = 0;
+    for (size_t i = 0; i < ext_entries.size(); ++i) {
+        char op = ext_entries[i].second;
+
+        // Check for leading gaps
+        if (!seen_non_gap) {
+            if (op == 'N') {
+                has_leading_n = true;
+                offset -= ext_entries[i].first;
+            } else if (op == 'S') {
+                has_leading_s = true;
+                offset += ext_entries[i].first;
+            } else {
+                seen_non_gap = true;
+            }
+        }
+
+        // Track last non-gap entry
+        if (op != 'N' && op != 'S') {
+            last_non_gap_index = i;
+            seen_non_gap = true;
+        }
+    }
+
+    // Validate leading gaps
+    if (has_leading_n && has_leading_s) {
+        throw std::invalid_argument("Invalid extended CIGAR: has both leading N and S");
+    }
+
+    // Check trailing gaps (after last non-gap entry)
+    for (size_t i = last_non_gap_index + 1; i < ext_entries.size(); ++i) {
+        char op = ext_entries[i].second;
+        if (op == 'N') {
+            has_trailing_n = true;
+        } else if (op == 'S') {
+            has_trailing_s = true;
+        }
+    }
+
+    // Validate trailing gaps
+    if (has_trailing_n && has_trailing_s) {
+        throw std::invalid_argument("Invalid extended CIGAR: has both trailing N and S");
+    }
+
+    // Record mismatches from extended CIGAR
     std::vector<int> mismatches;
-    size_t align_length = 0;
-    
-    // Core alignment bounds
-    int core_start_seq = -1, core_start_ref = -1;
-    int core_end_seq = -1, core_end_ref = -1;
-    bool in_core = false;
-    
-    for (const auto &entry : parse_cigar(extended_cigar)) {
+    std::vector<int> insertions;
+    std::vector<int> deletions;
+    // Keep track of both query and reference implied indices/positions
+    int seq_pos_ext = 0;
+    int ref_pos = 0;
+
+    for (const auto &entry : ext_entries) {
         int count = entry.first;
         char op = entry.second;
-        
-        // Determine if this is part of the core alignment
-        // Core alignment uses =, X, M, D, I operators
-        bool is_core_op = (op == '=' || op == 'X' || op == 'M' || op == 'D' || op == 'I');
-        
-        // Track core region entry/exit
-        if (is_core_op && !in_core) {
-            in_core = true;
-            core_start_seq = seq_pos;
-            core_start_ref = ref_pos;
-        } else if (!is_core_op && in_core) {
-            in_core = false;
-            core_end_seq = seq_pos - 1;
-            core_end_ref = ref_pos - 1;
-        }
-        
-        // Process each position in this CIGAR entry
+
         for (int i = 0; i < count; ++i) {
             switch (op) {
             case '=':
             case 'X':
             case 'M':
-                if (in_core) {
-                    if (op == 'X') {
-                        mismatches.push_back(seq_pos);
-                    }
-                    align_length++;
+                if (op == 'X') {
+                    mismatches.push_back(seq_pos_ext);
                 }
-                seq_pos++;
+                seq_pos_ext++;
                 ref_pos++;
                 break;
-                
             case 'I':
-                if (in_core) {
-                    insertions.push_front(seq_pos);
-                    align_length++;
-                }
-                seq_pos++;
+                insertions.push_back(seq_pos_ext);
+                seq_pos_ext++;
                 break;
-                
             case 'D':
-                if (in_core) {
-                    deletions.push_front(ref_pos);
-                    align_length++;
-                }
+                deletions.push_back(ref_pos);
                 ref_pos++;
-                break;
-                
             case 'S':
-                // Soft clip - query only, not in reference
-                seq_pos++;
-                break;
-                
             case 'N':
-                // Gap - reference only, not in query
-                ref_pos++;
+                // Don't advance position for D, S, N
                 break;
-                
             default:
-                // Ignore other operators (H, P)
                 break;
             }
         }
     }
-    
-    // Handle case where we end in core region
-    if (in_core) {
-        core_end_seq = seq_pos - 1;
-        core_end_ref = ref_pos - 1;
+
+    // Parse core CIGAR once
+    const auto core_entries = parse_cigar(core_cigar);
+
+    // Parse core CIGAR to get alignment bounds, length, insertions, and deletions
+    size_t five_p_offset = 0;
+    size_t align_length = 0;
+    size_t seq_pos_for_aln = 0; // counts =, X, M, I only (for three_p_offset)
+    size_t seq_pos_for_ins = 0; // counts =, X, M only (for insertion positions)
+    bool first_non_s_or_n = false;
+
+    for (const auto &entry : core_entries) {
+        int count = entry.first;
+        char op = entry.second;
+
+        // Count leading S for five_p_offset, account for possible leading N too.
+        if(!first_non_s_or_n){
+            switch (op)
+            {
+            case 'S':
+                five_p_offset += count;
+                break;
+            case 'N':
+                // Do nothing
+                break;
+            default:
+                // First non S or N encountered
+                first_non_s_or_n = true;
+                break;
+            }
+        }
+
+        for (int i = 0; i < count; ++i) {
+            switch (op) {
+            case '=':
+            case 'X':
+            case 'M':
+                seq_pos_for_aln++;
+                seq_pos_for_ins++;
+                align_length++;
+                break;
+            case 'I':
+                seq_pos_for_aln++;
+                seq_pos_for_ins++;
+                align_length++;
+                break;
+            case 'D':
+                align_length++;
+                break;
+            case 'S':
+                // S doesn't count towards alignment positions
+                // (leading S are counted in five_p_offset, trailing S are ignored)
+                break;
+            case 'N':
+                // N doesn't count in core alignment
+                break;
+            default:
+                break;
+            }
+        }
     }
-    
-    // Compute offset and positions
-    int offset = core_start_seq - core_start_ref;
-    size_t five_p_offset = static_cast<size_t>(core_start_seq);
-    size_t three_p_offset = static_cast<size_t>(core_end_seq);
-    
-    // Sort mismatches
+
+    // Compute three_p_offset
+    // three_p_offset = five_p_offset + (number of =, X, M, I) - 1
+    size_t three_p_offset = five_p_offset + seq_pos_for_aln - 1;
+
+    // Sort mismatches for consistency
     std::sort(mismatches.begin(), mismatches.end());
-    
+
     return Alignment_data(gene_name, offset, five_p_offset, three_p_offset, align_length,
-                          insertions, deletions, mismatches, score);
+                          forward_list(insertions.begin(), insertions.end()),
+                          forward_list(deletions.begin(), deletions.end()), mismatches, score);
 }
 
 int alignment_data_sequence_start(const Alignment_data &aln)
@@ -1215,6 +1273,50 @@ vector<int> extend_alignment_mismatches(const Int_Str &int_data_sequence, const 
     }
 
     return extended_mismatches;
+}
+
+/**
+ * Compare two Alignment_data objects for equality.
+ * Two alignments are considered equal if they have:
+ * - Same gene name
+ * - Same offset
+ * - Same five_p_offset and three_p_offset
+ * - Same insertions, deletions, mismatches (as sets, order-independent)
+ * - Same align_length
+ * - Same score (within tolerance)
+ *
+ * \param a First alignment to compare
+ * \param b Second alignment to compare
+ * \param score_tolerance Tolerance for score comparison (default: 1e-9)
+ * \return true if alignments are considered equal, false otherwise
+ */
+bool alignment_data_equal(const Alignment_data &a, const Alignment_data &b, double score_tolerance /*= 1e-9*/)
+{
+    using namespace std;
+    // Check basic fields
+    if (a.gene_name != b.gene_name) return false;
+    if (a.offset != b.offset) return false;
+    if (a.five_p_offset != b.five_p_offset) return false;
+    if (a.three_p_offset != b.three_p_offset) return false;
+    if (a.align_length != b.align_length) return false;
+    if (fabs(a.score - b.score) > score_tolerance) return false;
+    
+    // Check insertions (convert to sets for order-independent comparison)
+    unordered_set<int> a_ins(a.insertions.begin(), a.insertions.end());
+    unordered_set<int> b_ins(b.insertions.begin(), b.insertions.end());
+    if (a_ins != b_ins) return false;
+    
+    // Check deletions
+    unordered_set<int> a_del(a.deletions.begin(), a.deletions.end());
+    unordered_set<int> b_del(b.deletions.begin(), b.deletions.end());
+    if (a_del != b_del) return false;
+    
+    // Check mismatches (already sorted, but compare as sets to be safe)
+    unordered_set<int> a_mis(a.mismatches.begin(), a.mismatches.end());
+    unordered_set<int> b_mis(b.mismatches.begin(), b.mismatches.end());
+    if (a_mis != b_mis) return false;
+    
+    return true;
 }
 
 /*

@@ -15,6 +15,50 @@ static std::vector<int> sorted_list(std::forward_list<int> xs)
     return out;
 }
 
+/**
+ * Compare two Alignment_data objects for equality.
+ * Two alignments are considered equal if they have:
+ * - Same gene name
+ * - Same offset
+ * - Same five_p_offset and three_p_offset
+ * - Same insertions, deletions, mismatches (as sets, order-independent)
+ * - Same align_length
+ * - Same score (within tolerance)
+ *
+ * \param a First alignment to compare
+ * \param b Second alignment to compare
+ * \param score_tolerance Tolerance for score comparison (default: 1e-9)
+ * \return true if alignments are considered equal, false otherwise
+ */
+bool check_alignment_data_equal(const Alignment_data &a, const Alignment_data &b, double score_tolerance = 1e-9)
+{
+    using namespace std;
+    // Check basic fields
+    REQUIRE(a.gene_name == b.gene_name);
+    REQUIRE(a.offset == b.offset);
+    REQUIRE(a.five_p_offset == b.five_p_offset);
+    REQUIRE(a.three_p_offset == b.three_p_offset);
+    REQUIRE(a.align_length == b.align_length);
+    REQUIRE(fabs(a.score - b.score) <= score_tolerance);
+    
+    // Check insertions (convert to sets for order-independent comparison)
+    unordered_set<int> a_ins(a.insertions.begin(), a.insertions.end());
+    unordered_set<int> b_ins(b.insertions.begin(), b.insertions.end());
+    REQUIRE(a_ins == b_ins);
+    
+    // Check deletions
+    unordered_set<int> a_del(a.deletions.begin(), a.deletions.end());
+    unordered_set<int> b_del(b.deletions.begin(), b.deletions.end());
+    REQUIRE(a_del == b_del);
+    
+    // Check mismatches (already sorted, but compare as sets to be safe)
+    unordered_set<int> a_mis(a.mismatches.begin(), a.mismatches.end());
+    unordered_set<int> b_mis(b.mismatches.begin(), b.mismatches.end());
+    REQUIRE(a_mis == b_mis);
+    
+    return true;
+}
+
 TEST_CASE("parse extended CIGAR", "[cigar]")
 {
     auto ops = parse_cigar("3=1X2I4D5M");
@@ -312,4 +356,179 @@ TEST_CASE("alignment data to extended CIGAR edge cases", "[cigar]")
         INFO("D gene local alignment extended CIGAR: " << extended_cigar);
         REQUIRE(extended_cigar == expected);
     }
+}
+
+TEST_CASE("CIGAR to alignment data basic cases", "[cigar]")
+{
+    Alignment_data expected_aln("dummy", 0, 0, 0, 0, { }, { }, { }, 0);
+    std::string core_cigar;
+    std::string extended_cigar;
+    std::string gene_name;
+    double score;
+
+    SECTION("Complete alignment with no gaps")
+    {
+        expected_aln = Alignment_data("g", 0, 0, 9, 10, { }, { }, { }, 10);
+        core_cigar = "10=";
+        extended_cigar = core_cigar;
+        gene_name = "g";
+        score = 10;
+    }
+
+    SECTION("Core alignment with mismatches")
+    {
+        expected_aln = Alignment_data("g", 0, 0, 9, 10, { }, { }, { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 }, 10);
+        core_cigar = "10X";
+        extended_cigar = core_cigar;
+        gene_name = "g";
+        score = 10;
+    }
+
+    SECTION("Core alignment with insertions")
+    {
+        expected_aln = Alignment_data("g", 0, 0, 12, 13, { 7, 6, 5 }, { }, { }, 10);
+        core_cigar = "5=3I5=";
+        extended_cigar = core_cigar;
+        gene_name = "g";
+        score = 10;
+    }
+
+    SECTION("Core alignment with deletions")
+    {
+        expected_aln = Alignment_data("g", 0, 0, 9, 12, { }, { 5, 4 }, { }, 10);
+        core_cigar = "4=2D6=";
+        extended_cigar = core_cigar;
+        gene_name = "g";
+        score = 10;
+    }
+
+    auto aln = alignment_data_from_cigar_and_extended(gene_name, core_cigar, extended_cigar, score);
+    check_alignment_data_equal(expected_aln, aln);
+}
+
+TEST_CASE("CIGAR to alignment data with end gaps", "[cigar]")
+{
+    Alignment_data expected_aln("dummy", 0, 0, 0, 0, { }, { }, { }, 0);
+    std::string core_cigar;
+    std::string extended_cigar;
+    std::string gene_name;
+    double score;
+
+    SECTION("Leading reference gaps")
+    {
+        expected_aln = Alignment_data("gene", -5, 0, 10, 11, { }, { }, { }, 10);
+        core_cigar = "5N11=";
+        extended_cigar = core_cigar;
+        gene_name = "gene";
+        score = 10;
+    }
+
+    SECTION("Trailing reference gaps")
+    {
+        expected_aln = Alignment_data("gene", 0, 0, 10, 11, { }, { }, { }, 10);
+        core_cigar = "11=5N";
+        extended_cigar = core_cigar;
+        gene_name = "gene";
+        score = 10;
+    }
+
+    SECTION("Leading query gaps")
+    {
+        expected_aln = Alignment_data("gene", 5, 5, 15, 11, { }, { }, { }, 10);
+        core_cigar = "5S11=";
+        extended_cigar = core_cigar;
+        gene_name = "gene";
+        score = 10;
+    }
+
+    SECTION("Trailing query gaps")
+    {
+        expected_aln = Alignment_data("gene", 0, 0, 10, 11, { }, { }, { }, 10);
+        core_cigar = "11=5S";
+        extended_cigar = core_cigar;
+        gene_name = "gene";
+        score = 10;
+    }
+
+    auto aln = alignment_data_from_cigar_and_extended(gene_name, core_cigar, extended_cigar, score);
+    check_alignment_data_equal(expected_aln, aln);
+}
+
+TEST_CASE("CIGAR to alignment data with extended mismatches", "[cigar]")
+{
+    Alignment_data expected_aln("dummy", 0, 0, 0, 0, { }, { }, { }, 0);
+    std::string core_cigar;
+    std::string extended_cigar;
+    std::string gene_name;
+    double score;
+
+    SECTION("Only matches in leading extended region")
+    {
+        expected_aln = Alignment_data("gene", 0, 2, 9, 8, { }, { }, { }, 10);
+        core_cigar = "2N2S8=";
+        extended_cigar = "10=";
+        gene_name = "gene";
+        score = 10;
+    }
+
+    SECTION("Mismatches in leading extended region")
+    {
+        expected_aln = Alignment_data("gene", 0, 2, 9, 8, { }, { }, { 0, 1 }, 10);
+        core_cigar = "2N2S8=";
+        extended_cigar = "2X8=";
+        gene_name = "gene";
+        score = 10;
+    }
+
+    SECTION("Mixed case with negative offset implying remaining leading deletion")
+    {
+        expected_aln = Alignment_data("gene", -2, 2, 9, 8, { }, { }, { 1 }, 10);
+        core_cigar = "4N2S8=";
+        extended_cigar = "2N1=1X8=";
+        gene_name = "gene";
+        score = 10;
+    }
+
+    SECTION("Only matches in trailing extended region")
+    {
+        expected_aln = Alignment_data("gene", 0, 0, 7, 8, { }, { }, { }, 10);
+        core_cigar = "8=2N2S";
+        extended_cigar = "10=";
+        gene_name = "gene";
+        score = 10;
+    }
+
+    SECTION("Mismatches in trailing extended region")
+    {
+        expected_aln = Alignment_data("gene", 0, 0, 7, 8, { }, { }, { 8, 9 }, 10);
+        core_cigar = "8=2N2S";
+        extended_cigar = "8=2X";
+        gene_name = "gene";
+        score = 10;
+    }
+
+    SECTION("Mixed case with longer reference implying remaining trailing deletion")
+    {
+        expected_aln = Alignment_data("gene", 0, 0, 7, 8, { }, { }, { 8 }, 10);
+        core_cigar = "8=4N2S";
+        extended_cigar = "8=1X1=2N";
+        gene_name = "gene";
+        score = 10;
+    }
+
+    SECTION("Both mixed cases at once")
+    {
+        expected_aln = Alignment_data("gene", -2, 2, 7, 6, { }, { }, { 1, 8 }, 10);
+        core_cigar = "4N2S6=4N2S";
+        extended_cigar = "2N1=1X6=1X1=2N";
+        gene_name = "gene";
+        score = 10;
+    }
+
+    
+    REQUIRE_THROWS_AS(alignment_data_from_cigar_and_extended(gene_name, core_cigar, core_cigar, score),  std::invalid_argument);
+    auto extend_only_aln = alignment_data_from_cigar_and_extended(gene_name, extended_cigar, extended_cigar, score);
+    auto aln = alignment_data_from_cigar_and_extended(gene_name, core_cigar, extended_cigar, score);
+    REQUIRE(!alignment_data_equal(extend_only_aln, aln));
+    check_alignment_data_equal(expected_aln, aln);
 }

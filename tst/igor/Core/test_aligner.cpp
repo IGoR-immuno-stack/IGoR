@@ -168,50 +168,6 @@ ActualAlignment best_alignment(const std::forward_list<Alignment_data> &alignmen
     return { best_it->gene_name, alignment_data_to_core_cigar(*best_it), best_it->score };
 }
 
-/**
- * Compare two Alignment_data objects for equality.
- * Two alignments are considered equal if they have:
- * - Same gene name
- * - Same offset
- * - Same five_p_offset and three_p_offset
- * - Same insertions, deletions, mismatches (as sets, order-independent)
- * - Same align_length
- * - Same score (within tolerance)
- *
- * \param a First alignment to compare
- * \param b Second alignment to compare
- * \param score_tolerance Tolerance for score comparison (default: 1e-9)
- * \return true if alignments are considered equal, false otherwise
- */
-bool alignment_data_equal(const Alignment_data &a, const Alignment_data &b, double score_tolerance = 1e-9)
-{
-    using namespace std;
-    // Check basic fields
-    if (a.gene_name != b.gene_name) return false;
-    if (a.offset != b.offset) return false;
-    if (a.five_p_offset != b.five_p_offset) return false;
-    if (a.three_p_offset != b.three_p_offset) return false;
-    if (a.align_length != b.align_length) return false;
-    if (fabs(a.score - b.score) > score_tolerance) return false;
-    
-    // Check insertions (convert to sets for order-independent comparison)
-    unordered_set<int> a_ins(a.insertions.begin(), a.insertions.end());
-    unordered_set<int> b_ins(b.insertions.begin(), b.insertions.end());
-    if (a_ins != b_ins) return false;
-    
-    // Check deletions
-    unordered_set<int> a_del(a.deletions.begin(), a.deletions.end());
-    unordered_set<int> b_del(b.deletions.begin(), b.deletions.end());
-    if (a_del != b_del) return false;
-    
-    // Check mismatches (already sorted, but compare as sets to be safe)
-    unordered_set<int> a_mis(a.mismatches.begin(), a.mismatches.end());
-    unordered_set<int> b_mis(b.mismatches.begin(), b.mismatches.end());
-    if (a_mis != b_mis) return false;
-    
-    return true;
-}
-
 std::string add_cigar_visual_info(const std::string &query,
                                   const std::vector<std::pair<std::string, std::string>> &genomic_templates,
                                   const std::string &label, const std::string &gene_name, const std::string &cigar)

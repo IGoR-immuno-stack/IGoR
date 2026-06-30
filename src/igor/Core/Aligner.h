@@ -227,6 +227,7 @@ CORE_EXPORT int alignment_data_germline_end(const Alignment_data &aln);
 // Standalone function for external alignment import
 std::vector<int> extend_alignment_mismatches(const Int_Str &int_data_sequence, const Int_Str &int_genomic_sequence,
                                         const Alignment_data aln);
+CORE_EXPORT bool alignment_data_equal(const Alignment_data &a, const Alignment_data &b, double score_tolerance = 1e-9);
 
 std::pair<int, Alignment_data> parse_single_alignment_csv_line(const std::string &line);
 CORE_EXPORT std::unordered_map<int, std::pair<std::string, std::unordered_map<Gene_class, std::vector<Alignment_data>>>>
