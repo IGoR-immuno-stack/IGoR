@@ -210,7 +210,7 @@ private:
 };
 
 CORE_EXPORT std::vector<std::pair<int, char>> parse_cigar(const std::string &cigar);
-CORE_EXPORT std::string alignment_data_to_core_cigar(const Alignment_data &aln);
+std::string alignment_data_to_core_cigar(const Alignment_data &aln);
 CORE_EXPORT std::string alignment_data_to_core_cigar(const Alignment_data &aln, size_t sequence_length,
                                                            size_t germline_length);
 CORE_EXPORT std::string alignment_data_to_extended_cigar(const Alignment_data &aln, size_t sequence_length,
