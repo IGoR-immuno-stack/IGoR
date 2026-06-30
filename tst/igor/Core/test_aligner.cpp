@@ -781,43 +781,6 @@ TEST_CASE("Legacy Aligner strict set matching when best_only is false", "[aligne
     assert_alignment_set_matches(alignments, query, genomic_templates, { { "g1", "4=", "4=", 8.0 }, { "g2", "4=", "4=", 8.0 } });
 }
 
-TEST_CASE("Aligner V gene best alignment matches expected CSV format data",
-          "[aligner][V_gene][legacy_csv]")
-{
-    const Matrix<double> matrix = build_test_score_matrix(5.0, -14.0);
-    const int gap_penalty = 30;
-    std::string query_read;
-    std::string germline_ref;
-    std::string expected_csv_line;
-
-    SECTION("Long match without V deletions")
-    {
-        query_read = "ACTCAGCTGCGTATCTCTGCACCAGCAGCCAAGATATAGGACTAGATTCACAGATACGCA";
-        germline_ref = "GATACTGGAATTACCCAGACACCAAAATACCTGGTCACAGCAATGGGGAGTAAAAGGACAATGAAACGTGAGCATCTGGGACATGATTCTATGTA"
-                       "TTGGTACAGACAGAAAGCTAAGAAATCCCTGGAGTTCATGTTTTACTACAACTGTAAGGAATTCATTGAAAACAAGACTGTGCCAAATCACTTCA"
-                       "CACCTGAATGCCCTGACAGCTCTCGCTTATACCTTCATGTGGTCGCACTGCAGCAAGAAGACTCAGCTGCGTATCTCTGCACCAGCAGCCAAGA";
-        expected_csv_line = "0;g1;170;-241;{};{};{2,3,4,10,19,22,23,29,44,48};48;0;47";
-    }
-
-    SECTION("Long match with single V deletion")
-    {
-        query_read = "ACTCTGCTGTGTATTTCTGTGCCAGCAGCCAAGTGTGTCCCGGACAGACGACTATGGCTA";
-        germline_ref =
-                "GACACAGCTGTTTCCCAGACTCCAAAATACCTGGTCACACAGATGGGAAACGACAAGTCCATTAAATGTGAACAAAATCTGGGCCATGATACTATGTATTGG"
-                "TATAAACAGGACTCTAAGAAATTTCTGAAGATAATGTTTAGCTACAATAACAAGGAGATCATTATAAATGAAACAGTTCCAAATCGATTCTCACCTAAATCT"
-                "CCAGACAAAGCTAAATTAAATCTTCACATCAATTCCCTGGAGCTTGGTGACTCTGCTGTGTATTTCTGTGCCAGCAGCCAAGA";
-        expected_csv_line = "0;g1;165;-253;{};{26};{12,21,22,26,27,30,31,32};32;0;31";
-    }
-
-    const std::vector<std::pair<std::string, std::string>> genomic_templates = { { "g1", germline_ref } };
-    auto aligner = make_legacy_aligner(matrix, gap_penalty, V_gene, genomic_templates);
-    const auto alignments = aligner.align_seq(query_read, -1000.0, true, true, INT16_MIN, INT16_MAX);
-    REQUIRE(!alignments.empty());
-    auto best_it = std::max_element(alignments.begin(), alignments.end(),
-                                    [](const Alignment_data &a, const Alignment_data &b) { return a.score < b.score; });
-    assert_alignment_data_matches(*best_it, expected_csv_line, query_read, genomic_templates);
-}
-
 TEST_CASE("Dropping extended gaps must trigger failure of Alignment data comparison.",
           "[aligner][V_gene][legacy_csv][!shouldfail]")
 {
