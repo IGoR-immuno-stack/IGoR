@@ -35,6 +35,7 @@
 #include <tuple>
 #include <stdexcept>
 #include <iostream>
+#include <iomanip>
 #include <igor/Core/IntStr.h>
 #include <memory>
 #include <list>
@@ -256,6 +257,30 @@ public:
     //Accessors
     const int &get_n_rows() const { return rows; }
     const int &get_n_cols() const { return cols; }
+
+    // Debug print
+    void print(std::ostream &out = std::cout) const {
+        out << rows << "x" << cols << " Matrix\n";
+        if (rows == 0 || cols == 0) return;
+        // Find max display width using string stream
+        size_t max_width = 1;
+        std::ostringstream oss;
+        for (int k = 0; k < rows * cols; ++k) {
+            oss.str("");
+            oss.clear();
+            oss << array_p[k];
+            size_t len = oss.str().size();
+            if (len > max_width) max_width = len;
+        }
+        // Print with fixed width
+        for (int i = 0; i < rows; ++i) {
+            for (int j = 0; j < cols; ++j) {
+                if (j > 0) out << " ";
+                out << std::setw(static_cast<int>(max_width)) << std::right << array_p[i + j * rows];
+            }
+            out << "\n";
+        }
+    }
 
 private:
     int rows;

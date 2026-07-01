@@ -35,6 +35,7 @@ public
 *.gcov
 coverage_report
 default.profdata
+regression_reports/*
 
 ## ###################################################################
 ## Install tree

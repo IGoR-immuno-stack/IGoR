@@ -1,0 +1,44 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "(gdb) Launch",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/bin/igor_tests",
+      "args": [],
+      "stopAtEntry": false,
+      "cwd": "${workspaceFolder}",
+      "environment": [],
+      "externalConsole": false,
+      "MIMode": "gdb",
+      "setupCommands": [
+        {
+          "description": "Enable pretty-printing for gdb",
+          "text": "-enable-pretty-printing",
+          "ignoreFailures": true
+        },
+        {
+          "description": "Auto-load local .gdbinit",
+          "text": "-iex 'add-auto-load-safe-path ${workspaceFolder}'",
+          "ignoreFailures": true
+        },
+        {
+          "description": "Set Disassembly Flavor to Intel",
+          "text": "-gdb-set disassembly-flavor intel",
+          "ignoreFailures": true
+        },
+        {
+          // Not sure why this has to be broken in two commands...
+          "text": "cd ${workspaceFolder}"
+        },
+        {
+          // ... but it finally works.
+          // Refs: https://github.com/matepek/vscode-catch2-test-adapter/issues/439
+          // and https://github.com/matepek/vscode-catch2-test-adapter/issues/363
+          "text": "source ./.gdbinit"
+        }
+      ]
+    },
+  ]
+}

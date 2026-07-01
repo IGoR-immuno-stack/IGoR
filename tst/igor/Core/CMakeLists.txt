@@ -1,6 +1,8 @@
 ### CMakeLists.txt ---
 
 set(CORE_TEST_SOURCES
+    test_aligner.cpp
+    test_alignment_cigar.cpp
     test_Contexts.cpp
     test_EventUtils.cpp
     test_fast_sampling.cpp
@@ -8,6 +10,7 @@ set(CORE_TEST_SOURCES
     test_inference.cpp
     test_sanity.cpp
     test_utils.cpp
+    AlignerTestUtils.cpp
 )
 
 add_executable(igor_tests ${CORE_TEST_SOURCES})
