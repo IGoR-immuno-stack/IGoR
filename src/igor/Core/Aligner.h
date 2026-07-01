@@ -229,7 +229,7 @@ std::vector<int> extend_alignment_mismatches(const Int_Str &int_data_sequence, c
                                         const Alignment_data aln);
 CORE_EXPORT bool alignment_data_equal(const Alignment_data &a, const Alignment_data &b, double score_tolerance = 1e-9);
 
-std::pair<int, Alignment_data> parse_single_alignment_csv_line(const std::string &line);
+CORE_EXPORT std::pair<int, Alignment_data> parse_single_alignment_csv_line(const std::string &line);
 CORE_EXPORT std::unordered_map<int, std::pair<std::string, std::unordered_map<Gene_class, std::vector<Alignment_data>>>>
 read_alignments_seq_csv(const std::string &, Gene_class, double, bool,
                         const std::vector<std::pair<const int, const std::string>> &);
