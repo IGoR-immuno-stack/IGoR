@@ -319,8 +319,8 @@ struct SwPreparedInputs;
 SwPreparedInputs prepare_sw_inputs(const Int_Str &int_data_sequence, const Int_Str &int_genomic_sequence,
                                    const SwDPConfig &config);
 // Coordinate conversion functions
-size_t convert_matrix_row_to_query_pos(int i, size_t data_seq_size, bool flip_seqs);
-size_t convert_matrix_col_to_ref_pos(int j, size_t genomic_seq_size, bool flip_seqs);
+size_t convert_matrix_row_to_query_pos(size_t i, size_t data_seq_size, bool flip_seqs);
+size_t convert_matrix_col_to_ref_pos(size_t j, size_t genomic_seq_size, bool flip_seqs);
 int convert_matrix_coords_to_offset(int i, int j, size_t data_seq_size, size_t genomic_seq_size, int offset_change,
                                     bool flip_seqs);
 void fill_sw_score_matrix(const Int_Str &, const Int_Str &, SwDPState &, const SwDPConfig &);

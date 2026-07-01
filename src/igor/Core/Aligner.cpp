@@ -1981,7 +1981,7 @@ struct SwPreparedInputs
  * 
  * \return 0-based query sequence coordinate
  */
-size_t convert_matrix_row_to_query_pos(int i, size_t data_seq_size, bool flip_seqs)
+size_t convert_matrix_row_to_query_pos(size_t i, size_t data_seq_size, bool flip_seqs)
 {
     if (flip_seqs) {
         // When sequences are flipped, row i (1-based) maps to position (data_seq_size - i)
@@ -2005,7 +2005,7 @@ size_t convert_matrix_row_to_query_pos(int i, size_t data_seq_size, bool flip_se
  * 
  * \return 0-based reference sequence coordinate
  */
-size_t convert_matrix_col_to_ref_pos(int j, size_t genomic_seq_size, bool flip_seqs)
+size_t convert_matrix_col_to_ref_pos(size_t j, size_t genomic_seq_size, bool flip_seqs)
 {
     if (flip_seqs) {
         // When sequences are flipped, column j (1-based) maps to position (genomic_seq_size - j)
@@ -2021,98 +2021,6 @@ struct SwReconstructionResult
     list<pair<int, Alignment_data>> alignments;
     double max_align_score;
 };
-
-/* /**
- * \brief Compute coordinate conversion parameters based on whether sequences are flipped.
- * 
- * When sequences are reversed for alignment (flip_seqs = true), all coordinates need to be
- * converted back to the original sequence orientation. This function computes the parameters
- * needed for these conversions.
- * 
- * \note For normal sequences (flip_seqs = false), this returns identity conversion parameters.
- * For flipped sequences (flip_seqs = true), this returns parameters that reverse coordinates
- * and adjust for sequence length differences.
- * 
- * 	param prepared         Prepared inputs containing the (possibly flipped) sequences
- * 	param int_data_sequence Original data sequence (unflipped) for size reference
- * 	param int_genomic_sequence Original genomic sequence (unflipped) for size reference
- * 	param flip_seqs        Whether sequences were flipped for alignment
- * 
-\return FlipCoordinatesParams containing all necessary conversion parameters
- */
-/* FlipCoordinatesParams compute_flip_coordinates_params(const SwPreparedInputs &prepared,
-                                                      const Int_Str &int_data_sequence,
-                                                      const Int_Str &int_genomic_sequence, bool flip_seqs)
-{
-    if (flip_seqs) {
-        return {
-            -1, // flip_factor: reverse coordinates
-            static_cast<int>(int_data_sequence.size() - int_genomic_sequence.size()), // flip_offset
-            1, // flip_mis: add sequence size for mismatch positions
-            int_data_sequence.size(), // data_seq_size
-            int_genomic_sequence.size() // genomic_seq_size
-        };
-    } else {
-        return {
-            1, // flip_factor: identity
-            0, // flip_offset: no offset
-            0, // flip_mis: no additional adjustment
-            0, // data_seq_size: not used
-            0 // genomic_seq_size: not used
-        };
-    }
-} */
-
-/**
- * \brief Convert matrix coordinates to sequence coordinates for insertion/deletion positions.
- * 
- * Converts the 1-based matrix coordinates (i, j) to 0-based sequence coordinates,
- * applying the appropriate flip transformation if sequences were reversed.
- * 
- * 	param i                1-based row coordinate from DP matrix
- * 	param j                1-based column coordinate from DP matrix
- * 	param params           Coordinate conversion parameters
- * 	param is_insertion     true if converting insertion position, false for deletion
- *
- *  \return Converted 0-based coordinate
- */
-/* int convert_traceback_coordinate(int i, int j, const FlipCoordinatesParams &params, bool is_insertion)
-{
-    if (is_insertion) {
-        // For insertions: use row coordinate (i) and data sequence size
-        return params.flip_factor * (i - 1) + params.flip_mis * static_cast<int>(params.data_seq_size);
-    } else {
-        // For deletions: use column coordinate (j) and genomic sequence size
-        return params.flip_factor * (j - 1) + params.flip_mis * static_cast<int>(params.genomic_seq_size);
-    }
-} */
-
-/**
- * \brief Convert alignment offset and boundaries from matrix coordinates.
- * 
- * Converts the alignment boundaries and offset from DP matrix coordinates to
- * the final alignment coordinates, applying flip transformation if needed.
- * 
- * 	param i                1-based row coordinate at alignment start (from DP matrix)
- * 	param j                1-based column coordinate at alignment start (from DP matrix)
- * 	param end_align_offset 0-based end offset in data sequence
- * 	param params           Coordinate conversion parameters
- * 	param offset_change    Additional offset adjustment from prepared inputs
- * 
-    \return Tuple of (offset, begin_align_offset, end_align_offset)
- */
-/* std::tuple<int, size_t, size_t> convert_alignment_boundaries(int i, int j, size_t end_align_offset,
-                                                             const FlipCoordinatesParams &params, int offset_change)
-{
-    size_t begin_align_offset = params.flip_factor * i + params.flip_mis * static_cast<int>(params.data_seq_size);
-    size_t converted_end_align_offset = params.flip_factor * static_cast<int>(end_align_offset)
-            + params.flip_mis * static_cast<int>(params.data_seq_size);
-
-    // Offset is the place where the first letter of the genomic sequence aligns
-    int offset = params.flip_factor * (i - j) + params.flip_offset + offset_change;
-
-    return std::make_tuple(offset, begin_align_offset, converted_end_align_offset);
-} */
 
 /**
  * Prepare Smith-Waterman inputs before DP matrix allocation.
@@ -2332,11 +2240,11 @@ SwReconstructionResult traceback_sw_alignments(const Int_Str &int_data_sequence,
 
             bool end_of_alignment = false;
 
-            int i = dp.max_row_coord[align];
-            int j = dp.max_col_coord[align];
+            size_t i = dp.max_row_coord[align];
+            size_t j = dp.max_col_coord[align];
             // Save the original starting position for end offset calculation
-            int i_end = i;
-            int j_end = j;
+            size_t i_end = i;
+            size_t j_end = j;
 
             // TODO correct this to get the alignment until the end (not just until the best scoring nucl)
             while (!end_of_alignment) {
@@ -2378,14 +2286,14 @@ SwReconstructionResult traceback_sw_alignments(const Int_Str &int_data_sequence,
                 // reverse offset order
                 std::swap(begin_align_offset, end_align_offset);
                 // assume that leading deletions (reverse trailing, hence j_end) would align 1 to 1 with the read.
-                offset = begin_align_offset - convert_matrix_col_to_ref_pos(j_end, genomic_seq_size, true);
+                offset = static_cast<int>(begin_align_offset) - convert_matrix_col_to_ref_pos(j_end, genomic_seq_size, true);
             } else {
                 /*
              * FIXME: this does not really make sense for local alignments. 
               It boils down to assuming that leading deletions would align 1 to 1 with the read.
               But it is what is expected by the legacy alignment data representation.
              * */
-                offset = begin_align_offset - convert_matrix_col_to_ref_pos(j, genomic_seq_size, flip_seqs);
+                offset = static_cast<int>(begin_align_offset) - convert_matrix_col_to_ref_pos(j, genomic_seq_size, flip_seqs);
                 // reverse containers that have been filled via push back
                 reverse(mismatches.begin(), mismatches.end());
                 reverse(insertions.begin(), insertions.end());
