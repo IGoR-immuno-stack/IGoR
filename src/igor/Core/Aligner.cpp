@@ -1035,17 +1035,27 @@ Alignment_data alignment_data_from_cigar_and_extended(const std::string &gene_na
 
     // Find last non-gap index and check leading gaps
     size_t last_non_gap_index = 0;
+
+    // Merged pass: compute offset, track gaps, and populate position vectors
+    std::vector<int> mismatches;
+    std::vector<int> insertions;
+    std::vector<int> deletions;
+    // Keep track of both query and reference implied indices/positions
+    int query_pos_ext = 0;
+    int ref_pos = 0;
+
     for (size_t i = 0; i < ext_entries.size(); ++i) {
+        int count = ext_entries[i].first;
         char op = ext_entries[i].second;
 
         // Check for leading gaps
         if (!seen_non_gap) {
             if (op == 'N') {
                 has_leading_n = true;
-                offset -= ext_entries[i].first;
+                offset -= count;
             } else if (op == 'S') {
                 has_leading_s = true;
-                offset += ext_entries[i].first;
+                offset += count;
             } else {
                 seen_non_gap = true;
             }
@@ -1055,6 +1065,37 @@ Alignment_data alignment_data_from_cigar_and_extended(const std::string &gene_na
         if (op != 'N' && op != 'S') {
             last_non_gap_index = i;
             seen_non_gap = true;
+        }
+
+        // Populate position vectors
+        for (int j = 0; j < count; ++j) {
+            switch (op) {
+            case '=':
+            case 'X':
+            case 'M':
+                if (op == 'X') {
+                    mismatches.push_back(query_pos_ext);
+                }
+                query_pos_ext++;
+                ref_pos++;
+                break;
+            case 'I':
+                insertions.push_back(query_pos_ext);
+                query_pos_ext++;
+                break;
+            case 'D':
+                deletions.push_back(ref_pos);
+                ref_pos++;
+                break;
+            case 'S':
+                query_pos_ext++;
+                break;
+            case 'N':
+                ref_pos++;
+                break;
+            default:
+                break;
+            }
         }
     }
 
@@ -1078,56 +1119,13 @@ Alignment_data alignment_data_from_cigar_and_extended(const std::string &gene_na
         throw std::invalid_argument("Invalid extended CIGAR: has both trailing N and S");
     }
 
-    // Record mismatches from extended CIGAR
-    std::vector<int> mismatches;
-    std::vector<int> insertions;
-    std::vector<int> deletions;
-    // Keep track of both query and reference implied indices/positions
-    int seq_pos_ext = 0;
-    int ref_pos = 0;
-
-    for (const auto &entry : ext_entries) {
-        int count = entry.first;
-        char op = entry.second;
-
-        for (int i = 0; i < count; ++i) {
-            switch (op) {
-            case '=':
-            case 'X':
-            case 'M':
-                if (op == 'X') {
-                    mismatches.push_back(seq_pos_ext);
-                }
-                seq_pos_ext++;
-                ref_pos++;
-                break;
-            case 'I':
-                insertions.push_back(seq_pos_ext);
-                seq_pos_ext++;
-                break;
-            case 'D':
-                deletions.push_back(ref_pos);
-                ref_pos++;
-            case 'S':
-                seq_pos_ext++;
-                break;
-            case 'N':
-                ref_pos++;
-                break;
-            default:
-                break;
-            }
-        }
-    }
-
     // Parse core CIGAR once
     const auto core_entries = parse_cigar(core_cigar);
 
     // Parse core CIGAR to get alignment bounds, length, insertions, and deletions
     size_t five_p_offset = 0;
     size_t align_length = 0;
-    size_t seq_pos_for_aln = 0; // counts =, X, M, I only (for three_p_offset)
-    size_t seq_pos_for_ins = 0; // counts =, X, M only (for insertion positions)
+    size_t query_pos_core = 0; // counts =, X, M, I only (for three_p_offset)
     bool first_non_s_or_n = false;
 
     for (const auto &entry : core_entries) {
@@ -1156,13 +1154,11 @@ Alignment_data alignment_data_from_cigar_and_extended(const std::string &gene_na
             case '=':
             case 'X':
             case 'M':
-                seq_pos_for_aln++;
-                seq_pos_for_ins++;
+                query_pos_core++;
                 align_length++;
                 break;
             case 'I':
-                seq_pos_for_aln++;
-                seq_pos_for_ins++;
+                query_pos_core++;
                 align_length++;
                 break;
             case 'D':
@@ -1183,7 +1179,7 @@ Alignment_data alignment_data_from_cigar_and_extended(const std::string &gene_na
 
     // Compute three_p_offset
     // three_p_offset = five_p_offset + (number of =, X, M, I) - 1
-    size_t three_p_offset = five_p_offset + seq_pos_for_aln - 1;
+    size_t three_p_offset = five_p_offset + query_pos_core - 1;
 
     // Sort mismatches for consistency
     std::sort(mismatches.begin(), mismatches.end());
