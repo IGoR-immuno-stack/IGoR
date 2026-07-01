@@ -10,6 +10,7 @@ set(CORE_TEST_SOURCES
     test_inference.cpp
     test_sanity.cpp
     test_utils.cpp
+    AlignerTestUtils.cpp
 )
 
 add_executable(igor_tests ${CORE_TEST_SOURCES})

@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <igor/Core/Aligner.h>
+#include "AlignerTestUtils.h"
 
 #include <algorithm>
 #include <cstdio>
@@ -8,56 +9,7 @@
 #include <string>
 #include <vector>
 
-static std::vector<int> sorted_list(std::forward_list<int> xs)
-{
-    std::vector<int> out(xs.begin(), xs.end());
-    std::sort(out.begin(), out.end());
-    return out;
-}
-
-/**
- * Compare two Alignment_data objects for equality.
- * Two alignments are considered equal if they have:
- * - Same gene name
- * - Same offset
- * - Same five_p_offset and three_p_offset
- * - Same insertions, deletions, mismatches (as sets, order-independent)
- * - Same align_length
- * - Same score (within tolerance)
- *
- * \param a First alignment to compare
- * \param b Second alignment to compare
- * \param score_tolerance Tolerance for score comparison (default: 1e-9)
- * \return true if alignments are considered equal, false otherwise
- */
-bool check_alignment_data_equal(const Alignment_data &a, const Alignment_data &b, double score_tolerance = 1e-9)
-{
-    using namespace std;
-    // Check basic fields
-    REQUIRE(a.gene_name == b.gene_name);
-    REQUIRE(a.offset == b.offset);
-    REQUIRE(a.five_p_offset == b.five_p_offset);
-    REQUIRE(a.three_p_offset == b.three_p_offset);
-    REQUIRE(a.align_length == b.align_length);
-    REQUIRE(fabs(a.score - b.score) <= score_tolerance);
-    
-    // Check insertions (convert to sets for order-independent comparison)
-    unordered_set<int> a_ins(a.insertions.begin(), a.insertions.end());
-    unordered_set<int> b_ins(b.insertions.begin(), b.insertions.end());
-    REQUIRE(a_ins == b_ins);
-    
-    // Check deletions
-    unordered_set<int> a_del(a.deletions.begin(), a.deletions.end());
-    unordered_set<int> b_del(b.deletions.begin(), b.deletions.end());
-    REQUIRE(a_del == b_del);
-    
-    // Check mismatches (already sorted, but compare as sets to be safe)
-    unordered_set<int> a_mis(a.mismatches.begin(), a.mismatches.end());
-    unordered_set<int> b_mis(b.mismatches.begin(), b.mismatches.end());
-    REQUIRE(a_mis == b_mis);
-    
-    return true;
-}
+using namespace igor::test::align;
 
 TEST_CASE("parse extended CIGAR", "[cigar]")
 {
