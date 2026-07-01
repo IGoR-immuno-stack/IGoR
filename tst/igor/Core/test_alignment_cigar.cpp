@@ -375,6 +375,33 @@ TEST_CASE("CIGAR to alignment data with end gaps", "[cigar]")
         score = 10;
     }
 
+    SECTION("Leading reference gaps with core mismatch")
+    {
+        expected_aln = Alignment_data("gene", -5, 0, 10, 11, { }, { }, { 5 }, 10);
+        core_cigar = "5N5=1X5=";
+        extended_cigar = core_cigar;
+        gene_name = "gene";
+        score = 10;
+    }
+
+    SECTION("Leading reference gaps with core insertion")
+    {
+        expected_aln = Alignment_data("gene", -5, 0, 10, 11, { 5 }, { }, { }, 10);
+        core_cigar = "5N5=1I5=";
+        extended_cigar = core_cigar;
+        gene_name = "gene";
+        score = 10;
+    }
+
+    SECTION("Leading reference gaps with core deletion")
+    {
+        expected_aln = Alignment_data("gene", -5, 0, 9, 11, { }, { 10 }, { }, 10);
+        core_cigar = "5N5=1D5=";
+        extended_cigar = core_cigar;
+        gene_name = "gene";
+        score = 10;
+    }
+
     SECTION("Trailing reference gaps")
     {
         expected_aln = Alignment_data("gene", 0, 0, 10, 11, { }, { }, { }, 10);
@@ -388,6 +415,33 @@ TEST_CASE("CIGAR to alignment data with end gaps", "[cigar]")
     {
         expected_aln = Alignment_data("gene", 5, 5, 15, 11, { }, { }, { }, 10);
         core_cigar = "5S11=";
+        extended_cigar = core_cigar;
+        gene_name = "gene";
+        score = 10;
+    }
+
+    SECTION("Leading query gaps with core mismatch")
+    {
+        expected_aln = Alignment_data("gene", 5, 5, 15, 11, { }, { }, { 10 }, 10);
+        core_cigar = "5S5=1X5=";
+        extended_cigar = core_cigar;
+        gene_name = "gene";
+        score = 10;
+    }
+
+    SECTION("Leading query gaps with core insertion")
+    {
+        expected_aln = Alignment_data("gene", 5, 5, 15, 11, { 10 }, { }, { }, 10);
+        core_cigar = "5S5=1I5=";
+        extended_cigar = core_cigar;
+        gene_name = "gene";
+        score = 10;
+    }
+
+    SECTION("Leading query gaps with core deletion")
+    {
+        expected_aln = Alignment_data("gene", 5, 5, 14, 11, { }, { 5 }, { }, 10);
+        core_cigar = "5S5=1D5=";
         extended_cigar = core_cigar;
         gene_name = "gene";
         score = 10;

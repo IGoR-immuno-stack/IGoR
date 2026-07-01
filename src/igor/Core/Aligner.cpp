@@ -1109,8 +1109,10 @@ Alignment_data alignment_data_from_cigar_and_extended(const std::string &gene_na
                 deletions.push_back(ref_pos);
                 ref_pos++;
             case 'S':
+                seq_pos_ext++;
+                break;
             case 'N':
-                // Don't advance position for D, S, N
+                ref_pos++;
                 break;
             default:
                 break;
