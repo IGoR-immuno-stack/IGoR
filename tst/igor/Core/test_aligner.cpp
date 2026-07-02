@@ -535,3 +535,142 @@ TEST_CASE("Dropping extended gaps must trigger failure of Alignment data compari
     auto align = parse_single_alignment_csv_line(obtained_csv_line);
     assert_alignment_data_matches(align.second, expected_csv_line, query_read, genomic_templates);
 }
+
+// ============================================================================
+//  Enhanced Alignment Data Representation Tests
+// ============================================================================
+
+TEST_CASE("Alignment_data getters", "[aligner][alignment_data][accessors]")
+{
+    SECTION("Default construction with lengths")
+    {
+        Alignment_data aln("test_gene", 10, 50, 100);
+        REQUIRE(aln.gene_name == "test_gene");
+        REQUIRE(aln.offset == 10);
+        REQUIRE(aln.query_length == 50);
+        REQUIRE(aln.germline_length == 100);
+        REQUIRE(aln.query_align_start() == aln.five_p_offset);
+        REQUIRE(aln.query_align_end() == aln.three_p_offset);
+    }
+
+    SECTION("Bounds getters with negative offset no in-dels")
+    {
+        //  qqQQ
+        // rrrRR
+        Alignment_data aln("test", -1, 2, 3, 2, { }, { }, { }, 100.0);
+
+        REQUIRE(aln.query_align_start() == 2);
+        REQUIRE(aln.query_align_end() == 3);
+        REQUIRE(aln.reference_align_start() == 3);
+        REQUIRE(aln.reference_align_end() == 4);
+    }
+
+    SECTION("Bounds getters with positive offset no in-dels")
+    {
+        // qqqqQQ
+        //   rrRR
+        Alignment_data aln("test", 3, 5, 6, 2, { }, { }, { }, 100.0);
+
+        REQUIRE(aln.query_align_start() == 5);
+        REQUIRE(aln.query_align_end() == 6);
+        REQUIRE(aln.reference_align_start() == 2);
+        REQUIRE(aln.reference_align_end() == 3);
+    }
+
+    SECTION("Bounds getters with negative offset, del in core")
+    {
+        //  qqQ-QQ
+        // rrrRRRR
+        Alignment_data aln("test", -1, 2, 4, 4, { }, { 4 }, { }, 100.0);
+
+        REQUIRE(aln.query_align_start() == 2);
+        REQUIRE(aln.query_align_end() == 4);
+        REQUIRE(aln.reference_align_start() == 3);
+        REQUIRE(aln.reference_align_end() == 6);
+    }
+
+    SECTION("Bounds getters with positive offset, del in core")
+    {
+        // qqqqQQ-Q
+        //   rrRRRR
+        Alignment_data aln("test", 2, 5, 7, 4, { }, { 4 }, { }, 100.0);
+
+        REQUIRE(aln.query_align_start() == 5);
+        REQUIRE(aln.query_align_end() == 7);
+        REQUIRE(aln.reference_align_start() == 2);
+        REQUIRE(aln.reference_align_end() == 5);
+    }
+
+    SECTION("Bounds getters with negative offset, del in 5p extension")
+    {
+        //  q-QQQQ
+        // rrrRRRR
+        Alignment_data aln("test", -1, 2, 4, 4, { }, { 4 }, { }, 100.0);
+
+        REQUIRE(aln.query_align_start() == 2);
+        REQUIRE(aln.query_align_end() == 4);
+        REQUIRE(aln.reference_align_start() == 3);
+        REQUIRE(aln.reference_align_end() == 6);
+    }
+
+    SECTION("Bounds getters with positive offset, del in 5p extension")
+    {
+        // qqq-QQQQ
+        //   rrRRRR
+        Alignment_data aln("test", 2, 3, 6, 4, { }, { 4 }, { }, 100.0);
+
+        REQUIRE(aln.query_align_start() == 3);
+        REQUIRE(aln.query_align_end() == 6);
+        REQUIRE(aln.reference_align_start() == 2);
+        REQUIRE(aln.reference_align_end() == 5);
+    }
+
+    SECTION("Bounds getters with negative offset, insertion in core")
+    {
+        //  qqQQQQ
+        // rrrR-RR
+        Alignment_data aln("test", -1, 2, 5, 4, { 3 }, { }, { }, 100.0);
+
+        REQUIRE(aln.query_align_start() == 2);
+        REQUIRE(aln.query_align_end() == 5);
+        REQUIRE(aln.reference_align_start() == 3);
+        REQUIRE(aln.reference_align_end() == 5);
+    }
+
+    SECTION("Bounds getters with positive offset, insertion in core")
+    {
+        // qqqqQQQQ
+        //   rrRR-R
+        Alignment_data aln("test", 2, 4, 7, 4, { 6 }, { }, { }, 100.0);
+
+        REQUIRE(aln.query_align_start() == 4);
+        REQUIRE(aln.query_align_end() == 7);
+        REQUIRE(aln.reference_align_start() == 2);
+        REQUIRE(aln.reference_align_end() == 4);
+    }
+
+    SECTION("Bounds getters with negative offset, insertion in 5p extension")
+    {
+        //  qqQQQQ
+        // rr-RRRR
+        Alignment_data aln("test", -1, 2, 5, 4, { 2 }, { }, { }, 100.0);
+
+        REQUIRE(aln.query_align_start() == 2);
+        REQUIRE(aln.query_align_end() == 5);
+        REQUIRE(aln.reference_align_start() == 2);
+        REQUIRE(aln.reference_align_end() == 5);
+    }
+
+    SECTION("Bounds getters with positive offset, insertion in 5p extension")
+    {
+        // qqqqQQQQ
+        //   r-RRRR
+        Alignment_data aln("test", 2, 4, 7, 4, { 1 }, { }, { }, 100.0);
+
+        REQUIRE(aln.query_align_start() == 4);
+        REQUIRE(aln.query_align_end() == 7);
+        REQUIRE(aln.reference_align_start() == 1);
+        REQUIRE(aln.reference_align_end() == 4);
+    }
+
+}
