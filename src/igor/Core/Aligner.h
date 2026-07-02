@@ -64,6 +64,21 @@
  *   representing mismatches in the extended alignment regions (e.g., in deleted V/J nucleotides).
  *   The vector is SORTED and contains ALL mismatches (both within the core alignment and in extended regions).
  * - the alignment score
+ * - query_length and germline_length: lengths of the query/target and reference/genomic sequences (0 = unknown)
+ * - extended_mismatches: mismatches outside the core alignment region [five_p_offset, three_p_offset]
+ * - extended_insertions/deletions: indels in extended regions (reserved for future use, currently empty)
+ *
+ * Computed properties (via getter methods):
+ * - query_align_start/end: core alignment bounds in query sequence
+ * - reference_align_start/end: core alignment bounds in reference sequence
+ * - extended_query/reference_align_start/end: extended alignment bounds
+ * - core_cigar/extended_cigar: CIGAR string representations
+ * - get_all/mismatches: all mismatches (core + extended)
+ * - get_core_mismatches: mismatches within the core alignment region
+ * - get_5p/3p_extended_mismatches: extended mismatches by side
+ * - get_extended_mismatches: all extended mismatches
+ * - get_core/extended/all_insertions: insertion accessors
+ * - get_core/extended/all_deletions: deletion accessors
  */
 struct Alignment_data
 {
@@ -76,17 +91,83 @@ struct Alignment_data
     size_t align_length;
     mutable std::vector<int> mismatches;
     double score;
+    
+    // Sequence lengths (0 = unknown)
+    size_t query_length = 0;
+    size_t germline_length = 0;
+    
+    // Extended region tracking
+    std::vector<int> extended_mismatches;  // Mismatches outside [five_p_offset, three_p_offset]
+    std::vector<int> extended_insertions;  // Insertions in extended regions (future use)
+    std::vector<int> extended_deletions;  // Deletions in extended regions (future use)
 
-    Alignment_data(std::string gene, int off)
+    // Computed property getters
+    
+    // Core alignment bounds (query = target sequence, reference = genomic template)
+    size_t query_align_start() const { return five_p_offset; }
+    size_t query_align_end() const { return three_p_offset; }
+    size_t reference_align_start() const { 
+        return static_cast<size_t>(std::max(0, offset)) + five_p_offset; 
+    }
+    size_t reference_align_end() const { 
+        return static_cast<size_t>(std::max(0, offset)) + three_p_offset; 
+    }
+    
+    // Extended alignment bounds (clamped to sequence lengths)
+    size_t extended_query_align_start() const { 
+        if (query_length == 0) throw std::logic_error("query_length required for extended bounds");
+        return std::max(static_cast<size_t>(offset), static_cast<size_t>(0));
+    }
+    size_t extended_query_align_end() const { 
+        if (query_length == 0 || germline_length == 0) 
+            throw std::logic_error("query_length and germline_length required for extended bounds");
+        size_t n_del = std::distance(deletions.begin(), deletions.end());
+        size_t n_ins = std::distance(insertions.begin(), insertions.end());
+        return std::min(static_cast<size_t>(offset) + germline_length - 1 + n_ins - n_del,
+                        query_length - 1);
+    }
+    size_t extended_reference_align_start() const { 
+        if (germline_length == 0) throw std::logic_error("germline_length required for extended bounds");
+        return 0; // Full germline reference
+    }
+    size_t extended_reference_align_end() const { 
+        if (germline_length == 0) throw std::logic_error("germline_length required for extended bounds");
+        return germline_length - 1; // Full germline reference
+    }
+    
+    // Mismatch and indel access
+    std::vector<int> get_all_mismatches() const { return mismatches; }
+    std::vector<int> get_core_mismatches() const;
+    std::vector<int> get_5p_extended_mismatches() const;
+    std::vector<int> get_3p_extended_mismatches() const;
+    std::vector<int> get_extended_mismatches() const { return extended_mismatches; }
+    std::vector<int> get_core_insertions() const;
+    std::vector<int> get_core_deletions() const;
+    std::vector<int> get_extended_insertions() const { return extended_insertions; }
+    std::vector<int> get_extended_deletions() const { return extended_deletions; }
+    std::vector<int> get_all_insertions() const;
+    std::vector<int> get_all_deletions() const;
+    
+    // CIGAR string access
+    std::string core_cigar() const;
+    std::string extended_cigar() const;
+    
+    // Validation
+    bool validate() const;
+
+    Alignment_data(std::string gene, int off, size_t query_len = 0, size_t germline_len = 0)
         : gene_name(gene),
           offset(off),
           insertions(*(new std::forward_list<int>)),
           deletions(*(new std::forward_list<int>)),
-          score(0)
+          score(0),
+          query_length(query_len),
+          germline_length(germline_len)
     {
     }
     Alignment_data(int off, size_t five_p_off, size_t three_p_off, size_t align_len, std::forward_list<int> ins,
-                   std::forward_list<int> del, std::vector<int> mis, double alignment_score)
+                   std::forward_list<int> del, std::vector<int> mis, double alignment_score,
+                   size_t query_len = 0, size_t germline_len = 0)
         : gene_name(std::string()),
           offset(off),
           five_p_offset(five_p_off),
@@ -95,22 +176,34 @@ struct Alignment_data
           deletions(del),
           align_length(align_len),
           mismatches(mis),
-          score(alignment_score)
+          score(alignment_score),
+          query_length(query_len),
+          germline_length(germline_len)
     {
+        // Populate extended_mismatches from mismatches
+        for (int pos : mismatches) {
+            if (pos < five_p_offset || pos > three_p_offset) {
+                extended_mismatches.push_back(pos);
+            }
+        }
     }
     Alignment_data(std::string gene, int off, size_t align_len, std::forward_list<int> ins, std::forward_list<int> del,
-                   std::vector<int> mis, double alignment_score)
+                   std::vector<int> mis, double alignment_score,
+                   size_t query_len = 0, size_t germline_len = 0)
         : gene_name(gene),
           offset(off),
           insertions(ins),
           deletions(del),
           align_length(align_len),
           mismatches(mis),
-          score(alignment_score)
+          score(alignment_score),
+          query_length(query_len),
+          germline_length(germline_len)
     {
     }
     Alignment_data(std::string gene, int off, size_t five_p_off, size_t three_p_off, size_t align_len,
-                   std::forward_list<int> ins, std::forward_list<int> del, std::vector<int> mis, double alignment_score)
+                   std::forward_list<int> ins, std::forward_list<int> del, std::vector<int> mis, double alignment_score,
+                   size_t query_len = 0, size_t germline_len = 0)
         : gene_name(gene),
           offset(off),
           five_p_offset(five_p_off),
@@ -119,8 +212,16 @@ struct Alignment_data
           deletions(del),
           align_length(align_len),
           mismatches(mis),
-          score(alignment_score)
+          score(alignment_score),
+          query_length(query_len),
+          germline_length(germline_len)
     {
+        // Populate extended_mismatches from mismatches
+        for (int pos : mismatches) {
+            if (pos < five_p_offset || pos > three_p_offset) {
+                extended_mismatches.push_back(pos);
+            }
+        }
     }
 
     /*	bool operator<(const Alignment_data& align){
@@ -345,12 +446,5 @@ std::vector<int> ungapped_extend_align_3p_from_dp(const SwPreparedInputs &prepar
 std::vector<int> merge_and_sort_mismatches(const std::vector<int> &core_mismatches, const std::vector<int> &extended_mismatches);
 std::vector<int> merge_and_sort_mismatches(const std::vector<int> &core_mismatches, const std::vector<int> &extended_5p_mismatches,
                                       const std::vector<int> &extended_3p_mismatches);
-
-// Extended mismatch identification functions (compute on-demand from existing fields)
-std::vector<int> get_5p_extended_mismatches(const Alignment_data& aln);
-std::vector<int> get_3p_extended_mismatches(const Alignment_data& aln);
-std::vector<int> get_extended_mismatches(const Alignment_data& aln);
-std::vector<int> get_core_mismatches(const Alignment_data& aln);
-bool validate_mismatch_categorization(const Alignment_data& aln);
 
 } // namespace swalign

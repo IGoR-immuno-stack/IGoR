@@ -1000,7 +1000,7 @@ Alignment_data alignment_data_from_cigar(const std::string &gene_name, const std
         }
     }
     return Alignment_data(gene_name, offset, five_p_offset, three_p_offset, align_length, insertions, deletions,
-                          mismatches, score);
+                          mismatches, score, 0, 0);
 }
 
 /**
@@ -1187,7 +1187,7 @@ Alignment_data alignment_data_from_cigar_and_extended(const std::string &gene_na
 
     return Alignment_data(gene_name, offset, five_p_offset, three_p_offset, align_length,
                           forward_list(insertions.begin(), insertions.end()),
-                          forward_list(deletions.begin(), deletions.end()), mismatches, score);
+                          forward_list(deletions.begin(), deletions.end()), mismatches, score, 0, 0);
 }
 
 int alignment_data_sequence_start(const Alignment_data &aln)
@@ -1473,7 +1473,7 @@ std::pair<int, Alignment_data> parse_single_alignment_csv_line(const string &lin
 
     return { index,
              Alignment_data(gene_name, offset, five_p_offset, three_p_offset, align_length, insertions, deletions,
-                            mismatches, score) };
+                            mismatches, score, 0, 0) };
 }
 
 unordered_map<int, forward_list<Alignment_data>>
@@ -2334,7 +2334,7 @@ SwReconstructionResult traceback_sw_alignments(const Int_Str &int_data_sequence,
                         Alignment_data(offset, begin_align_offset, end_align_offset, align_length,
                                        forward_list(insertions.rbegin(), insertions.rend()),
                                        forward_list(deletions.rbegin(), deletions.rend()), all_mismatches,
-                                       dp.max_score[align])));
+                                       dp.max_score[align], int_data_sequence.size(), int_genomic_sequence.size())));
             }
         }
     }
@@ -2484,118 +2484,6 @@ void fill_sw_matrix_cell(const Int_Str &int_data_sequence, const Int_Str &int_ge
             dp.max_col_coord[tmp] = j;
         }
     }
-}
-
-/**
- * Extract 5' extended mismatches from existing alignment data.
- * These are mismatches that occur before the alignment start (position < five_p_offset).
- *
- * \param aln Alignment_data with combined mismatches
- * \return Vector of 5' extended mismatch positions (0-based, target sequence coordinates)
- */
-vector<int> get_5p_extended_mismatches(const Alignment_data& aln)
-{
-    vector<int> extended;
-    for (int pos : aln.mismatches) {
-        if (pos < aln.five_p_offset) {
-            extended.push_back(pos);
-        }
-    }
-    return extended;
-}
-
-/**
- * Extract 3' extended mismatches from existing alignment data.
- * These are mismatches that occur after the alignment end (position > three_p_offset).
- *
- * \param aln Alignment_data with combined mismatches
- * \return Vector of 3' extended mismatch positions (0-based, target sequence coordinates)
- */
-vector<int> get_3p_extended_mismatches(const Alignment_data& aln)
-{
-    vector<int> extended;
-    for (int pos : aln.mismatches) {
-        if (pos > aln.three_p_offset) {
-            extended.push_back(pos);
-        }
-    }
-    return extended;
-}
-
-/**
- * Extract all extended mismatches (5' + 3') from existing alignment data.
- *
- * \param aln Alignment_data with combined mismatches
- * \return Vector of all extended mismatch positions (0-based, target sequence coordinates)
- */
-vector<int> get_extended_mismatches(const Alignment_data& aln)
-{
-    vector<int> extended;
-    for (int pos : aln.mismatches) {
-        if (pos < aln.five_p_offset || pos > aln.three_p_offset) {
-            extended.push_back(pos);
-        }
-    }
-    return extended;
-}
-
-/**
- * Extract core mismatches from existing alignment data.
- * These are mismatches within the alignment bounds [five_p_offset, three_p_offset].
- *
- * \param aln Alignment_data with combined mismatches
- * \return Vector of core mismatch positions (0-based, target sequence coordinates)
- */
-vector<int> get_core_mismatches(const Alignment_data& aln)
-{
-    vector<int> core;
-    for (int pos : aln.mismatches) {
-        if (pos >= aln.five_p_offset && pos <= aln.three_p_offset) {
-            core.push_back(pos);
-        }
-    }
-    return core;
-}
-
-/**
- * Validate that all mismatches are properly categorized between core and extended regions.
- * Ensures: core + extended = all mismatches, no overlaps.
- *
- * \param aln Alignment_data with combined mismatches
- * \return true if categorization is valid, false otherwise
- */
-bool validate_mismatch_categorization(const Alignment_data& aln)
-{
-    vector<int> core = get_core_mismatches(aln);
-    vector<int> extended = get_extended_mismatches(aln);
-    
-    // Check that core + extended = all mismatches
-    unordered_set<int> all_from_parts;
-    for (int pos : core) all_from_parts.insert(pos);
-    for (int pos : extended) all_from_parts.insert(pos);
-    
-    // Check no overlaps
-    unordered_set<int> core_set(core.begin(), core.end());
-    unordered_set<int> extended_set(extended.begin(), extended.end());
-    for (int pos : core_set) {
-        if (extended_set.count(pos) > 0) {
-            return false; // Overlap found
-        }
-    }
-    
-    // Check we have all mismatches
-    if (all_from_parts.size() != aln.mismatches.size()) {
-        return false;
-    }
-    
-    // Check all mismatches are accounted for
-    for (int pos : aln.mismatches) {
-        if (all_from_parts.count(pos) == 0) {
-            return false;
-        }
-    }
-    
-    return true;
 }
 
 } // namespace swalign
@@ -2845,4 +2733,116 @@ forward_list<Alignment_data> extract_best_gene_alignments(const forward_list<Ali
         }
     }
     return best_gene_aligns;
+}
+
+// ============================================================================
+// Alignment_data computed getter method implementations
+// ============================================================================
+
+std::vector<int> Alignment_data::get_core_mismatches() const {
+    std::vector<int> core;
+    for (int pos : mismatches) {
+        if (pos >= five_p_offset && pos <= three_p_offset) {
+            core.push_back(pos);
+        }
+    }
+    return core;
+}
+
+std::vector<int> Alignment_data::get_5p_extended_mismatches() const {
+    std::vector<int> result;
+    for (int pos : extended_mismatches) {
+        if (pos < static_cast<int>(five_p_offset)) {
+            result.push_back(pos);
+        }
+    }
+    return result;
+}
+
+std::vector<int> Alignment_data::get_3p_extended_mismatches() const {
+    std::vector<int> result;
+    for (int pos : extended_mismatches) {
+        if (pos > static_cast<int>(three_p_offset)) {
+            result.push_back(pos);
+        }
+    }
+    return result;
+}
+
+std::vector<int> Alignment_data::get_core_insertions() const {
+    return std::vector<int>(insertions.begin(), insertions.end());
+}
+
+std::vector<int> Alignment_data::get_core_deletions() const {
+    return std::vector<int>(deletions.begin(), deletions.end());
+}
+
+std::vector<int> Alignment_data::get_all_insertions() const {
+    std::vector<int> all = get_core_insertions();
+    all.insert(all.end(), extended_insertions.begin(), extended_insertions.end());
+    std::sort(all.begin(), all.end());
+    return all;
+}
+
+std::vector<int> Alignment_data::get_all_deletions() const {
+    std::vector<int> all = get_core_deletions();
+    all.insert(all.end(), extended_deletions.begin(), extended_deletions.end());
+    std::sort(all.begin(), all.end());
+    return all;
+}
+
+std::string Alignment_data::core_cigar() const {
+    if (query_length == 0 || germline_length == 0) {
+        throw std::logic_error("query_length and germline_length required for CIGAR generation");
+    }
+    return alignment_data_to_core_cigar(*this, query_length, germline_length);
+}
+
+std::string Alignment_data::extended_cigar() const {
+    if (query_length == 0 || germline_length == 0) {
+        throw std::logic_error("query_length and germline_length required for CIGAR generation");
+    }
+    return alignment_data_to_extended_cigar(*this, query_length, germline_length);
+}
+
+bool Alignment_data::validate() const {
+    // Check that mismatches are sorted
+    for (size_t i = 1; i < mismatches.size(); ++i) {
+        if (mismatches[i-1] > mismatches[i]) {
+            return false; // Not sorted
+        }
+    }
+    
+    // Check that extended_mismatches are sorted
+    for (size_t i = 1; i < extended_mismatches.size(); ++i) {
+        if (extended_mismatches[i-1] > extended_mismatches[i]) {
+            return false; // Not sorted
+        }
+    }
+    
+    // Check that extended_mismatches are actually outside core alignment
+    for (int pos : extended_mismatches) {
+        if (pos >= static_cast<int>(five_p_offset) && pos <= static_cast<int>(three_p_offset)) {
+            return false; // Extended mismatch is within core alignment
+        }
+    }
+    
+    // Check that all mismatches in extended_mismatches are also in mismatches
+    std::unordered_set<int> all_mismatches_set(mismatches.begin(), mismatches.end());
+    for (int pos : extended_mismatches) {
+        if (all_mismatches_set.count(pos) == 0) {
+            return false; // Extended mismatch not in main mismatches
+        }
+    }
+    
+    // Check that core mismatches + extended mismatches = all mismatches
+    std::vector<int> core = get_core_mismatches();
+    std::vector<int> combined = core;
+    combined.insert(combined.end(), extended_mismatches.begin(), extended_mismatches.end());
+    std::sort(combined.begin(), combined.end());
+    if (combined != mismatches) {
+        return false; // Inconsistent mismatch categorization
+    }
+    
+    return true;
 }
