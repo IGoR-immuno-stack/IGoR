@@ -393,7 +393,8 @@ forward_list<Alignment_data> Aligner::align_seq(string nt_seq, double score_thre
                                          max_offset,
                                          this->substitution_matrix,
                                          this->gap_penalty,
-                                         default_sw_alignment_mode_for_gene(gene) };
+                                         default_sw_alignment_mode_for_gene(gene),
+                                         this->enable_extension_ };
                 alignments = sw_align(int_seq, (*iter).second, best_align_only, config);
             } catch (exception &e) {
                 cerr << endl;
@@ -2304,19 +2305,21 @@ SwReconstructionResult traceback_sw_alignments(const Int_Str &int_data_sequence,
                 // TODO return the actual inserted/deleted sequences in the alignment data??
 
                 // Extend alignment to capture mismatches in deleted V/J nucleotides
-                // For now, always extend in both directions (will be refined later)
+                // Only perform extension if enabled in config
                 vector<int> extended_mismatches_5p;
                 vector<int> extended_mismatches_3p;
 
-                if(config.alignment_mode.is_local_alignment()){
-                    // 5' extension: extend from the start of the alignment
-                    extended_mismatches_5p = ungapped_extend_align_5p_from_dp(
-                            prepared, i, j, data_seq_size, genomic_seq_size, flip_seqs, dp.n_rows, dp.n_cols);
+                if (config.enable_extension) {
+                    if(config.alignment_mode.is_local_alignment()){
+                        // 5' extension: extend from the start of the alignment
+                        extended_mismatches_5p = ungapped_extend_align_5p_from_dp(
+                                prepared, i, j, data_seq_size, genomic_seq_size, flip_seqs, dp.n_rows, dp.n_cols);
+                    }
+                    
+                    // 3' extension: extend from the end of the alignment  
+                    extended_mismatches_3p = ungapped_extend_align_3p_from_dp(
+                            prepared, i_end, j_end, data_seq_size, genomic_seq_size, flip_seqs, dp.n_rows, dp.n_cols);
                 }
-                
-                // 3' extension: extend from the end of the alignment  
-                extended_mismatches_3p = ungapped_extend_align_3p_from_dp(
-                        prepared, i_end, j_end, data_seq_size, genomic_seq_size, flip_seqs, dp.n_rows, dp.n_cols);
 
                 // Merge core mismatches with extended mismatches and sort
                 // TODO avoid sorting ops with proper design

@@ -200,12 +200,17 @@ public:
     int incorporate_in_dels(std::string &, std::string &, const std::forward_list<int>, const std::forward_list<int>,
                             int);
 
+    // Configuration for alignment extension
+    void set_enable_extension(bool enable) { enable_extension_ = enable; }
+    bool get_enable_extension() const { return enable_extension_; }
+
 private:
     std::forward_list<std::pair<std::string, std::string>> nt_genomic_sequences;
     std::forward_list<std::pair<std::string, Int_Str>> int_genomic_sequences;
     Matrix<double> substitution_matrix;
     int gap_penalty;
     Gene_class gene;
+    bool enable_extension_ = true; // Enable/disable alignment extension for capturing mismatches in extended regions
     std::unordered_map<std::string, std::pair<int, int>> build_genomic_bounds_map(int, int) const;
 };
 
@@ -307,6 +312,7 @@ struct SwDPConfig
     Matrix<double> substitution_matrix;
     int gap_penalty;
     SwAlignmentMode alignment_mode;
+    bool enable_extension = true; // Enable/disable alignment extension for capturing mismatches in extended regions
 };
 std::list<std::pair<int, Alignment_data>> sw_align(const Int_Str &, const Int_Str &, bool, const SwDPConfig &);
 
