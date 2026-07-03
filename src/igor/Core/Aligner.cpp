@@ -2769,26 +2769,90 @@ std::vector<int> Alignment_data::get_3p_extended_mismatches() const {
     return result;
 }
 
-std::vector<int> Alignment_data::get_core_insertions() const {
-    return std::vector<int>(insertions.begin(), insertions.end());
+std::vector<int> Alignment_data::get_core_insertions() const
+{
+    std::vector<int> result;
+    for (int pos : get_all_insertions()) {
+        if (pos >= static_cast<int>(five_p_offset) && pos <= static_cast<int>(three_p_offset)) {
+            result.push_back(pos);
+        }
+    }
+    return result;
 }
 
 std::vector<int> Alignment_data::get_core_deletions() const {
-    return std::vector<int>(deletions.begin(), deletions.end());
+    std::vector<int> result;
+    size_t n_ins_5p = get_5p_extended_insertions().size();
+    size_t n_ins_all = get_5p_extended_insertions().size() + get_core_insertions().size();
+    int ref_start = static_cast<int>(five_p_offset) - offset - n_ins_5p;
+    int ref_end = static_cast<int>(three_p_offset) - offset - n_ins_all;
+    for (int pos : get_all_deletions()) {
+        if(pos < ref_start){
+            ref_start++;
+            ref_end++;
+        }
+        else if (pos >= ref_start && pos <= ref_end) {
+            result.push_back(pos);
+            ref_end++;  // Account for reference coordinate shift
+        }
+        else{
+            // Beyond core alignement 
+            break;
+        }
+    }
+    return result;
 }
 
-std::vector<int> Alignment_data::get_all_insertions() const {
-    std::vector<int> all = get_core_insertions();
-    all.insert(all.end(), extended_insertions.begin(), extended_insertions.end());
-    std::sort(all.begin(), all.end());
-    return all;
+// Extended insertion accessors (query coordinates)
+std::vector<int> Alignment_data::get_5p_extended_insertions() const {
+    std::vector<int> result;
+    for (int pos : get_all_insertions()) {
+        if (pos < static_cast<int>(five_p_offset)) {
+            result.push_back(pos);
+        }
+    }
+    return result;
 }
 
-std::vector<int> Alignment_data::get_all_deletions() const {
-    std::vector<int> all = get_core_deletions();
-    all.insert(all.end(), extended_deletions.begin(), extended_deletions.end());
-    std::sort(all.begin(), all.end());
-    return all;
+std::vector<int> Alignment_data::get_3p_extended_insertions() const {
+    std::vector<int> result;
+    for (int pos : get_all_insertions()) {
+        if (pos > static_cast<int>(three_p_offset)) {
+            result.push_back(pos);
+        }
+    }
+    return result;
+}
+
+// Extended deletion accessors (reference coordinates with dynamic threshold adjustment)
+std::vector<int> Alignment_data::get_5p_extended_deletions() const {
+    std::vector<int> result;
+    size_t n_ins_5p = get_5p_extended_insertions().size();
+    int ref_start = static_cast<int>(five_p_offset) - offset - n_ins_5p;
+    for (int pos : get_all_deletions()) {
+        if (pos < ref_start) {
+            result.push_back(pos);
+            ref_start++;  // Account for reference coordinate shift
+        }
+    }
+    return result;
+}
+
+std::vector<int> Alignment_data::get_3p_extended_deletions() const {
+    std::vector<int> result;
+    size_t n_ins_all = get_5p_extended_insertions().size() + get_core_insertions().size();
+    int ref_end = static_cast<int>(three_p_offset) - offset - n_ins_all;
+    
+    // Second pass: collect 3' extended deletions (after adjusted ref_end)
+    for (int pos : get_all_deletions()) {
+        if (pos > ref_end) {
+            result.push_back(pos);
+        }
+        else{
+            ref_end++;
+        }
+    }
+    return result;
 }
 
 std::string Alignment_data::core_cigar() const {

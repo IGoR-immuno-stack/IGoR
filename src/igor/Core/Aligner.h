@@ -106,13 +106,19 @@ struct Alignment_data
     // Core alignment bounds (query = target sequence, reference = genomic template)
     size_t query_align_start() const { return five_p_offset; }
     size_t query_align_end() const { return three_p_offset; }
-    size_t reference_align_start() const { 
-        return static_cast<size_t>(std::max(0, offset)) + five_p_offset; 
+    size_t reference_align_start() const
+    {
+        size_t n_ins_5p = get_5p_extended_insertions().size();
+        size_t n_del_5p = get_5p_extended_deletions().size();
+        return static_cast<size_t>(five_p_offset - offset - n_ins_5p + n_del_5p);
     }
-    size_t reference_align_end() const { 
-        return static_cast<size_t>(std::max(0, offset)) + three_p_offset; 
+    size_t reference_align_end() const
+    {
+        size_t n_ins_all = get_5p_extended_insertions().size() + get_core_insertions().size();
+        size_t n_del_all = get_5p_extended_deletions().size() + get_core_deletions().size();
+        return static_cast<size_t>(three_p_offset - offset - n_ins_all + n_del_all);
     }
-    
+
     // Extended alignment bounds (clamped to sequence lengths)
     size_t extended_query_align_start() const { 
         if (query_length == 0) throw std::logic_error("query_length required for extended bounds");
@@ -141,12 +147,19 @@ struct Alignment_data
     std::vector<int> get_5p_extended_mismatches() const;
     std::vector<int> get_3p_extended_mismatches() const;
     std::vector<int> get_extended_mismatches() const { return extended_mismatches; }
+
+    std::vector<int> get_all_insertions() const {return std::vector<int>(insertions.begin(), insertions.end());}
     std::vector<int> get_core_insertions() const;
-    std::vector<int> get_core_deletions() const;
+    std::vector<int> get_5p_extended_insertions() const;
+    std::vector<int> get_3p_extended_insertions() const;
     std::vector<int> get_extended_insertions() const { return extended_insertions; }
+
+    std::vector<int> get_all_deletions() const {return std::vector<int>(deletions.begin(), deletions.end());};
+    std::vector<int> get_core_deletions() const;
+    std::vector<int> get_5p_extended_deletions() const;
+    std::vector<int> get_3p_extended_deletions() const;
     std::vector<int> get_extended_deletions() const { return extended_deletions; }
-    std::vector<int> get_all_insertions() const;
-    std::vector<int> get_all_deletions() const;
+
     
     // CIGAR string access
     std::string core_cigar() const;
