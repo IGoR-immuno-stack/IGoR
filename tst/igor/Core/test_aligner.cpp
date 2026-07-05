@@ -674,6 +674,79 @@ TEST_CASE("Alignment_data getters", "[aligner][alignment_data][accessors]")
         REQUIRE(aln.reference_align_end() == 4);
     }
 
+    SECTION("Extended mismatches population from constructor")
+    {
+        // Create alignment with core alignment [10, 20] and mismatches at 5, 15, 25
+        // 5 is before core (extended), 15 is in core, 25 is after core (extended)
+        std::vector<int> mismatches = { 5, 15, 25 };
+        Alignment_data aln("test", 0, 10, 20, 30, std::forward_list<int>(), std::forward_list<int>(), mismatches, 100.0,
+                           50, 40);
+
+        // extended_mismatches should contain positions outside [10, 20]
+        REQUIRE(aln.extended_mismatches.size() == 2);
+        REQUIRE(std::find(aln.extended_mismatches.begin(), aln.extended_mismatches.end(), 5)
+                != aln.extended_mismatches.end());
+        REQUIRE(std::find(aln.extended_mismatches.begin(), aln.extended_mismatches.end(), 25)
+                != aln.extended_mismatches.end());
+
+        // get_core_mismatches should contain position 15
+        auto core = aln.get_core_mismatches();
+        REQUIRE(core.size() == 1);
+        REQUIRE(core[0] == 15);
+    }
+
+    SECTION("Position getters")
+    {
+        std::forward_list<int> ins = { 1, 5, 10 };
+        std::forward_list<int> del = { 2, 7, 12 };
+        Alignment_data aln("test", 0, 0, 20, 30, ins, del, { }, 100.0, 50, 40);
+
+        auto ins_pos = aln.get_core_insertions();
+        REQUIRE(ins_pos.size() == 3);
+        REQUIRE(ins_pos[0] == 1);
+        REQUIRE(ins_pos[1] == 5);
+        REQUIRE(ins_pos[2] == 10);
+
+        auto del_pos = aln.get_core_deletions();
+        REQUIRE(del_pos.size() == 3);
+
+        // get_all_insertions and get_all_deletions should return same as get_core_insertions/get_core_deletions
+        // since extended_* are empty
+        REQUIRE(aln.get_all_insertions() == ins_pos);
+        REQUIRE(aln.get_all_deletions() == del_pos);
+    }
+
+    SECTION("Validation")
+    {
+        // Valid alignment
+        std::vector<int> mismatches = { 10, 15, 20 };
+        Alignment_data valid_aln("test", 0, 10, 20, 30, std::forward_list<int>(), std::forward_list<int>(), mismatches,
+                                 100.0, 50, 40);
+        REQUIRE(valid_aln.validate());
+
+        // Invalid: mismatches not sorted
+        Alignment_data invalid_aln("test", 0, 10, 20, 30, std::forward_list<int>(), std::forward_list<int>(),
+                                   { 20, 15, 10 }, 100.0, 50, 40); // Unsorted
+        REQUIRE_FALSE(invalid_aln.validate());
+    }
+
+    SECTION("Extended bounds getters")
+    {
+        Alignment_data aln("test", -5, 10, 20, 30, std::forward_list<int>(), std::forward_list<int>(), { }, 100.0, 50,
+                           40);
+
+        // extended_query_align_start = max(offset, 0) = max(-5, 0) = 0
+        REQUIRE(aln.extended_query_align_start() == 0);
+        // extended_query_align_end = min(offset + germline_length - 1 + n_ins - n_del, query_length - 1)
+        // = min(-5 + 40 - 1 + 0 - 0, 49) = min(34, 49) = 34
+        REQUIRE(aln.extended_query_align_end() == 34);
+
+        // extended_reference bounds should be full germline
+        REQUIRE(aln.extended_reference_align_start() == 0);
+        REQUIRE(aln.extended_reference_align_end() == 39);
+    }
+}
+
 // ============================================================================
 //  Deletion Categorization Tests
 // ============================================================================
@@ -846,5 +919,150 @@ TEST_CASE("Alignment_data deletion categorization", "[aligner][alignment_data][d
         REQUIRE_THAT(ext_del, Catch::Matchers::Equals(std::vector<int>{ 5, 7 }));
         REQUIRE_THAT(core_del, Catch::Matchers::Equals(std::vector<int>{ 10, 12 }));
         REQUIRE_THAT(three_p_ext_del, Catch::Matchers::Equals(std::vector<int>{ 17, 22 }));
+    }
+}
+
+// ============================================================================
+//  Insertion Categorization Tests
+// ============================================================================
+
+TEST_CASE("Alignment_data insertion categorization", "[aligner][alignment_data][insertions]")
+{
+    SECTION("Single 5p extended insertion")
+    {
+        //  qqQQQQ
+        // r-rRRRR
+        // Deletion at ref_pos = 2 is before ref_start, so it's 5p extended
+        Alignment_data aln("test", -1, 2, 5, 4, { 0 }, { }, { }, 100.0);
+
+        auto five_p_ext_ins = aln.get_5p_extended_insertions();
+        auto core_ins = aln.get_core_insertions();
+        auto three_p_ext_ins = aln.get_3p_extended_insertions();
+
+        REQUIRE_THAT(five_p_ext_ins, Catch::Matchers::Equals(std::vector<int>{ 0 }));
+        REQUIRE(core_ins.empty());
+        REQUIRE(three_p_ext_ins.empty());
+    }
+
+    SECTION("Single core deletion")
+    {
+        //  qqQQQQ
+        // rrrR-RR
+        // Deletion at ref_pos = 4 is within [3, 5], so it's core
+        Alignment_data aln("test", -1, 2, 5, 4, { 3 }, { }, { }, 100.0);
+
+        auto five_p_ext_ins = aln.get_5p_extended_insertions();
+        auto core_ins = aln.get_core_insertions();
+        auto three_p_ext_ins = aln.get_3p_extended_insertions();
+
+        REQUIRE(five_p_ext_ins.empty());
+        REQUIRE_THAT(core_ins, Catch::Matchers::Equals(std::vector<int>{ 3 }));
+        REQUIRE(three_p_ext_ins.empty());
+    }
+
+    SECTION("Single 3p extended deletion")
+    {
+        //  qqQQQQqqqq
+        // rrrRRRRrr-r
+        // Deletion at ref_pos = 6 is after ref_end, so it's 3p extended
+        Alignment_data aln("test", -1, 2, 5, 4, { 8 }, { }, { }, 100.0);
+
+        auto five_p_ext_ins = aln.get_5p_extended_insertions();
+        auto core_ins = aln.get_core_insertions();
+        auto three_p_ext_ins = aln.get_3p_extended_insertions();
+
+        REQUIRE(five_p_ext_ins.empty());
+        REQUIRE(core_ins.empty());
+        REQUIRE_THAT(three_p_ext_ins, Catch::Matchers::Equals(std::vector<int>{ 8 }));
+    }
+
+    SECTION("Multiple 5p extended deletions")
+    {
+        // qqqqqqqqqQQQQQQqqq
+        // r----rrrrRRRRRRrrr
+        Alignment_data aln("test", 0, 5, 10, 10, { 1, 2, 3, 4 }, { }, { }, 100.0);
+
+        auto five_p_ext_ins = aln.get_5p_extended_insertions();
+        auto core_ins = aln.get_core_insertions();
+        auto three_p_ext_ins = aln.get_3p_extended_insertions();
+
+        REQUIRE_THAT(five_p_ext_ins, Catch::Matchers::Equals(std::vector<int>{ 1, 2, 3, 4 }));
+        REQUIRE(core_ins.empty());
+        REQUIRE(three_p_ext_ins.empty());
+    }
+
+    SECTION("Mixed deletions: 5p extended, core, 3p extended")
+    {
+        // qqqqqqqqqQQQQQQQQqqqqqqqq
+        // r--rr-r-rR-R-RRRR-rrrr-rr
+        Alignment_data aln("test", 0, 9, 16, 8, { 1, 2, 5, 7, 10, 12, 17, 22 }, { }, { }, 100.0);
+
+        auto five_p_ext_ins = aln.get_5p_extended_insertions();
+        auto core_ins = aln.get_core_insertions();
+        auto three_p_ext_ins = aln.get_3p_extended_insertions();
+
+        REQUIRE_THAT(five_p_ext_ins, Catch::Matchers::Equals(std::vector<int>{ 1, 2, 5, 7 }));
+        REQUIRE_THAT(core_ins, Catch::Matchers::Equals(std::vector<int>{ 10, 12 }));
+        REQUIRE_THAT(three_p_ext_ins, Catch::Matchers::Equals(std::vector<int>{ 17, 22 }));
+    }
+
+    SECTION("Insertion just before core start")
+    {
+        // qqqqQQQQ
+        //  rr-RRRR
+        Alignment_data aln("test", 1, 4, 7, 4, { 3 }, { }, { }, 100.0);
+
+        auto five_p_ext_ins = aln.get_5p_extended_insertions();
+        auto core_ins = aln.get_core_insertions();
+        auto three_p_ext_ins = aln.get_3p_extended_insertions();
+
+        REQUIRE_THAT(five_p_ext_ins, Catch::Matchers::Equals(std::vector<int>{ 3 }));
+        REQUIRE(core_ins.empty());
+        REQUIRE(three_p_ext_ins.empty());
+    }
+
+    SECTION("Insertion just after core end")
+    {
+        // qqqqQQQQqqq
+        //  rrrRRRR-rr
+        Alignment_data aln("test", 0, 4, 7, 10, { 8 }, { }, { }, 100.0);
+
+        auto five_p_ext_ins = aln.get_5p_extended_insertions();
+        auto core_ins = aln.get_core_insertions();
+        auto three_p_ext_ins = aln.get_3p_extended_insertions();
+
+        REQUIRE(five_p_ext_ins.empty());
+        REQUIRE(core_ins.empty());
+        REQUIRE_THAT(three_p_ext_ins, Catch::Matchers::Equals(std::vector<int>{ 8 }));
+    }
+
+    SECTION("Insertion just after core start")
+    {
+        // qqqqQQQQ
+        //  rrr-RRR
+        Alignment_data aln("test", 1, 4, 7, 4, { 4 }, { }, { }, 100.0);
+
+        auto five_p_ext_ins = aln.get_5p_extended_insertions();
+        auto core_ins = aln.get_core_insertions();
+        auto three_p_ext_ins = aln.get_3p_extended_insertions();
+
+        REQUIRE(five_p_ext_ins.empty());
+        REQUIRE_THAT(core_ins, Catch::Matchers::Equals(std::vector<int>{ 4 }));
+        REQUIRE(three_p_ext_ins.empty());
+    }
+
+    SECTION("Insertion just before core end")
+    {
+        // qqqqQQQQqqq
+        //  rrrRRR-rrr
+        Alignment_data aln("test", 0, 5, 10, 10, { 7 }, { }, { }, 100.0);
+
+        auto five_p_ext_ins = aln.get_5p_extended_insertions();
+        auto core_ins = aln.get_core_insertions();
+        auto three_p_ext_ins = aln.get_3p_extended_insertions();
+
+        REQUIRE(five_p_ext_ins.empty());
+        REQUIRE_THAT(core_ins, Catch::Matchers::Equals(std::vector<int>{ 7 }));
+        REQUIRE(three_p_ext_ins.empty());
     }
 }
