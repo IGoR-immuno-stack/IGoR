@@ -80,7 +80,7 @@
  * - get_core/extended/all_insertions: insertion accessors
  * - get_core/extended/all_deletions: deletion accessors
  */
-struct Alignment_data
+struct CORE_EXPORT Alignment_data
 {
     std::string gene_name;
     int offset;
