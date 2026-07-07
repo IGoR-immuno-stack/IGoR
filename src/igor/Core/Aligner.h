@@ -120,27 +120,36 @@ struct CORE_EXPORT Alignment_data
     }
 
     // Extended alignment bounds (clamped to sequence lengths)
-    size_t extended_query_align_start() const { 
-        if (query_length == 0) throw std::logic_error("query_length required for extended bounds");
-        return std::max(static_cast<size_t>(offset), static_cast<size_t>(0));
+    size_t extended_query_align_start() const
+    {
+        if (query_length == 0)
+            throw std::logic_error("query_length required for extended bounds");
+        return static_cast<size_t>((std::max)(offset, 0));
     }
-    size_t extended_query_align_end() const { 
-        if (query_length == 0 || germline_length == 0) 
+    size_t extended_query_align_end() const
+    {
+        if (query_length == 0 || germline_length == 0)
             throw std::logic_error("query_length and germline_length required for extended bounds");
-        size_t n_del = std::distance(deletions.begin(), deletions.end());
-        size_t n_ins = std::distance(insertions.begin(), insertions.end());
-        return std::min(static_cast<size_t>(offset) + germline_length - 1 + n_ins - n_del,
-                        query_length - 1);
+        size_t n_del = get_all_deletions().size();
+        size_t n_ins = get_all_insertions().size();
+        return static_cast<size_t>((std::min)(offset + germline_length - 1 + n_ins - n_del, query_length - 1));
     }
-    size_t extended_reference_align_start() const { 
-        if (germline_length == 0) throw std::logic_error("germline_length required for extended bounds");
-        return 0; // Full germline reference
+    size_t extended_reference_align_start() const
+    {
+        if (germline_length == 0)
+            throw std::logic_error("germline_length required for extended bounds");
+        return static_cast<size_t>((std::max)(-offset, 0)); // Full germline reference
     }
-    size_t extended_reference_align_end() const { 
-        if (germline_length == 0) throw std::logic_error("germline_length required for extended bounds");
-        return germline_length - 1; // Full germline reference
+    size_t extended_reference_align_end() const
+    {
+        if (germline_length == 0)
+            throw std::logic_error("germline_length required for extended bounds");
+        size_t n_del = get_all_deletions().size();
+        size_t n_ins = get_all_insertions().size();
+        return static_cast<size_t>((std::min)(query_length - 1 - n_ins + n_del - offset,
+                                              germline_length - 1)); // Full germline reference
     }
-    
+
     // Mismatch and indel access
     std::vector<int> get_all_mismatches() const { return mismatches; }
     std::vector<int> get_core_mismatches() const;
