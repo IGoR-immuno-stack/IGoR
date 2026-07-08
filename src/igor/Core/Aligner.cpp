@@ -744,30 +744,30 @@ void write_single_seq_alignment(ofstream &outfile, int seq_index, forward_list<A
     for (forward_list<Alignment_data>::const_iterator jiter = seq_alignments.begin(); jiter != seq_alignments.end();
          ++jiter) {
         outfile << seq_index << ";" << (*jiter).gene_name << ";" << (*jiter).score << ";" << (*jiter).offset << ";{";
-        for (forward_list<int>::const_iterator kiter = (*jiter).insertions.begin(); kiter != (*jiter).insertions.end();
-             ++kiter) {
-            if (kiter == (*jiter).insertions.begin()) {
-                outfile << (*kiter);
+        const vector<int>& insertions = (*jiter).get_all_insertions();
+        for (size_t i = 0; i < insertions.size(); ++i) {
+            if (i == 0) {
+                outfile << insertions[i];
             } else {
-                outfile << "," << (*kiter);
+                outfile << "," << insertions[i];
             }
         }
         outfile << "};{";
-        for (forward_list<int>::const_iterator kiter = (*jiter).deletions.begin(); kiter != (*jiter).deletions.end();
-             ++kiter) {
-            if (kiter == (*jiter).deletions.begin()) {
-                outfile << (*kiter);
+        const vector<int>& deletions = (*jiter).get_all_deletions();
+        for (size_t i = 0; i < deletions.size(); ++i) {
+            if (i == 0) {
+                outfile << deletions[i];
             } else {
-                outfile << "," << (*kiter);
+                outfile << "," << deletions[i];
             }
         }
         outfile << "};{"; //<<endl;
-        for (vector<int>::const_iterator kiter = (*jiter).mismatches.begin(); kiter != (*jiter).mismatches.end();
-             ++kiter) {
-            if (kiter == (*jiter).mismatches.begin()) {
-                outfile << (*kiter);
+        const vector<int>& mismatches = (*jiter).get_all_mismatches();
+        for (size_t i = 0; i < mismatches.size(); ++i) {
+            if (i == 0) {
+                outfile << mismatches[i];
             } else {
-                outfile << "," << (*kiter);
+                outfile << "," << mismatches[i];
             }
         }
         outfile << "};" << (*jiter).align_length << ";" << (*jiter).five_p_offset << ";" << (*jiter).three_p_offset
@@ -844,11 +844,11 @@ static void append_cigar_run(vector<pair<int, char>> &ops, int count, char op)
  */
 std::string alignment_data_to_core_cigar(const Alignment_data &aln)
 {
-    vector<int> insertions(aln.insertions.begin(), aln.insertions.end());
-    vector<int> deletions(aln.deletions.begin(), aln.deletions.end());
+    vector<int> insertions = aln.get_all_insertions();
+    vector<int> deletions = aln.get_all_deletions();
     sort(insertions.begin(), insertions.end());
     sort(deletions.begin(), deletions.end());
-    unordered_set<int> mismatches(aln.mismatches.begin(), aln.mismatches.end());
+    unordered_set<int> mismatches(aln.get_all_mismatches().begin(), aln.get_all_mismatches().end());
 
     size_t ins_i = 0;
     size_t del_i = 0;
@@ -943,8 +943,8 @@ std::string alignment_data_to_extended_cigar(const Alignment_data &aln, size_t s
     Alignment_data aln_copy = aln;
     // Update offset values to extend alignment bounds
     aln_copy.five_p_offset = max(0, aln.offset);
-    size_t n_del = distance(aln.deletions.begin(), aln.deletions.end());
-    size_t n_ins = distance(aln.insertions.begin(), aln.insertions.end());
+    size_t n_del = aln.get_all_deletions().size();
+    size_t n_ins = aln.get_all_insertions().size();
     aln_copy.three_p_offset = min(aln_copy.offset + germline_length - 1 + n_ins - n_del, sequence_length - 1);
     aln_copy.align_length = aln_copy.three_p_offset - aln_copy.five_p_offset + n_del;
     return alignment_data_to_core_cigar(aln_copy, sequence_length, germline_length);
@@ -1301,18 +1301,18 @@ bool alignment_data_equal(const Alignment_data &a, const Alignment_data &b, doub
     if (fabs(a.score - b.score) > score_tolerance) return false;
     
     // Check insertions (convert to sets for order-independent comparison)
-    unordered_set<int> a_ins(a.insertions.begin(), a.insertions.end());
-    unordered_set<int> b_ins(b.insertions.begin(), b.insertions.end());
+    unordered_set<int> a_ins(a.get_all_insertions().begin(), a.get_all_insertions().end());
+    unordered_set<int> b_ins(b.get_all_insertions().begin(), b.get_all_insertions().end());
     if (a_ins != b_ins) return false;
     
     // Check deletions
-    unordered_set<int> a_del(a.deletions.begin(), a.deletions.end());
-    unordered_set<int> b_del(b.deletions.begin(), b.deletions.end());
+    unordered_set<int> a_del(a.get_all_deletions().begin(), a.get_all_deletions().end());
+    unordered_set<int> b_del(b.get_all_deletions().begin(), b.get_all_deletions().end());
     if (a_del != b_del) return false;
     
     // Check mismatches (already sorted, but compare as sets to be safe)
-    unordered_set<int> a_mis(a.mismatches.begin(), a.mismatches.end());
-    unordered_set<int> b_mis(b.mismatches.begin(), b.mismatches.end());
+    unordered_set<int> a_mis(a.get_all_mismatches().begin(), a.get_all_mismatches().end());
+    unordered_set<int> b_mis(b.get_all_mismatches().begin(), b.get_all_mismatches().end());
     if (a_mis != b_mis) return false;
     
     return true;
@@ -1358,7 +1358,7 @@ unordered_map<int, vector<Alignment_data>> read_alignments_seq_csv(const string 
     while (getline(infile, line_str)) {
         auto align = parse_single_alignment_csv_line(line_str);
         if (align.second.score >= score_threshold) {
-            if (allow_in_dels || (align.second.deletions.empty() && align.second.insertions.empty())) {
+            if (allow_in_dels || (align.second.get_all_deletions().empty() && align.second.get_all_insertions().empty())) {
                 indexed_alignments[align.first].push_back(align.second);
             }
         }

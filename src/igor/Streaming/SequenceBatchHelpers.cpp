@@ -366,9 +366,9 @@ sparrow::record_batch vector_to_batch(
                 v_scores[gc].push_back(align.score);
 
                 // Convert forward_list to vector for list arrays
-                std::vector<int32_t> ins_vec(align.insertions.begin(), align.insertions.end());
-                std::vector<int32_t> del_vec(align.deletions.begin(), align.deletions.end());
-                std::vector<int32_t> mis_vec(align.mismatches.begin(), align.mismatches.end());
+                std::vector<int32_t> ins_vec(align.get_all_insertions().begin(), align.get_all_insertions().end());
+                std::vector<int32_t> del_vec(align.get_all_deletions().begin(), align.get_all_deletions().end());
+                std::vector<int32_t> mis_vec(align.get_all_mismatches().begin(), align.get_all_mismatches().end());
 
                 v_insertions[gc].push_back(std::move(ins_vec));
                 v_deletions[gc].push_back(std::move(del_vec));

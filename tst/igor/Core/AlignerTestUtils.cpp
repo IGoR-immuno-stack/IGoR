@@ -22,6 +22,8 @@
  *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <catch2/matchers/catch_matchers_vector.hpp>
+
 #include "AlignerTestUtils.h"
 
 #include <cmath>
@@ -83,7 +85,7 @@ std::pair<std::string, std::string> find_genomic_template(
 // Utility Functions
 // ============================================================================
 
-std::vector<int> sorted_list(std::forward_list<int> xs)
+std::vector<int> sorted_list(std::vector<int> xs)
 {
     std::vector<int> out(xs.begin(), xs.end());
     std::sort(out.begin(), out.end());
@@ -102,20 +104,20 @@ bool check_alignment_data_equal(const Alignment_data &a, const Alignment_data &b
     REQUIRE(fabs(a.score - b.score) <= score_tolerance);
     
     // Check insertions (convert to sets for order-independent comparison)
-    unordered_set<int> a_ins(a.insertions.begin(), a.insertions.end());
-    unordered_set<int> b_ins(b.insertions.begin(), b.insertions.end());
-    REQUIRE(a_ins == b_ins);
+    const vector<int> a_ins = a.get_all_insertions();
+    const vector<int> b_ins = b.get_all_insertions();
+    REQUIRE_THAT(a_ins, Catch::Matchers::UnorderedEquals(b_ins));
     
     // Check deletions
-    unordered_set<int> a_del(a.deletions.begin(), a.deletions.end());
-    unordered_set<int> b_del(b.deletions.begin(), b.deletions.end());
-    REQUIRE(a_del == b_del);
+    const vector<int> a_del = a.get_all_deletions();
+    const vector<int> b_del = b.get_all_deletions();
+    REQUIRE_THAT(a_del, Catch::Matchers::UnorderedEquals(b_del));
     
     // Check mismatches (already sorted, but compare as sets to be safe)
-    unordered_set<int> a_mis(a.mismatches.begin(), a.mismatches.end());
-    unordered_set<int> b_mis(b.mismatches.begin(), b.mismatches.end());
-    REQUIRE(a_mis == b_mis);
-    
+    const vector<int> a_mis = a.get_all_mismatches();
+    const vector<int> b_mis = b.get_all_mismatches();
+    REQUIRE_THAT(a_mis, Catch::Matchers::UnorderedEquals(b_mis));
+
     return true;
 }
 

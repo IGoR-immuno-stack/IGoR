@@ -167,10 +167,11 @@ struct ScenarioContext {
      */
     inline void set_mismatches(
         Seq_type seq_type,
-        std::vector<int>* mismatches,
+        const std::vector<int>* mismatches,
         size_t memory_layer
     ) {
-        mismatches_lists.set_value(seq_type, mismatches, memory_layer);
+        // FIXME const_cast is an artifact of constness issue for memory layers. 
+        mismatches_lists.set_value(seq_type, const_cast<std::vector<int>*>(mismatches), memory_layer);
     }
 
     /**
@@ -184,7 +185,7 @@ struct ScenarioContext {
      *
      * PERFORMANCE: Inline memory layer lookup
      */
-    inline std::vector<int>* get_mismatches(
+    inline const std::vector<int>* get_mismatches(
         Seq_type seq_type,
         size_t memory_layer
     ) const {
@@ -225,7 +226,7 @@ struct ScenarioContext {
      * @param seq_type Type of sequence
      * @return Pointer to mismatch vector at current memory layer
      */
-    inline std::vector<int>* get_mismatches(Seq_type seq_type) const {
+    inline const std::vector<int>* get_mismatches(Seq_type seq_type) const {
         return mismatches_lists.at(seq_type);
     }
 

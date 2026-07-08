@@ -151,19 +151,19 @@ struct CORE_EXPORT Alignment_data
     }
 
     // Mismatch and indel access
-    std::vector<int> get_all_mismatches() const { return mismatches; }
+    const std::vector<int>& get_all_mismatches() const { return mismatches; }
     std::vector<int> get_core_mismatches() const;
     std::vector<int> get_5p_extended_mismatches() const;
     std::vector<int> get_3p_extended_mismatches() const;
     std::vector<int> get_extended_mismatches() const { return extended_mismatches; }
 
-    std::vector<int> get_all_insertions() const {return std::vector<int>(insertions.begin(), insertions.end());}
+    const std::vector<int> get_all_insertions() const {return std::vector<int>(insertions.begin(), insertions.end());}
     std::vector<int> get_core_insertions() const;
     std::vector<int> get_5p_extended_insertions() const;
     std::vector<int> get_3p_extended_insertions() const;
     std::vector<int> get_extended_insertions() const { return extended_insertions; }
 
-    std::vector<int> get_all_deletions() const {return std::vector<int>(deletions.begin(), deletions.end());};
+    const std::vector<int> get_all_deletions() const {return std::vector<int>(deletions.begin(), deletions.end());};
     std::vector<int> get_core_deletions() const;
     std::vector<int> get_5p_extended_deletions() const;
     std::vector<int> get_3p_extended_deletions() const;

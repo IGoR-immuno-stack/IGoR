@@ -1,4 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_vector.hpp>
 
 #include <igor/Core/Aligner.h>
 #include "AlignerTestUtils.h"
@@ -53,19 +54,20 @@ TEST_CASE("alignment data CIGAR mixed round trip", "[cigar]")
     REQUIRE(round.five_p_offset == aln.five_p_offset);
     REQUIRE(round.three_p_offset == aln.three_p_offset);
     REQUIRE(round.align_length == aln.align_length);
-    REQUIRE(sorted_list(round.insertions) == sorted_list(aln.insertions));
-    REQUIRE(sorted_list(round.deletions) == sorted_list(aln.deletions));
-    std::sort(round.mismatches.begin(), round.mismatches.end());
-    auto expected_mismatches = aln.mismatches;
+    REQUIRE_THAT(round.get_all_insertions(), Catch::Matchers::UnorderedEquals(aln.get_all_insertions()));
+    REQUIRE_THAT(round.get_all_deletions(), Catch::Matchers::UnorderedEquals(aln.get_all_deletions()));
+    std::vector<int> round_mismatches = round.get_all_mismatches();
+    std::sort(round_mismatches.begin(), round_mismatches.end());
+    auto expected_mismatches = aln.get_all_mismatches();
     std::sort(expected_mismatches.begin(), expected_mismatches.end());
-    REQUIRE(round.mismatches == expected_mismatches);
+    REQUIRE(round_mismatches == expected_mismatches);
 }
 
 TEST_CASE("CIGAR M fallback loses mismatch detail by design", "[cigar]")
 {
     Alignment_data aln = alignment_data_from_cigar("gene", "5M", 1, 5, 1, 5, 10);
     REQUIRE(aln.align_length == 5);
-    REQUIRE(aln.mismatches.empty());
+    REQUIRE(aln.get_all_mismatches().empty());
     REQUIRE(aln.five_p_offset == 0);
     REQUIRE(aln.three_p_offset == 4);
 }

@@ -185,8 +185,8 @@ private:
     mutable std::string gen_new_str;
     mutable std::string gen_tmp_str;
     std::vector<int> mismatches_vector;
-    std::vector<int>::iterator mis_iter;
-    std::vector<int>::reverse_iterator rev_mis_iter;
+    std::vector<int>::const_iterator mis_iter;
+    std::vector<int>::const_reverse_iterator rev_mis_iter;
     size_t endogeneous_mismatches;
     bool end_reached;
     int deletion_value;

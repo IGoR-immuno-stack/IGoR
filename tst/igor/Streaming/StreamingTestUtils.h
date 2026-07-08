@@ -219,15 +219,15 @@ inline bool alignments_equal(
     if (a.align_length != b.align_length) return false;
 
     // Compare forward_lists
-    std::vector<int> a_ins(a.insertions.begin(), a.insertions.end());
-    std::vector<int> b_ins(b.insertions.begin(), b.insertions.end());
+    std::vector<int> a_ins = a.get_all_insertions();
+    std::vector<int> b_ins = b.get_all_insertions();
     if (a_ins != b_ins) return false;
 
-    std::vector<int> a_del(a.deletions.begin(), a.deletions.end());
-    std::vector<int> b_del(b.deletions.begin(), b.deletions.end());
+    std::vector<int> a_del = a.get_all_deletions();
+    std::vector<int> b_del = b.get_all_deletions();
     if (a_del != b_del) return false;
 
-    if (a.mismatches != b.mismatches) return false;
+    if (a.get_all_mismatches() != b.get_all_mismatches()) return false;
 
     return true;
 }

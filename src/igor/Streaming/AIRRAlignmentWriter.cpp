@@ -67,8 +67,8 @@ std::string make_cigar(const Alignment_data& align)
     std::ostringstream cigar;
 
     // Count insertions and deletions
-    size_t num_insertions = std::distance(align.insertions.begin(), align.insertions.end());
-    size_t num_deletions = std::distance(align.deletions.begin(), align.deletions.end());
+    size_t num_insertions = align.get_all_insertions().size();
+    size_t num_deletions = align.get_all_deletions().size();
 
     // Generate simplified CIGAR: matches first, then insertions, then deletions
     if (align.align_length > 0) {
