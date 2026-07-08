@@ -18,7 +18,6 @@
 #include <sparrow/builder.hpp>
 
 #include <filesystem>
-#include <forward_list>
 #include <string>
 #include <tuple>
 #include <unordered_map>
@@ -172,8 +171,8 @@ inline SequenceTuple create_sequence_with_v_alignment(int id, const std::string&
         5,                                 // five_p_offset
         20,                                // three_p_offset
         100,                               // align_length
-        std::forward_list<int>{1, 2},      // insertions
-        std::forward_list<int>{3, 4},      // deletions
+        std::vector<int>{1, 2},            // insertions
+        std::vector<int>{3, 4},            // deletions
         std::vector<int>{5, 6},            // mismatches
         123.45                             // score
     );
@@ -218,7 +217,7 @@ inline bool alignments_equal(
     if (a.three_p_offset != b.three_p_offset) return false;
     if (a.align_length != b.align_length) return false;
 
-    // Compare forward_lists
+    // Compare insertions/deletions
     std::vector<int> a_ins = a.get_all_insertions();
     std::vector<int> b_ins = b.get_all_insertions();
     if (a_ins != b_ins) return false;

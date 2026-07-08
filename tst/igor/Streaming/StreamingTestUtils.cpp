@@ -82,8 +82,6 @@ std::vector<SequenceTuple> load_murugan_dataset()
             auto deletions_vec = parse_list(fields[5]);
             auto mismatches_vec = parse_list(fields[6]);
 
-            std::forward_list<int> insertions(insertions_vec.begin(), insertions_vec.end());
-            std::forward_list<int> deletions(deletions_vec.begin(), deletions_vec.end());
             std::vector<int> mismatches(mismatches_vec.begin(), mismatches_vec.end());
 
             size_t align_length = std::stoull(fields[7]);
@@ -92,7 +90,7 @@ std::vector<SequenceTuple> load_murugan_dataset()
 
             // Use 9-argument constructor
             Alignment_data align(gene_name, offset, five_p_offset, three_p_offset,
-                               align_length, insertions, deletions, mismatches, score);
+                               align_length, insertions_vec, deletions_vec, mismatches, score);
 
             all_alignments[seq_index][gene_class].push_back(align);
         }

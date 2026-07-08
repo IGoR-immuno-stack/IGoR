@@ -380,8 +380,8 @@ std::vector<SequenceData> read_sequences(const std::string& filepath, Delimiter 
 
 bool parse_cigar(
     const std::string& cigar,
-    std::forward_list<int>& insertions,
-    std::forward_list<int>& deletions,
+    std::vector<int>& insertions,
+    std::vector<int>& deletions,
     size_t& align_length)
 {
     if (cigar.empty()) {
@@ -414,13 +414,13 @@ bool parse_cigar(
             case 'I': // Insertion
                 // Simplified: just record count
                 for (int j = 0; j < count; ++j) {
-                    insertions.push_front(static_cast<int>(align_length));
+                    insertions.push_back(static_cast<int>(align_length));
                 }
                 break;
             case 'D': // Deletion
                 // Simplified: just record count
                 for (int j = 0; j < count; ++j) {
-                    deletions.push_front(static_cast<int>(align_length));
+                    deletions.push_back(static_cast<int>(align_length));
                 }
                 align_length += count;
                 break;

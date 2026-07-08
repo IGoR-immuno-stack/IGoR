@@ -168,8 +168,8 @@ std::optional<Alignment_data> extract_alignment(
 
     // Create alignment data
     // Note: insertions, deletions, and mismatches would require CIGAR parsing
-    std::forward_list<int> insertions;
-    std::forward_list<int> deletions;
+    std::vector<int> insertions;
+    std::vector<int> deletions;
     std::vector<int> mismatches;
 
     return Alignment_data(

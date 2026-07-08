@@ -124,12 +124,12 @@ std::pair<std::string, std::string> find_genomic_template(
 // ============================================================================
 
 /**
- * Convert a forward_list<int> to a sorted vector<int>.
- * 
- * \param xs The forward_list to convert
+ * Return a sorted copy of a vector<int>.
+ *
+ * \param xs The vector to sort
  * \return Sorted vector containing the same elements
  */
-std::vector<int> sorted_list(std::forward_list<int> xs);
+std::vector<int> sorted_list(std::vector<int> xs);
 
 /**
  * Compare two Alignment_data objects for equality with detailed diagnostics.

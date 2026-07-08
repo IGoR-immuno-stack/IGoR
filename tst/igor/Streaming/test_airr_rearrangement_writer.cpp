@@ -54,8 +54,8 @@ struct AIRRWriterFixture
         {
             std::unordered_map<Gene_class, std::vector<Alignment_data>> aligns;
 
-            std::forward_list<int> insertions;
-            std::forward_list<int> deletions;
+            std::vector<int> insertions;
+            std::vector<int> deletions;
             std::vector<int> mismatches;
 
             aligns[V_gene].emplace_back(
@@ -72,8 +72,8 @@ struct AIRRWriterFixture
         {
             std::unordered_map<Gene_class, std::vector<Alignment_data>> aligns;
 
-            std::forward_list<int> insertions;
-            std::forward_list<int> deletions;
+            std::vector<int> insertions;
+            std::vector<int> deletions;
             std::vector<int> mismatches;
 
             aligns[V_gene].emplace_back(
@@ -102,8 +102,8 @@ struct AIRRWriterFixture
 
         std::unordered_map<Gene_class, std::vector<Alignment_data>> aligns;
 
-        std::forward_list<int> insertions = {5, 10};  // 2 insertions
-        std::forward_list<int> deletions = {15};       // 1 deletion
+        std::vector<int> insertions = {5, 10};  // 2 insertions
+        std::vector<int> deletions = {15};       // 1 deletion
         std::vector<int> mismatches = {3, 8, 20};
 
         aligns[V_gene].emplace_back(
@@ -280,8 +280,8 @@ TEST_CASE("make_cigar", "[airr][writer][cigar]")
 {
     SECTION("simple match only")
     {
-        std::forward_list<int> insertions;
-        std::forward_list<int> deletions;
+        std::vector<int> insertions;
+        std::vector<int> deletions;
         std::vector<int> mismatches;
 
         Alignment_data align("IGHV1", 0, 0, 0, 50, insertions, deletions, mismatches, 100.0);
@@ -291,8 +291,8 @@ TEST_CASE("make_cigar", "[airr][writer][cigar]")
 
     SECTION("with insertions")
     {
-        std::forward_list<int> insertions = {5, 10};
-        std::forward_list<int> deletions;
+        std::vector<int> insertions = {5, 10};
+        std::vector<int> deletions;
         std::vector<int> mismatches;
 
         Alignment_data align("IGHV1", 0, 0, 0, 50, insertions, deletions, mismatches, 100.0);
@@ -303,8 +303,8 @@ TEST_CASE("make_cigar", "[airr][writer][cigar]")
 
     SECTION("with deletions")
     {
-        std::forward_list<int> insertions;
-        std::forward_list<int> deletions = {15, 20, 25};
+        std::vector<int> insertions;
+        std::vector<int> deletions = {15, 20, 25};
         std::vector<int> mismatches;
 
         Alignment_data align("IGHV1", 0, 0, 0, 50, insertions, deletions, mismatches, 100.0);
@@ -314,8 +314,8 @@ TEST_CASE("make_cigar", "[airr][writer][cigar]")
 
     SECTION("with insertions and deletions")
     {
-        std::forward_list<int> insertions = {5};
-        std::forward_list<int> deletions = {10, 15};
+        std::vector<int> insertions = {5};
+        std::vector<int> deletions = {10, 15};
         std::vector<int> mismatches;
 
         Alignment_data align("IGHV1", 0, 0, 0, 50, insertions, deletions, mismatches, 100.0);
@@ -325,8 +325,8 @@ TEST_CASE("make_cigar", "[airr][writer][cigar]")
 
     SECTION("empty alignment")
     {
-        std::forward_list<int> insertions;
-        std::forward_list<int> deletions;
+        std::vector<int> insertions;
+        std::vector<int> deletions;
         std::vector<int> mismatches;
 
         Alignment_data align("IGHV1", 0, 0, 0, 0, insertions, deletions, mismatches, 0.0);
@@ -371,8 +371,8 @@ TEST_CASE_METHOD(AIRRWriterFixture, "write_legacy_tsv", "[airr][writer][legacy]"
     std::vector<std::tuple<int, std::string,
                            std::unordered_map<Gene_class, std::vector<Alignment_data>>>> legacy_seqs;
 
-    std::forward_list<int> insertions;
-    std::forward_list<int> deletions;
+    std::vector<int> insertions;
+    std::vector<int> deletions;
     std::vector<int> mismatches;
 
     std::unordered_map<Gene_class, std::vector<Alignment_data>> aligns;

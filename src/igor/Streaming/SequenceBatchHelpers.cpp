@@ -238,13 +238,9 @@ parse_alignments_from_columns(const sparrow::record_batch &batch, size_t row_ind
                 std::vector<int> deletions_vec = get_int_list_value(batch, deletions_col, row_index);
                 std::vector<int> mismatches_vec = get_int_list_value(batch, mismatches_col, row_index);
 
-                // Convert vectors to forward_list for insertions and deletions
-                std::forward_list<int> insertions(insertions_vec.begin(), insertions_vec.end());
-                std::forward_list<int> deletions(deletions_vec.begin(), deletions_vec.end());
-
                 // Create complete alignment data structure with all 9 fields
                 Alignment_data align(gene_name, offset, five_p_offset, three_p_offset,
-                                   align_length, insertions, deletions, mismatches_vec, score);
+                                   align_length, insertions_vec, deletions_vec, mismatches_vec, score);
 
                 alignments[gene_class].push_back(align);
             }
@@ -365,7 +361,7 @@ sparrow::record_batch vector_to_batch(
                 v_align_lengths[gc].push_back(static_cast<uint64_t>(align.align_length));
                 v_scores[gc].push_back(align.score);
 
-                // Convert forward_list to vector for list arrays
+                // Narrow to int32_t for list arrays
                 std::vector<int32_t> ins_vec(align.get_all_insertions().begin(), align.get_all_insertions().end());
                 std::vector<int32_t> del_vec(align.get_all_deletions().begin(), align.get_all_deletions().end());
                 std::vector<int32_t> mis_vec(align.get_all_mismatches().begin(), align.get_all_mismatches().end());

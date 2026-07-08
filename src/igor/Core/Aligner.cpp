@@ -959,8 +959,8 @@ Alignment_data alignment_data_from_cigar(const std::string &gene_name, const std
     int t = seq_start_1based - 1;
     int g = ref_start_1based - 1;
     size_t align_length = 0;
-    forward_list<int> insertions;
-    forward_list<int> deletions;
+    vector<int> insertions;
+    vector<int> deletions;
     vector<int> mismatches;
 
     for (const auto &entry : parse_cigar(cigar)) {
@@ -979,13 +979,13 @@ Alignment_data alignment_data_from_cigar(const std::string &gene_name, const std
                 ++g;
                 break;
             case 'I':
-                insertions.push_front(t++);
+                insertions.push_back(t++);
                 break;
             case 'D':
-                deletions.push_front(g++);
+                deletions.push_back(g++);
                 break;
             case 'N':
-                deletions.push_front(g++);
+                deletions.push_back(g++);
                 break;
             case 'S':
                 ++t;
@@ -1186,8 +1186,7 @@ Alignment_data alignment_data_from_cigar_and_extended(const std::string &gene_na
     std::sort(mismatches.begin(), mismatches.end());
 
     return Alignment_data(gene_name, offset, five_p_offset, three_p_offset, align_length,
-                          forward_list(insertions.begin(), insertions.end()),
-                          forward_list(deletions.begin(), deletions.end()), mismatches, score, 0, 0);
+                          insertions, deletions, mismatches, score, 0, 0);
 }
 
 int alignment_data_sequence_start(const Alignment_data &aln)
@@ -1227,11 +1226,11 @@ int alignment_data_germline_end(const Alignment_data &aln)
  */
 vector<int> extend_alignment_mismatches(const Int_Str &int_data_sequence, const Int_Str &int_genomic_sequence,
                                         int offset, size_t five_p_offset, size_t three_p_offset,
-                                        const forward_list<int> &insertions, const forward_list<int> &deletions)
+                                        const vector<int> &insertions, const vector<int> &deletions)
 {
     vector<int> extended_mismatches;
 
-    // Convert forward_lists to unordered_sets for efficient lookup
+    // Convert to unordered_sets for efficient lookup
     unordered_set<int> insertion_set(insertions.begin(), insertions.end());
     unordered_set<int> deletion_set(deletions.begin(), deletions.end());
 
@@ -1380,34 +1379,34 @@ std::pair<int, Alignment_data> parse_single_alignment_csv_line(const string &lin
     string gene_name = line.substr((index_sep + 1), (name_sep - index_sep - 1));
     double score = stod(line.substr((name_sep + 1), (score_sep - name_sep - 1)));
     int offset = stoi(line.substr((score_sep + 1), (off_sep - score_sep - 1)));
-    forward_list<int> insertions;
-    forward_list<int> deletions;
+    vector<int> insertions;
+    vector<int> deletions;
     vector<int> mismatches;
 
     string ins_substr = line.substr((off_sep + 2), (ins_sep - off_sep - 3));
     size_t comma_index = ins_substr.find(',');
     if (comma_index != string::npos) {
-        insertions.push_front(stoi(ins_substr.substr(0, comma_index)));
+        insertions.push_back(stoi(ins_substr.substr(0, comma_index)));
         while (comma_index != string::npos) {
             size_t next_comma_index = ins_substr.find(',', (comma_index + 1));
-            insertions.push_front(stoi(ins_substr.substr((comma_index + 1), (next_comma_index - comma_index - 1))));
+            insertions.push_back(stoi(ins_substr.substr((comma_index + 1), (next_comma_index - comma_index - 1))));
             comma_index = next_comma_index;
         }
     } else if (!ins_substr.empty()) {
-        insertions.push_front(stoi(ins_substr));
+        insertions.push_back(stoi(ins_substr));
     }
 
     string del_substr = line.substr((ins_sep + 2), (del_sep - ins_sep - 3));
     comma_index = del_substr.find(',');
     if (comma_index != string::npos) {
-        deletions.push_front(stoi(del_substr.substr(0, comma_index)));
+        deletions.push_back(stoi(del_substr.substr(0, comma_index)));
         while (comma_index != string::npos) {
             size_t next_comma_index = del_substr.find(',', (comma_index + 1));
-            deletions.push_front(stoi(del_substr.substr((comma_index + 1), (next_comma_index - comma_index - 1))));
+            deletions.push_back(stoi(del_substr.substr((comma_index + 1), (next_comma_index - comma_index - 1))));
             comma_index = next_comma_index;
         }
     } else if (!del_substr.empty()) {
-        deletions.push_front(stoi(del_substr));
+        deletions.push_back(stoi(del_substr));
     }
 
     string mismatch_substr;
@@ -1590,8 +1589,8 @@ void Aligner::set_genomic_sequences(vector<pair<string, string>> nt_genomic_seq)
  *
  * The method returns the shift induced by introducing the deletions of this alignment
  */
-int Aligner::incorporate_in_dels(string &data_seq, string &genomic_seq, const forward_list<int>,
-                                 const forward_list<int>, int prev_dels)
+int Aligner::incorporate_in_dels(string &data_seq, string &genomic_seq, const vector<int>,
+                                 const vector<int>, int prev_dels)
 {
 
     return prev_dels;
@@ -2332,8 +2331,7 @@ SwReconstructionResult traceback_sw_alignments(const Int_Str &int_data_sequence,
                 output.alignments.emplace_back(pair<int, Alignment_data>(
                         dp.max_score[align],
                         Alignment_data(offset, begin_align_offset, end_align_offset, align_length,
-                                       forward_list(insertions.rbegin(), insertions.rend()),
-                                       forward_list(deletions.rbegin(), deletions.rend()), all_mismatches,
+                                       insertions, deletions, all_mismatches,
                                        dp.max_score[align], int_data_sequence.size(), int_genomic_sequence.size())));
             }
         }
@@ -2876,7 +2874,20 @@ bool Alignment_data::validate() const {
             return false; // Not sorted
         }
     }
-    
+
+    // Check that insertions/deletions are sorted (relied upon by
+    // get_core_deletions/get_5p_extended_deletions/get_3p_extended_deletions)
+    for (size_t i = 1; i < insertions.size(); ++i) {
+        if (insertions[i-1] > insertions[i]) {
+            return false; // Not sorted
+        }
+    }
+    for (size_t i = 1; i < deletions.size(); ++i) {
+        if (deletions[i-1] > deletions[i]) {
+            return false; // Not sorted
+        }
+    }
+
     // Check that extended_mismatches are sorted
     for (size_t i = 1; i < extended_mismatches.size(); ++i) {
         if (extended_mismatches[i-1] > extended_mismatches[i]) {

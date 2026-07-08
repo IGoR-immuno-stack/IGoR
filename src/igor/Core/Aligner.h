@@ -86,8 +86,8 @@ struct CORE_EXPORT Alignment_data
     int offset;
     size_t five_p_offset;
     size_t three_p_offset;
-    std::forward_list<int> insertions; //gap in the genomic sequence
-    std::forward_list<int> deletions; //gap in the data sequence
+    std::vector<int> insertions; //gap in the genomic sequence
+    std::vector<int> deletions; //gap in the data sequence
     size_t align_length;
     mutable std::vector<int> mismatches;
     double score;
@@ -157,13 +157,13 @@ struct CORE_EXPORT Alignment_data
     std::vector<int> get_3p_extended_mismatches() const;
     std::vector<int> get_extended_mismatches() const { return extended_mismatches; }
 
-    const std::vector<int> get_all_insertions() const {return std::vector<int>(insertions.begin(), insertions.end());}
+    const std::vector<int>& get_all_insertions() const { return insertions; }
     std::vector<int> get_core_insertions() const;
     std::vector<int> get_5p_extended_insertions() const;
     std::vector<int> get_3p_extended_insertions() const;
     std::vector<int> get_extended_insertions() const { return extended_insertions; }
 
-    const std::vector<int> get_all_deletions() const {return std::vector<int>(deletions.begin(), deletions.end());};
+    const std::vector<int>& get_all_deletions() const { return deletions; }
     std::vector<int> get_core_deletions() const;
     std::vector<int> get_5p_extended_deletions() const;
     std::vector<int> get_3p_extended_deletions() const;
@@ -180,28 +180,30 @@ struct CORE_EXPORT Alignment_data
     Alignment_data(std::string gene, int off, size_t query_len = 0, size_t germline_len = 0)
         : gene_name(gene),
           offset(off),
-          insertions(*(new std::forward_list<int>)),
-          deletions(*(new std::forward_list<int>)),
           score(0),
           query_length(query_len),
           germline_length(germline_len)
     {
     }
-    Alignment_data(int off, size_t five_p_off, size_t three_p_off, size_t align_len, std::forward_list<int> ins,
-                   std::forward_list<int> del, std::vector<int> mis, double alignment_score,
+    Alignment_data(int off, size_t five_p_off, size_t three_p_off, size_t align_len, std::vector<int> ins,
+                   std::vector<int> del, std::vector<int> mis, double alignment_score,
                    size_t query_len = 0, size_t germline_len = 0)
         : gene_name(std::string()),
           offset(off),
           five_p_offset(five_p_off),
           three_p_offset(three_p_off),
-          insertions(ins),
-          deletions(del),
+          insertions(std::move(ins)),
+          deletions(std::move(del)),
           align_length(align_len),
           mismatches(mis),
           score(alignment_score),
           query_length(query_len),
           germline_length(germline_len)
     {
+        // Insertions/deletions are stored sorted ascending (invariant relied upon by
+        // get_core_deletions/get_5p_extended_deletions/get_3p_extended_deletions)
+        std::sort(insertions.begin(), insertions.end());
+        std::sort(deletions.begin(), deletions.end());
         // Populate extended_mismatches from mismatches
         for (int pos : mismatches) {
             if (pos < five_p_offset || pos > three_p_offset) {
@@ -209,35 +211,39 @@ struct CORE_EXPORT Alignment_data
             }
         }
     }
-    Alignment_data(std::string gene, int off, size_t align_len, std::forward_list<int> ins, std::forward_list<int> del,
+    Alignment_data(std::string gene, int off, size_t align_len, std::vector<int> ins, std::vector<int> del,
                    std::vector<int> mis, double alignment_score,
                    size_t query_len = 0, size_t germline_len = 0)
         : gene_name(gene),
           offset(off),
-          insertions(ins),
-          deletions(del),
+          insertions(std::move(ins)),
+          deletions(std::move(del)),
           align_length(align_len),
           mismatches(mis),
           score(alignment_score),
           query_length(query_len),
           germline_length(germline_len)
     {
+        std::sort(insertions.begin(), insertions.end());
+        std::sort(deletions.begin(), deletions.end());
     }
     Alignment_data(std::string gene, int off, size_t five_p_off, size_t three_p_off, size_t align_len,
-                   std::forward_list<int> ins, std::forward_list<int> del, std::vector<int> mis, double alignment_score,
+                   std::vector<int> ins, std::vector<int> del, std::vector<int> mis, double alignment_score,
                    size_t query_len = 0, size_t germline_len = 0)
         : gene_name(gene),
           offset(off),
           five_p_offset(five_p_off),
           three_p_offset(three_p_off),
-          insertions(ins),
-          deletions(del),
+          insertions(std::move(ins)),
+          deletions(std::move(del)),
           align_length(align_len),
           mismatches(mis),
           score(alignment_score),
           query_length(query_len),
           germline_length(germline_len)
     {
+        std::sort(insertions.begin(), insertions.end());
+        std::sort(deletions.begin(), deletions.end());
         // Populate extended_mismatches from mismatches
         for (int pos : mismatches) {
             if (pos < five_p_offset || pos > three_p_offset) {
@@ -320,7 +326,7 @@ public:
     std::unordered_map<int, std::forward_list<Alignment_data>> read_alignments_seq_csv(std::string, double, bool);
 
     void set_genomic_sequences(std::vector<std::pair<std::string, std::string>>);
-    int incorporate_in_dels(std::string &, std::string &, const std::forward_list<int>, const std::forward_list<int>,
+    int incorporate_in_dels(std::string &, std::string &, const std::vector<int>, const std::vector<int>,
                             int);
 
     // Configuration for alignment extension
