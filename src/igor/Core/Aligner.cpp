@@ -1921,16 +1921,31 @@ vector<pair<const int, const string>> sample_indexed_seq(const vector<pair<const
 namespace swalign {
 
 /**
+ * One tracked candidate local alignment: its best score so far and the DP matrix
+ * coordinate (1-based, +1 padded convention) at which that best score was reached.
+ */
+struct SwCandidate
+{
+    int score;
+    int row;
+    int col;
+};
+
+/**
  * Internal workspace for one Smith-Waterman DP execution.
  *
- * Groups the four DP matrices and the three candidate-tracking vectors that are
+ * Groups the four DP matrices and the candidate-tracking vector that are
  * allocated, mutated, and read together during a single sw_align call. Storing
- * them here avoids threading seven separate references through every helper in
+ * them here avoids threading five separate references through every helper in
  * the SW pipeline.
  *
  * Coordinates: all matrices use the +1 padded convention (row 0 / col 0 are
  * initialization boundaries; sequence positions are 1-based inside the matrix).
- * Candidate vectors use the same 1-based matrix row/column coordinates.
+ * candidates uses the same 1-based matrix row/column coordinates.
+ *
+ * candidates is a single vector<SwCandidate> rather than three parallel
+ * vector<int> so the per-cell "update the best score for this candidate" access
+ * (score/row/col together) touches one cache line instead of up to three.
  */
 struct SwDPState
 {
@@ -1940,9 +1955,7 @@ struct SwDPState
     Matrix<int> row_memory_matrix;
     Matrix<int> col_memory_matrix;
     Matrix<int> alignment_numb_tracker;
-    vector<int> max_score;
-    vector<int> max_row_coord;
-    vector<int> max_col_coord;
+    vector<SwCandidate> candidates;
 
     SwDPState(int nr, int nc)
         : n_rows(nr),
@@ -2221,7 +2234,11 @@ SwReconstructionResult traceback_sw_alignments(const Int_Str &int_data_sequence,
                                                const SwDPConfig &config)
 {
     double score_threshold = config.score_threshold;
-    const double best_score = *std::max_element(dp.max_score.begin(), dp.max_score.end());
+    const double best_score = std::max_element(dp.candidates.begin(), dp.candidates.end(),
+                                               [](const SwCandidate &a, const SwCandidate &b) {
+                                                   return a.score < b.score;
+                                               })
+                                       ->score;
     if (config.best_only && best_score >= config.score_threshold) {
         score_threshold = best_score;
     }
@@ -2235,8 +2252,8 @@ SwReconstructionResult traceback_sw_alignments(const Int_Str &int_data_sequence,
     const size_t data_seq_size = int_data_sequence.size();
     const size_t genomic_seq_size = int_genomic_sequence.size();
 
-    for (size_t align = 0; align != dp.max_score.size(); ++align) {
-        if (dp.max_score[align] >= score_threshold) {
+    for (size_t align = 0; align != dp.candidates.size(); ++align) {
+        if (dp.candidates[align].score >= score_threshold) {
 
             vector<int> mismatches;
             vector<int> insertions;
@@ -2245,8 +2262,8 @@ SwReconstructionResult traceback_sw_alignments(const Int_Str &int_data_sequence,
 
             bool end_of_alignment = false;
 
-            size_t i = dp.max_row_coord[align];
-            size_t j = dp.max_col_coord[align];
+            size_t i = dp.candidates[align].row;
+            size_t j = dp.candidates[align].col;
             // Save the original starting position for end offset calculation
             size_t i_end = i;
             size_t j_end = j;
@@ -2332,14 +2349,15 @@ SwReconstructionResult traceback_sw_alignments(const Int_Str &int_data_sequence,
                 vector<int> all_mismatches =
                         merge_and_sort_mismatches(mismatches, extended_mismatches_5p, extended_mismatches_3p);
 
-                if (dp.max_score[align] > output.max_align_score) {
-                    output.max_align_score = dp.max_score[align];
+                if (dp.candidates[align].score > output.max_align_score) {
+                    output.max_align_score = dp.candidates[align].score;
                 }
                 output.alignments.emplace_back(pair<int, Alignment_data>(
-                        dp.max_score[align],
+                        dp.candidates[align].score,
                         Alignment_data(offset, begin_align_offset, end_align_offset, align_length,
                                        insertions, deletions, all_mismatches,
-                                       dp.max_score[align], int_data_sequence.size(), int_genomic_sequence.size())));
+                                       dp.candidates[align].score, int_data_sequence.size(),
+                                       int_genomic_sequence.size())));
             }
         }
     }
@@ -2352,7 +2370,19 @@ SwReconstructionResult traceback_sw_alignments(const Int_Str &int_data_sequence,
  *
  * Coordinates: this routine fills the +1 padded DP matrix starting at cell (1,1).
  * Mutation: updates dp.score_matrix, dp.row/col_memory_matrix, dp.alignment_numb_tracker,
- * and the dp.max_score / max_row_coord / max_col_coord candidate vectors in place.
+ * and dp.candidates in place.
+ *
+ * Per-cell scoring is a local closure rather than a separate fill_sw_matrix_cell
+ * function so that: is_local_alignment() is computed once for the whole fill
+ * instead of once per cell; the four DP matrices' shared linear index
+ * `i + n_rows*j` (valid because they're all constructed with identical
+ * dimensions, see SwDPState) is computed once per cell and reused across the
+ * several accesses instead of independently recomputed via Matrix::operator()
+ * each time; and int_data_sequence/int_genomic_sequence are read via operator[]
+ * instead of the bounds-checked at() (loop bounds already guarantee validity).
+ * Profiling identified the previous non-inlined per-cell function call, its
+ * repeated index arithmetic, and this bounds checking as the dominant cost of
+ * sw_align().
  *
  * \param int_data_sequence     Prepared (possibly flipped) query sequence, 0-based.
  * \param int_genomic_sequence  Prepared (possibly flipped) reference sequence, 0-based.
@@ -2361,6 +2391,74 @@ SwReconstructionResult traceback_sw_alignments(const Int_Str &int_data_sequence,
 void fill_sw_score_matrix(const Int_Str &int_data_sequence, const Int_Str &int_genomic_sequence, SwDPState &dp,
                           const SwDPConfig &config)
 {
+    const bool reset_negative_scores = config.alignment_mode.is_local_alignment();
+    const int n_rows = dp.n_rows;
+
+    double *const score = dp.score_matrix.data();
+    int *const row_mem = dp.row_memory_matrix.data();
+    int *const col_mem = dp.col_memory_matrix.data();
+    int *const numb_trk = dp.alignment_numb_tracker.data();
+
+    // Coordinates: i is the 1-based row index (query position i-1, 0-based);
+    //              j is the 1-based column index (reference position j-1, 0-based).
+    // FIXME: the substitution score takes precedence over equal-scoring gap moves
+    // (>= comparison), which collapses branching/convergent traceback paths into a
+    // single ancestor. This will be fixed in Step 3 of the refactoring plan.
+    auto fill_cell = [&](int i, int j) {
+        const int idx = i + n_rows * j;
+        const int idx_up = idx - 1; // (i-1, j)
+        const int idx_left = idx - n_rows; // (i, j-1)
+        const int idx_diag = idx_left - 1; // (i-1, j-1)
+
+        const int genomic_gap_score = static_cast<int>(score[idx_left] - config.gap_penalty);
+        const int data_gap_score = static_cast<int>(score[idx_up] - config.gap_penalty);
+        const int subs_score = static_cast<int>(
+                score[idx_diag] + config.substitution_matrix(int_data_sequence[i - 1], int_genomic_sequence[j - 1]));
+
+        if ((subs_score >= data_gap_score) && (subs_score >= genomic_gap_score)
+            && ((!reset_negative_scores) || (subs_score > 0))) {
+            // Retained move is a match or mismatch
+            score[idx] = subs_score;
+            row_mem[idx] = 1;
+            col_mem[idx] = 1;
+            if (numb_trk[idx_diag] == -1) {
+                numb_trk[idx] = static_cast<int>(dp.candidates.size());
+                dp.candidates.push_back(SwCandidate{ subs_score, i, j });
+            } else {
+                numb_trk[idx] = numb_trk[idx_diag];
+            }
+
+        } else if ((data_gap_score >= genomic_gap_score) && ((!reset_negative_scores) || (data_gap_score > 0))) {
+            // Prefer deletion in the query over insertion (arbitrary tie-break to avoid undefined behavior)
+            score[idx] = data_gap_score;
+            row_mem[idx] = 1;
+            col_mem[idx] = 0;
+            numb_trk[idx] = numb_trk[idx_up];
+        } else if ((!reset_negative_scores) || (genomic_gap_score > 0)) {
+            score[idx] = genomic_gap_score;
+            row_mem[idx] = 0;
+            col_mem[idx] = 1;
+            numb_trk[idx] = numb_trk[idx_left];
+        } else {
+            score[idx] = 0;
+            row_mem[idx] = 0;
+            col_mem[idx] = 0;
+            // TODO check this (local alignment reset)
+            numb_trk[idx] = numb_trk[idx_diag];
+        }
+
+        // Keep max score in memory
+        const int id = numb_trk[idx];
+        if (id != -1) {
+            SwCandidate &candidate = dp.candidates[id];
+            if (score[idx] > candidate.score) {
+                candidate.score = static_cast<int>(score[idx]);
+                candidate.row = i;
+                candidate.col = j;
+            }
+        }
+    };
+
     bool matrix_complete = false;
     int explored_row_coord = 1;
     int explored_col_coord = 1;
@@ -2379,14 +2477,14 @@ void fill_sw_score_matrix(const Int_Str &int_data_sequence, const Int_Str &int_g
             // If all the rows have been explored
             for (int i = 1; i != dp.n_rows; ++i) {
                 // Explore next missing column
-                fill_sw_matrix_cell(int_data_sequence, int_genomic_sequence, i, explored_col_coord - 1, dp, config);
+                fill_cell(i, explored_col_coord - 1);
             }
 
         } else if (explored_col_coord == dp.n_cols) {
             // If all columns have been explored
             for (int j = 1; j != dp.n_cols; ++j) {
                 // Explore next missing row
-                fill_sw_matrix_cell(int_data_sequence, int_genomic_sequence, explored_row_coord - 1, j, dp, config);
+                fill_cell(explored_row_coord - 1, j);
             }
             if (!last_column_explored) {
                 last_column_explored = true;
@@ -2396,14 +2494,13 @@ void fill_sw_score_matrix(const Int_Str &int_data_sequence, const Int_Str &int_g
             int j = 1;
 
             while ((i != explored_row_coord) && (j != explored_col_coord)) {
-                fill_sw_matrix_cell(int_data_sequence, int_genomic_sequence, i, explored_col_coord, dp, config);
+                fill_cell(i, explored_col_coord);
                 ++i;
-                fill_sw_matrix_cell(int_data_sequence, int_genomic_sequence, explored_row_coord, j, dp, config);
+                fill_cell(explored_row_coord, j);
                 ++j;
             }
             // Fill last angle of the square
-            fill_sw_matrix_cell(int_data_sequence, int_genomic_sequence, explored_row_coord, explored_col_coord, dp,
-                                config);
+            fill_cell(explored_row_coord, explored_col_coord);
         }
 
         if ((explored_row_coord == dp.n_rows) && (explored_col_coord == dp.n_cols)) {
@@ -2414,79 +2511,6 @@ void fill_sw_score_matrix(const Int_Str &int_data_sequence, const Int_Str &int_g
         }
         if (explored_col_coord != dp.n_cols) {
             ++explored_col_coord;
-        }
-    }
-}
-/**
- * Score a single DP cell and record the chosen predecessor direction.
- *
- * Computes the substitution, query-gap, and reference-gap candidate scores for
- * cell (i, j) using the Aligner's substitution matrix and gap penalty, writes
- * the winning score and predecessor flags into dp, and updates the max-score
- * candidate tracking vectors if a new high score is reached along the current
- * alignment path.
- *
- * Coordinates: i is the 1-based row index (query position i-1, 0-based);
- *              j is the 1-based column index (reference position j-1, 0-based).
- * Mutation: writes dp.score_matrix(i,j), dp.row/col_memory_matrix(i,j),
- *           dp.alignment_numb_tracker(i,j), and may append to or update
- *           dp.max_score, dp.max_row_coord, dp.max_col_coord.
- *
- * FIXME: the substitution score takes precedence over equal-scoring gap moves
- * (>= comparison), which collapses branching/convergent traceback paths into a
- * single ancestor. This will be fixed in Step 3 of the refactoring plan.
- */
-void fill_sw_matrix_cell(const Int_Str &int_data_sequence, const Int_Str &int_genomic_sequence, const int i,
-                         const int j, SwDPState &dp, const SwDPConfig &config)
-{
-    int genomic_gap_score = dp.score_matrix(i, j - 1) - config.gap_penalty;
-    int data_gap_score = dp.score_matrix(i - 1, j) - config.gap_penalty;
-    int subs_score = dp.score_matrix(i - 1, j - 1)
-            + config.substitution_matrix(int_data_sequence.at(i - 1), int_genomic_sequence.at(j - 1));
-
-    const bool reset_negative_scores = config.alignment_mode.is_local_alignment();
-
-    if ((subs_score >= data_gap_score) && (subs_score >= genomic_gap_score)
-        && ((!reset_negative_scores) || (subs_score > 0))) {
-        // Retained move is a match or mismatch
-        dp.score_matrix(i, j) = subs_score;
-        dp.row_memory_matrix(i, j) = 1;
-        dp.col_memory_matrix(i, j) = 1;
-        if (dp.alignment_numb_tracker(i - 1, j - 1) == -1) {
-            dp.alignment_numb_tracker(i, j) = dp.max_score.size();
-            dp.max_score.push_back(subs_score);
-            dp.max_row_coord.push_back(i);
-            dp.max_col_coord.push_back(j);
-        } else {
-            dp.alignment_numb_tracker(i, j) = dp.alignment_numb_tracker(i - 1, j - 1);
-        }
-
-    } else if ((data_gap_score >= genomic_gap_score) && ((!reset_negative_scores) || (data_gap_score > 0))) {
-        // Prefer deletion in the query over insertion (arbitrary tie-break to avoid undefined behavior)
-        dp.score_matrix(i, j) = data_gap_score;
-        dp.row_memory_matrix(i, j) = 1;
-        dp.col_memory_matrix(i, j) = 0;
-        dp.alignment_numb_tracker(i, j) = dp.alignment_numb_tracker(i - 1, j);
-    } else if ((!reset_negative_scores) || (genomic_gap_score > 0)) {
-        dp.score_matrix(i, j) = genomic_gap_score;
-        dp.row_memory_matrix(i, j) = 0;
-        dp.col_memory_matrix(i, j) = 1;
-        dp.alignment_numb_tracker(i, j) = dp.alignment_numb_tracker(i, j - 1);
-    } else {
-        dp.score_matrix(i, j) = 0;
-        dp.row_memory_matrix(i, j) = 0;
-        dp.col_memory_matrix(i, j) = 0;
-        // TODO check this (local alignment reset)
-        dp.alignment_numb_tracker(i, j) = dp.alignment_numb_tracker(i - 1, j - 1);
-    }
-
-    // Keep max score in memory
-    if (dp.alignment_numb_tracker(i, j) != -1) {
-        if (dp.score_matrix(i, j) > dp.max_score[dp.alignment_numb_tracker(i, j)]) {
-            int &tmp = dp.alignment_numb_tracker(i, j);
-            dp.max_score[tmp] = dp.score_matrix(i, j);
-            dp.max_row_coord[tmp] = i;
-            dp.max_col_coord[tmp] = j;
         }
     }
 }

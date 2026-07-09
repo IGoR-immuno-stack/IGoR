@@ -279,6 +279,11 @@ public:
     const int &get_n_rows() const { return rows; }
     const int &get_n_cols() const { return cols; }
 
+    // Raw storage access, for callers that need to compute a linear index once and share it
+    // across several matrices with matching dimensions (see swalign::fill_sw_score_matrix).
+    T *data() { return array_p; }
+    const T *data() const { return array_p; }
+
     // Debug print
     void print(std::ostream &out = std::cout) const {
         out << rows << "x" << cols << " Matrix\n";

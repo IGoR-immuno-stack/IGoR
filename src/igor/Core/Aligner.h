@@ -459,7 +459,6 @@ size_t convert_matrix_col_to_ref_pos(size_t j, size_t genomic_seq_size, bool fli
 int convert_matrix_coords_to_offset(int i, int j, size_t data_seq_size, size_t genomic_seq_size, int offset_change,
                                     bool flip_seqs);
 void fill_sw_score_matrix(const Int_Str &, const Int_Str &, SwDPState &, const SwDPConfig &);
-void fill_sw_matrix_cell(const Int_Str &, const Int_Str &, int, int, SwDPState &, const SwDPConfig &);
 
 // Alignment extension functions for capturing mismatches in extended regions
 std::vector<int> ungapped_extend_align_5p_from_dp(const SwPreparedInputs &prepared, int i_start, int j_start,
