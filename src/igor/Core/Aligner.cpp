@@ -2071,9 +2071,9 @@ void initialize_sw_matrices(SwDPState &dp, const SwDPConfig &config)
         }
         dp.col_memory_matrix(i, 0) = 0;
         dp.row_memory_matrix(i, 0) = 0;
-        for (int j = 0; j != dp.n_cols; ++j) {
-            dp.alignment_numb_tracker(i, j) = -1;
-        }
+        // Only the boundary needs -1: every interior cell (i,j >= 1) is unconditionally
+        // overwritten by the fill routine before ever being read.
+        dp.alignment_numb_tracker(i, 0) = -1;
     }
 
     for (int j = 0; j != dp.n_cols; ++j) {
@@ -2085,6 +2085,7 @@ void initialize_sw_matrices(SwDPState &dp, const SwDPConfig &config)
         }
         dp.col_memory_matrix(0, j) = 0;
         dp.row_memory_matrix(0, j) = 0;
+        dp.alignment_numb_tracker(0, j) = -1;
     }
 }
 
