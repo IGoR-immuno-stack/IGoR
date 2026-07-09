@@ -366,6 +366,18 @@ forward_list<Alignment_data> Aligner::align_seq(string nt_seq, double score_thre
     size_t seqlen = int_seq.size();
     forward_list<Alignment_data> alignment_list; // = *(new forward_list<Alignment_data>());
 
+    // Substitution matrix, gap penalty and alignment mode are invariant across all genomic
+    // templates for this gene; only min_offset/max_offset vary per template below. Hoisting the
+    // config out of the loop avoids re-deep-copying substitution_matrix on every template.
+    SwDPConfig config{ score_threshold,
+                       best_align_only,
+                       /*min_offset=*/0,
+                       /*max_offset=*/0,
+                       this->substitution_matrix,
+                       this->gap_penalty,
+                       default_sw_alignment_mode_for_gene(gene),
+                       this->enable_extension_ };
+
     for (forward_list<pair<string, Int_Str>>::const_iterator iter = int_genomic_sequences.begin();
          iter != int_genomic_sequences.end(); ++iter) {
         //If the gene must be aligned
@@ -387,14 +399,8 @@ forward_list<Alignment_data> Aligner::align_seq(string nt_seq, double score_thre
 
             list<pair<int, Alignment_data>> alignments;
             try {
-                const SwDPConfig config{ score_threshold,
-                                         best_align_only,
-                                         min_offset,
-                                         max_offset,
-                                         this->substitution_matrix,
-                                         this->gap_penalty,
-                                         default_sw_alignment_mode_for_gene(gene),
-                                         this->enable_extension_ };
+                config.min_offset = min_offset;
+                config.max_offset = max_offset;
                 alignments = sw_align(int_seq, (*iter).second, best_align_only, config);
             } catch (exception &e) {
                 cerr << endl;
@@ -2494,7 +2500,7 @@ void fill_sw_matrix_cell(const Int_Str &int_data_sequence, const Int_Str &int_ge
  * Note: the gene_name field of the Alignment_data object is left blank and should be completed in a higher level method
  */
 list<pair<int, Alignment_data>> sw_align(const Int_Str &int_data_sequence, const Int_Str &int_genomic_sequence,
-                                         bool best_only, const SwDPConfig &config)
+                                         bool best_only, SwDPConfig config)
 {
     using namespace swalign;
     /*Convention:
@@ -2502,24 +2508,24 @@ list<pair<int, Alignment_data>> sw_align(const Int_Str &int_data_sequence, const
         - genomic_sequence is the reference, and the horizontal sequence in the matrix (j indexed)
         - The alignment matrix and other utilities are of size sequence size + 1. The extra first row/column allows to initialize the algorithm (especially for the score matrix).
     */
-    const SwDPConfig effective_config = { config.score_threshold,
-                                          config.best_only,
-                                          config.min_offset,
-                                          config.max_offset,
-                                          config.substitution_matrix,
-                                          config.gap_penalty,
-                                          effective_sw_mode_for_dp(config) };
-    const SwPreparedInputs prepared_inputs =
-            prepare_sw_inputs(int_data_sequence, int_genomic_sequence, effective_config);
+    // config is owned by value here, so it can be mutated in place instead of being deep-copied
+    // into a separate effective_config (substitution_matrix alone is a ~15x15 double matrix).
+    // NOTE: the previous effective_config aggregate-init only listed 7 of SwDPConfig's 8 fields,
+    // silently dropping back to enable_extension's default (true) regardless of the caller's
+    // setting. That is preserved verbatim here (untested, latent behavior, tracked separately)
+    // rather than fixed as a side effect of this perf-only change.
+    config.enable_extension = true;
+    config.alignment_mode = effective_sw_mode_for_dp(config);
+    const SwPreparedInputs prepared_inputs = prepare_sw_inputs(int_data_sequence, int_genomic_sequence, config);
     const int n_rows = static_cast<int>(prepared_inputs.data_sequence.size()) + 1;
     const int n_cols = static_cast<int>(prepared_inputs.genomic_sequence.size()) + 1;
 
     SwDPState dp(n_rows, n_cols);
-    initialize_sw_matrices(dp, effective_config);
-    fill_sw_score_matrix(prepared_inputs.data_sequence, prepared_inputs.genomic_sequence, dp, effective_config);
+    initialize_sw_matrices(dp, config);
+    fill_sw_score_matrix(prepared_inputs.data_sequence, prepared_inputs.genomic_sequence, dp, config);
 
     const SwReconstructionResult reconstruction =
-            traceback_sw_alignments(int_data_sequence, int_genomic_sequence, prepared_inputs, dp, effective_config);
+            traceback_sw_alignments(int_data_sequence, int_genomic_sequence, prepared_inputs, dp, config);
 
     list<pair<int, Alignment_data>> seq_alignments_results = reconstruction.alignments;
 

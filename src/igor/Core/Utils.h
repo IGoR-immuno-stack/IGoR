@@ -230,6 +230,27 @@ public:
         return *this;
     }
 
+    Matrix(Matrix &&other) noexcept : rows(other.rows), cols(other.cols), array_p(other.array_p)
+    {
+        other.rows = 0;
+        other.cols = 0;
+        other.array_p = nullptr;
+    }
+
+    Matrix<T> &operator=(Matrix &&other) noexcept
+    {
+        if (this != &other) {
+            delete[] array_p;
+            this->rows = other.rows;
+            this->cols = other.cols;
+            this->array_p = other.array_p;
+            other.rows = 0;
+            other.cols = 0;
+            other.array_p = nullptr;
+        }
+        return *this;
+    }
+
     T &operator()(const int &i, const int &j)
     {
         assert((i <= rows - 1) && (j <= cols - 1));

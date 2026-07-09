@@ -443,7 +443,7 @@ struct SwDPConfig
     SwAlignmentMode alignment_mode;
     bool enable_extension = true; // Enable/disable alignment extension for capturing mismatches in extended regions
 };
-std::list<std::pair<int, Alignment_data>> sw_align(const Int_Str &, const Int_Str &, bool, const SwDPConfig &);
+std::list<std::pair<int, Alignment_data>> sw_align(const Int_Str &, const Int_Str &, bool, SwDPConfig);
 
 namespace swalign {
 
