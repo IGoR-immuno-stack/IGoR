@@ -36,6 +36,7 @@ public
 coverage_report
 default.profdata
 regression_reports/*
+profile_reports/*
 
 ## ###################################################################
 ## Install tree
