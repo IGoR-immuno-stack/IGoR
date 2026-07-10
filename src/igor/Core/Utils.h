@@ -99,6 +99,19 @@ inline uint32_t portable_gethostid()
 }
 
 #endif
+
+// Force a function to be inlined at every call site, even at optimization levels where the
+// compiler's own heuristics would otherwise leave it as a real call (e.g. -O2 on a function
+// with several branches). Use sparingly, only where profiling has shown the call overhead
+// itself (prologue/epilogue, stack-protector checks) to be a measurable cost.
+#if defined(_MSC_VER)
+#  define IGOR_ALWAYS_INLINE __forceinline
+#elif defined(__GNUC__) || defined(__clang__)
+#  define IGOR_ALWAYS_INLINE __attribute__((__always_inline__)) inline
+#else
+#  define IGOR_ALWAYS_INLINE inline
+#endif
+
 #include <stdio.h>
 #include <unordered_map>
 
