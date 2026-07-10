@@ -2392,6 +2392,48 @@ SwReconstructionResult traceback_sw_alignments(const Int_Str &int_data_sequence,
  * reintroduce the per-cell prologue/epilogue and stack-protector overhead this
  * was written to eliminate.
  *
+ * Move selection: the three candidate moves -- diagonal (match/mismatch),
+ * "up" (query gap / deletion), "left" (reference gap / insertion) -- are
+ * indexed 0/1/2 throughout, and their score/predecessor-cell/output-flag data
+ * are laid out as parallel 3-element tables read by a single winner index
+ * (max_idx) rather than as a nested if/else-if cascade choosing among three
+ * differently-sized blocks of side effects. This is a rewrite of an
+ * equivalent cascade, not a behavior change: it exists because the nested
+ * form's side effects (writes, a conditional push_back) block the compiler
+ * from generating branchless code for the part that is genuinely
+ * data-dependent and hard to predict -- which of the three scores is
+ * largest, which varies unpredictably cell to cell with sequence content.
+ * Separating that decision (pure arithmetic, no side effects) from the
+ * action (one shared block of writes parameterized by max_idx) lets the
+ * decision compile to a couple of conditional moves instead of
+ * mispredicted branches; profiling confirmed branch mispredictions as a
+ * significant remaining cost once the surrounding per-cell overhead above
+ * was removed.
+ *
+ * Why the nested cascade and the argmax-then-gate form are equivalent: in
+ * local-alignment mode (reset_negative_scores) each original branch's guard
+ * is "this move is (tied-for-)largest AND its own value is > 0". If the
+ * true largest of the three values is <= 0, every other value is <= it and
+ * therefore also <= 0 -- so no matter which value the argmax turns out to
+ * be, checking that one value's sign reproduces the same pass/fail outcome
+ * the original per-branch checks would have produced. Hence: compute the
+ * argmax once (with the tie-break priority below), then gate the whole
+ * decision on that single value's sign instead of repeating the check
+ * inside every branch.
+ *
+ * Tie-break priority (matches the original's >= comparisons exactly -- see
+ * the FIXME below, which this rewrite deliberately does not touch):
+ * diagonal beats both gap moves on a tie; "up" beats "left" on a tie.
+ * max_idx is computed with strict > comparisons in priority order, so a tie
+ * leaves max_idx at the earlier (higher-priority) index.
+ *
+ * Candidate-tracking asymmetry: only the diagonal move may seed a brand-new
+ * tracked candidate, and only when its predecessor cell is itself untracked
+ * (numb_trk == -1); the two gap moves always just propagate whatever
+ * tracker id their neighbor already has, even if that is -1. CAN_START_NEW
+ * encodes this per move index instead of hardcoding it to index 0, so the
+ * tracker-update code below is one block shared by all three move types.
+ *
  * Mutation: writes score/row_mem/col_mem/numb_trk[idx], and may append to or
  *           update candidates.
  *
@@ -2414,30 +2456,39 @@ IGOR_ALWAYS_INLINE void fill_sw_matrix_cell(int i, int j, int n_rows, double *sc
     const int subs_score = static_cast<int>(
             score[idx_diag] + config.substitution_matrix(int_data_sequence[i - 1], int_genomic_sequence[j - 1]));
 
-    if ((subs_score >= data_gap_score) && (subs_score >= genomic_gap_score)
-        && ((!reset_negative_scores) || (subs_score > 0))) {
-        // Retained move is a match or mismatch
-        score[idx] = subs_score;
-        row_mem[idx] = 1;
-        col_mem[idx] = 1;
-        if (numb_trk[idx_diag] == -1) {
-            numb_trk[idx] = static_cast<int>(candidates.size());
-            candidates.push_back(SwCandidate{ subs_score, i, j });
-        } else {
-            numb_trk[idx] = numb_trk[idx_diag];
-        }
+    // Move index convention used by every table below: 0 = diagonal, 1 = up, 2 = left.
+    const int move_scores[3] = { subs_score, data_gap_score, genomic_gap_score };
+    const int predecessor_idx[3] = { idx_diag, idx_up, idx_left };
+    static constexpr int ROW_MOVE[3] = { 1, 1, 0 };
+    static constexpr int COL_MOVE[3] = { 1, 0, 1 };
+    static constexpr bool CAN_START_NEW[3] = { true, false, false };
 
-    } else if ((data_gap_score >= genomic_gap_score) && ((!reset_negative_scores) || (data_gap_score > 0))) {
-        // Prefer deletion in the query over insertion (arbitrary tie-break to avoid undefined behavior)
-        score[idx] = data_gap_score;
-        row_mem[idx] = 1;
-        col_mem[idx] = 0;
-        numb_trk[idx] = numb_trk[idx_up];
-    } else if ((!reset_negative_scores) || (genomic_gap_score > 0)) {
-        score[idx] = genomic_gap_score;
-        row_mem[idx] = 0;
-        col_mem[idx] = 1;
-        numb_trk[idx] = numb_trk[idx_left];
+    // argmax over move_scores with the tie-break priority documented above: strict `>`
+    // means a tie leaves max_idx at the earlier, higher-priority index.
+    // This manual version is much faster than using std::max_element
+    int max_idx = 0;
+    if (move_scores[1] > move_scores[max_idx]) {
+        max_idx = 1;
+    }
+    if (move_scores[2] > move_scores[max_idx]) {
+        max_idx = 2;
+    }
+
+    if ((!reset_negative_scores) || (move_scores[max_idx] > 0)) {
+        // Keep the winning move (see the equivalence note above for why checking only
+        // this one value's sign reproduces the original per-branch positivity checks).
+        score[idx] = move_scores[max_idx];
+        row_mem[idx] = ROW_MOVE[max_idx];
+        col_mem[idx] = COL_MOVE[max_idx];
+
+        const int predecessor_tracker = numb_trk[predecessor_idx[max_idx]];
+        if ((predecessor_tracker == -1) && CAN_START_NEW[max_idx]) {
+            // Only reachable for the diagonal move (see the candidate-tracking note above).
+            numb_trk[idx] = static_cast<int>(candidates.size());
+            candidates.push_back(SwCandidate{ move_scores[max_idx], i, j });
+        } else {
+            numb_trk[idx] = predecessor_tracker;
+        }
     } else {
         score[idx] = 0;
         row_mem[idx] = 0;
