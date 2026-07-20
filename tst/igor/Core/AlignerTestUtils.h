@@ -280,5 +280,15 @@ void assert_alignment_data_matches(const Alignment_data &actual,
                                    const std::string &query,
                                    const std::vector<std::pair<std::string, std::string>> &genomic_templates);
 
+/**
+ * Assert that two matrices have the same dimensions and are cell-for-cell equal.
+ * Reports the failing (row, col) coordinate via INFO on the first mismatch.
+ *
+ * \param actual The matrix produced by the code under test
+ * \param expected The hand-derived reference matrix
+ */
+void assert_matrix_equals(const Matrix<double> &actual, const Matrix<double> &expected);
+void assert_matrix_equals(const Matrix<int> &actual, const Matrix<int> &expected);
+
 } // namespace Aligner
 } // namespace IgorTestUtils

@@ -25,6 +25,7 @@
  */
 
 #include <igor/Core/Aligner.h>
+#include <igor/Core/AlignerInternal.h>
 
 #include <cctype>
 #include <unordered_set>
@@ -1920,18 +1921,10 @@ vector<pair<const int, const string>> sample_indexed_seq(const vector<pair<const
 
 namespace swalign {
 
-/**
- * One tracked candidate local alignment: its best score so far and the DP matrix
- * coordinate (1-based, +1 padded convention) at which that best score was reached.
- */
-struct SwCandidate
-{
-    int score;
-    int row;
-    int col;
-};
-
-/**
+/*
+ * SwCandidate, SwDPState, and SwPreparedInputs are defined in AlignerInternal.h
+ * (moved there so whitebox tests can construct them directly).
+ *
  * Internal workspace for one Smith-Waterman DP execution.
  *
  * Groups the four DP matrices and the candidate-tracking vector that are
@@ -1947,33 +1940,6 @@ struct SwCandidate
  * vector<int> so the per-cell "update the best score for this candidate" access
  * (score/row/col together) touches one cache line instead of up to three.
  */
-struct SwDPState
-{
-    int n_rows;
-    int n_cols;
-    Matrix<double> score_matrix;
-    Matrix<int> row_memory_matrix;
-    Matrix<int> col_memory_matrix;
-    Matrix<int> alignment_numb_tracker;
-    vector<SwCandidate> candidates;
-
-    SwDPState(int nr, int nc)
-        : n_rows(nr),
-          n_cols(nc),
-          score_matrix(nr, nc),
-          row_memory_matrix(nr, nc),
-          col_memory_matrix(nr, nc),
-          alignment_numb_tracker(nr, nc)
-    {
-    }
-};
-
-struct SwPreparedInputs
-{
-    Int_Str data_sequence;
-    Int_Str genomic_sequence;
-    int offset_change;
-};
 
 /**
    * \brief Coordinate conversion parameters for flipped sequences

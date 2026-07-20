@@ -297,6 +297,17 @@ public:
     T *data() { return array_p; }
     const T *data() const { return array_p; }
 
+    Matrix<T> transpose() const
+    {
+        Matrix<T> result(cols, rows);
+        for (int i = 0; i != rows; ++i) {
+            for (int j = 0; j != cols; ++j) {
+                result(j, i) = array_p[i + rows * j];
+            }
+        }
+        return result;
+    }
+
     // Debug print
     void print(std::ostream &out = std::cout) const {
         out << rows << "x" << cols << " Matrix\n";

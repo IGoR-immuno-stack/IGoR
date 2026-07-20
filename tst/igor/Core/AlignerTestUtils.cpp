@@ -296,6 +296,21 @@ void assert_best_alignment_matches(const std::forward_list<Alignment_data> &alig
     assert_alignment_matches(*best_it, query, genomic_template, expected);
 }
 
+namespace {
+// Identifies an alignment by (gene, core CIGAR) for set-difference reporting: the structural
+// identity of "which alignment this is", independent of the score value being validated.
+using AlignmentKey = std::pair<std::string, std::string>;
+
+std::string format_alignment_keys(const std::vector<AlignmentKey> &keys)
+{
+    std::ostringstream out;
+    for (const auto &key : keys) {
+        out << "    gene=" << key.first << " core_cigar=" << key.second << "\n";
+    }
+    return out.str();
+}
+} // namespace
+
 void assert_alignment_set_matches(const std::forward_list<Alignment_data> &alignments, const std::string &query,
                                   const std::vector<std::pair<std::string, std::string>> &genomic_templates,
                                   std::vector<ExpectedAlignment> expected)
@@ -310,7 +325,31 @@ void assert_alignment_set_matches(const std::forward_list<Alignment_data> &align
     });
     expected = normalize_expected(std::move(expected));
 
-    INFO("actual count=" << actual.size() << " expected count=" << expected.size());
+    std::vector<AlignmentKey> actual_keys;
+    for (const auto *aln : actual) {
+        actual_keys.emplace_back(aln->gene_name, aln->core_cigar());
+    }
+    std::vector<AlignmentKey> expected_keys;
+    for (const auto &aln : expected) {
+        expected_keys.emplace_back(aln.gene_name, aln.core_cigar);
+    }
+
+    std::vector<AlignmentKey> missing_from_actual; // expected but not produced
+    for (const auto &key : expected_keys) {
+        if (std::find(actual_keys.begin(), actual_keys.end(), key) == actual_keys.end()) {
+            missing_from_actual.push_back(key);
+        }
+    }
+    std::vector<AlignmentKey> unexpected_in_actual; // produced but not expected
+    for (const auto &key : actual_keys) {
+        if (std::find(expected_keys.begin(), expected_keys.end(), key) == expected_keys.end()) {
+            unexpected_in_actual.push_back(key);
+        }
+    }
+
+    INFO("actual count=" << actual.size() << " expected count=" << expected.size() << "\n"
+         << "missing from actual (" << missing_from_actual.size() << "):\n" << format_alignment_keys(missing_from_actual)
+         << "unexpected in actual (" << unexpected_in_actual.size() << "):\n" << format_alignment_keys(unexpected_in_actual));
     REQUIRE(actual.size() == expected.size());
 
     for (std::size_t i = 0; i < expected.size(); ++i) {
@@ -348,6 +387,35 @@ void assert_alignment_data_matches(const Alignment_data &actual,
     REQUIRE(actual_extended_cigar == expected_extended_cigar);
     REQUIRE(align_compare(actual, expected));
     REQUIRE_THAT(actual.score, WithinRel(expected.score));
+}
+
+namespace {
+template <typename T>
+void assert_matrix_equals_impl(const Matrix<T> &actual, const Matrix<T> &expected)
+{
+    INFO("actual dims=" << actual.get_n_rows() << "x" << actual.get_n_cols()
+                        << " expected dims=" << expected.get_n_rows() << "x" << expected.get_n_cols());
+    REQUIRE(actual.get_n_rows() == expected.get_n_rows());
+    REQUIRE(actual.get_n_cols() == expected.get_n_cols());
+
+    // Both matrices share the same (row, col) -> linear index convention, so a flat
+    // element-wise comparison is equivalent to a cell-by-cell one, but as a single
+    // vector matcher instead of one REQUIRE per cell.
+    const size_t n = static_cast<size_t>(actual.get_n_rows()) * static_cast<size_t>(actual.get_n_cols());
+    const std::vector<T> actual_values(actual.data(), actual.data() + n);
+    const std::vector<T> expected_values(expected.data(), expected.data() + n);
+    REQUIRE_THAT(actual_values, Catch::Matchers::Equals(expected_values));
+}
+} // namespace
+
+void assert_matrix_equals(const Matrix<double> &actual, const Matrix<double> &expected)
+{
+    assert_matrix_equals_impl(actual, expected);
+}
+
+void assert_matrix_equals(const Matrix<int> &actual, const Matrix<int> &expected)
+{
+    assert_matrix_equals_impl(actual, expected);
 }
 
 } // namespace Aligner

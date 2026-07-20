@@ -3,6 +3,7 @@
 #include <catch2/matchers/catch_matchers_vector.hpp>
 
 #include <igor/Core/Aligner.h>
+#include <igor/Core/AlignerInternal.h>
 #include "AlignerTestUtils.h"
 
 #include <algorithm>
@@ -12,6 +13,7 @@
 #include <sstream>
 #include <string>
 #include <tuple>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -511,6 +513,224 @@ TEST_CASE("Legacy Aligner strict set matching when best_only is false", "[aligne
     const auto alignments = aligner.align_seq(query, -1000.0, false, false, INT16_MIN, INT16_MAX);
 
     assert_alignment_set_matches(alignments, query, genomic_templates, { { "g1", "4=", "4=", 8.0 }, { "g2", "4=", "4=", 8.0 } });
+}
+
+// ============================================================================
+//  Smith-Waterman DP-level tests
+// ============================================================================
+
+TEST_CASE("fill_sw_score_matrix produces the expected DP matrices", "[aligner][sw][dp_matrix]")
+{
+    // Simple fixed example with a hand-derived reference.
+    const std::string query = "AAAAAT"; // data sequence -> DP rows
+    const std::string reference = "AAAAAAAAAT"; // genomic sequence -> DP cols
+
+    // TODO(user): must match the values used when deriving the reference matrices below.
+    const double match_score = 7;
+    const double mismatch_score = -11;
+    const int gap_penalty = 13;
+
+    SwDPConfig config;
+    config.score_threshold = -1000.0; // unused by fill_sw_score_matrix itself
+    config.best_only = false; // unused by fill_sw_score_matrix itself
+    config.min_offset = INT16_MIN; // unused by fill_sw_score_matrix itself
+    config.max_offset = INT16_MAX; // unused by fill_sw_score_matrix itself
+    config.substitution_matrix = build_test_score_matrix(match_score, mismatch_score);
+    config.gap_penalty = gap_penalty;
+    config.alignment_mode = SwAlignmentMode{ false, false, true, false, false }; // full semi global (V-gene-like)
+
+    const Int_Str int_query = nt2int(query);
+    const Int_Str int_reference = nt2int(reference);
+
+    // --- Setup mirroring sw_align()'s pipeline up to (not including) fill_sw_score_matrix ---
+    const swalign::SwPreparedInputs prepared = swalign::prepare_sw_inputs(int_query, int_reference, config);
+    const int n_rows = static_cast<int>(prepared.data_sequence.size()) + 1; // 7
+    const int n_cols = static_cast<int>(prepared.genomic_sequence.size()) + 1; // 11
+
+    swalign::SwDPState dp(n_rows, n_cols);
+    swalign::initialize_sw_matrices(dp, config);
+
+    // --- Call under test ---
+    swalign::fill_sw_score_matrix(prepared.data_sequence, prepared.genomic_sequence, dp, config);
+
+    // --- Expected matrices: row i = query position (0 = init boundary), col j = ref position (0 = init boundary) ---
+    // row_memory(i,j): 1 = predecessor is (i-1,*) [diagonal or up move], 0 = predecessor is (i,j-1) [left move]
+    // col_memory(i,j): 1 = predecessor is (*,j-1) [diagonal or left move], 0 = predecessor is (i-1,j) [up move]
+    std::vector<double> scores_arr = {
+        0,0,0,0,0,0,0,0,0,0,0,
+        -13,7,7,7,7,7,7,7,7,7,-6,
+        -26,-6,14,14,14,14,14,14,14,14,1,
+        -39,-19,1,21,21,21,21,21,21,21,8,
+        -52,-32,-12,8,28,28,28,28,28,28,15,
+        -65,-45,-25,-5,15,35,35,35,35,35,22,
+        -78,-58,-38,-18,2,22,24,24,24,24,42,
+    };
+    std::vector<int> row_mem_arr = {
+        0,0,0,0,0,0,0,0,0,0,0,
+        0,1,1,1,1,1,1,1,1,1,0,
+        0,1,1,1,1,1,1,1,1,1,0,
+        0,1,1,1,1,1,1,1,1,1,0,
+        0,1,1,1,1,1,1,1,1,1,0,
+        0,1,1,1,1,1,1,1,1,1,0,
+        0,1,1,1,1,1,1,1,1,1,1,
+    };
+    std::vector<int> col_mem_arr = {
+        0,0,0,0,0,0,0,0,0,0,0,
+        0,1,1,1,1,1,1,1,1,1,1,
+        0,1,1,1,1,1,1,1,1,1,1,
+        0,1,1,1,1,1,1,1,1,1,1,
+        0,1,1,1,1,1,1,1,1,1,1,
+        0,1,1,1,1,1,1,1,1,1,1,
+        0,0,0,0,0,0,1,1,1,1,1,
+    };
+    Matrix<double> expected_score = Matrix(n_cols, n_rows, scores_arr.data()).transpose();
+    Matrix<int> expected_row_memory= Matrix(n_cols, n_rows, row_mem_arr.data()).transpose();
+    Matrix<int> expected_col_memory = Matrix(n_cols, n_rows, col_mem_arr.data()).transpose();
+
+    assert_matrix_equals(dp.score_matrix, expected_score);
+    assert_matrix_equals(dp.row_memory_matrix, expected_row_memory);
+    assert_matrix_equals(dp.col_memory_matrix, expected_col_memory);
+}
+
+TEST_CASE("Aligner emits all candidate local alignments without filtering, and filters correctly with thresholds",
+          "[aligner][sw][align_set]")
+{
+    // Same query/reference pair as the DP-matrix test above, so the expected candidate list here
+    // can be derived directly from that test's hand-worked matrices/dp.candidates.
+    const Matrix<double> matrix = build_test_score_matrix(7, -11);
+    const int gap_penalty = 13;
+    const std::string query_read = "AAAAAT";
+    const std::string germline_ref = "AAAAAAAAAT";
+    const std::vector<std::pair<std::string, std::string>> genomic_templates = { { "g1", germline_ref } };
+
+    auto aligner = make_legacy_aligner(matrix, gap_penalty, V_gene, genomic_templates); // D_gene -> full local mode
+
+    SECTION("No score threshold, no offset bounds: every candidate is emitted")
+    {
+        const auto alignments = aligner.align_seq(query_read, -1000.0, /*best_align_only=*/false,
+                                                  /*best_gene_only=*/false, INT16_MIN, INT16_MAX);
+        assert_alignment_set_matches(
+                alignments, query_read, genomic_templates,
+                {
+                        // TODO(user): one ExpectedAlignment{gene, core_cigar, extended_cigar, score}
+                        // per candidate derived from dp.candidates in the DP-matrix test above.
+                        ExpectedAlignment{ "g1", "4N6=", "4N6=", 42 },
+                        ExpectedAlignment{ "g1", "3N5=2N1S", "3N5=1X1N", 35 },
+                        ExpectedAlignment{ "g1", "2N5=3N1S", "2N5=1X2N", 35 },
+                        ExpectedAlignment{ "g1", "1N5=4N1S", "1N5=1X3N", 35 },
+                        ExpectedAlignment{ "g1", "5=5N1S", "5=1X4N", 35 },
+                        ExpectedAlignment{ "g1", "5N4=1N2S", "5N4=1X1S", 28 }, // Watterman-Eggert issue?
+                        ExpectedAlignment{ "g1", "6N3=1N3S", "6N3=1X2S", 21 }, // Watterman-Eggert issue?
+                        ExpectedAlignment{ "g1", "7N2=1N4S", "7N2=1X3S", 14 }, // Watterman-Eggert issue?
+                        ExpectedAlignment{ "g1", "1S4=6N1S", "1S4=1X5N", 15 }, // Watterman-Eggert issue?
+                        ExpectedAlignment{ "g1", "8N1=1N5S", "8N1=1X4S", 7 }, // Watterman-Eggert issue?
+                        ExpectedAlignment{ "g1", "2S3=7N1S", "2S3=1X6N", -5 }, // Watterman-Eggert issue?
+                        ExpectedAlignment{ "g1", "3S2=8N1S", "3S2=1X7N", -25 }, // Watterman-Eggert issue?
+                        ExpectedAlignment{ "g1", "4S1=9N1S", "4S1=1X8N", -45 }, // Watterman-Eggert issue?
+                });
+    }
+
+    SECTION("Score threshold removes low-scoring candidates")
+    {
+        const double score_threshold = 20;
+        const auto alignments = aligner.align_seq(query_read, score_threshold, false, false, INT16_MIN, INT16_MAX);
+        assert_alignment_set_matches(
+                alignments, query_read, genomic_templates,
+                {
+                        ExpectedAlignment{ "g1", "4N6=", "4N6=", 42 },
+                        ExpectedAlignment{ "g1", "3N5=2N1S", "3N5=1X1N", 35 },
+                        ExpectedAlignment{ "g1", "2N5=3N1S", "2N5=1X2N", 35 },
+                        ExpectedAlignment{ "g1", "1N5=4N1S", "1N5=1X3N", 35 },
+                        ExpectedAlignment{ "g1", "5=5N1S", "5=1X4N", 35 },
+                        ExpectedAlignment{ "g1", "5N4=1N2S", "5N4=1X1S", 28 }, // Watterman-Eggert issue?
+                        ExpectedAlignment{ "g1", "6N3=1N3S", "6N3=1X2S", 21 }, // Watterman-Eggert issue?
+                });
+    }
+
+    SECTION("Offset bounds remove out-of-range candidates")
+    {
+        const int min_offset = -5;
+        const int max_offset = 1;
+        const auto alignments = aligner.align_seq(query_read, -1000.0, false, false, min_offset, max_offset);
+        assert_alignment_set_matches(
+                alignments, query_read, genomic_templates,
+                {
+                        // TODO(user): one ExpectedAlignment{gene, core_cigar, extended_cigar, score}
+                        // per candidate derived from dp.candidates in the DP-matrix test above.
+                        ExpectedAlignment{ "g1", "4N6=", "4N6=", 42 },
+                        ExpectedAlignment{ "g1", "3N5=2N1S", "3N5=1X1N", 35 },
+                        ExpectedAlignment{ "g1", "2N5=3N1S", "2N5=1X2N", 35 },
+                        ExpectedAlignment{ "g1", "1N5=4N1S", "1N5=1X3N", 35 },
+                        ExpectedAlignment{ "g1", "5=5N1S", "5=1X4N", 35 },
+                        ExpectedAlignment{ "g1", "5N4=1N2S", "5N4=1X1S", 28 }, // Watterman-Eggert issue?
+                        ExpectedAlignment{ "g1", "1S4=6N1S", "1S4=1X5N", 15 }, // Watterman-Eggert issue?
+                });
+    }
+}
+
+TEST_CASE("Reversed local alignment matches forward local alignment", "[aligner][sw][reverse]")
+{
+    const Matrix<double> matrix = build_test_score_matrix(7, -11);
+    const int gap_penalty = 13;
+    const std::string query = "AAAAAT";
+    const std::string reference = "AAAAAAAAAT";
+
+    const Int_Str int_query = nt2int(query);
+    const Int_Str int_reference = nt2int(reference);
+
+    SwDPConfig forward_config;
+    forward_config.score_threshold = -1000.0;
+    forward_config.min_offset = INT16_MIN;
+    forward_config.max_offset = INT16_MAX;
+    forward_config.substitution_matrix = matrix;
+    forward_config.gap_penalty = gap_penalty;
+    forward_config.alignment_mode = SwAlignmentMode{ true, true, true, true, false };
+
+    SwDPConfig reverse_config = forward_config;
+    reverse_config.alignment_mode.reverse_sequences = true; // mirroring true/true/true/true is a no-op
+
+    auto forward_alignments = sw_align(int_query, int_reference, /*best_only=*/false, forward_config);
+    auto reverse_alignments = sw_align(int_query, int_reference, /*best_only=*/false, reverse_config);
+
+    // Candidate order isn't part of the contract being tested here, so compare the two candidate
+    // sets order-independently. Summarizing each Alignment_data via its standard core/extended
+    // CIGAR (rather than a struct or hand-picked fields) means the vector<string> matcher both
+    // prints a readable diff on failure and reuses the same representation the rest of this file
+    // already validates against.
+    auto summarize = [](const Alignment_data &aln) {
+        return aln.core_cigar() + " | " + aln.extended_cigar() + " | score=" + std::to_string(aln.score);
+    };
+
+    std::vector<std::string> forward_summaries;
+    for (const auto &entry : forward_alignments) forward_summaries.push_back(summarize(entry.second));
+    std::vector<std::string> reverse_summaries;
+    for (const auto &entry : reverse_alignments) reverse_summaries.push_back(summarize(entry.second));
+
+    const std::unordered_set<std::string> forward_set(forward_summaries.begin(), forward_summaries.end());
+    const std::unordered_set<std::string> reverse_set(reverse_summaries.begin(), reverse_summaries.end());
+
+    std::vector<std::string> only_in_forward;
+    for (const auto &summary : forward_set) {
+        if (reverse_set.find(summary) == reverse_set.end()) only_in_forward.push_back(summary);
+    }
+    std::vector<std::string> only_in_reverse;
+    for (const auto &summary : reverse_set) {
+        if (forward_set.find(summary) == forward_set.end()) only_in_reverse.push_back(summary);
+    }
+    const std::size_t intersecting_count = forward_set.size() - only_in_forward.size();
+
+    std::ostringstream diff;
+    diff << "forward count=" << forward_set.size() << " reverse count=" << reverse_set.size()
+         << " intersecting=" << intersecting_count << "\n";
+    diff << "only in forward (" << only_in_forward.size() << "):\n";
+    for (const auto &summary : only_in_forward) diff << "  " << summary << "\n";
+    diff << "only in reverse (" << only_in_reverse.size() << "):\n";
+    for (const auto &summary : only_in_reverse) diff << "  " << summary << "\n";
+    INFO(diff.str());
+
+    REQUIRE(forward_summaries.size() == reverse_summaries.size());
+    REQUIRE(only_in_forward.empty());
+    REQUIRE(only_in_reverse.empty());
 }
 
 TEST_CASE("Dropping extended gaps must trigger failure of Alignment data comparison.",
