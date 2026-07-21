@@ -193,7 +193,7 @@ struct null_delete
 };
 
 /*
- * Declare a simple matrix class
+ * Declare a simple matrix class with column major data ordering.
  *
  */
 template <typename T>

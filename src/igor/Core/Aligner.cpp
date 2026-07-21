@@ -2486,6 +2486,13 @@ IGOR_ALWAYS_INLINE void fill_sw_matrix_cell(int i, int j, int n_rows, double *sc
  * computed once here (rather than once per cell) and passed to
  * fill_sw_matrix_cell, which is marked always_inline -- see its doc comment.
  *
+ * Traversal order: cell (i,j) only depends on (i-1,j), (i,j-1) and (i-1,j-1),
+ * so any traversal that visits both coordinates in increasing order is a
+ * valid fill order. Matrix stores its backing array column-major
+ * (array_p[i + rows*j], see Matrix::operator()), matching the idx = i +
+ * n_rows*j indexing shared by all four matrices here -- so looping columns
+ * outermost and rows innermost visits memory contiguously.
+ *
  * \param int_data_sequence     Prepared (possibly flipped) query sequence, 0-based.
  * \param int_genomic_sequence  Prepared (possibly flipped) reference sequence, 0-based.
  * \param dp  DP workspace whose matrices were already initialized by initialize_sw_matrices.
@@ -2501,65 +2508,11 @@ void fill_sw_score_matrix(const Int_Str &int_data_sequence, const Int_Str &int_g
     int *const col_mem = dp.col_memory_matrix.data();
     int *const numb_trk = dp.alignment_numb_tracker.data();
 
-    bool matrix_complete = false;
-    int explored_row_coord = 1;
-    int explored_col_coord = 1;
-    bool last_column_explored = false;
-
-    while (!matrix_complete) {
-
-        // For efficiency the score_matrix is filled by squares at first
-        // once the size of the square reaches the size of one of the sequence
-        // it fills the rest
-
-        // TODO test first if the whole genomic seq has been spanned (usually shorter than the data seq??)
-
-        // Always start at index 1 since first column and first row are initialization values
-        if (explored_row_coord == dp.n_rows && !last_column_explored) {
-            // If all the rows have been explored
-            for (int i = 1; i != dp.n_rows; ++i) {
-                // Explore next missing column
-                fill_sw_matrix_cell(i, explored_col_coord - 1, n_rows, score, row_mem, col_mem, numb_trk,
-                                    dp.candidates, reset_negative_scores, config, int_data_sequence,
-                                    int_genomic_sequence);
-            }
-
-        } else if (explored_col_coord == dp.n_cols) {
-            // If all columns have been explored
-            for (int j = 1; j != dp.n_cols; ++j) {
-                // Explore next missing row
-                fill_sw_matrix_cell(explored_row_coord - 1, j, n_rows, score, row_mem, col_mem, numb_trk,
-                                    dp.candidates, reset_negative_scores, config, int_data_sequence,
-                                    int_genomic_sequence);
-            }
-            if (!last_column_explored) {
-                last_column_explored = true;
-            } // By construction
-        } else {
-            int i = 1;
-            int j = 1;
-
-            while ((i != explored_row_coord) && (j != explored_col_coord)) {
-                fill_sw_matrix_cell(i, explored_col_coord, n_rows, score, row_mem, col_mem, numb_trk, dp.candidates,
-                                    reset_negative_scores, config, int_data_sequence, int_genomic_sequence);
-                ++i;
-                fill_sw_matrix_cell(explored_row_coord, j, n_rows, score, row_mem, col_mem, numb_trk, dp.candidates,
-                                    reset_negative_scores, config, int_data_sequence, int_genomic_sequence);
-                ++j;
-            }
-            // Fill last angle of the square
-            fill_sw_matrix_cell(explored_row_coord, explored_col_coord, n_rows, score, row_mem, col_mem, numb_trk,
-                                dp.candidates, reset_negative_scores, config, int_data_sequence, int_genomic_sequence);
-        }
-
-        if ((explored_row_coord == dp.n_rows) && (explored_col_coord == dp.n_cols)) {
-            matrix_complete = true;
-        }
-        if (explored_row_coord != dp.n_rows) {
-            ++explored_row_coord;
-        }
-        if (explored_col_coord != dp.n_cols) {
-            ++explored_col_coord;
+    // Always start at index 1 since first column and first row are initialization values
+    for (int j = 1; j != dp.n_cols; ++j) {
+        for (int i = 1; i != dp.n_rows; ++i) {
+            fill_sw_matrix_cell(i, j, n_rows, score, row_mem, col_mem, numb_trk, dp.candidates, reset_negative_scores,
+                                config, int_data_sequence, int_genomic_sequence);
         }
     }
 }
