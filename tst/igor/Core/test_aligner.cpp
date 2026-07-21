@@ -10,10 +10,8 @@
 #include <cmath>
 #include <limits>
 #include <memory>
-#include <sstream>
 #include <string>
 #include <tuple>
-#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -693,44 +691,8 @@ TEST_CASE("Reversed local alignment matches forward local alignment", "[aligner]
     auto reverse_alignments = sw_align(int_query, int_reference, /*best_only=*/false, reverse_config);
 
     // Candidate order isn't part of the contract being tested here, so compare the two candidate
-    // sets order-independently. Summarizing each Alignment_data via its standard core/extended
-    // CIGAR (rather than a struct or hand-picked fields) means the vector<string> matcher both
-    // prints a readable diff on failure and reuses the same representation the rest of this file
-    // already validates against.
-    auto summarize = [](const Alignment_data &aln) {
-        return aln.core_cigar() + " | " + aln.extended_cigar() + " | score=" + std::to_string(aln.score);
-    };
-
-    std::vector<std::string> forward_summaries;
-    for (const auto &entry : forward_alignments) forward_summaries.push_back(summarize(entry.second));
-    std::vector<std::string> reverse_summaries;
-    for (const auto &entry : reverse_alignments) reverse_summaries.push_back(summarize(entry.second));
-
-    const std::unordered_set<std::string> forward_set(forward_summaries.begin(), forward_summaries.end());
-    const std::unordered_set<std::string> reverse_set(reverse_summaries.begin(), reverse_summaries.end());
-
-    std::vector<std::string> only_in_forward;
-    for (const auto &summary : forward_set) {
-        if (reverse_set.find(summary) == reverse_set.end()) only_in_forward.push_back(summary);
-    }
-    std::vector<std::string> only_in_reverse;
-    for (const auto &summary : reverse_set) {
-        if (forward_set.find(summary) == forward_set.end()) only_in_reverse.push_back(summary);
-    }
-    const std::size_t intersecting_count = forward_set.size() - only_in_forward.size();
-
-    std::ostringstream diff;
-    diff << "forward count=" << forward_set.size() << " reverse count=" << reverse_set.size()
-         << " intersecting=" << intersecting_count << "\n";
-    diff << "only in forward (" << only_in_forward.size() << "):\n";
-    for (const auto &summary : only_in_forward) diff << "  " << summary << "\n";
-    diff << "only in reverse (" << only_in_reverse.size() << "):\n";
-    for (const auto &summary : only_in_reverse) diff << "  " << summary << "\n";
-    INFO(diff.str());
-
-    REQUIRE(forward_summaries.size() == reverse_summaries.size());
-    REQUIRE(only_in_forward.empty());
-    REQUIRE(only_in_reverse.empty());
+    // sets order-independently.
+    assert_alignment_set_matches(forward_alignments, reverse_alignments, "forward", "reverse");
 }
 
 TEST_CASE("Dropping extended gaps must trigger failure of Alignment data comparison.",

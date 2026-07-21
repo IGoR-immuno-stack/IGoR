@@ -297,69 +297,77 @@ void assert_best_alignment_matches(const std::forward_list<Alignment_data> &alig
 }
 
 namespace {
-// Identifies an alignment by (gene, core CIGAR) for set-difference reporting: the structural
-// identity of "which alignment this is", independent of the score value being validated.
-using AlignmentKey = std::pair<std::string, std::string>;
 
-std::string format_alignment_keys(const std::vector<AlignmentKey> &keys)
+std::string alignment_summary(const std::string &gene_name, const std::string &core_cigar,
+                              const std::string &extended_cigar, double score)
 {
-    std::ostringstream out;
-    for (const auto &key : keys) {
-        out << "    gene=" << key.first << " core_cigar=" << key.second << "\n";
-    }
-    return out.str();
+    return gene_name + " | " + core_cigar + " | " + extended_cigar + " | score=" + std::to_string(score);
 }
+
+// Report and REQUIRE that two multisets of alignment summaries are identical, independent of
+// order. Duplicates are respected (via sort + set_difference) so a side with an extra copy of an
+// otherwise-matching alignment still fails. Any summary present on only one side is listed via
+// INFO before the REQUIRE, mirroring the diff style used to compare forward/reverse candidate
+// sets in the "Reversed local alignment matches forward local alignment" test.
+void assert_summary_multisets_match(std::vector<std::string> actual, std::vector<std::string> expected,
+                                    const std::string &actual_label, const std::string &expected_label)
+{
+    std::sort(actual.begin(), actual.end());
+    std::sort(expected.begin(), expected.end());
+
+    std::vector<std::string> only_in_actual;
+    std::set_difference(actual.begin(), actual.end(), expected.begin(), expected.end(),
+                        std::back_inserter(only_in_actual));
+    std::vector<std::string> only_in_expected;
+    std::set_difference(expected.begin(), expected.end(), actual.begin(), actual.end(),
+                        std::back_inserter(only_in_expected));
+
+    std::ostringstream diff;
+    diff << actual_label << " count=" << actual.size() << " " << expected_label << " count=" << expected.size() << "\n";
+    diff << "only in " << actual_label << " (" << only_in_actual.size() << "):\n";
+    for (const auto &summary : only_in_actual) diff << "  " << summary << "\n";
+    diff << "only in " << expected_label << " (" << only_in_expected.size() << "):\n";
+    for (const auto &summary : only_in_expected) diff << "  " << summary << "\n";
+    INFO(diff.str());
+
+    REQUIRE(actual.size() == expected.size());
+    REQUIRE(only_in_actual.empty());
+    REQUIRE(only_in_expected.empty());
+}
+
 } // namespace
 
 void assert_alignment_set_matches(const std::forward_list<Alignment_data> &alignments, const std::string &query,
                                   const std::vector<std::pair<std::string, std::string>> &genomic_templates,
                                   std::vector<ExpectedAlignment> expected)
 {
-    std::vector<const Alignment_data *> actual;
+    std::vector<std::string> actual_summaries;
     for (const auto &aln : alignments) {
-        actual.push_back(&aln);
-    }
-    std::sort(actual.begin(), actual.end(), [](const Alignment_data *a, const Alignment_data *b) {
-        return std::make_tuple(a->gene_name, alignment_data_to_core_cigar(*a), a->score)
-                < std::make_tuple(b->gene_name, alignment_data_to_core_cigar(*b), b->score);
-    });
-    expected = normalize_expected(std::move(expected));
-
-    std::vector<AlignmentKey> actual_keys;
-    for (const auto *aln : actual) {
-        actual_keys.emplace_back(aln->gene_name, aln->core_cigar());
-    }
-    std::vector<AlignmentKey> expected_keys;
-    for (const auto &aln : expected) {
-        expected_keys.emplace_back(aln.gene_name, aln.core_cigar);
+        actual_summaries.push_back(alignment_summary(aln.gene_name, aln.core_cigar(), aln.extended_cigar(), aln.score));
     }
 
-    std::vector<AlignmentKey> missing_from_actual; // expected but not produced
-    for (const auto &key : expected_keys) {
-        if (std::find(actual_keys.begin(), actual_keys.end(), key) == actual_keys.end()) {
-            missing_from_actual.push_back(key);
-        }
-    }
-    std::vector<AlignmentKey> unexpected_in_actual; // produced but not expected
-    for (const auto &key : actual_keys) {
-        if (std::find(expected_keys.begin(), expected_keys.end(), key) == expected_keys.end()) {
-            unexpected_in_actual.push_back(key);
-        }
+    std::vector<std::string> expected_summaries;
+    for (const auto &exp : expected) {
+        expected_summaries.push_back(alignment_summary(exp.gene_name, exp.core_cigar, exp.extended_cigar, exp.score));
     }
 
-    INFO("actual count=" << actual.size() << " expected count=" << expected.size() << "\n"
-         << "missing from actual (" << missing_from_actual.size() << "):\n" << format_alignment_keys(missing_from_actual)
-         << "unexpected in actual (" << unexpected_in_actual.size() << "):\n" << format_alignment_keys(unexpected_in_actual));
-    REQUIRE(actual.size() == expected.size());
+    assert_summary_multisets_match(actual_summaries, expected_summaries, "actual", "expected");
+}
 
-    for (std::size_t i = 0; i < expected.size(); ++i) {
-        INFO("alignment index=" << i);
-        auto genomic_template = find_genomic_template(genomic_templates, expected[i].gene_name);
-        if (genomic_template.first.empty()) {
-            genomic_template = find_genomic_template(genomic_templates, actual[i]->gene_name);
-        }
-        assert_alignment_matches(*actual[i], query, genomic_template, expected[i]);
-    }
+void assert_alignment_set_matches(const std::list<std::pair<int, Alignment_data>> &actual,
+                                  const std::list<std::pair<int, Alignment_data>> &expected,
+                                  const std::string &actual_label, const std::string &expected_label)
+{
+    auto summarize = [](const Alignment_data &aln) {
+        return alignment_summary(aln.gene_name, aln.core_cigar(), aln.extended_cigar(), aln.score);
+    };
+
+    std::vector<std::string> actual_summaries;
+    for (const auto &entry : actual) actual_summaries.push_back(summarize(entry.second));
+    std::vector<std::string> expected_summaries;
+    for (const auto &entry : expected) expected_summaries.push_back(summarize(entry.second));
+
+    assert_summary_multisets_match(actual_summaries, expected_summaries, actual_label, expected_label);
 }
 
 void assert_alignment_data_matches(const Alignment_data &actual,

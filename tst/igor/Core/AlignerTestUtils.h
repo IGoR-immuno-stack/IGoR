@@ -32,6 +32,7 @@
 
 #include <algorithm>
 #include <forward_list>
+#include <list>
 #include <sstream>
 #include <string>
 #include <unordered_set>
@@ -255,9 +256,11 @@ void assert_best_alignment_matches(const std::forward_list<Alignment_data> &alig
                                    const ExpectedAlignment &expected);
 
 /**
- * Assert that a set of alignments matches expected values.
- * Alignments are sorted and compared in order.
- * 
+ * Assert that a set of alignments matches a set of expected values, independent of order.
+ * Each alignment is summarized as "gene | core_cigar | extended_cigar | score" and the two
+ * multisets of summaries are compared; any summary present on only one side fails the assertion
+ * and is listed via INFO.
+ *
  * \param alignments The forward_list of Alignment_data from the aligner
  * \param query The query sequence used for alignment
  * \param genomic_templates Vector of genomic templates
@@ -266,6 +269,22 @@ void assert_best_alignment_matches(const std::forward_list<Alignment_data> &alig
 void assert_alignment_set_matches(const std::forward_list<Alignment_data> &alignments, const std::string &query,
                                   const std::vector<std::pair<std::string, std::string>> &genomic_templates,
                                   std::vector<ExpectedAlignment> expected);
+
+/**
+ * Assert that two raw candidate alignment sets (as returned by sw_align) are equivalent,
+ * independent of order. Each alignment is summarized as "gene | core_cigar | extended_cigar |
+ * score" using its own stored query/germline lengths, and the two multisets of summaries are
+ * compared; any summary present on only one side fails the assertion and is listed via INFO.
+ *
+ * \param actual First set of (offset, Alignment_data) candidates
+ * \param expected Second set of (offset, Alignment_data) candidates
+ * \param actual_label Label used to identify the first set in failure diagnostics
+ * \param expected_label Label used to identify the second set in failure diagnostics
+ */
+void assert_alignment_set_matches(const std::list<std::pair<int, Alignment_data>> &actual,
+                                  const std::list<std::pair<int, Alignment_data>> &expected,
+                                  const std::string &actual_label = "first",
+                                  const std::string &expected_label = "second");
 
 /**
  * Assert that alignment data matches expected values from a CSV line.
