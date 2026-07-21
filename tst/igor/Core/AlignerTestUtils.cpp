@@ -104,18 +104,18 @@ bool check_alignment_data_equal(const Alignment_data &a, const Alignment_data &b
     REQUIRE(fabs(a.score - b.score) <= score_tolerance);
     
     // Check insertions (convert to sets for order-independent comparison)
-    const vector<int> a_ins = a.get_all_insertions();
-    const vector<int> b_ins = b.get_all_insertions();
+    const vector<size_t> a_ins = a.get_all_insertions();
+    const vector<size_t> b_ins = b.get_all_insertions();
     REQUIRE_THAT(a_ins, Catch::Matchers::UnorderedEquals(b_ins));
     
     // Check deletions
-    const vector<int> a_del = a.get_all_deletions();
-    const vector<int> b_del = b.get_all_deletions();
+    const vector<size_t> a_del = a.get_all_deletions();
+    const vector<size_t> b_del = b.get_all_deletions();
     REQUIRE_THAT(a_del, Catch::Matchers::UnorderedEquals(b_del));
     
     // Check mismatches (already sorted, but compare as sets to be safe)
-    const vector<int> a_mis = a.get_all_mismatches();
-    const vector<int> b_mis = b.get_all_mismatches();
+    const vector<size_t> a_mis = a.get_all_mismatches();
+    const vector<size_t> b_mis = b.get_all_mismatches();
     REQUIRE_THAT(a_mis, Catch::Matchers::UnorderedEquals(b_mis));
 
     return true;

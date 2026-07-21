@@ -324,12 +324,12 @@ TEST_CASE_METHOD(ParquetReaderFixture, "Murugan dataset round-trip", "[parquet][
                 CHECK(recov_align.align_length == orig_align.align_length);
 
                 // Check list fields
-                std::vector<int> orig_insertions = orig_align.get_all_insertions();
-                std::vector<int> recov_insertions = recov_align.get_all_insertions();
+                std::vector<size_t> orig_insertions = orig_align.get_all_insertions();
+                std::vector<size_t> recov_insertions = recov_align.get_all_insertions();
                 CHECK(recov_insertions == orig_insertions);
 
-                std::vector<int> orig_deletions = orig_align.get_all_deletions();
-                std::vector<int> recov_deletions = recov_align.get_all_deletions();
+                std::vector<size_t> orig_deletions = orig_align.get_all_deletions();
+                std::vector<size_t> recov_deletions = recov_align.get_all_deletions();
                 CHECK(recov_deletions == orig_deletions);
 
                 CHECK(recov_align.get_all_mismatches() == orig_align.get_all_mismatches());

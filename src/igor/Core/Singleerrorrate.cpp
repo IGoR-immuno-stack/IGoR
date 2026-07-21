@@ -117,21 +117,21 @@ double Single_error_rate::compute_scenario_error_probability(
 
     // V gene (always exists)
     Int_Str& v_gene_seq = (*scenario.constructed_sequences[V_gene_seq]);
-    std::vector<int>& v_mismatch_list = *scenario.mismatches_lists[V_gene_seq];
+    std::vector<size_t>& v_mismatch_list = *scenario.mismatches_lists[V_gene_seq];
     genomic_nucl += v_gene_seq.size();
     number_errors += v_mismatch_list.size();
 
     // D gene (may not exist)
     if (scenario.mismatches_lists.exist(D_gene_seq)) {
         Int_Str& d_gene_seq = (*scenario.constructed_sequences[D_gene_seq]);
-        std::vector<int>& d_mismatch_list = *scenario.mismatches_lists[D_gene_seq];
+        std::vector<size_t>& d_mismatch_list = *scenario.mismatches_lists[D_gene_seq];
         number_errors += d_mismatch_list.size();
         genomic_nucl += d_gene_seq.size();
     }
 
     // J gene (always exists)
     Int_Str& j_gene_seq = (*scenario.constructed_sequences[J_gene_seq]);
-    std::vector<int>& j_mismatch_list = *scenario.mismatches_lists[J_gene_seq];
+    std::vector<size_t>& j_mismatch_list = *scenario.mismatches_lists[J_gene_seq];
     genomic_nucl += j_gene_seq.size();
     number_errors += j_mismatch_list.size();
 
@@ -184,14 +184,14 @@ double Single_error_rate::compare_sequences_error_prob(
     Int_Str &d_gene_seq = (*constructed_sequences[D_gene_seq]);
     Int_Str &j_gene_seq = (*constructed_sequences[J_gene_seq]);
 
-    vector<int> &v_mismatch_list = *mismatches_lists[V_gene_seq];
+    vector<size_t> &v_mismatch_list = *mismatches_lists[V_gene_seq];
     if (mismatches_lists.exist(D_gene_seq)) {
-        vector<int> &d_mismatch_list = *mismatches_lists[D_gene_seq];
+        vector<size_t> &d_mismatch_list = *mismatches_lists[D_gene_seq];
         number_errors += d_mismatch_list.size();
         genomic_nucl += d_gene_seq.size();
     }
 
-    vector<int> &j_mismatch_list = *mismatches_lists[J_gene_seq];
+    vector<size_t> &j_mismatch_list = *mismatches_lists[J_gene_seq];
 
     genomic_nucl += v_gene_seq.size();
     //genomic_nucl+=d_gene_seq.size();

@@ -176,8 +176,8 @@ sparrow::record_batch read_batch(
 STREAMING_EXPORT
 bool parse_cigar(
     const std::string& cigar,
-    std::vector<int>& insertions,
-    std::vector<int>& deletions,
+    std::vector<size_t>& insertions,
+    std::vector<size_t>& deletions,
     size_t& align_length);
 
 } // namespace igor::airr::alignment

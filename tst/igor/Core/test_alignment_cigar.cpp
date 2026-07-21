@@ -56,7 +56,7 @@ TEST_CASE("alignment data CIGAR mixed round trip", "[cigar]")
     REQUIRE(round.align_length == aln.align_length);
     REQUIRE_THAT(round.get_all_insertions(), Catch::Matchers::UnorderedEquals(aln.get_all_insertions()));
     REQUIRE_THAT(round.get_all_deletions(), Catch::Matchers::UnorderedEquals(aln.get_all_deletions()));
-    std::vector<int> round_mismatches = round.get_all_mismatches();
+    std::vector<size_t> round_mismatches = round.get_all_mismatches();
     std::sort(round_mismatches.begin(), round_mismatches.end());
     auto expected_mismatches = aln.get_all_mismatches();
     std::sort(expected_mismatches.begin(), expected_mismatches.end());

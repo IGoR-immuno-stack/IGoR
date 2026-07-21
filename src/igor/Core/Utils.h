@@ -548,7 +548,7 @@ typedef Enum_fast_memory_map<Seq_type, Int_Str_ptr> Seq_type_str_p_map;
 
 typedef Enum_fast_memory_map<Event_safety, bool> Safety_bool_map;
 
-typedef Enum_fast_memory_map<Seq_type, std::vector<int> *> Mismatch_vectors_map;
+typedef Enum_fast_memory_map<Seq_type, std::vector<size_t> *> Mismatch_vectors_map;
 
 typedef Enum_fast_memory_map<int, size_t> Index_map;
 

@@ -147,12 +147,12 @@ size_t get_size_t_value(const sparrow::record_batch &batch, const std::string &c
     }
 }
 
-std::vector<int> get_int_list_value(const sparrow::record_batch &batch,
+std::vector<size_t> get_size_t_list_value(const sparrow::record_batch &batch,
                                      const std::string &column_name, size_t row_index)
 {
     // Extract value from native Arrow list array
     if (!has_column(batch, column_name)) {
-        return std::vector<int>{};
+        return std::vector<size_t>{};
     }
 
     try {
@@ -161,7 +161,7 @@ std::vector<int> get_int_list_value(const sparrow::record_batch &batch,
         // Access the array element at row_index
         auto list_element = col[row_index];
 
-        std::vector<int> result;
+        std::vector<size_t> result;
 
         // Check if the value is null
         if (!list_element.has_value()) {
@@ -192,7 +192,7 @@ std::vector<int> get_int_list_value(const sparrow::record_batch &batch,
 
         return result;
     } catch (...) {
-        return std::vector<int>{};
+        return std::vector<size_t>{};
     }
 }
 
@@ -234,9 +234,9 @@ parse_alignments_from_columns(const sparrow::record_batch &batch, size_t row_ind
                 double score = get_double_value(batch, score_col, row_index, 0.0);
 
                 // Extract nested list structures
-                std::vector<int> insertions_vec = get_int_list_value(batch, insertions_col, row_index);
-                std::vector<int> deletions_vec = get_int_list_value(batch, deletions_col, row_index);
-                std::vector<int> mismatches_vec = get_int_list_value(batch, mismatches_col, row_index);
+                std::vector<size_t> insertions_vec = get_size_t_list_value(batch, insertions_col, row_index);
+                std::vector<size_t> deletions_vec = get_size_t_list_value(batch, deletions_col, row_index);
+                std::vector<size_t> mismatches_vec = get_size_t_list_value(batch, mismatches_col, row_index);
 
                 // Create complete alignment data structure with all 9 fields
                 Alignment_data align(gene_name, offset, five_p_offset, three_p_offset,

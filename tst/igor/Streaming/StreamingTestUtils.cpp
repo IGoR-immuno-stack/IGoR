@@ -58,8 +58,8 @@ std::vector<SequenceTuple> load_murugan_dataset()
             int offset = std::stoi(fields[3]);
 
             // Parse insertions list {a,b,c}
-            auto parse_list = [](const std::string& str) -> std::vector<int> {
-                std::vector<int> result;
+            auto parse_list = [](const std::string& str) -> std::vector<size_t> {
+                std::vector<size_t> result;
                 if (str.size() > 2 && str[0] == '{' && str.back() == '}') {
                     std::string content = str.substr(1, str.size() - 2);
                     if (!content.empty()) {
@@ -82,7 +82,7 @@ std::vector<SequenceTuple> load_murugan_dataset()
             auto deletions_vec = parse_list(fields[5]);
             auto mismatches_vec = parse_list(fields[6]);
 
-            std::vector<int> mismatches(mismatches_vec.begin(), mismatches_vec.end());
+            std::vector<size_t> mismatches(mismatches_vec.begin(), mismatches_vec.end());
 
             size_t align_length = std::stoull(fields[7]);
             size_t five_p_offset = std::stoull(fields[8]);

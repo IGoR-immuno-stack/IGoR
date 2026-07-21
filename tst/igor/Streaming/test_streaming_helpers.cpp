@@ -219,12 +219,12 @@ TEST_CASE("round-trip with populated alignments", "[streaming][helpers][regressi
     REQUIRE(res.score == orig.score);
 
     // Compare forward_list fields
-    std::vector<int> orig_ins = orig.get_all_insertions();
-    std::vector<int> res_ins = res.get_all_insertions();
+    std::vector<size_t> orig_ins = orig.get_all_insertions();
+    std::vector<size_t> res_ins = res.get_all_insertions();
     REQUIRE_THAT(res_ins, RangeEquals(orig_ins));
 
-    std::vector<int> orig_del = orig.get_all_deletions();
-    std::vector<int> res_del = res.get_all_deletions();
+    std::vector<size_t> orig_del = orig.get_all_deletions();
+    std::vector<size_t> res_del = res.get_all_deletions();
     REQUIRE_THAT(res_del, RangeEquals(orig_del));
 
     REQUIRE(res.get_all_mismatches() == orig.get_all_mismatches());

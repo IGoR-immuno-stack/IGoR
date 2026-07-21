@@ -982,7 +982,7 @@ TEST_CASE("Alignment_data deletion categorization", "[aligner][alignment_data][d
         auto core_del = aln.get_core_deletions();
         auto three_p_ext_del = aln.get_3p_extended_deletions();
 
-        REQUIRE_THAT(ext_del, Catch::Matchers::Equals(std::vector<int>{ 2 }));
+        REQUIRE_THAT(ext_del, Catch::Matchers::Equals(std::vector<size_t>{ 2 }));
         REQUIRE(core_del.empty());
         REQUIRE(three_p_ext_del.empty());
     }
@@ -1017,7 +1017,7 @@ TEST_CASE("Alignment_data deletion categorization", "[aligner][alignment_data][d
 
         REQUIRE(ext_del.empty());
         REQUIRE(core_del.empty());
-        REQUIRE_THAT(three_p_ext_del, Catch::Matchers::Equals(std::vector<int>{ 8 }));
+        REQUIRE_THAT(three_p_ext_del, Catch::Matchers::Equals(std::vector<size_t>{ 8 }));
     }
 
     SECTION("Multiple 5p extended deletions")
@@ -1030,7 +1030,7 @@ TEST_CASE("Alignment_data deletion categorization", "[aligner][alignment_data][d
         auto core_del = aln.get_core_deletions();
         auto three_p_ext_del = aln.get_3p_extended_deletions();
 
-        REQUIRE_THAT(ext_del, Catch::Matchers::Equals(std::vector<int>{ 1, 2, 3, 4 }));
+        REQUIRE_THAT(ext_del, Catch::Matchers::Equals(std::vector<size_t>{ 1, 2, 3, 4 }));
         REQUIRE(core_del.empty());
         REQUIRE(three_p_ext_del.empty());
     }
@@ -1045,9 +1045,9 @@ TEST_CASE("Alignment_data deletion categorization", "[aligner][alignment_data][d
         auto core_del = aln.get_core_deletions();
         auto three_p_ext_del = aln.get_3p_extended_deletions();
 
-        REQUIRE_THAT(ext_del, Catch::Matchers::Equals(std::vector<int>{ 1, 2, 5, 7 }));
-        REQUIRE_THAT(core_del, Catch::Matchers::Equals(std::vector<int>{ 10, 12 }));
-        REQUIRE_THAT(three_p_ext_del, Catch::Matchers::Equals(std::vector<int>{ 17, 22 }));
+        REQUIRE_THAT(ext_del, Catch::Matchers::Equals(std::vector<size_t>{ 1, 2, 5, 7 }));
+        REQUIRE_THAT(core_del, Catch::Matchers::Equals(std::vector<size_t>{ 10, 12 }));
+        REQUIRE_THAT(three_p_ext_del, Catch::Matchers::Equals(std::vector<size_t>{ 17, 22 }));
     }
 
     SECTION("Deletion at boundary between 5p and core")
@@ -1059,7 +1059,7 @@ TEST_CASE("Alignment_data deletion categorization", "[aligner][alignment_data][d
         auto ext_del = aln.get_5p_extended_deletions();
         auto core_del = aln.get_core_deletions();
 
-        REQUIRE_THAT(ext_del, Catch::Matchers::Equals(std::vector<int>{ 2 }));
+        REQUIRE_THAT(ext_del, Catch::Matchers::Equals(std::vector<size_t>{ 2 }));
         REQUIRE(core_del.empty());
     }
 
@@ -1075,7 +1075,7 @@ TEST_CASE("Alignment_data deletion categorization", "[aligner][alignment_data][d
 
         REQUIRE(ext_del.empty());
         REQUIRE(core_del.empty());
-        REQUIRE_THAT(three_p_ext_del, Catch::Matchers::Equals(std::vector<int>{ 7 }));
+        REQUIRE_THAT(three_p_ext_del, Catch::Matchers::Equals(std::vector<size_t>{ 7 }));
     }
 
     SECTION("Positive offset with 5p extended deletion")
@@ -1087,7 +1087,7 @@ TEST_CASE("Alignment_data deletion categorization", "[aligner][alignment_data][d
         auto ext_del = aln.get_5p_extended_deletions();
         auto core_del = aln.get_core_deletions();
 
-        REQUIRE_THAT(ext_del, Catch::Matchers::Equals(std::vector<int>{ 0 }));
+        REQUIRE_THAT(ext_del, Catch::Matchers::Equals(std::vector<size_t>{ 0 }));
         REQUIRE(core_del.empty());
     }
 
@@ -1101,9 +1101,9 @@ TEST_CASE("Alignment_data deletion categorization", "[aligner][alignment_data][d
         auto core_del = aln.get_core_deletions();
         auto three_p_ext_del = aln.get_3p_extended_deletions();
 
-        REQUIRE_THAT(ext_del, Catch::Matchers::Equals(std::vector<int>{ 5, 7 }));
-        REQUIRE_THAT(core_del, Catch::Matchers::Equals(std::vector<int>{ 10, 12 }));
-        REQUIRE_THAT(three_p_ext_del, Catch::Matchers::Equals(std::vector<int>{ 17, 22 }));
+        REQUIRE_THAT(ext_del, Catch::Matchers::Equals(std::vector<size_t>{ 5, 7 }));
+        REQUIRE_THAT(core_del, Catch::Matchers::Equals(std::vector<size_t>{ 10, 12 }));
+        REQUIRE_THAT(three_p_ext_del, Catch::Matchers::Equals(std::vector<size_t>{ 17, 22 }));
     }
 
     SECTION("Negative offset with multiple deletions and insertions")
@@ -1116,9 +1116,9 @@ TEST_CASE("Alignment_data deletion categorization", "[aligner][alignment_data][d
         auto core_del = aln.get_core_deletions();
         auto three_p_ext_del = aln.get_3p_extended_deletions();
 
-        REQUIRE_THAT(ext_del, Catch::Matchers::Equals(std::vector<int>{ 5, 7 }));
-        REQUIRE_THAT(core_del, Catch::Matchers::Equals(std::vector<int>{ 10, 12 }));
-        REQUIRE_THAT(three_p_ext_del, Catch::Matchers::Equals(std::vector<int>{ 17, 22 }));
+        REQUIRE_THAT(ext_del, Catch::Matchers::Equals(std::vector<size_t>{ 5, 7 }));
+        REQUIRE_THAT(core_del, Catch::Matchers::Equals(std::vector<size_t>{ 10, 12 }));
+        REQUIRE_THAT(three_p_ext_del, Catch::Matchers::Equals(std::vector<size_t>{ 17, 22 }));
     }
 }
 
@@ -1139,7 +1139,7 @@ TEST_CASE("Alignment_data insertion categorization", "[aligner][alignment_data][
         auto core_ins = aln.get_core_insertions();
         auto three_p_ext_ins = aln.get_3p_extended_insertions();
 
-        REQUIRE_THAT(five_p_ext_ins, Catch::Matchers::Equals(std::vector<int>{ 0 }));
+        REQUIRE_THAT(five_p_ext_ins, Catch::Matchers::Equals(std::vector<size_t>{ 0 }));
         REQUIRE(core_ins.empty());
         REQUIRE(three_p_ext_ins.empty());
     }
@@ -1156,7 +1156,7 @@ TEST_CASE("Alignment_data insertion categorization", "[aligner][alignment_data][
         auto three_p_ext_ins = aln.get_3p_extended_insertions();
 
         REQUIRE(five_p_ext_ins.empty());
-        REQUIRE_THAT(core_ins, Catch::Matchers::Equals(std::vector<int>{ 3 }));
+        REQUIRE_THAT(core_ins, Catch::Matchers::Equals(std::vector<size_t>{ 3 }));
         REQUIRE(three_p_ext_ins.empty());
     }
 
@@ -1173,7 +1173,7 @@ TEST_CASE("Alignment_data insertion categorization", "[aligner][alignment_data][
 
         REQUIRE(five_p_ext_ins.empty());
         REQUIRE(core_ins.empty());
-        REQUIRE_THAT(three_p_ext_ins, Catch::Matchers::Equals(std::vector<int>{ 8 }));
+        REQUIRE_THAT(three_p_ext_ins, Catch::Matchers::Equals(std::vector<size_t>{ 8 }));
     }
 
     SECTION("Multiple 5p extended deletions")
@@ -1186,7 +1186,7 @@ TEST_CASE("Alignment_data insertion categorization", "[aligner][alignment_data][
         auto core_ins = aln.get_core_insertions();
         auto three_p_ext_ins = aln.get_3p_extended_insertions();
 
-        REQUIRE_THAT(five_p_ext_ins, Catch::Matchers::Equals(std::vector<int>{ 1, 2, 3, 4 }));
+        REQUIRE_THAT(five_p_ext_ins, Catch::Matchers::Equals(std::vector<size_t>{ 1, 2, 3, 4 }));
         REQUIRE(core_ins.empty());
         REQUIRE(three_p_ext_ins.empty());
     }
@@ -1201,9 +1201,9 @@ TEST_CASE("Alignment_data insertion categorization", "[aligner][alignment_data][
         auto core_ins = aln.get_core_insertions();
         auto three_p_ext_ins = aln.get_3p_extended_insertions();
 
-        REQUIRE_THAT(five_p_ext_ins, Catch::Matchers::Equals(std::vector<int>{ 1, 2, 5, 7 }));
-        REQUIRE_THAT(core_ins, Catch::Matchers::Equals(std::vector<int>{ 10, 12 }));
-        REQUIRE_THAT(three_p_ext_ins, Catch::Matchers::Equals(std::vector<int>{ 17, 22 }));
+        REQUIRE_THAT(five_p_ext_ins, Catch::Matchers::Equals(std::vector<size_t>{ 1, 2, 5, 7 }));
+        REQUIRE_THAT(core_ins, Catch::Matchers::Equals(std::vector<size_t>{ 10, 12 }));
+        REQUIRE_THAT(three_p_ext_ins, Catch::Matchers::Equals(std::vector<size_t>{ 17, 22 }));
     }
 
     SECTION("Insertion just before core start")
@@ -1216,7 +1216,7 @@ TEST_CASE("Alignment_data insertion categorization", "[aligner][alignment_data][
         auto core_ins = aln.get_core_insertions();
         auto three_p_ext_ins = aln.get_3p_extended_insertions();
 
-        REQUIRE_THAT(five_p_ext_ins, Catch::Matchers::Equals(std::vector<int>{ 3 }));
+        REQUIRE_THAT(five_p_ext_ins, Catch::Matchers::Equals(std::vector<size_t>{ 3 }));
         REQUIRE(core_ins.empty());
         REQUIRE(three_p_ext_ins.empty());
     }
@@ -1233,7 +1233,7 @@ TEST_CASE("Alignment_data insertion categorization", "[aligner][alignment_data][
 
         REQUIRE(five_p_ext_ins.empty());
         REQUIRE(core_ins.empty());
-        REQUIRE_THAT(three_p_ext_ins, Catch::Matchers::Equals(std::vector<int>{ 8 }));
+        REQUIRE_THAT(three_p_ext_ins, Catch::Matchers::Equals(std::vector<size_t>{ 8 }));
     }
 
     SECTION("Insertion just after core start")
@@ -1247,7 +1247,7 @@ TEST_CASE("Alignment_data insertion categorization", "[aligner][alignment_data][
         auto three_p_ext_ins = aln.get_3p_extended_insertions();
 
         REQUIRE(five_p_ext_ins.empty());
-        REQUIRE_THAT(core_ins, Catch::Matchers::Equals(std::vector<int>{ 4 }));
+        REQUIRE_THAT(core_ins, Catch::Matchers::Equals(std::vector<size_t>{ 4 }));
         REQUIRE(three_p_ext_ins.empty());
     }
 
@@ -1262,7 +1262,7 @@ TEST_CASE("Alignment_data insertion categorization", "[aligner][alignment_data][
         auto three_p_ext_ins = aln.get_3p_extended_insertions();
 
         REQUIRE(five_p_ext_ins.empty());
-        REQUIRE_THAT(core_ins, Catch::Matchers::Equals(std::vector<int>{ 7 }));
+        REQUIRE_THAT(core_ins, Catch::Matchers::Equals(std::vector<size_t>{ 7 }));
         REQUIRE(three_p_ext_ins.empty());
     }
 }

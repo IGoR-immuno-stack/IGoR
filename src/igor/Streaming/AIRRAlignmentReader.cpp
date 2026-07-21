@@ -380,8 +380,8 @@ std::vector<SequenceData> read_sequences(const std::string& filepath, Delimiter 
 
 bool parse_cigar(
     const std::string& cigar,
-    std::vector<int>& insertions,
-    std::vector<int>& deletions,
+    std::vector<size_t>& insertions,
+    std::vector<size_t>& deletions,
     size_t& align_length)
 {
     if (cigar.empty()) {

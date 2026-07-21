@@ -87,7 +87,7 @@ private:
                                        std::pair<size_t, double *> *, std::pair<size_t, double *> *);
     void recurs_coverage_count(double scenario_seq_joint_proba, size_t N, size_t begin_bound, size_t end_bound,
                                size_t gene_len);
-    void recurs_errors_count(double scenario_seq_joint_proba, std::vector<int> &v_mismatch_list,
+    void recurs_errors_count(double scenario_seq_joint_proba, std::vector<size_t> &v_mismatch_list,
                              const int **gene_offset_p, size_t N, size_t begin_bound, size_t end_bound,
                              size_t gene_len);
     void symmetrize_counter_array(double *, size_t, size_t, size_t);

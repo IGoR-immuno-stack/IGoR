@@ -143,7 +143,7 @@ Hypermutation_full_Nmer_errorrate::Hypermutation_full_Nmer_errorrate(size_t nmer
         adressing_vector.emplace_back(pow(4, ii));
     }
 
-    empty_vec_util = vector<int>();
+    empty_vec_util = vector<size_t>();
     vec_ptr_util = NULL;
 
     output_Nmer_stat = false;
@@ -427,7 +427,7 @@ double Hypermutation_full_Nmer_errorrate::compare_sequences_error_prob(
         scenario_resulting_sequence += (*constructed_sequences[J_gene_seq]);
     }
 
-    vector<int> &v_mismatch_list = *mismatches_lists.at(V_gene_seq);
+    vector<size_t> &v_mismatch_list = *mismatches_lists.at(V_gene_seq);
 
     if (mismatches_lists.exist(D_gene_seq)) {
         vec_ptr_util = mismatches_lists
@@ -435,9 +435,9 @@ double Hypermutation_full_Nmer_errorrate::compare_sequences_error_prob(
     } else {
         vec_ptr_util = &empty_vec_util;
     }
-    vector<int> &d_mismatch_list = *vec_ptr_util;
+    vector<size_t> &d_mismatch_list = *vec_ptr_util;
 
-    vector<int> &j_mismatch_list = *mismatches_lists.at(J_gene_seq);
+    vector<size_t> &j_mismatch_list = *mismatches_lists.at(J_gene_seq);
 
     scenario_new_proba = scenario_probability;
 

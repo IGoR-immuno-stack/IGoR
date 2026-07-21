@@ -171,9 +171,9 @@ inline SequenceTuple create_sequence_with_v_alignment(int id, const std::string&
         5,                                 // five_p_offset
         20,                                // three_p_offset
         100,                               // align_length
-        std::vector<int>{1, 2},            // insertions
-        std::vector<int>{3, 4},            // deletions
-        std::vector<int>{5, 6},            // mismatches
+        std::vector<size_t>{1, 2},            // insertions
+        std::vector<size_t>{3, 4},            // deletions
+        std::vector<size_t>{5, 6},            // mismatches
         123.45                             // score
     );
     alignments[V_gene].push_back(v_align);
@@ -218,12 +218,12 @@ inline bool alignments_equal(
     if (a.align_length != b.align_length) return false;
 
     // Compare insertions/deletions
-    std::vector<int> a_ins = a.get_all_insertions();
-    std::vector<int> b_ins = b.get_all_insertions();
+    std::vector<size_t> a_ins = a.get_all_insertions();
+    std::vector<size_t> b_ins = b.get_all_insertions();
     if (a_ins != b_ins) return false;
 
-    std::vector<int> a_del = a.get_all_deletions();
-    std::vector<int> b_del = b.get_all_deletions();
+    std::vector<size_t> a_del = a.get_all_deletions();
+    std::vector<size_t> b_del = b.get_all_deletions();
     if (a_del != b_del) return false;
 
     if (a.get_all_mismatches() != b.get_all_mismatches()) return false;

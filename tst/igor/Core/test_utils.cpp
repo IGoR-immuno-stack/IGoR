@@ -37,15 +37,15 @@ Alignment_data create_mock_alignment_data(
     int offset,
     size_t five_p_offset,
     size_t three_p_offset,
-    const std::vector<int>& mismatches,
+    const std::vector<size_t>& mismatches,
     double score
 ) {
     // Calculate alignment length
     size_t align_length = three_p_offset - five_p_offset;
     
     // Create empty vectors for insertions and deletions
-    std::vector<int> empty_insertions;
-    std::vector<int> empty_deletions;
+    std::vector<size_t> empty_insertions;
+    std::vector<size_t> empty_deletions;
     
     // Use the appropriate constructor
     Alignment_data align_data(

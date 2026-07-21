@@ -751,7 +751,7 @@ void write_single_seq_alignment(ofstream &outfile, int seq_index, forward_list<A
     for (forward_list<Alignment_data>::const_iterator jiter = seq_alignments.begin(); jiter != seq_alignments.end();
          ++jiter) {
         outfile << seq_index << ";" << (*jiter).gene_name << ";" << (*jiter).score << ";" << (*jiter).offset << ";{";
-        const vector<int>& insertions = (*jiter).get_all_insertions();
+        const vector<size_t>& insertions = (*jiter).get_all_insertions();
         for (size_t i = 0; i < insertions.size(); ++i) {
             if (i == 0) {
                 outfile << insertions[i];
@@ -760,7 +760,7 @@ void write_single_seq_alignment(ofstream &outfile, int seq_index, forward_list<A
             }
         }
         outfile << "};{";
-        const vector<int>& deletions = (*jiter).get_all_deletions();
+        const vector<size_t>& deletions = (*jiter).get_all_deletions();
         for (size_t i = 0; i < deletions.size(); ++i) {
             if (i == 0) {
                 outfile << deletions[i];
@@ -769,7 +769,7 @@ void write_single_seq_alignment(ofstream &outfile, int seq_index, forward_list<A
             }
         }
         outfile << "};{"; //<<endl;
-        const vector<int>& mismatches = (*jiter).get_all_mismatches();
+        const vector<size_t>& mismatches = (*jiter).get_all_mismatches();
         for (size_t i = 0; i < mismatches.size(); ++i) {
             if (i == 0) {
                 outfile << mismatches[i];
@@ -851,8 +851,8 @@ static void append_cigar_run(vector<pair<int, char>> &ops, int count, char op)
  */
 std::string alignment_data_to_core_cigar(const Alignment_data &aln)
 {
-    vector<int> insertions = aln.get_all_insertions();
-    vector<int> deletions = aln.get_all_deletions();
+    vector<size_t> insertions = aln.get_all_insertions();
+    vector<size_t> deletions = aln.get_all_deletions();
     sort(insertions.begin(), insertions.end());
     sort(deletions.begin(), deletions.end());
     unordered_set<int> mismatches(aln.get_all_mismatches().begin(), aln.get_all_mismatches().end());
@@ -966,9 +966,9 @@ Alignment_data alignment_data_from_cigar(const std::string &gene_name, const std
     int t = seq_start_1based - 1;
     int g = ref_start_1based - 1;
     size_t align_length = 0;
-    vector<int> insertions;
-    vector<int> deletions;
-    vector<int> mismatches;
+    vector<size_t> insertions;
+    vector<size_t> deletions;
+    vector<size_t> mismatches;
 
     for (const auto &entry : parse_cigar(cigar)) {
         int count = entry.first;
@@ -1045,9 +1045,9 @@ Alignment_data alignment_data_from_cigar_and_extended(const std::string &gene_na
     size_t last_non_gap_index = 0;
 
     // Merged pass: compute offset, track gaps, and populate position vectors
-    std::vector<int> mismatches;
-    std::vector<int> insertions;
-    std::vector<int> deletions;
+    std::vector<size_t> mismatches;
+    std::vector<size_t> insertions;
+    std::vector<size_t> deletions;
     // Keep track of both query and reference implied indices/positions
     int query_pos_ext = 0;
     int ref_pos = 0;
@@ -1231,11 +1231,11 @@ int alignment_data_germline_end(const Alignment_data &aln)
  * \param deletions            Indices on the GENOMIC TEMPLATE of deleted nucleotides.
  * \return Vector of mismatch positions (0-based query coordinates) found in the extended regions.
  */
-vector<int> extend_alignment_mismatches(const Int_Str &int_data_sequence, const Int_Str &int_genomic_sequence,
+vector<size_t> extend_alignment_mismatches(const Int_Str &int_data_sequence, const Int_Str &int_genomic_sequence,
                                         int offset, size_t five_p_offset, size_t three_p_offset,
-                                        const vector<int> &insertions, const vector<int> &deletions)
+                                        const vector<size_t> &insertions, const vector<size_t> &deletions)
 {
-    vector<int> extended_mismatches;
+    vector<size_t> extended_mismatches;
 
     // Convert to unordered_sets for efficient lookup
     unordered_set<int> insertion_set(insertions.begin(), insertions.end());
@@ -1386,9 +1386,9 @@ std::pair<int, Alignment_data> parse_single_alignment_csv_line(const string &lin
     string gene_name = line.substr((index_sep + 1), (name_sep - index_sep - 1));
     double score = stod(line.substr((name_sep + 1), (score_sep - name_sep - 1)));
     int offset = stoi(line.substr((score_sep + 1), (off_sep - score_sep - 1)));
-    vector<int> insertions;
-    vector<int> deletions;
-    vector<int> mismatches;
+    vector<size_t> insertions;
+    vector<size_t> deletions;
+    vector<size_t> mismatches;
 
     string ins_substr = line.substr((off_sep + 2), (ins_sep - off_sep - 3));
     size_t comma_index = ins_substr.find(',');
@@ -1596,8 +1596,8 @@ void Aligner::set_genomic_sequences(vector<pair<string, string>> nt_genomic_seq)
  *
  * The method returns the shift induced by introducing the deletions of this alignment
  */
-int Aligner::incorporate_in_dels(string &data_seq, string &genomic_seq, const vector<int>,
-                                 const vector<int>, int prev_dels)
+int Aligner::incorporate_in_dels(string &data_seq, string &genomic_seq, const vector<size_t>,
+                                 const vector<size_t>, int prev_dels)
 {
 
     return prev_dels;
@@ -1937,7 +1937,7 @@ namespace swalign {
  * candidates uses the same 1-based matrix row/column coordinates.
  *
  * candidates is a single vector<SwCandidate> rather than three parallel
- * vector<int> so the per-cell "update the best score for this candidate" access
+ * vector<size_t> so the per-cell "update the best score for this candidate" access
  * (score/row/col together) touches one cache line instead of up to three.
  */
 
@@ -2084,11 +2084,11 @@ void initialize_sw_matrices(SwDPState &dp, const SwDPConfig &config)
  * \param matrix_n_cols      Total number of columns in the DP matrix.
  * \return Vector of mismatch positions (0-based query coordinates) found in the 5' extended region.
  */
-vector<int> ungapped_extend_align_5p_from_dp(const SwPreparedInputs &prepared, int i_start, int j_start,
+vector<size_t> ungapped_extend_align_5p_from_dp(const SwPreparedInputs &prepared, int i_start, int j_start,
                                              size_t data_seq_size, size_t genomic_seq_size, bool flip_seqs,
                                              int matrix_n_rows, int matrix_n_cols)
 {
-    vector<int> extended_mismatches;
+    vector<size_t> extended_mismatches;
 
     // Extend 5' (towards lower indices) - always diagonal, no indels assumed
     // Start from the position just before the alignment start
@@ -2126,11 +2126,11 @@ vector<int> ungapped_extend_align_5p_from_dp(const SwPreparedInputs &prepared, i
  * \param matrix_n_cols      Total number of columns in the DP matrix.
  * \return Vector of mismatch positions (0-based query coordinates) found in the 3' extended region.
  */
-vector<int> ungapped_extend_align_3p_from_dp(const SwPreparedInputs &prepared, int i_end, int j_end,
+vector<size_t> ungapped_extend_align_3p_from_dp(const SwPreparedInputs &prepared, int i_end, int j_end,
                                              size_t data_seq_size, size_t genomic_seq_size, bool flip_seqs,
                                              int matrix_n_rows, int matrix_n_cols)
 {
-    vector<int> extended_mismatches;
+    vector<size_t> extended_mismatches;
 
     // Extend 3' (towards higher indices) - always diagonal, no indels assumed
     // Start from the position just after the alignment end
@@ -2157,9 +2157,9 @@ vector<int> ungapped_extend_align_3p_from_dp(const SwPreparedInputs &prepared, i
  * \param extended_mismatches   Mismatches from extended regions (5' and/or 3').
  * \return Sorted vector containing all mismatches (core + extended).
  */
-vector<int> merge_and_sort_mismatches(const vector<int> &core_mismatches, const vector<int> &extended_mismatches)
+vector<size_t> merge_and_sort_mismatches(const vector<size_t> &core_mismatches, const vector<size_t> &extended_mismatches)
 {
-    vector<int> all_mismatches = core_mismatches;
+    vector<size_t> all_mismatches = core_mismatches;
     all_mismatches.insert(all_mismatches.end(), extended_mismatches.begin(), extended_mismatches.end());
     sort(all_mismatches.begin(), all_mismatches.end());
     return all_mismatches;
@@ -2173,10 +2173,10 @@ vector<int> merge_and_sort_mismatches(const vector<int> &core_mismatches, const 
  * \param extended_3p_mismatches Mismatches from 3' extended region.
  * \return Sorted vector containing all mismatches (core + 5' extended + 3' extended).
  */
-vector<int> merge_and_sort_mismatches(const vector<int> &core_mismatches, const vector<int> &extended_5p_mismatches,
-                                      const vector<int> &extended_3p_mismatches)
+vector<size_t> merge_and_sort_mismatches(const vector<size_t> &core_mismatches, const vector<size_t> &extended_5p_mismatches,
+                                      const vector<size_t> &extended_3p_mismatches)
 {
-    vector<int> all_mismatches = core_mismatches;
+    vector<size_t> all_mismatches = core_mismatches;
     all_mismatches.insert(all_mismatches.end(), extended_5p_mismatches.begin(), extended_5p_mismatches.end());
     all_mismatches.insert(all_mismatches.end(), extended_3p_mismatches.begin(), extended_3p_mismatches.end());
     sort(all_mismatches.begin(), all_mismatches.end());
@@ -2221,9 +2221,9 @@ SwReconstructionResult traceback_sw_alignments(const Int_Str &int_data_sequence,
     for (size_t align = 0; align != dp.candidates.size(); ++align) {
         if (dp.candidates[align].score >= score_threshold) {
 
-            vector<int> mismatches;
-            vector<int> insertions;
-            vector<int> deletions;
+            vector<size_t> mismatches;
+            vector<size_t> insertions;
+            vector<size_t> deletions;
             size_t align_length = 0;
 
             bool end_of_alignment = false;
@@ -2295,8 +2295,8 @@ SwReconstructionResult traceback_sw_alignments(const Int_Str &int_data_sequence,
 
                 // Extend alignment to capture mismatches in deleted V/J nucleotides
                 // Only perform extension if enabled in config
-                vector<int> extended_mismatches_5p;
-                vector<int> extended_mismatches_3p;
+                vector<size_t> extended_mismatches_5p;
+                vector<size_t> extended_mismatches_3p;
 
                 if (config.enable_extension) {
                     if(config.alignment_mode.is_local_alignment()){
@@ -2312,7 +2312,7 @@ SwReconstructionResult traceback_sw_alignments(const Int_Str &int_data_sequence,
 
                 // Merge core mismatches with extended mismatches and sort
                 // TODO avoid sorting ops with proper design
-                vector<int> all_mismatches =
+                vector<size_t> all_mismatches =
                         merge_and_sort_mismatches(mismatches, extended_mismatches_5p, extended_mismatches_3p);
 
                 if (dp.candidates[align].score > output.max_align_score) {
@@ -2806,8 +2806,8 @@ forward_list<Alignment_data> extract_best_gene_alignments(const forward_list<Ali
 // Alignment_data computed getter method implementations
 // ============================================================================
 
-std::vector<int> Alignment_data::get_core_mismatches() const {
-    std::vector<int> core;
+std::vector<size_t> Alignment_data::get_core_mismatches() const {
+    std::vector<size_t> core;
     for (int pos : mismatches) {
         if (pos >= five_p_offset && pos <= three_p_offset) {
             core.push_back(pos);
@@ -2816,8 +2816,8 @@ std::vector<int> Alignment_data::get_core_mismatches() const {
     return core;
 }
 
-std::vector<int> Alignment_data::get_5p_extended_mismatches() const {
-    std::vector<int> result;
+std::vector<size_t> Alignment_data::get_5p_extended_mismatches() const {
+    std::vector<size_t> result;
     for (int pos : extended_mismatches) {
         if (pos < static_cast<int>(five_p_offset)) {
             result.push_back(pos);
@@ -2826,8 +2826,8 @@ std::vector<int> Alignment_data::get_5p_extended_mismatches() const {
     return result;
 }
 
-std::vector<int> Alignment_data::get_3p_extended_mismatches() const {
-    std::vector<int> result;
+std::vector<size_t> Alignment_data::get_3p_extended_mismatches() const {
+    std::vector<size_t> result;
     for (int pos : extended_mismatches) {
         if (pos > static_cast<int>(three_p_offset)) {
             result.push_back(pos);
@@ -2836,9 +2836,9 @@ std::vector<int> Alignment_data::get_3p_extended_mismatches() const {
     return result;
 }
 
-std::vector<int> Alignment_data::get_core_insertions() const
+std::vector<size_t> Alignment_data::get_core_insertions() const
 {
-    std::vector<int> result;
+    std::vector<size_t> result;
     for (int pos : get_all_insertions()) {
         if (pos >= static_cast<int>(five_p_offset) && pos <= static_cast<int>(three_p_offset)) {
             result.push_back(pos);
@@ -2847,9 +2847,9 @@ std::vector<int> Alignment_data::get_core_insertions() const
     return result;
 }
 
-std::vector<int> Alignment_data::get_core_deletions() const
+std::vector<size_t> Alignment_data::get_core_deletions() const
 {
-    std::vector<int> result;
+    std::vector<size_t> result;
     size_t n_ins_5p = get_5p_extended_insertions().size();
     size_t n_ins_all = get_5p_extended_insertions().size() + get_core_insertions().size();
     int ref_start = static_cast<int>(five_p_offset) - offset - n_ins_5p;
@@ -2870,8 +2870,8 @@ std::vector<int> Alignment_data::get_core_deletions() const
 }
 
 // Extended insertion accessors (query coordinates)
-std::vector<int> Alignment_data::get_5p_extended_insertions() const {
-    std::vector<int> result;
+std::vector<size_t> Alignment_data::get_5p_extended_insertions() const {
+    std::vector<size_t> result;
     for (int pos : get_all_insertions()) {
         if (pos < static_cast<int>(five_p_offset)) {
             result.push_back(pos);
@@ -2880,8 +2880,8 @@ std::vector<int> Alignment_data::get_5p_extended_insertions() const {
     return result;
 }
 
-std::vector<int> Alignment_data::get_3p_extended_insertions() const {
-    std::vector<int> result;
+std::vector<size_t> Alignment_data::get_3p_extended_insertions() const {
+    std::vector<size_t> result;
     for (int pos : get_all_insertions()) {
         if (pos > static_cast<int>(three_p_offset)) {
             result.push_back(pos);
@@ -2891,9 +2891,9 @@ std::vector<int> Alignment_data::get_3p_extended_insertions() const {
 }
 
 // Extended deletion accessors (reference coordinates with dynamic threshold adjustment)
-std::vector<int> Alignment_data::get_5p_extended_deletions() const
+std::vector<size_t> Alignment_data::get_5p_extended_deletions() const
 {
-    std::vector<int> result;
+    std::vector<size_t> result;
     size_t n_ins_5p = get_5p_extended_insertions().size();
     int ref_start = static_cast<int>(five_p_offset) - offset - n_ins_5p;
     for (int pos : get_all_deletions()) {
@@ -2905,8 +2905,8 @@ std::vector<int> Alignment_data::get_5p_extended_deletions() const
     return result;
 }
 
-std::vector<int> Alignment_data::get_3p_extended_deletions() const {
-    std::vector<int> result;
+std::vector<size_t> Alignment_data::get_3p_extended_deletions() const {
+    std::vector<size_t> result;
     size_t n_ins_all = get_5p_extended_insertions().size() + get_core_insertions().size();
     int ref_end = static_cast<int>(three_p_offset) - offset - n_ins_all;
     
@@ -2980,8 +2980,8 @@ bool Alignment_data::validate() const {
     }
     
     // Check that core mismatches + extended mismatches = all mismatches
-    std::vector<int> core = get_core_mismatches();
-    std::vector<int> combined = core;
+    std::vector<size_t> core = get_core_mismatches();
+    std::vector<size_t> combined = core;
     combined.insert(combined.end(), extended_mismatches.begin(), extended_mismatches.end());
     std::sort(combined.begin(), combined.end());
     if (combined != mismatches) {
