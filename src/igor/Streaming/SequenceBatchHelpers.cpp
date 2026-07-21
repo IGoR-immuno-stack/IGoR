@@ -15,6 +15,7 @@
 
 #include <sstream>
 #include <algorithm>
+#include <iterator>
 
 namespace igor {
 
@@ -361,10 +362,25 @@ sparrow::record_batch vector_to_batch(
                 v_align_lengths[gc].push_back(static_cast<uint64_t>(align.align_length));
                 v_scores[gc].push_back(align.score);
 
-                // Narrow to int32_t for list arrays
-                std::vector<int32_t> ins_vec(align.get_all_insertions().begin(), align.get_all_insertions().end());
-                std::vector<int32_t> del_vec(align.get_all_deletions().begin(), align.get_all_deletions().end());
-                std::vector<int32_t> mis_vec(align.get_all_mismatches().begin(), align.get_all_mismatches().end());
+                // Narrow to int32_t for list arrays (explicit cast avoids MSVC C4267)
+                const auto &all_insertions = align.get_all_insertions();
+                const auto &all_deletions = align.get_all_deletions();
+                const auto &all_mismatches = align.get_all_mismatches();
+
+                std::vector<int32_t> ins_vec;
+                ins_vec.reserve(all_insertions.size());
+                std::transform(all_insertions.begin(), all_insertions.end(), std::back_inserter(ins_vec),
+                               [](size_t v) { return static_cast<int32_t>(v); });
+
+                std::vector<int32_t> del_vec;
+                del_vec.reserve(all_deletions.size());
+                std::transform(all_deletions.begin(), all_deletions.end(), std::back_inserter(del_vec),
+                               [](size_t v) { return static_cast<int32_t>(v); });
+
+                std::vector<int32_t> mis_vec;
+                mis_vec.reserve(all_mismatches.size());
+                std::transform(all_mismatches.begin(), all_mismatches.end(), std::back_inserter(mis_vec),
+                               [](size_t v) { return static_cast<int32_t>(v); });
 
                 v_insertions[gc].push_back(std::move(ins_vec));
                 v_deletions[gc].push_back(std::move(del_vec));
