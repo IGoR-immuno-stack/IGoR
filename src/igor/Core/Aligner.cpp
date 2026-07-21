@@ -2490,8 +2490,26 @@ IGOR_ALWAYS_INLINE void fill_sw_matrix_cell(int i, int j, int n_rows, double *sc
  * so any traversal that visits both coordinates in increasing order is a
  * valid fill order. Matrix stores its backing array column-major
  * (array_p[i + rows*j], see Matrix::operator()), matching the idx = i +
- * n_rows*j indexing shared by all four matrices here -- so looping columns
- * outermost and rows innermost visits memory contiguously.
+ * n_rows*j indexing shared by all four matrices here.
+ *
+ * Column banding: a plain column-major nested loop (finish column j, then
+ * column j+1, ...) is cache-friendly, but leaves only one thing in flight at
+ * a time -- the "up" move's loop-carried dependency, cell (i,j) reading
+ * score[(i-1,j)] written by the previous loop iteration. With nothing
+ * independent to overlap it with, the core stalls on that chain's load-use
+ * latency for the full column height, once per column (measured: this alone
+ * dropped IPC from ~3.2 to ~2.0 versus the old expanding-square traversal,
+ * more than offsetting its lower instruction count and far fewer L1 misses).
+ * Interleaving BAND_WIDTH adjacent columns -- rows outermost, columns
+ * innermost within the band -- turns each column's "up" chain into a
+ * software-pipelined recurrence: by the time row i's cell for column j needs
+ * score[(i-1,j)], BAND_WIDTH-1 other columns' cells have been computed in
+ * between, giving that store time to retire. A band's working set (BAND_WIDTH
+ * columns times the full column height, across all four matrices) stays
+ * small enough to remain cache-resident, so this keeps the column-major
+ * locality while restoring the instruction-level parallelism the old
+ * expanding-square traversal used to provide incidentally, by interleaving a
+ * row-chain and a column-chain.
  *
  * \param int_data_sequence     Prepared (possibly flipped) query sequence, 0-based.
  * \param int_genomic_sequence  Prepared (possibly flipped) reference sequence, 0-based.
@@ -2508,13 +2526,31 @@ void fill_sw_score_matrix(const Int_Str &int_data_sequence, const Int_Str &int_g
     int *const col_mem = dp.col_memory_matrix.data();
     int *const numb_trk = dp.alignment_numb_tracker.data();
 
+    // Width of the interleaved column band; see the traversal note above. #define'd rather than
+    // constexpr so IGOR_UNROLL below can stringize the same value into a pragma -- keeping the
+    // unroll count and the loop bound as a single source of truth.
+#define IGOR_SW_BAND_WIDTH 8
+    constexpr int BAND_WIDTH = IGOR_SW_BAND_WIDTH;
+
     // Always start at index 1 since first column and first row are initialization values
-    for (int j = 1; j != dp.n_cols; ++j) {
+    int j = 1;
+    for (; j + BAND_WIDTH <= dp.n_cols; j += BAND_WIDTH) {
+        for (int i = 1; i != dp.n_rows; ++i) {
+            IGOR_UNROLL(IGOR_SW_BAND_WIDTH)
+            for (int b = 0; b != BAND_WIDTH; ++b) {
+                fill_sw_matrix_cell(i, j + b, n_rows, score, row_mem, col_mem, numb_trk, dp.candidates,
+                                    reset_negative_scores, config, int_data_sequence, int_genomic_sequence);
+            }
+        }
+    }
+    // Remaining columns too few to fill a whole band.
+    for (; j != dp.n_cols; ++j) {
         for (int i = 1; i != dp.n_rows; ++i) {
             fill_sw_matrix_cell(i, j, n_rows, score, row_mem, col_mem, numb_trk, dp.candidates, reset_negative_scores,
                                 config, int_data_sequence, int_genomic_sequence);
         }
     }
+#undef IGOR_SW_BAND_WIDTH
 }
 
 } // namespace swalign

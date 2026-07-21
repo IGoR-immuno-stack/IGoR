@@ -112,6 +112,26 @@ inline uint32_t portable_gethostid()
 #  define IGOR_ALWAYS_INLINE inline
 #endif
 
+// Force full unroll of a small, fixed-trip-count loop immediately below the pragma, so its
+// per-iteration work stays visible to the scheduler as independent instructions instead of being
+// serialized behind the loop's own increment/compare/branch (see fill_sw_score_matrix's
+// column-banding note in Aligner.cpp for a case where that overhead was measurable). n must be an
+// integer literal or an object-like macro -- it is textually stringized into a pragma at
+// preprocessing time, so a constexpr variable will not work.
+// Clang also parses "GCC unroll", including under clang-cl (which defines both __clang__ and
+// _MSC_VER); check __clang__ before _MSC_VER so clang-cl takes this branch, not the MSVC one.
+#define IGOR_UNROLL_STRINGIFY_(x) #x
+#if defined(__clang__) || defined(__GNUC__)
+#  define IGOR_UNROLL(n) _Pragma(IGOR_UNROLL_STRINGIFY_(GCC unroll n))
+#elif defined(__INTEL_COMPILER)
+// Classic (pre-oneAPI) Intel compiler; icx/dpcpp is LLVM-based and already covered by __clang__.
+#  define IGOR_UNROLL(n) _Pragma(IGOR_UNROLL_STRINGIFY_(unroll(n)))
+#else
+// No portable equivalent on MSVC (or other unrecognized compilers): the loop is left to the
+// compiler's own unrolling heuristics, or must be unrolled by hand for a guaranteed effect.
+#  define IGOR_UNROLL(n)
+#endif
+
 #include <stdio.h>
 #include <unordered_map>
 
