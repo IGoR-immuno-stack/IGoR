@@ -139,7 +139,7 @@ Hypermutation_full_Nmer_errorrate::Hypermutation_full_Nmer_errorrate(size_t nmer
         learn_on_j = false;
 
     //Initialize adressing vector
-    for (int ii = (mutation_Nmer_size - 1); ii != -1; --ii) {
+    for (size_t ii = (mutation_Nmer_size - 1); ii != -1; --ii) {
         adressing_vector.emplace_back(pow(4, ii));
     }
 

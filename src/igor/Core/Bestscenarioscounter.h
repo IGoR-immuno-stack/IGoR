@@ -86,9 +86,9 @@ public:
 
     std::queue<std::vector<int>> single_scenario_realizations_queue;
 
-    std::list<int> single_scenario_mismatches_list;
+    std::vector<size_t> single_scenario_mismatches_list;
 
-    std::vector<std::tuple<double, std::queue<std::vector<int>>, std::list<int>>> best_scenarios_vec;
+    std::vector<std::tuple<double, std::queue<std::vector<int>>, std::vector<size_t>>> best_scenarios_vec;
 
     std::forward_list<std::shared_ptr<const Rec_Event>> event_fw_list;
 };

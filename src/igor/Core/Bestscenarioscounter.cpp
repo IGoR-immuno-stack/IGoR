@@ -129,7 +129,7 @@ void Best_scenarios_counter::count_scenario(
                     const_cast<queue<vector<int>> &>(this->single_scenario_realizations_queue),
                     single_scenario_mismatches_list);
         } else {
-            vector<tuple<double, queue<vector<int>>, list<int>>>::iterator jter = this->best_scenarios_vec.begin();
+            auto jter = this->best_scenarios_vec.begin();
             while ((jter != this->best_scenarios_vec.end()) and (scenario_seq_joint_proba > get<0>(*jter))) {
                 ++jter;
             }
@@ -217,7 +217,7 @@ void Best_scenarios_counter::count_scenario(
                     const_cast<queue<vector<int>> &>(this->single_scenario_realizations_queue),
                     single_scenario_mismatches_list);
         } else {
-            vector<tuple<double, queue<vector<int>>, list<int>>>::iterator jter = this->best_scenarios_vec.begin();
+            auto jter = this->best_scenarios_vec.begin();
             while ((jter != this->best_scenarios_vec.end()) and (scenario_seq_joint_proba > get<0>(*jter))) {
                 ++jter;
             }
@@ -269,7 +269,7 @@ void Best_scenarios_counter::count_scenario(
 void Best_scenarios_counter::count_sequence(double seq_likelihood, const Model_marginals &single_seq_marginals,
                                             const Model_Parms &single_seq_model_parms)
 {
-    for (vector<tuple<double, queue<vector<int>>, list<int>>>::iterator iter = this->best_scenarios_vec.begin();
+    for (auto iter = this->best_scenarios_vec.begin();
          iter != this->best_scenarios_vec.end(); ++iter) {
         get<0>(*iter) /= seq_likelihood;
         //If an exception is thrown here there is a problem upstream
@@ -317,7 +317,7 @@ void Best_scenarios_counter::dump_sequence_data(int seq_index, int iteration_n)
 {
     stringstream ss;
     size_t counter = 1;
-    for (vector<tuple<double, queue<vector<int>>, list<int>>>::reverse_iterator iter =
+    for (auto iter =
                  this->best_scenarios_vec.rbegin();
          iter != this->best_scenarios_vec.rend(); ++iter) {
         ss << seq_index << ";" << counter << ";" << get<0>(*iter);
@@ -338,10 +338,10 @@ void Best_scenarios_counter::dump_sequence_data(int seq_index, int iteration_n)
         }
         ss << ";(";
         //Loop over mismatches
-        list<int> &mismatches_list = get<2>(*iter);
-        list<int>::const_iterator util_iter = mismatches_list.end();
+        vector<size_t> &mismatches_list = get<2>(*iter);
+        auto util_iter = mismatches_list.end();
         --util_iter;
-        for (list<int>::const_iterator kter = mismatches_list.begin(); kter != mismatches_list.end(); ++kter) {
+        for (auto kter = mismatches_list.begin(); kter != mismatches_list.end(); ++kter) {
             ss << (*kter);
             if (kter != util_iter) {
                 ss << ",";
