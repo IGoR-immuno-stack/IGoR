@@ -42,6 +42,7 @@
 #include <random>
 #include <chrono>
 #include <sys/types.h>
+#include <igorCoreExport.h>
 #if defined(_WIN32)
 
 #  ifndef WIN32_LEAN_AND_MEAN
@@ -130,6 +131,16 @@ inline uint32_t portable_gethostid()
 // No portable equivalent on MSVC (or other unrecognized compilers): the loop is left to the
 // compiler's own unrolling heuristics, or must be unrolled by hand for a guaranteed effect.
 #  define IGOR_UNROLL(n)
+#endif
+
+// Marks a symbol that is internal to Core (not part of its installed public API) but still
+// needs to cross the shared library boundary for whitebox tests to link against it directly
+// (see AlignerInternal.h). Resolves to a real export/import only when CORE_TESTING_ENABLED is
+// defined (see tst/igor/Core/CMakeLists.txt), so production builds keep these symbols hidden.
+#ifdef CORE_TESTING_ENABLED
+#  define CORE_TESTING_EXPORT CORE_EXPORT
+#else
+#  define CORE_TESTING_EXPORT CORE_NO_EXPORT
 #endif
 
 #include <stdio.h>

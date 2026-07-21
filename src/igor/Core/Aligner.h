@@ -443,7 +443,7 @@ struct SwDPConfig
     SwAlignmentMode alignment_mode;
     bool enable_extension = true; // Enable/disable alignment extension for capturing mismatches in extended regions
 };
-std::list<std::pair<int, Alignment_data>> sw_align(const Int_Str &, const Int_Str &, bool, SwDPConfig);
+CORE_TESTING_EXPORT std::list<std::pair<int, Alignment_data>> sw_align(const Int_Str &, const Int_Str &, bool, SwDPConfig);
 
 namespace swalign {
 
@@ -451,14 +451,14 @@ namespace swalign {
 struct SwDPState;
 struct SwPreparedInputs;
 
-SwPreparedInputs prepare_sw_inputs(const Int_Str &int_data_sequence, const Int_Str &int_genomic_sequence,
+CORE_TESTING_EXPORT SwPreparedInputs prepare_sw_inputs(const Int_Str &int_data_sequence, const Int_Str &int_genomic_sequence,
                                    const SwDPConfig &config);
 // Coordinate conversion functions
 size_t convert_matrix_row_to_query_pos(size_t i, size_t data_seq_size, bool flip_seqs);
 size_t convert_matrix_col_to_ref_pos(size_t j, size_t genomic_seq_size, bool flip_seqs);
 int convert_matrix_coords_to_offset(int i, int j, size_t data_seq_size, size_t genomic_seq_size, int offset_change,
                                     bool flip_seqs);
-void fill_sw_score_matrix(const Int_Str &, const Int_Str &, SwDPState &, const SwDPConfig &);
+CORE_TESTING_EXPORT void fill_sw_score_matrix(const Int_Str &, const Int_Str &, SwDPState &, const SwDPConfig &);
 
 // Alignment extension functions for capturing mismatches in extended regions
 std::vector<size_t> ungapped_extend_align_5p_from_dp(const SwPreparedInputs &prepared, int i_start, int j_start,

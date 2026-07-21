@@ -23,6 +23,14 @@ target_link_libraries(igor_tests
 target_compile_definitions(igor_tests PRIVATE
     IGOR_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 
+# Whitebox tests reach into Core-internal Smith-Waterman DP symbols (see AlignerInternal.h)
+# that aren't part of Core's normal public API. CORE_TESTING_ENABLED switches those symbols'
+# CORE_TESTING_EXPORT annotation to a real export/import (instead of hidden visibility) only
+# for this test build, on both sides of the Core shared library boundary: Core itself (so it
+# actually exports them) and igor_tests (so it declares them the same way when importing).
+target_compile_definitions(Core PRIVATE CORE_TESTING_ENABLED)
+target_compile_definitions(igor_tests PRIVATE CORE_TESTING_ENABLED)
+
 include(Catch)
 catch_discover_tests(igor_tests
     TEST_SPEC "~[integration]~[slow]"

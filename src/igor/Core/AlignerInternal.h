@@ -37,7 +37,7 @@ namespace swalign {
  * One tracked candidate local alignment: its best score so far and the DP matrix
  * coordinate (1-based, +1 padded convention) at which that best score was reached.
  */
-struct SwCandidate
+struct CORE_TESTING_EXPORT SwCandidate
 {
     int score;
     int row;
@@ -53,7 +53,7 @@ struct SwCandidate
  * Coordinates: all matrices use the +1 padded convention (row 0 / col 0 are
  * initialization boundaries; sequence positions are 1-based inside the matrix).
  */
-struct SwDPState
+struct CORE_TESTING_EXPORT SwDPState
 {
     int n_rows;
     int n_cols;
@@ -78,7 +78,7 @@ struct SwDPState
  * Prepared (possibly sequence-reversed) integer-coded inputs for one sw_align call.
  * See swalign::prepare_sw_inputs.
  */
-struct SwPreparedInputs
+struct CORE_TESTING_EXPORT SwPreparedInputs
 {
     Int_Str data_sequence;
     Int_Str genomic_sequence;
@@ -91,6 +91,6 @@ struct SwPreparedInputs
  * \param dp      The DP workspace to initialize. n_rows and n_cols must already be set.
  * \param config  Run policy; alignment_mode's leading/trailing-free flags and gap_penalty are consulted.
  */
-void initialize_sw_matrices(SwDPState &dp, const SwDPConfig &config);
+CORE_TESTING_EXPORT void initialize_sw_matrices(SwDPState &dp, const SwDPConfig &config);
 
 } // namespace swalign
