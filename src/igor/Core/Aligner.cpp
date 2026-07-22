@@ -402,7 +402,7 @@ forward_list<Alignment_data> Aligner::align_seq(string nt_seq, double score_thre
             try {
                 config.min_offset = min_offset;
                 config.max_offset = max_offset;
-                alignments = sw_align(int_seq, (*iter).second, best_align_only, config);
+                alignments = sw_align(int_seq, (*iter).second, config);
             } catch (exception &e) {
                 cerr << endl;
                 cerr << "Exception caught calling sw_align() on genomic template:" << (*iter).first << endl;
@@ -2563,7 +2563,7 @@ void fill_sw_score_matrix(const Int_Str &int_data_sequence, const Int_Str &int_g
  * Note: the gene_name field of the Alignment_data object is left blank and should be completed in a higher level method
  */
 list<pair<int, Alignment_data>> sw_align(const Int_Str &int_data_sequence, const Int_Str &int_genomic_sequence,
-                                         bool best_only, SwDPConfig config)
+                                         SwDPConfig config)
 {
     using namespace swalign;
     /*Convention:

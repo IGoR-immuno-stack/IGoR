@@ -407,11 +407,11 @@ CORE_EXPORT std::forward_list<Alignment_data> extract_best_gene_alignments(const
 
 struct SwAlignmentMode
 {
-    bool data_leading_free;
-    bool data_trailing_free;
-    bool genomic_leading_free;
-    bool genomic_trailing_free;
-    bool reverse_sequences;
+    bool data_leading_free = false;
+    bool data_trailing_free = false;
+    bool genomic_leading_free = false;
+    bool genomic_trailing_free = false;
+    bool reverse_sequences = false;
 
     bool is_local_alignment() const
     {
@@ -428,22 +428,23 @@ struct SwAlignmentMode
  * Fields
  * ------
  * score_threshold  Minimum score an alignment must reach to be returned.
+ * best_only        Retain only the alignment(s) reaching the best score for this call.
  * min_offset       Lower bound on the offset (genomic-vs-query position).
  * max_offset       Upper bound on the offset.
  * alignment_mode    Boundary and orientation policy for the DP run.
  */
 struct SwDPConfig
 {
-    double score_threshold;
-    bool best_only;
-    int min_offset;
-    int max_offset;
+    double score_threshold = -__DBL_MAX__;
+    bool best_only = false;
+    int min_offset = INT16_MIN;
+    int max_offset = INT16_MAX;
     Matrix<double> substitution_matrix;
     int gap_penalty;
     SwAlignmentMode alignment_mode;
     bool enable_extension = true; // Enable/disable alignment extension for capturing mismatches in extended regions
 };
-CORE_TESTING_EXPORT std::list<std::pair<int, Alignment_data>> sw_align(const Int_Str &, const Int_Str &, bool, SwDPConfig);
+CORE_TESTING_EXPORT std::list<std::pair<int, Alignment_data>> sw_align(const Int_Str &, const Int_Str &, SwDPConfig);
 
 namespace swalign {
 

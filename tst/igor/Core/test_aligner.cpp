@@ -687,8 +687,8 @@ TEST_CASE("Reversed local alignment matches forward local alignment", "[aligner]
     SwDPConfig reverse_config = forward_config;
     reverse_config.alignment_mode.reverse_sequences = true; // mirroring true/true/true/true is a no-op
 
-    auto forward_alignments = sw_align(int_query, int_reference, /*best_only=*/false, forward_config);
-    auto reverse_alignments = sw_align(int_query, int_reference, /*best_only=*/false, reverse_config);
+    auto forward_alignments = sw_align(int_query, int_reference, forward_config);
+    auto reverse_alignments = sw_align(int_query, int_reference, reverse_config);
 
     // Candidate order isn't part of the contract being tested here, so compare the two candidate
     // sets order-independently.
