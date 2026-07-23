@@ -664,6 +664,27 @@ TEST_CASE("Aligner emits all candidate local alignments without filtering, and f
                         ExpectedAlignment{ "g1", "1S4=6N1S", "1S4=1X5N", 15 }, // Watterman-Eggert issue?
                 });
     }
+
+    SECTION("best_only must keep the best IN-BOUNDS candidate, not discard everything because a "
+            "better out-of-bounds candidate exists elsewhere in the matrix")
+    {
+        // [min_offset,max_offset] = [-3,0] excludes the best scoring (score=42) candidate (offset=-4) but
+        // includes all four score=35 candidates. Best align only should report the best in-bound 
+        // alignment, and not an empty alignment set when the overall best scoring alignment is out of
+        // bounds.
+        const int min_offset = -3;
+        const int max_offset = 0;
+        const auto alignments = aligner.align_seq(query_read, -1000.0, /*best_align_only=*/true,
+                                                  /*best_gene_only=*/false, min_offset, max_offset);
+        assert_alignment_set_matches(
+                alignments, query_read, genomic_templates,
+                {
+                        ExpectedAlignment{ "g1", "3N5=2N1S", "3N5=1X1N", 35 },
+                        ExpectedAlignment{ "g1", "2N5=3N1S", "2N5=1X2N", 35 },
+                        ExpectedAlignment{ "g1", "1N5=4N1S", "1N5=1X3N", 35 },
+                        ExpectedAlignment{ "g1", "5=5N1S", "5=1X4N", 35 },
+                });
+    }
 }
 
 TEST_CASE("Reversed local alignment matches forward local alignment", "[aligner][sw][reverse]")
