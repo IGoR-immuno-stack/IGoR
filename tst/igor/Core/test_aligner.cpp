@@ -695,6 +695,48 @@ TEST_CASE("Reversed local alignment matches forward local alignment", "[aligner]
     assert_alignment_set_matches(forward_alignments, reverse_alignments, "forward", "reverse");
 }
 
+TEST_CASE("Fully local alignment with no positive-scoring cell returns no candidates instead of crashing",
+          "[aligner][sw][no_align]")
+{
+    // Regression test for a segfault found via the aligner benchmark (D_gene, "constant
+    // mismatch" content, permissive threshold, unconstrained offset): in local-alignment mode
+    // (reset_negative_scores) every DP cell whose winning move score is <= 0 is clamped to 0
+    // and never recorded as a candidate (see fill_sw_matrix_cell) and dp.candidates ends
+    // up completely empty. Assert this case is handled gracefully.
+    const Matrix<double> matrix = build_test_score_matrix(7, -11);
+    const int gap_penalty = 13;
+    // Disjoint alphabets: every position is a mismatch, so no cell in fully local mode can ever
+    // score above 0.
+    const std::string query = "AAAAAA";
+    const std::string reference = "GGGGGGGGGG";
+
+    const Int_Str int_query = nt2int(query);
+    const Int_Str int_reference = nt2int(reference);
+
+    SwDPConfig config;
+    config.score_threshold = -1000.0;
+    config.min_offset = INT16_MIN;
+    config.max_offset = INT16_MAX;
+    config.substitution_matrix = matrix;
+    config.gap_penalty = gap_penalty;
+    config.alignment_mode = SwAlignmentMode{ true, true, true, true, false }; // fully local, like D_gene
+
+    SECTION("best_only = false")
+    {
+        config.best_only = false;
+        const auto alignments = sw_align(int_query, int_reference, config);
+        REQUIRE(alignments.empty());
+    }
+
+    SECTION("best_only = true")
+    {
+        // Exercises the exact branch that used to dereference max_element on an empty vector.
+        config.best_only = true;
+        const auto alignments = sw_align(int_query, int_reference, config);
+        REQUIRE(alignments.empty());
+    }
+}
+
 TEST_CASE("Dropping extended gaps must trigger failure of Alignment data comparison.",
           "[aligner][V_gene][legacy_csv][!shouldfail]")
 {

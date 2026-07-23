@@ -2200,13 +2200,18 @@ SwReconstructionResult traceback_sw_alignments(const Int_Str &int_data_sequence,
                                                const SwDPConfig &config)
 {
     double score_threshold = config.score_threshold;
-    const double best_score = std::max_element(dp.candidates.begin(), dp.candidates.end(),
-                                               [](const SwCandidate &a, const SwCandidate &b) {
-                                                   return a.score < b.score;
-                                               })
-                                       ->score;
-    if (config.best_only && best_score >= config.score_threshold) {
-        score_threshold = best_score;
+    // dp.candidates is empty whenever no cell ever reaches a positive score (e.g. a fully
+    // local alignment where the whole query mismatches the reference): max_element would
+    // then dereference end() and crash
+    if (config.best_only && !dp.candidates.empty()) {
+        const double best_score = std::max_element(dp.candidates.begin(), dp.candidates.end(),
+                                                   [](const SwCandidate &a, const SwCandidate &b) {
+                                                       return a.score < b.score;
+                                                   })
+                                           ->score;
+        if (best_score >= config.score_threshold) {
+            score_threshold = best_score;
+        }
     }
     const int min_offset = config.min_offset;
     const int max_offset = config.max_offset;
