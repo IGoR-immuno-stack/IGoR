@@ -2183,6 +2183,32 @@ vector<size_t> merge_and_sort_mismatches(const vector<size_t> &core_mismatches, 
     return all_mismatches;
 }
 
+// Computes an alignment's offset directly from its candidate's stored coordinates, without a
+// traceback walk. For flip_seqs==false this uses start_row/start_col (the candidate's seed,
+// fixed for its whole lifetime -- see SwCandidate's doc comment); for flip_seqs==true it uses
+// row/col (the running-max cell). Mirrors the two branches of traceback_sw_alignments's post-walk
+// offset computation exactly -- start_row/start_col are, by construction, the same (i,j) that
+// walk would arrive back at (the traceback walk out of a semi-global or local-reset boundary
+// cell always undoes its last step to land back on the seed that created the candidate).
+int compute_candidate_offset(const SwCandidate &candidate, size_t data_seq_size, size_t genomic_seq_size,
+                             bool flip_seqs)
+{
+    if (flip_seqs) {
+        // assume that leading deletions (reverse trailing, hence j_end) would align 1 to 1 with the read.
+        const size_t begin_align_offset = convert_matrix_row_to_query_pos(candidate.row, data_seq_size, true);
+        return static_cast<int>(begin_align_offset)
+                - convert_matrix_col_to_ref_pos(candidate.col, genomic_seq_size, true);
+    } else {
+        /* FIXME: this does not really make sense for local alignments. 
+              It boils down to assuming that leading deletions would align 1 to 1 with the read.
+              But it is what is expected by the legacy alignment data representation.
+             * */
+        const size_t begin_align_offset = convert_matrix_row_to_query_pos(candidate.start_row, data_seq_size, false);
+        return static_cast<int>(begin_align_offset)
+                - convert_matrix_col_to_ref_pos(candidate.start_col, genomic_seq_size, false);
+    }
+}
+
 /**
  * Trace back candidate alignments from max-score endpoints and build Alignment_data objects.
  *
@@ -2199,29 +2225,32 @@ SwReconstructionResult traceback_sw_alignments(const Int_Str &int_data_sequence,
                                                const SwPreparedInputs &prepared, const SwDPState &dp,
                                                const SwDPConfig &config)
 {
-    double score_threshold = config.score_threshold;
-    // dp.candidates is empty whenever no cell ever reaches a positive score (e.g. a fully
-    // local alignment where the whole query mismatches the reference): max_element would
-    // then dereference end() and crash
-    if (config.best_only && !dp.candidates.empty()) {
-        const double best_score = std::max_element(dp.candidates.begin(), dp.candidates.end(),
-                                                   [](const SwCandidate &a, const SwCandidate &b) {
-                                                       return a.score < b.score;
-                                                   })
-                                           ->score;
-        if (best_score >= config.score_threshold) {
-            score_threshold = best_score;
-        }
-    }
     const int min_offset = config.min_offset;
     const int max_offset = config.max_offset;
     const bool flip_seqs = config.alignment_mode.reverse_sequences;
-    SwReconstructionResult output;
-    output.max_align_score = 0;
 
     // Get sequence sizes for coordinate conversion
     const size_t data_seq_size = int_data_sequence.size();
     const size_t genomic_seq_size = int_genomic_sequence.size();
+
+    double score_threshold = config.score_threshold;
+    // best_only's elevated threshold must be the best score among candidates whose OFFSET is
+    // already admissible.
+    if (config.best_only && !dp.candidates.empty()) {
+        double best_admissible_score = -std::numeric_limits<double>::infinity();
+        for (const SwCandidate &candidate : dp.candidates) {
+            const int offset = compute_candidate_offset(candidate, data_seq_size, genomic_seq_size, flip_seqs);
+            if ((offset >= min_offset) && (offset <= max_offset)) {
+                best_admissible_score = std::max(best_admissible_score, static_cast<double>(candidate.score));
+            }
+        }
+        if (best_admissible_score >= config.score_threshold) {
+            score_threshold = best_admissible_score;
+        }
+    }
+
+    SwReconstructionResult output;
+    output.max_align_score = 0;
 
     for (size_t align = 0; align != dp.candidates.size(); ++align) {
         if (dp.candidates[align].score >= score_threshold) {
@@ -2274,20 +2303,11 @@ SwReconstructionResult traceback_sw_alignments(const Int_Str &int_data_sequence,
             //int offset = convert_matrix_coords_to_offset(i, j, data_seq_size, genomic_seq_size, prepared.offset_change, flip_seqs);
             size_t begin_align_offset = convert_matrix_row_to_query_pos(i, data_seq_size, flip_seqs);
             size_t end_align_offset = convert_matrix_row_to_query_pos(i_end, data_seq_size, flip_seqs);
-            int offset;
+            int offset = compute_candidate_offset(dp.candidates[align], data_seq_size, genomic_seq_size, flip_seqs);
             if (flip_seqs) {
                 // reverse offset order
                 std::swap(begin_align_offset, end_align_offset);
-                // assume that leading deletions (reverse trailing, hence j_end) would align 1 to 1 with the read.
-                offset = static_cast<int>(begin_align_offset) - convert_matrix_col_to_ref_pos(j_end, genomic_seq_size, true);
             } else {
-                /*
-             * FIXME: this does not really make sense for local alignments. 
-              It boils down to assuming that leading deletions would align 1 to 1 with the read.
-              But it is what is expected by the legacy alignment data representation.
-             * */
-                offset = static_cast<int>(begin_align_offset) - convert_matrix_col_to_ref_pos(j, genomic_seq_size, flip_seqs);
-                // reverse containers that have been filled via push back
                 reverse(mismatches.begin(), mismatches.end());
                 reverse(insertions.begin(), insertions.end());
                 reverse(deletions.begin(), deletions.end());
@@ -2456,7 +2476,7 @@ IGOR_ALWAYS_INLINE void fill_sw_matrix_cell(int i, int j, int n_rows, double *sc
         if ((predecessor_tracker == -1) && CAN_START_NEW[max_idx]) {
             // Only reachable for the diagonal move (see the candidate-tracking note above).
             numb_trk[idx] = static_cast<int>(candidates.size());
-            candidates.push_back(SwCandidate{ move_scores[max_idx], i, j });
+            candidates.push_back(SwCandidate{ move_scores[max_idx], i, j, i, j });
         } else {
             numb_trk[idx] = predecessor_tracker;
         }

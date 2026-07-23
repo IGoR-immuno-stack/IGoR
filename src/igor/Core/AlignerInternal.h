@@ -40,8 +40,14 @@ namespace swalign {
 struct CORE_TESTING_EXPORT SwCandidate
 {
     int score;
+    // Running coordinate of alignment end.
     int row;
     int col;
+
+    // Coordinates (1-based) of the cell where this candidate was first seeded ( Fixed for the candidate's whole lifetime, unlike row/col which track the
+    // running-max position.
+    const int start_row;
+    const int start_col;
 };
 
 /**
