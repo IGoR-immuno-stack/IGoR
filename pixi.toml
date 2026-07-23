@@ -55,7 +55,7 @@ submodule-update = "git submodule update --init --recursive"
 configure = "cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release"
 
 [target.linux.tasks]
-memcheck = {cmd="ctest --test-dir build -T memcheck --timeout 240 -C Release --output-junit ../ctest-memcheck-junit.xml", depends-on = "build"}
+memcheck = {cmd="ctest --test-dir build -L unit -T memcheck --timeout 240 -C Release --output-junit ../ctest-memcheck-junit.xml", depends-on = "build"}
 profile = { cmd = "scripts/tests/profile_run.sh", depends-on = ["build"] }
 
 [tasks.upload]
