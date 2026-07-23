@@ -2572,11 +2572,6 @@ list<pair<int, Alignment_data>> sw_align(const Int_Str &int_data_sequence, const
         - The alignment matrix and other utilities are of size sequence size + 1. The extra first row/column allows to initialize the algorithm (especially for the score matrix).
     */
     // config is owned by value here, so it can be mutated in place instead of being deep-copied
-    // into a separate effective_config (substitution_matrix alone is a ~15x15 double matrix).
-    // NOTE: the previous effective_config aggregate-init only listed 7 of SwDPConfig's 8 fields,
-    // silently dropping back to enable_extension's default (true) regardless of the caller's
-    // setting. That is preserved verbatim here (untested, latent behavior, tracked separately)
-    // rather than fixed as a side effect of this perf-only change.
     config.enable_extension = true;
     config.alignment_mode = effective_sw_mode_for_dp(config);
     const SwPreparedInputs prepared_inputs = prepare_sw_inputs(int_data_sequence, int_genomic_sequence, config);

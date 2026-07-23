@@ -35,14 +35,14 @@
 #include <fstream>
 #include <algorithm>
 #include <iostream>
-#include <igor/Core/Utils.h>
 #include <omp.h>
 #include <stdexcept>
 #include <random>
 #include <chrono>
+#include <limits>
 
 #include <igor/Core/IntStr.h>
-
+#include <igor/Core/Utils.h>
 #include <igorCoreExport.h>
 
 /**
@@ -435,10 +435,10 @@ struct SwAlignmentMode
  */
 struct SwDPConfig
 {
-    double score_threshold = -__DBL_MAX__;
+    double score_threshold = -std::numeric_limits<double>::infinity();
     bool best_only = false;
-    int min_offset = INT16_MIN;
-    int max_offset = INT16_MAX;
+    int min_offset = INT32_MIN;
+    int max_offset = INT32_MAX;
     Matrix<double> substitution_matrix;
     int gap_penalty;
     SwAlignmentMode alignment_mode;
