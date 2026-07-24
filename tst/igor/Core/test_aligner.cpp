@@ -759,7 +759,7 @@ TEST_CASE("Fully local alignment with no positive-scoring cell returns no candid
 }
 
 TEST_CASE("Dropping extended gaps must trigger failure of Alignment data comparison.",
-          "[aligner][V_gene][legacy_csv][!shouldfail]")
+          "[aligner][V_gene][legacy_csv]")
 {
     const Matrix<double> matrix = build_test_score_matrix(5.0, -14.0);
     const int gap_penalty = 30;
@@ -779,7 +779,7 @@ TEST_CASE("Dropping extended gaps must trigger failure of Alignment data compari
 
     const std::vector<std::pair<std::string, std::string>> genomic_templates = { { "g1", germline_ref } };
     auto align = parse_single_alignment_csv_line(obtained_csv_line);
-    assert_alignment_data_matches(align.second, expected_csv_line, query_read, genomic_templates);
+    assert_alignment_data_matches(align.second, expected_csv_line, query_read, genomic_templates, /*expect_failure<=*/true);
 }
 
 // ============================================================================

@@ -373,7 +373,8 @@ void assert_alignment_set_matches(const std::list<std::pair<int, Alignment_data>
 void assert_alignment_data_matches(const Alignment_data &actual,
                                    const std::string &expected_csv_line,
                                    const std::string &query,
-                                   const std::vector<std::pair<std::string, std::string>> &genomic_templates)
+                                   const std::vector<std::pair<std::string, std::string>> &genomic_templates,
+                                   bool expect_failure)
 {
     const auto parsed = parse_single_alignment_csv_line(expected_csv_line);
     const Alignment_data expected = parsed.second;
@@ -386,10 +387,18 @@ void assert_alignment_data_matches(const Alignment_data &actual,
     INFO("actual: gene=" << actual.gene_name << " extended_cigar=" << actual_extended_cigar << " score=" << actual.score);
 
     std::vector<std::pair<std::string, std::string>> templates = { genomic_template };
-    INFO("expected: gene=" << expected.gene_name << " extended_cigar=" << expected_extended_cigar 
+    INFO("expected: gene=" << expected.gene_name << " extended_cigar=" << expected_extended_cigar
          << cigar_visual(expected_extended_cigar, query, genomic_template.second));
-    INFO("actual: gene=" << actual.gene_name << " extended_cigar=" << actual_extended_cigar 
+    INFO("actual: gene=" << actual.gene_name << " extended_cigar=" << actual_extended_cigar
          << cigar_visual(actual_extended_cigar, query, genomic_template.second));
+
+    if (expect_failure) {
+        const bool matches = actual.gene_name == expected.gene_name && actual_extended_cigar == expected_extended_cigar
+                && align_compare(actual, expected) && WithinRel(expected.score).match(actual.score);
+
+        REQUIRE_FALSE(matches);
+        return;
+    }
 
     REQUIRE(actual.gene_name == expected.gene_name);
     REQUIRE(actual_extended_cigar == expected_extended_cigar);

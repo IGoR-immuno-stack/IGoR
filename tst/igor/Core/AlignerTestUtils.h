@@ -288,16 +288,18 @@ void assert_alignment_set_matches(const std::list<std::pair<int, Alignment_data>
 
 /**
  * Assert that alignment data matches expected values from a CSV line.
- * 
+ *
  * \param actual The actual Alignment_data from the aligner
  * \param expected_csv_line The expected alignment in CSV format
  * \param query The query sequence used for alignment
  * \param genomic_templates Vector of genomic templates
+ * \param expect_mismatch When true, assert that the alignments do NOT match instead
  */
 void assert_alignment_data_matches(const Alignment_data &actual,
                                    const std::string &expected_csv_line,
                                    const std::string &query,
-                                   const std::vector<std::pair<std::string, std::string>> &genomic_templates);
+                                   const std::vector<std::pair<std::string, std::string>> &genomic_templates,
+                                   bool expect_failure = false);
 
 /**
  * Assert that two matrices have the same dimensions and are cell-for-cell equal.
