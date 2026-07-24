@@ -48,6 +48,14 @@ struct CORE_TESTING_EXPORT SwCandidate
     // running-max position.
     const int start_row;
     const int start_col;
+
+    SwCandidate &operator=(const SwCandidate &other)
+    {
+        score = other.score;
+        row = other.row;
+        col = other.col;
+        return *this;
+    }
 };
 
 /**
