@@ -6,37 +6,72 @@ brevity.  Much more detail can be found in the git revision history:
 
 * Unreleased
 
-  Added:
-  - Add full configured pipeline replay and richer reproducibility manifests with runtime and compiler metadata
 
   Fixed:
   - Fix Pixi manifest parsing so build and regression tasks can run
 
-  Fast parallel sequence generation
-
   New features:
-  - Route the POSIX-style command interface through CLI11 for consistent help,
-    version, and option validation
-  - Add fast parallel sequence generator (FastGenerator) with 100x+ speedup
-    using precomputed CDFs, binary search/alias method sampling, and OpenMP
-    multi-threading
-  - New CLI flags --fast and --threads N for the -generate command
-  - New sampling primitives: CategoricalSampler, ConditionalSampler,
-    DinucleotideMarkovSampler with O(1) alias and O(log n) binary search
-  - New GenModel::generate_sequences_fast() public method
+  - Build and Dev env:
+    - Add a Pixi profiling task and BENCHMARK.md docs for perf/callgrind-based aligner profiling 
+    - Add debugger quality-of-life config (.gdbinit STL pretty-printing, VS Code launch/debug settings)
+  - CLI
+    - Route the POSIX-style command interface through CLI11 for consistent help, version, and option validation
+    - Add full configured pipeline replay and richer reproducibility manifests with runtime and compiler metadata
+  - Sequence sampler:
+    - Add fast parallel sequence generator (FastGenerator) with 100x+ speedup
+      using precomputed CDFs, binary search/alias method sampling, and OpenMP
+      multi-threading
+    - New CLI flags --fast and --threads N for the -generate command
+    - New sampling primitives: CategoricalSampler, ConditionalSampler,
+      DinucleotideMarkovSampler with O(1) alias and O(log n) binary search
+    - New GenModel::generate_sequences_fast() public method
+  - Aligner: 
+    - Add core and AIRR-compliant extended CIGAR string representations for
+    alignments, with bidirectionnal conversion helpers
+    - Improved Alignment_data struct and API (categorized mismatch/in/dels and offset getters)
+    - Add a switch to enable/disable alignment extension (mismatch tracking
+    beyond the core alignment bounds)
+    - Support more leading/trailing free-end configurations in the
+    Smith-Waterman aligner, and encapsulate its DP configuration/state into
+    SwDPConfig/SwAlignmentMode/swalign:: helpers instead of long parameter
+    lists
+
+  Refactor:
+    - Aligner: refactor core sw_align routine into dedicated namespace
+    - Replace std::forward_list with std::vector for Alignment_data
+    insertions/deletions (kept sorted), simplifying downstream consumers
+
+  Performance:
+    - Aligner: 
+      - Only initialize the DP boundary trackers instead of the full matrix (O(N+M) instead of O(N*M))
+      - Inline and restructure the per-cell Smith-Waterman fill loop (shared
+        index arithmetic, packed candidate tracking, branchless argmax move
+        selection); measured -23% CPU time / -20% cycles / -89% branch misses on a single-threaded profiling benchmark, and -24.7% wall-clock on a 1000-read pipeline benchmark
+      - Improve alignment traceback and limit to in bounds and score acceptable alignments
+      - Add 
 
   Bug fixes:
   - Fix uninitialized iterator bug in Model_marginals::swap_events_order
     (event_1_iterator / event_2_iterator were swapped)
+  - Aligner:
+    - fix first nucleotide mismatch detection
+    - fix orphan duplicate alignment due to SW matrix filling pattern
+    - fix best_only logic: reports the best alignment inside the offset bounds, instead of no alignment is the overall best alignment was outside the bounds.
+    - Fix J gene alignment preset from local to semi-global
+    - Fix offset computation bugs in reversed alignment  
 
   Tests:
   - Add unit tests for all sampling primitives (16 test cases)
   - Add statistical convergence tests for VJ (TCRα) and VDJ (TCRβ) models
     using KL-divergence and entropy bounds
   - Add inference round-trip test (generate → infer → compare)
+  - Add a comprehensive aligner/CIGAR test suite (test_aligner.cpp,
+  test_alignment_cigar.cpp, AlignerTestUtils) covering V/D/J gene
+  presets, getters, extended mismatches, and CIGAR round-tripping
+  (803 assertions in 14 test cases) and micro benchmarks (test_aligner_benchmark.cpp).
 
   Miscellaneous:
-  - Add submodule initialization step in CI workflow
+  - Add submodule initialization step in CI workflow 
 
 * 1.4.0 (April 11, 2020)
 
