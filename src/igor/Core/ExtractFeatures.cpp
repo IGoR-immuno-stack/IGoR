@@ -136,20 +136,20 @@ int ExtractFeatures::getVAnchor4Seq(string seq_str, Alignment_data v_alig)
 
     v_gene_name = v_alig.gene_name;
     v_gene_str = UMap_v_genomic[v_alig.gene_name];
-    v_ins_size = distance(v_alig.insertions.begin(), v_alig.insertions.end());
-    v_dels_size = distance(v_alig.deletions.begin(), v_alig.deletions.end());
+    v_ins_size = v_alig.get_all_insertions().size();
+    v_dels_size = v_alig.get_all_deletions().size();
 
     // Get the anchor from map and correct them.
     cdr3_v_gene_anch = UMap_v_CDR3_anchors[v_alig.gene_name];
-    int v_ins_correction = std::count_if(v_alig.insertions.begin(), v_alig.insertions.end(),
+    int v_ins_correction = std::count_if(v_alig.get_all_insertions().begin(), v_alig.get_all_insertions().end(),
                                          // Lambda function for condition
-                                         [cdr3_v_gene_anch](int inss) { return (inss <= cdr3_v_gene_anch); });
+                                         [cdr3_v_gene_anch](size_t inss) { return (inss <= cdr3_v_gene_anch); });
     cdr3_v_gene_anch = cdr3_v_gene_anch + v_ins_correction;
 
     int cdr3_v_read_anch = cdr3_v_gene_anch + v_alig.offset;
-    int dels_correction = std::count_if(v_alig.deletions.begin(), v_alig.deletions.end(),
+    int dels_correction = std::count_if(v_alig.get_all_deletions().begin(), v_alig.get_all_deletions().end(),
                                         // Lambda function for condition
-                                        [cdr3_v_read_anch](int dels) { return (dels <= cdr3_v_read_anch); });
+                                        [cdr3_v_read_anch](size_t dels) { return (dels <= cdr3_v_read_anch); });
     cdr3_v_read_anch = cdr3_v_read_anch + dels_correction; // ins_size before the cdr3 a
 
     return cdr3_v_read_anch;
@@ -173,20 +173,20 @@ int ExtractFeatures::getJAnchor4Seq(string seq_str, Alignment_data j_alig)
 
     j_gene_name = j_alig.gene_name;
     j_gene_str = UMap_j_genomic[j_alig.gene_name];
-    j_ins_size = distance(j_alig.insertions.begin(), j_alig.insertions.end());
-    j_dels_size = distance(j_alig.deletions.begin(), j_alig.deletions.end());
+    j_ins_size = j_alig.get_all_insertions().size();
+    j_dels_size = j_alig.get_all_deletions().size();
 
     // Get the anchor from map and correct them.
     cdr3_j_gene_anch = UMap_j_CDR3_anchors[j_alig.gene_name];
-    int j_ins_correction = std::count_if(j_alig.insertions.begin(), j_alig.insertions.end(),
+    int j_ins_correction = std::count_if(j_alig.get_all_insertions().begin(), j_alig.get_all_insertions().end(),
                                          // Lambda function for condition
-                                         [cdr3_j_gene_anch](int inss) { return (inss <= cdr3_j_gene_anch); });
+                                         [cdr3_j_gene_anch](size_t inss) { return (inss <= cdr3_j_gene_anch); });
     cdr3_j_gene_anch = cdr3_j_gene_anch + j_ins_correction;
 
     int cdr3_j_read_anch = cdr3_j_gene_anch + j_alig.offset;
-    int j_dels_correction = std::count_if(j_alig.deletions.begin(), j_alig.deletions.end(),
+    int j_dels_correction = std::count_if(j_alig.get_all_deletions().begin(), j_alig.get_all_deletions().end(),
                                           // Lambda function for condition
-                                          [cdr3_j_read_anch](int dels) { return (dels <= cdr3_j_read_anch); });
+                                          [cdr3_j_read_anch](size_t dels) { return (dels <= cdr3_j_read_anch); });
 
     // In order to get the phelanine or triptophan in the sequence +3.
     cdr3_j_read_anch = cdr3_j_read_anch + j_dels_correction + 3; // ins_size before the cdr3 anchor

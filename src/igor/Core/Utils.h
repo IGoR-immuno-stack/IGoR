@@ -35,12 +35,14 @@
 #include <tuple>
 #include <stdexcept>
 #include <iostream>
+#include <iomanip>
 #include <igor/Core/IntStr.h>
 #include <memory>
 #include <list>
 #include <random>
 #include <chrono>
 #include <sys/types.h>
+#include <igorCoreExport.h>
 #if defined(_WIN32)
 
 #  ifndef WIN32_LEAN_AND_MEAN
@@ -98,6 +100,49 @@ inline uint32_t portable_gethostid()
 }
 
 #endif
+
+// Force a function to be inlined at every call site, even at optimization levels where the
+// compiler's own heuristics would otherwise leave it as a real call (e.g. -O2 on a function
+// with several branches). Use sparingly, only where profiling has shown the call overhead
+// itself (prologue/epilogue, stack-protector checks) to be a measurable cost.
+#if defined(_MSC_VER)
+#  define IGOR_ALWAYS_INLINE __forceinline
+#elif defined(__GNUC__) || defined(__clang__)
+#  define IGOR_ALWAYS_INLINE __attribute__((__always_inline__)) inline
+#else
+#  define IGOR_ALWAYS_INLINE inline
+#endif
+
+// Force full unroll of a small, fixed-trip-count loop immediately below the pragma, so its
+// per-iteration work stays visible to the scheduler as independent instructions instead of being
+// serialized behind the loop's own increment/compare/branch (see fill_sw_score_matrix's
+// column-banding note in Aligner.cpp for a case where that overhead was measurable). n must be an
+// integer literal or an object-like macro -- it is textually stringized into a pragma at
+// preprocessing time, so a constexpr variable will not work.
+// Clang also parses "GCC unroll", including under clang-cl (which defines both __clang__ and
+// _MSC_VER); check __clang__ before _MSC_VER so clang-cl takes this branch, not the MSVC one.
+#define IGOR_UNROLL_STRINGIFY_(x) #x
+#if defined(__clang__) || defined(__GNUC__)
+#  define IGOR_UNROLL(n) _Pragma(IGOR_UNROLL_STRINGIFY_(GCC unroll n))
+#elif defined(__INTEL_COMPILER)
+// Classic (pre-oneAPI) Intel compiler; icx/dpcpp is LLVM-based and already covered by __clang__.
+#  define IGOR_UNROLL(n) _Pragma(IGOR_UNROLL_STRINGIFY_(unroll(n)))
+#else
+// No portable equivalent on MSVC (or other unrecognized compilers): the loop is left to the
+// compiler's own unrolling heuristics, or must be unrolled by hand for a guaranteed effect.
+#  define IGOR_UNROLL(n)
+#endif
+
+// Marks a symbol that is internal to Core (not part of its installed public API) but still
+// needs to cross the shared library boundary for whitebox tests to link against it directly
+// (see AlignerInternal.h). Resolves to a real export/import only when CORE_TESTING_ENABLED is
+// defined (see tst/igor/Core/CMakeLists.txt), so production builds keep these symbols hidden.
+#ifdef CORE_TESTING_ENABLED
+#  define CORE_TESTING_EXPORT CORE_EXPORT
+#else
+#  define CORE_TESTING_EXPORT CORE_NO_EXPORT
+#endif
+
 #include <stdio.h>
 #include <unordered_map>
 
@@ -200,7 +245,7 @@ struct null_delete
 };
 
 /*
- * Declare a simple matrix class
+ * Declare a simple matrix class with column major data ordering.
  *
  */
 template <typename T>
@@ -250,6 +295,27 @@ public:
         return *this;
     }
 
+    Matrix(Matrix &&other) noexcept : rows(other.rows), cols(other.cols), array_p(other.array_p)
+    {
+        other.rows = 0;
+        other.cols = 0;
+        other.array_p = nullptr;
+    }
+
+    Matrix<T> &operator=(Matrix &&other) noexcept
+    {
+        if (this != &other) {
+            delete[] array_p;
+            this->rows = other.rows;
+            this->cols = other.cols;
+            this->array_p = other.array_p;
+            other.rows = 0;
+            other.cols = 0;
+            other.array_p = nullptr;
+        }
+        return *this;
+    }
+
     T &operator()(const int &i, const int &j)
     {
         assert((i <= rows - 1) && (j <= cols - 1));
@@ -277,6 +343,46 @@ public:
     //Accessors
     const int &get_n_rows() const { return rows; }
     const int &get_n_cols() const { return cols; }
+
+    // Raw storage access, for callers that need to compute a linear index once and share it
+    // across several matrices with matching dimensions (see swalign::fill_sw_score_matrix).
+    T *data() { return array_p; }
+    const T *data() const { return array_p; }
+
+    Matrix<T> transpose() const
+    {
+        Matrix<T> result(cols, rows);
+        for (int i = 0; i != rows; ++i) {
+            for (int j = 0; j != cols; ++j) {
+                result(j, i) = array_p[i + rows * j];
+            }
+        }
+        return result;
+    }
+
+    // Debug print
+    void print(std::ostream &out = std::cout) const {
+        out << rows << "x" << cols << " Matrix\n";
+        if (rows == 0 || cols == 0) return;
+        // Find max display width using string stream
+        size_t max_width = 1;
+        std::ostringstream oss;
+        for (int k = 0; k < rows * cols; ++k) {
+            oss.str("");
+            oss.clear();
+            oss << array_p[k];
+            size_t len = oss.str().size();
+            if (len > max_width) max_width = len;
+        }
+        // Print with fixed width
+        for (int i = 0; i < rows; ++i) {
+            for (int j = 0; j < cols; ++j) {
+                if (j > 0) out << " ";
+                out << std::setw(static_cast<int>(max_width)) << std::right << array_p[i + j * rows];
+            }
+            out << "\n";
+        }
+    }
 
 private:
     int rows;
@@ -474,7 +580,7 @@ typedef Enum_fast_memory_map<Seq_type, Int_Str_ptr> Seq_type_str_p_map;
 
 typedef Enum_fast_memory_map<Event_safety, bool> Safety_bool_map;
 
-typedef Enum_fast_memory_map<Seq_type, std::vector<int> *> Mismatch_vectors_map;
+typedef Enum_fast_memory_map<Seq_type, std::vector<size_t> *> Mismatch_vectors_map;
 
 typedef Enum_fast_memory_map<int, size_t> Index_map;
 

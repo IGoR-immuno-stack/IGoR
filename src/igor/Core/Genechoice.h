@@ -154,7 +154,7 @@ private:
 
     //Suitable D align bool
     bool no_d_align;
-    std::vector<int> no_d_mismatches;
+    std::vector<size_t> no_d_mismatches;
     size_t d_size;
     Seq_Offset d_full_3_offset;
 
@@ -166,8 +166,8 @@ private:
     Int_Str gene_seq;
     int new_index;
     const int *alignment_offset_p;
-    std::vector<int>::const_iterator mism_iter;
-    std::vector<int>::const_reverse_iterator rev_mism_iter;
+    std::vector<size_t>::const_iterator mism_iter;
+    std::vector<size_t>::const_reverse_iterator rev_mism_iter;
     size_t endogeneous_mismatches;
 
     //Constants

@@ -37,7 +37,7 @@ struct Scenario {
     std::vector<OffsetPair> offsets;
     
     // Flattened mismatches (indexed by Seq_type)
-    std::vector<const std::vector<int>*> mismatches;
+    std::vector<const std::vector<size_t>*> mismatches;
     
     /**
      * @brief Construct flattened view from ScenarioContext
@@ -118,7 +118,7 @@ struct Scenario {
      * @param seq_type Type of sequence
      * @return Pointer to vector of mismatch positions, or nullptr if none
      */
-    inline const std::vector<int>* get_mismatches(Seq_type seq_type) const {
+    inline const std::vector<size_t>* get_mismatches(Seq_type seq_type) const {
         return mismatches[seq_type];
     }
     

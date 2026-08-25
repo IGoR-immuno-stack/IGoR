@@ -53,7 +53,7 @@ Alignment_data create_mock_alignment_data(
     int offset,
     size_t five_p_offset,
     size_t three_p_offset,
-    const std::vector<int>& mismatches = {},
+    const std::vector<size_t>& mismatches = {},
     double score = 100.0
 );
 

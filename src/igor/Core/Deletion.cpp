@@ -300,7 +300,7 @@ void Deletion::iterate(
             vj_check = false; //No point of checking if J has not been picked because the offset is unknown
         }
         Int_Str &previous_str = (*scenario.get_sequence_segment(V_gene_seq, memory_layer_cs - 1));
-        vector<int> &v_mismatch_list = *scenario.get_mismatches(V_gene_seq, memory_layer_mismatches - 1);
+        const vector<size_t> &v_mismatch_list = *scenario.get_mismatches(V_gene_seq, memory_layer_mismatches - 1);
 
         for (forward_list<Event_realization>::const_iterator iter = (*this).int_value_and_index.begin();
              iter != (*this).int_value_and_index.end(); ++iter) {
@@ -542,7 +542,7 @@ void Deletion::iterate(
             }
 
             Int_Str &previous_str = (*scenario.get_sequence_segment(D_gene_seq, memory_layer_cs - 1));
-            vector<int> &d_mismatch_list = *scenario.get_mismatches(D_gene_seq, memory_layer_mismatches - 1);
+            const vector<size_t> &d_mismatch_list = *scenario.get_mismatches(D_gene_seq, memory_layer_mismatches - 1);
 
             for (forward_list<Event_realization>::const_iterator iter = (*this).int_value_and_index.begin();
                  iter != (*this).int_value_and_index.end(); ++iter) {
@@ -773,7 +773,7 @@ void Deletion::iterate(
             }
 
             Int_Str &previous_str = (*scenario.get_sequence_segment(D_gene_seq, memory_layer_cs - 1));
-            vector<int> &d_mismatch_list = *scenario.get_mismatches(D_gene_seq, memory_layer_mismatches - 1);
+            const vector<size_t> &d_mismatch_list = *scenario.get_mismatches(D_gene_seq, memory_layer_mismatches - 1);
 
             for (forward_list<Event_realization>::const_iterator iter = (*this).int_value_and_index.begin();
                  iter != (*this).int_value_and_index.end(); ++iter) {
@@ -1036,7 +1036,7 @@ void Deletion::iterate(
         }
 
         Int_Str &previous_str = (*scenario.get_sequence_segment(J_gene_seq, memory_layer_cs - 1));
-        vector<int> &j_mismatch_list = *scenario.get_mismatches(J_gene_seq, memory_layer_mismatches - 1);
+        const vector<size_t> &j_mismatch_list = *scenario.get_mismatches(J_gene_seq, memory_layer_mismatches - 1);
         for (forward_list<Event_realization>::const_iterator iter = (*this).int_value_and_index.begin();
              iter != (*this).int_value_and_index.end(); ++iter) {
             if ((int)previous_str.size() > (*iter).value_int) {

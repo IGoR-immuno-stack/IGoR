@@ -253,7 +253,7 @@ size_t get_size_t_value(const sparrow::record_batch &batch, const std::string &c
  * @return Vector of integers (empty if null or missing)
  */
 STREAMING_EXPORT
-std::vector<int> get_int_list_value(const sparrow::record_batch &batch,
+std::vector<size_t> get_size_t_list_value(const sparrow::record_batch &batch,
                                     const std::string &column_name, size_t row_index);
 
 } // namespace igor

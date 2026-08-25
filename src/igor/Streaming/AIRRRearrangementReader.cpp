@@ -168,9 +168,9 @@ std::optional<Alignment_data> extract_alignment(
 
     // Create alignment data
     // Note: insertions, deletions, and mismatches would require CIGAR parsing
-    std::forward_list<int> insertions;
-    std::forward_list<int> deletions;
-    std::vector<int> mismatches;
+    std::vector<size_t> insertions;
+    std::vector<size_t> deletions;
+    std::vector<size_t> mismatches;
 
     return Alignment_data(
         gene_name,

@@ -30,17 +30,19 @@
 #include <unordered_map>
 #include <set>
 #include <utility>
+#include <vector>
+#include <unordered_set>
 #include <fstream>
 #include <algorithm>
 #include <iostream>
-#include <igor/Core/Utils.h>
 #include <omp.h>
 #include <stdexcept>
 #include <random>
 #include <chrono>
+#include <limits>
 
 #include <igor/Core/IntStr.h>
-
+#include <igor/Core/Utils.h>
 #include <igorCoreExport.h>
 
 /**
@@ -57,65 +59,197 @@
  * - insertions : indices on the TARGET of inserted nucleotides
  * - deletions : indices on the GENOMIC TEMPLATE of deleted nucleotides
  * - alignment length
- * - list of mismatches (that lie event outside the best alignment to allow IGoR to know mismatch positions in advance while exploring different deletions numbers)
+ * - list of mismatches (that lie even outside the best alignment to allow IGoR to know mismatch positions in advance while exploring different deletions numbers)
+ *   NOTE: The mismatches vector may contain mismatches beyond the five_p_offset to three_p_offset range,
+ *   representing mismatches in the extended alignment regions (e.g., in deleted V/J nucleotides).
+ *   The vector is SORTED and contains ALL mismatches (both within the core alignment and in extended regions).
  * - the alignment score
+ * - query_length and germline_length: lengths of the query/target and reference/genomic sequences (0 = unknown)
+ * - extended_mismatches: mismatches outside the core alignment region [five_p_offset, three_p_offset]
+ * - extended_insertions/deletions: indels in extended regions (reserved for future use, currently empty)
+ *
+ * Computed properties (via getter methods):
+ * - query_align_start/end: core alignment bounds in query sequence
+ * - reference_align_start/end: core alignment bounds in reference sequence
+ * - extended_query/reference_align_start/end: extended alignment bounds
+ * - core_cigar/extended_cigar: CIGAR string representations
+ * - get_all/mismatches: all mismatches (core + extended)
+ * - get_core_mismatches: mismatches within the core alignment region
+ * - get_5p/3p_extended_mismatches: extended mismatches by side
+ * - get_extended_mismatches: all extended mismatches
+ * - get_core/extended/all_insertions: insertion accessors
+ * - get_core/extended/all_deletions: deletion accessors
  */
-struct Alignment_data
+struct CORE_EXPORT Alignment_data
 {
     std::string gene_name;
     int offset;
     size_t five_p_offset;
     size_t three_p_offset;
-    std::forward_list<int> insertions; //gap in the genomic sequence
-    std::forward_list<int> deletions; //gap in the data sequence
+    std::vector<size_t> insertions; //gap in the genomic sequence
+    std::vector<size_t> deletions; //gap in the data sequence
     size_t align_length;
-    mutable std::vector<int> mismatches;
+    mutable std::vector<size_t> mismatches;
     double score;
+    
+    // Sequence lengths (0 = unknown)
+    size_t query_length = 0;
+    size_t germline_length = 0;
+    
+    // Extended region tracking
+    std::vector<size_t> extended_mismatches;  // Mismatches outside [five_p_offset, three_p_offset]
+    std::vector<size_t> extended_insertions;  // Insertions in extended regions (future use)
+    std::vector<size_t> extended_deletions;  // Deletions in extended regions (future use)
 
-    Alignment_data(std::string gene, int off)
+    // Computed property getters
+    
+    // Core alignment bounds (query = target sequence, reference = genomic template)
+    size_t query_align_start() const { return five_p_offset; }
+    size_t query_align_end() const { return three_p_offset; }
+    size_t reference_align_start() const
+    {
+        size_t n_ins_5p = get_5p_extended_insertions().size();
+        size_t n_del_5p = get_5p_extended_deletions().size();
+        return static_cast<size_t>(five_p_offset - offset - n_ins_5p + n_del_5p);
+    }
+    size_t reference_align_end() const
+    {
+        size_t n_ins_all = get_5p_extended_insertions().size() + get_core_insertions().size();
+        size_t n_del_all = get_5p_extended_deletions().size() + get_core_deletions().size();
+        return static_cast<size_t>(three_p_offset - offset - n_ins_all + n_del_all);
+    }
+
+    // Extended alignment bounds (clamped to sequence lengths)
+    size_t extended_query_align_start() const
+    {
+        if (query_length == 0)
+            throw std::logic_error("query_length required for extended bounds");
+        return static_cast<size_t>((std::max)(offset, 0));
+    }
+    size_t extended_query_align_end() const
+    {
+        if (query_length == 0 || germline_length == 0)
+            throw std::logic_error("query_length and germline_length required for extended bounds");
+        size_t n_del = get_all_deletions().size();
+        size_t n_ins = get_all_insertions().size();
+        return static_cast<size_t>((std::min)(offset + germline_length - 1 + n_ins - n_del, query_length - 1));
+    }
+    size_t extended_reference_align_start() const
+    {
+        if (germline_length == 0)
+            throw std::logic_error("germline_length required for extended bounds");
+        return static_cast<size_t>((std::max)(-offset, 0)); // Full germline reference
+    }
+    size_t extended_reference_align_end() const
+    {
+        if (germline_length == 0)
+            throw std::logic_error("germline_length required for extended bounds");
+        size_t n_del = get_all_deletions().size();
+        size_t n_ins = get_all_insertions().size();
+        return static_cast<size_t>((std::min)(query_length - 1 - n_ins + n_del - offset,
+                                              germline_length - 1)); // Full germline reference
+    }
+
+    // Mismatch and indel access
+    const std::vector<size_t>& get_all_mismatches() const { return mismatches; }
+    std::vector<size_t> get_core_mismatches() const;
+    std::vector<size_t> get_5p_extended_mismatches() const;
+    std::vector<size_t> get_3p_extended_mismatches() const;
+    std::vector<size_t> get_extended_mismatches() const { return extended_mismatches; }
+
+    const std::vector<size_t>& get_all_insertions() const { return insertions; }
+    std::vector<size_t> get_core_insertions() const;
+    std::vector<size_t> get_5p_extended_insertions() const;
+    std::vector<size_t> get_3p_extended_insertions() const;
+    std::vector<size_t> get_extended_insertions() const { return extended_insertions; }
+
+    const std::vector<size_t>& get_all_deletions() const { return deletions; }
+    std::vector<size_t> get_core_deletions() const;
+    std::vector<size_t> get_5p_extended_deletions() const;
+    std::vector<size_t> get_3p_extended_deletions() const;
+    std::vector<size_t> get_extended_deletions() const { return extended_deletions; }
+
+    
+    // CIGAR string access
+    std::string core_cigar() const;
+    std::string extended_cigar() const;
+    
+    // Validation
+    bool validate() const;
+
+    Alignment_data(std::string gene, int off, size_t query_len = 0, size_t germline_len = 0)
         : gene_name(gene),
           offset(off),
-          insertions(*(new std::forward_list<int>)),
-          deletions(*(new std::forward_list<int>)),
-          score(0)
+          score(0),
+          query_length(query_len),
+          germline_length(germline_len)
     {
     }
-    Alignment_data(int off, size_t five_p_off, size_t three_p_off, size_t align_len, std::forward_list<int> ins,
-                   std::forward_list<int> del, std::vector<int> mis, double alignment_score)
+    Alignment_data(int off, size_t five_p_off, size_t three_p_off, size_t align_len, std::vector<size_t> ins,
+                   std::vector<size_t> del, std::vector<size_t> mis, double alignment_score,
+                   size_t query_len = 0, size_t germline_len = 0)
         : gene_name(std::string()),
           offset(off),
           five_p_offset(five_p_off),
           three_p_offset(three_p_off),
-          insertions(ins),
-          deletions(del),
+          insertions(std::move(ins)),
+          deletions(std::move(del)),
           align_length(align_len),
           mismatches(mis),
-          score(alignment_score)
+          score(alignment_score),
+          query_length(query_len),
+          germline_length(germline_len)
     {
+        // Insertions/deletions are stored sorted ascending (invariant relied upon by
+        // get_core_deletions/get_5p_extended_deletions/get_3p_extended_deletions)
+        std::sort(insertions.begin(), insertions.end());
+        std::sort(deletions.begin(), deletions.end());
+        // Populate extended_mismatches from mismatches
+        for (int pos : mismatches) {
+            if (pos < five_p_offset || pos > three_p_offset) {
+                extended_mismatches.push_back(pos);
+            }
+        }
     }
-    Alignment_data(std::string gene, int off, size_t align_len, std::forward_list<int> ins, std::forward_list<int> del,
-                   std::vector<int> mis, double alignment_score)
+    Alignment_data(std::string gene, int off, size_t align_len, std::vector<size_t> ins, std::vector<size_t> del,
+                   std::vector<size_t> mis, double alignment_score,
+                   size_t query_len = 0, size_t germline_len = 0)
         : gene_name(gene),
           offset(off),
-          insertions(ins),
-          deletions(del),
+          insertions(std::move(ins)),
+          deletions(std::move(del)),
           align_length(align_len),
           mismatches(mis),
-          score(alignment_score)
+          score(alignment_score),
+          query_length(query_len),
+          germline_length(germline_len)
     {
+        std::sort(insertions.begin(), insertions.end());
+        std::sort(deletions.begin(), deletions.end());
     }
     Alignment_data(std::string gene, int off, size_t five_p_off, size_t three_p_off, size_t align_len,
-                   std::forward_list<int> ins, std::forward_list<int> del, std::vector<int> mis, double alignment_score)
+                   std::vector<size_t> ins, std::vector<size_t> del, std::vector<size_t> mis, double alignment_score,
+                   size_t query_len = 0, size_t germline_len = 0)
         : gene_name(gene),
           offset(off),
           five_p_offset(five_p_off),
           three_p_offset(three_p_off),
-          insertions(ins),
-          deletions(del),
+          insertions(std::move(ins)),
+          deletions(std::move(del)),
           align_length(align_len),
           mismatches(mis),
-          score(alignment_score)
+          score(alignment_score),
+          query_length(query_len),
+          germline_length(germline_len)
     {
+        std::sort(insertions.begin(), insertions.end());
+        std::sort(deletions.begin(), deletions.end());
+        // Populate extended_mismatches from mismatches
+        for (int pos : mismatches) {
+            if (pos < five_p_offset || pos > three_p_offset) {
+                extended_mismatches.push_back(pos);
+            }
+        }
     }
 
     /*	bool operator<(const Alignment_data& align){
@@ -135,6 +269,7 @@ struct Alignment_data
  * Alignments can be made in parallel using openMP
  *
  */
+
 class CORE_EXPORT Aligner
 {
 public:
@@ -191,8 +326,12 @@ public:
     std::unordered_map<int, std::forward_list<Alignment_data>> read_alignments_seq_csv(std::string, double, bool);
 
     void set_genomic_sequences(std::vector<std::pair<std::string, std::string>>);
-    int incorporate_in_dels(std::string &, std::string &, const std::forward_list<int>, const std::forward_list<int>,
+    int incorporate_in_dels(std::string &, std::string &, const std::vector<size_t>, const std::vector<size_t>,
                             int);
+
+    // Configuration for alignment extension
+    void set_enable_extension(bool enable) { enable_extension_ = enable; }
+    bool get_enable_extension() const { return enable_extension_; }
 
 private:
     std::forward_list<std::pair<std::string, std::string>> nt_genomic_sequences;
@@ -200,14 +339,31 @@ private:
     Matrix<double> substitution_matrix;
     int gap_penalty;
     Gene_class gene;
-    bool local_align;
-    bool flip_seqs;
-    void sw_align_common(const Int_Str &, const Int_Str &, const int, const int, Matrix<double> &, Matrix<int> &,
-                         Matrix<int> &, Matrix<int> &, std::vector<int> &, std::vector<int> &, std::vector<int> &);
-    std::list<std::pair<int, Alignment_data>> sw_align(const Int_Str &, const Int_Str &, double, bool, int, int);
+    bool enable_extension_ = true; // Enable/disable alignment extension for capturing mismatches in extended regions
     std::unordered_map<std::string, std::pair<int, int>> build_genomic_bounds_map(int, int) const;
 };
 
+CORE_EXPORT std::vector<std::pair<int, char>> parse_cigar(const std::string &cigar);
+CORE_EXPORT std::string alignment_data_to_core_cigar(const Alignment_data &aln);
+CORE_EXPORT std::string alignment_data_to_core_cigar(const Alignment_data &aln, size_t sequence_length,
+                                                           size_t germline_length);
+CORE_EXPORT std::string alignment_data_to_extended_cigar(const Alignment_data &aln, size_t sequence_length,
+                                                           size_t germline_length);
+CORE_EXPORT Alignment_data alignment_data_from_cigar(const std::string &gene_name, const std::string &cigar,
+                                                     int seq_start_1based, int seq_end_1based, int ref_start_1based,
+                                                     int ref_end_1based, double score);
+CORE_EXPORT Alignment_data alignment_data_from_cigar_and_extended(const std::string &gene_name, const std::string &core_cigar,
+                                                                 const std::string &extended_cigar, double score);
+CORE_EXPORT int alignment_data_sequence_start(const Alignment_data &aln);
+CORE_EXPORT int alignment_data_sequence_end(const Alignment_data &aln);
+CORE_EXPORT int alignment_data_germline_start(const Alignment_data &aln);
+CORE_EXPORT int alignment_data_germline_end(const Alignment_data &aln);
+// Standalone function for external alignment import
+std::vector<size_t> extend_alignment_mismatches(const Int_Str &int_data_sequence, const Int_Str &int_genomic_sequence,
+                                        const Alignment_data aln);
+CORE_EXPORT bool alignment_data_equal(const Alignment_data &a, const Alignment_data &b, double score_tolerance = 1e-9);
+
+CORE_EXPORT std::pair<int, Alignment_data> parse_single_alignment_csv_line(const std::string &line);
 CORE_EXPORT std::unordered_map<int, std::pair<std::string, std::unordered_map<Gene_class, std::vector<Alignment_data>>>>
 read_alignments_seq_csv(const std::string &, Gene_class, double, bool,
                         const std::vector<std::pair<const int, const std::string>> &);
@@ -249,11 +405,74 @@ CORE_EXPORT std::tuple<bool, int, int> extract_min_max_genomic_templates_offsets
         const std::unordered_map<std::string, std::pair<int, int>> &genomic_offset_bounds);
 CORE_EXPORT std::forward_list<Alignment_data> extract_best_gene_alignments(const std::forward_list<Alignment_data> &);
 
-/*
-	namespace substitution_matrices{
-		//from: ftp://ftp.ncbi.nih.gov/blast/matrices/NUC.4.4
-		static Matrix<int> nuc44_sub_matrix(4,4,{5,-4,-4,-4 , -4 ,5,-4,-4 , -4,-4,5,-4 , -4,-4,-4,5});
+struct SwAlignmentMode
+{
+    bool data_leading_free = false;
+    bool data_trailing_free = false;
+    bool genomic_leading_free = false;
+    bool genomic_trailing_free = false;
+    bool reverse_sequences = false;
 
+    bool is_local_alignment() const
+    {
+        return data_leading_free && data_trailing_free && genomic_leading_free && genomic_trailing_free;
+    }
+};
+/**
+ * Run-policy for one Smith-Waterman alignment call.
+ *
+ * Bundles the scalar parameters and alignment mode that govern how a single
+ * sw_align invocation prepares its inputs and filters its results, so they can
+ * be passed as a unit instead of several separate arguments.
+ *
+ * Fields
+ * ------
+ * score_threshold  Minimum score an alignment must reach to be returned.
+ * best_only        Retain only the alignment(s) reaching the best score for this call.
+ * min_offset       Lower bound on the offset (genomic-vs-query position).
+ * max_offset       Upper bound on the offset.
+ * alignment_mode    Boundary and orientation policy for the DP run.
+ */
+struct SwDPConfig
+{
+    double score_threshold = -std::numeric_limits<double>::infinity();
+    bool best_only = false;
+    int min_offset = INT32_MIN;
+    int max_offset = INT32_MAX;
+    Matrix<double> substitution_matrix;
+    int gap_penalty;
+    SwAlignmentMode alignment_mode;
+    bool enable_extension = true; // Enable/disable alignment extension for capturing mismatches in extended regions
+};
+CORE_TESTING_EXPORT std::list<std::pair<int, Alignment_data>> sw_align(const Int_Str &, const Int_Str &, SwDPConfig);
 
-	}
-	*/
+namespace swalign {
+
+// Forward declare internal structs
+struct SwDPState;
+struct SwPreparedInputs;
+
+CORE_TESTING_EXPORT SwPreparedInputs prepare_sw_inputs(const Int_Str &int_data_sequence, const Int_Str &int_genomic_sequence,
+                                   const SwDPConfig &config);
+// Coordinate conversion functions
+size_t convert_matrix_row_to_query_pos(size_t i, size_t data_seq_size, bool flip_seqs);
+size_t convert_matrix_col_to_ref_pos(size_t j, size_t genomic_seq_size, bool flip_seqs);
+int convert_matrix_coords_to_offset(int i, int j, size_t data_seq_size, size_t genomic_seq_size, int offset_change,
+                                    bool flip_seqs);
+CORE_TESTING_EXPORT void fill_sw_score_matrix(const Int_Str &, const Int_Str &, SwDPState &, const SwDPConfig &);
+
+// Alignment extension functions for capturing mismatches in extended regions
+std::vector<size_t> ungapped_extend_align_5p_from_dp(const SwPreparedInputs &prepared, int i_start, int j_start,
+                                             size_t data_seq_size, size_t genomic_seq_size, bool flip_seqs,
+                                             int matrix_n_rows, int matrix_n_cols);
+
+std::vector<size_t> ungapped_extend_align_3p_from_dp(const SwPreparedInputs &prepared, int i_end, int j_end,
+                                             size_t data_seq_size, size_t genomic_seq_size, bool flip_seqs,
+                                             int matrix_n_rows, int matrix_n_cols);
+
+// Helper functions for merging and sorting mismatches
+std::vector<size_t> merge_and_sort_mismatches(const std::vector<size_t> &core_mismatches, const std::vector<size_t> &extended_mismatches);
+std::vector<size_t> merge_and_sort_mismatches(const std::vector<size_t> &core_mismatches, const std::vector<size_t> &extended_5p_mismatches,
+                                      const std::vector<size_t> &extended_3p_mismatches);
+
+} // namespace swalign

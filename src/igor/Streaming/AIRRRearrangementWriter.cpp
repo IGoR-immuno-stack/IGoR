@@ -141,10 +141,8 @@ std::string make_cigar(const Alignment_data& alignment)
     std::ostringstream cigar;
 
     // Count insertions and deletions using std::distance
-    size_t num_insertions = static_cast<size_t>(std::distance(
-        alignment.insertions.begin(), alignment.insertions.end()));
-    size_t num_deletions = static_cast<size_t>(std::distance(
-        alignment.deletions.begin(), alignment.deletions.end()));
+    size_t num_insertions = alignment.get_all_insertions().size();
+    size_t num_deletions = alignment.get_all_deletions().size();
 
     // Build simplified CIGAR
     // Format: {align_length}M[{insertions}I][{deletions}D]

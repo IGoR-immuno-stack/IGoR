@@ -15,6 +15,7 @@
 
 #include <sstream>
 #include <algorithm>
+#include <iterator>
 
 namespace igor {
 
@@ -147,12 +148,12 @@ size_t get_size_t_value(const sparrow::record_batch &batch, const std::string &c
     }
 }
 
-std::vector<int> get_int_list_value(const sparrow::record_batch &batch,
+std::vector<size_t> get_size_t_list_value(const sparrow::record_batch &batch,
                                      const std::string &column_name, size_t row_index)
 {
     // Extract value from native Arrow list array
     if (!has_column(batch, column_name)) {
-        return std::vector<int>{};
+        return std::vector<size_t>{};
     }
 
     try {
@@ -161,7 +162,7 @@ std::vector<int> get_int_list_value(const sparrow::record_batch &batch,
         // Access the array element at row_index
         auto list_element = col[row_index];
 
-        std::vector<int> result;
+        std::vector<size_t> result;
 
         // Check if the value is null
         if (!list_element.has_value()) {
@@ -192,7 +193,7 @@ std::vector<int> get_int_list_value(const sparrow::record_batch &batch,
 
         return result;
     } catch (...) {
-        return std::vector<int>{};
+        return std::vector<size_t>{};
     }
 }
 
@@ -234,17 +235,13 @@ parse_alignments_from_columns(const sparrow::record_batch &batch, size_t row_ind
                 double score = get_double_value(batch, score_col, row_index, 0.0);
 
                 // Extract nested list structures
-                std::vector<int> insertions_vec = get_int_list_value(batch, insertions_col, row_index);
-                std::vector<int> deletions_vec = get_int_list_value(batch, deletions_col, row_index);
-                std::vector<int> mismatches_vec = get_int_list_value(batch, mismatches_col, row_index);
-
-                // Convert vectors to forward_list for insertions and deletions
-                std::forward_list<int> insertions(insertions_vec.begin(), insertions_vec.end());
-                std::forward_list<int> deletions(deletions_vec.begin(), deletions_vec.end());
+                std::vector<size_t> insertions_vec = get_size_t_list_value(batch, insertions_col, row_index);
+                std::vector<size_t> deletions_vec = get_size_t_list_value(batch, deletions_col, row_index);
+                std::vector<size_t> mismatches_vec = get_size_t_list_value(batch, mismatches_col, row_index);
 
                 // Create complete alignment data structure with all 9 fields
                 Alignment_data align(gene_name, offset, five_p_offset, three_p_offset,
-                                   align_length, insertions, deletions, mismatches_vec, score);
+                                   align_length, insertions_vec, deletions_vec, mismatches_vec, score);
 
                 alignments[gene_class].push_back(align);
             }
@@ -365,10 +362,25 @@ sparrow::record_batch vector_to_batch(
                 v_align_lengths[gc].push_back(static_cast<uint64_t>(align.align_length));
                 v_scores[gc].push_back(align.score);
 
-                // Convert forward_list to vector for list arrays
-                std::vector<int32_t> ins_vec(align.insertions.begin(), align.insertions.end());
-                std::vector<int32_t> del_vec(align.deletions.begin(), align.deletions.end());
-                std::vector<int32_t> mis_vec(align.mismatches.begin(), align.mismatches.end());
+                // Narrow to int32_t for list arrays (explicit cast avoids MSVC C4267)
+                const auto &all_insertions = align.get_all_insertions();
+                const auto &all_deletions = align.get_all_deletions();
+                const auto &all_mismatches = align.get_all_mismatches();
+
+                std::vector<int32_t> ins_vec;
+                ins_vec.reserve(all_insertions.size());
+                std::transform(all_insertions.begin(), all_insertions.end(), std::back_inserter(ins_vec),
+                               [](size_t v) { return static_cast<int32_t>(v); });
+
+                std::vector<int32_t> del_vec;
+                del_vec.reserve(all_deletions.size());
+                std::transform(all_deletions.begin(), all_deletions.end(), std::back_inserter(del_vec),
+                               [](size_t v) { return static_cast<int32_t>(v); });
+
+                std::vector<int32_t> mis_vec;
+                mis_vec.reserve(all_mismatches.size());
+                std::transform(all_mismatches.begin(), all_mismatches.end(), std::back_inserter(mis_vec),
+                               [](size_t v) { return static_cast<int32_t>(v); });
 
                 v_insertions[gc].push_back(std::move(ins_vec));
                 v_deletions[gc].push_back(std::move(del_vec));

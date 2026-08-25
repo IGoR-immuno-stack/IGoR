@@ -172,11 +172,11 @@ private:
     size_t largest_nuc_adress;
     mutable int tmp_int_nt;
     mutable int Nmer_index;
-    std::vector<int>::const_iterator current_mismatch;
+    std::vector<size_t>::const_iterator current_mismatch;
     bool is_visible_nt;
 
-    std::vector<int> empty_vec_util;
-    std::vector<int> *vec_ptr_util;
+    std::vector<size_t> empty_vec_util;
+    std::vector<size_t> *vec_ptr_util;
 
     double *debug_v_seq_coverage;
     double *debug_mismatch_seq_coverage;

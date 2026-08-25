@@ -208,7 +208,7 @@ static Alignment_data create_v_mock_alignment(
     int v_del = scenario.v_3p_del;
 
     // Check for mismatches only in the deleted region
-    std::vector<int> mismatches;
+    std::vector<size_t> mismatches;
     for (int i = v_len - v_del; i < v_len && i < static_cast<int>(sequence.length()); ++i) {
         if (v_template[i] != sequence[i]) {
             mismatches.push_back(i);
@@ -243,7 +243,7 @@ static Alignment_data create_j_mock_alignment(
     int j_offset = static_cast<int>(sequence.length()) - j_len;
 
     // Check for mismatches only in the deleted region (5' of aligned portion)
-    std::vector<int> mismatches;
+    std::vector<size_t> mismatches;
     for (int i = 0; i < j_del; ++i) {
         int seq_pos = j_offset + i;
         if (seq_pos >= 0 && seq_pos < static_cast<int>(sequence.length())) {

@@ -282,4 +282,4 @@
 %Deletion_D_gene_Five_prime_prio5_size21;Deletion_D_gene_Three_prime_prio5_size21
 @ErrorRate
 #SingleErrorRate
-0.00613192
+0.000686606

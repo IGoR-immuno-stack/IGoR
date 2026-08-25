@@ -312,8 +312,8 @@ void Gene_choice::iterate(
             scenario.set_offset(V_gene_seq, Five_prime, v_5_off, memory_layer_off_fivep);
             scenario.set_offset(V_gene_seq, Three_prime, v_3_off, memory_layer_off_threep);
 
-            //Set the the V mismatch list using the mismatch list computed during the alignment
-            scenario.set_mismatches(V_gene_seq, &(*iter).mismatches, memory_layer_mismatches);
+            //Set the V mismatch list using the mismatch list computed during the alignment
+            scenario.set_mismatches(V_gene_seq, &(*iter).get_all_mismatches(), memory_layer_mismatches);
 
 
             //Get VD or VJ junction upper bound proba
@@ -468,7 +468,7 @@ void Gene_choice::iterate(
             scenario.set_offset(D_gene_seq, Three_prime, (*iter).offset + gene_seq.size() - 1,
                                   memory_layer_off_threep);
 
-            scenario.set_mismatches(D_gene_seq, &(*iter).mismatches, memory_layer_mismatches);
+            scenario.set_mismatches(D_gene_seq, &(*iter).get_all_mismatches(), memory_layer_mismatches);
 
 
             //Get DJ or VJ junction upper bound proba
@@ -946,7 +946,7 @@ void Gene_choice::iterate(
                                   memory_layer_off_threep);
 
             //Mismatches list computed during alignment
-            scenario.set_mismatches(J_gene_seq, &(*iter).mismatches, memory_layer_mismatches);
+            scenario.set_mismatches(J_gene_seq, &(*iter).get_all_mismatches(), memory_layer_mismatches);
 
 
             //Get DJ or VJ junction upper bound proba
