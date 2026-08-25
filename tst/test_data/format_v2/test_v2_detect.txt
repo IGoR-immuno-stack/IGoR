@@ -1,0 +1,9 @@
+@Version
+2.0
+@Event_list
+#GeneChoice;V_gene;V_gene_seq;Undefined_side;7;v_choice
+%V1;ATCG;0
+@Edges
+@ErrorRate
+#SingleErrorRate
+0.001

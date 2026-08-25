@@ -47,7 +47,7 @@ struct EventInfo
     bool is_dinuc_markov; ///< skip empirical check for DinucMarkov
     std::vector<double> model_marginal; ///< P(realization) marginalised over parents
     double H; ///< entropy of the marginal
-    Gene_class gene_class; ///< gene class (VD_genes, DJ_genes, VJ_genes …)
+    std::string seq_type; ///< seq_type string (e.g. "VD_ins_seq", "DJ_ins_seq", "V_gene_seq" …)
     std::array<double, 16> dinuc_T; ///< transition matrix (only for DinucMarkov)
     double dinuc_entropy_rate; ///< Markov entropy rate h (only for DinucMarkov)
 };
@@ -621,7 +621,7 @@ static inline void print_dinuc_matrix_diagnostics(
 static inline std::vector<ComparisonRow> build_comparison_rows(
         const std::vector<EventInfo> &event_infos,
         const std::map<size_t, std::vector<double>> &compared_marginals,
-        const std::map<Gene_class, InsDinucPair> &ins_dinuc_pairs,
+        const std::map<std::string, InsDinucPair> &ins_dinuc_pairs,
         const Model_Parms *compared_parms = nullptr,
         const Model_marginals *compared_model = nullptr,
         bool compute_combined_kl = false,
@@ -649,7 +649,7 @@ static inline std::vector<ComparisonRow> build_comparison_rows(
         double H_compared = entropy(compared);
         
         // Check if this is part of an insertion+dinuc pair
-        auto it_pair = ins_dinuc_pairs.find(ev.gene_class);
+        auto it_pair = ins_dinuc_pairs.find(ev.seq_type);
         bool is_ins_event = it_pair != ins_dinuc_pairs.end() &&
                             it_pair->second.ins_event &&
                             it_pair->second.ins_event->queue_position == ev.queue_position &&
@@ -913,7 +913,7 @@ static inline std::vector<EventInfo> build_event_info(const Model_Parms &parms, 
         info.num_realizations = ev->size();
         info.queue_position = pos;
         info.is_dinuc_markov = (ev->get_type() == Event_type::Dinuclmarkov_t);
-        info.gene_class = ev->get_class();
+        info.seq_type = ev->get_seq_type();
         info.dinuc_T.fill(0.0);
         info.dinuc_entropy_rate = 0.0;
 
@@ -970,29 +970,29 @@ static inline std::vector<EventInfo> build_event_info(const Model_Parms &parms, 
  * 
  * Following pygor3's get_df_entropy_decomposition(), insertion events
  * like "vj_ins" are paired with their DinucMarkov partner "vj_dinucl"
- * (sharing the same Gene_class). The combined entropy H_total is computed
+ * (sharing the same seq_type string). The combined entropy H_total is computed
  * using insertion_dinuc_entropy() and the EventInfo.H for insertion events
  * is updated to reflect the full combined entropy.
  * 
  * @param events Vector of EventInfo (modified in-place)
  * @param parms Model parameters (to extract insertion length realizations)
  * @param print_decomposition Whether to print entropy decomposition table
- * @return Map of Gene_class to InsDinucPair for reference
+ * @return Map of seq_type string to InsDinucPair for reference
  */
-static inline std::map<Gene_class, InsDinucPair> 
+static inline std::map<std::string, InsDinucPair> 
 compute_combined_insertion_dinuc_entropy(
         std::vector<EventInfo> &events,
         const Model_Parms &parms,
         bool print_decomposition = true)
 {
-    std::map<Gene_class, InsDinucPair> ins_dinuc_pairs;
+    std::map<std::string, InsDinucPair> ins_dinuc_pairs;
 
-    // 1. Identify insertion and DinucMarkov event pairs by Gene_class
+    // 1. Identify insertion and DinucMarkov event pairs by seq_type string
     for (const auto &ev : events) {
         if (ev.is_dinuc_markov) {
-            ins_dinuc_pairs[ev.gene_class].dinuc_event = &ev;
+            ins_dinuc_pairs[ev.seq_type].dinuc_event = &ev;
         } else if (ev.nickname.find("_ins") != std::string::npos) {
-            ins_dinuc_pairs[ev.gene_class].ins_event = &ev;
+            ins_dinuc_pairs[ev.seq_type].ins_event = &ev;
         }
     }
 
@@ -1017,7 +1017,7 @@ compute_combined_insertion_dinuc_entropy(
     // 3. Update EventInfo.H for insertion events to the full combined entropy
     for (auto &ev : events) {
         if (ev.is_dinuc_markov) continue;
-        auto it = ins_dinuc_pairs.find(ev.gene_class);
+        auto it = ins_dinuc_pairs.find(ev.seq_type);
         if (it != ins_dinuc_pairs.end() &&
             it->second.ins_event &&
             it->second.ins_event->queue_position == ev.queue_position &&
@@ -1038,7 +1038,7 @@ compute_combined_insertion_dinuc_entropy(
             }
 
             // Check if this is an insertion event with a DinucMarkov partner
-            auto it = ins_dinuc_pairs.find(ev.gene_class);
+            auto it = ins_dinuc_pairs.find(ev.seq_type);
             if (it != ins_dinuc_pairs.end() &&
                 it->second.ins_event == &ev &&
                 it->second.dinuc_event != nullptr)

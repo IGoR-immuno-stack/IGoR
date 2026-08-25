@@ -126,6 +126,7 @@ static ParsedScenario parse_scenario(
         auto ev_ptr = parms.get_event_pointer(ev_info->name);
         auto event_type = ev_ptr->get_type();
         auto gene_class = ev_ptr->get_class();
+        const std::string seq_type = ev_ptr->get_seq_type();
 
         if (event_type == Event_type::GeneChoice_t) {
             auto realizations = ev_ptr->get_realizations_map();
@@ -169,11 +170,11 @@ static ParsedScenario parse_scenario(
             for (const auto& [name, real] : realizations) {
                 if (real.index == realization_idx) {
                     int ins_value = real.value_int;
-                    if (gene_class == VD_genes) {
+                    if (seq_type == "VD_ins_seq") {
                         parsed.vd_ins = ins_value;
-                    } else if (gene_class == DJ_genes) {
+                    } else if (seq_type == "DJ_ins_seq") {
                         parsed.dj_ins = ins_value;
-                    } else if (gene_class == VJ_genes) {
+                    } else if (seq_type == "VJ_ins_seq") {
                         parsed.vj_ins = ins_value;
                     }
                     break;
@@ -282,10 +283,10 @@ static Alignment_data create_j_mock_alignment(
  * @param relative_kl_threshold_dinuc Threshold for dinucleotide (e.g., 0.0005 = 0.05%)
  */
 static void validate_comparison_row(
-    ComparisonRow& row,
-    double relative_kl_degradation_threshold,
-    double relative_kl_degradation_threshold_inslen,
-    double relative_kl_threshold_dinuc)
+        ComparisonRow& row,
+        double relative_kl_degradation_threshold,
+        double relative_kl_degradation_threshold_inslen,
+        double relative_kl_threshold_dinuc)
 {
     if (row.is_insertion_dinuc_pair) {
         // Length component: use relative degradation
@@ -326,13 +327,13 @@ static void validate_comparison_row(
  * isolating the inference-specific divergence from sampling noise.
  */
 static std::vector<ComparisonRow> compare_inference_to_ground_truth(
-    const std::vector<EventInfo>& ground_truth_events,
-    const Model_marginals& inferred_marginals,
-    const Model_Parms& inferred_parms,
-    const std::map<size_t, double>& sampling_baseline_kl,
-    double relative_kl_degradation_threshold,
-    double relative_kl_degradation_threshold_inslen,
-    double relative_kl_threshold_dinuc)
+        const std::vector<EventInfo>& ground_truth_events,
+        const Model_marginals& inferred_marginals,
+        const Model_Parms& inferred_parms,
+        const std::map<size_t, double>& sampling_baseline_kl,
+        double relative_kl_degradation_threshold,
+        double relative_kl_degradation_threshold_inslen,
+        double relative_kl_threshold_dinuc)
 {
     // Compute inferred marginals for all events
     std::map<size_t, std::vector<double>> inferred_marginals_map;
@@ -352,12 +353,12 @@ static std::vector<ComparisonRow> compare_inference_to_ground_truth(
 
     // Build insertion+dinuc pairs with combined entropy computed
     // (reuse from ground truth events which already have combined_H)
-    std::map<Gene_class, InsDinucPair> ins_dinuc_pairs;
+    std::map<std::string, InsDinucPair> ins_dinuc_pairs;
     for (const auto& ev : ground_truth_events) {
         if (ev.is_dinuc_markov) {
-            ins_dinuc_pairs[ev.gene_class].dinuc_event = &ev;
+            ins_dinuc_pairs[ev.seq_type].dinuc_event = &ev;
         } else if (ev.nickname.find("_ins") != std::string::npos) {
-            ins_dinuc_pairs[ev.gene_class].ins_event = &ev;
+            ins_dinuc_pairs[ev.seq_type].ins_event = &ev;
         }
     }
 
@@ -374,26 +375,26 @@ static std::vector<ComparisonRow> compare_inference_to_ground_truth(
 
             // Compute combined entropy for ground truth
             pair.combined_H = insertion_dinuc_entropy(
-                pair.ins_event->model_marginal,
-                ins_lengths,
-                pair.dinuc_event->dinuc_T);
+                    pair.ins_event->model_marginal,
+                    ins_lengths,
+                    pair.dinuc_event->dinuc_T);
         }
     }
 
     // Build comparison rows with combined D_KL computation
     auto rows = build_comparison_rows(
-        ground_truth_events,
-        inferred_marginals_map,
-        ins_dinuc_pairs,
-        &inferred_parms,
-        &inferred_marginals,
-        true,  // compute_combined_kl
-        nullptr,  // No threshold function - validation done separately
-        &sampling_baseline_kl);  // Pass sampling baseline for display
+            ground_truth_events,
+            inferred_marginals_map,
+            ins_dinuc_pairs,
+            &inferred_parms,
+            &inferred_marginals,
+            true,  // compute_combined_kl
+            nullptr,  // No threshold function - validation done separately
+            &sampling_baseline_kl);  // Pass sampling baseline for display
 
     // Validate each row using relative degradation thresholds
     for (auto& row : rows) {
-        validate_comparison_row( row, relative_kl_degradation_threshold, relative_kl_degradation_threshold_inslen, relative_kl_threshold_dinuc);
+        validate_comparison_row(row, relative_kl_degradation_threshold, relative_kl_degradation_threshold_inslen, relative_kl_threshold_dinuc);
     }
 
     return rows;
@@ -467,7 +468,7 @@ static void run_inference_recovery_test(const InferenceTestConfig& cfg)
     auto events_map = truth_parms.get_events_map();
 
     // Extract V gene templates
-    auto v_gene_event = events_map.at(std::make_tuple(GeneChoice_t, V_gene, Undefined_side));
+    auto v_gene_event = events_map.at(std::make_tuple(GeneChoice_t, std::string("V_gene_seq"), Undefined_side));
     auto v_gene_choice = std::dynamic_pointer_cast<Gene_choice>(v_gene_event);
     auto v_realizations = v_gene_choice->get_realizations_map();
     for (const auto& [name, realization] : v_realizations) {
@@ -475,7 +476,7 @@ static void run_inference_recovery_test(const InferenceTestConfig& cfg)
     }
 
     // Extract J gene templates
-    auto j_gene_event = events_map.at(std::make_tuple(GeneChoice_t, J_gene, Undefined_side));
+    auto j_gene_event = events_map.at(std::make_tuple(GeneChoice_t, std::string("J_gene_seq"), Undefined_side));
     auto j_gene_choice = std::dynamic_pointer_cast<Gene_choice>(j_gene_event);
     auto j_realizations = j_gene_choice->get_realizations_map();
     for (const auto& [name, realization] : j_realizations) {
@@ -483,8 +484,8 @@ static void run_inference_recovery_test(const InferenceTestConfig& cfg)
     }
 
     // Extract D gene templates if VDJ model
-    if (events_map.count(std::make_tuple(GeneChoice_t, D_gene, Undefined_side)) > 0) {
-        auto d_gene_event = events_map.at(std::make_tuple(GeneChoice_t, D_gene, Undefined_side));
+    if (events_map.count(std::make_tuple(GeneChoice_t, std::string("D_gene_seq"), Undefined_side)) > 0) {
+        auto d_gene_event = events_map.at(std::make_tuple(GeneChoice_t, std::string("D_gene_seq"), Undefined_side));
         auto d_gene_choice = std::dynamic_pointer_cast<Gene_choice>(d_gene_event);
         auto d_realizations = d_gene_choice->get_realizations_map();
         for (const auto& [name, realization] : d_realizations) {
@@ -520,7 +521,7 @@ static void run_inference_recovery_test(const InferenceTestConfig& cfg)
 
     // Compute empirical marginals from generated scenarios
     auto empirical_marginals_map = compute_all_empirical_marginals(
-        scenarios, truth_events, actual_count);
+            scenarios, truth_events, actual_count);
 
     // Compute sampling baseline D_KL for each event
     std::map<size_t, double> sampling_baseline_kl;
@@ -541,10 +542,9 @@ static void run_inference_recovery_test(const InferenceTestConfig& cfg)
     // ------------------------------------------------------------------
     std::cout << "\n=== Creating mock alignments ===" << std::endl;
 
-    std::vector<std::tuple<
-        int,
-        std::string,
-        std::unordered_map<Gene_class, std::vector<Alignment_data>>>> sequences_with_alignments;
+    std::vector<std::tuple<int, std::string,
+        std::unordered_map<Gene_class, std::vector<Alignment_data>>>>
+        sequences_with_alignments;
 
     int seq_idx = 0;
     for (const auto& [seq, scenario] : scenarios) {
@@ -553,6 +553,8 @@ static void run_inference_recovery_test(const InferenceTestConfig& cfg)
 
         // Create V alignment
         Alignment_data v_align = create_v_mock_alignment(seq, parsed, gene_templates);
+
+        // Create J alignment
         Alignment_data j_align = create_j_mock_alignment(seq, parsed, gene_templates);
 
         // Create empty D alignment (required for VDJ models)
@@ -596,6 +598,7 @@ static void run_inference_recovery_test(const InferenceTestConfig& cfg)
     // Write alignments to file for debugging
     std::cout << "\n=== Writing alignments to file for debugging ===" << std::endl;
 
+    // Extract V gene alignments
     std::unordered_map<int, std::forward_list<Alignment_data>> v_alignments;
     for (const auto& [seq_idx2, seq, aligns_map] : sequences_with_alignments) {
         if (aligns_map.count(V_gene) > 0) {

@@ -24,14 +24,18 @@
  *
  */
 
+#include "Utils.h"
 #include <igor/Core/EventUtils.h>
 #include <igor/Core/Hypermutationglobalerrorrate.h>
+#include <igor/Core/EventUtils.h>
 
 using namespace std;
 
+
+
 //ofstream debug_stream("/tmp/debug_stream.csv");
 
-/*Hypermutation_global_errorrate::Hypermutation_global_errorrate(size_t nmer_width , Gene_class learn , Gene_class apply , double starting_flat_value): Error_rate() , mutation_Nmer_size(nmer_width) , learn_on(learn) , apply_to(apply) , ei_nucleotide_contributions((new double [4*nmer_width])) , R(starting_flat_value) , n_v_real(0) , n_j_real(0) , n_d_real(0) ,
+/*Hypermutation_global_errorrate::Hypermutation_global_errorrate(size_t nmer_width , Gene_class_legacy learn , Gene_class_legacy apply , double starting_flat_value): Error_rate() , mutation_Nmer_size(nmer_width) , learn_on(learn) , apply_to(apply) , ei_nucleotide_contributions((new double [4*nmer_width])) , R(starting_flat_value) , n_v_real(0) , n_j_real(0) , n_d_real(0) ,
 		v_gene_nucleotide_coverage_p(NULL) , v_gene_per_nucleotide_error_p(NULL),d_gene_nucleotide_coverage_p(NULL) , d_gene_per_nucleotide_error_p(NULL),j_gene_nucleotide_coverage_p(NULL) , j_gene_per_nucleotide_error_p(NULL),
 		v_gene_nucleotide_coverage_seq_p(NULL) , v_gene_per_nucleotide_error_seq_p(NULL) , d_gene_nucleotide_coverage_seq_p(NULL) , d_gene_per_nucleotide_error_seq_p(NULL) , j_gene_nucleotide_coverage_seq_p(NULL) , j_gene_per_nucleotide_error_seq_p(NULL) ,
 		dj_ins(true) , vd_ins(true) , vj_ins(true) , v_gene(true) , d_gene(true) , j_gene(true) ,
@@ -41,7 +45,7 @@ using namespace std;
 		i(-1) , j(-1) , v_3_del_value_corr(INT16_MAX) , d_5_del_value_corr(INT16_MAX) , d_3_del_value_corr(INT16_MAX) , j_5_del_value_corr(INT16_MAX) , tmp_cov_p(NULL) , tmp_err_p(NULL) , tmp_corr_len(-1) , tmp_len_util(-1) , scenario_new_proba(-1) ,
 		largest_nuc_adress(-1), tmp_int_nt(-1) , Nmer_index(-1){*/
 
-Hypermutation_global_errorrate::Hypermutation_global_errorrate(size_t nmer_width, Gene_class learn, Gene_class apply,
+Hypermutation_global_errorrate::Hypermutation_global_errorrate(size_t nmer_width, Gene_class_legacy learn, Gene_class_legacy apply,
                                                                double starting_flat_value)
     : Error_rate(),
       mutation_Nmer_size(nmer_width),
@@ -125,32 +129,32 @@ Hypermutation_global_errorrate::Hypermutation_global_errorrate(size_t nmer_width
 	}*/
 
     //Initialize booleans
-    if (apply_to == V_gene | apply_to == VJ_genes | apply_to == VD_genes | apply_to == VDJ_genes) {
+    if (apply_to == V_gene_legacy | apply_to == VJ_genes | apply_to == VD_genes | apply_to == VDJ_genes) {
         apply_to_v = true;
     } else
         apply_to_v = false;
 
-    if (apply_to == D_gene | apply_to == DJ_genes | apply_to == VD_genes | apply_to == VDJ_genes) {
+    if (apply_to == D_gene_legacy | apply_to == DJ_genes | apply_to == VD_genes | apply_to == VDJ_genes) {
         apply_to_d = true;
     } else
         apply_to_d = false;
 
-    if (apply_to == J_gene | apply_to == VJ_genes | apply_to == DJ_genes | apply_to == VDJ_genes) {
+    if (apply_to == J_gene_legacy | apply_to == VJ_genes | apply_to == DJ_genes | apply_to == VDJ_genes) {
         apply_to_j = true;
     } else
         apply_to_j = false;
 
-    if (learn_on == V_gene | learn_on == VJ_genes | learn_on == VD_genes | learn_on == VDJ_genes) {
+    if (learn_on == V_gene_legacy | learn_on == VJ_genes | learn_on == VD_genes | learn_on == VDJ_genes) {
         learn_on_v = true;
     } else
         learn_on_v = false;
 
-    if (learn_on == D_gene | learn_on == DJ_genes | learn_on == VD_genes | learn_on == VDJ_genes) {
+    if (learn_on == D_gene_legacy | learn_on == DJ_genes | learn_on == VD_genes | learn_on == VDJ_genes) {
         learn_on_d = true;
     } else
         learn_on_d = false;
 
-    if (learn_on == J_gene | learn_on == VJ_genes | learn_on == DJ_genes | learn_on == VDJ_genes) {
+    if (learn_on == J_gene_legacy | learn_on == VJ_genes | learn_on == DJ_genes | learn_on == VDJ_genes) {
         learn_on_j = true;
     } else
         learn_on_j = false;
@@ -166,7 +170,7 @@ Hypermutation_global_errorrate::Hypermutation_global_errorrate(size_t nmer_width
     output_Nmer_stat = false;
 }
 
-Hypermutation_global_errorrate::Hypermutation_global_errorrate(size_t nmer_width, Gene_class learn, Gene_class apply,
+Hypermutation_global_errorrate::Hypermutation_global_errorrate(size_t nmer_width, Gene_class_legacy learn, Gene_class_legacy apply,
                                                                double starting_flat_value,
                                                                vector<double> ei_contributions)
     : Hypermutation_global_errorrate(nmer_width, learn, apply, starting_flat_value)
@@ -177,20 +181,20 @@ Hypermutation_global_errorrate::Hypermutation_global_errorrate(size_t nmer_width
         }
     } else {
         throw runtime_error("Size of ei contribution vector does not match the expected size in "
-                            "Hypermutation_global_errorrate(size_t,Gene_class,Gene_class,double,std::vector<double>)");
+                            "Hypermutation_global_errorrate(size_t,Gene_class_legacy,Gene_class_legacy,double,std::vector<double>)");
     }
 
     this->update_Nmers_proba(0, 0, 1);
 }
 
-Hypermutation_global_errorrate::Hypermutation_global_errorrate(size_t nmer_width, Gene_class learn, Gene_class apply,
+Hypermutation_global_errorrate::Hypermutation_global_errorrate(size_t nmer_width, Gene_class_legacy learn, Gene_class_legacy apply,
                                                                double starting_flat_value, string filename)
     : Hypermutation_global_errorrate(nmer_width, learn, apply, starting_flat_value)
 {
     this->set_output_Nmer_stream(filename);
 }
 
-Hypermutation_global_errorrate::Hypermutation_global_errorrate(size_t nmer_width, Gene_class learn, Gene_class apply,
+Hypermutation_global_errorrate::Hypermutation_global_errorrate(size_t nmer_width, Gene_class_legacy learn, Gene_class_legacy apply,
                                                                double starting_flat_value,
                                                                vector<double> ei_contributions, string filename)
     : Hypermutation_global_errorrate(nmer_width, learn, apply, starting_flat_value, ei_contributions)
@@ -345,13 +349,12 @@ double Hypermutation_global_errorrate::compute_scenario_error_probability(
         ScenarioContext& scenario,
         ExplorationContext& exploration)
 {
-    // Unpack contexts and delegate to legacy implementation
-    double result = this->compare_sequences_error_prob(
+    (void) model;
+    double result = this->compute_error_probability_impl(
         scenario.scenario_proba,
         query.sequence,
         scenario.constructed_sequences,
         scenario.seq_offsets,
-        model.events_map,
         scenario.mismatches_lists,
         exploration.seq_max_prob_scenario,
         exploration.proba_threshold_factor
@@ -363,10 +366,21 @@ double Hypermutation_global_errorrate::compute_scenario_error_probability(
     return result;
 }
 
+double Hypermutation_global_errorrate::compute_error_probability_impl(
+        double scenario_probability, const string &original_sequence, Seq_type_str_p_map &constructed_sequences,
+        const Seq_offsets_map &seq_offsets,
+        Mismatch_vectors_map &mismatches_lists, double &seq_max_prob_scenario, const double &proba_threshold_factor)
+{
+    static const Events_map empty_map;
+    return this->compare_sequences_error_prob(
+        scenario_probability, original_sequence, constructed_sequences, seq_offsets,
+        empty_map, mismatches_lists, seq_max_prob_scenario, proba_threshold_factor);
+}
+
 double Hypermutation_global_errorrate::compare_sequences_error_prob(
         double scenario_probability, const string &original_sequence, Seq_type_str_p_map &constructed_sequences,
         const Seq_offsets_map &seq_offsets,
-        const unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map,
+        const Events_map &events_map,
         Mismatch_vectors_map &mismatches_lists, double &seq_max_prob_scenario, const double &proba_threshold_factor)
 {
     //TODO Take into account the order of mutations?
@@ -1478,46 +1492,35 @@ void Hypermutation_global_errorrate::increment_base_10_and_4(int &base_10_counte
 }
 
 void Hypermutation_global_errorrate::initialize(
-        const unordered_map<tuple<Event_type, Gene_class, Seq_side>, shared_ptr<Rec_Event>> &events_map)
+        const Events_map &events_map)
 {
     //FIXME look for previous initialization to avoid memory leak
 
     //Initialize booleans for constructed sequences
-    if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, V_gene, Undefined_side)) > 0) {
-        v_gene = true;
-    } else {
-        v_gene = false;
-    }
-    if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, D_gene, Undefined_side)) > 0) {
-        d_gene = true;
-    } else {
-        d_gene = false;
-    }
-    if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, J_gene, Undefined_side)) > 0) {
-        j_gene = true;
-    } else {
-        j_gene = false;
-    }
-    if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(Insertion_t, VJ_genes, Undefined_side)) > 0) {
-        vj_ins = true;
-    } else {
-        vj_ins = false;
-    }
-    if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(Insertion_t, VD_genes, Undefined_side)) > 0) {
-        vd_ins = true;
-    } else {
-        vd_ins = false;
-    }
-    if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(Insertion_t, DJ_genes, Undefined_side)) > 0) {
-        dj_ins = true;
-    } else {
-        dj_ins = false;
+    {
+        shared_ptr<Rec_Event> v_gene_event_base_p;
+        shared_ptr<Rec_Event> d_gene_event_base_p;
+        shared_ptr<Rec_Event> j_gene_event_base_p;
+        v_gene = EventUtils::try_get_event(events_map, GeneChoice_t, V_gene_seq, Undefined_side, v_gene_event_base_p);
+        d_gene = EventUtils::try_get_event(events_map, GeneChoice_t, D_gene_seq, Undefined_side, d_gene_event_base_p);
+        j_gene = EventUtils::try_get_event(events_map, GeneChoice_t, J_gene_seq, Undefined_side, j_gene_event_base_p);
+        vj_ins = EventUtils::has_insertion_seq_type(events_map, VJ_ins_seq);
+        vd_ins = EventUtils::has_insertion_seq_type(events_map, VD_ins_seq);
+        dj_ins = EventUtils::has_insertion_seq_type(events_map, DJ_ins_seq);
+
+        if (v_gene) {
+            v_gene_event_p = dynamic_pointer_cast<Gene_choice>(v_gene_event_base_p);
+        }
+        if (d_gene) {
+            d_gene_event_p = dynamic_pointer_cast<Gene_choice>(d_gene_event_base_p);
+        }
+        if (j_gene) {
+            j_gene_event_p = dynamic_pointer_cast<Gene_choice>(j_gene_event_base_p);
+        }
     }
 
     //Get the right pointers for the V gene
     if (v_gene) {
-        v_gene_event_p = dynamic_pointer_cast<Gene_choice>(
-                events_map.at(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, V_gene, Undefined_side)));
         vgene_offset_p = &v_gene_event_p->alignment_offset_p;
         vgene_real_index_p = &v_gene_event_p->current_realization_index;
 
@@ -1532,16 +1535,16 @@ void Hypermutation_global_errorrate::initialize(
         }
 
         //Get deletion value pointer for V 3' deletions if it exists
-        if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(Deletion_t, V_gene, Three_prime)) != 0) {
-            shared_ptr<const Deletion> v_3_del_event_p = dynamic_pointer_cast<Deletion>(
-                    events_map.at(tuple<Event_type, Gene_class, Seq_side>(Deletion_t, V_gene, Three_prime)));
+        shared_ptr<Rec_Event> v_3_del_event_base_p;
+        if (EventUtils::try_get_event(events_map, Deletion_t, V_gene_seq, Three_prime, v_3_del_event_base_p)) {
+            shared_ptr<const Deletion> v_3_del_event_p = dynamic_pointer_cast<Deletion>(v_3_del_event_base_p);
             v_3_del_value_p = &(v_3_del_event_p->deletion_value);
         } else {
             v_3_del_value_p = &no_del_buffer;
         }
 
     } else {
-        if (learn_on == V_gene | learn_on == VJ_genes | learn_on == VD_genes | learn_on == VDJ_genes) {
+        if (learn_on == V_gene_legacy| learn_on == VJ_genes | learn_on == VD_genes | learn_on == VDJ_genes) {
             cout << "Exception caught during initialization of Hypermutation global error rate" << endl;
             cout << "Exception caught trying to initialize V gene pointers" << endl;
             cout << endl << "throwing exception now..." << endl;
@@ -1551,31 +1554,29 @@ void Hypermutation_global_errorrate::initialize(
 
     //Get the right pointers for the D gene
     if (d_gene) {
-        d_gene_event_p = dynamic_pointer_cast<Gene_choice>(
-                events_map.at(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, D_gene, Undefined_side)));
         dgene_offset_p = &d_gene_event_p->alignment_offset_p;
         dgene_real_index_p = &d_gene_event_p->current_realization_index;
 
         //Get deletion value pointer for D 5' deletions if it exists
-        if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(Deletion_t, D_gene, Five_prime)) != 0) {
-            shared_ptr<const Deletion> d_5_del_event_p = dynamic_pointer_cast<Deletion>(
-                    events_map.at(tuple<Event_type, Gene_class, Seq_side>(Deletion_t, D_gene, Five_prime)));
+        shared_ptr<Rec_Event> d_5_del_event_base_p;
+        if (EventUtils::try_get_event(events_map, Deletion_t, D_gene_seq, Five_prime, d_5_del_event_base_p)) {
+            shared_ptr<const Deletion> d_5_del_event_p = dynamic_pointer_cast<Deletion>(d_5_del_event_base_p);
             d_5_del_value_p = &(d_5_del_event_p->deletion_value);
         } else {
             d_5_del_value_p = &no_del_buffer;
         }
 
         //Get deletion value pointer for D 3' deletions if it exists
-        if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(Deletion_t, D_gene, Three_prime)) != 0) {
-            shared_ptr<const Deletion> d_3_del_event_p = dynamic_pointer_cast<Deletion>(
-                    events_map.at(tuple<Event_type, Gene_class, Seq_side>(Deletion_t, D_gene, Three_prime)));
+        shared_ptr<Rec_Event> d_3_del_event_base_p;
+        if (EventUtils::try_get_event(events_map, Deletion_t, D_gene_seq, Three_prime, d_3_del_event_base_p)) {
+            shared_ptr<const Deletion> d_3_del_event_p = dynamic_pointer_cast<Deletion>(d_3_del_event_base_p);
             d_3_del_value_p = &(d_3_del_event_p->deletion_value);
         } else {
             d_3_del_value_p = &no_del_buffer;
         }
 
     } else {
-        if (learn_on == D_gene | learn_on == DJ_genes | learn_on == VD_genes | learn_on == VDJ_genes) {
+        if (learn_on == D_gene_legacy | learn_on == DJ_genes | learn_on == VD_genes | learn_on == VDJ_genes) {
             cout << "Exception caught during initialization of Hypermutation global error rate" << endl;
             cout << "Exception caught trying to initialize D gene pointers" << endl;
             cout << endl << "throwing exception now..." << endl;
@@ -1585,8 +1586,6 @@ void Hypermutation_global_errorrate::initialize(
 
     //Get the right pointers for the J gene
     if (j_gene) {
-        j_gene_event_p = dynamic_pointer_cast<Gene_choice>(
-                events_map.at(tuple<Event_type, Gene_class, Seq_side>(GeneChoice_t, J_gene, Undefined_side)));
         jgene_offset_p = &j_gene_event_p->alignment_offset_p;
         jgene_real_index_p = &j_gene_event_p->current_realization_index;
 
@@ -1601,15 +1600,15 @@ void Hypermutation_global_errorrate::initialize(
         }
 
         //Get deletion value pointer for J 5' deletions if it exists
-        if (events_map.count(tuple<Event_type, Gene_class, Seq_side>(Deletion_t, J_gene, Five_prime)) != 0) {
-            shared_ptr<const Deletion> j_5_del_event_p = dynamic_pointer_cast<Deletion>(
-                    events_map.at(tuple<Event_type, Gene_class, Seq_side>(Deletion_t, J_gene, Five_prime)));
+        shared_ptr<Rec_Event> j_5_del_event_base_p;
+        if (EventUtils::try_get_event(events_map, Deletion_t, J_gene_seq, Five_prime, j_5_del_event_base_p)) {
+            shared_ptr<const Deletion> j_5_del_event_p = dynamic_pointer_cast<Deletion>(j_5_del_event_base_p);
             j_5_del_value_p = &(j_5_del_event_p->deletion_value);
         } else {
             j_5_del_value_p = &no_del_buffer;
         }
     } else {
-        if (learn_on == J_gene | learn_on == DJ_genes | learn_on == VJ_genes | learn_on == VDJ_genes) {
+        if (learn_on == J_gene_legacy | learn_on == DJ_genes | learn_on == VJ_genes | learn_on == VDJ_genes) {
             cout << "Exception caught during initialization of Hypermutation global error rate" << endl;
             cout << "Exception caught trying to initialize J gene pointers" << endl;
             cout << endl << "throwing exception now..." << endl;
