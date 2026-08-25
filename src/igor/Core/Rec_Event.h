@@ -150,22 +150,22 @@ public:
             std::shared_ptr<Next_event_ptr> &, Marginal_array_p &, const Marginal_array_p &,
             const std::unordered_map<Gene_class, std::vector<Alignment_data>> &, Seq_type_str_p_map &,
             Seq_offsets_map &, std::shared_ptr<Error_rate> &, std::map<size_t, std::shared_ptr<Counter>> &,
-            const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> &,
+            const Events_map &,
             Safety_bool_map &, Mismatch_vectors_map &, double &, double &);
 
     /**
      * @brief Context-based iterate() interface
-     * 
+     *
      * New signature using 5 context objects instead of 19 individual parameters.
      * Subclasses implement semantic iteration logic using these contexts.
-     * 
+     *
      * Contexts encapsulate:
      * - QuerySequenceContext: Input sequence and alignments
      * - ModelContext: Read-only model configuration
      * - ScenarioContext: Per-path mutable state
      * - ExplorationContext: Tree exploration policy
      * - AccumulationContext: Result accumulation
-     * 
+     *
      * This overload exists alongside the legacy signature during transition.
      */
     virtual void
@@ -186,43 +186,63 @@ public:
     };
     const int get_priority() const { return priority; };
     const Rec_Event_name get_name() const { return name; };
+    /// Returns the v2.0-format event name that includes seq_type between
+    /// gene_class and seq_side.  Used in @Edges sections of v2.0 files.
+    /// Falls back to get_name() when seq_type is empty.
+    Rec_Event_name get_v2_name() const;
+    /// Returns the legacy-format event name (without seq_type), even if the
+    /// internal name has been updated to include seq_type.
+    Rec_Event_name get_legacy_name() const;
     const std::string get_nickname() const { return nickname; };
     void set_nickname(std::string name) { nickname = name; }
     Event_type get_type() const { return this->type; }
     int get_len_max() const { return this->len_max; };
     int get_len_min() const { return this->len_min; };
+    const Seq_type_String get_seq_type() const { return seq_type; };
+    void set_seq_type(const Seq_type_String &st) { seq_type = st; }
+    void set_event_side(Seq_side s) { event_side = s; }
 
     bool operator==(const Rec_Event &) const;
-    void update_event_name();
+    virtual void update_event_name();
     virtual std::queue<int> draw_random_realization(
             const Marginal_array_p &, std::unordered_map<Rec_Event_name, int> &,
             const std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &,
             std::unordered_map<Seq_type, std::string> &, std::mt19937_64 &) const = 0;
     virtual void write2txt(std::ofstream &) = 0;
+    virtual void write2txt_legacy(std::ofstream &) = 0;
+    virtual void write2txt_v2(std::ofstream &) = 0;
     virtual void ind_normalize(Marginal_array_p &, size_t) const;
     virtual void initialize_event(
             std::unordered_set<Rec_Event_name> &,
-            const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> &,
+            const Events_map &,
             const std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &,
             Downstream_scenario_proba_bound_map &, Seq_type_str_p_map &, Safety_bool_map &, std::shared_ptr<Error_rate>,
             Mismatch_vectors_map &, Seq_offsets_map &, Index_map &);
+
+private:
+    void initialize_event_common(
+            std::unordered_set<Rec_Event_name> &,
+            const std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &,
+            Downstream_scenario_proba_bound_map &, Index_map &);
+
+public:
     virtual void initialize_crude_scenario_proba_bound(
             double &, std::forward_list<double *> &,
-            const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>> &);
+            const Events_map &);
     virtual void add_to_marginals(long double, Marginal_array_p &) const = 0;
     virtual void set_crude_upper_bound_proba(size_t, size_t, Marginal_array_p &);
     double iterate_common(int realization_index, int base_index,
                           Index_map &base_index_map,
                           const Marginal_array_p &model_parameters);
-    
+
     /**
      * @brief Update parent realization tracking for marginal indexing
-     * 
+     *
      * Encapsulates the index_map update logic from iterate_common().
-     * 
+     *
      * Updates index_map based on this event's memory_and_offsets structure,
      * which tracks dependencies on parent event realizations.
-     * 
+     *
      * @param realization_index Current realization index
      * @param index_map Index map to update (from ExplorationContext)
      */
@@ -236,7 +256,7 @@ public:
                                std::get<1>(*jiter));
         }
     }
-    
+
     void set_upper_bound_proba(double);
     double get_upper_bound_proba() const { return event_upper_bound_proba; };
     virtual void update_event_internal_probas(const Marginal_array_p &,
@@ -281,6 +301,7 @@ protected:
     Seq_side event_side;
     Rec_Event_name name; //Construct the name in a smart way so that it is unique
     std::string nickname;
+    Seq_type_String seq_type; // Seq_type for v2.0 format (e.g., "V_gene_seq", "VD_ins_seq")
     int len_min;
     int len_max;
     Event_type type;
@@ -301,8 +322,8 @@ protected:
 
     int compare_sequences(std::string, std::string); //TODO should probably not be a member functino
     void add_realization(const Event_realization &);
-    //inline void iterate_wrap_up(double& , double& , const std::string& , const std::string& , Index_map& , const std::unordered_map<Rec_Event_name,std::vector<std::pair<const Rec_Event*,int>>>& , std::queue<Rec_Event*>  , Marginal_array_p&  , const Marginal_array_p& , const std::unordered_map<Gene_class , std::vector<Alignment_data>>& , Seq_type_str_p_map& , Seq_offsets_map& ,std::shared_ptr<Error_rate>&,const std::unordered_map<std::tuple<Event_type,Gene_class,Seq_side>,const Rec_Event*>&  , Safety_bool_map& , Mismatch_vectors_map& , double& , double&);
-    
+    //inline void iterate_wrap_up(double& , double& , const std::string& , const std::string& , Index_map& , const std::unordered_map<Rec_Event_name,std::vector<std::pair<const Rec_Event*,int>>>& , std::queue<Rec_Event*>  , Marginal_array_p&  , const Marginal_array_p& , const std::unordered_map<Gene_class_legacy , std::vector<Alignment_data>>& , Seq_type_str_p_map& , Seq_offsets_map& ,std::shared_ptr<Error_rate>&,const std::unordered_map<std::tuple<Event_type,Gene_class_legacy,Seq_side>,const Rec_Event*>&  , Safety_bool_map& , Mismatch_vectors_map& , double& , double&);
+
     /**
      * @deprecated use iterate_wrap_up(
             QuerySequenceContext&,
@@ -323,14 +344,13 @@ protected:
             const std::unordered_map<Gene_class, std::vector<Alignment_data>> &allowed_realizations,
             Seq_type_str_p_map &constructed_sequences, Seq_offsets_map &seq_offsets,
             std::shared_ptr<Error_rate> &error_rate_p, std::map<size_t, std::shared_ptr<Counter>> &counters_list,
-            const std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>>
-                    &events_map,
+            const Events_map &events_map,
             Safety_bool_map &safety_set, Mismatch_vectors_map &mismatches_lists, double &seq_max_prob_scenario,
             double &proba_threshold_factor);
 
     /**
      * @brief Context-based iterate_wrap_up() interface
-     * 
+     *
      * New signature using 5 context objects instead of 18 individual parameters.
      * Called at leaf nodes to accumulate marginals and update error rate.
      */

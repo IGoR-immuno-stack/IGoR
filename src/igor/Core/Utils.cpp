@@ -30,16 +30,16 @@
 using namespace std;
 
 /////Utilitaries
-ostream &operator<<(ostream &os, Gene_class gc)
+ostream &operator<<(ostream &os, Gene_class_legacy gc)
 {
     switch (gc) {
-    case V_gene:
+    case V_gene_legacy:
         os << "V_gene";
         break;
     case VD_genes:
         os << "VD_genes";
         break;
-    case D_gene:
+    case D_gene_legacy:
         os << "D_gene";
         break;
     case DJ_genes:
@@ -48,18 +48,18 @@ ostream &operator<<(ostream &os, Gene_class gc)
     case VJ_genes:
         os << "VJ_gene";
         break;
-    case J_gene:
+    case J_gene_legacy:
         os << "J_gene";
         break;
     case VDJ_genes:
         os << "VDJ_genes";
         break;
-    case Undefined_gene:
+    case Undefined_gene_legacy:
         os << "Undefined_gene";
         break;
 
     default:
-        throw invalid_argument("Unknown Gene_class in operator<< ");
+        throw invalid_argument("Unknown Gene_class_legacy in operator<< ");
     }
     return os;
 }
@@ -83,17 +83,17 @@ ostream &operator<<(ostream &os, Seq_side ss)
     return os;
 }
 
-string operator+(const string &str, Gene_class gc)
+string operator+(const string &str, Gene_class_legacy gc)
 {
     string next_str;
     switch (gc) {
-    case V_gene:
+    case V_gene_legacy:
         next_str = "V_gene";
         break;
     case VD_genes:
         next_str = "VD_genes";
         break;
-    case D_gene:
+    case D_gene_legacy:
         next_str = "D_gene";
         break;
     case DJ_genes:
@@ -102,13 +102,13 @@ string operator+(const string &str, Gene_class gc)
     case VJ_genes:
         next_str = "VJ_gene";
         break;
-    case J_gene:
+    case J_gene_legacy:
         next_str = "J_gene";
         break;
     case VDJ_genes:
         next_str = "VDJ_genes";
         break;
-    case Undefined_gene:
+    case Undefined_gene_legacy:
         next_str = "Undefined_gene";
         break;
     }
@@ -153,62 +153,128 @@ string operator+(const string &str, Event_type et)
 }
 
 /**
- * \brief Creates a Gene_class object from a string.
+ * \brief Creates a Gene_class_legacy object from a string.
  * \author Q.Marcou
  * \version 1.0.0
  */
-Gene_class str2GeneClass(const string &str)
+Gene_class_legacy str2GeneClass(const string &str)
 {
-    Gene_class gene_class;
+    Gene_class_legacy gene_class;
     if (str == "V_gene") {
-        gene_class = V_gene;
+        gene_class = V_gene_legacy;
     } else if (str == "VD_genes") {
         gene_class = VD_genes;
     } else if (str == "D_gene") {
-        gene_class = D_gene;
+        gene_class = D_gene_legacy;
     } else if (str == "DJ_gene") {
         gene_class = DJ_genes;
     } else if (str == "VJ_gene") {
         gene_class = VJ_genes;
     } else if (str == "J_gene") {
-        gene_class = J_gene;
+        gene_class = J_gene_legacy;
     } else if (str == "VDJ_genes") {
         gene_class = VDJ_genes;
     } else if (str == "Undefined_gene") {
-        gene_class = Undefined_gene;
+        gene_class = Undefined_gene_legacy;
     } else {
-        throw runtime_error("Unknown Gene_class in str2GeneClass");
+        throw runtime_error("Unknown Gene_class_legacy in str2GeneClass");
     }
     return gene_class;
 }
 
 /**
- * \brief Overloads std::to_string to convert Gene_class object to string.
+ * \brief Overloads std::to_string to convert Gene_class_legacy object to string.
  * \author Q.Marcou
  * \version 1.2.0
  */
-string to_string(const Gene_class gc)
+string to_string(const Gene_class_legacy gc)
 {
     switch (gc) {
-    case V_gene:
+    case V_gene_legacy:
         return "V_gene";
     case VD_genes:
         return "VD_genes";
-    case D_gene:
+    case D_gene_legacy:
         return "D_gene";
     case DJ_genes:
         return "DJ_gene";
     case VJ_genes:
         return "VJ_gene";
-    case J_gene:
+    case J_gene_legacy:
         return "J_gene";
     case VDJ_genes:
         return "VDJ_genes";
-    case Undefined_gene:
+    case Undefined_gene_legacy:
         return "Undefined_gene";
 
     default:
-        throw invalid_argument("Unknown Gene_class in to_string(const Gene_class).");
+        throw invalid_argument("Unknown Gene_class_legacy in to_string(const Gene_class_legacy).");
+    }
+}
+
+Gene_class str2GeneClassNew(const string &str)
+{
+    if (str == "V_gene") return V_gene;
+    if (str == "D_gene") return D_gene;
+    if (str == "J_gene") return J_gene;
+    if (str == "Undefined_gene") return Undefined_gene;
+    throw runtime_error("Unknown Gene_class in str2GeneClassNew: " + str);
+}
+
+string to_string(const Gene_class gc)
+{
+    switch (gc) {
+    case V_gene:       return "V_gene";
+    case D_gene:       return "D_gene";
+    case J_gene:       return "J_gene";
+    case Undefined_gene: return "Undefined_gene";
+    default:
+        throw invalid_argument("Unknown Gene_class in to_string(Gene_class).");
+    }
+}
+
+ostream &operator<<(ostream &os, Gene_class gc)
+{
+    os << to_string(gc);
+    return os;
+}
+
+string operator+(const string &str, Gene_class gc)
+{
+    return str + to_string(gc);
+}
+
+Gene_class gene_class_legacy_to_new(Gene_class_legacy gc)
+{
+    switch (gc) {
+    case V_gene_legacy: return V_gene;
+    case D_gene_legacy: return D_gene;
+    case J_gene_legacy: return J_gene;
+    default:            return Undefined_gene;
+    }
+}
+
+Seq_type str2SeqType(const string &str)
+{
+    if (str == "V_gene_seq") return V_gene_seq;
+    if (str == "VD_ins_seq") return VD_ins_seq;
+    if (str == "D_gene_seq") return D_gene_seq;
+    if (str == "DJ_ins_seq") return DJ_ins_seq;
+    if (str == "J_gene_seq") return J_gene_seq;
+    if (str == "VJ_ins_seq") return VJ_ins_seq;
+    throw runtime_error("Unknown Seq_type string in str2SeqType: " + str);
+}
+
+string to_string(const Seq_type st)
+{
+    switch (st) {
+    case V_gene_seq: return "V_gene_seq";
+    case VD_ins_seq: return "VD_ins_seq";
+    case D_gene_seq: return "D_gene_seq";
+    case DJ_ins_seq: return "DJ_ins_seq";
+    case J_gene_seq: return "J_gene_seq";
+    case VJ_ins_seq: return "VJ_ins_seq";
+    default: throw invalid_argument("Unknown Seq_type in to_string(Seq_type)");
     }
 }
 

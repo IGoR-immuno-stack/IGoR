@@ -1,0 +1,7 @@
+@Event_list
+#GeneChoice;V_gene;Undefined_side;7;v_choice
+%V1;ATCG;0
+@Edges
+@ErrorRate
+#SingleErrorRate
+0.001

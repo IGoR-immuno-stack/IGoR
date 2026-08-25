@@ -24,6 +24,8 @@
  */
 
 #include <igor/Core/FastGenerator.h>
+#include <igor/Core/gene_to_seqtype_migr.h>
+#include <igor/Core/EventUtils.h>
 #include <igor/Core/Genechoice.h>
 #include <igor/Core/Insertion.h>
 #include <igor/Core/Deletion.h>
@@ -65,7 +67,7 @@ void FastGenerator::initialize(const Model_Parms &model_parms, const Model_margi
     // Check for D gene
     has_d_gene_ = false;
     auto events_map = model_parms.get_events_map();
-    if (events_map.count(std::make_tuple(GeneChoice_t, D_gene, Undefined_side)) > 0) {
+    if (events_map.count(std::make_tuple(GeneChoice_t, Seq_type_String("D_gene_seq"), Undefined_side)) > 0) {
         has_d_gene_ = true;
     }
 
@@ -83,6 +85,7 @@ void FastGenerator::initialize(const Model_Parms &model_parms, const Model_margi
         sampler.gene_class = event->get_class();
         sampler.side = event->get_side();
         sampler.name = event->get_name();
+        sampler.seq_type = event->get_seq_type();
         sampler.event_index = event_idx;
         sampler.num_realizations = event->size();
 
@@ -280,17 +283,7 @@ void FastGenerator::apply_gene_choice(const FastEventSampler &sampler, size_t ch
                                       std::unordered_map<Seq_type, std::string> &sequences) const
 {
     Seq_type seq_type;
-    switch (sampler.gene_class) {
-    case V_gene:
-        seq_type = V_gene_seq;
-        break;
-    case D_gene:
-        seq_type = D_gene_seq;
-        break;
-    case J_gene:
-        seq_type = J_gene_seq;
-        break;
-    default:
+    if (!igor::migration::try_gene_class_to_gene_seq_type(sampler.gene_class, seq_type)) {
         return;
     }
 
@@ -309,17 +302,7 @@ void FastGenerator::apply_deletion(const FastEventSampler &sampler, size_t del_i
     int num_del = sampler.deletion_idx_to_value[del_idx];
 
     Seq_type seq_type;
-    switch (sampler.gene_class) {
-    case V_gene:
-        seq_type = V_gene_seq;
-        break;
-    case D_gene:
-        seq_type = D_gene_seq;
-        break;
-    case J_gene:
-        seq_type = J_gene_seq;
-        break;
-    default:
+    if (!igor::migration::try_gene_class_to_gene_seq_type(sampler.gene_class, seq_type)) {
         return;
     }
 
@@ -380,18 +363,8 @@ void FastGenerator::sample_event(const FastEventSampler &sampler, std::mt19937_6
     case Insertion_t: {
         // For insertion, sampled index directly gives insertion length
         // Create placeholder for dinucleotide model
-        Seq_type seq_type;
-        switch (sampler.gene_class) {
-        case VD_genes:
-            seq_type = VD_ins_seq;
-            break;
-        case DJ_genes:
-            seq_type = DJ_ins_seq;
-            break;
-        case VJ_genes:
-            seq_type = VJ_ins_seq;
-            break;
-        default:
+        Seq_type seq_type = VD_ins_seq;
+        if (!igor::migration::try_insertion_gene_class_to_seq_type(sampler.gene_class, seq_type)) {
             return;
         }
         sequences[seq_type] = std::string(choice_idx, 'I');
@@ -434,8 +407,9 @@ void FastGenerator::sample_dinucl_markov(const FastEventSampler &sampler, std::m
         return 0;
     };
 
-    // Process based on gene class
-    if (sampler.gene_class == VD_genes || sampler.gene_class == VDJ_genes) {
+    // Process based on seq_type string
+    const Seq_type_String &st = sampler.seq_type;
+    if (st == "VD_ins_seq") {
         std::string &ins_seq = sequences[VD_ins_seq];
         if (!ins_seq.empty()) {
             int prev_nt = get_last_nt(sequences[V_gene_seq]);
@@ -450,7 +424,7 @@ void FastGenerator::sample_dinucl_markov(const FastEventSampler &sampler, std::m
         }
     }
 
-    if (sampler.gene_class == DJ_genes || sampler.gene_class == VDJ_genes) {
+    if (st == "DJ_ins_seq") {
         std::string &ins_seq = sequences[DJ_ins_seq];
         if (!ins_seq.empty()) {
             // DJ insertions are generated from J side going towards D
@@ -467,7 +441,7 @@ void FastGenerator::sample_dinucl_markov(const FastEventSampler &sampler, std::m
         }
     }
 
-    if (sampler.gene_class == VJ_genes) {
+    if (st == "VJ_ins_seq") {
         std::string &ins_seq = sequences[VJ_ins_seq];
         if (!ins_seq.empty()) {
             int prev_nt = get_last_nt(sequences[V_gene_seq]);
