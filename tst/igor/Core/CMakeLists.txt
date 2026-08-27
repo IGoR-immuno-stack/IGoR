@@ -8,6 +8,7 @@ set(CORE_TEST_SOURCES
     test_EventUtils.cpp
     test_fast_sampling.cpp
     test_generation.cpp
+    test_genetic_code.cpp
     test_inference.cpp
     test_memory_map.cpp
     test_sanity.cpp

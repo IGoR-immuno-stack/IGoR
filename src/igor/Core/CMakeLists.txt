@@ -44,11 +44,13 @@ target_sources(${PROJECT_NAME}
     FastSampling.cpp
     GenModel.cpp
     Genechoice.cpp
+    GeneticCode.cpp
     gene_to_seqtype_migr.cpp
     HypermutationfullNmererrorrate.cpp
     Hypermutationglobalerrorrate.cpp
     Insertion.cpp
     IntStr.cpp
+    JournaledQuery.cpp
     Model_Parms.cpp
     Model_marginals.cpp
     Pgencounter.cpp
@@ -78,11 +80,13 @@ target_sources(${PROJECT_NAME}
       FastSampling.h
       GenModel.h
       Genechoice.h
+      GeneticCode.h
       gene_to_seqtype_migr.h
       HypermutationfullNmererrorrate.h
       Hypermutationglobalerrorrate.h
       Insertion.h
       IntStr.h
+      JournaledQuery.h
       ModelContext.h
       Model_Parms.h
       Model_marginals.h
