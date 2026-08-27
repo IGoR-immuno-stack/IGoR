@@ -262,6 +262,10 @@ bool GenModel::infer_model(
             Safety_bool_map safety_set(3);
             Seq_type_str_p_map constructed_sequences(6); //6 is the number of outcomes for Seq_type
             Mismatch_vectors_map mismatches_lists(6);
+            // Conservative pruning track. For exact NT queries it is identical to
+            // mismatches_lists; it exists so that IUPAC/motif queries can prune on the
+            // mismatch count that no choice of query branch can reduce.
+            Pruning_mismatch_floor_map pruning_mismatch_floor(6);
             Seq_offsets_map seq_offsets(6, 3);
 
             //Initialize downstream probas to 1
@@ -456,7 +460,8 @@ bool GenModel::infer_model(
                         proba_threshold_factor,      // proba_threshold_factor
                         index_mapp,                  // index_map
                         next_event_ptr_arr,          // next_event_ptr_arr
-                        safety_set                   // safety_set
+                        safety_set,                  // safety_set
+                        pruning_mismatch_floor       // pruning_mismatch_floor
                     );
 
                     AccumulationContext accumulation(

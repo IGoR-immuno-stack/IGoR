@@ -48,6 +48,23 @@ struct ExplorationContext {
     Safety_bool_map& safety_set;
 
     /**
+     * @brief NT-floor mismatch positions per Seq_type (conservative pruning bound)
+     *
+     * floor[seg] holds the positions where the genomic nucleotide is incompatible
+     * with EVERY nucleotide the query allows at that position, i.e.
+     * !comp_nt_int(gene_nt, query.int_sequence[p]).
+     *
+     * Invariant: floor[seg] is a subset of mismatches_lists[seg] (the upper-bound
+     * track in ScenarioContext). For exact NT queries the two tracks are identical,
+     * so this is a no-op for standard inference.
+     *
+     * Consumed by the downstream probability bound: pruning must use the count that
+     * cannot be reduced by any choice of query branch, otherwise scenarios that do
+     * contribute to the result can be discarded.
+     */
+    Pruning_mismatch_floor_map& pruning_mismatch_floor;
+
+    /**
      * @brief Constructor
      */
     ExplorationContext(
@@ -56,13 +73,15 @@ struct ExplorationContext {
         double proba_threshold_factor_,
         Index_map& index_map_,
         std::shared_ptr<Next_event_ptr>& next_event_ptr_arr_,
-        Safety_bool_map& safety_set_
+        Safety_bool_map& safety_set_,
+        Pruning_mismatch_floor_map& pruning_mismatch_floor_
     ) : downstream_proba_map(downstream_proba_map_),
         seq_max_prob_scenario(seq_max_prob_scenario_),
         proba_threshold_factor(proba_threshold_factor_),
         index_map(index_map_),
         next_event_ptr_arr(next_event_ptr_arr_),
-        safety_set(safety_set_)
+        safety_set(safety_set_),
+        pruning_mismatch_floor(pruning_mismatch_floor_)
     {}
 
     // Prevent copying

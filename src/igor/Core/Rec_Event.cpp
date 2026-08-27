@@ -177,14 +177,22 @@ void Rec_Event::iterate(double &scenario_proba, Downstream_scenario_proba_bound_
         mismatches_lists
     );
 
-    // Exploration policy context
+    // Exploration policy context.
+    // The legacy signature has no floor track. That is correct rather than a gap:
+    // this adapter only ever serves exact NT queries, for which the floor and the
+    // upper-bound mismatch tracks are identical. A local map keeps the deprecated
+    // signature unchanged instead of threading a parameter through every legacy
+    // iterate() override.
+    Pruning_mismatch_floor_map legacy_pruning_mismatch_floor(6);
+
     ExplorationContext exploration(
         downstream_proba_map,
         seq_max_prob_scenario,
         proba_threshold_factor,
         base_index_map,
         next_event_ptr_arr,
-        safety_set
+        safety_set,
+        legacy_pruning_mismatch_floor
     );
 
     // Accumulation context
