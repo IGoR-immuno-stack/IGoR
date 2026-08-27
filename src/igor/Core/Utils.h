@@ -27,6 +27,7 @@
 #pragma once
 
 #include <cassert>
+#include <cstdint>
 
 #include <fstream>
 #include <vector>
@@ -100,6 +101,21 @@ inline uint32_t portable_gethostid()
 }
 
 #endif
+
+#if defined(_MSC_VER)
+#  include <intrin.h>
+#endif
+
+// Cross-platform population count (number of set bits).
+// Used by the genetic-code utilities (GeneticCode.h) to size CodonMask sets.
+inline int popcountll(uint64_t x)
+{
+#if defined(_MSC_VER)
+    return __popcnt64(x);
+#else
+    return __builtin_popcountll(x);
+#endif
+}
 
 // Force a function to be inlined at every call site, even at optimization levels where the
 // compiler's own heuristics would otherwise leave it as a real call (e.g. -O2 on a function
@@ -530,8 +546,30 @@ public:
     void set_value(const K &key, const V &value, int memory_layer)
     {
         assert(key <= range - 1);
-        //Cannot fill memory layer without filling the ones downstream
+        //Cannot fill memory layer without filling the ones downstream. A key whose
+        //layers have never been written (memory_layer_ptr[key] == -1) may therefore
+        //only be written at layer 0. Writing it at a higher layer means the caller is
+        //using a layer index that belongs to some other map's sequence, which this
+        //assertion exists to catch -- do not relax it.
         assert(memory_layer <= (memory_layer_ptr[key] + 1));
+        //Grow the buffer if this layer lies beyond what is currently allocated.
+        //request_memory_layer() grows max_layer as it goes, so a map driven through it
+        //never gets here. A map driven purely by set_value() walking 0,1,2,... does:
+        //the constructor allocates only layer 0, and set_value() has no other growth
+        //path (the ones in at()/operator[] are not on this route). Without this, such
+        //a write lands past the end of value_ptr_arr.
+        if (memory_layer >= max_layer) {
+            int new_max_layer = memory_layer + 1;
+            V *new_value_ptr = new V[range * (new_max_layer + 1)];
+            for (size_t i = 0; i != range; ++i) {
+                for (size_t j = 0; j != static_cast<size_t>(max_layer); ++j) {
+                    (*(new_value_ptr + i + j * range)) = (*(value_ptr_arr + i + j * range));
+                }
+            }
+            delete[] value_ptr_arr;
+            value_ptr_arr = new_value_ptr;
+            max_layer = new_max_layer;
+        }
         (*(value_ptr_arr + key + memory_layer * range)) = value;
         //Setting a value at a given layer invalidate upper layers
         memory_layer_ptr[key] = memory_layer;
