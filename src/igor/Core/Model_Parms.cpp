@@ -94,6 +94,10 @@ Model_Parms::Model_Parms(const Model_Parms &other)
         this->edges.emplace((*iter).first, adjacency_list);
     }
     this->error_rate = other.error_rate->copy();
+    //The registry holds no owning pointers, so a plain copy is a deep copy.
+    //It must be carried over: inference deep-copies Model_Parms once per OpenMP
+    //thread, and every consumer of the seq_type ordering reads it from that copy.
+    this->seq_type_registry = other.seq_type_registry;
 }
 
 /*

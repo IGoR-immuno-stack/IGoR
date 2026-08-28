@@ -27,6 +27,7 @@
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
+#include <optional>
 #include <string>
 
 // Tests tagged [tandem_d][!mayfail] describe the intended tandem-D behaviour and are
@@ -252,6 +253,54 @@ TEST_CASE("SeqTypeRegistry inferred as VDJ order from legacy format", "[model_fo
     REQUIRE(registry.get_ordered_types() == expected);
 }
 
+// Model_Parms is deep-copied once per OpenMP thread in the inference loop, and the
+// scenario maps are built from that copy. A copy that drops seq_type_registry leaves
+// every worker with an empty ordering -- and silently downgrades write_model_parms()
+// to the legacy format, since requires_extended_format() returns false on an empty
+// registry.
+TEST_CASE("Model_Parms copy constructor preserves the seq_type registry",
+          "[model_format][seq_type_registry][copy]")
+{
+    SECTION("explicit v2 ordering")
+    {
+        Model_Parms original;
+        REQUIRE_NOTHROW(original.read_model_parms(TEST_DATA_DIR + "test_v2_model_parms.txt"));
+        REQUIRE_FALSE(original.get_seq_type_registry().get_ordered_types().empty());
+
+        Model_Parms copy(original);
+        CHECK(copy.get_seq_type_registry().get_ordered_types()
+              == original.get_seq_type_registry().get_ordered_types());
+    }
+
+    SECTION("ordering inferred from a legacy VDJ file")
+    {
+        Model_Parms original;
+        REQUIRE_NOTHROW(original.read_model_parms(TEST_DATA_DIR + "test_legacy_vdj_model_parms.txt"));
+
+        Model_Parms copy(original);
+        const std::vector<std::string> expected_vdj = {
+            "V_gene_seq", "VD_ins_seq", "D_gene_seq", "DJ_ins_seq", "J_gene_seq"
+        };
+        CHECK(copy.get_seq_type_registry().get_ordered_types() == expected_vdj);
+
+        // Neighbour lookups exercise the registry's name->index map, not just the
+        // ordered vector, so this also catches a partial copy.
+        const SeqTypeRegistry &copied = copy.get_seq_type_registry();
+        CHECK(copied.index_of("D_gene_seq") == 2);
+        CHECK(copied.get_left_neighbor("D_gene_seq") == std::optional<std::string>("VD_ins_seq"));
+        CHECK(copied.get_right_neighbor("D_gene_seq") == std::optional<std::string>("DJ_ins_seq"));
+    }
+
+    SECTION("copy keeps the same write_model_parms format selection")
+    {
+        Model_Parms original;
+        REQUIRE_NOTHROW(original.read_model_parms(TEST_DATA_DIR + "test_v2_model_parms.txt"));
+
+        Model_Parms copy(original);
+        CHECK(copy.requires_extended_format() == original.requires_extended_format());
+    }
+}
+
 // ── Gene_class_legacy validation in v2 format ──────────────────────────────────────
 
 // In v2.0 a GeneChoice event may only carry an alignment-purpose gene_class
@@ -364,7 +413,7 @@ struct EventSummary {
     std::string nickname;
     Event_type  type;
     Gene_class  gene_class;  // only meaningful for GeneChoice
-    std::string seq_type;
+    Seq_type_String seq_type;
     Seq_side    side;
     int         num_realizations;
 };
