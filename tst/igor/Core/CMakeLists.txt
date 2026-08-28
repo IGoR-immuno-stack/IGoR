@@ -11,6 +11,7 @@ set(CORE_TEST_SOURCES
     test_genetic_code.cpp
     test_inference.cpp
     test_memory_map.cpp
+    test_model_format_v2.cpp
     test_sanity.cpp
     test_utils.cpp
     AlignerTestUtils.cpp
