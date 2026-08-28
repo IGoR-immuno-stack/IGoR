@@ -110,50 +110,6 @@ public:
     virtual int size() const;
     //TODO get rid of deletion map and chosen gene map
     /**
-	 * \brief Evaluate all Event_Realization of a RecEvent for a given sequence
-	 * \author Q.Marcou
-	 * \version 1.0
-	 * \param [in,out] scenario_proba Probability of the currently explored (incomplete) scenario
-	 * \param [in,out] downstream_proba_map
-	 * \param [in] sequence The studied sequence in nucleotide code
-	 * \param [in] int_sequence The studied sequence in integer code
-	 * \param [in,out] base_index_map Dynamic map recording where probabilities should be read on the marginals.
-	 * \param [in] offset_map Tells the event by how much indices from the children events should be modified
-	 * \param [in] next_event_ptr_arr Indicates the next event to call iterate on
-	 * \param [in] updated_marginals_point Summary marginals on which complete scenario posteriors are recorded
-	 * \param [in] model_parameters_point Current recombination probability distribution
-	 * \param [in] allowed_realizations The set of genomic templates alignment
-	 * \param [in,out] constructed_sequences Map containing the (incomplete) scenario's resulting sequence
-	 * \param [in,out] seq_offsets Map containing the 3' and 5' offsets of each scenario sequence piece
-	 * \param [in] error_rate_p Pointer to the error model object
-	 * \param [in] counters_list The list of Counter to be counted
-	 * \param [in] events_map A map containing all events contained in the Model_parms, accessible through their type, gene class and side.
-	 * \param [in,out] safety_set A map indicating whether checks on offsets overlap should be performed
-	 * \param [in,out] mismatches_lists A map containing the (incomplete) scenario mismatches
-	 * \param [in] seq_max_prob_scenario Most likely scenario's probability for the considered sequence
-	 * \param [in] proba_threshold_factor Threshold on probability ratio between most likely scenario and explored scenario
-	 *
-	 *
-	 * \return void
-	 *
-	 *	The iterate method is the heart of IGoR's scenario exploration. Model_Parms define an order in which the RecEvent should be processed.
-	 *	Upon call of iterate all EventRealization of the RecEvent are assessed and for each possible realization the iterate method is called recursively for the next event.
-	 *	Inside the iterate method a filtering on too improbable realizations is performed (tree prunning) using the downstream_proba_map.
-	 *
-	 *  The index map is used to read off the probability of the current RecEvent EventRealization at the correct location given the events parent's realizations.
-	 *  It is further modified to take into account the current event's realization when its children realization probabilities will be read.
-	 *
-	 */
-    void
-    iterate(double &, Downstream_scenario_proba_bound_map &, const std::string &, const Int_Str &, Index_map &,
-            const std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &,
-            std::shared_ptr<Next_event_ptr> &, Marginal_array_p &, const Marginal_array_p &,
-            const std::unordered_map<Gene_class, std::vector<Alignment_data>> &, Seq_type_str_p_map &,
-            Seq_offsets_map &, std::shared_ptr<Error_rate> &, std::map<size_t, std::shared_ptr<Counter>> &,
-            const Events_map &,
-            Safety_bool_map &, Mismatch_vectors_map &, double &, double &);
-
-    /**
      * @brief Context-based iterate() interface
      *
      * New signature using 5 context objects instead of 19 individual parameters.
@@ -322,31 +278,6 @@ protected:
 
     int compare_sequences(std::string, std::string); //TODO should probably not be a member functino
     void add_realization(const Event_realization &);
-    //inline void iterate_wrap_up(double& , double& , const std::string& , const std::string& , Index_map& , const std::unordered_map<Rec_Event_name,std::vector<std::pair<const Rec_Event*,int>>>& , std::queue<Rec_Event*>  , Marginal_array_p&  , const Marginal_array_p& , const std::unordered_map<Gene_class_legacy , std::vector<Alignment_data>>& , Seq_type_str_p_map& , Seq_offsets_map& ,std::shared_ptr<Error_rate>&,const std::unordered_map<std::tuple<Event_type,Gene_class_legacy,Seq_side>,const Rec_Event*>&  , Safety_bool_map& , Mismatch_vectors_map& , double& , double&);
-
-    /**
-     * @deprecated use iterate_wrap_up(
-            QuerySequenceContext&,
-            const ModelContext&,
-            ScenarioContext&,
-            ExplorationContext&,
-            AccumulationContext&
-            )
-    */
-    [[deprecated("Use iterate_wrap_up(QuerySequenceContext&, const ModelContext&, ScenarioContext&, ExplorationContext&, AccumulationContext&)")]]
-    void iterate_wrap_up(
-            double &scenario_proba, Downstream_scenario_proba_bound_map &downstream_proba_map,
-            const std::string &sequence, const Int_Str &int_sequence, Index_map &index_map,
-            const std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>>
-                    &offset_map,
-            std::shared_ptr<Next_event_ptr> &next_event_ptr_arr, Marginal_array_p &updated_marginal_array_p,
-            const Marginal_array_p &model_parameters_point,
-            const std::unordered_map<Gene_class, std::vector<Alignment_data>> &allowed_realizations,
-            Seq_type_str_p_map &constructed_sequences, Seq_offsets_map &seq_offsets,
-            std::shared_ptr<Error_rate> &error_rate_p, std::map<size_t, std::shared_ptr<Counter>> &counters_list,
-            const Events_map &events_map,
-            Safety_bool_map &safety_set, Mismatch_vectors_map &mismatches_lists, double &seq_max_prob_scenario,
-            double &proba_threshold_factor);
 
     /**
      * @brief Context-based iterate_wrap_up() interface
