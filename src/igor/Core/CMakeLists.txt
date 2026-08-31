@@ -95,6 +95,7 @@ target_sources(${PROJECT_NAME}
       Rec_Event.h
       Scenario.h
       ScenarioContext.h
+      LayeredMap.h
       SeqTypeRegistry.h
       Singleerrorrate.h
       Utils.h
