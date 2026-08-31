@@ -198,16 +198,16 @@ void Errors_counter::count_scenario(
     }
 
     // Get the number of mismatches and add them to the mismatch counter
-    if (mismatches_lists.exist(V_gene_seq)) {
-        const vector<size_t> &v_mismatch_list = *mismatches_lists.at(V_gene_seq);
+    if (mismatches_lists.exists(V_gene_seq)) {
+        const vector<size_t> &v_mismatch_list = *mismatches_lists.get(V_gene_seq);
         this->scenario_n_mismatches += v_mismatch_list.size();
     }
-    if (mismatches_lists.exist(D_gene_seq)) {
-        const vector<size_t> &d_mismatch_list = *mismatches_lists[D_gene_seq];
+    if (mismatches_lists.exists(D_gene_seq)) {
+        const vector<size_t> &d_mismatch_list = *mismatches_lists.get(D_gene_seq);
         this->scenario_n_mismatches += d_mismatch_list.size();
     }
-    if (mismatches_lists.exist(J_gene_seq)) {
-        const vector<size_t> &j_mismatch_list = *mismatches_lists.at(J_gene_seq);
+    if (mismatches_lists.exists(J_gene_seq)) {
+        const vector<size_t> &j_mismatch_list = *mismatches_lists.get(J_gene_seq);
         this->scenario_n_mismatches += j_mismatch_list.size();
     }
 

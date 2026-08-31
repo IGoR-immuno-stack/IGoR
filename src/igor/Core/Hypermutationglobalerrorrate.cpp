@@ -389,17 +389,16 @@ double Hypermutation_global_errorrate::compare_sequences_error_prob(
     scenario_resulting_sequence = EventUtils::build_scenario_sequence(
         constructed_sequences, v_gene, d_gene, j_gene, vd_ins, dj_ins, vj_ins);
 
-    vector<size_t> &v_mismatch_list = *mismatches_lists.at(V_gene_seq);
+    vector<size_t> &v_mismatch_list = *mismatches_lists.get(V_gene_seq);
 
-    if (mismatches_lists.exist(D_gene_seq)) {
-        vec_ptr_util = mismatches_lists
-                [D_gene_seq]; //Should not have to check this and default initialization should be sufficient
+    if (mismatches_lists.exists(D_gene_seq)) {
+        vec_ptr_util = mismatches_lists.get(D_gene_seq);
     } else {
         vec_ptr_util = &empty_vec_util;
     }
     vector<size_t> &d_mismatch_list = *vec_ptr_util;
 
-    vector<size_t> &j_mismatch_list = *mismatches_lists.at(J_gene_seq);
+    vector<size_t> &j_mismatch_list = *mismatches_lists.get(J_gene_seq);
 
     scenario_new_proba = scenario_probability;
 

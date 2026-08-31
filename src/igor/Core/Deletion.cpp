@@ -1407,8 +1407,8 @@ void Deletion::initialize_event(
     case V_gene_seq:
         seq_offsets.request_memory_layer(V_gene_seq, Three_prime);
         memory_layer_offset_del = seq_offsets.get_current_memory_layer(V_gene_seq, Three_prime);
-        mismatches_list.request_memory_layer(V_gene_seq);
-        this->memory_layer_mismatches = mismatches_list.get_current_memory_layer(V_gene_seq);
+        mismatches_list.request_layer(V_gene_seq);
+        this->memory_layer_mismatches = mismatches_list.current_layer(V_gene_seq);
         constructed_sequences.request_memory_layer(V_gene_seq);
         this->memory_layer_cs = constructed_sequences.get_current_memory_layer(V_gene_seq);
         if (d_chosen) {
@@ -1436,8 +1436,8 @@ void Deletion::initialize_event(
 
         break;
     case D_gene_seq:
-        mismatches_list.request_memory_layer(D_gene_seq);
-        this->memory_layer_mismatches = mismatches_list.get_current_memory_layer(D_gene_seq);
+        mismatches_list.request_layer(D_gene_seq);
+        this->memory_layer_mismatches = mismatches_list.current_layer(D_gene_seq);
         constructed_sequences.request_memory_layer(D_gene_seq);
         this->memory_layer_cs = constructed_sequences.get_current_memory_layer(D_gene_seq);
         downstream_proba_map.request_layer(D_gene_seq);
@@ -1503,8 +1503,8 @@ void Deletion::initialize_event(
     case J_gene_seq:
         seq_offsets.request_memory_layer(J_gene_seq, Five_prime);
         memory_layer_offset_del = seq_offsets.get_current_memory_layer(J_gene_seq, Five_prime);
-        mismatches_list.request_memory_layer(J_gene_seq);
-        this->memory_layer_mismatches = mismatches_list.get_current_memory_layer(J_gene_seq);
+        mismatches_list.request_layer(J_gene_seq);
+        this->memory_layer_mismatches = mismatches_list.current_layer(J_gene_seq);
         constructed_sequences.request_memory_layer(J_gene_seq);
         this->memory_layer_cs = constructed_sequences.get_current_memory_layer(J_gene_seq);
         if (v_chosen) {

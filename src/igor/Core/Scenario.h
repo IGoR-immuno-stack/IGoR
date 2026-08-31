@@ -85,7 +85,7 @@ struct Scenario {
         // NOTE: Mismatches only tracked for gene sequences
         for (size_t seq_type_idx = 0; seq_type_idx < 6; ++seq_type_idx) {
             Seq_type seq_type = static_cast<Seq_type>(seq_type_idx);
-            if (ctx.mismatches_lists.exist(seq_type)) {
+            if (ctx.mismatches_lists.exists(seq_type)) {
                 mismatches[seq_type_idx] = ctx.get_mismatches(seq_type);
             }
             // else: remains nullptr (already initialized)

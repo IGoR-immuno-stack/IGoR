@@ -1107,8 +1107,8 @@ void Gene_choice::initialize_event(
         this->memory_layer_off_threep = seq_offsets.get_current_memory_layer(V_gene_seq, Three_prime);
         seq_offsets.request_memory_layer(V_gene_seq, Five_prime);
         this->memory_layer_off_fivep = seq_offsets.get_current_memory_layer(V_gene_seq, Five_prime);
-        mismatches_list.request_memory_layer(V_gene_seq);
-        this->memory_layer_mismatches = mismatches_list.get_current_memory_layer(V_gene_seq);
+        mismatches_list.request_layer(V_gene_seq);
+        this->memory_layer_mismatches = mismatches_list.current_layer(V_gene_seq);
         constructed_sequences.request_memory_layer(V_gene_seq);
         this->memory_layer_cs = constructed_sequences.get_current_memory_layer(V_gene_seq);
         //if(d_chosen){
@@ -1145,8 +1145,8 @@ void Gene_choice::initialize_event(
         this->memory_layer_off_threep = seq_offsets.get_current_memory_layer(D_gene_seq, Three_prime);
         seq_offsets.request_memory_layer(D_gene_seq, Five_prime);
         this->memory_layer_off_fivep = seq_offsets.get_current_memory_layer(D_gene_seq, Five_prime);
-        mismatches_list.request_memory_layer(D_gene_seq);
-        this->memory_layer_mismatches = mismatches_list.get_current_memory_layer(D_gene_seq);
+        mismatches_list.request_layer(D_gene_seq);
+        this->memory_layer_mismatches = mismatches_list.current_layer(D_gene_seq);
         constructed_sequences.request_memory_layer(D_gene_seq);
         this->memory_layer_cs = constructed_sequences.get_current_memory_layer(D_gene_seq);
         //if(v_chosen){
@@ -1191,8 +1191,8 @@ void Gene_choice::initialize_event(
         this->memory_layer_off_threep = seq_offsets.get_current_memory_layer(J_gene_seq, Three_prime);
         seq_offsets.request_memory_layer(J_gene_seq, Five_prime);
         this->memory_layer_off_fivep = seq_offsets.get_current_memory_layer(J_gene_seq, Five_prime);
-        mismatches_list.request_memory_layer(J_gene_seq);
-        this->memory_layer_mismatches = mismatches_list.get_current_memory_layer(J_gene_seq);
+        mismatches_list.request_layer(J_gene_seq);
+        this->memory_layer_mismatches = mismatches_list.current_layer(J_gene_seq);
         constructed_sequences.request_memory_layer(J_gene_seq);
         this->memory_layer_cs = constructed_sequences.get_current_memory_layer(J_gene_seq);
         //if(v_chosen){

@@ -531,7 +531,7 @@ void Coverage_err_counter::count_scenario(
     if (count_on_v) {
 
         //Get mismatch list
-        vector<size_t> &v_mismatch_list = *mismatches_lists.at(V_gene_seq);
+        vector<size_t> &v_mismatch_list = *mismatches_lists.get(V_gene_seq);
 
         //Get the coverage
         //Get the length of the gene and a pointer to the right array to write on
@@ -587,7 +587,7 @@ void Coverage_err_counter::count_scenario(
     if (count_on_j) {
 
         //Get mismatch list
-        vector<size_t> &j_mismatch_list = *mismatches_lists.at(J_gene_seq);
+        vector<size_t> &j_mismatch_list = *mismatches_lists.get(J_gene_seq);
 
         //Get the coverage
         //Get the length of the gene and a pointer to the right array to write on

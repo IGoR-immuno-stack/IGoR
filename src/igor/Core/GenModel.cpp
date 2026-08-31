@@ -261,11 +261,12 @@ bool GenModel::infer_model(
             //Initialize Enum_fast_memory map and dual maps
             Safety_bool_map safety_set(3);
             Seq_type_str_p_map constructed_sequences(6); //6 is the number of outcomes for Seq_type
-            Mismatch_vectors_map mismatches_lists(6);
+            Mismatch_vectors_map mismatches_lists(single_thread_model_parms.get_seq_type_registry());
             // Conservative pruning track. For exact NT queries it is identical to
             // mismatches_lists; it exists so that IUPAC/motif queries can prune on the
             // mismatch count that no choice of query branch can reduce.
-            Pruning_mismatch_floor_map pruning_mismatch_floor(6);
+            Pruning_mismatch_floor_map pruning_mismatch_floor(
+                    single_thread_model_parms.get_seq_type_registry());
             Seq_offsets_map seq_offsets(6, 3);
 
             //Initialize downstream probas to 1. Sized from the thread-local model's frozen

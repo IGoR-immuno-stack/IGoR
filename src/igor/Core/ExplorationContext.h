@@ -55,7 +55,7 @@ struct ExplorationContext {
      * with EVERY nucleotide the query allows at that position, i.e.
      * !comp_nt_int(gene_nt, query.int_sequence[p]).
      *
-     * Invariant: floor[seg] is a subset of mismatches_lists[seg] (the upper-bound
+     * Invariant: floor[seg] is a subset of mismatches_lists.get(seg) (the upper-bound
      * track in ScenarioContext). For exact NT queries the two tracks are identical,
      * so this is a no-op for standard inference.
      *

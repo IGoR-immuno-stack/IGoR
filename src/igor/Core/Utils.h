@@ -422,14 +422,16 @@ typedef Enum_fast_memory_map<Seq_type, Int_Str_ptr> Seq_type_str_p_map;
 
 typedef Enum_fast_memory_map<Event_safety, bool> Safety_bool_map;
 
-typedef Enum_fast_memory_map<Seq_type, std::vector<size_t> *> Mismatch_vectors_map;
+//Keyed by SeqTypeId. An empty mismatch vector means "zero mismatches", which is present,
+//not absent -- so the default SeqSegmentEmptiness (never empty) is the right one here.
+typedef DynamicSequenceMap<std::vector<size_t> *> Mismatch_vectors_map;
 
 /// NT-floor mismatch positions per Seq_type, used as a conservative pruning bound.
 /// Same underlying type as Mismatch_vectors_map; the two carry different semantics:
 ///   Mismatch_vectors_map  - upper bound: position mismatches in at least one branch
 ///   Pruning_mismatch_floor_map - floor: position mismatches in every branch
 /// For exact NT queries the two tracks are identical.
-typedef Enum_fast_memory_map<Seq_type, std::vector<size_t> *> Pruning_mismatch_floor_map;
+typedef DynamicSequenceMap<std::vector<size_t> *> Pruning_mismatch_floor_map;
 
 //Index_map is keyed by event identifier, not by seq_type, so it uses the bare
 //layered container rather than the registry-aware DynamicSequenceMap (plan D5).

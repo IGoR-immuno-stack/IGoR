@@ -135,7 +135,7 @@ TEST_CASE("ScenarioContext construction and mutability", "[Context][ScenarioCont
     double proba = 1.0;
     Seq_type_str_p_map constructed_sequences(6);
     Seq_offsets_map seq_offsets(6, 3);
-    Mismatch_vectors_map mismatches(6);
+    Mismatch_vectors_map mismatches(legacy_seq_type_registry());
 
     SECTION("Basic construction") {
         ScenarioContext scenario(proba, constructed_sequences, seq_offsets, mismatches);
@@ -198,7 +198,7 @@ TEST_CASE("ExplorationContext construction and pruning", "[Context][ExplorationC
         default_delete<Next_event_ptr[]>()
     );
     Safety_bool_map safety_set(3);  // For exploration decisions
-    Pruning_mismatch_floor_map pruning_floor(6);  // Conservative pruning track
+    Pruning_mismatch_floor_map pruning_floor(legacy_seq_type_registry());  // Conservative pruning track
 
     SECTION("Basic construction") {
         ExplorationContext exploration(proba_map, max_prob, threshold, index_map, next_event_ptr, safety_set, pruning_floor);
@@ -351,7 +351,7 @@ TEST_CASE("Multiple contexts work together", "[Context][Integration]") {
     double proba = 1.0;
     Seq_type_str_p_map constructed_sequences(6);
     Seq_offsets_map seq_offsets(6, 3);
-    Mismatch_vectors_map mismatches(6);
+    Mismatch_vectors_map mismatches(legacy_seq_type_registry());
 
     // Setup exploration
     Downstream_scenario_proba_bound_map proba_map(legacy_seq_type_registry());
@@ -363,7 +363,7 @@ TEST_CASE("Multiple contexts work together", "[Context][Integration]") {
         default_delete<Next_event_ptr[]>()
     );
     Safety_bool_map safety_set(3);  // For exploration decisions
-    Pruning_mismatch_floor_map pruning_floor(6);  // Conservative pruning track
+    Pruning_mismatch_floor_map pruning_floor(legacy_seq_type_registry());  // Conservative pruning track
 
     // Setup accumulation
     auto marginals = make_unique<long double[]>(100);
