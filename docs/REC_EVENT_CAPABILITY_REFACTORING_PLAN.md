@@ -19,7 +19,7 @@ Legend: ✅ done · 🟡 partial · ⬜ not started
 | B5 | ⬜ | `Deletion::iterate()` still carries the full 4-case switch (now on `target_seq_type` instead of `event_class`) and the hardcoded `VD_safe`/`DJ_safe`/`VJ_safe` checks. |
 | B6 | ⬜ | `Insertion::iterate()` still branches per junction — the `switch(event_class)` became an `if/else` chain of `std::string` comparisons on `this->seq_type`. |
 | B7 | 🟡 | The `if (event_class == …)` chain is gone from `iterate()`; anchor sequence + anchor side are now data (`DinuclTraversalSpec`). But the specs come from a hardcoded `switch(Seq_type)` at construction, not from registry traversal, and there is no skip-empty walk. |
-| B8 | ⬜ | `Seq_type_str_p_map`, `Seq_offsets_map`, `Mismatch_vectors_map`, `Downstream_scenario_proba_bound_map` unchanged; `Safety_bool_map` still keyed by the `Event_safety` enum. A `Str_Dual_key_memory_map` / `Str_Seq_offsets_map` prototype was added to `Utils.h` but is referenced only from tests. |
+| B8 | 🟡 | Four of five maps migrated to `DynamicSequenceMap`, sized from the frozen registry: downstream proba bounds (`13fcdec`), the two mismatch maps (`1abd908`), constructed sequences (`c86d34e`), and offsets split into one map per sequence end (`fe8c5d1`). **`Safety_bool_map` deliberately not started** — its key changes meaning (`Event_safety` → insertion `SeqTypeId`), pending a design decision. `Enum_fast_memory_map` and `Str_Dual_key_memory_map` can both be deleted once it lands. |
 | B11 *(new)* | ⬜ | Generalize `Gene_choice` seq_type writes (both the alignment and `no_d_align` exhaustive paths). **Most blocking item for milestone 1** — two D events currently both write `D_gene_seq`. |
 | B10 *(new)* | ⬜ | Absent-segment semantics. **Off the tandem-D critical path** — milestone 1 has both D genes always present. Carries a real modelling decision (chain-with-conflation vs. DAG ordering) deferred to milestone 2. |
 | B9 | 🟡 | Legacy→seq_type inference, registry inference (VDJ/VJ), `write_model_parms_legacy` / `write_model_parms_v2` split, v2 `@Version` / `@Seq_type_order` parsing and per-event `write2txt_v2()` are all implemented. `VDJ_genes` `Dinucl_markov` expansion (B9 step 3) and junction safety adjacency generation (step 4) are not. |
@@ -1091,6 +1091,30 @@ Remove the 4-case `switch(event_class)` dispatching on V/D/J. Generic implementa
 - `event_side` (already present as a member) identifies which end is trimmed
 - Neighbor overlap checking uses `find_first_nonempty_left` / `find_first_nonempty_right` to locate bounding sequences — no need to know whether the neighbor is V, D, or J
 
+#### Open item: the per-gene offset bound members
+
+`Deletion` carries eight scalars holding the *bounds* an offset can still take once the
+remaining deletions are applied — [Deletion.h:120-146](src/igor/Core/Deletion.h#L120-L146):
+`d_5_min_offset`, `d_5_max_offset`, `v_3_min_offset`, `v_3_max_offset`, `j_5_min_offset`,
+`j_5_max_offset`, `d_3_min_offset`, `d_3_max_offset`. They drive the overlap-safety checks.
+
+They are hardcoded VDJ topology in event members, and a generic `iterate()` cannot have
+members named after V, D and J. B5 must therefore decide where they go. The natural
+destination is per-seq_type bounds, i.e. a map — but **not** `Seq_offsets_map`:
+
+- the value is a `(min, max)` pair, not a single `Seq_Offset`;
+- the lifetime is one `iterate()` call, not layered across the traversal;
+- it is a derived quantity, not scenario state.
+
+Folding them into `Seq_offsets_map` would conflate "where this segment starts" with "where
+it could start given the deletions still to come". Expect a separate, simpler structure —
+plausibly a plain `std::vector<std::pair<Seq_Offset, Seq_Offset>>` indexed by `SeqTypeId`,
+with no layers at all, rebuilt per call.
+
+This is not described anywhere else in the plan; B5's task description covers removing the
+`switch(event_class)` and the `VD_safe`/`DJ_safe`/`VJ_safe` checks, but not these.
+
+
 ### B6 — Rewrite `Insertion::iterate()` ([src/igor/Core/Insertion.cpp](src/igor/Core/Insertion.cpp))
 
 > **Status: ⬜ NOT STARTED — and currently a regression.** The `switch(event_class)` was replaced by an `if/else` chain of `std::string` comparisons on `this->seq_type` (`"VD_ins_seq"` / `"DJ_ins_seq"` / `"VJ_ins_seq"`) executed inside the per-scenario hot loop, with the same hardcoded `(D_gene_seq, Five_prime) - (V_gene_seq, Three_prime)` neighbour offsets. Rewrite the stale `iterate()` docstring as part of this — see *Documentation debt* above.
@@ -1128,7 +1152,9 @@ No conditional logic needed.
 >
 > ⚠️ **Blocked on the `SeqTypeId` layer from decision D1, and on the copy-constructor fix in deviation 8.** Run the D4 benchmark protocol before committing to an implementation.
 >
-> **Status: ⬜ NOT STARTED.** All five maps are unchanged (`Enum_fast_memory_map<Seq_type, …>`, `Enum_fast_memory_dual_key_map<Seq_type, Seq_side, Seq_Offset>`, `Enum_fast_memory_map<Event_safety, bool>`). A `Str_Dual_key_memory_map<K2,V>` / `Str_Seq_offsets_map` prototype was added to `Utils.h` but is referenced only from `tst/test_model_format_v2.cpp`; see deviation 5 — its nested-hash-map design conflicts with the flat-array requirement of this section.
+> **Status: 🟡 PARTIAL — four of five maps migrated.** Done: `Downstream_scenario_proba_bound_map`, `Mismatch_vectors_map` + `Pruning_mismatch_floor_map`, `Seq_type_str_p_map`, and `Seq_offsets_map` (split into one `DynamicSequenceMap<Seq_Offset>` per sequence end). Each is now sized from the model's frozen registry rather than a hardcoded 6.
+>
+> **`Safety_bool_map` is deliberately not started**: unlike the others its key changes *meaning*, from the three fixed `Event_safety` values to an insertion `SeqTypeId`, so it is a design decision rather than a type swap. `Enum_fast_memory_map` has no other consumer left; it and `Str_Dual_key_memory_map` (see deviation 5) can both be deleted when it lands.
 
 ([src/igor/Core/ScenarioContext.h](src/igor/Core/ScenarioContext.h), [ExplorationContext.h](src/igor/Core/ExplorationContext.h))
 
@@ -1285,6 +1311,28 @@ not deferred.
 
 **Dependencies**: B5 (contract lives in the generic `Deletion::iterate()`), B6 and B7 (traversal
 consumers). Feeds the Phase C rule.
+
+
+#### `Seq_offsets_map`: what is permanent and what is transitional
+
+The split into two single-key maps replaced
+`Enum_fast_memory_dual_key_map<Seq_type, Seq_side, Seq_Offset>`, whose single array was
+addressed as `key1 + range_key1 * key2` with `range_key1` fixed at the six `Seq_type` enum
+values. That fixed range was the tandem-D blocker; it is gone either way.
+
+The class that replaced it ([SeqOffsetsMap.h](src/igor/Core/SeqOffsetsMap.h)) is **not a
+temporary shim**, though one part of it is:
+
+| Piece | Status | Why |
+|---|---|---|
+| Two `DynamicSequenceMap<Seq_Offset>` members | permanent | the actual fix; runtime-sized, flat, no dual-key arithmetic |
+| `side(Seq_side)` dispatch | **permanent** | `Rec_Event::event_side` is *instance data* — a `Deletion` knows at load time which end it trims — so the generic B5 body writes `offsets.side(event_side).get(seq_type_id)`. The side is not a compile-time constant there. |
+| `get(id, side, layer)` / `set(id, side, …)` wrappers | transitional | they exist so the ~105 existing call sites migrated unchanged; each should collapse to `side(x).get(id)`, or to `five_prime` / `three_prime` directly where the end is a literal |
+
+It will never grow a third end: two is structural — a segment has two ends — not a number
+that happens to be two today. The "bounds rather than exact value" idea belongs to a
+different structure; see the open item under B5.
+
 
 ### B9 — Legacy model format adapter
 
