@@ -351,15 +351,29 @@ implementation, exposed as `std::mdspan`.
 
 > **Coordinate the bump.** Both branches introducing the C++23 switch and the `mdspan` dependency
 > independently is hazard H1 repeated in the build configuration. It should land on `develop` once,
-> from whichever branch reaches it first. Steps 1–3 of the decomposition below do not need it, so
-> this is not a blocker for starting.
+> from whichever branch reaches it first.
+>
+> **⚠ The bump is currently blocked by a sparrow interaction (measured Aug 27 2026).** Setting
+> `CMAKE_CXX_STANDARD 23` on this branch turns two streaming tests red —
+> `parse_alignments_from_columns` and `round-trip with populated alignments` — where a `double`
+> column reads back as `0.0`. The mechanism is the `std::visit` over sparrow's `nullable_variant`
+> at [SequenceBatchHelpers.cpp:105](src/igor/Streaming/SequenceBatchHelpers.cpp#L105), whose
+> visitor resolves differently under C++23. 201/201 pass on C++20, 199/201 on C++23. This needs a
+> sparrow version bump or a change to that visitor, and it is a prerequisite for the standard
+> switch — **not** something to bundle with unrelated work.
+>
+> `LayeredArray` was therefore implemented against C++20 using `std::span`. It needs no 2D view:
+> its useful abstraction is one layer as a contiguous row. A full `std::mdspan` would also require
+> duplicating the `MdspanCompat.h` shim that `feature/TensorLinalg` already carries (the conda
+> Kokkos package puts everything in `Kokkos::`, not `std::`), which is the same duplication this
+> plan exists to avoid.
 
 ##### Commit decomposition for B2
 
 | # | Commit | Notes |
 |---|---|---|
-| 1 | Move the generic layered-map templates out of `Utils.h` into a dedicated header | Pure mechanical move, zero behaviour. The templates are fully generic, so `Utils.h` keeps the typedefs and includes the new header — no consumer changes. |
-| 2 | Add `LayeredArray<V>` + tests, incl. a Catch2 benchmark against `Enum_fast_memory_map` | Where the care goes: write the growth invariant down and test it. The benchmark closes the D4 measurement loop with real numbers before anything depends on it. |
+| 1 ✅ | Move the generic layered-map templates out of `Utils.h` into a dedicated header (`LayeredMap.h`, `e60c1cf`) | Pure mechanical move, zero behaviour. The templates are fully generic, so `Utils.h` keeps the typedefs and includes the new header — no consumer changes. |
+| 2 ✅ | Add `LayeredArray<V>` + tests, incl. a Catch2 benchmark against `Enum_fast_memory_map` (`f6f0101`) | Where the care goes: write the growth invariant down and test it. The benchmark closes the D4 measurement loop with real numbers before anything depends on it. |
 | 3 | Port `Index_map` to `LayeredArray` | Simplest consumer, no registry; proves the container in production. |
 | 4 | Add `SeqTypeId` to `SeqTypeRegistry` | `register_type`/`id`/`name`/`freeze`, ordering as `vector<SeqTypeId>`, precomputed neighbours, plus the resolution pass and `finalize()` of D1b. |
 | 5 | Add `DynamicSequenceMap<V>` + tests | `first_nonempty_left/right`, covering the len-0 vs layer-−1 distinction (the B10 contract). |
@@ -428,10 +442,28 @@ Protocol to settle it before committing to B8:
    [scripts/tests/BENCHMARK.md](scripts/tests/BENCHMARK.md)) on a fixed sequence set, three runs,
    `develop` vs candidate. Under ~3% is noise at those N.
 
-Expected outcome: the nested hash map lands at roughly 15–40× the flat array per access,
-`DynamicSequenceMap` within a few percent of `Enum_fast_memory_map`, and step 2 translates that into
-a double-digit percentage of inference time. The D1 hybrid costs nothing on this axis while keeping
-readable names everywhere a human reads them — the two goals are not in tension.
+**Step 1 result (measured Aug 27 2026, RelWithDebInfo, `[!benchmark]` in
+[test_layered_array.cpp](tst/igor/Core/test_layered_array.cpp)):**
+
+| Regime | `Enum_fast_memory_map` | `LayeredArray` | Ratio |
+|---|---|---|---|
+| Steady state — balanced push/write/read/pop | 24.4 µs | 28.9 µs | 1.18× slower |
+| Unbounded growth — 2000 layers | 7.98 ms | 20.8 µs | **384× faster** |
+
+Steady state is the regime the scenario traversal actually exercises, and the prediction of "within a
+few percent" was close enough: the residual gap is largely the extra bounds checks `LayeredArray`
+performs, plus an extra `current_layer()` call in the benchmark loop itself. The growth column is
+where the doubling strategy pays: `Enum_fast_memory_map` reallocates and copies the whole buffer once
+per added layer.
+
+One lesson worth carrying into the remaining steps: the first implementation was **4.7× slower**
+purely because the bounds checks built their exception messages inline (`std::to_string`
+concatenation), which was enough to stop GCC inlining the check. Moving the error paths into cold,
+non-inlined helpers closed the entire gap. Any further container work should keep throw sites out of
+line.
+
+Steps 2 and 3 of the protocol (instrumenting real access counts, then `pixi run benchmark pipeline`)
+remain to be done before B8 commits to the migration.
 
 ---
 
