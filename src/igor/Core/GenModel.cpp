@@ -279,8 +279,8 @@ bool GenModel::infer_model(
             for (list<shared_ptr<Rec_Event>>::iterator event_iter = events_list.begin();
                  event_iter != events_list.end(); ++event_iter) {
                 int event_index = (*event_iter)->get_event_identifier();
-                index_mapp.request_memory_layer(event_index);
-                index_mapp.set_value(event_index, single_thread_index_map.at((*event_iter)->get_name()), 0);
+                index_mapp.request_layer(event_index);
+                index_mapp.set(event_index, single_thread_index_map.at((*event_iter)->get_name()), 0);
                 //TODO update proba bound
 
                 //Get events probability upper bounds

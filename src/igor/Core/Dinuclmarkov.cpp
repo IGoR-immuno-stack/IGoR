@@ -113,7 +113,7 @@ void Dinucl_markov::iterate(
         ExplorationContext& exploration,
         AccumulationContext& accumulation)
 {
-    base_index = exploration.index_map.at(this->event_index);
+    base_index = exploration.index_map.get(this->event_index);
     proba_contribution = 1;
 
     //Clear all previous scenario realizations
@@ -449,7 +449,8 @@ void Dinucl_markov::initialize_event(
     vj_realizations_indices = new int[max_vj_ins];
     dj_realizations_indices = new int[max_dj_ins];
 
-    unmutable_base_index = index_map.at(this->event_index, 0);
+    index_map.set_current_layer(this->event_index, 0);
+    unmutable_base_index = index_map.get(this->event_index);
 
     this->Rec_Event::initialize_event(processed_events, events_map, offset_map, downstream_proba_map,
                                       constructed_sequences, safety_set, error_rate_p, mismatches_list, seq_offsets,
@@ -559,7 +560,8 @@ void Dinucl_markov::iterate_initialize_Len_proba(Seq_type considered_junction,
                                                  Index_map &base_index_map, Seq_type_str_p_map &constructed_sequences,
                                                  int &seq_len /*=0*/) const
 {
-    base_index = base_index_map.at(this->event_index, 0);
+    base_index_map.set_current_layer(this->event_index, 0);
+    base_index = base_index_map.get(this->event_index);
 
     correct_class = 0;
     const string &iilp_dm_st = this->seq_type;

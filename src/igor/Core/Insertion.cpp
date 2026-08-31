@@ -159,7 +159,7 @@ void Insertion::iterate(
         ExplorationContext& exploration,
         AccumulationContext& accumulation)
 {
-    base_index = exploration.index_map.at(this->event_index);
+    base_index = exploration.index_map.get(this->event_index);
     proba_contribution = 1;
 
     const string &ins_st = this->seq_type;
@@ -449,7 +449,8 @@ void Insertion::iterate_initialize_Len_proba(Seq_type considered_junction, std::
 
     if (this->has_effect_on(considered_junction)) {
 
-        base_index = base_index_map.at(this->event_index, 0);
+        base_index_map.set_current_layer(this->event_index, 0);
+        base_index = base_index_map.get(this->event_index);
 
         //Insert sequence in the right constructed sequence
         Seq_type seq_type = VD_ins_seq;
@@ -463,11 +464,11 @@ void Insertion::iterate_initialize_Len_proba(Seq_type considered_junction, std::
             /*		//Update base index map
 			for(forward_list<tuple<int,int,int>>::const_iterator jiter = memory_and_offsets.begin() ; jiter!=memory_and_offsets.end() ; ++jiter){
 				//Get previous index for the considered event
-				int previous_index = base_index_map.at(get<0>(*jiter),get<1>(*jiter)-1);
+				size_t previous_index = base_index_map.get(get<0>(*jiter),get<1>(*jiter)-1);
 				//Update the index given the realization and the offset
 				previous_index += iter->second.index *get<2>(*jiter);
 				//Set the value
-				base_index_map.set_value(get<0>(*jiter) , previous_index , get<1>(*jiter));
+				base_index_map.set(get<0>(*jiter) , previous_index , get<1>(*jiter));
 			}*/
 
             //Get the max proba for this realization (in case the event is child of another)

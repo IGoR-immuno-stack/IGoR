@@ -249,8 +249,8 @@ void Rec_Event::initialize_event_common(
              iter != offset_vector.end(); ++iter) {
             //Request memory layer
             int event_identitfier = (*iter).first->get_event_identifier();
-            index_map.request_memory_layer(event_identitfier);
-            memory_and_offsets.emplace_front(event_identitfier, index_map.get_current_memory_layer(event_identitfier),
+            index_map.request_layer(event_identitfier);
+            memory_and_offsets.emplace_front(event_identitfier, index_map.current_layer(event_identitfier),
                                              (*iter).second);
         }
     }

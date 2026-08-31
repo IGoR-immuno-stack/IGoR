@@ -258,11 +258,11 @@ TEST_CASE("ExplorationContext construction and pruning", "[Context][ExplorationC
         ExplorationContext exploration(proba_map, max_prob, threshold, index_map, next_event_ptr, safety_set, pruning_floor);
 
         // Track parent realizations
-        exploration.index_map.set_value(0, 5, 0);  // Event 0, realization 5, layer 0
-        exploration.index_map.set_value(1, 3, 0);  // Event 1, realization 3, layer 0
+        exploration.index_map.set(0, 5, 0);  // Event 0, realization 5, layer 0
+        exploration.index_map.set(1, 3, 0);  // Event 1, realization 3, layer 0
 
-        REQUIRE(exploration.index_map.at(0, 0) == 5);
-        REQUIRE(exploration.index_map.at(1, 0) == 3);
+        REQUIRE(exploration.index_map.get(0, 0) == 5);
+        REQUIRE(exploration.index_map.get(1, 0) == 3);
     }
 
     SECTION("Adaptive pruning with threshold updates") {

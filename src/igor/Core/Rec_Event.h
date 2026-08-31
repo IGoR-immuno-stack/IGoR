@@ -205,11 +205,11 @@ public:
     void update_parent_tracking(int realization_index, Index_map& index_map) const {
         for (auto jiter = memory_and_offsets.begin();
              jiter != memory_and_offsets.end(); ++jiter) {
-            int previous_index =
-                index_map.at(std::get<0>(*jiter), std::get<1>(*jiter) - 1);
+            size_t previous_index =
+                index_map.get(std::get<0>(*jiter), std::get<1>(*jiter) - 1);
             previous_index += realization_index * std::get<2>(*jiter);
-            index_map.set_value(std::get<0>(*jiter), previous_index,
-                               std::get<1>(*jiter));
+            index_map.set(std::get<0>(*jiter), previous_index,
+                          std::get<1>(*jiter));
         }
     }
 

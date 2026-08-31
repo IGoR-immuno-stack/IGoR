@@ -126,10 +126,10 @@ void initialize_offset_memory(
 
   for (auto iter = offset_vector.begin(); iter != offset_vector.end(); ++iter) {
     int event_identitfier = (*iter).first->get_event_identifier();
-    index_map.request_memory_layer(event_identitfier);
+    index_map.request_layer(event_identitfier);
     memory_and_offsets.emplace_front(
         event_identitfier,
-        index_map.get_current_memory_layer(event_identitfier), (*iter).second);
+        index_map.current_layer(event_identitfier), (*iter).second);
   }
 }
 } // namespace EventUtils

@@ -38,6 +38,7 @@
 #include <iostream>
 #include <iomanip>
 #include <igor/Core/IntStr.h>
+#include <igor/Core/LayeredArray.h>
 #include <igor/Core/LayeredMap.h>
 #include <memory>
 #include <list>
@@ -437,7 +438,9 @@ typedef Enum_fast_memory_map<Seq_type, std::vector<size_t> *> Mismatch_vectors_m
 /// For exact NT queries the two tracks are identical.
 typedef Enum_fast_memory_map<Seq_type, std::vector<size_t> *> Pruning_mismatch_floor_map;
 
-typedef Enum_fast_memory_map<int, size_t> Index_map;
+//Index_map is keyed by event identifier, not by seq_type, so it uses the bare
+//layered container rather than the registry-aware DynamicSequenceMap (plan D5).
+typedef LayeredArray<size_t> Index_map;
 
 typedef Enum_fast_memory_map<Seq_type, double> Downstream_scenario_proba_bound_map;
 
