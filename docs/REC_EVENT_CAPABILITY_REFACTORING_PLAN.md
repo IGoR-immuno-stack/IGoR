@@ -13,7 +13,7 @@ Legend: ✅ done · 🟡 partial · ⬜ not started
 | Phase A | ⬜ | No capability enums, no pure virtuals. Nothing named `is_branching`, `SeqConstructionRole`, `OffsetRole`, `SeqContextDependency` exists anywhere in the tree. |
 | B0 | 🟡 | `Rec_Event` gained a `Seq_type_String seq_type` **string** member; `event_class` was **kept** on the base. No `seq_type_ids` vector, no `primary_seq_type_id()`. Subclasses gained typed members (`Deletion::target_seq_type`, `Insertion::ins_seq_type`, `Dinucl_markov::ins_seq_type`). `Dinucl_markov::start_side` realised as `DinuclTraversalSpec::anchor_side` + `event_side`. |
 | B1 | ✅ | `Gene_class` = `{V_gene, D_gene, J_gene, Undefined_gene}`. Junction values moved to a new `Gene_class_legacy` enum confined to file I/O + `gene_to_seqtype_migr` module. |
-| B2 | 🟡 | `SeqTypeRegistry.h` provides the **ordering** and left/right neighbour lookup only — keyed by `std::string`, not `TypeId`. No `register_type`/`get_type_id`/`freeze`/`standard_count`, no flank types, and **no `DynamicSequenceMap` at all**. |
+| B2 | 🟡 | `SeqTypeRegistry.h` provides the **ordering** and left/right neighbour lookup only — keyed by `std::string`, not `SeqTypeId`. No `register_type`/`get_type_id`/`freeze`/`standard_count`, no flank types, and **no `DynamicSequenceMap` at all**. |
 | B3 | ⬜ | No flank seq types. `Gene_choice` friend declarations for `Hypermutation_*` still present. |
 | B4 | ✅ | `Events_map = unordered_map<tuple<Event_type, Seq_type_String, Seq_side>, shared_ptr<Rec_Event>>`, threaded through every `iterate`/`initialize_event`/counter/error-rate signature. Key built from `get_seq_type()`. Tandem-D uniqueness achieved. |
 | B5 | ⬜ | `Deletion::iterate()` still carries the full 4-case switch (now on `target_seq_type` instead of `event_class`) and the hardcoded `VD_safe`/`DJ_safe`/`VJ_safe` checks. |
@@ -83,7 +83,7 @@ may already satisfy AA plan item §10.4.3 ("dual-track output from `sw_align`, o
 
 ### Step 1 — tandem-D critical path
 
-**Milestone 1 (both D genes always present)**: `B2`-with-TypeId → `B8` → **`B11`** → `B7` → `B6` → `B5` → tandem-D model + round-trip test. B10 is **not** required — the traversal never skips a segment.
+**Milestone 1 (both D genes always present)**: `B2`-with-SeqTypeId → `B8` → **`B11`** → `B7` → `B6` → `B5` → tandem-D model + round-trip test. B10 is **not** required — the traversal never skips a segment.
 
 Milestone 1 runs on a **dummy generative model, not real biological data**. What it validates: structural correctness (registry ordering, `events_map` uniqueness, seq_type-driven writes, generic neighbour-based insertion lengths, generic Dinucl seeding) and the compute-time cost of a second D. What it does **not** validate: aligner behaviour on real tandem-D receptors, the `no_d_align` fallback in practice, or inference quality on biological repertoires.
 
@@ -112,13 +112,13 @@ AA Pgen resumes on the refactored substrate: `iterate_patched_pgen` on `traversa
 
 Each is resolved in **Design decisions** below; the tag on each entry says how.
 
-1. **`TypeId` was never introduced; `Seq_type_String` (`std::string`) took its place.**
-   The plan's whole B2/B8 layer rests on TypeId being a *dense integer in `[0, count)`* so that
+1. **`SeqTypeId` was never introduced; `Seq_type_String` (`std::string`) took its place.**
+   The plan's whole B2/B8 layer rests on SeqTypeId being a *dense integer in `[0, count)`* so that
    `storage_[id + layer * count_]` is pure integer arithmetic and `find_first_nonempty_left` is an
    O(1) indexed walk. The implemented registry has no id allocation at all — it stores
    `vector<string>` + `unordered_map<string,size_t>`, and `Events_map` hashes a `std::string` per
    lookup. B2/B8 as written cannot be built on top of this.
-   → **Resolved in D1: adopt a hybrid.** The registry gains a `TypeId` allocation layer; names stay
+   → **Resolved in D1: adopt a hybrid.** The registry gains a `SeqTypeId` allocation layer; names stay
    as the serialization identity and remain the `Events_map` key. B2's `SequenceTypeRegistry` sketch
    is superseded by the revised `SeqTypeRegistry` in D1.
 
@@ -130,7 +130,7 @@ Each is resolved in **Design decisions** below; the tag on each entry says how.
    `new Deletion(str2SeqType("D1_gene_seq"), …)` and throws. The registry accepts the ordering, but
    no event can be constructed for it. The v2 format is therefore only end-to-end functional for
    models expressible in the legacy 6 seq_types.
-   → **Resolved in D2.** Tandem D is independent of Phase A; it is gated on B2-with-TypeId → B8 →
+   → **Resolved in D2.** Tandem D is independent of Phase A; it is gated on B2-with-SeqTypeId → B8 →
    B7/B6/B5. Sequencing is given in D2.
 
 3. **`tst/test_model_format_v2.cpp` (981 lines) is not registered in any `CMakeLists.txt`** and is
@@ -153,7 +153,7 @@ Each is resolved in **Design decisions** below; the tag on each entry says how.
    `unordered_map<string, unordered_map<int, {vector<V>, int}>>` — two hash lookups and a pointer
    chase per access, versus the flat `V*` + `int*` arrays the plan specifies. If it is intended as
    the future `Seq_offsets_map`, the plan's performance premise is lost.
-   → **Resolved in D1: delete it**, and implement `DynamicSequenceMap` keyed by `TypeId` per B2/D1.
+   → **Resolved in D1: delete it**, and implement `DynamicSequenceMap` keyed by `SeqTypeId` per B2/D1.
    D4 step 1 benchmarks it against the alternatives first, so the decision is recorded with numbers.
 
 6. **`event_class` was kept on `Rec_Event` rather than pushed down into `Gene_choice`.**
@@ -179,7 +179,7 @@ Each is resolved in **Design decisions** below; the tag on each entry says how.
 
 ### Design decisions taken on these deviations (Aug 26 2026)
 
-#### D1 — Names and TypeIds coexist: `std::string` is the identity, `TypeId` is the handle
+#### D1 — Names and SeqTypeIds coexist: `std::string` is the identity, `SeqTypeId` is the handle
 
 **Decision: adopt a hybrid. Do not choose one representation.**
 
@@ -195,12 +195,12 @@ Measured facts that drove this:
   only string work reaching the traversal is the `if (ins_st == "VD_ins_seq")` chain in
   `Insertion::iterate()` — see D4.
 
-`TypeId` as a dense integer in `[0, N)` is nevertheless required, for four reasons that are
+`SeqTypeId` as a dense integer in `[0, N)` is nevertheless required, for four reasons that are
 structural rather than micro-optimisations:
 
 1. **Array-addressable layered scenario state.** `value_arr[key + layer * range]` plus
    `layer_ptr[key]` for backtracking push/pop requires a dense integer key. The alternatives are
-   hashing on every access, or resolving name→index once and then indexing — which is `TypeId`
+   hashing on every access, or resolving name→index once and then indexing — which is `SeqTypeId`
    with extra steps.
 2. **O(1) ordered-traversal start.** `find_first_nonempty_left(T)` needs `ordering_pos_[T]` as an
    array index. `SeqTypeRegistry::index_of()` is a string hash today, and B6/B7 call that traversal
@@ -209,7 +209,7 @@ structural rather than micro-optimisations:
    type", and Phase D's subgraph partitioning want per-type arrays or, with N ≤ 64, a `uint64_t`
    bitmask, reducing boundary computation to bit operations.
 4. **`SubScenario` compactness — decisive for Phase D.** D.8's ~215 KB working-set estimate assumes
-   `vector<pair<TypeId, …>>`: 2 bytes per key, trivially copyable, no allocation. `std::string` keys
+   `vector<pair<SeqTypeId, …>>`: 2 bytes per key, trivially copyable, no allocation. `std::string` keys
    are 32 bytes plus heap traffic per entry, in the innermost combination loop, for objects held in
    bulk. Phase D as designed does not survive string keys.
 
@@ -220,36 +220,36 @@ id-stability question across save/load.
 **Revised `SeqTypeRegistry` (supersedes the `SequenceTypeRegistry` sketch in B2):**
 
 ```cpp
-using TypeId = uint16_t;
-inline constexpr TypeId kNoType = std::numeric_limits<TypeId>::max();
+using SeqTypeId = uint16_t;
+inline constexpr SeqTypeId kNoType = std::numeric_limits<SeqTypeId>::max();
 
 class SeqTypeRegistry {
 public:
-    TypeId register_type(const std::string& name);   // idempotent; returns existing id
-    TypeId id(const std::string& name) const;        // throws if unknown
-    const std::string& name(TypeId) const;
+    SeqTypeId register_type(const std::string& name);   // idempotent; returns existing id
+    SeqTypeId id(const std::string& name) const;        // throws if unknown
+    const std::string& name(SeqTypeId) const;
 
     void set_ordering(const std::vector<std::string>&);  // registers as it goes
-    const std::vector<TypeId>& ordering() const;
-    TypeId left_neighbor(TypeId) const;   // kNoType at the edges
-    TypeId right_neighbor(TypeId) const;
+    const std::vector<SeqTypeId>& ordering() const;
+    SeqTypeId left_neighbor(SeqTypeId) const;   // kNoType at the edges
+    SeqTypeId right_neighbor(SeqTypeId) const;
 
     void freeze();
     bool is_frozen() const;
     size_t total_count() const;
 private:
-    std::unordered_map<std::string, TypeId> name_to_id_;
+    std::unordered_map<std::string, SeqTypeId> name_to_id_;
     std::vector<std::string> id_to_name_;
-    std::vector<TypeId> ordering_;
-    std::vector<TypeId> left_, right_;   // precomputed, id-indexed
+    std::vector<SeqTypeId> ordering_;
+    std::vector<SeqTypeId> left_, right_;   // precomputed, id-indexed
     bool frozen_ = false;
 };
 ```
 
 - `Rec_Event` keeps `seq_type` (string — used by `write2txt_v2()`, event names, diagnostics) and
-  gains `TypeId seq_type_id`. `Rec_Event::copy()` must carry **both**.
+  gains `SeqTypeId seq_type_id`. `Rec_Event::copy()` must carry **both**.
 - `Events_map` stays string-keyed.
-- Every per-scenario map (B8) is `DynamicSequenceMap` indexed by `TypeId`. Never by name.
+- Every per-scenario map (B8) is `DynamicSequenceMap` indexed by `SeqTypeId`. Never by name.
 - `Str_Dual_key_memory_map` / `Str_Seq_offsets_map` are deleted once this lands — same problem,
   wrong solution (see deviation 5).
 
@@ -283,6 +283,90 @@ Programmatic model builders that must be given `finalize()`:
 > returns `false` on an empty registry, so a v2 model silently round-trips to legacy format — and it
 > would break B8 on the day it lands.
 
+#### D5 — `LayeredArray` / `DynamicSequenceMap`: container design *(decided Aug 27 2026)*
+
+Supersedes the `DynamicSequenceMap` sketch in B2 and the storage details in D1.
+
+**Naming**: the handle type is **`SeqTypeId`**, not `SeqTypeId` — earlier sections use `SeqTypeId` for the
+same thing.
+
+##### Split the container from the registry
+
+`Enum_fast_memory_map` is instantiated with two unrelated key kinds — `Seq_type` for the scenario
+maps, but `int` (event index) for `Index_map`. Folding registry knowledge into one class would force
+`Index_map` to carry a registry it has no use for. Two layers instead:
+
+- **`LayeredArray<V>`** — the pure container. Runtime element count, per-key layer stack, growth,
+  no registry and no seq_type knowledge. `Index_map` uses it directly.
+- **`DynamicSequenceMap<V>`** — wraps `LayeredArray<V>` plus a `const SeqTypeRegistry&`, keyed by
+  `SeqTypeId`, and adds `first_nonempty_left/right` for the ordered traversal.
+
+##### Keep the registry out of the hot path
+
+Each `Rec_Event` records its own `SeqTypeId` at initialization time (the resolution pass of D1b) and
+uses it directly in `iterate()`. The registry is consulted at model-load and initialization time
+only; no name lookup and no registry indirection occurs inside the scenario traversal.
+
+##### Modern-C++ storage
+
+- **`std::vector<V>` flat storage**, indexed `[key + layer * count]`. Flat, never nested — a
+  `vector<vector<V>>` would cost a pointer chase per access.
+- **Growth is `resize`, not `reserve`.** `reserve` only avoids reallocation cost; indexing past
+  `size()` is UB regardless. Reserve geometrically to amortise, resize to make elements exist.
+- **`std::mdspan` for the 2D interface** (see the C++23 note below).
+- **Reads return `V` by value**, not `V&`. Every value type is small and trivially copyable
+  (`Int_Str*`, `std::vector<int>*`, `Seq_Offset`, `double`, `bool`, `std::size_t`), so this costs
+  nothing and removes the whole dangling-reference class: a reference into the storage is invalidated
+  by any growth. Writes go through an explicit `set(key, value, layer)`, which also makes the layer
+  explicit at the write site — where the current bugs live. *(Audited: nothing today holds a
+  reference into the storage across a growth. The `Int_Str &s = *scenario.get_sequence_segment(...)`
+  pattern dereferences the stored pointer, whose target lives in the event. So this is prophylactic.)*
+
+##### Defects in `Enum_fast_memory_map` to fix, not port
+
+1. **A `const` method that mutates.** `const V &at(const K&, int) const` assigns
+   `memory_layer_ptr[key] = memory_layer`. It compiles only because `memory_layer_ptr` is a raw
+   `int*` — constness applies to the pointer, not the pointee. With `std::vector<int>` it will not
+   compile. **Audit the callers before "fixing" it**: if any const caller relies on that rewind,
+   removing it changes traversal behaviour. Likely copy-paste from the non-const overload, but that
+   must be established, not assumed.
+2. **Rule-of-three violation.** Two `new[]` allocations, no copy constructor or assignment operator —
+   a copy double-frees. Nothing copies one today (they are locals inside the OpenMP region), but
+   `std::vector` removes the hazard for free.
+3. **A fixed-size-6 stack buffer.** `Rec_Event.h` declares `int current_downstream_proba_memory_layers[6];`,
+   filled by `get_all_current_memory_layer(int*)` and consumed by `multiply_all(double&, int*)`.
+   **With more than 6 seq types this is a stack buffer overflow** — silent corruption, not a crash.
+   It is on the tandem-D critical path. Replace the raw `int*` pair with `std::span<const int>` over
+   a `std::vector<int>` sized from the registry.
+
+*(Layer accounting is fine as it stands: both growth paths keep `max_layer` as "highest valid index"
+with capacity `max_layer + 1`. `set_value` merely reserves one spare layer rather than the minimum.)*
+
+##### C++23 and `std::mdspan` — a shared prerequisite
+
+`std::mdspan` is C++23 and **is not in GCC 14.3's libstdc++** (it landed in GCC 15), which is what
+the current pixi environment provides. `feature/TensorLinalg` has already solved this: it sets
+`CMAKE_CXX_STANDARD 23` and adds `mdspan = "*"` to `pixi.toml` — the Kokkos reference
+implementation, exposed as `std::mdspan`.
+
+> **Coordinate the bump.** Both branches introducing the C++23 switch and the `mdspan` dependency
+> independently is hazard H1 repeated in the build configuration. It should land on `develop` once,
+> from whichever branch reaches it first. Steps 1–3 of the decomposition below do not need it, so
+> this is not a blocker for starting.
+
+##### Commit decomposition for B2
+
+| # | Commit | Notes |
+|---|---|---|
+| 1 | Move the generic layered-map templates out of `Utils.h` into a dedicated header | Pure mechanical move, zero behaviour. The templates are fully generic, so `Utils.h` keeps the typedefs and includes the new header — no consumer changes. |
+| 2 | Add `LayeredArray<V>` + tests, incl. a Catch2 benchmark against `Enum_fast_memory_map` | Where the care goes: write the growth invariant down and test it. The benchmark closes the D4 measurement loop with real numbers before anything depends on it. |
+| 3 | Port `Index_map` to `LayeredArray` | Simplest consumer, no registry; proves the container in production. |
+| 4 | Add `SeqTypeId` to `SeqTypeRegistry` | `register_type`/`id`/`name`/`freeze`, ordering as `vector<SeqTypeId>`, precomputed neighbours, plus the resolution pass and `finalize()` of D1b. |
+| 5 | Add `DynamicSequenceMap<V>` + tests | `first_nonempty_left/right`, covering the len-0 vs layer-−1 distinction (the B10 contract). |
+
+Steps 1–5 are B2. B8 then migrates the five scenario maps one at a time, and `Enum_fast_memory_map`
+is deleted when its last consumer is gone.
+
 #### D2 — Tandem D is independent of Phase A
 
 Phase A is **not** a prerequisite for tandem D, consistent with the task dependency graph
@@ -293,7 +377,7 @@ Phase A is **not** a prerequisite for tandem D, consistent with the task depende
 | Registry holds arbitrary names + ordering | ✅ done |
 | `events_map` distinguishes two D `Gene_choice`s | ✅ done (B4) |
 | Alignment works for D1/D2 | ✅ free — both are `Gene_class == D_gene`, so `allowed_realizations` keyed by `Gene_class` serves both. This is precisely why `Gene_class` must survive inside `Gene_choice`. |
-| Scenario maps sized at runtime | ❌ B8 — blocked on `TypeId` (D1) |
+| Scenario maps sized at runtime | ❌ B8 — blocked on `SeqTypeId` (D1) |
 | Fixed-enum switches removed from the three iterate()s | ❌ B5/B6/B7 |
 | Safety keyed per insertion type, not `{VD,DJ,VJ}_safe` | ❌ part of B5 + B8 |
 | Skipped-D semantics: mock event writes a length-0 segment | ❌ unimplemented |
@@ -307,7 +391,7 @@ time that exactly one event `Creates` each type in the ordering and that every i
 flanked by gene-`Creates` events. Without it, a malformed tandem-D model does not error — it seeds
 the Markov chain from the wrong nucleotide and returns plausible wrong numbers.
 
-**Ordering:** B2-with-TypeId → B8 → B7 → B6 → B5 → tandem-D end-to-end test → Phase A → Phase C.
+**Ordering:** B2-with-SeqTypeId → B8 → B7 → B6 → B5 → tandem-D end-to-end test → Phase A → Phase C.
 Phase A is a pure interface addition, bitwise-exact and behaviour-free, so it can proceed in parallel
 at any time; it simply must not block the critical path.
 
@@ -481,7 +565,7 @@ Both are wrong for any non-VDJ topology.
 > the registry-ordered `EventUtils::build_scenario_sequence(registry, seqs)` overload and left it
 > with no production caller ([EventUtils.cpp:97](src/igor/Core/EventUtils.cpp#L97)). Switch
 > `Single_error_rate`, `Hypermutation_global_errorrate` and `Pgencounter` to it, and replace the
-> `0..5` loop with `for (TypeId t : registry.ordering())`. Do this as part of B8 — it is the change
+> `0..5` loop with `for (SeqTypeId t : registry.ordering())`. Do this as part of B8 — it is the change
 > that makes the registry overload live, and it removes a hardcoding both plans object to.
 
 #### H8 — Reading frame is a dependency neither Phase A, D nor E currently models
@@ -537,7 +621,7 @@ own refactor.
 3. **Rebase `feature/AA_PGEN`** onto that: port `iterate_patched_pgen()` to `traversal_specs` (H6),
    retarget the `Deletion` two-track edits onto the `target_seq_type` switch (they survive there
    until B5), and route `Single_error_rate` through the registry ordering (H7).
-4. **Then B2-with-TypeId → B8 → B7 → B6 → B5**, with the AA Pgen requirements folded into each
+4. **Then B2-with-SeqTypeId → B8 → B7 → B6 → B5**, with the AA Pgen requirements folded into each
    rewrite's definition of done as listed above.
 5. **Phase A** including `CodonFrame`, then **Phase C**.
 
@@ -573,8 +657,8 @@ The refactoring also fixes a longstanding design error: `Gene_class` is used in 
 | `Deletion::iterate()` | `switch(event_class)` on V/D/J drives which `(Seq_type, Seq_side)` to access | `seq_type_ids[0]` + `event_side` (both become instance data) |
 | `Insertion::iterate()` | `switch(event_class)` on VD/DJ/VJ drives which insertion `Seq_type` to construct | `seq_type_ids[0]`; neighbors found via ordered vector traversal |
 | `Dinucl_markov::iterate()` | `if (event_class == VD_genes)` etc. encodes `(seq_type, start_side, context_seq)` | `seq_type_ids[0]` + `start_side` + ordered vector traversal for seed nt |
-| `events_map` key | `tuple<Event_type, Gene_class, Seq_side>` — tandem D events collide | `tuple<Event_type, TypeId, Seq_side>` |
-| `Safety_bool_map` | Hardcoded `VD_safe`/`DJ_safe`/`VJ_safe` enum | `DynamicSequenceMap<bool>` keyed by insertion TypeId |
+| `events_map` key | `tuple<Event_type, Gene_class, Seq_side>` — tandem D events collide | `tuple<Event_type, SeqTypeId, Seq_side>` |
+| `Safety_bool_map` | Hardcoded `VD_safe`/`DJ_safe`/`VJ_safe` enum | `DynamicSequenceMap<bool>` keyed by insertion SeqTypeId |
 
 ### Dinucl_markov implicit encoding (confirmed from code)
 
@@ -614,10 +698,10 @@ These are distinct properties:
 ### Memory layer mechanics (`Enum_fast_memory_map`)
 
 - Flat array: `value_ptr_arr[key + layer * range]` — pure integer arithmetic.
-- Layer tracking is **per-key independent**: `memory_layer_ptr[key]` stores the current layer for each TypeId independently.
+- Layer tracking is **per-key independent**: `memory_layer_ptr[key]` stores the current layer for each SeqTypeId independently.
 - `request_memory_layer(key)` increments `memory_layer_ptr[key]`.
-- Topological ordering invariant: left TypeIds in the ordered sequence array are always written before right TypeIds, so `find_first_nonempty_left` from any position sees fully committed values.
-- Mock/None events **must write an empty `Int_Str` (length 0)** to their TypeId at the current memory layer. This distinguishes "actively absent" (len 0, written) from "not yet processed" (layer = -1, never written). Traversal skips both.
+- Topological ordering invariant: left SeqTypeIds in the ordered sequence array are always written before right SeqTypeIds, so `find_first_nonempty_left` from any position sees fully committed values.
+- Mock/None events **must write an empty `Int_Str` (length 0)** to their SeqTypeId at the current memory layer. This distinguishes "actively absent" (len 0, written) from "not yet processed" (layer = -1, never written). Traversal skips both.
 
 ---
 
@@ -629,14 +713,14 @@ These are distinct properties:
 >
 > **Status: ⬜ NOT STARTED.** No capability enum, no pure virtual, no subclass implementation exists on `feature/modelfileformat`.
 
-**Goal**: Add declarative property methods to `Rec_Event` as pure virtuals. Zero behavior change. Can be built against the current `Seq_type` enum (cast to `TypeId`) before `SequenceTypeRegistry` exists.
+**Goal**: Add declarative property methods to `Rec_Event` as pure virtuals. Zero behavior change. Can be built against the current `Seq_type` enum (cast to `SeqTypeId`) before `SequenceTypeRegistry` exists.
 
 ### Why pure virtuals, not class members with base accessors
 
 Several capability values are **instance-dependent**, not class-level constants:
 
 - `get_context_dependency()` on `Dinucl_markov` returns `LeftNt` or `RightNt` depending on the instance variable `start_side`, which differs between a VD instance and a DJ instance of the same class.
-- `get_seq_construction_roles()` is keyed by `seq_type_ids[0]` and possibly the associated flank TypeId — both instance data set at model load time.
+- `get_seq_construction_roles()` is keyed by `seq_type_ids[0]` and possibly the associated flank SeqTypeId — both instance data set at model load time.
 - `get_offset_roles()` similarly uses `seq_type_ids[0]` and `event_side`.
 
 Using class members would require the base constructor to accept all capability values (coupling base initialization to subclass knowledge), or allow post-construction mutation (fragile initialization ordering). Pure virtuals let each subclass read its own instance state at query time, with no coupling.
@@ -680,20 +764,20 @@ Add to [src/igor/Core/Rec_Event.h](src/igor/Core/Rec_Event.h):
 ```cpp
 virtual bool is_branching() const = 0;
 virtual bool is_multi_realization() const = 0;
-virtual std::unordered_map<TypeId, SeqConstructionRole> get_seq_construction_roles() const = 0;
-virtual std::unordered_map<TypeId, OffsetRole>           get_offset_roles() const = 0;
+virtual std::unordered_map<SeqTypeId, SeqConstructionRole> get_seq_construction_roles() const = 0;
+virtual std::unordered_map<SeqTypeId, OffsetRole>           get_offset_roles() const = 0;
 virtual SeqContextDependency                             get_context_dependency() const = 0;
-virtual std::vector<TypeId>                              get_context_seq_types() const = 0;
+virtual std::vector<SeqTypeId>                              get_context_seq_types() const = 0;
 ```
 
 ### Capability matrix
 
 | Subclass | `is_branching` | `is_multi_real` | `SeqConstructionRole` | `OffsetRole` | `SeqContextDep` |
 |----------|:---:|:---:|---|---|---|
-| `Gene_choice` | true | false | `Creates` for primary TypeId + flank TypeId | `Creates` for primary TypeId | `None` |
-| `Deletion` | true | false | `Modifies` for primary TypeId | `Modifies` for primary TypeId | `None` |
-| `Insertion` | false | false | `Creates` for primary TypeId | `None` | `None` |
-| `Dinucl_markov` | false | true | `Fills` for primary TypeId | `None` | `LeftNt` (if `start_side==Five_prime`) or `RightNt` (if `Three_prime`) |
+| `Gene_choice` | true | false | `Creates` for primary SeqTypeId + flank SeqTypeId | `Creates` for primary SeqTypeId | `None` |
+| `Deletion` | true | false | `Modifies` for primary SeqTypeId | `Modifies` for primary SeqTypeId | `None` |
+| `Insertion` | false | false | `Creates` for primary SeqTypeId | `None` | `None` |
+| `Dinucl_markov` | false | true | `Fills` for primary SeqTypeId | `None` | `LeftNt` (if `start_side==Five_prime`) or `RightNt` (if `Three_prime`) |
 | `ErrorRate_Rec_Event` *(Phase E)* | false | false | `None` | `None` | `SingleNtAll` or `LeftWindow`/`RightWindow` |
 
 ---
@@ -702,12 +786,12 @@ virtual std::vector<TypeId>                              get_context_seq_types()
 
 ### B0 — New instance members
 
-> **Status: 🟡 PARTIAL.** A `Seq_type_String seq_type` (std::string) member was added to `Rec_Event` instead of `std::vector<TypeId> seq_type_ids`; `event_class` was kept on the base rather than pushed down into `Gene_choice`. `Deletion`/`Insertion`/`Dinucl_markov` do carry a typed target seq_type (`target_seq_type` / `ins_seq_type`), and `Dinucl_markov` carries the anchor side via `DinuclTraversalSpec`.
+> **Status: 🟡 PARTIAL.** A `Seq_type_String seq_type` (std::string) member was added to `Rec_Event` instead of `std::vector<SeqTypeId> seq_type_ids`; `event_class` was kept on the base rather than pushed down into `Gene_choice`. `Deletion`/`Insertion`/`Dinucl_markov` do carry a typed target seq_type (`target_seq_type` / `ins_seq_type`), and `Dinucl_markov` carries the anchor side via `DinuclTraversalSpec`.
 
 **`Rec_Event` base** ([src/igor/Core/Rec_Event.h](src/igor/Core/Rec_Event.h)):
-- Replace `Gene_class event_class` with `std::vector<TypeId> seq_type_ids`
+- Replace `Gene_class event_class` with `std::vector<SeqTypeId> seq_type_ids`
   - `primary_seq_type_id()` returns `seq_type_ids[0]` — used as `events_map` key
-  - Most events have one TypeId; events acting on multiple TypeIds (e.g. a global `ErrorRate_Rec_Event`) populate the full vector
+  - Most events have one SeqTypeId; events acting on multiple SeqTypeIds (e.g. a global `ErrorRate_Rec_Event`) populate the full vector
 - **Keep `Gene_class event_class` only inside `Gene_choice`** — its sole legitimate use is alignment strategy dispatch
 
 **`Dinucl_markov`** ([src/igor/Core/Dinuclmarkov.h](src/igor/Core/Dinuclmarkov.h)):
@@ -726,38 +810,38 @@ Update all uses of the removed values (they all occur in the four switch/if bloc
 
 ### B2 — `SequenceTypeRegistry` + `DynamicSequenceMap` (new `src/igor/Core/SequenceTypes.h`)
 
-> ⚠️ **The `SequenceTypeRegistry` / `LegacySequenceRegistry` sketch below is superseded by the revised `SeqTypeRegistry` in decision D1** (names kept as identity, `TypeId` added as handle) and by the lifecycle in D1b. `DynamicSequenceMap` is unchanged and still applies.
+> ⚠️ **The `SequenceTypeRegistry` / `LegacySequenceRegistry` sketch below is superseded by the revised `SeqTypeRegistry` in decision D1** (names kept as identity, `SeqTypeId` added as handle) and by the lifecycle in D1b. `DynamicSequenceMap` is unchanged and still applies.
 >
-> **Status: 🟡 PARTIAL.** `src/igor/Core/SeqTypeRegistry.h` implements the *ordering* half only — `set_ordered_types` / `index_of` / `get_left_neighbor` / `get_right_neighbor`, keyed by `std::string`. There is no `TypeId` allocation (`register_type`/`get_type_id`), no `freeze()`, no `standard_count()`, no `LegacySequenceRegistry`, and no `DynamicSequenceMap`. The registry is consumed only by `Model_Parms` I/O and by a registry-based `EventUtils::build_scenario_sequence()` overload that no production caller uses yet.
+> **Status: 🟡 PARTIAL.** `src/igor/Core/SeqTypeRegistry.h` implements the *ordering* half only — `set_ordered_types` / `index_of` / `get_left_neighbor` / `get_right_neighbor`, keyed by `std::string`. There is no `SeqTypeId` allocation (`register_type`/`get_type_id`), no `freeze()`, no `standard_count()`, no `LegacySequenceRegistry`, and no `DynamicSequenceMap`. The registry is consumed only by `Model_Parms` I/O and by a registry-based `EventUtils::build_scenario_sequence()` overload that no production caller uses yet.
 
 #### `SequenceTypeRegistry`
 
-Pure class with no predefined TypeIds:
+Pure class with no predefined SeqTypeIds:
 
 ```cpp
 class SequenceTypeRegistry {
 public:
-    using TypeId = uint16_t;
+    using SeqTypeId = uint16_t;
 
-    TypeId register_type(const std::string& name);
-    TypeId get_type_id(const std::string& name) const;
-    std::string get_type_name(TypeId id) const;
+    SeqTypeId register_type(const std::string& name);
+    SeqTypeId get_type_id(const std::string& name) const;
+    std::string get_type_name(SeqTypeId id) const;
 
-    size_t total_count() const;  // all registered TypeIds
+    size_t total_count() const;  // all registered SeqTypeIds
     size_t standard_count() const;  // count before flank registrations
 
     // Ordered biological sequence list (set by new model file format)
-    void set_ordering(const std::vector<TypeId>& order);
-    const std::vector<TypeId>& ordering() const;
+    void set_ordering(const std::vector<SeqTypeId>& order);
+    const std::vector<SeqTypeId>& ordering() const;
 
     void freeze();   // must be called before any DynamicSequenceMap is constructed
     bool is_frozen() const;
 
 private:
-    std::unordered_map<std::string, TypeId> name_to_id_;
+    std::unordered_map<std::string, SeqTypeId> name_to_id_;
     std::vector<std::string> id_to_name_;
-    std::vector<TypeId> ordering_;
-    TypeId next_id_ = 0;
+    std::vector<SeqTypeId> ordering_;
+    SeqTypeId next_id_ = 0;
     size_t standard_count_ = 0;  // snapshot taken before flank registration
     bool frozen_ = false;
 };
@@ -771,7 +855,7 @@ Wraps `SequenceTypeRegistry` pre-populated for standard VDJ models:
 class LegacySequenceRegistry : public SequenceTypeRegistry {
 public:
     LegacySequenceRegistry() {
-        // Register standard types (TypeIds 0–5)
+        // Register standard types (SeqTypeIds 0–5)
         register_type("V_gene_seq");   // 0
         register_type("VD_ins_seq");   // 1
         register_type("D_gene_seq");   // 2
@@ -780,7 +864,7 @@ public:
         register_type("VJ_ins_seq");   // 5
         snapshot_standard_count();     // standard_count_ = 6
 
-        // Flanking types registered LAST (TypeIds 6–7)
+        // Flanking types registered LAST (SeqTypeIds 6–7)
         register_type("left_flank_seq");   // 6
         register_type("right_flank_seq");  // 7
 
@@ -790,11 +874,11 @@ public:
 };
 ```
 
-Flank TypeIds are always ≥ `standard_count()` by construction. This means maps constructed with `range = standard_count()` will never be asked to store flank data — no guard code needed.
+Flank SeqTypeIds are always ≥ `standard_count()` by construction. This means maps constructed with `range = standard_count()` will never be asked to store flank data — no guard code needed.
 
 #### `DynamicSequenceMap<V>`
 
-`DynamicSequenceMap` is the runtime-sized, TypeId-keyed replacement for `Enum_fast_memory_map`. TypeId is already a dense integer `[0, count)` so no index translation is needed — TypeId directly addresses the array. The layer tracking mechanism is identical to `Enum_fast_memory_map`; the only structural changes are heap allocation with a runtime count, plus a cached reverse-lookup table for O(1) traversal start.
+`DynamicSequenceMap` is the runtime-sized, SeqTypeId-keyed replacement for `Enum_fast_memory_map`. SeqTypeId is already a dense integer `[0, count)` so no index translation is needed — SeqTypeId directly addresses the array. The layer tracking mechanism is identical to `Enum_fast_memory_map`; the only structural changes are heap allocation with a runtime count, plus a cached reverse-lookup table for O(1) traversal start.
 
 ```cpp
 template<typename V>
@@ -802,29 +886,29 @@ class DynamicSequenceMap {
 public:
     // Constructed AFTER registry is frozen; asserts registry.is_frozen().
     // range defaults to registry.total_count(); pass registry.standard_count()
-    // for maps that must not allocate storage for flank TypeIds.
+    // for maps that must not allocate storage for flank SeqTypeIds.
     DynamicSequenceMap(const SequenceTypeRegistry& registry,
                        size_t max_layers,
                        size_t range = 0 /* 0 → registry.total_count() */);
 
     // Current-layer read/write — equivalent to Enum_fast_memory_map::operator[]
-    V& at(TypeId id);
-    const V& at(TypeId id) const;
+    V& at(SeqTypeId id);
+    const V& at(SeqTypeId id) const;
 
     // Layer management — per-key independent, matching Enum_fast_memory_map semantics
-    void request_memory_layer(TypeId id);   // push: increment layer for id
-    void restore_memory_layer(TypeId id);   // pop: decrement layer for id
+    void request_memory_layer(SeqTypeId id);   // push: increment layer for id
+    void restore_memory_layer(SeqTypeId id);   // pop: decrement layer for id
 
-    bool exist(TypeId id) const;            // true if layer_ptr_[id] > -1
+    bool exist(SeqTypeId id) const;            // true if layer_ptr_[id] > -1
 
     // Ordered traversal over registry.ordering(): skip unwritten (layer==-1)
     // and actively-absent (length==0) entries
-    const V* find_first_nonempty_left(TypeId from) const;
-    const V* find_first_nonempty_right(TypeId from) const;
+    const V* find_first_nonempty_left(SeqTypeId from) const;
+    const V* find_first_nonempty_right(SeqTypeId from) const;
 
 private:
     V*       storage_;        // 2D flat array [id + layer * count_], size = count_ * max_layers_
-    int*     layer_ptr_;      // current layer per TypeId, size = count_; -1 = unwritten
+    int*     layer_ptr_;      // current layer per SeqTypeId, size = count_; -1 = unwritten
     size_t*  ordering_pos_;   // ordering_pos_[id] = index of id in registry_.ordering();
                               //   SIZE_MAX if id does not appear in the ordering
     size_t   count_;          // == range argument (defaults to registry.total_count())
@@ -835,9 +919,9 @@ private:
 
 **Design**: `storage_` layout is `storage_[id + layer * count_]` — pure integer arithmetic, identical to `Enum_fast_memory_map::value_ptr_arr[key + layer * range]`. `layer_ptr_[id]` initialises to -1 (unwritten). `request_memory_layer` / `restore_memory_layer` increment/decrement `layer_ptr_[id]` independently per key, preserving full backtracking semantics.
 
-`ordering_pos_` is populated at construction by iterating `registry_.ordering()` once (O(n)). `find_first_nonempty_left(from)` then uses `ordering_pos_[from]` as an O(1) start index into the ordering vector and walks leftward — no linear scan over the ordering to find `from`'s position. TypeIds not in the ordering (i.e. maps constructed with `range = standard_count()` that are never asked about flank TypeIds) have `ordering_pos_[id] = SIZE_MAX` and are guarded by the `exist()` check.
+`ordering_pos_` is populated at construction by iterating `registry_.ordering()` once (O(n)). `find_first_nonempty_left(from)` then uses `ordering_pos_[from]` as an O(1) start index into the ordering vector and walks leftward — no linear scan over the ordering to find `from`'s position. SeqTypeIds not in the ordering (i.e. maps constructed with `range = standard_count()` that are never asked about flank SeqTypeIds) have `ordering_pos_[id] = SIZE_MAX` and are guarded by the `exist()` check.
 
-The `range` override (defaulting to `registry.total_count()`) allows maps that cover only standard TypeIds to pass `registry.standard_count()` and avoid allocating flank storage — no guard code needed since flank TypeIds are always ≥ `standard_count()`.
+The `range` override (defaulting to `registry.total_count()`) allows maps that cover only standard SeqTypeIds to pass `registry.standard_count()` and avoid allocating flank storage — no guard code needed since flank SeqTypeIds are always ≥ `standard_count()`.
 
 #### Ordered traversal
 
@@ -847,7 +931,7 @@ The "empty" predicate is value-type-specific:
 - `Int_Str*` → pointer is non-null and `->size() > 0`
 - Other types → always considered present once written (layer ≥ 0)
 
-### B3 — Flanking sequences as first-class TypeIds
+### B3 — Flanking sequences as first-class SeqTypeIds
 
 > **Status: ⬜ NOT STARTED.** No flank seq types exist; `Gene_choice` still discards the pre-alignment strip, and the `Hypermutation_global_errorrate` / `Hypermutation_full_Nmer_errorrate` friend declarations on `Gene_choice` are still in place.
 
@@ -877,26 +961,26 @@ Analogous for J and `right_flank_seq`.
 
 **Friend declarations** on `Gene_choice` ([src/igor/Core/Genechoice.h](src/igor/Core/Genechoice.h)) are removed.
 
-Flank TypeIds:
+Flank SeqTypeIds:
 - Participate in `constructed_sequences` (range includes them)
 - **Not** in `Seq_offsets_map`, `Mismatch_vectors_map`, `Safety_bool_map`, `downstream_proba_map` (all use `range = standard_count()`)
-- `Gene_choice::get_seq_construction_roles()` returns `Creates` for both primary TypeId and `left_flank_seq`/`right_flank_seq` — no special-case capability virtual needed
+- `Gene_choice::get_seq_construction_roles()` returns `Creates` for both primary SeqTypeId and `left_flank_seq`/`right_flank_seq` — no special-case capability virtual needed
 
 ### B4 — `events_map` key ([src/igor/Core/Model_Parms.h](src/igor/Core/Model_Parms.h), [Model_Parms.cpp](src/igor/Core/Model_Parms.cpp))
 
-> **Status: ✅ DONE** (variant). `Events_map` (in `Utils.h`) is `unordered_map<tuple<Event_type, Seq_type_String, Seq_side>, shared_ptr<Rec_Event>>` — the key is the seq_type **name string**, not a `TypeId`. It is threaded through every `iterate`/`iterate_wrap_up`/`initialize_event`/`Counter`/`Error_rate` signature, and `get_events_map()` builds the key from `get_seq_type()`. Tandem-D key uniqueness is achieved; see deviation 1 for the `TypeId` consequence.
+> **Status: ✅ DONE** (variant). `Events_map` (in `Utils.h`) is `unordered_map<tuple<Event_type, Seq_type_String, Seq_side>, shared_ptr<Rec_Event>>` — the key is the seq_type **name string**, not a `SeqTypeId`. It is threaded through every `iterate`/`iterate_wrap_up`/`initialize_event`/`Counter`/`Error_rate` signature, and `get_events_map()` builds the key from `get_seq_type()`. Tandem-D key uniqueness is achieved; see deviation 1 for the `SeqTypeId` consequence.
 
 ```cpp
 // Before
 std::unordered_map<std::tuple<Event_type, Gene_class, Seq_side>, std::shared_ptr<Rec_Event>>
 
 // After
-std::unordered_map<std::tuple<Event_type, TypeId, Seq_side>, std::shared_ptr<Rec_Event>>
+std::unordered_map<std::tuple<Event_type, SeqTypeId, Seq_side>, std::shared_ptr<Rec_Event>>
 ```
 
 Key construction in `get_events_map()` changes from `(*iter)->get_class()` to `(*iter)->primary_seq_type_id()`.
 
-This makes tandem D events unique: two `Gene_choice` events have the same `Gene_class=D_gene` (same alignment system) but different `TypeId` (`D1_gene_seq` vs `D2_gene_seq`).
+This makes tandem D events unique: two `Gene_choice` events have the same `Gene_class=D_gene` (same alignment system) but different `SeqTypeId` (`D1_gene_seq` vs `D2_gene_seq`).
 
 ### Documentation debt in the `iterate()` implementations *(noted Aug 27 2026)*
 
@@ -937,7 +1021,7 @@ Remove the 4-case `switch(event_class)` dispatching on V/D/J. Generic implementa
 
 Remove the 3-case `switch(event_class)` dispatching on VD/DJ/VJ. Generic implementation:
 
-- `seq_type_ids[0]` identifies the insertion sequence TypeId
+- `seq_type_ids[0]` identifies the insertion sequence SeqTypeId
 - Insertion length = `right_neighbor.Five_prime_offset - left_neighbor.Three_prime_offset - 1`
   - `left_neighbor` = `find_first_nonempty_left(seq_type_ids[0])` → its `Three_prime` offset
   - `right_neighbor` = `find_first_nonempty_right(seq_type_ids[0])` → its `Five_prime` offset
@@ -951,7 +1035,7 @@ Remove the 3-case `switch(event_class)` dispatching on VD/DJ/VJ. Generic impleme
 
 Remove all `if (event_class == VD_genes) / (DJ_genes) / ...` branches. Generic implementation:
 
-- `seq_type_ids[0]` identifies the insertion TypeId to fill
+- `seq_type_ids[0]` identifies the insertion SeqTypeId to fill
 - `start_side == Five_prime` → forward fill; seed nt = **last nt** of `find_first_nonempty_left(seq_type_ids[0])`
 - `start_side == Three_prime` → backward/reversed fill; seed nt = **first nt** of `find_first_nonempty_right(seq_type_ids[0])`
 
@@ -966,7 +1050,7 @@ No conditional logic needed.
 
 > ⚠️ **Also affected by `feature/AA_PGEN` — hazards H2, H3, H7.** `DynamicSequenceMap` must inherit the layer-growth fix from `Enum_fast_memory_map::set_value()` (H2); the migration table below needs a sixth row for `Pruning_mismatch_floor_map` (H3); and this is where `Single_error_rate` / `Hypermutation_global_errorrate` / `Pgencounter` switch to the registry-ordered `build_scenario_sequence()` (H7).
 >
-> ⚠️ **Blocked on the `TypeId` layer from decision D1, and on the copy-constructor fix in deviation 8.** Run the D4 benchmark protocol before committing to an implementation.
+> ⚠️ **Blocked on the `SeqTypeId` layer from decision D1, and on the copy-constructor fix in deviation 8.** Run the D4 benchmark protocol before committing to an implementation.
 >
 > **Status: ⬜ NOT STARTED.** All five maps are unchanged (`Enum_fast_memory_map<Seq_type, …>`, `Enum_fast_memory_dual_key_map<Seq_type, Seq_side, Seq_Offset>`, `Enum_fast_memory_map<Event_safety, bool>`). A `Str_Dual_key_memory_map<K2,V>` / `Str_Seq_offsets_map` prototype was added to `Utils.h` but is referenced only from `tst/test_model_format_v2.cpp`; see deviation 5 — its nested-hash-map design conflicts with the flat-array requirement of this section.
 
@@ -974,13 +1058,13 @@ No conditional logic needed.
 
 | Map | Old type | New type | Constructor args | Note |
 |-----|----------|----------|-----------------|------|
-| `Seq_type_str_p_map` | `Enum_fast_memory_map<Seq_type, Int_Str*>` | `DynamicSequenceMap<Int_Str*>` | `(registry, max_depth, registry.total_count())` | includes flank TypeIds; traversed by Dinucl/Insertion generic logic |
+| `Seq_type_str_p_map` | `Enum_fast_memory_map<Seq_type, Int_Str*>` | `DynamicSequenceMap<Int_Str*>` | `(registry, max_depth, registry.total_count())` | includes flank SeqTypeIds; traversed by Dinucl/Insertion generic logic |
 | `Seq_offsets_map` | `Enum_fast_memory_dual_key_map<Seq_type, Seq_side, Seq_Offset>` | Two `DynamicSequenceMap<Seq_Offset>` — `five_prime_offsets` and `three_prime_offsets` | `(registry, max_depth, registry.standard_count())` each | flanks excluded; `Seq_side` becomes a name suffix, not a key dimension; access: `five_prime_offsets.at(id)` / `three_prime_offsets.at(id)` |
 | `Mismatch_vectors_map` | `Enum_fast_memory_map<Seq_type, vector<int>*>` | `DynamicSequenceMap<vector<int>*>` | `(registry, max_depth, registry.standard_count())` | flanks excluded |
 | `Downstream_scenario_proba_bound_map` | `Enum_fast_memory_map<Seq_type, double>` | `DynamicSequenceMap<double>` | `(registry, max_depth, registry.standard_count())` | flanks excluded |
-| `Safety_bool_map` | `Enum_fast_memory_map<Event_safety, bool>` (3 fixed values) | `DynamicSequenceMap<bool>` | `(registry, 1, insertion_type_count)` | keyed by insertion TypeId; no layers needed |
+| `Safety_bool_map` | `Enum_fast_memory_map<Event_safety, bool>` (3 fixed values) | `DynamicSequenceMap<bool>` | `(registry, 1, insertion_type_count)` | keyed by insertion SeqTypeId; no layers needed |
 
-Flank TypeIds (`left_flank_seq`, `right_flank_seq`) appear only in `constructed_sequences`; they are outside the address space of all other maps by construction.
+Flank SeqTypeIds (`left_flank_seq`, `right_flank_seq`) appear only in `constructed_sequences`; they are outside the address space of all other maps by construction.
 
 ### B11 — Generalize `Gene_choice` seq_type writes *(new; added Aug 27 2026)*
 
@@ -1016,7 +1100,7 @@ Both realization-enumeration paths are in scope:
    `dj_length_best_proba_map` — i.e. `VD_ins_seq` and `DJ_ins_seq` specifically. For a tandem-D model
    the D2 event would build its position map from the wrong insertion types, and the `junction_len`
    identity is wrong once two D segments share the V→J gap. Generalizing it means deriving each D
-   event's flanking insertion TypeIds from the registry ordering (`left_neighbor` / `right_neighbor`
+   event's flanking insertion SeqTypeIds from the registry ordering (`left_neighbor` / `right_neighbor`
    of its own seq_type) rather than naming `VD_ins_seq`/`DJ_ins_seq`, and rebuilding the position
    enumeration against those.
 
@@ -1097,7 +1181,7 @@ merely an untidy model. So milestone 2 must pick one of:
   `right_neighbor` become sets, B6/B7 must select a path, Phase C validates the DAG, and Phase D's
   decomposition over a DAG is materially harder than over a chain. Substantial, but correct.
 - **(c) Forbid the configuration.** Phase C rejects a model where a segment that can be absent sits
-  between two insertion TypeIds. Cheapest; adequate if the first optional-D models place a single
+  between two insertion SeqTypeIds. Cheapest; adequate if the first optional-D models place a single
   insertion between D1 and D2.
 
 Recommendation: ship milestone 1 first, then choose between **(b)** and **(c)**. Record the choice
@@ -1132,7 +1216,7 @@ consumers). Feeds the Phase C rule.
 
 The existing `.txt` model format uses `Gene_class` strings (`VD_genes`, `DJ_genes`, etc.) as event identifiers. The converter must:
 
-1. Map `VD_genes` → `(TypeId: VD_ins_seq, start_side: Five_prime)`, `DJ_genes` → `(TypeId: DJ_ins_seq, Three_prime)`, `VJ_genes` → `(TypeId: VJ_ins_seq, Five_prime)`, etc.
+1. Map `VD_genes` → `(SeqTypeId: VD_ins_seq, start_side: Five_prime)`, `DJ_genes` → `(SeqTypeId: DJ_ins_seq, Three_prime)`, `VJ_genes` → `(SeqTypeId: VJ_ins_seq, Five_prime)`, etc.
 2. Construct the standard ordered array: `[left_flank_seq, V_gene_seq, VD_ins_seq, D_gene_seq, DJ_ins_seq, J_gene_seq, right_flank_seq]`
 3. Expand any `VDJ_genes` `Dinucl_markov` into two separate events (VD + DJ) flagged for parameter sharing
 4. Generate safety adjacency entries for each junction from the implied topology
@@ -1145,11 +1229,11 @@ The existing `.txt` model format uses `Gene_class` strings (`VD_genes`, `DJ_gene
 
 After event graph assembly, validate using capability attributes:
 
-1. **Unique Creates per TypeId**: for each TypeId in registry order, assert exactly one event returns `Creates` in `get_seq_construction_roles()`
+1. **Unique Creates per SeqTypeId**: for each SeqTypeId in registry order, assert exactly one event returns `Creates` in `get_seq_construction_roles()`
 2. **No multi-realization parents**: for each edge in `offset_map`, assert the parent event satisfies `is_multi_realization() == false`
-3. **Context deps satisfiable**: for each event, assert all TypeIds in `get_context_seq_types()` exist in the registry and appear in the correct position relative to this event in the ordering
-4. **Junction safety coverage**: for each insertion TypeId, assert it is flanked in the ordering by gene-seq-type `Creates` events on both sides
-5. **Flank position validity**: assert flank TypeIds are at the leftmost and rightmost positions in the ordering, and their `Creates` events are `Gene_choice` instances
+3. **Context deps satisfiable**: for each event, assert all SeqTypeIds in `get_context_seq_types()` exist in the registry and appear in the correct position relative to this event in the ordering
+4. **Junction safety coverage**: for each insertion SeqTypeId, assert it is flanked in the ordering by gene-seq-type `Creates` events on both sides
+5. **Flank position validity**: assert flank SeqTypeIds are at the leftmost and rightmost positions in the ordering, and their `Creates` events are `Gene_choice` instances
 
 Errors at this stage produce named diagnostics (e.g. "Two events both declare Creates for D1_gene_seq: ...") rather than undefined behaviour at inference time.
 
@@ -1171,8 +1255,8 @@ This phase is enabled by Phases A–C but not yet scheduled for implementation. 
 
 Subgraph boundaries are placed at every junction, e.g. between a gene-derived sequence and an insertion sequence. The capability attributes from Phase A determine where boundaries can and must be placed:
 
-- A boundary **must** be placed between TypeId $T_L$ and TypeId $T_R$ (adjacent in the registry ordering) whenever no event has a cross-boundary `get_context_seq_types()` dependency that cannot be expressed as an interface variable.
-- A `Dinucl_markov` with `get_context_dependency() == LeftNt` declared on an insertion TypeId creates a **soft** cross-boundary dependency: the last nucleotide of the left-side sequence must become part of the interface variable tuple rather than requiring the two subgraphs to be merged.
+- A boundary **must** be placed between SeqTypeId $T_L$ and SeqTypeId $T_R$ (adjacent in the registry ordering) whenever no event has a cross-boundary `get_context_seq_types()` dependency that cannot be expressed as an interface variable.
+- A `Dinucl_markov` with `get_context_dependency() == LeftNt` declared on an insertion SeqTypeId creates a **soft** cross-boundary dependency: the last nucleotide of the left-side sequence must become part of the interface variable tuple rather than requiring the two subgraphs to be merged.
 - `is_branching()` and `is_multi_realization()` inform how many subscenarios a given subgraph will emit (fan-out budget).
 
 **Example — standard VDJ model** (registry ordering: left_flank, V, VD_ins, D, DJ_ins, J, right_flank):
@@ -1195,9 +1279,9 @@ The interface variable tuple at a subgraph boundary must carry all information t
 
 | Condition at boundary | Interface variable added |
 |---|---|
-| Always | 3' offset of left-side last TypeId (= boundary position in the receptor) |
-| `Dinucl_markov` with `LeftNt` on right-side insertion TypeId | Last nucleotide identity of left-side last constructed sequence (4 possible values) |
-| `Dinucl_markov` with `RightNt` on left-side insertion TypeId | First nucleotide identity of right-side first constructed sequence |
+| Always | 3' offset of left-side last SeqTypeId (= boundary position in the receptor) |
+| `Dinucl_markov` with `LeftNt` on right-side insertion SeqTypeId | Last nucleotide identity of left-side last constructed sequence (4 possible values) |
+| `Dinucl_markov` with `RightNt` on left-side insertion SeqTypeId | First nucleotide identity of right-side first constructed sequence |
 | Error rate with `LeftWindow`/`RightWindow` context crossing the boundary | Window of N nucleotides from left/right side |
 | No crossing dependency | Offset only |
 | Patched/motif query (AA Pgen) whose codons cross the boundary | Frame phase (0/1/2) **and** the partial-codon prefix — see hazard H8 |
@@ -1220,19 +1304,19 @@ struct SubScenario {
                                              //   = probability × ε^k (1−ε)^(n−k) for separable models
                                              //   = 1.0 placeholder when error weighting is deferred
 
-    // Mismatch positions per TypeId (for post-combination error weighting in non-separable models):
-    std::vector<std::pair<TypeId, std::vector<int>>> mismatches;
+    // Mismatch positions per SeqTypeId (for post-combination error weighting in non-separable models):
+    std::vector<std::pair<SeqTypeId, std::vector<int>>> mismatches;
 
     // Present in full inference mode:
-    std::vector<std::pair<TypeId, Int_Str>>               constructed_seqs;
+    std::vector<std::pair<SeqTypeId, Int_Str>>               constructed_seqs;
     std::vector<std::pair<Rec_Event*, EventRealization>>  event_realizations;
 };
 ```
 
 A subgraph traversal emits a `std::vector<SubScenario>` — one entry per leaf of the subgraph's iterate() tree (i.e. one per surviving event combination after pruning).
 
-**Relationship to the existing `Scenario` struct**: `Scenario` is a zero-copy flattened view over a *complete* `ScenarioContext` (all TypeIds, both probabilities fully computed, passed read-only to `Counter`s at leaf nodes). `SubScenario` is fundamentally different:
-- Covers only the TypeIds of one subgraph cluster (other TypeIds absent / null).
+**Relationship to the existing `Scenario` struct**: `Scenario` is a zero-copy flattened view over a *complete* `ScenarioContext` (all SeqTypeIds, both probabilities fully computed, passed read-only to `Counter`s at leaf nodes). `SubScenario` is fundamentally different:
+- Covers only the SeqTypeIds of one subgraph cluster (other SeqTypeIds absent / null).
 - Carries `interface_vars` that have no counterpart in `Scenario`.
 - `partial_error_w_proba` is not the final error-weighted probability — it is a partial factor that must be combined with contributions from other subgraphs.
 - Is **stored and combined** across the full graph assembly, not just passed through once.
@@ -1294,8 +1378,8 @@ This requires a **ScenarioContext warm start** constructor:
 
 ```cpp
 // Initialises ScenarioContext with pre-populated sequences and offsets from a SubScenario.
-// Memory layers for pre-populated TypeIds are set to 0 (already written);
-// request_memory_layer on those TypeIds starts from layer 1.
+// Memory layers for pre-populated SeqTypeIds are set to 0 (already written);
+// request_memory_layer on those SeqTypeIds starts from layer 1.
 // scenario_proba initialised to ss.probability.
 ScenarioContext ScenarioContext::from_subscenario(
     const SubScenario& ss,
@@ -1304,7 +1388,7 @@ ScenarioContext ScenarioContext::from_subscenario(
     /* ... other ExplorationContext inputs ... */);
 ```
 
-The pre-populated TypeIds are treated as if their gene-choice and deletion events have already been called, so the iterate chain begins at the insertion event. The existing `Insertion::iterate()` and `Dinucl_markov::iterate()` see a fully-initialised left-side context (offsets, last nucleotide for Dinucl seeding) and a right-side boundary from the right cluster's subscenario, so they behave exactly as in the current full iterate chain.
+The pre-populated SeqTypeIds are treated as if their gene-choice and deletion events have already been called, so the iterate chain begins at the insertion event. The existing `Insertion::iterate()` and `Dinucl_markov::iterate()` see a fully-initialised left-side context (offsets, last nucleotide for Dinucl seeding) and a right-side boundary from the right cluster's subscenario, so they behave exactly as in the current full iterate chain.
 
 **Pro**: reuses all existing iterate() implementations unchanged; no new Rec_Event subclass needed.  
 **Con**: insertion must be re-evaluated for every compatible (left, right) subscenario pair instead of once per left-cluster bucket. However this is still strictly better than the full iterate() tree: the left cluster is pre-collapsed (reducing the V × dV fan-out to a small number of interface var buckets), and the right cluster is similarly pre-collapsed before the insertion is evaluated.
@@ -1329,7 +1413,7 @@ Phase E (ErrorRate as terminal `Rec_Event`) is relevant to Phase D in the follow
 
 **Implementing Phase E before Phase D is recommended** when both are needed, as it removes all error-model special-casing from Phase D's combination logic. Phase D can however proceed without Phase E by always deferring error weighting (safe, slightly suboptimal for simple error models).
 
-**Note**: the `ErrorRate_Rec_Event` (Phase E design) has `get_seq_construction_roles()` returning `None` for all TypeIds and `get_context_seq_types()` returning all TypeIds. It therefore cannot belong to any intermediate subgraph cluster — it is always the final step after all sequences are assembled. In Phase D's combination scheme, the error-rate event's computation is logically the last step after all clusters are merged, regardless of whether Phase E is implemented.
+**Note**: the `ErrorRate_Rec_Event` (Phase E design) has `get_seq_construction_roles()` returning `None` for all SeqTypeIds and `get_context_seq_types()` returning all SeqTypeIds. It therefore cannot belong to any intermediate subgraph cluster — it is always the final step after all sequences are assembled. In Phase D's combination scheme, the error-rate event's computation is logically the last step after all clusters are merged, regardless of whether Phase E is implemented.
 
 ### D.8 — Memory Upper Bound Estimate (Human IGH, Inference Mode)
 
@@ -1354,11 +1438,11 @@ These figures are compatible with per-sequence inference in a multi-threaded env
 
 ### D.9 — Design Inputs from Capability Attributes (Phase A)
 
-- `get_context_seq_types()` on each event identifies which TypeIds cross a subgraph boundary; if all cross-boundary dependencies reduce to a single nucleotide identity (`LeftNt` / `RightNt`), that dimension is added to the interface variable and the boundary remains valid.
+- `get_context_seq_types()` on each event identifies which SeqTypeIds cross a subgraph boundary; if all cross-boundary dependencies reduce to a single nucleotide identity (`LeftNt` / `RightNt`), that dimension is added to the interface variable and the boundary remains valid.
 - `get_context_dependency()` determines the dimensionality of the nucleotide component of the interface variable: `LeftNt` / `RightNt` → 4-valued dimension; `LeftWindow(N)` → $4^N$-valued dimension. Also determines Phase E error separability (see D.7).
 - `is_branching()` governs the number of subscenarios a subgraph emits per event level.
 - `is_multi_realization()` means the event contributes a sum of paths to a single subscenario (e.g. `Dinucl_markov`); its probability contribution is already marginalised within the subscenario, so no additional fan-out.
-- The registry `ordering()` provides the left-to-right sequence of TypeIds, which defines the valid partitioning into contiguous subgraph clusters.
+- The registry `ordering()` provides the left-to-right sequence of SeqTypeIds, which defines the valid partitioning into contiguous subgraph clusters.
 
 ---
 
@@ -1375,14 +1459,14 @@ New abstract `ErrorRate_Rec_Event` subclass:
 ```cpp
 bool is_branching() const override         { return false; }
 bool is_multi_realization() const override { return false; }
-// get_seq_construction_roles() returns None for all TypeIds
-// get_context_seq_types() returns all registered TypeIds (acts on full sequence)
+// get_seq_construction_roles() returns None for all SeqTypeIds
+// get_context_seq_types() returns all registered SeqTypeIds (acts on full sequence)
 SeqContextDependency get_context_dependency() const override;
     // Single_error_rate → SingleNtAll
     // Nmer hypermutation → LeftWindow + RightWindow
 ```
 
-`seq_type_ids` contains all registered TypeIds (the event reads every constructed sequence). Terminates its subgraph at leaf nodes, replacing the external call in `iterate_wrap_up()`. For backward compatibility during migration, `error_rate` remains in `AccumulationContext` as a fallback when no `ErrorRate_Rec_Event` is present in the graph.
+`seq_type_ids` contains all registered SeqTypeIds (the event reads every constructed sequence). Terminates its subgraph at leaf nodes, replacing the external call in `iterate_wrap_up()`. For backward compatibility during migration, `error_rate` remains in `AccumulationContext` as a fallback when no `ErrorRate_Rec_Event` is present in the graph.
 
 ---
 
@@ -1393,7 +1477,7 @@ SeqContextDependency get_context_dependency() const override;
 | [src/igor/Core/Rec_Event.h](src/igor/Core/Rec_Event.h) | A (pure virtuals), B0 (`seq_type_ids`), B0 (remove base `event_class`, remove friend decls) |
 | [src/igor/Core/Utils.h](src/igor/Core/Utils.h) | A (capability enums), B1 (trim `Gene_class`) |
 | [src/igor/Core/Genechoice.h](src/igor/Core/Genechoice.h) | B0 (keep local `event_class`), B3 (remove friend decls) |
-| [src/igor/Core/Genechoice.cpp](src/igor/Core/Genechoice.cpp) | A (implement virtuals), B3 (write flank TypeIds), **B11 (seq_type-driven writes; includes the `no_d_align` exhaustive path at line 537 and `vj_length_d_position_proba` at line 1436 — in scope, decided Aug 27 2026)** |
+| [src/igor/Core/Genechoice.cpp](src/igor/Core/Genechoice.cpp) | A (implement virtuals), B3 (write flank SeqTypeIds), **B11 (seq_type-driven writes; includes the `no_d_align` exhaustive path at line 537 and `vj_length_d_position_proba` at line 1436 — in scope, decided Aug 27 2026)** |
 | [src/igor/Core/Deletion.h](src/igor/Core/Deletion.h) | A, B0 |
 | [src/igor/Core/Deletion.cpp](src/igor/Core/Deletion.cpp) | A (implement virtuals), B5 (rewrite iterate) |
 | [src/igor/Core/Insertion.h](src/igor/Core/Insertion.h) | A, B0 |
@@ -1415,7 +1499,7 @@ SeqContextDependency get_context_dependency() const override;
 ```mermaid
 flowchart TD
     %% ── Pre-step ──────────────────────────────────────────────────────────
-    TID["TypeId typedef\n(using TypeId = uint16_t)\nadded to Utils.h or SequenceTypes.h"]
+    TID["SeqTypeId typedef\n(using SeqTypeId = uint16_t)\nadded to Utils.h or SequenceTypes.h"]
 
     %% ── Phase A ───────────────────────────────────────────────────────────
     A["Phase A\nPure virtuals on Rec_Event\nCapability enums in Utils.h\nImplemented in all 4 subclasses"]
@@ -1425,7 +1509,7 @@ flowchart TD
 
     B2["B2\nNew SequenceTypes.h\nSequenceTypeRegistry\nLegacySequenceRegistry\nDynamicSequenceMap"]
 
-    B4["B4\nevents_map key: Gene_class → TypeId"]
+    B4["B4\nevents_map key: Gene_class → SeqTypeId"]
 
     B8cs["B8-cs\nSeq_type_str_p_map →\nDynamicSequenceMap&lt;Int_Str*&gt;\n(range = total_count)"]
 
@@ -1433,7 +1517,7 @@ flowchart TD
 
     B8rest["B8-rest\nMismatch_vectors_map\nDownstream_proba_map\nSafety_bool_map"]
 
-    B3["B3\nGene_choice writes flank TypeIds\nRemove friend decls\nHypermutation uses ordered traversal"]
+    B3["B3\nGene_choice writes flank SeqTypeIds\nRemove friend decls\nHypermutation uses ordered traversal"]
 
     B5["B5\nDeletion::iterate() rewrite\n(generic, switch-free)"]
 
@@ -1513,7 +1597,7 @@ Every step from Phase A through Phase C must produce bitwise-identical marginal 
 | B8-cs | **YES** | Same flat-array semantics as `Enum_fast_memory_map`; same values same layers |
 | B8-off | **YES** | Same as above for offset maps |
 | B8-rest | **YES** | Same |
-| B3 | **YES** | Flank TypeIds write pre-alignment strip that was previously discarded; hypermutation traversal produces same context nt; verified by full hypermutation regression |
+| B3 | **YES** | Flank SeqTypeIds write pre-alignment strip that was previously discarded; hypermutation traversal produces same context nt; verified by full hypermutation regression |
 | B5 | **YES** | Generic Deletion iterate is algebraically identical to the 4-case switch for all V/D/J events |
 | B6 | **YES** | Generic Insertion iterate is algebraically identical to the 3-case switch |
 | B7 | **YES** | Generic Dinucl iterate is algebraically identical for standard VDJ; _new correct behavior_ for tandem D (not a regression, not yet tested by existing suite) |
