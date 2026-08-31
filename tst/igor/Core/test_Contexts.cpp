@@ -189,7 +189,7 @@ TEST_CASE("ScenarioContext construction and mutability", "[Context][ScenarioCont
 // ============================================================================
 
 TEST_CASE("ExplorationContext construction and pruning", "[Context][ExplorationContext]") {
-    Downstream_scenario_proba_bound_map proba_map(6);
+    Downstream_scenario_proba_bound_map proba_map(legacy_seq_type_registry());
     double max_prob = 1e-5;
     double threshold = 0.001;
     Index_map index_map(10);
@@ -354,7 +354,7 @@ TEST_CASE("Multiple contexts work together", "[Context][Integration]") {
     Mismatch_vectors_map mismatches(6);
 
     // Setup exploration
-    Downstream_scenario_proba_bound_map proba_map(6);
+    Downstream_scenario_proba_bound_map proba_map(legacy_seq_type_registry());
     double max_prob = 1e-5;
     double threshold = 0.001;
     Index_map index_map(10);

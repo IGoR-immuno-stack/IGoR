@@ -1,6 +1,7 @@
 #pragma once
 
 #include <igor/Core/Utils.h>
+#include <span>
 
 /**
  * @brief Encapsulates tree exploration policy and pruning
@@ -117,12 +118,12 @@ struct ExplorationContext {
      * Used for pruning: if even the best case is below threshold, skip branch.
      *
      * @param base_proba Base scenario probability before downstream events
-     * @param downstream_layers Memory layers to query for downstream bounds
+     * @param downstream_layers Snapshot of per-key memory layers to read the bounds from
      * @return Upper bound probability (base * all downstream bounds)
      */
     inline double compute_upper_bound(
         double base_proba,
-        int* downstream_layers
+        std::span<const int> downstream_layers
     ) const {
         double upper_bound = base_proba;
         downstream_proba_map.multiply_all(upper_bound, downstream_layers);

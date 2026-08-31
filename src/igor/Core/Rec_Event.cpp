@@ -255,7 +255,9 @@ void Rec_Event::initialize_event_common(
         }
     }
 
-    downstream_proba_map.get_all_current_memory_layer(current_downstream_proba_memory_layers);
+    //Snapshot, not a view: the map's layers move as the traversal proceeds.
+    const auto downstream_layers = downstream_proba_map.current_layers();
+    current_downstream_proba_memory_layers.assign(downstream_layers.begin(), downstream_layers.end());
 
     processed_events.emplace(this->name);
 }

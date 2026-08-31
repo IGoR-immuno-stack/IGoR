@@ -268,8 +268,10 @@ bool GenModel::infer_model(
             Pruning_mismatch_floor_map pruning_mismatch_floor(6);
             Seq_offsets_map seq_offsets(6, 3);
 
-            //Initialize downstream probas to 1
-            Downstream_scenario_proba_bound_map downstream_proba_map(6);
+            //Initialize downstream probas to 1. Sized from the thread-local model's frozen
+            //registry, which outlives the parallel region the map is used in.
+            Downstream_scenario_proba_bound_map downstream_proba_map(
+                    single_thread_model_parms.get_seq_type_registry());
             downstream_proba_map.init_first_layer(1.0);
 
             list<shared_ptr<Rec_Event>> events_list = single_thread_model_parms.get_event_list();

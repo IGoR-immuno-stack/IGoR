@@ -281,7 +281,8 @@ protected:
     std::forward_list<double *> updated_proba_bounds_list;
     std::vector<int> current_realizations_index_vec;
     const int *current_realization_index;
-    int current_downstream_proba_memory_layers[6];
+    //Snapshot of the downstream proba map's per-key layers, taken at initialize_event().
+    std::vector<int> current_downstream_proba_memory_layers;
 
     int compare_sequences(std::string, std::string); //TODO should probably not be a member functino
     void add_realization(const Event_realization &);

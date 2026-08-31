@@ -175,7 +175,7 @@ void Dinucl_markov::iterate(
             iterate_common(indices_array_for_target(spec.target_seq), previous_nt_str, target_seq, model.model_parameters);
         }
 
-        exploration.downstream_proba_map.set_value(spec.target_seq, 1.0, memory_layer_for_target(spec.target_seq));
+        exploration.downstream_proba_map.set(spec.target_seq, 1.0, memory_layer_for_target(spec.target_seq));
     }
 
     scenario.scenario_proba *= proba_contribution;
@@ -437,8 +437,8 @@ void Dinucl_markov::initialize_event(
     }
 
     for (const auto &spec : this->traversal_specs) {
-        downstream_proba_map.request_memory_layer(spec.target_seq);
-        int layer = downstream_proba_map.get_current_memory_layer(spec.target_seq);
+        downstream_proba_map.request_layer(spec.target_seq);
+        int layer = downstream_proba_map.current_layer(spec.target_seq);
         if (spec.target_seq == DJ_ins_seq) {
             memory_layer_proba_map_junction_2 = layer;
         } else {

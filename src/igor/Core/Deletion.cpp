@@ -455,16 +455,16 @@ void Deletion::iterate(
                     if (vd_length_best_proba_map.count(d_5_offset - v_3_new_offset - 1) <= 0) {
                         continue; //This means no scenario can lead to a correct solution, would need to be changed for Error models with in/dels
                     }
-                    exploration.downstream_proba_map.set_value(VD_ins_seq, 1.0, memory_layer_proba_map_junction);
+                    exploration.downstream_proba_map.set(VD_ins_seq, 1.0, memory_layer_proba_map_junction);
                 } else if (j_chosen) {
                     if (vj_length_best_proba_map.count(j_5_offset - v_3_new_offset - 1) <= 0) {
                         continue; //This means no scenario can lead to a correct solution, would need to be changed for Error models with in/dels
                     }
-                    exploration.downstream_proba_map.set_value(VJ_ins_seq, 1.0, memory_layer_proba_map_junction);
+                    exploration.downstream_proba_map.set(VJ_ins_seq, 1.0, memory_layer_proba_map_junction);
                 }
 
                 //Update the mismatches penalty
-                exploration.downstream_proba_map.set_value(
+                exploration.downstream_proba_map.set(
                         V_gene_seq,
                         accumulation.error_rate->get_err_rate_upper_bound(mismatches_vector.size(),
                                                                new_str.size() - mismatches_vector.size()),
@@ -485,11 +485,11 @@ void Deletion::iterate(
                 new_scenario_proba *= proba_contribution;
                 //Get VD or VJ junction upper bound proba
                 if (d_chosen) {
-                    exploration.downstream_proba_map.set_value(VD_ins_seq,
+                    exploration.downstream_proba_map.set(VD_ins_seq,
                                                    vd_length_best_proba_map.at(d_5_offset - v_3_new_offset - 1),
                                                    memory_layer_proba_map_junction);
                 } else if (j_chosen) {
-                    exploration.downstream_proba_map.set_value(VJ_ins_seq,
+                    exploration.downstream_proba_map.set(VJ_ins_seq,
                                                    vj_length_best_proba_map.at(j_5_offset - v_3_new_offset - 1),
                                                    memory_layer_proba_map_junction);
                 }
@@ -675,7 +675,7 @@ void Deletion::iterate(
                         if (vd_length_best_proba_map.count(d_5_new_offset - v_3_offset - 1) <= 0) {
                             continue; //This means no scenario can lead to a correct solution, would need to be changed for Error models with in/dels
                         }
-                        exploration.downstream_proba_map.set_value(VD_ins_seq,
+                        exploration.downstream_proba_map.set(VD_ins_seq,
                                                        vd_length_best_proba_map.at(d_5_new_offset - v_3_offset - 1),
                                                        memory_layer_proba_map_junction);
                     }
@@ -683,7 +683,7 @@ void Deletion::iterate(
                     //Update the mismatches penalty
                     if (d_del_opposite_side_processed) {
                         endogeneous_mismatches = mismatches_vector.size();
-                        exploration.downstream_proba_map.set_value(
+                        exploration.downstream_proba_map.set(
                                 D_gene_seq,
                                 accumulation.error_rate->get_err_rate_upper_bound(mismatches_vector.size(),
                                                                        new_str.size() - mismatches_vector.size()),
@@ -696,7 +696,7 @@ void Deletion::iterate(
 									++mis_iter;
 								}*/
                         //TODO finsh this part (compute endogeneous mismatches)
-                        exploration.downstream_proba_map.set_value(D_gene_seq, 1.0, memory_layer_proba_map_seq);
+                        exploration.downstream_proba_map.set(D_gene_seq, 1.0, memory_layer_proba_map_seq);
                     }
 
                     //Multiply all downstream probas
@@ -911,7 +911,7 @@ void Deletion::iterate(
                         if (dj_length_best_proba_map.count(j_5_offset - d_3_new_offset - 1) <= 0) {
                             continue; //This means no scenario can lead to a correct solution, would need to be changed for Error models with in/dels
                         }
-                        exploration.downstream_proba_map.set_value(DJ_ins_seq,
+                        exploration.downstream_proba_map.set(DJ_ins_seq,
                                                        dj_length_best_proba_map.at(j_5_offset - d_3_new_offset - 1),
                                                        memory_layer_proba_map_junction);
                     }
@@ -919,7 +919,7 @@ void Deletion::iterate(
                     //Update the mismatches penalty
                     if (d_del_opposite_side_processed) {
                         endogeneous_mismatches = mismatches_vector.size();
-                        exploration.downstream_proba_map.set_value(
+                        exploration.downstream_proba_map.set(
                                 D_gene_seq,
                                 accumulation.error_rate->get_err_rate_upper_bound(endogeneous_mismatches,
                                                                        new_str.size() - endogeneous_mismatches),
@@ -932,7 +932,7 @@ void Deletion::iterate(
 									++mis_iter;
 								}*/
                         //TODO finsh this part (compute endogeneous mismatches)
-                        exploration.downstream_proba_map.set_value(D_gene_seq, 1.0, memory_layer_proba_map_seq);
+                        exploration.downstream_proba_map.set(D_gene_seq, 1.0, memory_layer_proba_map_seq);
                     }
 
                     //Multiply all downstream probas
@@ -1173,16 +1173,16 @@ void Deletion::iterate(
                     if (dj_length_best_proba_map.count(j_5_new_offset - d_3_offset - 1) <= 0) {
                         continue; //This means no scenario can lead to a correct solution, would need to be changed for Error models with in/dels
                     }
-                    exploration.downstream_proba_map.set_value(DJ_ins_seq, 1.0, memory_layer_proba_map_junction);
+                    exploration.downstream_proba_map.set(DJ_ins_seq, 1.0, memory_layer_proba_map_junction);
                 } else if (v_chosen) {
                     if (vj_length_best_proba_map.count(j_5_new_offset - v_3_offset - 1) <= 0) {
                         continue; //This means no scenario can lead to a correct solution, would need to be changed for Error models with in/dels
                     }
-                    exploration.downstream_proba_map.set_value(VJ_ins_seq, 1.0, memory_layer_proba_map_junction);
+                    exploration.downstream_proba_map.set(VJ_ins_seq, 1.0, memory_layer_proba_map_junction);
                 }
 
                 //Count the number of mismatches that will not go away even with maximum number of deletions
-                exploration.downstream_proba_map.set_value(
+                exploration.downstream_proba_map.set(
                         J_gene_seq,
                         accumulation.error_rate->get_err_rate_upper_bound(mismatches_vector.size(),
                                                                new_str.size() - mismatches_vector.size()),
@@ -1203,11 +1203,11 @@ void Deletion::iterate(
                 new_scenario_proba *= proba_contribution;
                 //Get DJ or VJ junction upper bound proba
                 if (d_chosen) {
-                    exploration.downstream_proba_map.set_value(DJ_ins_seq,
+                    exploration.downstream_proba_map.set(DJ_ins_seq,
                                                    dj_length_best_proba_map.at(j_5_new_offset - d_3_offset - 1),
                                                    memory_layer_proba_map_junction);
                 } else if (v_chosen) {
-                    exploration.downstream_proba_map.set_value(VJ_ins_seq,
+                    exploration.downstream_proba_map.set(VJ_ins_seq,
                                                    vj_length_best_proba_map.at(j_5_new_offset - v_3_offset - 1),
                                                    memory_layer_proba_map_junction);
                 }
@@ -1424,14 +1424,14 @@ void Deletion::initialize_event(
             //cout<<"v_del_2 : "<<memory_layer_safety_2<<endl;
         }
 
-        downstream_proba_map.request_memory_layer(V_gene_seq);
-        memory_layer_proba_map_seq = downstream_proba_map.get_current_memory_layer(V_gene_seq);
+        downstream_proba_map.request_layer(V_gene_seq);
+        memory_layer_proba_map_seq = downstream_proba_map.current_layer(V_gene_seq);
         if (d_chosen) {
-            downstream_proba_map.request_memory_layer(VD_ins_seq);
-            memory_layer_proba_map_junction = downstream_proba_map.get_current_memory_layer(VD_ins_seq);
+            downstream_proba_map.request_layer(VD_ins_seq);
+            memory_layer_proba_map_junction = downstream_proba_map.current_layer(VD_ins_seq);
         } else if (j_chosen) {
-            downstream_proba_map.request_memory_layer(VJ_ins_seq);
-            memory_layer_proba_map_junction = downstream_proba_map.get_current_memory_layer(VJ_ins_seq);
+            downstream_proba_map.request_layer(VJ_ins_seq);
+            memory_layer_proba_map_junction = downstream_proba_map.current_layer(VJ_ins_seq);
         }
 
         break;
@@ -1440,8 +1440,8 @@ void Deletion::initialize_event(
         this->memory_layer_mismatches = mismatches_list.get_current_memory_layer(D_gene_seq);
         constructed_sequences.request_memory_layer(D_gene_seq);
         this->memory_layer_cs = constructed_sequences.get_current_memory_layer(D_gene_seq);
-        downstream_proba_map.request_memory_layer(D_gene_seq);
-        this->memory_layer_proba_map_seq = downstream_proba_map.get_current_memory_layer(D_gene_seq);
+        downstream_proba_map.request_layer(D_gene_seq);
+        this->memory_layer_proba_map_seq = downstream_proba_map.current_layer(D_gene_seq);
         switch (this->event_side) {
         case Five_prime:
             seq_offsets.request_memory_layer(D_gene_seq, Five_prime);
@@ -1466,8 +1466,8 @@ void Deletion::initialize_event(
             }
 
             if (v_chosen) {
-                downstream_proba_map.request_memory_layer(VD_ins_seq);
-                memory_layer_proba_map_junction = downstream_proba_map.get_current_memory_layer(VD_ins_seq);
+                downstream_proba_map.request_layer(VD_ins_seq);
+                memory_layer_proba_map_junction = downstream_proba_map.current_layer(VD_ins_seq);
             }
 
             break;
@@ -1494,8 +1494,8 @@ void Deletion::initialize_event(
             }
 
             if (j_chosen) {
-                downstream_proba_map.request_memory_layer(DJ_ins_seq);
-                this->memory_layer_proba_map_junction = downstream_proba_map.get_current_memory_layer(DJ_ins_seq);
+                downstream_proba_map.request_layer(DJ_ins_seq);
+                this->memory_layer_proba_map_junction = downstream_proba_map.current_layer(DJ_ins_seq);
             }
         }
 
@@ -1520,14 +1520,14 @@ void Deletion::initialize_event(
             //cout<<"j_del_2: "<<memory_layer_safety_2<<endl;
         }
 
-        downstream_proba_map.request_memory_layer(J_gene_seq);
-        memory_layer_proba_map_seq = downstream_proba_map.get_current_memory_layer(J_gene_seq);
+        downstream_proba_map.request_layer(J_gene_seq);
+        memory_layer_proba_map_seq = downstream_proba_map.current_layer(J_gene_seq);
         if (d_chosen) {
-            downstream_proba_map.request_memory_layer(DJ_ins_seq);
-            this->memory_layer_proba_map_junction = downstream_proba_map.get_current_memory_layer(DJ_ins_seq);
+            downstream_proba_map.request_layer(DJ_ins_seq);
+            this->memory_layer_proba_map_junction = downstream_proba_map.current_layer(DJ_ins_seq);
         } else if (v_chosen) {
-            downstream_proba_map.request_memory_layer(VJ_ins_seq);
-            this->memory_layer_proba_map_junction = downstream_proba_map.get_current_memory_layer(VJ_ins_seq);
+            downstream_proba_map.request_layer(VJ_ins_seq);
+            this->memory_layer_proba_map_junction = downstream_proba_map.current_layer(VJ_ins_seq);
         }
         break;
     default:

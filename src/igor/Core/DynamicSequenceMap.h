@@ -111,6 +111,7 @@ public:
     using Base::init_first_layer;
     using Base::layer;
     using Base::layer_capacity;
+    using Base::multiply_all;
     using Base::request_layer;
     using Base::reset;
     using Base::restore_layer;

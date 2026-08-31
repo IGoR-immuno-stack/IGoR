@@ -322,13 +322,13 @@ void Gene_choice::iterate(
                 if (vd_length_best_proba_map.count(d_offset - v_3_off - 1) <= 0) {
                     continue; //This means no scenario can lead to a correct solution, would need to be changed for Error models with in/dels
                 }
-                exploration.downstream_proba_map.set_value(VD_ins_seq, vd_length_best_proba_map.at(d_offset - v_3_off - 1),
+                exploration.downstream_proba_map.set(VD_ins_seq, vd_length_best_proba_map.at(d_offset - v_3_off - 1),
                                                memory_layer_proba_map_junction);
             } else if (j_chosen) {
                 if (vj_length_best_proba_map.count(j_offset - v_3_off - 1) <= 0) {
                     continue; //This means no scenario can lead to a correct solution, would need to be changed for Error models with in/dels
                 }
-                exploration.downstream_proba_map.set_value(VJ_ins_seq, vj_length_best_proba_map.at(j_offset - v_3_off - 1),
+                exploration.downstream_proba_map.set(VJ_ins_seq, vj_length_best_proba_map.at(j_offset - v_3_off - 1),
                                                memory_layer_proba_map_junction);
             }
 
@@ -340,7 +340,7 @@ void Gene_choice::iterate(
                 ++endogeneous_mismatches;
                 ++mism_iter;
             }
-            exploration.downstream_proba_map.set_value(
+            exploration.downstream_proba_map.set(
                     V_gene_seq,
                     accumulation.error_rate->get_err_rate_upper_bound(endogeneous_mismatches,
                                                            gene_seq.size() - v_3_max_del - endogeneous_mismatches),
@@ -478,22 +478,22 @@ void Gene_choice::iterate(
                     or dj_length_best_proba_map.count(j_offset - d_3_off - 1) <= 0) {
                     continue; //This means no scenario can lead to a correct solution, would need to be changed for Error models with in/dels
                 }
-                exploration.downstream_proba_map.set_value(VJ_ins_seq, 1.0, memory_layer_proba_map_junction);
-                exploration.downstream_proba_map.set_value(VD_ins_seq, vd_length_best_proba_map.at(d_5_off - v_offset - 1),
+                exploration.downstream_proba_map.set(VJ_ins_seq, 1.0, memory_layer_proba_map_junction);
+                exploration.downstream_proba_map.set(VD_ins_seq, vd_length_best_proba_map.at(d_5_off - v_offset - 1),
                                                memory_layer_proba_map_junction_d2);
-                exploration.downstream_proba_map.set_value(DJ_ins_seq, dj_length_best_proba_map.at(j_offset - d_3_off - 1),
+                exploration.downstream_proba_map.set(DJ_ins_seq, dj_length_best_proba_map.at(j_offset - d_3_off - 1),
                                                memory_layer_proba_map_junction_d3);
             } else if (v_chosen) {
                 if (vd_length_best_proba_map.count(d_5_off - v_offset - 1) <= 0) {
                     continue; //This means no scenario can lead to a correct solution, would need to be changed for Error models with in/dels
                 }
-                exploration.downstream_proba_map.set_value(VD_ins_seq, vd_length_best_proba_map.at(d_5_off - v_offset - 1),
+                exploration.downstream_proba_map.set(VD_ins_seq, vd_length_best_proba_map.at(d_5_off - v_offset - 1),
                                                memory_layer_proba_map_junction_d2);
             } else if (j_chosen) {
                 if (dj_length_best_proba_map.count(j_offset - d_3_off - 1) <= 0) {
                     continue; //This means no scenario can lead to a correct solution, would need to be changed for Error models with in/dels
                 }
-                exploration.downstream_proba_map.set_value(DJ_ins_seq, dj_length_best_proba_map.at(j_offset - d_3_off - 1),
+                exploration.downstream_proba_map.set(DJ_ins_seq, dj_length_best_proba_map.at(j_offset - d_3_off - 1),
                                                memory_layer_proba_map_junction_d3);
             }
 
@@ -508,14 +508,14 @@ void Gene_choice::iterate(
                     }
                     ++mism_iter;
                 }
-                exploration.downstream_proba_map.set_value(D_gene_seq,
+                exploration.downstream_proba_map.set(D_gene_seq,
                                                accumulation.error_rate->get_err_rate_upper_bound(endogeneous_mismatches,
                                                                                       (d_3_off + d_3_max_del)
                                                                                               - (d_5_off - d_5_max_del)
                                                                                               - endogeneous_mismatches),
                                                memory_layer_proba_map_seq);
             } else {
-                exploration.downstream_proba_map.set_value(D_gene_seq, 1.0, memory_layer_proba_map_seq);
+                exploration.downstream_proba_map.set(D_gene_seq, 1.0, memory_layer_proba_map_seq);
             }
 
             //Multiply all downstream probas
@@ -588,14 +588,14 @@ void Gene_choice::iterate(
 									if(vd_length_best_proba_map.count(d_5_off - v_offset -1)<=0 or dj_length_best_proba_map.count(j_offset - d_full_3_offset  -1)<=0){
 										continue; //This means no scenario can lead to a correct solution, would need to be changed for Error models with in/dels
 									}*/
-                        exploration.downstream_proba_map.set_value(VJ_ins_seq, 1.0, memory_layer_proba_map_junction);
-                        exploration.downstream_proba_map.set_value(VD_ins_seq,
+                        exploration.downstream_proba_map.set(VJ_ins_seq, 1.0, memory_layer_proba_map_junction);
+                        exploration.downstream_proba_map.set(VD_ins_seq,
                                                        vd_length_best_proba_map.at(get<1>(*d_position_iter)),
                                                        memory_layer_proba_map_junction_d2);
-                        exploration.downstream_proba_map.set_value(DJ_ins_seq,
+                        exploration.downstream_proba_map.set(DJ_ins_seq,
                                                        dj_length_best_proba_map.at(get<2>(*d_position_iter)),
                                                        memory_layer_proba_map_junction_d3);
-                        exploration.downstream_proba_map.set_value(D_gene_seq, 1.0,
+                        exploration.downstream_proba_map.set(D_gene_seq, 1.0,
                                                        memory_layer_proba_map_seq); //Lift the penalty on D gene seq
 
                         /*							}
@@ -603,13 +603,13 @@ void Gene_choice::iterate(
 									if(vd_length_best_proba_map.count(d_5_off - v_offset -1)<=0){
 										continue; //This means no scenario can lead to a correct solution, would need to be changed for Error models with in/dels
 									}
-									downstream_proba_map.set_value(VD_ins_seq , vd_length_best_proba_map.at(d_5_off - v_offset -1) , memory_layer_proba_map_junction_d2);
+									downstream_proba_map.set(VD_ins_seq , vd_length_best_proba_map.at(d_5_off - v_offset -1) , memory_layer_proba_map_junction_d2);
 								}
 								else if(j_chosen){
 									if(dj_length_best_proba_map.count(j_offset - d_full_3_offset  -1)<=0){
 										continue; //This means no scenario can lead to a correct solution, would need to be changed for Error models with in/dels
 									}
-									downstream_proba_map.set_value(DJ_ins_seq , dj_length_best_proba_map.at(j_offset - d_full_3_offset  -1) , memory_layer_proba_map_junction_d3);
+									downstream_proba_map.set(DJ_ins_seq , dj_length_best_proba_map.at(j_offset - d_full_3_offset  -1) , memory_layer_proba_map_junction_d3);
 								}*/
 
                         //Multiply all downstream probas
@@ -646,7 +646,7 @@ void Gene_choice::iterate(
                                 ++mism_iter;
                             }
                             //Weigh D_gene_seq accordingly
-                            exploration.downstream_proba_map.set_value(
+                            exploration.downstream_proba_map.set(
                                     D_gene_seq,
                                     accumulation.error_rate->get_err_rate_upper_bound(endogeneous_mismatches,
                                                                            (d_full_3_offset + d_3_max_del)
@@ -665,7 +665,7 @@ void Gene_choice::iterate(
                             }
 
                         } else {
-                            exploration.downstream_proba_map.set_value(D_gene_seq, 1.0, memory_layer_proba_map_seq);
+                            exploration.downstream_proba_map.set(D_gene_seq, 1.0, memory_layer_proba_map_seq);
                         }
 
                         //Assume that the whole D is in the sequence and add the D sequence to the constructed sequences
@@ -762,25 +762,25 @@ void Gene_choice::iterate(
                                 or dj_length_best_proba_map.count(j_offset - d_full_3_offset - 1) <= 0) {
                                 continue; //This means no scenario can lead to a correct solution, would need to be changed for Error models with in/dels
                             }
-                            exploration.downstream_proba_map.set_value(VJ_ins_seq, 1.0, memory_layer_proba_map_junction);
-                            exploration.downstream_proba_map.set_value(VD_ins_seq,
+                            exploration.downstream_proba_map.set(VJ_ins_seq, 1.0, memory_layer_proba_map_junction);
+                            exploration.downstream_proba_map.set(VD_ins_seq,
                                                            vd_length_best_proba_map.at(d_5_off - v_offset - 1),
                                                            memory_layer_proba_map_junction_d2);
-                            exploration.downstream_proba_map.set_value(DJ_ins_seq,
+                            exploration.downstream_proba_map.set(DJ_ins_seq,
                                                            dj_length_best_proba_map.at(j_offset - d_full_3_offset - 1),
                                                            memory_layer_proba_map_junction_d3);
                         } else if (v_chosen) {
                             if (vd_length_best_proba_map.count(d_5_off - v_offset - 1) <= 0) {
                                 continue; //This means no scenario can lead to a correct solution, would need to be changed for Error models with in/dels
                             }
-                            exploration.downstream_proba_map.set_value(VD_ins_seq,
+                            exploration.downstream_proba_map.set(VD_ins_seq,
                                                            vd_length_best_proba_map.at(d_5_off - v_offset - 1),
                                                            memory_layer_proba_map_junction_d2);
                         } else if (j_chosen) {
                             if (dj_length_best_proba_map.count(j_offset - d_full_3_offset - 1) <= 0) {
                                 continue; //This means no scenario can lead to a correct solution, would need to be changed for Error models with in/dels
                             }
-                            exploration.downstream_proba_map.set_value(DJ_ins_seq,
+                            exploration.downstream_proba_map.set(DJ_ins_seq,
                                                            dj_length_best_proba_map.at(j_offset - d_full_3_offset - 1),
                                                            memory_layer_proba_map_junction_d3);
                         }
@@ -797,7 +797,7 @@ void Gene_choice::iterate(
                                 }
                                 ++mism_iter;
                             }
-                            exploration.downstream_proba_map.set_value(
+                            exploration.downstream_proba_map.set(
                                     D_gene_seq,
                                     accumulation.error_rate->get_err_rate_upper_bound(endogeneous_mismatches,
                                                                            (d_full_3_offset + d_3_max_del)
@@ -805,7 +805,7 @@ void Gene_choice::iterate(
                                                                                    - endogeneous_mismatches),
                                     memory_layer_proba_map_seq);
                         } else {
-                            exploration.downstream_proba_map.set_value(D_gene_seq, 1.0, memory_layer_proba_map_seq);
+                            exploration.downstream_proba_map.set(D_gene_seq, 1.0, memory_layer_proba_map_seq);
                         }
 
                         //Multiply all downstream probas
@@ -955,13 +955,13 @@ void Gene_choice::iterate(
                 if (dj_length_best_proba_map.count(j_5_off - d_offset - 1) <= 0) {
                     continue; //This means no scenario can lead to a correct solution, would need to be changed for Error models with in/dels
                 }
-                exploration.downstream_proba_map.set_value(DJ_ins_seq, dj_length_best_proba_map.at(j_5_off - d_offset - 1),
+                exploration.downstream_proba_map.set(DJ_ins_seq, dj_length_best_proba_map.at(j_5_off - d_offset - 1),
                                                memory_layer_proba_map_junction);
             } else if (v_chosen) {
                 if (vj_length_best_proba_map.count(j_5_off - v_offset - 1) <= 0) {
                     continue; //This means no scenario can lead to a correct solution, would need to be changed for Error models with in/dels
                 }
-                exploration.downstream_proba_map.set_value(VJ_ins_seq, vj_length_best_proba_map.at(j_5_off - v_offset - 1),
+                exploration.downstream_proba_map.set(VJ_ins_seq, vj_length_best_proba_map.at(j_5_off - v_offset - 1),
                                                memory_layer_proba_map_junction);
             }
 
@@ -973,7 +973,7 @@ void Gene_choice::iterate(
                 ++endogeneous_mismatches;
                 ++rev_mism_iter;
             }
-            exploration.downstream_proba_map.set_value(
+            exploration.downstream_proba_map.set(
                     J_gene_seq,
                     accumulation.error_rate->get_err_rate_upper_bound(endogeneous_mismatches,
                                                            gene_seq.size() - j_5_max_del - endogeneous_mismatches),
@@ -1122,14 +1122,14 @@ void Gene_choice::initialize_event(
         //cout<<"V_choice 2: "<<memory_layer_safety_2<<endl;
         //}
 
-        downstream_proba_map.request_memory_layer(V_gene_seq);
-        memory_layer_proba_map_seq = downstream_proba_map.get_current_memory_layer(V_gene_seq);
+        downstream_proba_map.request_layer(V_gene_seq);
+        memory_layer_proba_map_seq = downstream_proba_map.current_layer(V_gene_seq);
         if (d_chosen) {
-            downstream_proba_map.request_memory_layer(VD_ins_seq);
-            memory_layer_proba_map_junction = downstream_proba_map.get_current_memory_layer(VD_ins_seq);
+            downstream_proba_map.request_layer(VD_ins_seq);
+            memory_layer_proba_map_junction = downstream_proba_map.current_layer(VD_ins_seq);
         } else if (j_chosen) {
-            downstream_proba_map.request_memory_layer(VJ_ins_seq);
-            memory_layer_proba_map_junction = downstream_proba_map.get_current_memory_layer(VJ_ins_seq);
+            downstream_proba_map.request_layer(VJ_ins_seq);
+            memory_layer_proba_map_junction = downstream_proba_map.current_layer(VJ_ins_seq);
         }
 
         if (d_chosen) {
@@ -1160,19 +1160,19 @@ void Gene_choice::initialize_event(
         //cout<<"D_choice 2: "<<memory_layer_safety_2<<endl;
         //}
 
-        downstream_proba_map.request_memory_layer(D_gene_seq);
-        memory_layer_proba_map_seq = downstream_proba_map.get_current_memory_layer(D_gene_seq);
+        downstream_proba_map.request_layer(D_gene_seq);
+        memory_layer_proba_map_seq = downstream_proba_map.current_layer(D_gene_seq);
         if (v_chosen) {
-            downstream_proba_map.request_memory_layer(VD_ins_seq);
-            memory_layer_proba_map_junction_d2 = downstream_proba_map.get_current_memory_layer(VD_ins_seq);
+            downstream_proba_map.request_layer(VD_ins_seq);
+            memory_layer_proba_map_junction_d2 = downstream_proba_map.current_layer(VD_ins_seq);
         }
         if (j_chosen) {
-            downstream_proba_map.request_memory_layer(DJ_ins_seq);
-            memory_layer_proba_map_junction_d3 = downstream_proba_map.get_current_memory_layer(DJ_ins_seq);
+            downstream_proba_map.request_layer(DJ_ins_seq);
+            memory_layer_proba_map_junction_d3 = downstream_proba_map.current_layer(DJ_ins_seq);
         }
         if (v_chosen and j_chosen) {
-            downstream_proba_map.request_memory_layer(VJ_ins_seq);
-            memory_layer_proba_map_junction = downstream_proba_map.get_current_memory_layer(VJ_ins_seq);
+            downstream_proba_map.request_layer(VJ_ins_seq);
+            memory_layer_proba_map_junction = downstream_proba_map.current_layer(VJ_ins_seq);
         }
 
         if (v_chosen) {
@@ -1206,14 +1206,14 @@ void Gene_choice::initialize_event(
         //cout<<"j_choice 2: "<<memory_layer_safety_2<<endl;
         //}
 
-        downstream_proba_map.request_memory_layer(J_gene_seq);
-        memory_layer_proba_map_seq = downstream_proba_map.get_current_memory_layer(J_gene_seq);
+        downstream_proba_map.request_layer(J_gene_seq);
+        memory_layer_proba_map_seq = downstream_proba_map.current_layer(J_gene_seq);
         if (d_chosen) {
-            downstream_proba_map.request_memory_layer(DJ_ins_seq);
-            memory_layer_proba_map_junction = downstream_proba_map.get_current_memory_layer(DJ_ins_seq);
+            downstream_proba_map.request_layer(DJ_ins_seq);
+            memory_layer_proba_map_junction = downstream_proba_map.current_layer(DJ_ins_seq);
         } else if (v_chosen) {
-            downstream_proba_map.request_memory_layer(VJ_ins_seq);
-            memory_layer_proba_map_junction = downstream_proba_map.get_current_memory_layer(VJ_ins_seq);
+            downstream_proba_map.request_layer(VJ_ins_seq);
+            memory_layer_proba_map_junction = downstream_proba_map.current_layer(VJ_ins_seq);
         }
 
         if (v_chosen) {

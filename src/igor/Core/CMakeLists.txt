@@ -98,6 +98,7 @@ target_sources(${PROJECT_NAME}
       DynamicSequenceMap.h
       LayeredArray.h
       LayeredMap.h
+      StdTypedefs.h
       SeqTypeRegistry.h
       Singleerrorrate.h
       Utils.h

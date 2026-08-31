@@ -22,7 +22,9 @@
 
 #pragma once
 
-#include <igor/Core/Utils.h>
+//StdTypedefs.h rather than Utils.h: Utils.h pulls in DynamicSequenceMap.h, which needs
+//this header, so including Utils.h here would be circular.
+#include <igor/Core/StdTypedefs.h>
 
 #include <cstdint>
 #include <limits>

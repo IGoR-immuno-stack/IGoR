@@ -175,7 +175,7 @@ void Insertion::iterate(
             new_index =
                     base_index + this->event_realizations.at(to_string(insertions)).index; //FIXME this should not exist
             scenario.constructed_sequences[VD_ins_seq] = &inserted_str;
-            exploration.downstream_proba_map.set_value(VD_ins_seq, junction_length_best_proba_map.at(insertions),
+            exploration.downstream_proba_map.set(VD_ins_seq, junction_length_best_proba_map.at(insertions),
                                            memory_layer_proba_map_junction);
         }
     } else if (ins_st == "DJ_ins_seq") {
@@ -189,7 +189,7 @@ void Insertion::iterate(
             inserted_str.assign(insertions, -1);
             new_index = base_index + this->event_realizations.at(to_string(insertions)).index;
             scenario.constructed_sequences[DJ_ins_seq] = &inserted_str;
-            exploration.downstream_proba_map.set_value(DJ_ins_seq, junction_length_best_proba_map.at(insertions),
+            exploration.downstream_proba_map.set(DJ_ins_seq, junction_length_best_proba_map.at(insertions),
                                            memory_layer_proba_map_junction);
         }
     } else if (ins_st == "VJ_ins_seq") {
@@ -202,7 +202,7 @@ void Insertion::iterate(
             inserted_str.assign(insertions, -1);
             new_index = base_index + realization_index; //this->event_realizations.at(to_string(insertions)).index;
             scenario.constructed_sequences[VJ_ins_seq] = &inserted_str;
-            exploration.downstream_proba_map.set_value(VJ_ins_seq, junction_length_best_proba_map.at(insertions),
+            exploration.downstream_proba_map.set(VJ_ins_seq, junction_length_best_proba_map.at(insertions),
                                            memory_layer_proba_map_junction);
         }
     } else {
@@ -335,8 +335,8 @@ void Insertion::initialize_event(
         throw runtime_error("Unknown insertion event_class in initialize_event");
     }
 
-    downstream_proba_map.request_memory_layer(seq_type);
-    memory_layer_proba_map_junction = downstream_proba_map.get_current_memory_layer(seq_type);
+    downstream_proba_map.request_layer(seq_type);
+    memory_layer_proba_map_junction = downstream_proba_map.current_layer(seq_type);
 
     this->Rec_Event::initialize_event(processed_events, events_map, offset_map, downstream_proba_map,
                                       constructed_sequences, safety_set, error_rate_p, mismatches_list, seq_offsets,

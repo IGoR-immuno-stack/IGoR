@@ -13,6 +13,7 @@
 #include <igor/Core/DynamicSequenceMap.h>
 #include <igor/Core/IntStr.h>
 #include <igor/Core/SeqTypeRegistry.h>
+#include <igor/Core/Utils.h>
 
 #include <stdexcept>
 

@@ -58,3 +58,22 @@ Alignment_data create_mock_alignment_data(
 );
 
 } // namespace IgorTestUtils
+
+#include <igor/Core/SeqTypeRegistry.h>
+
+/**
+ * A frozen registry holding the six legacy seq_types at their Seq_type enum ids, with no
+ * ordering set. This is what the scenario maps are sized from in tests that only need
+ * enum-keyed access; tests exercising the ordered traversal build their own registry with
+ * an explicit ordering.
+ */
+inline const SeqTypeRegistry &legacy_seq_type_registry()
+{
+    static const SeqTypeRegistry registry = [] {
+        SeqTypeRegistry r;
+        r.register_legacy_seq_types();
+        r.freeze();
+        return r;
+    }();
+    return registry;
+}

@@ -22,6 +22,7 @@
 
 #pragma once
 
+#include <cassert>
 #include <cstddef>
 #include <span>
 #include <stdexcept>
@@ -202,6 +203,22 @@ public:
     /// Current layer index of every key, in key order. Replaces the raw int* out-parameter of
     /// Enum_fast_memory_map::get_all_current_memory_layer().
     std::span<const int> current_layers() const noexcept { return std::span<const int>(layer_of_); }
+
+    /**
+     * Multiply `acc` by one value per key, each read from the layer named in `layers`.
+     *
+     * `layers` is a snapshot previously taken from this same map (see current_layers()), so
+     * the entries are known-good and no per-key checking is done -- this sits in the pruning
+     * bound computation, which runs at every node of the traversal.
+     */
+    void multiply_all(V &acc, std::span<const int> layers) const
+    {
+        //The snapshot must cover every key; a short one would read past its end below.
+        assert(layers.size() >= count_);
+        for (std::size_t k = 0; k != count_; ++k) {
+            acc *= storage_[index(k, static_cast<std::size_t>(layers[k]))];
+        }
+    }
 
     /// Write `value` at layer 0 for every key, marking them all written.
     void init_first_layer(const V &value)

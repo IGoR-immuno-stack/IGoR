@@ -559,7 +559,29 @@ Events_map Model_Parms::get_events_map()
  */
 void Model_Parms::finalize()
 {
-    seq_type_registry.freeze();
+    if (!seq_type_registry.is_frozen()) {
+        //Pin the legacy ids first, so that an inferred ordering does not renumber them.
+        seq_type_registry.register_legacy_seq_types();
+
+        //Legacy files carry no @Seq_type_order, and programmatically built models set none;
+        //infer it from whether the event graph has a D gene choice.
+        if (seq_type_registry.empty()) {
+            bool has_d = false;
+            for (const auto &ev : events) {
+                if (ev->get_type() == GeneChoice_t && ev->get_class() == D_gene) {
+                    has_d = true;
+                    break;
+                }
+            }
+            if (has_d) {
+                seq_type_registry.set_ordered_types(
+                        {"V_gene_seq", "VD_ins_seq", "D_gene_seq", "DJ_ins_seq", "J_gene_seq"});
+            } else {
+                seq_type_registry.set_ordered_types({"V_gene_seq", "VJ_ins_seq", "J_gene_seq"});
+            }
+        }
+        seq_type_registry.freeze();
+    }
     //Resolve each event's seq_type name to its runtime handle. Events whose seq_type is not
     //in the registry keep kNoSeqType: legacy models that never declared an ordering, and
     //error-rate-only parameter sets, are both legitimate in that state.
@@ -923,23 +945,6 @@ void Model_Parms::read_model_parms(string filename)
         }
     } else {
         throw runtime_error("Unknown format for model_parms file");
-    }
-
-    // For legacy files (v1.x) the seq_type_order was not in the file; infer it now.
-    if (seq_type_registry.empty()) {
-        bool has_d = false;
-        for (const auto &ev : events) {
-            if (ev->get_type() == GeneChoice_t && ev->get_class() == D_gene) {
-                has_d = true;
-                break;
-            }
-        }
-        if (has_d) {
-            seq_type_registry.set_ordered_types(
-                    {"V_gene_seq", "VD_ins_seq", "D_gene_seq", "DJ_ins_seq", "J_gene_seq"});
-        } else {
-            seq_type_registry.set_ordered_types({"V_gene_seq", "VJ_ins_seq", "J_gene_seq"});
-        }
     }
 
     if (line_str == string("@Edges")) {

@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <fstream> // Added for ofstream in MockEvent
 #include <igor/Core/Deletion.h>
+#include "test_utils.h"
 #include <igor/Core/Dinuclmarkov.h>
 #include <igor/Core/EventUtils.h>
 #include <igor/Core/gene_to_seqtype_migr.h>
@@ -447,7 +448,7 @@ public:
     events_map[std::make_tuple(GeneChoice_t, std::string("V_gene_seq"), Undefined_side)] = mock_v;
 
     std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> offset_map;
-    Downstream_scenario_proba_bound_map downstream_proba_map(6);
+    Downstream_scenario_proba_bound_map downstream_proba_map(legacy_seq_type_registry());
     Seq_type_str_p_map constructed_sequences(6);
     Safety_bool_map safety_set(6);
     std::shared_ptr<Error_rate> error_rate_p;
