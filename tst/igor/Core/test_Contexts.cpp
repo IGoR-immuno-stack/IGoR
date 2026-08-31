@@ -134,7 +134,7 @@ TEST_CASE("ModelContext construction and immutability", "[Context][ModelContext]
 TEST_CASE("ScenarioContext construction and mutability", "[Context][ScenarioContext]") {
     double proba = 1.0;
     Seq_type_str_p_map constructed_sequences(legacy_seq_type_registry());
-    Seq_offsets_map seq_offsets(6, 3);
+    Seq_offsets_map seq_offsets(legacy_seq_type_registry());
     Mismatch_vectors_map mismatches(legacy_seq_type_registry());
 
     SECTION("Basic construction") {
@@ -175,12 +175,12 @@ TEST_CASE("ScenarioContext construction and mutability", "[Context][ScenarioCont
         auto j_seq = make_shared<Int_Str>(nt2int("GC"));
         scenario.constructed_sequences.set(J_gene_seq, j_seq.get(), 0);
 
-        scenario.seq_offsets.set_value(J_gene_seq, Five_prime, 60, 0);
+        scenario.seq_offsets.set(J_gene_seq, Five_prime, 60, 0);
 
         // All modifications visible
         REQUIRE(proba == 0.8);
         REQUIRE(scenario.constructed_sequences.get(J_gene_seq, 0)->size() == 2);
-        REQUIRE(scenario.seq_offsets.at(J_gene_seq, Five_prime, 0) == 60);
+        REQUIRE(scenario.seq_offsets.get(J_gene_seq, Five_prime, 0) == 60);
     }
 }
 
@@ -350,7 +350,7 @@ TEST_CASE("Multiple contexts work together", "[Context][Integration]") {
     // Setup scenario
     double proba = 1.0;
     Seq_type_str_p_map constructed_sequences(legacy_seq_type_registry());
-    Seq_offsets_map seq_offsets(6, 3);
+    Seq_offsets_map seq_offsets(legacy_seq_type_registry());
     Mismatch_vectors_map mismatches(legacy_seq_type_registry());
 
     // Setup exploration

@@ -78,7 +78,7 @@ struct ScenarioContext {
     /**
      * @brief Set sequence offset for a gene/junction
      *
-     * Wrapper for seq_offsets.set_value() with semantic naming.
+     * Wrapper for seq_offsets.set() with semantic naming.
      *
      * @param seq_type Type of sequence (V_gene_seq, D_gene_seq, etc.)
      * @param side Which end (Five_prime or Three_prime)
@@ -93,13 +93,13 @@ struct ScenarioContext {
         Seq_Offset offset,
         size_t memory_layer
     ) {
-        seq_offsets.set_value(seq_type, side, offset, memory_layer);
+        seq_offsets.set(seq_type, side, offset, memory_layer);
     }
 
     /**
      * @brief Get sequence offset for a gene/junction
      *
-     * Wrapper for seq_offsets.at() with semantic naming.
+     * Wrapper for seq_offsets.get() with semantic naming.
      *
      * @param seq_type Type of sequence
      * @param side Which end (Five_prime or Three_prime)
@@ -113,7 +113,7 @@ struct ScenarioContext {
         Seq_side side,
         size_t memory_layer
     ) const {
-        return seq_offsets.at(seq_type, side, memory_layer);
+        return seq_offsets.get(seq_type, side, memory_layer);
     }
 
     /**
@@ -209,7 +209,7 @@ struct ScenarioContext {
         Seq_type seq_type,
         Seq_side side
     ) const {
-        return seq_offsets.at(seq_type, side);
+        return seq_offsets.get(seq_type, side);
     }
 
     /**

@@ -256,7 +256,7 @@ void Deletion::iterate(
 
     case V_gene_seq: {
 
-        //v_3_offset = seq_offsets.at(pair<Seq_type,Seq_side>(V_gene_seq,Three_prime));
+        //v_3_offset = seq_offsets.get(pair<Seq_type,Seq_side>(V_gene_seq,Three_prime));
         v_3_offset = scenario.get_offset(V_gene_seq, Three_prime, memory_layer_offset_del - 1);
 
         //Check D choice
@@ -265,8 +265,8 @@ void Deletion::iterate(
 
             //if(safety_set.count(Event_safety::VD_safe) == 0){
             if (!exploration.is_overlap_safe(Event_safety::VD_safe, memory_layer_safety_1 - 1)) {
-                //d_5_offset = seq_offsets.at(pair<Seq_type,Seq_side>(D_gene_seq , Five_prime));
-                //d_5_offset = seq_offsets.at(d_5_pair);
+                //d_5_offset = seq_offsets.get(pair<Seq_type,Seq_side>(D_gene_seq , Five_prime));
+                //d_5_offset = seq_offsets.get(d_5_pair);
 
                 d_5_min_offset = d_5_offset - d_5_min_del;
                 d_5_max_offset = d_5_offset - d_5_max_del;
@@ -285,8 +285,8 @@ void Deletion::iterate(
 
             //if(safety_set.count(Event_safety::VJ_safe) == 0){
             if (!exploration.is_overlap_safe(Event_safety::VJ_safe, memory_layer_safety_2 - 1)) {
-                //j_5_offset = seq_offsets.at(pair<Seq_type,Seq_side>(J_gene_seq , Five_prime));
-                //j_5_offset = seq_offsets.at(j_5_pair);
+                //j_5_offset = seq_offsets.get(pair<Seq_type,Seq_side>(J_gene_seq , Five_prime));
+                //j_5_offset = seq_offsets.get(j_5_pair);
                 j_5_offset = scenario.get_offset(J_gene_seq, Five_prime, memory_layer_offset_check2);
 
                 j_5_min_offset = j_5_offset - j_5_min_del;
@@ -516,8 +516,8 @@ void Deletion::iterate(
 
         case Five_prime: {
 
-            //d_5_offset = seq_offsets.at(pair<Seq_type,Seq_side>(D_gene_seq,Five_prime));
-            //d_5_offset = seq_offsets.at(d_5_pair);
+            //d_5_offset = seq_offsets.get(pair<Seq_type,Seq_side>(D_gene_seq,Five_prime));
+            //d_5_offset = seq_offsets.get(d_5_pair);
             d_5_offset = scenario.get_offset(D_gene_seq, Five_prime, memory_layer_offset_del - 1);
 
             //Check V choice
@@ -526,8 +526,8 @@ void Deletion::iterate(
 
                 //if(safety_set.count(Event_safety::VD_safe) == 0){
                 if (!exploration.is_overlap_safe(Event_safety::VD_safe, memory_layer_safety_1 - 1)) {
-                    //v_3_offset = seq_offsets.at(pair<Seq_type,Seq_side>(V_gene_seq , Three_prime));
-                    //v_3_offset = seq_offsets.at(v_3_pair);
+                    //v_3_offset = seq_offsets.get(pair<Seq_type,Seq_side>(V_gene_seq , Three_prime));
+                    //v_3_offset = seq_offsets.get(v_3_pair);
 
                     v_3_max_offset = v_3_offset + v_3_min_del;
                     v_3_min_offset = v_3_offset + v_3_max_del;
@@ -748,8 +748,8 @@ void Deletion::iterate(
 
         case Three_prime: {
 
-            //d_3_offset = seq_offsets.at(pair<Seq_type,Seq_side>(D_gene_seq,Three_prime));
-            //d_3_offset = seq_offsets.at(d_3_pair);
+            //d_3_offset = seq_offsets.get(pair<Seq_type,Seq_side>(D_gene_seq,Three_prime));
+            //d_3_offset = seq_offsets.get(d_3_pair);
             d_3_offset = scenario.get_offset(D_gene_seq, Three_prime, memory_layer_offset_del - 1);
 
             //Check J choice
@@ -758,8 +758,8 @@ void Deletion::iterate(
 
                 //if(safety_set.count(Event_safety::DJ_safe) == 0){
                 if (!exploration.is_overlap_safe(Event_safety::DJ_safe, memory_layer_safety_2 - 1)) {
-                    //j_5_offset = seq_offsets.at(pair<Seq_type,Seq_side>(J_gene_seq , Five_prime));
-                    //j_5_offset = seq_offsets.at(j_5_pair);
+                    //j_5_offset = seq_offsets.get(pair<Seq_type,Seq_side>(J_gene_seq , Five_prime));
+                    //j_5_offset = seq_offsets.get(j_5_pair);
 
                     j_5_min_offset = j_5_offset - j_5_min_del;
                     j_5_max_offset = j_5_offset - j_5_max_del;
@@ -876,10 +876,10 @@ void Deletion::iterate(
 											cout<<d_3_offset<<endl;
 											cout<<i<<endl;
 
-											cout<<seq_offsets.at(V_gene_seq,Three_prime)<<endl;
-											cout<<seq_offsets.at(D_gene_seq,Five_prime)<<endl;
-											cout<<seq_offsets.at(D_gene_seq,Three_prime)<<endl;
-											cout<<seq_offsets.at(J_gene_seq,Five_prime)<<endl;
+											cout<<seq_offsets.get(V_gene_seq,Three_prime)<<endl;
+											cout<<seq_offsets.get(D_gene_seq,Five_prime)<<endl;
+											cout<<seq_offsets.get(D_gene_seq,Three_prime)<<endl;
+											cout<<seq_offsets.get(J_gene_seq,Five_prime)<<endl;
 
 										}*/
 
@@ -991,8 +991,8 @@ void Deletion::iterate(
 
     case J_gene_seq: {
 
-        //j_5_offset =  seq_offsets.at(pair<Seq_type,Seq_side>(J_gene_seq,Five_prime));
-        //j_5_offset =  seq_offsets.at(j_5_pair);
+        //j_5_offset =  seq_offsets.get(pair<Seq_type,Seq_side>(J_gene_seq,Five_prime));
+        //j_5_offset =  seq_offsets.get(j_5_pair);
         j_5_offset = scenario.get_offset(J_gene_seq, Five_prime, memory_layer_offset_del - 1);
 
         //Check D choice
@@ -1001,8 +1001,8 @@ void Deletion::iterate(
 
             //if(safety_set.count(Event_safety::DJ_safe) == 0){
             if (!exploration.is_overlap_safe(Event_safety::DJ_safe, memory_layer_safety_2 - 1)) {
-                //d_3_offset = seq_offsets.at(pair<Seq_type,Seq_side>(D_gene_seq , Three_prime));
-                //d_3_offset = seq_offsets.at(d_3_pair);
+                //d_3_offset = seq_offsets.get(pair<Seq_type,Seq_side>(D_gene_seq , Three_prime));
+                //d_3_offset = seq_offsets.get(d_3_pair);
 
                 d_3_min_offset = d_3_offset + d_3_max_del;
                 d_3_max_offset = d_3_offset + d_3_min_del;
@@ -1021,8 +1021,8 @@ void Deletion::iterate(
             v_3_offset = scenario.get_offset(V_gene_seq, Three_prime, memory_layer_offset_check1);
             //if(safety_set.count(Event_safety::VJ_safe) == 0){
             if (!exploration.is_overlap_safe(Event_safety::VJ_safe, memory_layer_safety_1 - 1)) {
-                //v_3_offset = seq_offsets.at(pair<Seq_type,Seq_side>(V_gene_seq , Three_prime));
-                //v_3_offset = seq_offsets.at(v_3_pair);
+                //v_3_offset = seq_offsets.get(pair<Seq_type,Seq_side>(V_gene_seq , Three_prime));
+                //v_3_offset = seq_offsets.get(v_3_pair);
 
                 v_3_min_offset = v_3_offset + v_3_max_del;
                 v_3_max_offset = v_3_offset + v_3_min_del;
@@ -1405,8 +1405,8 @@ void Deletion::initialize_event(
 
     switch (target_seq_type) {
     case V_gene_seq:
-        seq_offsets.request_memory_layer(V_gene_seq, Three_prime);
-        memory_layer_offset_del = seq_offsets.get_current_memory_layer(V_gene_seq, Three_prime);
+        seq_offsets.request_layer(V_gene_seq, Three_prime);
+        memory_layer_offset_del = seq_offsets.current_layer(V_gene_seq, Three_prime);
         mismatches_list.request_layer(V_gene_seq);
         this->memory_layer_mismatches = mismatches_list.current_layer(V_gene_seq);
         constructed_sequences.request_layer(V_gene_seq);
@@ -1414,13 +1414,13 @@ void Deletion::initialize_event(
         if (d_chosen) {
             safety_set.request_memory_layer(VD_safe);
             memory_layer_safety_1 = safety_set.get_current_memory_layer(VD_safe);
-            memory_layer_offset_check1 = seq_offsets.get_current_memory_layer(D_gene_seq, Five_prime);
+            memory_layer_offset_check1 = seq_offsets.current_layer(D_gene_seq, Five_prime);
             //cout<<"v_del_1 : "<<memory_layer_safety_1<<endl;
         }
         if (j_chosen) {
             safety_set.request_memory_layer(VJ_safe);
             memory_layer_safety_2 = safety_set.get_current_memory_layer(VJ_safe);
-            memory_layer_offset_check2 = seq_offsets.get_current_memory_layer(J_gene_seq, Five_prime);
+            memory_layer_offset_check2 = seq_offsets.current_layer(J_gene_seq, Five_prime);
             //cout<<"v_del_2 : "<<memory_layer_safety_2<<endl;
         }
 
@@ -1444,12 +1444,12 @@ void Deletion::initialize_event(
         this->memory_layer_proba_map_seq = downstream_proba_map.current_layer(D_gene_seq);
         switch (this->event_side) {
         case Five_prime:
-            seq_offsets.request_memory_layer(D_gene_seq, Five_prime);
-            memory_layer_offset_del = seq_offsets.get_current_memory_layer(D_gene_seq, Five_prime);
+            seq_offsets.request_layer(D_gene_seq, Five_prime);
+            memory_layer_offset_del = seq_offsets.current_layer(D_gene_seq, Five_prime);
             if (v_chosen) {
                 safety_set.request_memory_layer(VD_safe);
                 memory_layer_safety_1 = safety_set.get_current_memory_layer(VD_safe);
-                memory_layer_offset_check1 = seq_offsets.get_current_memory_layer(V_gene_seq, Three_prime);
+                memory_layer_offset_check1 = seq_offsets.current_layer(V_gene_seq, Three_prime);
                 //cout<<"d_del_1: "<<memory_layer_safety_1<<endl;
             }
             {
@@ -1472,12 +1472,12 @@ void Deletion::initialize_event(
 
             break;
         case Three_prime:
-            seq_offsets.request_memory_layer(D_gene_seq, Three_prime);
-            memory_layer_offset_del = seq_offsets.get_current_memory_layer(D_gene_seq, Three_prime);
+            seq_offsets.request_layer(D_gene_seq, Three_prime);
+            memory_layer_offset_del = seq_offsets.current_layer(D_gene_seq, Three_prime);
             if (j_chosen) {
                 safety_set.request_memory_layer(DJ_safe);
                 memory_layer_safety_2 = safety_set.get_current_memory_layer(DJ_safe);
-                memory_layer_offset_check2 = seq_offsets.get_current_memory_layer(J_gene_seq, Five_prime);
+                memory_layer_offset_check2 = seq_offsets.current_layer(J_gene_seq, Five_prime);
                 //cout<<"d_del_2: "<<memory_layer_safety_2<<endl;
             }
             {
@@ -1501,8 +1501,8 @@ void Deletion::initialize_event(
 
         break;
     case J_gene_seq:
-        seq_offsets.request_memory_layer(J_gene_seq, Five_prime);
-        memory_layer_offset_del = seq_offsets.get_current_memory_layer(J_gene_seq, Five_prime);
+        seq_offsets.request_layer(J_gene_seq, Five_prime);
+        memory_layer_offset_del = seq_offsets.current_layer(J_gene_seq, Five_prime);
         mismatches_list.request_layer(J_gene_seq);
         this->memory_layer_mismatches = mismatches_list.current_layer(J_gene_seq);
         constructed_sequences.request_layer(J_gene_seq);
@@ -1510,13 +1510,13 @@ void Deletion::initialize_event(
         if (v_chosen) {
             safety_set.request_memory_layer(VJ_safe);
             memory_layer_safety_1 = safety_set.get_current_memory_layer(VJ_safe);
-            memory_layer_offset_check1 = seq_offsets.get_current_memory_layer(V_gene_seq, Three_prime);
+            memory_layer_offset_check1 = seq_offsets.current_layer(V_gene_seq, Three_prime);
             //cout<<"j_del_1: "<<memory_layer_safety_1<<endl;
         }
         if (d_chosen) {
             safety_set.request_memory_layer(DJ_safe);
             memory_layer_safety_2 = safety_set.get_current_memory_layer(DJ_safe);
-            memory_layer_offset_check2 = seq_offsets.get_current_memory_layer(D_gene_seq, Three_prime);
+            memory_layer_offset_check2 = seq_offsets.current_layer(D_gene_seq, Three_prime);
             //cout<<"j_del_2: "<<memory_layer_safety_2<<endl;
         }
 

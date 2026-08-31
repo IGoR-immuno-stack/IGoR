@@ -38,8 +38,10 @@
 #include <iostream>
 #include <iomanip>
 #include <igor/Core/IntStr.h>
+#include <igor/Core/CoreEnums.h>
 #include <igor/Core/StdTypedefs.h>
 #include <igor/Core/DynamicSequenceMap.h>
+#include <igor/Core/SeqOffsetsMap.h>
 #include <igor/Core/LayeredArray.h>
 #include <igor/Core/LayeredMap.h>
 #include <memory>
@@ -168,10 +170,6 @@ inline int popcountll(uint64_t x)
 
 class Rec_Event;
 
-enum Event_type { GeneChoice_t, Deletion_t, Insertion_t, Dinuclmarkov_t, Undefined_t };
-enum Event_safety { VD_safe = 0, DJ_safe = 1, VJ_safe = 2 };
-enum Seq_side { Five_prime = 0, Three_prime = 1, Undefined_side = 2 };
-enum Seq_type { V_gene_seq = 0, VD_ins_seq = 1, D_gene_seq = 2, DJ_ins_seq = 3, J_gene_seq = 4, VJ_ins_seq = 5 };
 /// Slim gene class: only the three fundamental gene types plus Undefined.
 /// Use this everywhere in runtime code. Junction/compound values (VD, DJ, VJ, VDJ)
 /// belong to Gene_class_legacy and are only used at legacy file I/O boundaries.
@@ -457,7 +455,7 @@ class Seq_type_str_p_map : public Enum_fast_memory_map<Seq_type,Str_ptr>{
 };*/
 
 
-typedef Enum_fast_memory_dual_key_map<Seq_type, Seq_side, Seq_Offset> Seq_offsets_map;
+//Seq_offsets_map is a class in SeqOffsetsMap.h, holding one DynamicSequenceMap per end.
 
 /**
  * String-keyed variant of Enum_fast_memory_dual_key_map.

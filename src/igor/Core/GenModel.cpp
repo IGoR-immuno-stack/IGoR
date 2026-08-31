@@ -267,7 +267,7 @@ bool GenModel::infer_model(
             // mismatch count that no choice of query branch can reduce.
             Pruning_mismatch_floor_map pruning_mismatch_floor(
                     single_thread_model_parms.get_seq_type_registry());
-            Seq_offsets_map seq_offsets(6, 3);
+            Seq_offsets_map seq_offsets(single_thread_model_parms.get_seq_type_registry());
 
             //Initialize downstream probas to 1. Sized from the thread-local model's frozen
             //registry, which outlives the parallel region the map is used in.

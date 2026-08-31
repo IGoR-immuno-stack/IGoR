@@ -453,7 +453,7 @@ public:
     Safety_bool_map safety_set(6);
     std::shared_ptr<Error_rate> error_rate_p;
     Mismatch_vectors_map mismatches_list(legacy_seq_type_registry());
-    Seq_offsets_map seq_offsets(6, 2);
+    Seq_offsets_map seq_offsets(legacy_seq_type_registry());
     Index_map index_map(6);
 
     // Force initial state to true to verify that initialize_event actually overwrites it

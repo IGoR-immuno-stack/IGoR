@@ -1103,10 +1103,10 @@ void Gene_choice::initialize_event(
 
     switch (this->event_class) {
     case V_gene:
-        seq_offsets.request_memory_layer(V_gene_seq, Three_prime);
-        this->memory_layer_off_threep = seq_offsets.get_current_memory_layer(V_gene_seq, Three_prime);
-        seq_offsets.request_memory_layer(V_gene_seq, Five_prime);
-        this->memory_layer_off_fivep = seq_offsets.get_current_memory_layer(V_gene_seq, Five_prime);
+        seq_offsets.request_layer(V_gene_seq, Three_prime);
+        this->memory_layer_off_threep = seq_offsets.current_layer(V_gene_seq, Three_prime);
+        seq_offsets.request_layer(V_gene_seq, Five_prime);
+        this->memory_layer_off_fivep = seq_offsets.current_layer(V_gene_seq, Five_prime);
         mismatches_list.request_layer(V_gene_seq);
         this->memory_layer_mismatches = mismatches_list.current_layer(V_gene_seq);
         constructed_sequences.request_layer(V_gene_seq);
@@ -1133,18 +1133,18 @@ void Gene_choice::initialize_event(
         }
 
         if (d_chosen) {
-            memory_layer_offset_check1 = seq_offsets.get_current_memory_layer(D_gene_seq, Five_prime);
+            memory_layer_offset_check1 = seq_offsets.current_layer(D_gene_seq, Five_prime);
         }
         if (j_chosen) {
-            memory_layer_offset_check2 = seq_offsets.get_current_memory_layer(J_gene_seq, Five_prime);
+            memory_layer_offset_check2 = seq_offsets.current_layer(J_gene_seq, Five_prime);
         }
 
         break;
     case D_gene:
-        seq_offsets.request_memory_layer(D_gene_seq, Three_prime);
-        this->memory_layer_off_threep = seq_offsets.get_current_memory_layer(D_gene_seq, Three_prime);
-        seq_offsets.request_memory_layer(D_gene_seq, Five_prime);
-        this->memory_layer_off_fivep = seq_offsets.get_current_memory_layer(D_gene_seq, Five_prime);
+        seq_offsets.request_layer(D_gene_seq, Three_prime);
+        this->memory_layer_off_threep = seq_offsets.current_layer(D_gene_seq, Three_prime);
+        seq_offsets.request_layer(D_gene_seq, Five_prime);
+        this->memory_layer_off_fivep = seq_offsets.current_layer(D_gene_seq, Five_prime);
         mismatches_list.request_layer(D_gene_seq);
         this->memory_layer_mismatches = mismatches_list.current_layer(D_gene_seq);
         constructed_sequences.request_layer(D_gene_seq);
@@ -1176,21 +1176,21 @@ void Gene_choice::initialize_event(
         }
 
         if (v_chosen) {
-            memory_layer_offset_check1 = seq_offsets.get_current_memory_layer(V_gene_seq, Three_prime);
+            memory_layer_offset_check1 = seq_offsets.current_layer(V_gene_seq, Three_prime);
         } else {
             v_3_min_offset = 0;
             v_3_max_offset = 0;
         }
         if (j_chosen) {
-            memory_layer_offset_check2 = seq_offsets.get_current_memory_layer(J_gene_seq, Five_prime);
+            memory_layer_offset_check2 = seq_offsets.current_layer(J_gene_seq, Five_prime);
         }
 
         break;
     case J_gene:
-        seq_offsets.request_memory_layer(J_gene_seq, Three_prime);
-        this->memory_layer_off_threep = seq_offsets.get_current_memory_layer(J_gene_seq, Three_prime);
-        seq_offsets.request_memory_layer(J_gene_seq, Five_prime);
-        this->memory_layer_off_fivep = seq_offsets.get_current_memory_layer(J_gene_seq, Five_prime);
+        seq_offsets.request_layer(J_gene_seq, Three_prime);
+        this->memory_layer_off_threep = seq_offsets.current_layer(J_gene_seq, Three_prime);
+        seq_offsets.request_layer(J_gene_seq, Five_prime);
+        this->memory_layer_off_fivep = seq_offsets.current_layer(J_gene_seq, Five_prime);
         mismatches_list.request_layer(J_gene_seq);
         this->memory_layer_mismatches = mismatches_list.current_layer(J_gene_seq);
         constructed_sequences.request_layer(J_gene_seq);
@@ -1217,10 +1217,10 @@ void Gene_choice::initialize_event(
         }
 
         if (v_chosen) {
-            memory_layer_offset_check1 = seq_offsets.get_current_memory_layer(V_gene_seq, Three_prime);
+            memory_layer_offset_check1 = seq_offsets.current_layer(V_gene_seq, Three_prime);
         }
         if (d_chosen) {
-            memory_layer_offset_check2 = seq_offsets.get_current_memory_layer(D_gene_seq, Three_prime);
+            memory_layer_offset_check2 = seq_offsets.current_layer(D_gene_seq, Three_prime);
         }
 
         break;

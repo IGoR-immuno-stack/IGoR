@@ -334,7 +334,7 @@ void Coverage_err_counter::count_scenario(
 		 * Start at position 0
 		 *
 		 * Disregard P nucleotides, and set begin bound as: max(0,(*j_5_del_value_p))
-		 * Assume J is on the right of the read and compute end bound: max(0,(*j_5_del_value_p))+(seq_offsets.at(J_gene_seq,Three_prime) - seq_offsets.at(J_gene_seq,Five_prime) +1)
+		 * Assume J is on the right of the read and compute end bound: max(0,(*j_5_del_value_p))+(seq_offsets.get(J_gene_seq,Three_prime) - seq_offsets.get(J_gene_seq,Five_prime) +1)
 		 * 																i.e : begin bound + number of visible nucleotides
 		 */
 
@@ -599,14 +599,14 @@ void Coverage_err_counter::count_scenario(
 		 * Start at position 0
 		 *
 		 * Disregard P nucleotides, and set begin bound as: max(0,(*j_5_del_value_p))
-		 * Assume J is on the right of the read and compute end bound: max(0,(*j_5_del_value_p))+(seq_offsets.at(J_gene_seq,Three_prime) - seq_offsets.at(J_gene_seq,Five_prime) +1)
+		 * Assume J is on the right of the read and compute end bound: max(0,(*j_5_del_value_p))+(seq_offsets.get(J_gene_seq,Three_prime) - seq_offsets.get(J_gene_seq,Five_prime) +1)
 		 * 																i.e : begin bound + number of visible nucleotides
 		 */
 
         this->recurs_coverage_count(
                 scenario_seq_joint_proba, 0, std::max(0, (*j_5_del_value_p)),
                 std::max(0, (*j_5_del_value_p))
-                        + (seq_offsets.at(J_gene_seq, Three_prime) - seq_offsets.at(J_gene_seq, Five_prime) + 1),
+                        + (seq_offsets.get(J_gene_seq, Three_prime) - seq_offsets.get(J_gene_seq, Five_prime) + 1),
                 tmp_corr_len);
 
         /*
@@ -628,7 +628,7 @@ void Coverage_err_counter::count_scenario(
         tmp_corr_len = std::max(0,(*j_5_del_value_p));
 
 		// Compute the coverage
-		const int tmp = (seq_offsets.at(J_gene_seq,Three_prime) - seq_offsets.at(J_gene_seq,Five_prime) +1);
+		const int tmp = (seq_offsets.get(J_gene_seq,Three_prime) - seq_offsets.get(J_gene_seq,Five_prime) +1);
 		for( i = 0 ; i != tmp ; ++i ){
 			tmp_cov_p[i+tmp_corr_len]+=scenario_seq_joint_proba;
 		}

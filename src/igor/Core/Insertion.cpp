@@ -165,7 +165,7 @@ void Insertion::iterate(
 
     const string &ins_st = this->seq_type;
     if (ins_st == "VD_ins_seq") {
-        //insertions = seq_offsets.at(d_5_pair) - seq_offsets.at(v_3_pair) -1;
+        //insertions = seq_offsets.get(d_5_pair) - seq_offsets.get(v_3_pair) -1;
         insertions = scenario.get_offset(D_gene_seq, Five_prime) - scenario.get_offset(V_gene_seq, Three_prime) - 1;
 
         proba_contribution = (*this).iterate_common(proba_contribution, insertions, base_index, exploration.index_map,
@@ -179,7 +179,7 @@ void Insertion::iterate(
                                            memory_layer_proba_map_junction);
         }
     } else if (ins_st == "DJ_ins_seq") {
-        //insertions = seq_offsets.at(j_5_pair) - seq_offsets.at(d_3_pair) -1;
+        //insertions = seq_offsets.get(j_5_pair) - seq_offsets.get(d_3_pair) -1;
         insertions = scenario.get_offset(J_gene_seq, Five_prime) - scenario.get_offset(D_gene_seq, Three_prime) - 1;
 
         proba_contribution = iterate_common(proba_contribution, insertions, base_index, exploration.index_map, model.offset_map,
@@ -193,7 +193,7 @@ void Insertion::iterate(
                                            memory_layer_proba_map_junction);
         }
     } else if (ins_st == "VJ_ins_seq") {
-        //insertions = seq_offsets.at(j_5_pair) - seq_offsets.at(v_3_pair) -1;
+        //insertions = seq_offsets.get(j_5_pair) - seq_offsets.get(v_3_pair) -1;
         insertions = scenario.get_offset(J_gene_seq, Five_prime) - scenario.get_offset(V_gene_seq, Three_prime) - 1;
         proba_contribution = iterate_common(proba_contribution, insertions, base_index, exploration.index_map, model.offset_map,
                                             model.model_parameters);

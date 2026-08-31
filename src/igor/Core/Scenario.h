@@ -72,7 +72,7 @@ struct Scenario {
         // NOTE: Offsets only exist for initialized sequences
         for (size_t seq_type_idx = 0; seq_type_idx < 6; ++seq_type_idx) {
             Seq_type seq_type = static_cast<Seq_type>(seq_type_idx);
-            if (ctx.seq_offsets.exist(seq_type, Five_prime) &&  ctx.seq_offsets.exist(seq_type, Three_prime)) {
+            if (ctx.seq_offsets.exists(seq_type, Five_prime) &&  ctx.seq_offsets.exists(seq_type, Three_prime)) {
                 offsets[seq_type_idx] = {
                     ctx.get_offset(seq_type, Five_prime),
                     ctx.get_offset(seq_type, Three_prime)

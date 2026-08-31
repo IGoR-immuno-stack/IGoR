@@ -491,16 +491,16 @@ double Hypermutation_global_errorrate::compare_sequences_error_prob(
                 }
             } else {
                 if (d_gene) {
-                    if ((i <= seq_offsets.at(V_gene_seq, Three_prime))
-                        or ((i >= seq_offsets.at(D_gene_seq, Five_prime))
-                            and ((i <= seq_offsets.at(D_gene_seq, Three_prime))))
-                        or (i >= seq_offsets.at(J_gene_seq, Five_prime))) {
+                    if ((i <= seq_offsets.get(V_gene_seq, Three_prime))
+                        or ((i >= seq_offsets.get(D_gene_seq, Five_prime))
+                            and ((i <= seq_offsets.get(D_gene_seq, Three_prime))))
+                        or (i >= seq_offsets.get(J_gene_seq, Five_prime))) {
                         scenario_new_proba *= (1 - Nmer_mutation_proba[Nmer_index]);
                         //FIXME THIS A SUPER HARD FIX!
                     }
                 } else {
-                    if ((i <= seq_offsets.at(V_gene_seq, Three_prime))
-                        or (i >= seq_offsets.at(J_gene_seq, Five_prime))) {
+                    if ((i <= seq_offsets.get(V_gene_seq, Three_prime))
+                        or (i >= seq_offsets.get(J_gene_seq, Five_prime))) {
                         scenario_new_proba *= (1 - Nmer_mutation_proba[Nmer_index]);
                         //FIXME THIS A SUPER HARD FIX!
                     }
@@ -518,7 +518,7 @@ double Hypermutation_global_errorrate::compare_sequences_error_prob(
             //Shift the index
             Nmer_index *= 4;
             //Add the contribution of the new nucleotide
-            tmp_int_nt = j_sequences[**jgene_real_index_p].at(i - seq_offsets.at(J_gene_seq, Five_prime)
+            tmp_int_nt = j_sequences[**jgene_real_index_p].at(i - seq_offsets.get(J_gene_seq, Five_prime)
                                                               + (*j_5_del_value_p)); //Assume a symetric Nmer
             Nmer_index += tmp_int_nt;
             current_Nmer.push(tmp_int_nt);
@@ -536,7 +536,7 @@ double Hypermutation_global_errorrate::compare_sequences_error_prob(
                     current_mismatch = j_mismatch_list.begin();
                 }
             } else {
-                if ((i >= seq_offsets.at(J_gene_seq, Five_prime))) {
+                if ((i >= seq_offsets.get(J_gene_seq, Five_prime))) {
                     scenario_new_proba *= (1 - Nmer_mutation_proba[Nmer_index]);
                     //FIXME THIS A SUPER HARD FIX!
                 }
@@ -591,7 +591,7 @@ double Hypermutation_global_errorrate::compare_sequences_error_prob(
 
                     ++current_mismatch;
                 } else {
-                    if ((i <= seq_offsets.at(V_gene_seq, Three_prime))) {
+                    if ((i <= seq_offsets.get(V_gene_seq, Three_prime))) {
                         scenario_new_proba *= (1 - Nmer_mutation_proba[Nmer_index]);
                         //FIXME THIS A SUPER HARD FIX!
                     }
@@ -612,7 +612,7 @@ double Hypermutation_global_errorrate::compare_sequences_error_prob(
         /*
 		 * If at least (mutation_Nmer_size+1)/2 V nucleotides remaining (1 visible to count the error, (mutation_Nmer_size-1)/2 on the 3' side for the context assessment
 		 * => this is most likely ALWAYS the case for V since it is ~300bp long
-		 * Length of the visible part of V: seq_offsets.at(V_gene_seq,Three_prime) - seq_offsets.at(V_gene_seq,Five_prime) +1
+		 * Length of the visible part of V: seq_offsets.get(V_gene_seq,Three_prime) - seq_offsets.get(V_gene_seq,Five_prime) +1
 		 * Length of the non visible part of V: V_gene_size - #visible - #deleted
 		 * (could also use vgene offset) => this is what is done for now until I find a good reason why V should not be assumed to be seen all the way 5'
 		 * There must be at least one V nucleotide visible (this is ensured by the alignments)
@@ -630,7 +630,7 @@ double Hypermutation_global_errorrate::compare_sequences_error_prob(
 
             is_visible_nt = false;
             tmp_corr_len = -(**vgene_offset_p) - (mutation_Nmer_size - 1) / 2;
-            tmp_len_util = seq_offsets.at(J_gene_seq, Five_prime)
+            tmp_len_util = seq_offsets.get(J_gene_seq, Five_prime)
                     - (mutation_Nmer_size - 1)
                             / 2; //Start using the information of the (N-1)/2 inserted (or D) nucleotides before the J
 
@@ -665,7 +665,7 @@ double Hypermutation_global_errorrate::compare_sequences_error_prob(
 			 * i.e i == v3' offset + (N-1)/2
 			 */
             for (i = (mutation_Nmer_size - 1) / 2 + 1;
-                 i != (seq_offsets.at(V_gene_seq, Three_prime) + (mutation_Nmer_size - 1) / 2 + 1); ++i) {
+                 i != (seq_offsets.get(V_gene_seq, Three_prime) + (mutation_Nmer_size - 1) / 2 + 1); ++i) {
                 //Remove the previous first nucleotide of the Nmer and it's contribution to the index
                 Nmer_index -= current_Nmer.front() * adressing_vector[0];
                 current_Nmer.pop();
@@ -698,7 +698,7 @@ double Hypermutation_global_errorrate::compare_sequences_error_prob(
         /*	THIS IS AN OLD VERSION COMMENTED OUT, WILL BE CLEANED SOON
 		current_mismatch = v_mismatch_list.begin();
 
-		if(seq_offsets.at(V_gene_seq,Three_prime) >= (mutation_Nmer_size-1)){
+		if(seq_offsets.get(V_gene_seq,Three_prime) >= (mutation_Nmer_size-1)){
 			//TODO Need to get the previous V nucleotides and last J ones
 
 			//Get the address of the first Nmer(disregarding the error penalty on the first nucleotides)
@@ -737,12 +737,12 @@ double Hypermutation_global_errorrate::compare_sequences_error_prob(
 			}
 
 
-			if(seq_offsets.at(V_gene_seq,Three_prime) >= (mutation_Nmer_size)){
+			if(seq_offsets.get(V_gene_seq,Three_prime) >= (mutation_Nmer_size)){
 				//Look at all Nmers in the scenario_resulting_sequence by sliding window
 				//Removing the contribution of the first and adding the contribution of the new last
 
-				for( i = (mutation_Nmer_size-1)/2 +1 ; i<seq_offsets.at(V_gene_seq,Three_prime)-(mutation_Nmer_size-1)/2 +1  ; ++i){
-					//FIXME seq_offsets.at(V_gene_seq,Three_prime)-(mutation_Nmer_size-1)/2 +1 ??
+				for( i = (mutation_Nmer_size-1)/2 +1 ; i<seq_offsets.get(V_gene_seq,Three_prime)-(mutation_Nmer_size-1)/2 +1  ; ++i){
+					//FIXME seq_offsets.get(V_gene_seq,Three_prime)-(mutation_Nmer_size-1)/2 +1 ??
 					//Remove the previous first nucleotide of the Nmer and it's contribution to the index
 					Nmer_index-=current_Nmer.front()*adressing_vector[0];
 					current_Nmer.pop();
@@ -772,11 +772,11 @@ double Hypermutation_global_errorrate::compare_sequences_error_prob(
 
     if (learn_on_d) {
 
-        if ((seq_offsets.at(D_gene_seq, Five_prime) <= seq_offsets.at(
+        if ((seq_offsets.get(D_gene_seq, Five_prime) <= seq_offsets.get(
                      D_gene_seq, Three_prime)) //Makes sure there is at least one D nucleotide(not fully deleted)
-            and (seq_offsets.at(D_gene_seq, Five_prime) - (mutation_Nmer_size - 1) / 2
+            and (seq_offsets.get(D_gene_seq, Five_prime) - (mutation_Nmer_size - 1) / 2
                  > 0) //Makes sure there are enough nucleotides on the left
-            and (seq_offsets.at(D_gene_seq, Three_prime) + (mutation_Nmer_size - 1) / 2
+            and (seq_offsets.get(D_gene_seq, Three_prime) + (mutation_Nmer_size - 1) / 2
                  < scenario_resulting_sequence.size())) { //Makes sure there are enough nucleotides on the right
             current_mismatch = d_mismatch_list.begin();
 
@@ -786,8 +786,8 @@ double Hypermutation_global_errorrate::compare_sequences_error_prob(
                 current_Nmer.pop();
             }
 
-            //tmp_corr_len = seq_offsets.at(J_gene_seq,Three_prime) - seq_offsets.at(J_gene_seq,Five_prime)+(mutation_Nmer_size-1)/2;
-            tmp_len_util = seq_offsets.at(D_gene_seq, Five_prime)
+            //tmp_corr_len = seq_offsets.get(J_gene_seq,Three_prime) - seq_offsets.get(J_gene_seq,Five_prime)+(mutation_Nmer_size-1)/2;
+            tmp_len_util = seq_offsets.get(D_gene_seq, Five_prime)
                     - (mutation_Nmer_size - 1)
                             / 2; //Start using the information of the (N-1)/2 inserted (or D) nucleotides before the J
 
@@ -802,7 +802,7 @@ double Hypermutation_global_errorrate::compare_sequences_error_prob(
 
             //Check if there is an error on the first nucleotide and record Nmer statistics
             if ((current_mismatch != d_mismatch_list.end())
-                && ((*current_mismatch) == seq_offsets.at(D_gene_seq, Five_prime))) {
+                && ((*current_mismatch) == seq_offsets.get(D_gene_seq, Five_prime))) {
                 one_seq_Nmer_N_SHM[Nmer_index] += scenario_new_proba;
                 one_seq_Nmer_N_bg[Nmer_index] += scenario_new_proba;
                 ++current_mismatch;
@@ -816,8 +816,8 @@ double Hypermutation_global_errorrate::compare_sequences_error_prob(
 			 * Need to stop when i== dgene 3' offset + #Insertions/J nucs considered
 			 * i.e i == d3' offset + (N-1)/2
 			 */
-            for (i = (seq_offsets.at(D_gene_seq, Five_prime) + (mutation_Nmer_size - 1) / 2 + 1);
-                 i != (seq_offsets.at(D_gene_seq, Three_prime) + (mutation_Nmer_size - 1) / 2 + 1); ++i) {
+            for (i = (seq_offsets.get(D_gene_seq, Five_prime) + (mutation_Nmer_size - 1) / 2 + 1);
+                 i != (seq_offsets.get(D_gene_seq, Three_prime) + (mutation_Nmer_size - 1) / 2 + 1); ++i) {
                 //Remove the previous first nucleotide of the Nmer and it's contribution to the index
                 Nmer_index -= current_Nmer.front() * adressing_vector[0];
                 current_Nmer.pop();
@@ -854,7 +854,7 @@ double Hypermutation_global_errorrate::compare_sequences_error_prob(
 
         /*
 		 * If at least (mutation_Nmer_size+1)/2 J nucleotides remaining (1 visible to count the error, (mutation_Nmer_size-1)/2 on the 3' side for the context assessment
-		 * Length of the visible part of J: seq_offsets.at(J_gene_seq,Three_prime) - seq_offsets.at(J_gene_seq,Five_prime) +1
+		 * Length of the visible part of J: seq_offsets.get(J_gene_seq,Three_prime) - seq_offsets.get(J_gene_seq,Five_prime) +1
 		 * Length of the non visible part of J: J_gene_size - #visible - #deleted
 		 * There must be at least one J nucleotide visible (this is ensured by the alignments)
 		 */
@@ -869,9 +869,9 @@ double Hypermutation_global_errorrate::compare_sequences_error_prob(
             }
 
             is_visible_nt = true;
-            tmp_corr_len = seq_offsets.at(J_gene_seq, Three_prime) - seq_offsets.at(J_gene_seq, Five_prime)
+            tmp_corr_len = seq_offsets.get(J_gene_seq, Three_prime) - seq_offsets.get(J_gene_seq, Five_prime)
                     + (mutation_Nmer_size - 1) / 2;
-            tmp_len_util = seq_offsets.at(J_gene_seq, Five_prime)
+            tmp_len_util = seq_offsets.get(J_gene_seq, Five_prime)
                     - (mutation_Nmer_size - 1)
                             / 2; //Start using the information of the (N-1)/2 inserted (or D) nucleotides before the J
 
@@ -894,7 +894,7 @@ double Hypermutation_global_errorrate::compare_sequences_error_prob(
 
             //Check if there is an error on the first nucleotide and record Nmer statistics
             if ((current_mismatch != j_mismatch_list.end())
-                && ((*current_mismatch) == seq_offsets.at(J_gene_seq, Five_prime))) {
+                && ((*current_mismatch) == seq_offsets.get(J_gene_seq, Five_prime))) {
                 one_seq_Nmer_N_SHM[Nmer_index] += scenario_new_proba;
                 one_seq_Nmer_N_bg[Nmer_index] += scenario_new_proba;
                 ++current_mismatch;
@@ -910,7 +910,7 @@ double Hypermutation_global_errorrate::compare_sequences_error_prob(
 			 */
             for (i = mutation_Nmer_size; i
                  != mutation_Nmer_size
-                         + (seq_offsets.at(J_gene_seq, Three_prime) - seq_offsets.at(J_gene_seq, Five_prime) + 1);
+                         + (seq_offsets.get(J_gene_seq, Three_prime) - seq_offsets.get(J_gene_seq, Five_prime) + 1);
                  ++i) {
                 //Remove the previous first nucleotide of the Nmer and it's contribution to the index
                 Nmer_index -= current_Nmer.front() * adressing_vector[0];
@@ -951,7 +951,7 @@ double Hypermutation_global_errorrate::compare_sequences_error_prob(
         }
 
         /*	THIS IS AN OLD VERSION COMMENTED OUT, WILL BE CLEANED SOON
- * if( (seq_offsets.at(J_gene_seq,Three_prime) - seq_offsets.at(J_gene_seq,Five_prime) +1 )>=mutation_Nmer_size ){
+ * if( (seq_offsets.get(J_gene_seq,Three_prime) - seq_offsets.get(J_gene_seq,Five_prime) +1 )>=mutation_Nmer_size ){
 			//There are enough J nucleotides on the read to start counting at the first J position
 
 				current_mismatch = j_mismatch_list.begin();
@@ -964,10 +964,10 @@ double Hypermutation_global_errorrate::compare_sequences_error_prob(
 					current_Nmer.pop();
 				}
 
-				for(i=seq_offsets.at(J_gene_seq,Five_prime)-1 ; i!=seq_offsets.at(J_gene_seq,Five_prime)-1 + mutation_Nmer_size ; ++i){
+				for(i=seq_offsets.get(J_gene_seq,Five_prime)-1 ; i!=seq_offsets.get(J_gene_seq,Five_prime)-1 + mutation_Nmer_size ; ++i){
 					tmp_int_nt = scenario_resulting_sequence.at(i);
 					current_Nmer.push(tmp_int_nt);
-					Nmer_index+=adressing_vector.at(i-seq_offsets.at(J_gene_seq,Five_prime)+1)*tmp_int_nt;
+					Nmer_index+=adressing_vector.at(i-seq_offsets.get(J_gene_seq,Five_prime)+1)*tmp_int_nt;
 				}
 
 
@@ -986,7 +986,7 @@ double Hypermutation_global_errorrate::compare_sequences_error_prob(
 				//Check if there's an error and apply the cost accordingly
 
 				if( (current_mismatch!=j_mismatch_list.end())
-					&& ((*current_mismatch)==seq_offsets.at(J_gene_seq,Five_prime)) ){
+					&& ((*current_mismatch)==seq_offsets.get(J_gene_seq,Five_prime)) ){
 					one_seq_Nmer_N_SHM[Nmer_index] += scenario_new_proba;
 					one_seq_Nmer_N_bg[Nmer_index] += scenario_new_proba;
 					++current_mismatch;
@@ -999,10 +999,10 @@ double Hypermutation_global_errorrate::compare_sequences_error_prob(
 
 				//Look at all Nmers in the scenario_resulting_sequence by sliding window
 				//Removing the contribution of the first and adding the contribution of the new last
-				if((seq_offsets.at(J_gene_seq,Three_prime) - seq_offsets.at(J_gene_seq,Five_prime) )>=mutation_Nmer_size){
+				if((seq_offsets.get(J_gene_seq,Three_prime) - seq_offsets.get(J_gene_seq,Five_prime) )>=mutation_Nmer_size){
 
-					for( i = seq_offsets.at(J_gene_seq,Five_prime) +1 ; i<seq_offsets.at(J_gene_seq,Three_prime)-(mutation_Nmer_size-1)/2 +1  ; ++i){
-						//FIXME seq_offsets.at(V_gene_seq,Three_prime)-(mutation_Nmer_size-1)/2 +1 ??
+					for( i = seq_offsets.get(J_gene_seq,Five_prime) +1 ; i<seq_offsets.get(J_gene_seq,Three_prime)-(mutation_Nmer_size-1)/2 +1  ; ++i){
+						//FIXME seq_offsets.get(V_gene_seq,Three_prime)-(mutation_Nmer_size-1)/2 +1 ??
 						//Remove the previous first nucleotide of the Nmer and it's contribution to the index
 						Nmer_index-=current_Nmer.front()*adressing_vector[0];
 						current_Nmer.pop();
