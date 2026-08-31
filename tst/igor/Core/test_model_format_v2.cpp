@@ -257,6 +257,50 @@ TEST_CASE("SeqTypeRegistry inferred as VDJ order from legacy format", "[model_fo
 // SeqTypeId: the runtime handle layer (plan decisions D1 / D5, B2 step 4)
 // ══════════════════════════════════════════════════════════════════════════════
 
+// The invariant the whole B8 migration rests on: for the six legacy seq_types the
+// registry id equals the Seq_type enum value, so a map keyed by SeqTypeId and code still
+// keyed by the enum address the same slot. Without the pre-registration this holds for a
+// VDJ model by accident of ordering and fails for a VJ one -- J_gene_seq would take id 2
+// while the enum says 4, silently aliasing two segments.
+TEST_CASE("Loaded models pin legacy seq_type ids to the Seq_type enum",
+          "[model_format][seq_type_id][b8]")
+{
+    auto check_enum_alignment = [](const Model_Parms &parms) {
+        const SeqTypeRegistry &r = parms.get_seq_type_registry();
+        REQUIRE(r.total_count() >= 6);
+        CHECK(r.id("V_gene_seq")  == static_cast<SeqTypeId>(V_gene_seq));
+        CHECK(r.id("VD_ins_seq")  == static_cast<SeqTypeId>(VD_ins_seq));
+        CHECK(r.id("D_gene_seq")  == static_cast<SeqTypeId>(D_gene_seq));
+        CHECK(r.id("DJ_ins_seq")  == static_cast<SeqTypeId>(DJ_ins_seq));
+        CHECK(r.id("J_gene_seq")  == static_cast<SeqTypeId>(J_gene_seq));
+        CHECK(r.id("VJ_ins_seq")  == static_cast<SeqTypeId>(VJ_ins_seq));
+    };
+
+    SECTION("VDJ model")
+    {
+        Model_Parms parms;
+        REQUIRE_NOTHROW(parms.read_model_parms(TEST_DATA_DIR + "test_legacy_vdj_model_parms.txt"));
+        check_enum_alignment(parms);
+    }
+
+    SECTION("VJ model -- the case that breaks without pre-registration")
+    {
+        Model_Parms parms;
+        REQUIRE_NOTHROW(parms.read_model_parms(TEST_DATA_DIR + "test_legacy_model_parms.txt"));
+        check_enum_alignment(parms);
+        // The ordering is still the VJ one; only the id space is pinned.
+        const std::vector<std::string> vj = {"V_gene_seq", "VJ_ins_seq", "J_gene_seq"};
+        CHECK(parms.get_seq_type_registry().get_ordered_types() == vj);
+    }
+
+    SECTION("v2 model")
+    {
+        Model_Parms parms;
+        REQUIRE_NOTHROW(parms.read_model_parms(TEST_DATA_DIR + "test_v2_model_parms.txt"));
+        check_enum_alignment(parms);
+    }
+}
+
 TEST_CASE("SeqTypeRegistry: ids are dense and stable", "[seq_type_registry][seq_type_id]")
 {
     SeqTypeRegistry registry;

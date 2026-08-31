@@ -707,6 +707,11 @@ void Model_Parms::read_model_parms(string filename)
         throw runtime_error("File not found : \"" + filename + "\"");
     }
     
+    //Pin the six legacy seq_types to ids 0-5, matching the Seq_type enum, before any
+    //ordering is applied. Code still keyed by the enum then addresses the same slots as
+    //code keyed by SeqTypeId. See SeqTypeRegistry::register_legacy_seq_types().
+    seq_type_registry.register_legacy_seq_types();
+
     string line_str;
     getline(infile, line_str);
     

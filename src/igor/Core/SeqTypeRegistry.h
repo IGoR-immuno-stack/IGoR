@@ -88,6 +88,29 @@ public:
     }
 
     /**
+     * Pre-register the six legacy seq_types in Seq_type enum order, so that
+     * SeqTypeId == Seq_type for all of them.
+     *
+     * This is what lets code still keyed by the Seq_type enum address a SeqTypeId-keyed
+     * map correctly. Without it ids are assigned in ordering order, which happens to match
+     * the enum for a VDJ model but not for a VJ one -- there J_gene_seq would land on id 2
+     * while the enum says 4, silently aliasing two segments.
+     *
+     * Call before the ordering is applied. Idempotent, and harmless for models that use
+     * only a subset: an unused standard type simply occupies an id nothing addresses.
+     */
+    void register_legacy_seq_types()
+    {
+        //Order matters: it must match the Seq_type enum declared in Utils.h.
+        register_type("V_gene_seq");   // V_gene_seq  == 0
+        register_type("VD_ins_seq");   // VD_ins_seq  == 1
+        register_type("D_gene_seq");   // D_gene_seq  == 2
+        register_type("DJ_ins_seq");   // DJ_ins_seq  == 3
+        register_type("J_gene_seq");   // J_gene_seq  == 4
+        register_type("VJ_ins_seq");   // VJ_ins_seq  == 5
+    }
+
+    /**
      * Register a seq_type name, returning its id. Idempotent: registering a name that is
      * already known returns the existing id rather than allocating a new one.
      * \throws std::logic_error if the registry is frozen.
