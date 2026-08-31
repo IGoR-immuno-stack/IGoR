@@ -462,8 +462,52 @@ concatenation), which was enough to stop GCC inlining the check. Moving the erro
 non-inlined helpers closed the entire gap. Any further container work should keep throw sites out of
 line.
 
-Steps 2 and 3 of the protocol (instrumenting real access counts, then `pixi run benchmark pipeline`)
-remain to be done before B8 commits to the migration.
+**Step 2 result — measured access share (callgrind, Aug 31 2026, `call_summary.txt`):**
+
+A profiled inference run over a fixed dataset, with costs attributed to `LayeredMap.h` (the
+layered-map code, whether inlined into a caller or emitted out of line):
+
+| Attribution | Ir | Dr | Dw |
+|---|---:|---:|---:|
+| **All `LayeredMap.h` code** | **19.9 %** | **19.3 %** | **16.4 %** |
+| …of which inlined into `Deletion::iterate` | 11.64 % | 10.95 % | 6.04 % |
+| …`Enum_fast_memory_map<Seq_type,double>::set_value` (downstream proba) | 3.57 % | 4.23 % | 6.83 % |
+| …`Enum_fast_memory_map<Event_safety,bool>::set_value` | 0.93 % | 1.10 % | 1.78 % |
+| …`Enum_fast_memory_dual_key_map<Seq_type,Seq_side,int>::set_value` (offsets) | 0.90 % | 0.69 % | 0.81 % |
+
+Program total 35.27 G instructions. Three findings change how step 1's numbers should be read:
+
+1. **The layered maps are a fifth of the program.** Combined with step 1's steady-state ratio of
+   1.18×, the naive projection for B8 is `1 + 0.199 × 0.18` ≈ **3.6 %** more instructions. That is
+   the worst case, and it is the number to beat in step 3.
+
+2. **Growth never happens in practice.** `request_memory_layer` does not appear in the self-cost
+   list at all — layer depth stabilises, so every push finds capacity already allocated.
+   `LayeredArray`'s 384× advantage on the growth path therefore buys nothing end to end. It remains
+   worth having as a correctness property (it is the AA-Pgen heap-overflow fix), not as a speedup.
+
+3. **Step 1 compared unchecked against checked.** `RelWithDebInfo` sets `-DNDEBUG`, so
+   `Enum_fast_memory_map::set_value`'s two `assert()`s are compiled out, while `LayeredArray`
+   bounds-checks unconditionally. Most of the 18 % is the price of the safety the rewrite exists to
+   provide, not overhead to be optimised away.
+
+The cache picture is favourable and should survive the migration: the map code accounts for 10.95 %
+of data reads inside `Deletion::iterate` but only 3.97 % of L1 read misses — a below-average miss
+rate, because the flat `[key + layer * count]` layout is contiguous. `LayeredArray` keeps that
+layout byte for byte.
+
+**If 3.6 % proves unacceptable in step 3**, in increasing order of cost to safety:
+(a) accept it — B5 rewrites `Deletion::iterate`, which is 11.64 % of the program on map operations
+alone, and a generic implementation should issue *fewer* map operations than the current V/D/J
+branches with their redundant safety checks, plausibly offsetting the unit-cost increase;
+(b) add unchecked accessors used only on the hot path, keeping checked ones everywhere else;
+(c) make the checks `assert`-based, which restores parity and discards the safety.
+
+Recommendation: (a), and do not pre-optimise before step 3 has produced a wall-clock number.
+Instruction count is a proxy; the pipeline benchmark is the arbiter.
+
+Step 3 (`pixi run benchmark pipeline`, wall clock, `develop` vs candidate) remains to be done
+before B8 commits to the migration.
 
 ---
 
