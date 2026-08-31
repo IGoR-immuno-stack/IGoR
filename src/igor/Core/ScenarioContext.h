@@ -133,7 +133,7 @@ struct ScenarioContext {
         const Int_Str_ptr sequence,
         size_t memory_layer
     ) {
-        constructed_sequences.set_value(seq_type, sequence, memory_layer);
+        constructed_sequences.set(seq_type, sequence, memory_layer);
     }
 
     /**
@@ -151,7 +151,7 @@ struct ScenarioContext {
         Seq_type seq_type,
         size_t memory_layer
     ) const {
-        return constructed_sequences.at(seq_type, memory_layer);
+        return constructed_sequences.get(seq_type, memory_layer);
     }
 
     /**
@@ -218,7 +218,7 @@ struct ScenarioContext {
      * @return Pointer to sequence at current memory layer
      */
     inline const Int_Str* get_sequence_segment(Seq_type seq_type) const {
-        return constructed_sequences.at(seq_type);
+        return constructed_sequences.get(seq_type);
     }
 
     /**
@@ -248,7 +248,7 @@ struct ScenarioContext {
         Seq_type seq_type,
         size_t memory_layer
     ) {
-        return const_cast<Int_Str*>(constructed_sequences.at(seq_type, memory_layer));
+        return const_cast<Int_Str*>(constructed_sequences.get(seq_type, memory_layer));
     }
 
     /**
@@ -257,6 +257,6 @@ struct ScenarioContext {
      * @return Mutable pointer to sequence at current memory layer
      */
     inline Int_Str* get_sequence_segment(Seq_type seq_type) {
-        return const_cast<Int_Str*>(constructed_sequences.at(seq_type));
+        return const_cast<Int_Str*>(constructed_sequences.get(seq_type));
     }
 };

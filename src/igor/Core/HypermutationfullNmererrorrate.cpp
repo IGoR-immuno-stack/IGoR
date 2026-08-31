@@ -422,23 +422,23 @@ double Hypermutation_full_Nmer_errorrate::compare_sequences_error_prob(
 
     scenario_resulting_sequence.clear();
     if (v_gene) {
-        scenario_resulting_sequence += (*constructed_sequences[V_gene_seq]);
+        scenario_resulting_sequence += (*constructed_sequences.get(V_gene_seq));
     }
     if (d_gene) {
         if (vd_ins) {
-            scenario_resulting_sequence += (*constructed_sequences[VD_ins_seq]);
+            scenario_resulting_sequence += (*constructed_sequences.get(VD_ins_seq));
         }
-        scenario_resulting_sequence += (*constructed_sequences[D_gene_seq]);
+        scenario_resulting_sequence += (*constructed_sequences.get(D_gene_seq));
         if (dj_ins) {
-            scenario_resulting_sequence += (*constructed_sequences[DJ_ins_seq]);
+            scenario_resulting_sequence += (*constructed_sequences.get(DJ_ins_seq));
         }
     } else {
         if (vj_ins) {
-            scenario_resulting_sequence += (*constructed_sequences[VJ_ins_seq]);
+            scenario_resulting_sequence += (*constructed_sequences.get(VJ_ins_seq));
         }
     }
     if (j_gene) {
-        scenario_resulting_sequence += (*constructed_sequences[J_gene_seq]);
+        scenario_resulting_sequence += (*constructed_sequences.get(J_gene_seq));
     }
 
     vector<size_t> &v_mismatch_list = *mismatches_lists.get(V_gene_seq);

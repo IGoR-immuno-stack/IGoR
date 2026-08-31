@@ -67,13 +67,5 @@ Alignment_data create_mock_alignment_data(
  * enum-keyed access; tests exercising the ordered traversal build their own registry with
  * an explicit ordering.
  */
-inline const SeqTypeRegistry &legacy_seq_type_registry()
-{
-    static const SeqTypeRegistry registry = [] {
-        SeqTypeRegistry r;
-        r.register_legacy_seq_types();
-        r.freeze();
-        return r;
-    }();
-    return registry;
-}
+//legacy_seq_type_registry() now lives in SeqTypeRegistry.h; kept included here so that
+//tests including test_utils.h continue to see it.

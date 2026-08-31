@@ -70,25 +70,25 @@ Int_Str build_scenario_sequence(Seq_type_str_p_map &constructed_sequences,
   Int_Str scenario_resulting_sequence;
 
   if (has_v) {
-    scenario_resulting_sequence += (*constructed_sequences[V_gene_seq]);
+    scenario_resulting_sequence += (*constructed_sequences.get(V_gene_seq));
   }
 
   if (has_d) {
     if (has_vd_ins) {
-      scenario_resulting_sequence += (*constructed_sequences[VD_ins_seq]);
+      scenario_resulting_sequence += (*constructed_sequences.get(VD_ins_seq));
     }
-    scenario_resulting_sequence += (*constructed_sequences[D_gene_seq]);
+    scenario_resulting_sequence += (*constructed_sequences.get(D_gene_seq));
     if (has_dj_ins) {
-      scenario_resulting_sequence += (*constructed_sequences[DJ_ins_seq]);
+      scenario_resulting_sequence += (*constructed_sequences.get(DJ_ins_seq));
     }
   } else {
     if (has_vj_ins) {
-      scenario_resulting_sequence += (*constructed_sequences[VJ_ins_seq]);
+      scenario_resulting_sequence += (*constructed_sequences.get(VJ_ins_seq));
     }
   }
 
   if (has_j) {
-    scenario_resulting_sequence += (*constructed_sequences[J_gene_seq]);
+    scenario_resulting_sequence += (*constructed_sequences.get(J_gene_seq));
   }
 
   return scenario_resulting_sequence;

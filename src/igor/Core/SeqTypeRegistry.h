@@ -35,6 +35,19 @@
 #include <vector>
 
 /**
+ * \brief A process-wide frozen registry holding just the six legacy seq_types.
+ *
+ * For scratch maps in code that is still hardcoded to the VDJ topology -- the junction
+ * length bound precomputation names VD_ins_seq and DJ_ins_seq directly -- and therefore
+ * cannot describe a model whose registry differs. Those routines are rewritten by B6/B7,
+ * at which point they take the model's own registry and this goes away.
+ *
+ * Do not use it for anything that must respect a model's actual seq_type set.
+ */
+class SeqTypeRegistry;
+const SeqTypeRegistry &legacy_seq_type_registry();
+
+/**
  * \brief Dense runtime handle for a registered sequence type.
  *
  * Ids are assigned consecutively from 0 as types are registered, so they index arrays
@@ -264,3 +277,14 @@ private:
     std::vector<SeqTypeId> left_, right_;                        ///< id-indexed neighbour tables
     bool frozen_ = false;
 };
+
+inline const SeqTypeRegistry &legacy_seq_type_registry()
+{
+    static const SeqTypeRegistry registry = [] {
+        SeqTypeRegistry r;
+        r.register_legacy_seq_types();
+        r.freeze();
+        return r;
+    }();
+    return registry;
+}

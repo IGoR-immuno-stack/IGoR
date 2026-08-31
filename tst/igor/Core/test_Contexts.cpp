@@ -133,7 +133,7 @@ TEST_CASE("ModelContext construction and immutability", "[Context][ModelContext]
 
 TEST_CASE("ScenarioContext construction and mutability", "[Context][ScenarioContext]") {
     double proba = 1.0;
-    Seq_type_str_p_map constructed_sequences(6);
+    Seq_type_str_p_map constructed_sequences(legacy_seq_type_registry());
     Seq_offsets_map seq_offsets(6, 3);
     Mismatch_vectors_map mismatches(legacy_seq_type_registry());
 
@@ -160,10 +160,10 @@ TEST_CASE("ScenarioContext construction and mutability", "[Context][ScenarioCont
         ScenarioContext scenario(proba, constructed_sequences, seq_offsets, mismatches);
 
         auto v_seq = make_shared<Int_Str>(nt2int("ACGT"));
-        scenario.constructed_sequences.set_value(V_gene_seq, v_seq.get(), 0);
+        scenario.constructed_sequences.set(V_gene_seq, v_seq.get(), 0);
 
-        REQUIRE(scenario.constructed_sequences.at(V_gene_seq, 0) == v_seq.get());
-        REQUIRE(scenario.constructed_sequences.at(V_gene_seq, 0)->size() == 4);
+        REQUIRE(scenario.constructed_sequences.get(V_gene_seq, 0) == v_seq.get());
+        REQUIRE(scenario.constructed_sequences.get(V_gene_seq, 0)->size() == 4);
     }
 
     SECTION("Hot-path unified access") {
@@ -173,13 +173,13 @@ TEST_CASE("ScenarioContext construction and mutability", "[Context][ScenarioCont
         scenario.scenario_proba *= 0.8;
 
         auto j_seq = make_shared<Int_Str>(nt2int("GC"));
-        scenario.constructed_sequences.set_value(J_gene_seq, j_seq.get(), 0);
+        scenario.constructed_sequences.set(J_gene_seq, j_seq.get(), 0);
 
         scenario.seq_offsets.set_value(J_gene_seq, Five_prime, 60, 0);
 
         // All modifications visible
         REQUIRE(proba == 0.8);
-        REQUIRE(scenario.constructed_sequences.at(J_gene_seq, 0)->size() == 2);
+        REQUIRE(scenario.constructed_sequences.get(J_gene_seq, 0)->size() == 2);
         REQUIRE(scenario.seq_offsets.at(J_gene_seq, Five_prime, 0) == 60);
     }
 }
@@ -349,7 +349,7 @@ TEST_CASE("Multiple contexts work together", "[Context][Integration]") {
 
     // Setup scenario
     double proba = 1.0;
-    Seq_type_str_p_map constructed_sequences(6);
+    Seq_type_str_p_map constructed_sequences(legacy_seq_type_registry());
     Seq_offsets_map seq_offsets(6, 3);
     Mismatch_vectors_map mismatches(legacy_seq_type_registry());
 

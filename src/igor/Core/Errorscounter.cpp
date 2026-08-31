@@ -184,16 +184,16 @@ void Errors_counter::count_scenario(
 {
 
     // Get the number of genomic nucleotides
-    if (constructed_sequences.exist(V_gene_seq)) {
-        const vector<int> &v_seq = *constructed_sequences.at(V_gene_seq);
+    if (constructed_sequences.exists(V_gene_seq)) {
+        const vector<int> &v_seq = *constructed_sequences.get(V_gene_seq);
         this->scenario_n_genomic += v_seq.size();
     }
-    if (constructed_sequences.exist(D_gene_seq)) {
-        const vector<int> &d_seq = *constructed_sequences[D_gene_seq];
+    if (constructed_sequences.exists(D_gene_seq)) {
+        const vector<int> &d_seq = *constructed_sequences.get(D_gene_seq);
         this->scenario_n_genomic += d_seq.size();
     }
-    if (constructed_sequences.exist(J_gene_seq)) {
-        const vector<int> &j_seq = *constructed_sequences.at(J_gene_seq);
+    if (constructed_sequences.exists(J_gene_seq)) {
+        const vector<int> &j_seq = *constructed_sequences.get(J_gene_seq);
         this->scenario_n_genomic += j_seq.size();
     }
 

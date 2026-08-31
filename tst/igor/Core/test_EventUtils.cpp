@@ -94,7 +94,7 @@ TEST_CASE("EventUtils CheckGeneChoice", "[EventUtils]") {
 }
 
 TEST_CASE("EventUtils BuildScenarioSequence", "[EventUtils]") {
-  Seq_type_str_p_map constructed_sequences(6);
+  Seq_type_str_p_map constructed_sequences(legacy_seq_type_registry());
 
   Int_Str v_seq = {0, 1, 2}; // A C G
   Int_Str d_seq = {3, 0};    // T A
@@ -103,12 +103,12 @@ TEST_CASE("EventUtils BuildScenarioSequence", "[EventUtils]") {
   Int_Str dj_ins = {0};      // A
   Int_Str vj_ins = {1};      // C
 
-  constructed_sequences.set_value(V_gene_seq, &v_seq, 0);
-  constructed_sequences.set_value(D_gene_seq, &d_seq, 0);
-  constructed_sequences.set_value(J_gene_seq, &j_seq, 0);
-  constructed_sequences.set_value(VD_ins_seq, &vd_ins, 0);
-  constructed_sequences.set_value(DJ_ins_seq, &dj_ins, 0);
-  constructed_sequences.set_value(VJ_ins_seq, &vj_ins, 0);
+  constructed_sequences.set(V_gene_seq, &v_seq, 0);
+  constructed_sequences.set(D_gene_seq, &d_seq, 0);
+  constructed_sequences.set(J_gene_seq, &j_seq, 0);
+  constructed_sequences.set(VD_ins_seq, &vd_ins, 0);
+  constructed_sequences.set(DJ_ins_seq, &dj_ins, 0);
+  constructed_sequences.set(VJ_ins_seq, &vj_ins, 0);
 
   SECTION("V-D-J with insertions") {
     Int_Str result = build_scenario_sequence(constructed_sequences, true, true,
@@ -133,13 +133,13 @@ TEST_CASE("EventUtils BuildScenarioSequence", "[EventUtils]") {
 // based behaviour.
 TEST_CASE("step9: build_scenario_sequence VJ produces V+VJ_ins+J",
           "[EventUtils][step9][seq_order]") {
-    Seq_type_str_p_map constructed_sequences(6);
+    Seq_type_str_p_map constructed_sequences(legacy_seq_type_registry());
     Int_Str v_seq = {0, 1};   // A C
     Int_Str j_seq = {2, 3};   // G T
     Int_Str vj_ins = {0};     // A
-    constructed_sequences.set_value(V_gene_seq,  &v_seq,  0);
-    constructed_sequences.set_value(J_gene_seq,  &j_seq,  0);
-    constructed_sequences.set_value(VJ_ins_seq,  &vj_ins, 0);
+    constructed_sequences.set(V_gene_seq,  &v_seq,  0);
+    constructed_sequences.set(J_gene_seq,  &j_seq,  0);
+    constructed_sequences.set(VJ_ins_seq,  &vj_ins, 0);
 
     Int_Str result = build_scenario_sequence(
             constructed_sequences, true, false, true, false, false, true);
@@ -150,15 +150,15 @@ TEST_CASE("step9: build_scenario_sequence VJ produces V+VJ_ins+J",
 
 TEST_CASE("step9: build_scenario_sequence VDJ order is V+VD+D+DJ+J",
           "[EventUtils][step9][seq_order]") {
-    Seq_type_str_p_map constructed_sequences(6);
+    Seq_type_str_p_map constructed_sequences(legacy_seq_type_registry());
     Int_Str v_seq  = {0};   Int_Str vd_ins = {1};
     Int_Str d_seq  = {2};   Int_Str dj_ins = {3};
     Int_Str j_seq  = {0};
-    constructed_sequences.set_value(V_gene_seq,  &v_seq,  0);
-    constructed_sequences.set_value(VD_ins_seq,  &vd_ins, 0);
-    constructed_sequences.set_value(D_gene_seq,  &d_seq,  0);
-    constructed_sequences.set_value(DJ_ins_seq,  &dj_ins, 0);
-    constructed_sequences.set_value(J_gene_seq,  &j_seq,  0);
+    constructed_sequences.set(V_gene_seq,  &v_seq,  0);
+    constructed_sequences.set(VD_ins_seq,  &vd_ins, 0);
+    constructed_sequences.set(D_gene_seq,  &d_seq,  0);
+    constructed_sequences.set(DJ_ins_seq,  &dj_ins, 0);
+    constructed_sequences.set(J_gene_seq,  &j_seq,  0);
 
     Int_Str result = build_scenario_sequence(
             constructed_sequences, true, true, true, true, true, false);
@@ -449,7 +449,7 @@ public:
 
     std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> offset_map;
     Downstream_scenario_proba_bound_map downstream_proba_map(legacy_seq_type_registry());
-    Seq_type_str_p_map constructed_sequences(6);
+    Seq_type_str_p_map constructed_sequences(legacy_seq_type_registry());
     Safety_bool_map safety_set(6);
     std::shared_ptr<Error_rate> error_rate_p;
     Mismatch_vectors_map mismatches_list(legacy_seq_type_registry());

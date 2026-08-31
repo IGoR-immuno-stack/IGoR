@@ -174,7 +174,7 @@ void Insertion::iterate(
             inserted_str.assign(insertions, -1);
             new_index =
                     base_index + this->event_realizations.at(to_string(insertions)).index; //FIXME this should not exist
-            scenario.constructed_sequences[VD_ins_seq] = &inserted_str;
+            scenario.constructed_sequences.set_current(VD_ins_seq, &inserted_str);
             exploration.downstream_proba_map.set(VD_ins_seq, junction_length_best_proba_map.at(insertions),
                                            memory_layer_proba_map_junction);
         }
@@ -188,7 +188,7 @@ void Insertion::iterate(
         if (proba_contribution != 0) {
             inserted_str.assign(insertions, -1);
             new_index = base_index + this->event_realizations.at(to_string(insertions)).index;
-            scenario.constructed_sequences[DJ_ins_seq] = &inserted_str;
+            scenario.constructed_sequences.set_current(DJ_ins_seq, &inserted_str);
             exploration.downstream_proba_map.set(DJ_ins_seq, junction_length_best_proba_map.at(insertions),
                                            memory_layer_proba_map_junction);
         }
@@ -201,7 +201,7 @@ void Insertion::iterate(
         if (proba_contribution != 0) {
             inserted_str.assign(insertions, -1);
             new_index = base_index + realization_index; //this->event_realizations.at(to_string(insertions)).index;
-            scenario.constructed_sequences[VJ_ins_seq] = &inserted_str;
+            scenario.constructed_sequences.set_current(VJ_ins_seq, &inserted_str);
             exploration.downstream_proba_map.set(VJ_ins_seq, junction_length_best_proba_map.at(insertions),
                                            memory_layer_proba_map_junction);
         }
@@ -482,7 +482,7 @@ void Insertion::iterate_initialize_Len_proba(Seq_type considered_junction, std::
 
             //Build an inserted sequence to let the Dinuc know about the number of insertions considered
             inserted_str.assign(iter->second.value_int, -1);
-            constructed_sequences[seq_type] = &inserted_str;
+            constructed_sequences.set_current(seq_type, &inserted_str);
 
             //Update the length and the probability within the recursive call
             Rec_Event::iterate_initialize_Len_proba_wrap_up(
@@ -505,14 +505,16 @@ void Insertion::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &model_q
         throw runtime_error("Unknown insertion event_class in initialize_Len_proba_bound");
     }
 
-    Seq_type_str_p_map constructed_sequences(6);
+    //Scratch map for the junction length bound, which is still VDJ-hardcoded below;
+    //see legacy_seq_type_registry().
+    Seq_type_str_p_map constructed_sequences(legacy_seq_type_registry());
 
     junction_length_best_proba_map.clear();
 
     for (unordered_map<string, Event_realization>::const_iterator iter = this->event_realizations.begin();
          iter != this->event_realizations.end(); ++iter) {
         inserted_str.assign(iter->second.value_int, -1);
-        constructed_sequences[seq_type] = &inserted_str;
+        constructed_sequences.set_current(seq_type, &inserted_str);
         double init_proba = 1.0;
         this->Rec_Event::iterate_initialize_Len_proba(seq_type, junction_length_best_proba_map, model_queue, init_proba,
                                                       model_parameters_point, base_index_map, constructed_sequences);

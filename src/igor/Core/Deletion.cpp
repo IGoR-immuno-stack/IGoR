@@ -1409,8 +1409,8 @@ void Deletion::initialize_event(
         memory_layer_offset_del = seq_offsets.get_current_memory_layer(V_gene_seq, Three_prime);
         mismatches_list.request_layer(V_gene_seq);
         this->memory_layer_mismatches = mismatches_list.current_layer(V_gene_seq);
-        constructed_sequences.request_memory_layer(V_gene_seq);
-        this->memory_layer_cs = constructed_sequences.get_current_memory_layer(V_gene_seq);
+        constructed_sequences.request_layer(V_gene_seq);
+        this->memory_layer_cs = constructed_sequences.current_layer(V_gene_seq);
         if (d_chosen) {
             safety_set.request_memory_layer(VD_safe);
             memory_layer_safety_1 = safety_set.get_current_memory_layer(VD_safe);
@@ -1438,8 +1438,8 @@ void Deletion::initialize_event(
     case D_gene_seq:
         mismatches_list.request_layer(D_gene_seq);
         this->memory_layer_mismatches = mismatches_list.current_layer(D_gene_seq);
-        constructed_sequences.request_memory_layer(D_gene_seq);
-        this->memory_layer_cs = constructed_sequences.get_current_memory_layer(D_gene_seq);
+        constructed_sequences.request_layer(D_gene_seq);
+        this->memory_layer_cs = constructed_sequences.current_layer(D_gene_seq);
         downstream_proba_map.request_layer(D_gene_seq);
         this->memory_layer_proba_map_seq = downstream_proba_map.current_layer(D_gene_seq);
         switch (this->event_side) {
@@ -1505,8 +1505,8 @@ void Deletion::initialize_event(
         memory_layer_offset_del = seq_offsets.get_current_memory_layer(J_gene_seq, Five_prime);
         mismatches_list.request_layer(J_gene_seq);
         this->memory_layer_mismatches = mismatches_list.current_layer(J_gene_seq);
-        constructed_sequences.request_memory_layer(J_gene_seq);
-        this->memory_layer_cs = constructed_sequences.get_current_memory_layer(J_gene_seq);
+        constructed_sequences.request_layer(J_gene_seq);
+        this->memory_layer_cs = constructed_sequences.current_layer(J_gene_seq);
         if (v_chosen) {
             safety_set.request_memory_layer(VJ_safe);
             memory_layer_safety_1 = safety_set.get_current_memory_layer(VJ_safe);
@@ -1745,7 +1745,9 @@ void Deletion::iterate_initialize_Len_proba(Seq_type considered_junction, std::m
 void Deletion::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &model_queue,
                                           const Marginal_array_p &model_parameters_point, Index_map &base_index_map)
 {
-    Seq_type_str_p_map constructed_sequences(6);
+    //Scratch map for the junction length bound, which is still VDJ-hardcoded below;
+    //see legacy_seq_type_registry().
+    Seq_type_str_p_map constructed_sequences(legacy_seq_type_registry());
     const auto effective_junctions =
             get_deletion_effective_junctions(this->target_seq_type, this->event_side);
     if (effective_junctions.empty()) {

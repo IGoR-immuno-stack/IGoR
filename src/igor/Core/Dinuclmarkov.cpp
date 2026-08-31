@@ -569,8 +569,8 @@ void Dinucl_markov::iterate_initialize_Len_proba(Seq_type considered_junction,
     if (iilp_dm_st == "VD_ins_seq") {
         correct_class = 1;
         if (this->has_effect_on(considered_junction)) {
-            if (constructed_sequences.exist(VD_ins_seq)) {
-                scenario_proba *= pow(this->get_upper_bound_proba(), constructed_sequences.at(VD_ins_seq)->size());
+            if (constructed_sequences.exists(VD_ins_seq)) {
+                scenario_proba *= pow(this->get_upper_bound_proba(), constructed_sequences.get(VD_ins_seq)->size());
             }
             //Otherwise the proba contribution is 1
         }
@@ -578,8 +578,8 @@ void Dinucl_markov::iterate_initialize_Len_proba(Seq_type considered_junction,
     if (iilp_dm_st == "DJ_ins_seq") {
         correct_class = 1;
         if (this->has_effect_on(considered_junction)) {
-            if (constructed_sequences.exist(DJ_ins_seq)) {
-                scenario_proba *= pow(this->get_upper_bound_proba(), constructed_sequences.at(DJ_ins_seq)->size());
+            if (constructed_sequences.exists(DJ_ins_seq)) {
+                scenario_proba *= pow(this->get_upper_bound_proba(), constructed_sequences.get(DJ_ins_seq)->size());
             }
             //Otherwise the proba contribution is 1
         }
@@ -587,8 +587,8 @@ void Dinucl_markov::iterate_initialize_Len_proba(Seq_type considered_junction,
     if (iilp_dm_st == "VJ_ins_seq") {
         correct_class = 1;
         if (this->has_effect_on(considered_junction)) {
-            if (constructed_sequences.exist(VJ_ins_seq)) {
-                scenario_proba *= pow(this->get_upper_bound_proba(), constructed_sequences.at(VJ_ins_seq)->size());
+            if (constructed_sequences.exists(VJ_ins_seq)) {
+                scenario_proba *= pow(this->get_upper_bound_proba(), constructed_sequences.get(VJ_ins_seq)->size());
             }
             //Otherwise the proba contribution is 1
         }

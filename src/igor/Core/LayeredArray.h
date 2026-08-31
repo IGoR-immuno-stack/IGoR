@@ -159,6 +159,22 @@ public:
         layer_of_[key] = static_cast<int>(layer);
     }
 
+    /**
+     * Write at the key's current layer, or at layer 0 if it has never been written.
+     *
+     * This is the assignment form of Enum_fast_memory_map::operator[], which returned a
+     * reference and lazily marked an unwritten key as written at layer 0. Spelled out as a
+     * named write so the layer being targeted is visible at the call site.
+     */
+    void set_current(std::size_t key, const V &value)
+    {
+        check_key(key);
+        const int layer = layer_of_[key] < 0 ? 0 : layer_of_[key];
+        ensure_layer(static_cast<std::size_t>(layer));
+        storage_[index(key, static_cast<std::size_t>(layer))] = value;
+        layer_of_[key] = layer;
+    }
+
     /// Push a layer for this key. The new layer's content is **unspecified until written**:
     /// this mirrors Enum_fast_memory_map, whose callers always set() before reading, and
     /// avoids a read-plus-write of the value on every node of the traversal.

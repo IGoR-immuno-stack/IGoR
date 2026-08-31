@@ -418,7 +418,10 @@ std::ostream &operator<<(std::ostream &stream, const Matrix<T> &mat)
 }
 
 
-typedef Enum_fast_memory_map<Seq_type, Int_Str_ptr> Seq_type_str_p_map;
+//Keyed by SeqTypeId. This is the one map whose values can be *actively absent*: a
+//zero-length segment means an event ran and produced nothing, which the ordered traversal
+//distinguishes from a segment that has not been written yet (see SeqSegmentEmptiness).
+typedef DynamicSequenceMap<Int_Str_ptr> Seq_type_str_p_map;
 
 typedef Enum_fast_memory_map<Event_safety, bool> Safety_bool_map;
 

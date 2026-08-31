@@ -62,7 +62,7 @@ struct Scenario {
         // NOTE: Not all Seq_type values are always present (e.g., D_gene_seq absent in VJ recombination)
         for (size_t seq_type_idx = 0; seq_type_idx < 6; ++seq_type_idx) {
             Seq_type seq_type = static_cast<Seq_type>(seq_type_idx);
-            if (ctx.constructed_sequences.exist(seq_type)) {
+            if (ctx.constructed_sequences.exists(seq_type)) {
                 sequences[seq_type_idx] = ctx.get_sequence_segment(seq_type);
             }
             // else: remains nullptr (already initialized)
