@@ -97,7 +97,6 @@ target_sources(${PROJECT_NAME}
       ScenarioContext.h
       DynamicSequenceMap.h
       LayeredArray.h
-      LayeredMap.h
       StdTypedefs.h
       CoreEnums.h
       SeqOffsetsMap.h

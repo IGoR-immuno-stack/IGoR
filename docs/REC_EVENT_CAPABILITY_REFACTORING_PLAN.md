@@ -13,13 +13,13 @@ Legend: ✅ done · 🟡 partial · ⬜ not started
 | Phase A | ⬜ | No capability enums, no pure virtuals. Nothing named `is_branching`, `SeqConstructionRole`, `OffsetRole`, `SeqContextDependency` exists anywhere in the tree. |
 | B0 | 🟡 | `Rec_Event` gained a `Seq_type_String seq_type` **string** member; `event_class` was **kept** on the base. No `seq_type_ids` vector, no `primary_seq_type_id()`. Subclasses gained typed members (`Deletion::target_seq_type`, `Insertion::ins_seq_type`, `Dinucl_markov::ins_seq_type`). `Dinucl_markov::start_side` realised as `DinuclTraversalSpec::anchor_side` + `event_side`. |
 | B1 | ✅ | `Gene_class` = `{V_gene, D_gene, J_gene, Undefined_gene}`. Junction values moved to a new `Gene_class_legacy` enum confined to file I/O + `gene_to_seqtype_migr` module. |
-| B2 | 🟡 | `SeqTypeRegistry.h` provides the **ordering** and left/right neighbour lookup only — keyed by `std::string`, not `SeqTypeId`. No `register_type`/`get_type_id`/`freeze`/`standard_count`, no flank types, and **no `DynamicSequenceMap` at all**. |
+| B2 | ✅ | `SeqTypeId` handle layer added to `SeqTypeRegistry` (`1038c5d`), `LayeredArray` (`f6f0101`) and `DynamicSequenceMap` (`f1d26a4`) added as separate headers, legacy ids pinned to the `Seq_type` enum (`7549a4d`). Split into a pure container + a registry-aware view rather than one class; `standard_count()` and `LegacySequenceRegistry` dropped (see below). Flank types await B3. |
 | B3 | ⬜ | No flank seq types. `Gene_choice` friend declarations for `Hypermutation_*` still present. |
 | B4 | ✅ | `Events_map = unordered_map<tuple<Event_type, Seq_type_String, Seq_side>, shared_ptr<Rec_Event>>`, threaded through every `iterate`/`initialize_event`/counter/error-rate signature. Key built from `get_seq_type()`. Tandem-D uniqueness achieved. |
 | B5 | ⬜ | `Deletion::iterate()` still carries the full 4-case switch (now on `target_seq_type` instead of `event_class`) and the hardcoded `VD_safe`/`DJ_safe`/`VJ_safe` checks. |
 | B6 | ⬜ | `Insertion::iterate()` still branches per junction — the `switch(event_class)` became an `if/else` chain of `std::string` comparisons on `this->seq_type`. |
 | B7 | 🟡 | The `if (event_class == …)` chain is gone from `iterate()`; anchor sequence + anchor side are now data (`DinuclTraversalSpec`). But the specs come from a hardcoded `switch(Seq_type)` at construction, not from registry traversal, and there is no skip-empty walk. |
-| B8 | 🟡 | Four of five maps migrated to `DynamicSequenceMap`, sized from the frozen registry: downstream proba bounds (`13fcdec`), the two mismatch maps (`1abd908`), constructed sequences (`c86d34e`), and offsets split into one map per sequence end (`fe8c5d1`). **`Safety_bool_map` deliberately not started** — its key changes meaning (`Event_safety` → insertion `SeqTypeId`), pending a design decision. `Enum_fast_memory_map` and `Str_Dual_key_memory_map` can both be deleted once it lands. |
+| B8 | ✅ | All five maps migrated and sized from the frozen registry: downstream proba bounds (`13fcdec`), the two mismatch maps (`1abd908`), constructed sequences (`c86d34e`), offsets split per sequence end (`fe8c5d1`), overlap safety to `LayeredArray<bool>` (`a58808b`). `Enum_fast_memory_map`, `Enum_fast_memory_dual_key_map` and `Str_Dual_key_memory_map` are deleted. Measured cost +9.4 % inference wall clock; accepted for the refactoring's duration, see D4 step 3. |
 | B11 *(new)* | ⬜ | Generalize `Gene_choice` seq_type writes (both the alignment and `no_d_align` exhaustive paths). **Most blocking item for milestone 1** — two D events currently both write `D_gene_seq`. |
 | B10 *(new)* | ⬜ | Absent-segment semantics. **Off the tandem-D critical path** — milestone 1 has both D genes always present. Carries a real modelling decision (chain-with-conflation vs. DAG ordering) deferred to milestone 2. |
 | B9 | 🟡 | Legacy→seq_type inference, registry inference (VDJ/VJ), `write_model_parms_legacy` / `write_model_parms_v2` split, v2 `@Version` / `@Seq_type_order` parsing and per-event `write2txt_v2()` are all implemented. `VDJ_genes` `Dinucl_markov` expansion (B9 step 3) and junction safety adjacency generation (step 4) are not. |
@@ -506,8 +506,42 @@ branches with their redundant safety checks, plausibly offsetting the unit-cost 
 Recommendation: (a), and do not pre-optimise before step 3 has produced a wall-clock number.
 Instruction count is a proxy; the pipeline benchmark is the arbiter.
 
-Step 3 (`pixi run benchmark pipeline`, wall clock, `develop` vs candidate) remains to be done
-before B8 commits to the migration.
+**Step 3 result — end-to-end wall clock (Aug 31 2026, `pixi run benchmark pipeline`, N=1000, 2 EM iterations):**
+
+| | `develop` | migrated | delta |
+|---|---:|---:|---:|
+| Inference, T=1 | 19.2124 s | 21.0211 s | **+9.4 %** |
+| Inference, T=4 | 6.5767 s | 7.2238 s | **+9.8 %** |
+
+**The step-1/2 projection of ~3.6 % was wrong by a factor of 2.6, and the reason matters
+more than the number.** Instruction share was treated as a proxy for time, and the added
+work is not instruction-shaped: it is *branches*. Every `LayeredArray` access bounds-checks
+where `Enum_fast_memory_map` did not (its `assert`s compile out under `-DNDEBUG`), so the
+migration added a predictable-but-real branch to the hottest loop in the program, plus code
+growth that eats the inliner's budget. Counting instructions underestimates that.
+
+Two migration-specific costs the projection also missed:
+
+- `Seq_offsets_map` was **one** array addressed as `key1 + range_key1 * key2`; it is now two
+  independent `DynamicSequenceMap`s, each with its own `storage_` and `layer_of_`
+  allocations. Four allocations where there were two, and offset access is among the
+  hottest paths, so locality is worse.
+- `Safety_bool_map` is `LayeredArray<bool>`, hence `std::vector<bool>` — a bitset
+  specialisation doing bit masking per access, where the old map had a plain `bool*`.
+
+**Decision (Aug 31 2026): accept the ~9.5 % for the duration of the refactoring**, and
+optimise once the topology work is done rather than tuning code that B5/B6/B7/B11 rewrite.
+Concrete leads, cheapest first:
+
+1. Give `LayeredArray` unchecked accessors for the traversal hot path, keeping checked ones
+   everywhere else — this is option (b) from step 1 and directly targets the branch cost.
+2. Store `Seq_offsets_map`'s two ends in one allocation, restoring the locality the dual-key
+   map had without reinstating the fixed `range_key1`.
+3. Use a non-specialised element type for the safety map, or fold it into the per-junction
+   representation B5/B6/B11 will introduce anyway.
+4. Re-measure only after B5/B6/B11: a generic `Deletion::iterate()` should issue *fewer* map
+   operations than today's V/D/J branches with their repeated safety checks and duplicated
+   offset lookups, which may recover a good part of this on its own.
 
 ---
 
@@ -884,11 +918,22 @@ Remove: `VD_genes`, `DJ_genes`, `VJ_genes`, `VDJ_genes`.
 
 Update all uses of the removed values (they all occur in the four switch/if blocks being eliminated in B5–B7).
 
-### B2 — `SequenceTypeRegistry` + `DynamicSequenceMap` (new `src/igor/Core/SequenceTypes.h`)
+### B2 — `SeqTypeRegistry` + `LayeredArray` + `DynamicSequenceMap`
+*(planned as one new `src/igor/Core/SequenceTypes.h`; shipped as `SeqTypeRegistry.h` + `LayeredArray.h` + `DynamicSequenceMap.h`)*
 
-> ⚠️ **The `SequenceTypeRegistry` / `LegacySequenceRegistry` sketch below is superseded by the revised `SeqTypeRegistry` in decision D1** (names kept as identity, `SeqTypeId` added as handle) and by the lifecycle in D1b. `DynamicSequenceMap` is unchanged and still applies.
+> ⚠️ **The `SequenceTypeRegistry` / `LegacySequenceRegistry` sketch below is superseded by the revised `SeqTypeRegistry` in decision D1** (names kept as identity, `SeqTypeId` added as handle) and by the lifecycle in D1b. The `DynamicSequenceMap` sketch was likewise revised on implementation — see deviations 1, 2 and 4 below.
 >
-> **Status: 🟡 PARTIAL.** `src/igor/Core/SeqTypeRegistry.h` implements the *ordering* half only — `set_ordered_types` / `index_of` / `get_left_neighbor` / `get_right_neighbor`, keyed by `std::string`. There is no `SeqTypeId` allocation (`register_type`/`get_type_id`), no `freeze()`, no `standard_count()`, no `LegacySequenceRegistry`, and no `DynamicSequenceMap`. The registry is consumed only by `Model_Parms` I/O and by a registry-based `EventUtils::build_scenario_sequence()` overload that no production caller uses yet.
+> **Status: ✅ COMPLETE** (variant — see the four deviations below). Implemented across five commits: `f6f0101` `LayeredArray`, `1038c5d` the `SeqTypeId` layer on `SeqTypeRegistry`, `f1d26a4` `DynamicSequenceMap`, `7549a4d` the legacy-id pinning fix, plus the `StdTypedefs.h` / `CoreEnums.h` extraction that broke the include cycle. The sketch below is kept for its rationale; where it and the code disagree, **the code is the baseline**.
+>
+> **Deviation 1 — the container is split in two.** [`LayeredArray.h`](../src/igor/Core/LayeredArray.h) is a pure integer-keyed layered array knowing nothing about seq_types; [`DynamicSequenceMap.h`](../src/igor/Core/DynamicSequenceMap.h) holds one `private LayeredArray<V>` plus a `const SeqTypeRegistry&` and adds only the ordered traversal (`occupied`, `first_occupied_left/right`). This was decided in D1: the layering mechanism is reusable by anything integer-keyed, and the split lets the container be unit-tested with no model at all. The "empty" predicate lives in a `SeqSegmentEmptiness<V>` trait specialised for `Int_Str*`, not in an `if constexpr` inside the map.
+>
+> **Deviation 2 — vectors and spans, not raw pointers.** `storage_` / `layer_of_` are `std::vector`; layer and ordering views are returned as `std::span`. The flat `key + layer * count_` addressing of the sketch is preserved exactly, so the indexing arithmetic is unchanged; only the ownership is. Requested by the user in place of the C-primitive style of `Enum_fast_memory_map`, which was the source of the AA-Pgen heap overflow.
+>
+> **Deviation 3 — no `standard_count()` and no `LegacySequenceRegistry`.** The sketch used `standard_count()` to keep flank ids out of maps sized for standard types only. That guard has no client until B3, and the class it was attached to (`LegacySequenceRegistry`) would have re-hardcoded VDJ in a registry whose whole point is to stop doing that. Its one real job — making the six legacy names land on ids matching the `Seq_type` enum — is done instead by the free function `register_legacy_seq_types()`, called at the top of `read_model_parms()`. B3 should reintroduce a range cap when it actually adds flank types, sized from the ordering rather than from a snapshot counter.
+>
+> **Deviation 4 — `get()` returns `V` by value, and `ordering_pos_` is not stored.** Accessors return by value (the stored types are all `Seq_Offset`, `bool`, `int`, `Int_Str*` — word-sized), which removes the dangling-reference class of bug the old `V&` interface invited. The `ordering_pos_` reverse table of the sketch is replaced by `SeqTypeRegistry`'s precomputed `left_neighbor()` / `right_neighbor()` tables, which give the same O(1) traversal step without a per-map allocation.
+>
+> **Why the legacy-id pinning matters** (`7549a4d`): assigning ids in *ordering* order gave `J_gene_seq` id 2 in VJ models, where the `Seq_type` enum says 4. Every site still holding a `Seq_type` would then have addressed a different segment — silently, in every TRA/IGL/IGK model. This is the main hazard of a dense-handle migration and the reason `register_legacy_seq_types()` runs before any event is read.
 
 #### `SequenceTypeRegistry`
 
@@ -1160,9 +1205,9 @@ No conditional logic needed.
 >
 > ⚠️ **Blocked on the `SeqTypeId` layer from decision D1, and on the copy-constructor fix in deviation 8.** Run the D4 benchmark protocol before committing to an implementation.
 >
-> **Status: 🟡 PARTIAL — four of five maps migrated.** Done: `Downstream_scenario_proba_bound_map`, `Mismatch_vectors_map` + `Pruning_mismatch_floor_map`, `Seq_type_str_p_map`, and `Seq_offsets_map` (split into one `DynamicSequenceMap<Seq_Offset>` per sequence end). Each is now sized from the model's frozen registry rather than a hardcoded 6.
+> **Status: ✅ DONE.** All five maps are `DynamicSequenceMap` (or `LayeredArray` where the key is not a seq_type), each sized from the model's frozen registry rather than a hardcoded 6. `Enum_fast_memory_map`, `Enum_fast_memory_dual_key_map` and the `Str_Dual_key_memory_map` prototype of deviation 5 are all deleted, and `LayeredMap.h` with them.
 >
-> **`Safety_bool_map` is deliberately not started**: unlike the others its key changes *meaning*, from the three fixed `Event_safety` values to an insertion `SeqTypeId`, so it is a design decision rather than a type swap. `Enum_fast_memory_map` has no other consumer left; it and `Str_Dual_key_memory_map` (see deviation 5) can both be deleted when it lands.
+> The *semantics* of overlap safety are unchanged and still pairwise; re-expressing them per junction lands with B5/B6/B11, for the reason given under "Correction: overlap safety is pairwise, not per junction" below.
 
 ([src/igor/Core/ScenarioContext.h](src/igor/Core/ScenarioContext.h), [ExplorationContext.h](src/igor/Core/ExplorationContext.h))
 

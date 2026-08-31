@@ -1104,33 +1104,39 @@ TEST_CASE("step10: standard seq_types accessible in Seq_offsets_map",
     REQUIRE(parms.get_event_list().size() == 5);
 }
 
-// Non-standard seq_types (tandem D) can now be keyed in Str_Seq_offsets_map.
-TEST_CASE("step10: Str_Seq_offsets_map accepts non-standard string seq_type keys",
-          "[model_format][step10][seq_offsets]")
+// Non-standard seq_types are addressable in the real Seq_offsets_map, which is keyed by
+// SeqTypeId and sized from the registry. This supersedes the Str_Seq_offsets_map prototype
+// (a nested hash map) that used to stand in for it here.
+TEST_CASE("Seq_offsets_map accepts non-standard seq_types",
+          "[model_format][seq_offsets][tandem_d]")
 {
-    // Str_Seq_offsets_map uses std::string as first key, allowing arbitrary
-    // seq_type names such as "D1_gene_seq", "D2_gene_seq", "VD1_ins_seq".
-    Str_Seq_offsets_map offsets;
+    SeqTypeRegistry registry;
+    registry.set_ordered_types({"V_gene_seq", "VD1_ins_seq", "D1_gene_seq",
+                                "D1D2_ins_seq", "D2_gene_seq", "D2J_ins_seq", "J_gene_seq"});
+    registry.freeze();
 
-    // request_memory_layer creates the slot on first use
-    REQUIRE_NOTHROW(offsets.request_memory_layer("D1_gene_seq", Undefined_side));
-    REQUIRE_NOTHROW(offsets.request_memory_layer("D2_gene_seq", Undefined_side));
-    REQUIRE_NOTHROW(offsets.request_memory_layer("VD1_ins_seq", Undefined_side));
+    Seq_offsets_map offsets(registry);
+    const SeqTypeId d1 = registry.id("D1_gene_seq");
+    const SeqTypeId d2 = registry.id("D2_gene_seq");
 
-    CHECK(offsets.exist("D1_gene_seq", Undefined_side));
-    CHECK(offsets.exist("D2_gene_seq", Undefined_side));
-    CHECK(offsets.exist("VD1_ins_seq", Undefined_side));
-    CHECK_FALSE(offsets.exist("V_gene_seq", Undefined_side));  // never registered
+    CHECK_FALSE(offsets.exists(d1, Five_prime));
 
-    // set and read back a value
-    offsets.set_value("D1_gene_seq", Undefined_side, 42, 0);
-    CHECK(offsets.at("D1_gene_seq", Undefined_side) == 42);
+    offsets.set(d1, Five_prime, 42, 0);
+    CHECK(offsets.exists(d1, Five_prime));
+    CHECK(offsets.get(d1, Five_prime) == 42);
+    // The two ends are independent maps, not two rows of one address space.
+    CHECK_FALSE(offsets.exists(d1, Three_prime));
+    CHECK_FALSE(offsets.exists(d2, Five_prime));
 
-    // a second memory layer
-    REQUIRE_NOTHROW(offsets.request_memory_layer("D1_gene_seq", Undefined_side));
-    offsets.set_value("D1_gene_seq", Undefined_side, 99, 1);
-    CHECK(offsets.at("D1_gene_seq", Undefined_side) == 99);
-    CHECK(offsets.get_current_memory_layer("D1_gene_seq", Undefined_side) == 1);
+    offsets.request_layer(d1, Five_prime);
+    offsets.set(d1, Five_prime, 99, 1);
+    CHECK(offsets.get(d1, Five_prime) == 99);
+    CHECK(offsets.current_layer(d1, Five_prime) == 1);
+    offsets.restore_layer(d1, Five_prime);
+    CHECK(offsets.get(d1, Five_prime) == 42);
+
+    // An offset is one end of a segment or the other.
+    CHECK_THROWS_AS(offsets.get(d1, Undefined_side), std::out_of_range);
 }
 
 // ══════════════════════════════════════════════════════════════════════════════

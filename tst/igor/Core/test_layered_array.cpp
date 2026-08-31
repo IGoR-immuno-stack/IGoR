@@ -11,7 +11,6 @@
 #include <catch2/benchmark/catch_benchmark.hpp>
 
 #include <igor/Core/LayeredArray.h>
-#include <igor/Core/LayeredMap.h>
 #include <igor/Core/Utils.h>
 
 #include <stdexcept>
@@ -190,38 +189,20 @@ TEST_CASE("LayeredArray: copying is value semantics", "[layered_array]")
 }
 
 // ---------------------------------------------------------------------------
-// Benchmarks against the container being replaced (plan decision D4, step 1).
+// Baseline for the container's own cost. Enum_fast_memory_map, which these used to be
+// measured against, is gone; the numbers from that comparison are recorded in decision D4
+// of docs/REC_EVENT_CAPABILITY_REFACTORING_PLAN.md. Keep these as the reference point for
+// the optimisation work the measured migration cost calls for.
 //
-// Two regimes, because they answer different questions:
-//
-//  - steady state: push/write/read/pop, balanced, so layer capacity stabilises and
-//    no growth occurs. This is what the scenario traversal actually does, and it is
-//    the number that matters for the B8 migration risk.
-//  - growth: layers only ever pushed. Enum_fast_memory_map reallocates and copies the
-//    whole buffer once per layer (quadratic); LayeredArray doubles (amortised linear).
+// The access pattern approximates one scenario node: a handful of keys, a few layers deep,
+// non-sequential key order, pushes balanced by pops so capacity stabilises.
 // ---------------------------------------------------------------------------
-TEST_CASE("LayeredArray vs Enum_fast_memory_map: steady state", "[!benchmark][layered_array]")
+TEST_CASE("LayeredArray: steady-state throughput", "[!benchmark][layered_array]")
 {
     constexpr std::size_t kKeys = 6;
     const std::size_t order[] = {0, 3, 1, 5, 2, 4};
 
-    BENCHMARK("Enum_fast_memory_map: balanced push/write/read/pop")
-    {
-        Enum_fast_memory_map<int, Seq_Offset> m(kKeys);
-        Seq_Offset sink = 0;
-        for (std::size_t rep = 0; rep != 1000; ++rep) {
-            for (std::size_t k : order) {
-                m.request_memory_layer(static_cast<int>(k));
-                const int l = m.get_current_memory_layer(static_cast<int>(k));
-                m.set_value(static_cast<int>(k), static_cast<Seq_Offset>(k), l);
-                sink += m.at(static_cast<int>(k));
-                m.at(static_cast<int>(k), l - 1 >= 0 ? l - 1 : 0);   // pop == rewind
-            }
-        }
-        return sink;
-    };
-
-    BENCHMARK("LayeredArray: balanced push/write/read/pop")
+    BENCHMARK("balanced push/write/read/pop")
     {
         LayeredArray<Seq_Offset> a(kKeys, 8);
         Seq_Offset sink = 0;
@@ -237,22 +218,11 @@ TEST_CASE("LayeredArray vs Enum_fast_memory_map: steady state", "[!benchmark][la
     };
 }
 
-TEST_CASE("LayeredArray vs Enum_fast_memory_map: unbounded layer growth", "[!benchmark][layered_array]")
+TEST_CASE("LayeredArray: unbounded layer growth", "[!benchmark][layered_array]")
 {
     constexpr std::size_t kKeys = 6;
 
-    BENCHMARK("Enum_fast_memory_map: 2000 layers, realloc per layer")
-    {
-        Enum_fast_memory_map<int, Seq_Offset> m(kKeys);
-        for (std::size_t d = 0; d != 2000; ++d) {
-            for (std::size_t k = 0; k != kKeys; ++k) {
-                m.request_memory_layer(static_cast<int>(k));
-            }
-        }
-        return m.get_current_memory_layer(0);
-    };
-
-    BENCHMARK("LayeredArray: 2000 layers, doubling")
+    BENCHMARK("2000 layers, doubling")
     {
         LayeredArray<Seq_Offset> a(kKeys, 1);
         for (std::size_t d = 0; d != 2000; ++d) {
