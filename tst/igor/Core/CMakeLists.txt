@@ -6,6 +6,7 @@ set(CORE_TEST_SOURCES
     test_alignment_cigar.cpp
     test_Contexts.cpp
     test_EventUtils.cpp
+    test_dynamic_sequence_map.cpp
     test_fast_sampling.cpp
     test_generation.cpp
     test_genetic_code.cpp
