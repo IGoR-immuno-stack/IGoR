@@ -147,6 +147,7 @@ shared_ptr<Rec_Event> Gene_choice::copy()
     new_gene_choice_p->update_event_name();
     new_gene_choice_p->set_event_identifier(this->event_index);
     new_gene_choice_p->set_seq_type(this->get_seq_type());
+    new_gene_choice_p->set_seq_type_id(this->get_seq_type_id());
     return new_gene_choice_p;
 }
 

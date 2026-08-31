@@ -29,6 +29,7 @@
 #include <igor/Core/Errorrate.h>
 #include <igor/Core/IntStr.h>
 #include <igor/Core/Aligner.h>
+#include <igor/Core/SeqTypeRegistry.h>
 #include <igor/Core/Utils.h>
 #include <igorCoreExport.h>
 
@@ -156,6 +157,11 @@ public:
     int get_len_min() const { return this->len_min; };
     const Seq_type_String get_seq_type() const { return seq_type; };
     void set_seq_type(const Seq_type_String &st) { seq_type = st; }
+    /// Runtime handle for seq_type, resolved against the model's frozen registry by
+    /// Model_Parms::finalize(). kNoSeqType until then. Used in place of the name
+    /// everywhere inside the scenario traversal, so the registry stays out of the hot path.
+    SeqTypeId get_seq_type_id() const { return seq_type_id; }
+    void set_seq_type_id(SeqTypeId id) { seq_type_id = id; }
     void set_event_side(Seq_side s) { event_side = s; }
 
     bool operator==(const Rec_Event &) const;
@@ -258,6 +264,7 @@ protected:
     Rec_Event_name name; //Construct the name in a smart way so that it is unique
     std::string nickname;
     Seq_type_String seq_type; // Seq_type for v2.0 format (e.g., "V_gene_seq", "VD_ins_seq")
+    SeqTypeId seq_type_id = kNoSeqType; // resolved from seq_type by Model_Parms::finalize()
     int len_min;
     int len_max;
     Event_type type;

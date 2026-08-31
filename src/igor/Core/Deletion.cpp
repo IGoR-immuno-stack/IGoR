@@ -205,6 +205,7 @@ shared_ptr<Rec_Event> Deletion::copy()
     new_deletion_p->update_event_name();
     new_deletion_p->set_event_identifier(this->event_index);
     new_deletion_p->set_seq_type(this->get_seq_type());
+    new_deletion_p->set_seq_type_id(this->get_seq_type_id());
     return new_deletion_p;
 }
 

@@ -89,6 +89,7 @@ shared_ptr<Rec_Event> Dinucl_markov::copy()
     new_dinucl_markov_p->update_event_name();
     new_dinucl_markov_p->set_event_identifier(this->event_index);
     new_dinucl_markov_p->set_seq_type(this->get_seq_type());
+    new_dinucl_markov_p->set_seq_type_id(this->get_seq_type_id());
     new_dinucl_markov_p->set_event_side(this->get_side());
     return new_dinucl_markov_p;
 }

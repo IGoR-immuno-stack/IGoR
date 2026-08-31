@@ -130,7 +130,11 @@ Model_Parms::~Model_Parms()
  */
 bool Model_Parms::add_event(shared_ptr<Rec_Event> event_point)
 {
-    //this->events.push_back(event_point);
+    //Adding an event after finalize() would leave it with an unresolved SeqTypeId, and
+    //could require a seq_type the frozen registry no longer accepts.
+    if (seq_type_registry.is_frozen()) {
+        throw std::logic_error("Model_Parms::add_event(): the model has been finalized");
+    }
     event_point->set_event_identifier(this->events.size());
     this->events.emplace_back(event_point);
     this->edges.emplace(event_point->get_name(), Adjacency_list());
@@ -553,6 +557,20 @@ Events_map Model_Parms::get_events_map()
  * - any seq_type is outside the 6 standard legacy types, or
  * - the seq_type ordering is non-standard (neither VDJ nor VJ order)
  */
+void Model_Parms::finalize()
+{
+    seq_type_registry.freeze();
+    //Resolve each event's seq_type name to its runtime handle. Events whose seq_type is not
+    //in the registry keep kNoSeqType: legacy models that never declared an ordering, and
+    //error-rate-only parameter sets, are both legitimate in that state.
+    for (const auto &event : events) {
+        const Seq_type_String &name = event->get_seq_type();
+        if (!name.empty() && seq_type_registry.contains(name)) {
+            event->set_seq_type_id(seq_type_registry.id(name));
+        }
+    }
+}
+
 bool Model_Parms::requires_extended_format() const
 {
     static const std::unordered_set<Seq_type_String> legacy_seq_types = {
@@ -1047,6 +1065,9 @@ void Model_Parms::read_model_parms(string filename)
     } else {
         throw runtime_error("Unknown format for model file: " + filename);
     }
+
+    //Seal the registry and resolve every event's SeqTypeId (plan decision D1b).
+    this->finalize();
 }
 
 void Model_Parms::set_fixed_all_events(bool fix_bool_status)

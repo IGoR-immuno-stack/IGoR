@@ -253,6 +253,139 @@ TEST_CASE("SeqTypeRegistry inferred as VDJ order from legacy format", "[model_fo
     REQUIRE(registry.get_ordered_types() == expected);
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// SeqTypeId: the runtime handle layer (plan decisions D1 / D5, B2 step 4)
+// ══════════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("SeqTypeRegistry: ids are dense and stable", "[seq_type_registry][seq_type_id]")
+{
+    SeqTypeRegistry registry;
+    registry.set_ordered_types({"V_gene_seq", "VD_ins_seq", "D_gene_seq"});
+
+    REQUIRE(registry.total_count() == 3);
+    // Ids index arrays directly: exactly [0, total_count()), assigned in 5'->3' order.
+    CHECK(registry.id("V_gene_seq") == 0);
+    CHECK(registry.id("VD_ins_seq") == 1);
+    CHECK(registry.id("D_gene_seq") == 2);
+
+    CHECK(registry.name(0) == "V_gene_seq");
+    CHECK(registry.name(2) == "D_gene_seq");
+
+    const std::vector<SeqTypeId> expected_ordering = {0, 1, 2};
+    CHECK(registry.ordering() == expected_ordering);
+
+    CHECK_THROWS_AS(registry.id("nonexistent_seq"), std::out_of_range);
+    CHECK_THROWS_AS(registry.name(7), std::out_of_range);
+}
+
+TEST_CASE("SeqTypeRegistry: register_type is idempotent", "[seq_type_registry][seq_type_id]")
+{
+    SeqTypeRegistry registry;
+    const SeqTypeId first = registry.register_type("D1_gene_seq");
+    const SeqTypeId again = registry.register_type("D1_gene_seq");
+    CHECK(first == again);
+    CHECK(registry.total_count() == 1);
+
+    const SeqTypeId other = registry.register_type("D2_gene_seq");
+    CHECK(other != first);
+    CHECK(registry.total_count() == 2);
+}
+
+TEST_CASE("SeqTypeRegistry: id-keyed neighbour lookups", "[seq_type_registry][seq_type_id]")
+{
+    SeqTypeRegistry registry;
+    registry.set_ordered_types({"V_gene_seq", "VD1_ins_seq", "D1_gene_seq",
+                                "D1D2_ins_seq", "D2_gene_seq", "DJ_ins_seq", "J_gene_seq"});
+
+    const SeqTypeId d1 = registry.id("D1_gene_seq");
+    CHECK(registry.left_neighbor(d1)  == registry.id("VD1_ins_seq"));
+    CHECK(registry.right_neighbor(d1) == registry.id("D1D2_ins_seq"));
+
+    // The ends of the ordering report kNoSeqType rather than an optional.
+    CHECK(registry.left_neighbor(registry.id("V_gene_seq")) == kNoSeqType);
+    CHECK(registry.right_neighbor(registry.id("J_gene_seq")) == kNoSeqType);
+
+    // A type registered but absent from the ordering has no neighbours.
+    const SeqTypeId orphan = registry.register_type("left_flank_seq");
+    CHECK(registry.left_neighbor(orphan) == kNoSeqType);
+    CHECK(registry.right_neighbor(orphan) == kNoSeqType);
+}
+
+TEST_CASE("SeqTypeRegistry: freezing seals the id space", "[seq_type_registry][seq_type_id]")
+{
+    SeqTypeRegistry registry;
+    registry.set_ordered_types({"V_gene_seq", "VJ_ins_seq", "J_gene_seq"});
+    REQUIRE_FALSE(registry.is_frozen());
+
+    registry.freeze();
+    CHECK(registry.is_frozen());
+
+    // Re-registering a known name is still fine -- it allocates nothing.
+    CHECK(registry.register_type("V_gene_seq") == registry.id("V_gene_seq"));
+    // Anything that would grow or reorder the id space is refused.
+    CHECK_THROWS_AS(registry.register_type("D1_gene_seq"), std::logic_error);
+    CHECK_THROWS_AS(registry.set_ordered_types({"V_gene_seq"}), std::logic_error);
+
+    registry.freeze();  // idempotent
+    CHECK(registry.is_frozen());
+}
+
+TEST_CASE("Model_Parms::finalize resolves every event's SeqTypeId",
+          "[model_format][seq_type_id]")
+{
+    Model_Parms parms;
+    REQUIRE_NOTHROW(parms.read_model_parms(TEST_DATA_DIR + "test_legacy_vdj_model_parms.txt"));
+
+    // read_model_parms() finalizes, so the registry is sealed on return.
+    const SeqTypeRegistry &registry = parms.get_seq_type_registry();
+    REQUIRE(registry.is_frozen());
+
+    for (const auto &event : parms.get_event_list()) {
+        const std::string name = event->get_seq_type();
+        if (name.empty() || !registry.contains(name)) {
+            continue;
+        }
+        INFO("event " << event->get_nickname() << " seq_type " << name);
+        CHECK(event->get_seq_type_id() == registry.id(name));
+        CHECK(event->get_seq_type_id() != kNoSeqType);
+    }
+}
+
+TEST_CASE("Model_Parms: adding an event after finalize is refused",
+          "[model_format][seq_type_id]")
+{
+    Model_Parms parms;
+    REQUIRE_NOTHROW(parms.read_model_parms(TEST_DATA_DIR + "test_legacy_vdj_model_parms.txt"));
+
+    auto extra = std::make_shared<Gene_choice>(V_gene);
+    extra->set_nickname("late_addition");
+    // It would carry an unresolved SeqTypeId, and might need a type the frozen registry
+    // can no longer accept.
+    CHECK_THROWS_AS(parms.add_event(extra), std::logic_error);
+}
+
+TEST_CASE("Rec_Event::copy carries the resolved SeqTypeId", "[model_format][seq_type_id]")
+{
+    Model_Parms original;
+    REQUIRE_NOTHROW(original.read_model_parms(TEST_DATA_DIR + "test_legacy_vdj_model_parms.txt"));
+
+    // Inference deep-copies Model_Parms per thread; the copies' events must keep their ids,
+    // since the traversal reads the id, never the name.
+    Model_Parms copy(original);
+    // get_event_list() returns by value; bind before iterating.
+    const auto orig_events = original.get_event_list();
+    const auto copy_events = copy.get_event_list();
+    REQUIRE(copy_events.size() == orig_events.size());
+
+    auto orig_it = orig_events.begin();
+    auto copy_it = copy_events.begin();
+    for (; orig_it != orig_events.end(); ++orig_it, ++copy_it) {
+        INFO("event " << (*orig_it)->get_nickname());
+        CHECK((*copy_it)->get_seq_type() == (*orig_it)->get_seq_type());
+        CHECK((*copy_it)->get_seq_type_id() == (*orig_it)->get_seq_type_id());
+    }
+}
+
 // Model_Parms is deep-copied once per OpenMP thread in the inference loop, and the
 // scenario maps are built from that copy. A copy that drops seq_type_registry leaves
 // every worker with an empty ordering -- and silently downgrades write_model_parms()

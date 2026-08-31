@@ -126,6 +126,7 @@ shared_ptr<Rec_Event> Insertion::copy()
     new_insertion_p->update_event_name();
     new_insertion_p->set_event_identifier(this->event_index);
     new_insertion_p->set_seq_type(this->get_seq_type());
+    new_insertion_p->set_seq_type_id(this->get_seq_type_id());
     return new_insertion_p;
 }
 

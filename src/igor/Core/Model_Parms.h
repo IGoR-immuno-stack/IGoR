@@ -127,6 +127,11 @@ public:
 
     void update_edge_event_name(Rec_Event_name, Rec_Event_name);
 
+    /// Seal the seq_type registry and resolve every event's SeqTypeId against it.
+    /// Called at the end of read_model_parms(); programmatically built models must
+    /// call it once the event list and the ordering are complete. Idempotent.
+    void finalize();
+
     bool requires_extended_format() const;
     void write_model_parms(std::string);
     void write_model_parms_legacy(std::string);
