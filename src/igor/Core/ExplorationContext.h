@@ -156,7 +156,7 @@ struct ExplorationContext {
         Event_safety safety_type,
         size_t memory_layer
     ) const {
-        return safety_set.at(safety_type, memory_layer);
+        return safety_set.get(safety_type, memory_layer);
     }
 
     /**
@@ -175,6 +175,6 @@ struct ExplorationContext {
         bool is_safe,
         size_t memory_layer
     ) {
-        safety_set.set_value(safety_type, is_safe, memory_layer);
+        safety_set.set(safety_type, is_safe, memory_layer);
     }
 };

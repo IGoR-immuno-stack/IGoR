@@ -1091,6 +1091,14 @@ Remove the 4-case `switch(event_class)` dispatching on V/D/J. Generic implementa
 - `event_side` (already present as a member) identifies which end is trimmed
 - Neighbor overlap checking uses `find_first_nonempty_left` / `find_first_nonempty_right` to locate bounding sequences — no need to know whether the neighbor is V, D, or J
 
+#### Open item: the overlap-safety semantics
+
+`Event_safety`'s three values are the three unordered pairs of gene segments that must not
+overlap, and the pairwise form does not scale (n(n-1)/2). Replacing it with one flag per
+junction is only *correct* once this rewrite resolves neighbours dynamically, so the change
+lands here rather than in B8. See "Correction: overlap safety is pairwise, not per junction"
+under B8.
+
 #### Open item: the per-gene offset bound members
 
 `Deletion` carries eight scalars holding the *bounds* an offset can still take once the
@@ -1311,6 +1319,54 @@ not deferred.
 
 **Dependencies**: B5 (contract lives in the generic `Deletion::iterate()`), B6 and B7 (traversal
 consumers). Feeds the Phase C rule.
+
+
+
+#### Correction: overlap safety is *pairwise*, not per junction
+
+The migration table above says `Safety_bool_map` becomes a `DynamicSequenceMap<bool>` keyed
+by insertion `SeqTypeId`. **That does not capture the semantics** and would silently drop a
+constraint.
+
+`Event_safety` enumerates the *unordered pairs of gene segments that must not overlap*, not
+the junctions between adjacent ones. Three gene segments give three pairs, which is exactly
+why the enum has three values. In `Deletion::iterate`'s V case
+([Deletion.cpp:263-298](src/igor/Core/Deletion.cpp#L263-L298)) both are consulted:
+
+```cpp
+if (d_chosen) { … is_overlap_safe(VD_safe, …) … }
+if (j_chosen) { … is_overlap_safe(VJ_safe, …) … }
+```
+
+`j_chosen` is true in a **VDJ** model, so `VJ_safe` is live there — tracking that V and J do
+not overlap, a pair separated by a D and two insertions. Keyed by insertion `SeqTypeId`
+there is nowhere to put it.
+
+Keyed by pair, the state grows as *n(n-1)/2* in the number of gene segments: 3 for VDJ, 6
+for a tandem D with V, D1, D2, J.
+
+##### The destination, and why it is not separable from B5/B6/B11
+
+The natural replacement is one flag per junction — equivalently a 5'/3' pair per segment,
+the same shape as `Seq_offsets_map`. That is linear in the segment count and scales.
+
+It is **not correct until neighbours are found dynamically**. "V's 3' end is safe" needs a
+counterparty, and today there is none — which is precisely why the code enumerates pairs.
+The V-J check exists because D may be absent or not yet chosen. Once B5/B6/B11 resolve
+neighbours through `first_occupied_left/right`, each deletion checks against its *actual*
+current neighbour and the pairwise-ness collapses: the V-J case becomes "V's right
+neighbour happens to be J, because D is absent".
+
+So this is not preparatory work to be done before B5/B6/B11. It becomes correct as a
+consequence of them, and should land with them.
+
+##### What B8 does instead
+
+`Safety_bool_map` becomes `LayeredArray<bool>` — the bare container, not
+`DynamicSequenceMap`, because safety is not keyed by seq_type today and should not pretend
+to be. The `Event_safety` enum stays as an opaque dense key, the size stays 3, no registry
+is involved. This is the same treatment `Index_map` received: a type swap that changes no
+semantics, whose value is that it retires the last `Enum_fast_memory_map` consumer.
 
 
 #### `Seq_offsets_map`: what is permanent and what is transitional

@@ -421,7 +421,12 @@ std::ostream &operator<<(std::ostream &stream, const Matrix<T> &mat)
 //distinguishes from a segment that has not been written yet (see SeqSegmentEmptiness).
 typedef DynamicSequenceMap<Int_Str_ptr> Seq_type_str_p_map;
 
-typedef Enum_fast_memory_map<Event_safety, bool> Safety_bool_map;
+//Keyed by the Event_safety enum as an opaque dense integer, hence LayeredArray rather than
+//DynamicSequenceMap: safety is not per-seq_type today. It is *pairwise* between gene
+//segments -- VD_safe, DJ_safe and VJ_safe are the three unordered pairs of V, D and J, and
+//VJ_safe is live in VDJ models where V and J are not adjacent. Re-expressing it per junction
+//only becomes correct once B5/B6/B11 find neighbours dynamically; see the note under B5.
+typedef LayeredArray<bool> Safety_bool_map;
 
 //Keyed by SeqTypeId. An empty mismatch vector means "zero mismatches", which is present,
 //not absent -- so the default SeqSegmentEmptiness (never empty) is the right one here.
