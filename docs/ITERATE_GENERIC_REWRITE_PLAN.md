@@ -893,9 +893,14 @@ each against the current implementation, since the branch predates B2/B8.
 | Pruning | 2 | below threshold + control |
 | Exhaustive fallback (G6) | 5 | V off, J off, sliding, position map, per-position mismatches |
 
-**25 sections in 7 `TEST_CASE`s**, 109 assertions. Four mutations run: the safe-verdict
-force, the junction-guard removal and the §7.1 sign correction are all caught; the overlap
-`continue` removal is not, which is §7.6.
+**23 sections in 7 `TEST_CASE`s plus 4 `[!shouldfail]` defect cases**, 109 assertions. Four
+mutations run: the safe-verdict force, the junction-guard removal and the §7.1 sign correction are
+all caught; the overlap `continue` removal is not, which is §7.6.
+
+Known defects are **not** pinned at their wrong values. Each gets a section-free
+`[!shouldfail]` case asserting what the code should do — §7.1 for V, J and D, and §7.8 for the
+position-path offset. They read as specifications, they fail today, and fixing the defect makes
+them pass, which `[!shouldfail]` reports as a failure until the tag is removed.
 
 Deferred to step 4 rather than written here: the zero-length-junction section. `Gene_choice`
 never writes an empty segment — a genomic template is never empty — so B10's degenerate offset
@@ -950,9 +955,15 @@ computes the core correctly and would therefore **change Pgen values** on the re
 
 **Handling (decided, O4)**: reproduce first, fix at the very end. Step 3 must carry the current
 arithmetic verbatim — **parameterise the sign, do not derive it** — and every step through 5 keeps
-it, so the whole migration stays regression-testable against the existing corpus. The fix is then
-the final commit of this work, backed by unit tests that pin the corrected core length
-(`[reachable(5').hi, reachable(3').lo]`) directly rather than only through a Pgen delta. Expected
+it, so the whole migration stays regression-testable against the existing corpus.
+
+**How it is tested (revised after review)**: the T0 sections assert the **correct** value and
+carry Catch2's `[!shouldfail]` tag, rather than pinning the buggy value. Catch2 reports an
+expected failure as a pass, so the suite stays green, and the moment the defect is fixed the case
+starts passing — which `[!shouldfail]` turns into a failure, forcing the tag to be removed
+deliberately. A test that states the intended behaviour also reads as documentation, which a
+pinned wrong number does not. Each such case is section-free, because `[!shouldfail]` is evaluated
+per test-case run and Catch2 re-runs a case once per leaf section. Expected
 direction of change: slightly *less* pruning, slightly slower, marginally more complete scenario
 sets. It is a modelling-visible change, so it ships with its own convergence evidence and its own
 commit message — never folded into a refactor.
@@ -1004,41 +1015,47 @@ computing the bounds once, correctly, in one place. Add a unit test asserting th
 
 ### 7.6 — In `Gene_choice`, the overlap early-out is subsumed by the junction-length guard
 
-*(Found Sep 1 2026 while writing T0's overlap sections; the first draft of them passed for
-the wrong reason.)*
+*(Found Sep 1 2026 while writing T0's overlap sections; the first draft of them passed for the
+wrong reason.)*
 
-`Gene_choice`'s V branch performs the overlap `continue`
-([Genechoice.cpp:265](../src/igor/Core/Genechoice.cpp#L265)) and then, further down, the
-junction-length guard ([:322](../src/igor/Core/Genechoice.cpp#L322)). **They reject exactly the
-same geometries.** Writing `L` for the pre-deletion gap `d_5_off − v_3_off − 1`:
+With D already chosen, `Gene_choice`'s V branch can drop a realization in two places:
 
-| | condition |
-|---|---|
-| overlap rejects | `L ≤ −max_del_V − max_del_D5 − 1` |
-| guard accepts | `L ≥ min_ins − max_del_V − max_del_D5`, and `L` achievable |
+```cpp
+// (a) early, Genechoice.cpp:265
+if ((v_3_off + v_3_max_del) >= d_5_max_offset) continue;
+// (b) later, Genechoice.cpp:322
+if (vd_length_best_proba_map.count(d_offset - v_3_off - 1) <= 0) continue;
+```
 
-The guard's key is the gap measured *before* the pending deletions, which is why
-`Deletion::iterate_initialize_Len_proba` contributes `−value_int` while `Insertion` contributes
-`+value_int`: the identity being enumerated is `ins = L + del_V + del_D5`. The two intervals are
-adjacent and disjoint when `min_ins == 0`, and the guard is strictly stronger when `min_ins > 0`.
-**The overlap check is therefore a pure early-out** — it never rejects anything the guard would
-have accepted.
+**(a)** reads *"even with V deleted as far as it can go and D deleted as far as it can go, V's 3'
+end still reaches D's 5' end."* **(b)** reads *"this V–D gap is not a gap the model can produce."*
 
-Verified by mutation on the T0 overlap sections: deleting the overlap `continue`, or deleting the
-junction guard, each leaves every section green; only removing both changes the outcome.
+They are not independent. Write `L = d_5_off − v_3_off − 1` for the gap, and substitute
+`v_3_max_del = −max_del_V`, `d_5_max_del = −max_del_D5`:
+
+```
+(a) fires  ⟺  v_3_off − max_del_V ≥ d_5_off + max_del_D5
+           ⟺  L ≤ −max_del_V − max_del_D5 − 1
+```
+
+The map in (b) is keyed by achievable gaps, and a gap is achievable when
+`L = ins − del_V − del_D5` for some legal triple — so its **smallest key is
+`min_ins − max_del_V − max_del_D5`**. (a) therefore fires only on gaps *strictly below the
+smallest producible gap*, and such a gap is by definition not in the map. **(a) ⊆ (b).**
+
+Verified by mutation on the T0 overlap sections: deleting (a), or deleting (b), each leaves every
+section green; only removing both changes the outcome.
 
 Three consequences:
 
-1. **It is not dead code and must be kept.** It fires before `iterate_common()`, the mismatch
-   scan and the error-rate bound, so it skips real work on the most-executed event. The generic
-   G2 `check()` should keep the Infeasible verdict as an early-out.
-2. **It cannot be characterization-tested in isolation.** T0's Infeasible section pins the
-   outcome and says so rather than pretending to pin the check. Any future test claiming to
-   isolate it should be treated as passing for the wrong reason until a mutation says otherwise.
-3. **`Deletion` is where the overlap check earns its keep**, and its status there must be
-   established separately — do not carry this conclusion across. At `Deletion::iterate` time the
-   moving end's interval has already collapsed to a point (§2.2), so the two conditions no longer
-   line up the same way. Step 4 must re-run this experiment for `Deletion` rather than assume.
+1. **It is not dead code and must be kept.** (a) fires before `iterate_common()`, the mismatch
+   scan and the error-rate bound, so it skips real work on the most-executed event.
+2. **It is an optimization, not a constraint** — which is *reassuring* for B11. If the generic
+   `check()` shifts the Infeasible boundary slightly, results cannot change, because (b) still
+   catches whatever (a) missed. The correctness burden sits entirely on the junction guard.
+3. **`Deletion` must not inherit this conclusion.** At `Deletion::iterate` time the moving end's
+   interval has already collapsed to a point (§2.2), so the two conditions no longer line up the
+   same way. Step 4 re-runs this experiment rather than assuming.
 
 ### 7.7 — `Insertion`'s missing safety check
 
@@ -1051,6 +1068,28 @@ explicit geometric check would change which scenarios are enumerated even if it 
 probability. If it is worth adding, it is a separate step after B5 with its own regression run.
 
 ---
+
+### 7.8 — The two D realization paths disagree on what a junction length means
+
+*(Found Sep 1 2026 during T0.)*
+
+```
+alignment path, Genechoice.cpp:322 :  L = d_5_off − v_3_off − 1   ⟹  d_5_off = v_3_off + L + 1
+position  path, Genechoice.cpp:556 :  d_5_off = v_3_off + L
+```
+
+`L` in the position path comes from `vj_length_d_position_proba`, which is composed from the
+**same** `vd_length_best_proba_map` the alignment path's guard consults — so the two are using one
+quantity under two different conventions, and the position path is one short. At `L = 0`, meaning
+"no VD insertions", it places D's 5' end *on* V's 3' end rather than immediately after it,
+overlapping V's last nucleotide.
+
+Reachable only through `no_d_align`, i.e. only for a D gene the aligner found nothing for. Pinned
+by a `[!shouldfail]` case in the T0 suite.
+
+**This is for the maintainer to adjudicate, not for the refactor to decide.** It changes inference
+results on any model where the exhaustive path fires, so it is a modelling-visible fix and belongs
+with §7.1 at the end, not inside B11. B11 must reproduce it verbatim and generalise it unchanged.
 
 ## 8. Decisions taken (Sep 1 2026 review)
 

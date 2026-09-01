@@ -414,133 +414,186 @@ TEST_CASE("Gene_choice::iterate junction-length bound (G5)", "[gene_choice][iter
     }
 }
 
-TEST_CASE("Gene_choice::iterate endogenous-mismatch bound (G8)", "[gene_choice][iterate][endogenous]")
+TEST_CASE("Gene_choice::iterate endogenous-mismatch counting (G8)",
+          "[gene_choice][iterate][endogenous]")
 {
     // Mismatches that survive the maximum remaining deletion cannot be explained away, so
-    // they set a floor on the error probability. The count is taken over the segment's
-    // surviving core; the credited error-free length is what section 7.1 of the plan is
-    // about.
+    // they set a floor on the error probability. This TEST_CASE covers the *counting* --
+    // which mismatches fall inside the surviving core. The credited length is wrong in all
+    // three branches and is covered by the [!shouldfail] cases below.
     const double kRate = 0.1;
     const std::string v_gene = "ACGTACGTACGT"; // 12 nt, 3' end at 11
 
-    SECTION("V: pins the credited match length, including the sign slip (plan section 7.1)")
-    {
-        // V 3' deletions [0,4] => v_3_max_del == -4, so the surviving core is [0, 7] and
-        // mismatches at or before 7 are endogenous. With mismatches at 2 and 9, one is.
-        //
-        // The bound the code computes is
-        //     (r/3)^1 * (1-r)^(gene_seq.size() - v_3_max_del - 1) = (r/3)^1 * (1-r)^15
-        // and 15 is wrong: the core spans 8 positions, so at most 7 can be error-free.
-        // `- v_3_max_del` should be `+ v_3_max_del`. The consequence is a bound that is too
-        // small, i.e. more aggressive pruning than the model justifies.
-        //
-        // This section pins 15 deliberately. When section 7.1 is fixed -- last, per decision
-        // O4 -- the expected exponent becomes 7 and this section is the one that changes.
+    // V 3' deletions [0,4] => the surviving core is [0, 7]; a mismatch at 2 is endogenous,
+    // one at 9 is not.
+    auto bound_with_mismatch_at = [&](std::size_t position) {
         auto state = create_iterate_state("ACGTACGTACGTTTTTTTT");
         state.set_error_rate(kRate);
         auto v_event = make_gene_choice(V_gene, {{"V1", v_gene}}, 0, /*fixed=*/false);
         state.add_downstream_event(make_deletion(V_gene_seq, Three_prime, 0, 4, 2));
         state.set_alignments(
-                V_gene, {create_alignment_with_mismatches("V1", 0, v_gene.size(), {2, 9})});
+                V_gene, {create_alignment_with_mismatches("V1", 0, v_gene.size(), {position})});
         state.set_marginal(0, 1.0L);
 
         auto rec = call_iterate_recording(v_event, state);
-        dump(rec, "V endogenous");
-
         REQUIRE(rec->call_count() == 1);
-        const double buggy = std::pow(kRate / 3.0, 1) * std::pow(1.0 - kRate, 15);
-        const double correct = std::pow(kRate / 3.0, 1) * std::pow(1.0 - kRate, 7);
-        CHECK_THAT(rec->calls.at(0).downstream_bounds.at(V_gene_seq),
-                   Catch::Matchers::WithinRel(buggy, 1e-9));
-        CHECK(buggy < correct); // the direction of the error: too small, so it over-prunes
-    }
+        return rec->calls.at(0).downstream_bounds.at(V_gene_seq);
+    };
 
-    SECTION("V: a mismatch beyond the surviving core is not endogenous")
+    SECTION("A mismatch inside the core costs an error factor; one outside costs nothing")
     {
-        // Same geometry, but the only mismatch sits at 9, past the core end at 7, so it can
-        // be deleted away and contributes no error floor: the exponent on (r/3) is 0.
-        auto state = create_iterate_state("ACGTACGTACGTTTTTTTT");
-        state.set_error_rate(kRate);
-        auto v_event = make_gene_choice(V_gene, {{"V1", v_gene}}, 0, /*fixed=*/false);
-        state.add_downstream_event(make_deletion(V_gene_seq, Three_prime, 0, 4, 2));
-        state.set_alignments(V_gene,
-                             {create_alignment_with_mismatches("V1", 0, v_gene.size(), {9})});
-        state.set_marginal(0, 1.0L);
-
-        auto rec = call_iterate_recording(v_event, state);
-        dump(rec, "V endogenous none");
-
-        REQUIRE(rec->call_count() == 1);
-        const double expected = std::pow(1.0 - kRate, 16); // (r/3)^0 * (1-r)^(12 + 4 - 0)
-        CHECK_THAT(rec->calls.at(0).downstream_bounds.at(V_gene_seq),
-                   Catch::Matchers::WithinRel(expected, 1e-9));
+        // Asserting the *ratio* rather than either bound keeps this independent of the
+        // credited-length defect: the two differ by exactly one endogenous mismatch, so
+        // swapping an error-free position for an errored one multiplies by (r/3)/(1-r)
+        // whatever the credited length happens to be.
+        const double inside = bound_with_mismatch_at(2);
+        const double outside = bound_with_mismatch_at(9);
+        CHECK_THAT(inside / outside,
+                   Catch::Matchers::WithinRel((kRate / 3.0) / (1.0 - kRate), 1e-9));
+        CHECK(inside < outside);
     }
+}
 
-    SECTION("J: the same sign slip, mirrored (plan section 7.1)")
-    {
-        // J 5' deletions [0,4] => j_5_max_del == -4, so the surviving core is [16, 19] and
-        // mismatches at or after 16 are endogenous. With mismatches at 13 and 17, one is.
-        //
-        //     credited = gene_seq.size() - j_5_max_del - endo = 8 + 4 - 1 = 11
-        //     correct  = core span (4) - endo                              = 3
-        //
-        // Same defect as the V section, same direction. The D branch below has the sign
-        // right, which is what makes this a copy-paste slip in two of three branches rather
-        // than a single consistent convention.
-        const std::string j_gene = "GGGGCCCC"; // 8 nt
-        const std::string read = "ACGTACGTACGTGGGGCCCC"; // 20 nt, J aligned at 12
-        auto state = create_iterate_state(read);
-        state.set_error_rate(kRate);
-        auto j_event = make_gene_choice(J_gene, {{"J1", j_gene}}, 0, /*fixed=*/false);
-        state.add_downstream_event(make_deletion(J_gene_seq, Five_prime, 0, 4, 2));
-        state.set_alignments(
-                J_gene, {create_alignment_with_mismatches("J1", 12, j_gene.size(), {13, 17})});
-        state.set_marginal(0, 1.0L);
+// ============================================================================
+// Known defects
+//
+// Each of the following asserts the behaviour the code *should* have, and is tagged
+// [!shouldfail] because it does not have it yet. Catch2 reports an expected failure as a
+// pass, so the suite stays green -- and the moment the defect is fixed the case starts
+// passing, which [!shouldfail] turns into a failure. That is the point: the tag has to be
+// removed deliberately, so a fix cannot land unnoticed.
+//
+// Each case is section-free on purpose. [!shouldfail] is evaluated per test-case run, and
+// Catch2 re-runs a case once per leaf section, so a case mixing passing and failing
+// sections would report the passing ones as unexpected passes.
+// ============================================================================
 
-        auto rec = call_iterate_recording(j_event, state);
-        dump(rec, "J endogenous");
+TEST_CASE("DEFECT (plan 7.1): V credits an error-free length larger than its surviving core",
+          "[gene_choice][iterate][endogenous][defect][!shouldfail]")
+{
+    // The core that survives the maximum 3' deletion is [v_5_off, v_3_off + v_3_max_del]
+    // = [0, 7], so at most 8 positions exist and, with one of them mismatched, at most 7
+    // can be error-free. The code passes gene_seq.size() - v_3_max_del - endo, and
+    // v_3_max_del is Deletion::len_min (negative), so this evaluates to 12 + 4 - 1 = 15.
+    // The sign is inverted: it should be `+ v_3_max_del`.
+    //
+    // Consequence: the bound is too small by (1-r)^8, so the branch is pruned more
+    // aggressively than the model justifies and scenarios that should contribute can be
+    // discarded.
+    const double kRate = 0.1;
+    const std::string v_gene = "ACGTACGTACGT";
 
-        REQUIRE(rec->call_count() == 1);
-        const double buggy = std::pow(kRate / 3.0, 1) * std::pow(1.0 - kRate, 11);
-        const double correct = std::pow(kRate / 3.0, 1) * std::pow(1.0 - kRate, 3);
-        CHECK_THAT(rec->calls.at(0).downstream_bounds.at(J_gene_seq),
-                   Catch::Matchers::WithinRel(buggy, 1e-9));
-        CHECK(buggy < correct);
-    }
+    auto state = create_iterate_state("ACGTACGTACGTTTTTTTT");
+    state.set_error_rate(kRate);
+    auto v_event = make_gene_choice(V_gene, {{"V1", v_gene}}, 0, /*fixed=*/false);
+    state.add_downstream_event(make_deletion(V_gene_seq, Three_prime, 0, 4, 2));
+    state.set_alignments(V_gene,
+                         {create_alignment_with_mismatches("V1", 0, v_gene.size(), {2, 9})});
+    state.set_marginal(0, 1.0L);
 
-    SECTION("D: the core is bounded at both ends, and the span is credited one short")
-    {
-        // D is the only branch with deletions pending on both sides, so its core is a
-        // genuine intersection: [d_5_off - d_5_max_del, d_3_off + d_3_max_del], here
-        // [8 + 2, 15 - 2] = [10, 13]. Mismatches inside it are endogenous.
-        //
-        // The credited length is the difference of the two bounds, 13 - 10 = 3, where the
-        // span is 4 inclusive positions. So D under-credits by exactly one rather than
-        // getting the sign wrong -- a different defect from V and J, and a much smaller one.
-        const std::string d_gene = "TTTTTTTT"; // 8 nt, aligned at 8 => [8, 15]
-        const std::string read = "ACGTACGTTTTATTTTACGT"; // 20 nt
-        auto state = create_iterate_state(read);
-        state.set_error_rate(kRate);
-        auto d_event = make_gene_choice(D_gene, {{"D1", d_gene}}, 0, /*fixed=*/false);
-        state.add_downstream_event(make_deletion(D_gene_seq, Five_prime, 0, 2, 2));
-        state.add_downstream_event(make_deletion(D_gene_seq, Three_prime, 0, 2, 3));
-        // Mismatch at 9 is outside the core, at 11 inside it.
-        state.set_alignments(
-                D_gene, {create_alignment_with_mismatches("D1", 8, d_gene.size(), {9, 11})});
-        state.set_marginal(0, 1.0L);
+    auto rec = call_iterate_recording(v_event, state);
+    REQUIRE(rec->call_count() == 1);
 
-        auto rec = call_iterate_recording(d_event, state);
-        dump(rec, "D endogenous");
+    const double correct = std::pow(kRate / 3.0, 1) * std::pow(1.0 - kRate, 7);
+    CHECK_THAT(rec->calls.at(0).downstream_bounds.at(V_gene_seq),
+               Catch::Matchers::WithinRel(correct, 1e-9));
+}
 
-        REQUIRE(rec->call_count() == 1);
-        const double observed = std::pow(kRate / 3.0, 1) * std::pow(1.0 - kRate, 2); // 3 - 1
-        const double correct = std::pow(kRate / 3.0, 1) * std::pow(1.0 - kRate, 3);  // 4 - 1
-        CHECK_THAT(rec->calls.at(0).downstream_bounds.at(D_gene_seq),
-                   Catch::Matchers::WithinRel(observed, 1e-9));
-        // Under-crediting makes the bound too *large*, i.e. it under-prunes -- the opposite
-        // direction from the V and J slip, and harmless for correctness.
-        CHECK(observed > correct);
-    }
+TEST_CASE("DEFECT (plan 7.1): J credits an error-free length larger than its surviving core",
+          "[gene_choice][iterate][endogenous][defect][!shouldfail]")
+{
+    // Mirror of the V case. Core is [j_5_off - j_5_max_del, j_3_off] = [16, 19], 4
+    // positions, one of them mismatched, so at most 3 can be error-free. The code credits
+    // gene_seq.size() - j_5_max_del - endo = 8 + 4 - 1 = 11.
+    const double kRate = 0.1;
+    const std::string j_gene = "GGGGCCCC"; // 8 nt, aligned at 12 in a 20 nt read
+
+    auto state = create_iterate_state("ACGTACGTACGTGGGGCCCC");
+    state.set_error_rate(kRate);
+    auto j_event = make_gene_choice(J_gene, {{"J1", j_gene}}, 0, /*fixed=*/false);
+    state.add_downstream_event(make_deletion(J_gene_seq, Five_prime, 0, 4, 2));
+    state.set_alignments(J_gene,
+                         {create_alignment_with_mismatches("J1", 12, j_gene.size(), {13, 17})});
+    state.set_marginal(0, 1.0L);
+
+    auto rec = call_iterate_recording(j_event, state);
+    REQUIRE(rec->call_count() == 1);
+
+    const double correct = std::pow(kRate / 3.0, 1) * std::pow(1.0 - kRate, 3);
+    CHECK_THAT(rec->calls.at(0).downstream_bounds.at(J_gene_seq),
+               Catch::Matchers::WithinRel(correct, 1e-9));
+}
+
+TEST_CASE("DEFECT (plan 7.1): D credits one position fewer than its surviving core spans",
+          "[gene_choice][iterate][endogenous][defect][!shouldfail]")
+{
+    // D is the only branch with deletions pending on both sides, so its core is a genuine
+    // intersection: [d_5_off - d_5_max_del, d_3_off + d_3_max_del] = [10, 13] here. The
+    // sign is right; what is wrong is that the credited length is the *difference* of the
+    // two bounds, 13 - 10 = 3, for a span of 4 inclusive positions.
+    //
+    // A different defect from V and J, and the opposite direction: the bound comes out too
+    // large, so it under-prunes. Harmless for correctness, but it is still an off-by-one.
+    const double kRate = 0.1;
+    const std::string d_gene = "TTTTTTTT"; // 8 nt, aligned at 8 => [8, 15]
+
+    auto state = create_iterate_state("ACGTACGTTTTATTTTACGT");
+    state.set_error_rate(kRate);
+    auto d_event = make_gene_choice(D_gene, {{"D1", d_gene}}, 0, /*fixed=*/false);
+    state.add_downstream_event(make_deletion(D_gene_seq, Five_prime, 0, 2, 2));
+    state.add_downstream_event(make_deletion(D_gene_seq, Three_prime, 0, 2, 3));
+    state.set_alignments(D_gene,
+                         {create_alignment_with_mismatches("D1", 8, d_gene.size(), {9, 11})});
+    state.set_marginal(0, 1.0L);
+
+    auto rec = call_iterate_recording(d_event, state);
+    REQUIRE(rec->call_count() == 1);
+
+    const double correct = std::pow(kRate / 3.0, 1) * std::pow(1.0 - kRate, 3); // 4 - 1
+    CHECK_THAT(rec->calls.at(0).downstream_bounds.at(D_gene_seq),
+               Catch::Matchers::WithinRel(correct, 1e-9));
+}
+
+TEST_CASE("DEFECT: the no_d_align position map places D one nucleotide too far 5'",
+          "[gene_choice][iterate][exhaustive][defect][!shouldfail]")
+{
+    // The two D realization paths disagree on what a junction length means.
+    //
+    //   alignment path, Genechoice.cpp:322 : L = d_5_off - v_3_off - 1
+    //                                        i.e. d_5_off = v_3_off + L + 1
+    //   position path,  Genechoice.cpp:556 : d_5_off = v_3_off + L
+    //
+    // and L comes from vj_length_d_position_proba, which is built from the *same*
+    // vd_length_best_proba_map the alignment path's guard consults. So the position path is
+    // one short: at L = 0, meaning "no insertions", it places D's 5' end on V's 3' end
+    // rather than immediately after it, overlapping V's last nucleotide.
+    //
+    // Fixture: V over [0,11], J over [16,19], vj_len = 4, reachable only by
+    // (vd_len, dj_len) = (0, 0). A zero-length VD junction should put D at 12.
+    const std::string d_gene = "TTTT";
+    auto state = create_iterate_state("ACGTACGTACGTTTAATTTT");
+
+    auto d_event = make_gene_choice(D_gene, {{"D1", d_gene}}, 0, /*fixed=*/false);
+    auto v_stub = make_gene_choice(V_gene, {{"V1", "ACGTACGTACGT"}}, 1);
+    auto j_stub = make_gene_choice(J_gene, {{"J1", "TTTT"}}, 2);
+    state.add_event(v_stub);
+    state.add_event(j_stub);
+    state.mark_chosen(v_stub);
+    state.mark_chosen(j_stub);
+    state.preset_segment(V_gene_seq, 0, 11, "ACGTACGTACGT");
+    state.preset_segment(J_gene_seq, 16, 19, "TTTT");
+    state.add_downstream_event(make_deletion(V_gene_seq, Three_prime, 0, 2, 3));
+    state.add_downstream_event(make_deletion(D_gene_seq, Five_prime, 0, 2, 4));
+    state.add_downstream_event(make_deletion(D_gene_seq, Three_prime, 0, 2, 5));
+    state.add_downstream_event(make_deletion(J_gene_seq, Five_prime, 0, 2, 6));
+    state.set_alignments(D_gene, {});
+    state.set_marginal(0, 1.0L);
+
+    auto rec = call_iterate_recording(d_event, state);
+    REQUIRE(rec->call_count() == 1);
+
+    // D should start immediately after V's 3' end, not on it.
+    CHECK(rec->calls.at(0).five_prime(D_gene_seq) == 12);
 }
 
 TEST_CASE("Gene_choice::iterate pruning", "[gene_choice][iterate][pruning]")
@@ -694,11 +747,9 @@ TEST_CASE("Gene_choice::iterate exhaustive position fallback (G6)",
 
         REQUIRE(rec->call_count() == 1);
         const ScenarioSnapshot &s = rec->calls.at(0);
-        // d_5_off = v_3_offset + vd_len, i.e. the D is placed *on* V's 3' position rather
-        // than after it. Pinned as observed; whether the +1 is missing is a question for
-        // B11, not for this test.
-        CHECK(s.five_prime(D_gene_seq) == 11);
-        CHECK(s.three_prime(D_gene_seq) == 14);
+        // The template is placed whole, 5' to 3'. Where it is placed is a defect and is
+        // asserted separately below.
+        CHECK(s.three_prime(D_gene_seq) == s.five_prime(D_gene_seq) + 3);
         CHECK(s.sequences.at(D_gene_seq) == d_gene);
     }
 
