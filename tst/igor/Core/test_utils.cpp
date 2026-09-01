@@ -24,11 +24,17 @@
  */
 
 #include "test_utils.h"
-#include <cmath>
+
+#include <igor/Core/EventUtils.h>
+#include <igor/Core/gene_to_seqtype_migr.h>
 #include <algorithm>
-#include <numeric>
-#include <stdexcept>
+#include <cmath>
+#include <forward_list>
 #include <functional>
+#include <numeric>
+#include <queue>
+#include <stack>
+#include <stdexcept>
 
 namespace IgorTestUtils {
 
@@ -61,6 +67,309 @@ Alignment_data create_mock_alignment_data(
     );
     
     return align_data;
+}
+
+// ============================================================================
+// iterate() test harness
+// ============================================================================
+
+IterateTestState create_iterate_state(const std::string &sequence, std::size_t marginal_array_size,
+                                      std::size_t max_events)
+{
+    return IterateTestState(sequence, marginal_array_size, max_events);
+}
+
+std::string int_str_to_nt(const Int_Str &seq)
+{
+    static const char kBases[] = {'A', 'C', 'G', 'T'};
+    std::string out;
+    out.reserve(seq.size());
+    for (int value : seq) {
+        out.push_back((value >= 0 && value < 4) ? kBases[value] : 'N');
+    }
+    return out;
+}
+
+RecordingEvent::RecordingEvent(int event_id) : Rec_Event()
+{
+    this->type = Event_type::Undefined_t;
+    this->set_event_identifier(event_id);
+    this->set_seq_type("Undefined_seq");
+    this->fix(true);
+}
+
+std::shared_ptr<Rec_Event> RecordingEvent::copy()
+{
+    return std::make_shared<RecordingEvent>(this->get_event_identifier());
+}
+
+std::queue<int> RecordingEvent::draw_random_realization(
+        const Marginal_array_p &, std::unordered_map<Rec_Event_name, int> &,
+        const std::unordered_map<Rec_Event_name,
+                                 std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &,
+        std::unordered_map<Seq_type, std::string> &, std::mt19937_64 &) const
+{
+    return std::queue<int>();
+}
+
+void RecordingEvent::iterate(QuerySequenceContext &, const ModelContext &, ScenarioContext &scenario,
+                             ExplorationContext &exploration, AccumulationContext &)
+{
+    //Record what the real next event would read, then stop. No recursion, no error rate.
+    static const Seq_type kAllSeqTypes[] = {V_gene_seq, VD_ins_seq,  D_gene_seq,
+                                            DJ_ins_seq, J_gene_seq,  VJ_ins_seq};
+
+    ScenarioSnapshot snapshot;
+    snapshot.scenario_proba = scenario.scenario_proba;
+
+    for (Seq_type seq_type : kAllSeqTypes) {
+        if (scenario.seq_offsets.exists(seq_type, Five_prime)
+            && scenario.seq_offsets.exists(seq_type, Three_prime)) {
+            snapshot.offsets.emplace(seq_type,
+                                     std::make_pair(scenario.get_offset(seq_type, Five_prime),
+                                                    scenario.get_offset(seq_type, Three_prime)));
+        }
+        if (scenario.constructed_sequences.exists(seq_type)) {
+            const Int_Str *segment = scenario.get_sequence_segment(seq_type);
+            snapshot.sequences.emplace(seq_type,
+                                       segment ? int_str_to_nt(*segment) : std::string());
+        }
+        if (scenario.mismatches_lists.exists(seq_type)) {
+            const std::vector<std::size_t> *mismatches = scenario.get_mismatches(seq_type);
+            snapshot.mismatches.emplace(seq_type, mismatches ? *mismatches
+                                                             : std::vector<std::size_t>{});
+        }
+        if (exploration.downstream_proba_map.exists(seq_type)) {
+            snapshot.downstream_bounds.emplace(seq_type,
+                                               exploration.downstream_proba_map.get(seq_type));
+        }
+    }
+
+    for (Event_safety safety : {Event_safety::VD_safe, Event_safety::VJ_safe, Event_safety::DJ_safe}) {
+        if (exploration.safety_set.exists(safety)) {
+            snapshot.safety.emplace(safety, exploration.safety_set.get(safety));
+        }
+    }
+
+    calls.push_back(std::move(snapshot));
+}
+
+std::shared_ptr<RecordingEvent> call_iterate_recording(const std::shared_ptr<Rec_Event> &event,
+                                                       IterateTestState &state)
+{
+    auto recorder = std::make_shared<RecordingEvent>(31);
+    call_iterate(event, state, recorder);
+    return recorder;
+}
+
+void call_iterate(const std::shared_ptr<Rec_Event> &event, IterateTestState &state,
+                  const std::shared_ptr<RecordingEvent> &next)
+{
+    //The order below mirrors GenModel's setup. It is not incidental: the length-proba
+    //bounds are built by a reverse pass over the queue *after* every event is initialized,
+    //and omitting it leaves the *_length_best_proba_map members empty, which makes the
+    //junction-length guard discard every scenario. That is the single easiest way to write
+    //a test that passes for the wrong reason.
+
+    auto &events_map = const_cast<Events_map &>(state.model.events_map);
+    auto &offset_map = const_cast<std::unordered_map<
+            Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &>(
+            state.model.offset_map);
+
+    //The event under test must be reachable through events_map like any other.
+    events_map[std::make_tuple(event->get_type(), event->get_seq_type(), event->get_side())] = event;
+
+    //Step 1: every event gets a base index of 0 at layer 0, plus a marginal size and a
+    //crude upper bound. iterate_common() and add_to_marginals() both read these.
+    for (const auto &[key, ev] : events_map) {
+        (void)key;
+        const int event_index = ev->get_event_identifier();
+        state.exploration.index_map.request_layer(event_index);
+        state.exploration.index_map.set(event_index, 0, 0);
+        ev->set_event_marginal_size(ev->size());
+        ev->set_crude_upper_bound_proba(0, ev->size(),
+                                        const_cast<Marginal_array_p &>(state.model.model_parameters));
+        ev->set_viterbi_run(false);
+    }
+
+    //Step 2: build the queue -- everything already marked chosen first, the event under
+    //test last, so that its initialize_event() sees them in processed_events.
+    std::queue<std::shared_ptr<Rec_Event>> queue;
+    std::stack<std::shared_ptr<Rec_Event>> init_stack;
+    for (const auto &[key, ev] : events_map) {
+        (void)key;
+        if (ev != event && state.processed_events().count(ev->get_name()) != 0) {
+            queue.push(ev);
+        }
+    }
+    queue.push(event);
+    state.model_queue() = queue;
+
+    //Step 3: initialize_event() in queue order. Note the aliasing: processed_events is the
+    //state's own set, so the chosen events stay marked while the event under test
+    //initializes, which is exactly what drives its *_chosen flags.
+    {
+        std::queue<std::shared_ptr<Rec_Event>> init_queue = queue;
+        while (!init_queue.empty()) {
+            std::shared_ptr<Rec_Event> ev = init_queue.front();
+            init_queue.pop();
+            init_stack.push(ev);
+            ev->initialize_event(state.processed_events(), events_map, offset_map,
+                                 state.exploration.downstream_proba_map,
+                                 state.scenario.constructed_sequences, state.exploration.safety_set,
+                                 state.accumulation.error_rate, state.scenario.mismatches_lists,
+                                 state.scenario.seq_offsets, state.exploration.index_map);
+        }
+    }
+
+    //Step 4: next-event chain. With a recorder, the event under test hands off to it and
+    //stops; without one, iterate_wrap_up() takes the leaf path, which pulls in Error_rate
+    //and therefore needs a *complete* scenario (V, D and J all constructed).
+    for (const auto &[key, ev] : events_map) {
+        (void)key;
+        state.exploration.next_event_ptr_arr.get()[ev->get_event_identifier()] = nullptr;
+    }
+    if (next) {
+        state.exploration.next_event_ptr_arr.get()[event->get_event_identifier()] = next.get();
+    }
+
+    //Step 5: probability bounds, reverse queue order.
+    {
+        double downstream_proba_bound = 1.0;
+        std::forward_list<double *> updated_proba_list;
+        while (!init_stack.empty()) {
+            std::shared_ptr<Rec_Event> ev = init_stack.top();
+            init_stack.pop();
+
+            std::queue<std::shared_ptr<Rec_Event>> remaining = queue;
+            while (!remaining.empty() && remaining.front() != ev) {
+                remaining.pop();
+            }
+            if (!remaining.empty()) {
+                remaining.pop();
+            }
+
+            ev->initialize_crude_scenario_proba_bound(downstream_proba_bound, updated_proba_list,
+                                                      events_map);
+            ev->initialize_Len_proba_bound(remaining,
+                                           const_cast<Marginal_array_p &>(state.model.model_parameters),
+                                           state.exploration.index_map);
+        }
+    }
+
+    event->iterate(state.query, state.model, state.scenario, state.exploration, state.accumulation);
+}
+
+// ============================================================================
+// State inspection
+// ============================================================================
+
+Seq_Offset get_seq_offset(const IterateTestState &state, Seq_type seq_type, Seq_side side,
+                          std::size_t layer)
+{
+    return state.scenario.seq_offsets.get(seq_type, side, layer);
+}
+
+bool has_seq_offset(const IterateTestState &state, Seq_type seq_type, Seq_side side)
+{
+    return state.scenario.seq_offsets.exists(seq_type, side);
+}
+
+const Int_Str *get_constructed_sequence(const IterateTestState &state, Seq_type seq_type,
+                                        std::size_t layer)
+{
+    return state.scenario.constructed_sequences.get(seq_type, layer);
+}
+
+bool has_constructed_sequence(const IterateTestState &state, Seq_type seq_type)
+{
+    return state.scenario.constructed_sequences.exists(seq_type);
+}
+
+std::vector<std::size_t> get_mismatches(const IterateTestState &state, Seq_type seq_type,
+                                        std::size_t layer)
+{
+    const std::vector<std::size_t> *v = state.scenario.mismatches_lists.get(seq_type, layer);
+    return v ? *v : std::vector<std::size_t>{};
+}
+
+bool is_safe(const IterateTestState &state, Event_safety safety_type, std::size_t layer)
+{
+    return state.exploration.safety_set.get(safety_type, layer);
+}
+
+bool has_safety(const IterateTestState &state, Event_safety safety_type)
+{
+    return state.exploration.safety_set.exists(safety_type);
+}
+
+double get_downstream_bound(const IterateTestState &state, Seq_type seq_type, std::size_t layer)
+{
+    return state.exploration.downstream_proba_map.get(seq_type, layer);
+}
+
+long double total_marginal_mass(const IterateTestState &state, std::size_t marginal_array_size)
+{
+    long double total = 0.0;
+    for (std::size_t i = 0; i != marginal_array_size; ++i) {
+        total += state.accumulation.updated_marginals[i];
+    }
+    return total;
+}
+
+// ============================================================================
+// Event builders
+// ============================================================================
+
+std::shared_ptr<Gene_choice> make_gene_choice(Gene_class gene_class,
+                                              const std::vector<std::pair<std::string, std::string>> &genes,
+                                              int event_id, bool fixed)
+{
+    auto event = std::make_shared<Gene_choice>(gene_class);
+    for (const auto &[name, sequence] : genes) {
+        event->add_realization(name, sequence);
+    }
+    event->set_event_identifier(event_id);
+    event->set_priority(1);
+    Seq_type target = V_gene_seq;
+    if (!igor::migration::try_gene_class_to_gene_seq_type(gene_class, target)) {
+        throw std::invalid_argument("make_gene_choice: gene class has no gene seq_type");
+    }
+    const Seq_type_String seq_type = EventUtils::seq_type_to_string(target);
+    event->set_seq_type(seq_type);
+    event->set_seq_type_id(legacy_seq_type_registry().id(seq_type));
+    event->update_event_name();
+    event->fix(fixed);
+    return event;
+}
+
+std::shared_ptr<Deletion> make_deletion(Seq_type target, Seq_side side, int min_del, int max_del,
+                                        int event_id)
+{
+    auto event = std::make_shared<Deletion>(target, side, std::make_pair(min_del, max_del));
+    event->set_event_identifier(event_id);
+    event->set_priority(1);
+    const Seq_type_String seq_type = EventUtils::seq_type_to_string(target);
+    event->set_seq_type(seq_type);
+    event->set_seq_type_id(legacy_seq_type_registry().id(seq_type));
+    event->update_event_name();
+    event->fix(true);
+    return event;
+}
+
+Alignment_data create_perfect_alignment(const std::string &gene_name, int offset, int gene_length)
+{
+    return create_mock_alignment_data(gene_name, offset, offset >= 0 ? offset : 0,
+                                      offset + gene_length - 1, {}, 100.0);
+}
+
+Alignment_data create_alignment_with_mismatches(const std::string &gene_name, int offset,
+                                                int gene_length,
+                                                const std::vector<std::size_t> &mismatch_positions)
+{
+    return create_mock_alignment_data(gene_name, offset, offset >= 0 ? offset : 0,
+                                      offset + gene_length - 1, mismatch_positions,
+                                      100.0 - 5.0 * static_cast<double>(mismatch_positions.size()));
 }
 
 } // namespace IgorTestUtils

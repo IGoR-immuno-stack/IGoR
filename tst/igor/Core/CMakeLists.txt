@@ -9,6 +9,7 @@ set(CORE_TEST_SOURCES
     test_dynamic_sequence_map.cpp
     test_fast_sampling.cpp
     test_generation.cpp
+    test_gene_choice_iterate.cpp
     test_genetic_code.cpp
     test_inference.cpp
     test_layered_array.cpp
