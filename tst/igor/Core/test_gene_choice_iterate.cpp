@@ -475,6 +475,72 @@ TEST_CASE("Gene_choice::iterate endogenous-mismatch bound (G8)", "[gene_choice][
         CHECK_THAT(rec->calls.at(0).downstream_bounds.at(V_gene_seq),
                    Catch::Matchers::WithinRel(expected, 1e-9));
     }
+
+    SECTION("J: the same sign slip, mirrored (plan section 7.1)")
+    {
+        // J 5' deletions [0,4] => j_5_max_del == -4, so the surviving core is [16, 19] and
+        // mismatches at or after 16 are endogenous. With mismatches at 13 and 17, one is.
+        //
+        //     credited = gene_seq.size() - j_5_max_del - endo = 8 + 4 - 1 = 11
+        //     correct  = core span (4) - endo                              = 3
+        //
+        // Same defect as the V section, same direction. The D branch below has the sign
+        // right, which is what makes this a copy-paste slip in two of three branches rather
+        // than a single consistent convention.
+        const std::string j_gene = "GGGGCCCC"; // 8 nt
+        const std::string read = "ACGTACGTACGTGGGGCCCC"; // 20 nt, J aligned at 12
+        auto state = create_iterate_state(read);
+        state.set_error_rate(kRate);
+        auto j_event = make_gene_choice(J_gene, {{"J1", j_gene}}, 0, /*fixed=*/false);
+        state.add_downstream_event(make_deletion(J_gene_seq, Five_prime, 0, 4, 2));
+        state.set_alignments(
+                J_gene, {create_alignment_with_mismatches("J1", 12, j_gene.size(), {13, 17})});
+        state.set_marginal(0, 1.0L);
+
+        auto rec = call_iterate_recording(j_event, state);
+        dump(rec, "J endogenous");
+
+        REQUIRE(rec->call_count() == 1);
+        const double buggy = std::pow(kRate / 3.0, 1) * std::pow(1.0 - kRate, 11);
+        const double correct = std::pow(kRate / 3.0, 1) * std::pow(1.0 - kRate, 3);
+        CHECK_THAT(rec->calls.at(0).downstream_bounds.at(J_gene_seq),
+                   Catch::Matchers::WithinRel(buggy, 1e-9));
+        CHECK(buggy < correct);
+    }
+
+    SECTION("D: the core is bounded at both ends, and the span is credited one short")
+    {
+        // D is the only branch with deletions pending on both sides, so its core is a
+        // genuine intersection: [d_5_off - d_5_max_del, d_3_off + d_3_max_del], here
+        // [8 + 2, 15 - 2] = [10, 13]. Mismatches inside it are endogenous.
+        //
+        // The credited length is the difference of the two bounds, 13 - 10 = 3, where the
+        // span is 4 inclusive positions. So D under-credits by exactly one rather than
+        // getting the sign wrong -- a different defect from V and J, and a much smaller one.
+        const std::string d_gene = "TTTTTTTT"; // 8 nt, aligned at 8 => [8, 15]
+        const std::string read = "ACGTACGTTTTATTTTACGT"; // 20 nt
+        auto state = create_iterate_state(read);
+        state.set_error_rate(kRate);
+        auto d_event = make_gene_choice(D_gene, {{"D1", d_gene}}, 0, /*fixed=*/false);
+        state.add_downstream_event(make_deletion(D_gene_seq, Five_prime, 0, 2, 2));
+        state.add_downstream_event(make_deletion(D_gene_seq, Three_prime, 0, 2, 3));
+        // Mismatch at 9 is outside the core, at 11 inside it.
+        state.set_alignments(
+                D_gene, {create_alignment_with_mismatches("D1", 8, d_gene.size(), {9, 11})});
+        state.set_marginal(0, 1.0L);
+
+        auto rec = call_iterate_recording(d_event, state);
+        dump(rec, "D endogenous");
+
+        REQUIRE(rec->call_count() == 1);
+        const double observed = std::pow(kRate / 3.0, 1) * std::pow(1.0 - kRate, 2); // 3 - 1
+        const double correct = std::pow(kRate / 3.0, 1) * std::pow(1.0 - kRate, 3);  // 4 - 1
+        CHECK_THAT(rec->calls.at(0).downstream_bounds.at(D_gene_seq),
+                   Catch::Matchers::WithinRel(observed, 1e-9));
+        // Under-crediting makes the bound too *large*, i.e. it under-prunes -- the opposite
+        // direction from the V and J slip, and harmless for correctness.
+        CHECK(observed > correct);
+    }
 }
 
 TEST_CASE("Gene_choice::iterate pruning", "[gene_choice][iterate][pruning]")

@@ -908,6 +908,17 @@ in a separate, explicitly-labelled commit — never folded into a refactor.
 the sign right (off by one on the inclusive count); V and J have it **inverted**, crediting
 `size + max_del` error-free positions where at most `size − max_del` can survive.
 
+**Measured** (T0, `[endogenous]` sections), with rate 0.1 and one endogenous mismatch:
+
+| Branch | credited exponent | correct | direction |
+|---|---:|---:|---|
+| V, 12 nt template, max 4 deletions | 15 | 7 | bound too **small** → over-prunes |
+| J, 8 nt template, max 4 deletions | 11 | 3 | bound too **small** → over-prunes |
+| D, 8 nt template, max 2 per end | 2 | 3 | bound too **large** → under-prunes, harmless |
+
+So it is two defects, not one: a sign inversion in V and J, and an inclusive-count off-by-one in
+D. Only the first can discard scenarios that should have been kept.
+
 Since `get_err_rate_upper_bound(i,j) = (r/3)^i · (1−r)^j`
 ([Singleerrorrate.cpp:91](../src/igor/Core/Singleerrorrate.cpp#L91)) is strictly decreasing in
 `j`, over-crediting yields a bound that is **too small** — i.e. *more aggressive pruning than the
