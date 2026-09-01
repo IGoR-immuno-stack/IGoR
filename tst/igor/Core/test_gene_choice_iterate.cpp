@@ -37,6 +37,8 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
+#include <cmath>
+
 using namespace IgorTestUtils;
 
 namespace {
@@ -349,5 +351,128 @@ TEST_CASE("Gene_choice::iterate overlap verdicts (G2/G3)", "[gene_choice][iterat
         REQUIRE(rec->call_count() == 1);
         CHECK(rec->calls.at(0).safety.at(Event_safety::VD_safe) == true);
         CHECK(rec->calls.at(0).safety.at(Event_safety::VJ_safe) == true);
+    }
+}
+
+TEST_CASE("Gene_choice::iterate junction-length bound (G5)", "[gene_choice][iterate][junction]")
+{
+    // The guard at Genechoice.cpp:322: the gap between V's 3' end and the chosen D's 5'
+    // end, measured *before* either pending deletion, must be a gap the downstream chain
+    // can actually produce. The map is keyed by that pre-deletion gap, which is why
+    // Deletion contributes -value_int and Insertion +value_int -- the identity enumerated
+    // is  ins = gap + del_V + del_D5.
+    //
+    // Isolating this from the overlap early-out (section 7.6 of the plan) needs a gap that
+    // is *too large*: the overlap check only ever fires on gaps that are too small, so a
+    // positive out-of-range gap is rejected by the guard alone.
+    const std::string v_gene = "ACGTACGTACGT"; // 12 nt, 3' end at 11
+    const std::string d_gene = "TTTT";
+    const std::string read = "ACGTACGTACGTTTTTTTTTTTTTTTTTTTTT";
+
+    auto build = [&](IterateTestState &state, Seq_Offset d_five_prime) {
+        auto v_event = make_gene_choice(V_gene, {{"V1", v_gene}}, 0, /*fixed=*/false);
+        auto d_stub = make_gene_choice(D_gene, {{"D1", d_gene}}, 1);
+        state.add_event(d_stub);
+        state.mark_chosen(d_stub);
+        state.preset_segment(D_gene_seq, d_five_prime,
+                             d_five_prime + static_cast<Seq_Offset>(d_gene.size()) - 1, d_gene);
+        state.add_downstream_event(make_deletion(V_gene_seq, Three_prime, 0, 4, 2));
+        state.add_downstream_event(make_deletion(D_gene_seq, Five_prime, 0, 4, 3));
+        state.set_alignments(V_gene, {create_perfect_alignment("V1", 0, v_gene.size())});
+        state.set_marginal(0, 1.0L);
+        return v_event;
+    };
+
+    SECTION("Achievable gap: the scenario survives and the VD bound is set")
+    {
+        // D at 12 leaves a gap of 0, reachable with zero deletions on both ends.
+        auto state = create_iterate_state(read);
+        auto v_event = build(state, 12);
+
+        auto rec = call_iterate_recording(v_event, state);
+        dump(rec, "junction achievable");
+
+        REQUIRE(rec->call_count() == 1);
+        // The bound written for VD_ins_seq is the best probability the chain can reach at
+        // this gap, not 1.0 by default.
+        CHECK(rec->calls.at(0).downstream_bounds.count(VD_ins_seq) == 1);
+    }
+
+    SECTION("Unachievable gap: the scenario is discarded by the guard alone")
+    {
+        // D at 13 leaves a gap of 1. Deletions only ever widen the post-deletion gap, so a
+        // pre-deletion gap of 1 needs at least one insertion, and no Insertion event is in
+        // the chain. The overlap check passes here (7 >= 17 is false), so the guard is the
+        // only thing rejecting this.
+        auto state = create_iterate_state(read);
+        auto v_event = build(state, 13);
+
+        auto rec = call_iterate_recording(v_event, state);
+        dump(rec, "junction unachievable");
+
+        REQUIRE(rec->call_count() == 0);
+    }
+}
+
+TEST_CASE("Gene_choice::iterate endogenous-mismatch bound (G8)", "[gene_choice][iterate][endogenous]")
+{
+    // Mismatches that survive the maximum remaining deletion cannot be explained away, so
+    // they set a floor on the error probability. The count is taken over the segment's
+    // surviving core; the credited error-free length is what section 7.1 of the plan is
+    // about.
+    const double kRate = 0.1;
+    const std::string v_gene = "ACGTACGTACGT"; // 12 nt, 3' end at 11
+
+    SECTION("V: pins the credited match length, including the sign slip (plan section 7.1)")
+    {
+        // V 3' deletions [0,4] => v_3_max_del == -4, so the surviving core is [0, 7] and
+        // mismatches at or before 7 are endogenous. With mismatches at 2 and 9, one is.
+        //
+        // The bound the code computes is
+        //     (r/3)^1 * (1-r)^(gene_seq.size() - v_3_max_del - 1) = (r/3)^1 * (1-r)^15
+        // and 15 is wrong: the core spans 8 positions, so at most 7 can be error-free.
+        // `- v_3_max_del` should be `+ v_3_max_del`. The consequence is a bound that is too
+        // small, i.e. more aggressive pruning than the model justifies.
+        //
+        // This section pins 15 deliberately. When section 7.1 is fixed -- last, per decision
+        // O4 -- the expected exponent becomes 7 and this section is the one that changes.
+        auto state = create_iterate_state("ACGTACGTACGTTTTTTTT");
+        state.set_error_rate(kRate);
+        auto v_event = make_gene_choice(V_gene, {{"V1", v_gene}}, 0, /*fixed=*/false);
+        state.add_downstream_event(make_deletion(V_gene_seq, Three_prime, 0, 4, 2));
+        state.set_alignments(
+                V_gene, {create_alignment_with_mismatches("V1", 0, v_gene.size(), {2, 9})});
+        state.set_marginal(0, 1.0L);
+
+        auto rec = call_iterate_recording(v_event, state);
+        dump(rec, "V endogenous");
+
+        REQUIRE(rec->call_count() == 1);
+        const double buggy = std::pow(kRate / 3.0, 1) * std::pow(1.0 - kRate, 15);
+        const double correct = std::pow(kRate / 3.0, 1) * std::pow(1.0 - kRate, 7);
+        CHECK_THAT(rec->calls.at(0).downstream_bounds.at(V_gene_seq),
+                   Catch::Matchers::WithinRel(buggy, 1e-9));
+        CHECK(buggy < correct); // the direction of the error: too small, so it over-prunes
+    }
+
+    SECTION("V: a mismatch beyond the surviving core is not endogenous")
+    {
+        // Same geometry, but the only mismatch sits at 9, past the core end at 7, so it can
+        // be deleted away and contributes no error floor: the exponent on (r/3) is 0.
+        auto state = create_iterate_state("ACGTACGTACGTTTTTTTT");
+        state.set_error_rate(kRate);
+        auto v_event = make_gene_choice(V_gene, {{"V1", v_gene}}, 0, /*fixed=*/false);
+        state.add_downstream_event(make_deletion(V_gene_seq, Three_prime, 0, 4, 2));
+        state.set_alignments(V_gene,
+                             {create_alignment_with_mismatches("V1", 0, v_gene.size(), {9})});
+        state.set_marginal(0, 1.0L);
+
+        auto rec = call_iterate_recording(v_event, state);
+        dump(rec, "V endogenous none");
+
+        REQUIRE(rec->call_count() == 1);
+        const double expected = std::pow(1.0 - kRate, 16); // (r/3)^0 * (1-r)^(12 + 4 - 0)
+        CHECK_THAT(rec->calls.at(0).downstream_bounds.at(V_gene_seq),
+                   Catch::Matchers::WithinRel(expected, 1e-9));
     }
 }

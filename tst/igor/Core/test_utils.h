@@ -306,6 +306,13 @@ public:
 
     const std::vector<std::shared_ptr<Rec_Event>> &downstream_events() const { return downstream_; }
 
+    /// Replace the error model. Defaults to Single_error_rate(0.0); a non-zero rate is
+    /// what makes the downstream error bound a number worth asserting on.
+    void set_error_rate(double rate)
+    {
+        accumulation_storage.error_rate = std::make_shared<Single_error_rate>(rate);
+    }
+
     /// Turn pruning on. Left off by default (threshold 0) so that a scenario is dropped
     /// only by an explicit geometric or range check, never incidentally.
     void set_pruning(double seq_max_prob, double proba_threshold_factor)
