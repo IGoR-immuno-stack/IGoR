@@ -971,7 +971,45 @@ overlap check "safe", skipping real constraints. A0 removes the whole class of h
 computing the bounds once, correctly, in one place. Add a unit test asserting the bounds against
 `std::minmax_element` over the realization set as part of A0.
 
-### 7.5 — `Insertion`'s missing safety check
+### 7.6 — In `Gene_choice`, the overlap early-out is subsumed by the junction-length guard
+
+*(Found Sep 1 2026 while writing T0's overlap sections; the first draft of them passed for
+the wrong reason.)*
+
+`Gene_choice`'s V branch performs the overlap `continue`
+([Genechoice.cpp:265](../src/igor/Core/Genechoice.cpp#L265)) and then, further down, the
+junction-length guard ([:322](../src/igor/Core/Genechoice.cpp#L322)). **They reject exactly the
+same geometries.** Writing `L` for the pre-deletion gap `d_5_off − v_3_off − 1`:
+
+| | condition |
+|---|---|
+| overlap rejects | `L ≤ −max_del_V − max_del_D5 − 1` |
+| guard accepts | `L ≥ min_ins − max_del_V − max_del_D5`, and `L` achievable |
+
+The guard's key is the gap measured *before* the pending deletions, which is why
+`Deletion::iterate_initialize_Len_proba` contributes `−value_int` while `Insertion` contributes
+`+value_int`: the identity being enumerated is `ins = L + del_V + del_D5`. The two intervals are
+adjacent and disjoint when `min_ins == 0`, and the guard is strictly stronger when `min_ins > 0`.
+**The overlap check is therefore a pure early-out** — it never rejects anything the guard would
+have accepted.
+
+Verified by mutation on the T0 overlap sections: deleting the overlap `continue`, or deleting the
+junction guard, each leaves every section green; only removing both changes the outcome.
+
+Three consequences:
+
+1. **It is not dead code and must be kept.** It fires before `iterate_common()`, the mismatch
+   scan and the error-rate bound, so it skips real work on the most-executed event. The generic
+   G2 `check()` should keep the Infeasible verdict as an early-out.
+2. **It cannot be characterization-tested in isolation.** T0's Infeasible section pins the
+   outcome and says so rather than pretending to pin the check. Any future test claiming to
+   isolate it should be treated as passing for the wrong reason until a mutation says otherwise.
+3. **`Deletion` is where the overlap check earns its keep**, and its status there must be
+   established separately — do not carry this conclusion across. At `Deletion::iterate` time the
+   moving end's interval has already collapsed to a point (§2.2), so the two conditions no longer
+   line up the same way. Step 4 must re-run this experiment for `Deletion` rather than assume.
+
+### 7.7 — `Insertion`'s missing safety check
 
 `Insertion` performs **no** overlap check at all; it computes a length from two offsets and
 discards the scenario if that length is outside the realization range

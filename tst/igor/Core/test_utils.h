@@ -203,6 +203,9 @@ private:
     std::deque<Int_Str> preset_sequences_;
     std::deque<std::vector<std::size_t>> preset_mismatches_;
 
+    /// Events after the event under test in the model queue, in order.
+    std::vector<std::shared_ptr<Rec_Event>> downstream_;
+
 public:
     QuerySequenceContext query;
     ModelContext model;
@@ -219,6 +222,7 @@ public:
           processed_events_{},
           preset_sequences_{},
           preset_mismatches_{},
+          downstream_{},
           query(query_storage.sequence, query_storage.int_sequence, query_storage.gene_alignments),
           model(model_storage.model_marginals, model_storage.offset_map, model_storage.events_map,
                 model_storage.model_queue),
@@ -284,6 +288,23 @@ public:
     {
         model_storage.model_marginals[index] = value;
     }
+
+    /**
+     * Register an event that sits *after* the event under test in the model queue.
+     *
+     * These are never iterated -- the recorder intercepts first -- but they are what the
+     * reverse initialize_Len_proba_bound() pass walks to populate the junction-length
+     * maps. Without any, the map collapses to {0: 1.0} and the junction-length guard
+     * discards every scenario whose neighbours are not exactly adjacent, which silently
+     * turns a safety-check test into a test of the junction guard.
+     */
+    void add_downstream_event(const std::shared_ptr<Rec_Event> &event)
+    {
+        add_event(event);
+        downstream_.push_back(event);
+    }
+
+    const std::vector<std::shared_ptr<Rec_Event>> &downstream_events() const { return downstream_; }
 
     /// Turn pruning on. Left off by default (threshold 0) so that a scenario is dropped
     /// only by an explicit geometric or range check, never incidentally.

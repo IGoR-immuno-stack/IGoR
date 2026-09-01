@@ -192,17 +192,19 @@ void call_iterate(const std::shared_ptr<Rec_Event> &event, IterateTestState &sta
         ev->set_viterbi_run(false);
     }
 
-    //Step 2: build the queue -- everything already marked chosen first, the event under
-    //test last, so that its initialize_event() sees them in processed_events.
+    //Step 2: the queue holds the event under test alone. Neighbours marked with
+    //mark_chosen() are deliberately *not* initialized: initialize_event() requests a memory
+    //layer per seq_type it touches, so running it on a neighbour would shift that
+    //neighbour's current layer to 1 while preset_segment() writes at 0, and the event under
+    //test would read an unwritten layer. Registering them in events_map and in
+    //processed_events reproduces everything the code under test actually queries about them
+    //-- existence, chosen-ness, and their offsets -- with the layer numbering pinned.
     std::queue<std::shared_ptr<Rec_Event>> queue;
     std::stack<std::shared_ptr<Rec_Event>> init_stack;
-    for (const auto &[key, ev] : events_map) {
-        (void)key;
-        if (ev != event && state.processed_events().count(ev->get_name()) != 0) {
-            queue.push(ev);
-        }
-    }
     queue.push(event);
+    for (const auto &downstream : state.downstream_events()) {
+        queue.push(downstream);
+    }
     state.model_queue() = queue;
 
     //Step 3: initialize_event() in queue order. Note the aliasing: processed_events is the
