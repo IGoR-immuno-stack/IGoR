@@ -476,3 +476,117 @@ TEST_CASE("Gene_choice::iterate endogenous-mismatch bound (G8)", "[gene_choice][
                    Catch::Matchers::WithinRel(expected, 1e-9));
     }
 }
+
+TEST_CASE("Gene_choice::iterate pruning", "[gene_choice][iterate][pruning]")
+{
+    // should_prune(bound) is bound < seq_max_prob * proba_threshold_factor. Every other
+    // section runs with the threshold at 0 so that nothing is dropped incidentally; this
+    // one turns it on.
+    const std::string v_gene_a = "ACGTACGTACGT";
+    const std::string v_gene_b = "ACGTACGTACGT";
+
+    SECTION("A realization below the threshold is skipped, one above is not")
+    {
+        auto state = create_iterate_state("ACGTACGTACGTTTTTTTT");
+        auto v_event =
+                make_gene_choice(V_gene, {{"V1", v_gene_a}, {"V2", v_gene_b}}, 0, /*fixed=*/false);
+        state.set_alignments(V_gene, {create_perfect_alignment("V1", 0, v_gene_a.size()),
+                                      create_perfect_alignment("V2", 0, v_gene_b.size())});
+        // With no mismatches and rate 0 every downstream bound is 1, so the upper bound is
+        // just the realization probability.
+        state.set_marginal(0, 0.9L);
+        state.set_marginal(1, 0.1L);
+        state.set_pruning_threshold(0.5);
+
+        auto rec = call_iterate_recording(v_event, state);
+        dump(rec, "pruning");
+
+        REQUIRE(rec->call_count() == 1);
+        CHECK(rec->calls.at(0).scenario_proba == 0.9);
+    }
+
+    SECTION("Positive control: both survive with pruning off")
+    {
+        auto state = create_iterate_state("ACGTACGTACGTTTTTTTT");
+        auto v_event =
+                make_gene_choice(V_gene, {{"V1", v_gene_a}, {"V2", v_gene_b}}, 0, /*fixed=*/false);
+        state.set_alignments(V_gene, {create_perfect_alignment("V1", 0, v_gene_a.size()),
+                                      create_perfect_alignment("V2", 0, v_gene_b.size())});
+        state.set_marginal(0, 0.9L);
+        state.set_marginal(1, 0.1L);
+
+        auto rec = call_iterate_recording(v_event, state);
+        REQUIRE(rec->call_count() == 2);
+    }
+}
+
+TEST_CASE("Gene_choice::iterate exhaustive position fallback (G6)",
+          "[gene_choice][iterate][exhaustive]")
+{
+    // When the aligner returns nothing for a D gene, Gene_choice falls back to trying the
+    // template at every plausible position. The fallback lives inside `case D_gene`, so V
+    // and J never reach it -- an accident of the switch rather than a stated policy, and
+    // exactly what B11 must turn into an explicit per-event switch before the generic body
+    // extends it to every gene class.
+
+    SECTION("V with no alignments enumerates nothing")
+    {
+        // Contrast with the D section below: same empty-alignment situation, opposite
+        // outcome, and the only thing that differs is the gene class.
+        auto state = create_iterate_state("ACGTACGTACGTTTTTTTT");
+        auto v_event = make_gene_choice(V_gene, {{"V1", "ACGTACGTACGT"}}, 0, /*fixed=*/false);
+        state.set_alignments(V_gene, {});
+        state.set_marginal(0, 1.0L);
+
+        auto rec = call_iterate_recording(v_event, state);
+        REQUIRE(rec->call_count() == 0);
+    }
+
+    SECTION("J with no alignments enumerates nothing")
+    {
+        auto state = create_iterate_state("ACGTACGTACGTTTTTTTT");
+        auto j_event = make_gene_choice(J_gene, {{"J1", "GGGGCCCC"}}, 0, /*fixed=*/false);
+        state.set_alignments(J_gene, {});
+        state.set_marginal(0, 1.0L);
+
+        auto rec = call_iterate_recording(j_event, state);
+        REQUIRE(rec->call_count() == 0);
+    }
+
+    SECTION("D with no alignments and no chosen neighbours slides the template")
+    {
+        // The `else` branch at Genechoice.cpp:681. With neither V nor J chosen the window
+        // runs from just inside the read to the last read position, one nucleotide at a
+        // time, and every position is emitted because no junction guard applies.
+        const std::string d_gene = "TTTT";
+        const std::string read = "ACGTACGTACGTTTTTTTTT"; // 20 nt
+        auto state = create_iterate_state(read);
+        auto d_event = make_gene_choice(D_gene, {{"D1", d_gene}}, 0, /*fixed=*/false);
+        state.set_alignments(D_gene, {});
+        state.set_marginal(0, 1.0L);
+
+        auto rec = call_iterate_recording(d_event, state);
+        dump(rec, "D sliding");
+
+        // 14 positions, 5' offsets 2 through 15. The window starts at 2 -- "V cannot be
+        // absent from the read, at least one nucleotide is present" plus one -- and runs
+        // while the D 3' end is left of j_5_min_offset, which with no J chosen is the last
+        // read position (19).
+        REQUIRE(rec->call_count() == 14);
+        CHECK(rec->calls.front().five_prime(D_gene_seq) == 2);
+        CHECK(rec->calls.back().five_prime(D_gene_seq) == 15);
+        CHECK(rec->calls.back().three_prime(D_gene_seq)
+              == static_cast<Seq_Offset>(read.size()) - 2);
+        // Positions are contiguous and advance by one.
+        for (std::size_t i = 1; i < rec->calls.size(); ++i) {
+            CHECK(rec->calls.at(i).five_prime(D_gene_seq)
+                  == rec->calls.at(i - 1).five_prime(D_gene_seq) + 1);
+        }
+        // The template is placed whole at every position: 3' = 5' + len - 1.
+        for (const ScenarioSnapshot &snapshot : rec->calls) {
+            CHECK(snapshot.three_prime(D_gene_seq)
+                  == snapshot.five_prime(D_gene_seq) + static_cast<Seq_Offset>(d_gene.size()) - 1);
+            CHECK(snapshot.sequences.at(D_gene_seq) == d_gene);
+        }
+    }
+}

@@ -151,10 +151,13 @@ struct ExplorationStorage {
 
     explicit ExplorationStorage(std::size_t max_events)
         : downstream_proba_map(legacy_seq_type_registry(), kTestLayers),
-          //Pruning off by default: seq_max_prob * proba_threshold == 0, so should_prune()
-          //is false for any non-negative bound. Tests that exercise pruning set these.
+          //ExplorationContext copies proba_threshold_factor by value, so it can only be set
+          //here. Fixing it at 1 makes seq_max_prob itself the pruning threshold, and it is a
+          //reference, so set_pruning_threshold() can move it afterwards. Starting at 0 means
+          //should_prune() is false for any non-negative bound: nothing is dropped
+          //incidentally, only by an explicit geometric or range check.
           seq_max_prob(0.0),
-          proba_threshold(0.0),
+          proba_threshold(1.0),
           index_map(max_events, kTestLayers),
           next_event_ptr_arr(new Next_event_ptr[max_events](),
                              std::default_delete<Next_event_ptr[]>()),
@@ -313,13 +316,11 @@ public:
         accumulation_storage.error_rate = std::make_shared<Single_error_rate>(rate);
     }
 
-    /// Turn pruning on. Left off by default (threshold 0) so that a scenario is dropped
-    /// only by an explicit geometric or range check, never incidentally.
-    void set_pruning(double seq_max_prob, double proba_threshold_factor)
-    {
-        exploration_storage.seq_max_prob = seq_max_prob;
-        exploration_storage.proba_threshold = proba_threshold_factor;
-    }
+    /// Prune any scenario whose upper bound falls below `threshold`. Off by default.
+    /// The threshold *factor* cannot be changed after construction (ExplorationContext
+    /// holds it by value), so this moves seq_max_prob_scenario instead, which the context
+    /// holds by reference; with the factor pinned at 1 the two are the same knob.
+    void set_pruning_threshold(double threshold) { exploration_storage.seq_max_prob = threshold; }
 
     std::unordered_set<Rec_Event_name> &processed_events() { return processed_events_; }
     std::queue<std::shared_ptr<Rec_Event>> &model_queue() { return model_storage.model_queue; }
