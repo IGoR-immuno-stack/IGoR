@@ -589,4 +589,84 @@ TEST_CASE("Gene_choice::iterate exhaustive position fallback (G6)",
             CHECK(snapshot.sequences.at(D_gene_seq) == d_gene);
         }
     }
+
+    SECTION("D with no alignments and both neighbours chosen uses the position map")
+    {
+        // The other sub-branch, at Genechoice.cpp:546: instead of sliding, positions come
+        // from vj_length_d_position_proba, built at :1444 by composing the VD and DJ length
+        // maps with the D template length. This is the structure B11 has to generalise --
+        // the identity is junction_len = d_gene.size() + vd_len + dj_len, with vd/dj taken
+        // from VD_ins_seq and DJ_ins_seq by name.
+        //
+        //   V occupies [0, 11], J occupies [16, 19], so vj_len = 16 - 11 - 1 = 4.
+        //   Deletions of at most 2 per end give VD and DJ length maps over [-4, 0], hence
+        //   junction keys 4 + vd + dj over [-4, 4]. Key 4 is reachable only by (0, 0).
+        const std::string d_gene = "TTTT";
+        const std::string read = "ACGTACGTACGTTTAATTTT"; // 20 nt
+        auto state = create_iterate_state(read);
+
+        auto d_event = make_gene_choice(D_gene, {{"D1", d_gene}}, 0, /*fixed=*/false);
+        auto v_stub = make_gene_choice(V_gene, {{"V1", "ACGTACGTACGT"}}, 1);
+        auto j_stub = make_gene_choice(J_gene, {{"J1", "TTTT"}}, 2);
+        state.add_event(v_stub);
+        state.add_event(j_stub);
+        state.mark_chosen(v_stub);
+        state.mark_chosen(j_stub);
+        state.preset_segment(V_gene_seq, 0, 11, "ACGTACGTACGT");
+        state.preset_segment(J_gene_seq, 16, 19, "TTTT");
+
+        state.add_downstream_event(make_deletion(V_gene_seq, Three_prime, 0, 2, 3));
+        state.add_downstream_event(make_deletion(D_gene_seq, Five_prime, 0, 2, 4));
+        state.add_downstream_event(make_deletion(D_gene_seq, Three_prime, 0, 2, 5));
+        state.add_downstream_event(make_deletion(J_gene_seq, Five_prime, 0, 2, 6));
+
+        state.set_alignments(D_gene, {});
+        state.set_marginal(0, 1.0L);
+
+        auto rec = call_iterate_recording(d_event, state);
+        dump(rec, "D position map");
+
+        REQUIRE(rec->call_count() == 1);
+        const ScenarioSnapshot &s = rec->calls.at(0);
+        // d_5_off = v_3_offset + vd_len, i.e. the D is placed *on* V's 3' position rather
+        // than after it. Pinned as observed; whether the +1 is missing is a question for
+        // B11, not for this test.
+        CHECK(s.five_prime(D_gene_seq) == 11);
+        CHECK(s.three_prime(D_gene_seq) == 14);
+        CHECK(s.sequences.at(D_gene_seq) == d_gene);
+    }
+
+    SECTION("Mismatches are recomputed per position against the read")
+    {
+        // Same fixture. The template TTTT sits over read[11..14] = "TTTA", so exactly one
+        // position mismatches -- and the mismatch list is rebuilt from the read at each
+        // position rather than carried from an alignment, which is the tier-1 computation
+        // section 2.10 of the plan wants lifted out of the scenario loop.
+        const std::string d_gene = "TTTT";
+        const std::string read = "ACGTACGTACGTTTAATTTT";
+        auto state = create_iterate_state(read);
+
+        auto d_event = make_gene_choice(D_gene, {{"D1", d_gene}}, 0, /*fixed=*/false);
+        auto v_stub = make_gene_choice(V_gene, {{"V1", "ACGTACGTACGT"}}, 1);
+        auto j_stub = make_gene_choice(J_gene, {{"J1", "TTTT"}}, 2);
+        state.add_event(v_stub);
+        state.add_event(j_stub);
+        state.mark_chosen(v_stub);
+        state.mark_chosen(j_stub);
+        state.preset_segment(V_gene_seq, 0, 11, "ACGTACGTACGT");
+        state.preset_segment(J_gene_seq, 16, 19, "TTTT");
+        state.add_downstream_event(make_deletion(V_gene_seq, Three_prime, 0, 2, 3));
+        state.add_downstream_event(make_deletion(D_gene_seq, Five_prime, 0, 2, 4));
+        state.add_downstream_event(make_deletion(D_gene_seq, Three_prime, 0, 2, 5));
+        state.add_downstream_event(make_deletion(J_gene_seq, Five_prime, 0, 2, 6));
+        state.set_alignments(D_gene, {});
+        state.set_marginal(0, 1.0L);
+
+        auto rec = call_iterate_recording(d_event, state);
+        dump(rec, "D position mismatches");
+
+        REQUIRE(rec->call_count() == 1);
+        // read[14] is 'A' where the template has 'T'; 11, 12 and 13 all match.
+        CHECK(rec->calls.at(0).mismatches.at(D_gene_seq) == std::vector<std::size_t>{14});
+    }
 }
