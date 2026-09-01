@@ -90,6 +90,128 @@ TEST_CASE("Gene_choice::iterate baseline writes (G4)", "[gene_choice][iterate][b
         CHECK(s.mismatches.at(V_gene_seq).empty());
         CHECK(s.scenario_proba == 1.0);
     }
+
+    SECTION("D: one alignment writes offsets from the alignment, not from the read")
+    {
+        const std::string d_gene = "TTTTAAAA";
+        auto state = create_iterate_state("ACGTACGTTTTTAAAAGGGGCCCC");
+        auto d_event = make_gene_choice(D_gene, {{"D1", d_gene}}, 0, /*fixed=*/false);
+        state.set_alignments(D_gene, {create_perfect_alignment("D1", 8, d_gene.size())});
+        state.set_marginal(0, 1.0L);
+
+        auto rec = call_iterate_recording(d_event, state);
+        dump(rec, "D baseline");
+
+        REQUIRE(rec->call_count() == 1);
+        const ScenarioSnapshot &s = rec->calls.at(0);
+        CHECK(s.five_prime(D_gene_seq) == 8);
+        CHECK(s.three_prime(D_gene_seq) == 15);
+        CHECK(s.sequences.at(D_gene_seq) == d_gene);
+    }
+
+    SECTION("J: one alignment writes offsets, sequence and mismatches")
+    {
+        const std::string j_gene = "GGGGCCCC";
+        auto state = create_iterate_state("ACGTACGTACGTGGGGCCCC");
+        auto j_event = make_gene_choice(J_gene, {{"J1", j_gene}}, 0, /*fixed=*/false);
+        state.set_alignments(J_gene, {create_perfect_alignment("J1", 12, j_gene.size())});
+        state.set_marginal(0, 1.0L);
+
+        auto rec = call_iterate_recording(j_event, state);
+        dump(rec, "J baseline");
+
+        REQUIRE(rec->call_count() == 1);
+        const ScenarioSnapshot &s = rec->calls.at(0);
+        CHECK(s.five_prime(J_gene_seq) == 12);
+        CHECK(s.three_prime(J_gene_seq) == 19);
+        CHECK(s.sequences.at(J_gene_seq) == j_gene);
+    }
+}
+
+TEST_CASE("Gene_choice::iterate template overhangs are trimmed away (G4, feeds B3)",
+          "[gene_choice][iterate][baseline][flank]")
+{
+    // The two branches that clip a genomic template to the part the read can see. They are
+    // mirror images and each handles exactly one side -- the side that faces outward:
+    // V clips a 5' overhang (negative alignment offset), J clips a 3' overhang (alignment
+    // running past the read end). Neither handles the other side.
+    //
+    // The clipped nucleotides are DISCARDED today. Task B3 of the parent plan turns them
+    // into left_flank_seq / right_flank_seq instead, so these two sections are exactly the
+    // ones that must change when B3 lands -- and until then they pin what is being lost.
+
+    SECTION("V: a negative alignment offset drops the pre-alignment strip")
+    {
+        // Genechoice.cpp:253 -- gene_seq = value_str_int.substr(-offset), v_5_off = 0.
+        const std::string v_gene = "ACGTACGTACGT"; // 12 nt
+        auto state = create_iterate_state("TACGTACGTTTTTTT");
+        auto v_event = make_gene_choice(V_gene, {{"V1", v_gene}}, 0, /*fixed=*/false);
+        state.set_alignments(V_gene, {create_perfect_alignment("V1", -3, v_gene.size())});
+        state.set_marginal(0, 1.0L);
+
+        auto rec = call_iterate_recording(v_event, state);
+        dump(rec, "V negative offset");
+
+        REQUIRE(rec->call_count() == 1);
+        const ScenarioSnapshot &s = rec->calls.at(0);
+        // The first three template nucleotides ("ACG") are gone, not stored anywhere.
+        CHECK(s.sequences.at(V_gene_seq) == "TACGTACGT");
+        CHECK(s.sequences.at(V_gene_seq).size() == v_gene.size() - 3);
+        // The 5' offset is clamped to the start of the read rather than going negative.
+        CHECK(s.five_prime(V_gene_seq) == 0);
+        CHECK(s.three_prime(V_gene_seq) == 8);
+        // B3: the strip "ACG" becomes left_flank_seq here, and this section gains an
+        // assertion on it rather than losing the ones above.
+    }
+
+    SECTION("J: an alignment running past the read end drops the tail")
+    {
+        // Genechoice.cpp:941 -- gene_seq = value_str_int.substr(0, sequence.size() - offset).
+        const std::string j_gene = "GGGGCCCCTTTT"; // 12 nt
+        const std::string read = "ACGTACGTACGTAAGGGGCC"; // 20 nt
+        auto state = create_iterate_state(read);
+        auto j_event = make_gene_choice(J_gene, {{"J1", j_gene}}, 0, /*fixed=*/false);
+        state.set_alignments(J_gene, {create_perfect_alignment("J1", 14, j_gene.size())});
+        state.set_marginal(0, 1.0L);
+
+        auto rec = call_iterate_recording(j_event, state);
+        dump(rec, "J past read end");
+
+        REQUIRE(rec->call_count() == 1);
+        const ScenarioSnapshot &s = rec->calls.at(0);
+        // Only the 6 nucleotides that fit in the read survive; "CCTTTT" is discarded.
+        CHECK(s.sequences.at(J_gene_seq) == "GGGGCC");
+        CHECK(s.sequences.at(J_gene_seq).size() == read.size() - 14);
+        CHECK(s.five_prime(J_gene_seq) == 14);
+        // The 3' offset lands on the last read position, never past it.
+        CHECK(s.three_prime(J_gene_seq) == static_cast<Seq_Offset>(read.size()) - 1);
+        // B3: the tail "CCTTTT" becomes right_flank_seq here.
+    }
+
+    SECTION("V does not clip a 3' overhang, and J does not clip a 5' one")
+    {
+        // The asymmetry is deliberate in the sense that each gene only ever overhangs the
+        // side it faces -- but nothing enforces it, and the generic B11 body will have one
+        // clip path rather than two. Pinning it here so that unifying them is a visible
+        // change rather than a silent one.
+        const std::string v_gene = "ACGTACGTACGT";
+        const std::string read = "ACGTACG"; // 7 nt: V runs 5 nt past the end
+        auto state = create_iterate_state(read);
+        auto v_event = make_gene_choice(V_gene, {{"V1", v_gene}}, 0, /*fixed=*/false);
+        state.set_alignments(V_gene, {create_perfect_alignment("V1", 0, v_gene.size())});
+        state.set_marginal(0, 1.0L);
+
+        auto rec = call_iterate_recording(v_event, state);
+        dump(rec, "V past read end (not clipped)");
+
+        REQUIRE(rec->call_count() == 1);
+        const ScenarioSnapshot &s = rec->calls.at(0);
+        // The full 12 nt template is stored even though the read holds only 7, and the 3'
+        // offset points past the last read position.
+        CHECK(s.sequences.at(V_gene_seq) == v_gene);
+        CHECK(s.three_prime(V_gene_seq) == 11);
+        CHECK(s.three_prime(V_gene_seq) > static_cast<Seq_Offset>(read.size()) - 1);
+    }
 }
 
 TEST_CASE("Gene_choice::iterate overlap verdicts (G2/G3)", "[gene_choice][iterate][safety]")
