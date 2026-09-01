@@ -881,6 +881,26 @@ SECTION("V — pins the match-length sign slip (plan §7.1)") { … }
 The 21 live assertions in the sections being kept are a starting point, not a baseline — re-derive
 each against the current implementation, since the branch predates B2/B8.
 
+#### Delivered
+
+| `TEST_CASE` | Sections | Notes |
+|---|---:|---|
+| Baseline writes (G4) | 3 | V, D, J |
+| Template overhangs (G4 → B3) | 3 | V negative offset, J past read end, and the asymmetry itself |
+| Overlap verdicts (G2/G3) | 6 | Infeasible + control, Safe, Undetermined, not-chosen, no-counterpart |
+| Junction-length bound (G5) | 2 | achievable / unachievable |
+| Endogenous-mismatch bound (G8, §7.1) | 4 | V slip, V none, J slip, D off-by-one |
+| Pruning | 2 | below threshold + control |
+| Exhaustive fallback (G6) | 5 | V off, J off, sliding, position map, per-position mismatches |
+
+**25 sections in 7 `TEST_CASE`s**, 109 assertions. Four mutations run: the safe-verdict
+force, the junction-guard removal and the §7.1 sign correction are all caught; the overlap
+`continue` removal is not, which is §7.6.
+
+Deferred to step 4 rather than written here: the zero-length-junction section. `Gene_choice`
+never writes an empty segment — a genomic template is never empty — so B10's degenerate offset
+convention can only be exercised from `Deletion`.
+
 #### Scope discipline
 
 T0 covers `Gene_choice` only, matching the sketch's reach. Sections for `Deletion`, `Insertion` and
