@@ -893,13 +893,13 @@ each against the current implementation, since the branch predates B2/B8.
 | Junction-length bound (G5) | 2 | achievable / unachievable |
 | Endogenous-mismatch bound (G8, §7.1) | 4 | V slip, V none, J slip, D off-by-one |
 | Pruning | 2 | below threshold + control |
-| Exhaustive fallback (G6) | 5 | V off, J off, sliding, position map, per-position mismatches |
+| Exhaustive fallback (G6) | 9 | V off, J off, sliding baseline, sliding with 5' / 3' deletions and both clamps, position map, per-position mismatches |
 
-**35 sections in 9 `TEST_CASE`s plus 4 `[!shouldfail]` defect cases**, 146 assertions. Seven
+**39 sections in 9 `TEST_CASE`s plus 4 `[!shouldfail]` defect cases**, 160 assertions. Nine
 mutations run: the safe-verdict force, the junction-guard removal, the §7.1 sign correction,
 compounding the scenario probability across realizations, dropping `base_index` from the marginal
-read, and trimming the mismatch list to the surviving core are all caught; the overlap `continue`
-removal is not, which is §7.6.
+read, trimming the mismatch list to the surviving core, and removing either sliding-window clamp
+are all caught; the overlap `continue` removal is not, which is §7.6.
 
 Known defects are **not** pinned at their wrong values. Each gets a section-free
 `[!shouldfail]` case asserting what the code should do — §7.1 for V, J and D, and §7.8 for the

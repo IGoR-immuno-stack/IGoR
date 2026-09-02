@@ -499,9 +499,10 @@ TEST_CASE("Gene_choice::iterate realization branching and probability",
                                       create_perfect_alignment("V2", 0, gene_b.size()),
                                       create_perfect_alignment("V3", 0, gene_c.size())});
         // add_realization() numbers realizations in insertion order, so V1/V2/V3 read
-        // marginals 0/1/2.
+        // marginals 0/1/2. Pick numbers that guarantee resetting to income scenario 
+        // probability in between realizations.
         state.set_marginal(0, 0.5L);
-        state.set_marginal(1, 0.25L);
+        state.set_marginal(1, 0.333L);
         state.set_marginal(2, 0.125L);
 
         auto rec = call_iterate_recording(v_event, state);
@@ -509,31 +510,12 @@ TEST_CASE("Gene_choice::iterate realization branching and probability",
 
         REQUIRE(rec->call_count() == 3);
         CHECK(rec->calls.at(0).scenario_proba == 0.5);
-        CHECK(rec->calls.at(1).scenario_proba == 0.25);
+        CHECK(rec->calls.at(1).scenario_proba == 0.333);
         CHECK(rec->calls.at(2).scenario_proba == 0.125);
         // Each call carries its own gene, not the last one written.
         CHECK(rec->calls.at(0).sequences.at(V_gene_seq) == gene_a);
         CHECK(rec->calls.at(1).sequences.at(V_gene_seq) == gene_b);
         CHECK(rec->calls.at(2).sequences.at(V_gene_seq) == gene_c);
-    }
-
-    SECTION("Realizations do not compound: each restarts from the incoming probability")
-    {
-        // The failure this guards against is `scenario_proba *= contribution` on the shared
-        // field instead of on a per-realization copy, which would give 0.5 then 0.125
-        // instead of 0.5 then 0.25.
-        auto state = create_iterate_state(read);
-        auto v_event =
-                make_gene_choice(V_gene, {{"V1", gene_a}, {"V2", gene_b}}, 0, /*fixed=*/false);
-        state.set_alignments(V_gene, {create_perfect_alignment("V1", 0, gene_a.size()),
-                                      create_perfect_alignment("V2", 0, gene_b.size())});
-        state.set_marginal(0, 0.5L);
-        state.set_marginal(1, 0.25L);
-
-        auto rec = call_iterate_recording(v_event, state);
-        REQUIRE(rec->call_count() == 2);
-        CHECK(rec->calls.at(1).scenario_proba == 0.25);
-        CHECK(rec->calls.at(1).scenario_proba != 0.5 * 0.25);
     }
 
     SECTION("The incoming scenario probability multiplies through")
@@ -545,12 +527,12 @@ TEST_CASE("Gene_choice::iterate realization branching and probability",
         state.set_alignments(V_gene, {create_perfect_alignment("V1", 0, gene_a.size()),
                                       create_perfect_alignment("V2", 0, gene_b.size())});
         state.set_marginal(0, 0.5L);
-        state.set_marginal(1, 0.25L);
+        state.set_marginal(1, 0.333L);
 
         auto rec = call_iterate_recording(v_event, state);
         REQUIRE(rec->call_count() == 2);
         CHECK_THAT(rec->calls.at(0).scenario_proba, Catch::Matchers::WithinRel(0.4 * 0.5, 1e-12));
-        CHECK_THAT(rec->calls.at(1).scenario_proba, Catch::Matchers::WithinRel(0.4 * 0.25, 1e-12));
+        CHECK_THAT(rec->calls.at(1).scenario_proba, Catch::Matchers::WithinRel(0.4 * 0.333, 1e-12));
     }
 
     SECTION("The marginal read is base_index + realization index, not the index alone")
@@ -596,6 +578,8 @@ TEST_CASE("Gene_choice::iterate realization branching and probability",
 
     SECTION("A realization with zero probability still branches")
     {
+        // This is not a necessary behavior, should_prune() with non zero threshold would
+        // get rid of such cases.
         // Genechoice has no `if (proba == 0) continue`, unlike Insertion. Pinned because
         // the generic B11 body is an obvious place to add one, and doing so would change
         // which scenarios reach the next event.
@@ -623,7 +607,7 @@ TEST_CASE("Gene_choice::iterate junction-length bound (G5)", "[gene_choice][iter
     //
     // Isolating this from the overlap early-out (section 7.6 of the plan) needs a gap that
     // is *too large*: the overlap check only ever fires on gaps that are too small, so a
-    // positive out-of-range gap is rejected by the guard alone.
+    // positive out-of-range gap is rejected by the junction-length guard alone.
     const std::string v_gene = "ACGTACGTACGT"; // 12 nt, 3' end at 11
     const std::string d_gene = "TTTT";
     const std::string read = "ACGTACGTACGTTTTTTTTTTTTTTTTTTTTT";
@@ -950,6 +934,7 @@ TEST_CASE("Gene_choice::iterate exhaustive position fallback (G6)",
         // absent from the read, at least one nucleotide is present" plus one -- and runs
         // while the D 3' end is left of j_5_min_offset, which with no J chosen is the last
         // read position (19).
+        // FIXME: those mandatory V and J NTs may go away with B11.
         REQUIRE(rec->call_count() == 14);
         CHECK(rec->calls.front().five_prime(D_gene_seq) == 2);
         CHECK(rec->calls.back().five_prime(D_gene_seq) == 15);
@@ -966,6 +951,99 @@ TEST_CASE("Gene_choice::iterate exhaustive position fallback (G6)",
                   == snapshot.five_prime(D_gene_seq) + static_cast<Seq_Offset>(d_gene.size()) - 1);
             CHECK(snapshot.sequences.at(D_gene_seq) == d_gene);
         }
+    }
+
+    SECTION("D sliding: 5' deletions extend the window leftward")
+    {
+        // The start position is  1 + d_5_real_max_del + 1  when no V is chosen, and
+        // d_5_max_del is Deletion::len_min, i.e. minus the largest 5' deletion. So allowing
+        // 5' deletions lets the template start further left: the nucleotides that would
+        // overlap whatever precedes it can be deleted away. Nothing else in the window
+        // changes, so the count grows by exactly the deletion budget.
+        const std::string d_gene = "TTTT";
+        const std::string read = "ACGTACGTACGTTTTTTTTT"; // 20 nt
+        auto state = create_iterate_state(read);
+        auto d_event = make_gene_choice(D_gene, {{"D1", d_gene}}, 0, /*fixed=*/false);
+        state.add_downstream_event(make_deletion(D_gene_seq, Five_prime, 0, 3, 1));
+        state.set_alignments(D_gene, {});
+        state.set_marginal(0, 1.0L);
+
+        auto rec = call_iterate_recording(d_event, state);
+        dump(rec, "D sliding, 5' deletions");
+
+        // Baseline is 14 positions starting at 2; three allowed 5' deletions move the start
+        // to -1 and add three positions.
+        REQUIRE(rec->call_count() == 17);
+        CHECK(rec->calls.front().five_prime(D_gene_seq) == -1);
+        CHECK(rec->calls.back().five_prime(D_gene_seq) == 15);
+        // The template is still placed whole; the deletion has not been applied yet, it
+        // only widened the set of placements worth trying.
+        CHECK(rec->calls.front().sequences.at(D_gene_seq) == d_gene);
+        CHECK(rec->calls.front().three_prime(D_gene_seq)
+              == rec->calls.front().five_prime(D_gene_seq)
+                         + static_cast<Seq_Offset>(d_gene.size()) - 1);
+    }
+
+    SECTION("D sliding: a 5' deletion budget larger than the template is clamped")
+    {
+        // (-d_5_max_del) > d_size => d_5_real_max_del = -d_size. Deleting more than the
+        // whole template cannot buy further leftward reach, so the start clamps at
+        // 2 - d_size rather than running off with the budget.
+        const std::string d_gene = "TTTT";
+        auto state = create_iterate_state("ACGTACGTACGTTTTTTTTT");
+        auto d_event = make_gene_choice(D_gene, {{"D1", d_gene}}, 0, /*fixed=*/false);
+        state.add_downstream_event(make_deletion(D_gene_seq, Five_prime, 0, 10, 1));
+        state.set_alignments(D_gene, {});
+        state.set_marginal(0, 1.0L);
+
+        auto rec = call_iterate_recording(d_event, state);
+        dump(rec, "D sliding, oversized 5' budget");
+
+        // Clamped to one full template length of extra reach: start at 2 - 4 = -2, not
+        // 2 - 10 = -8.
+        CHECK(rec->calls.front().five_prime(D_gene_seq) == -2);
+        REQUIRE(rec->call_count() == 18);
+    }
+
+    SECTION("D sliding: 3' deletions extend the window rightward")
+    {
+        // The loop runs while d_3_min_offset < j_5_min_offset, and d_3_min_offset is the
+        // 3' end after the largest 3' deletion. Allowing 3' deletions lowers it, so the
+        // template can start later and still have a deletable overhang.
+        const std::string d_gene = "TTTT";
+        auto state = create_iterate_state("ACGTACGTACGTTTTTTTTT");
+        auto d_event = make_gene_choice(D_gene, {{"D1", d_gene}}, 0, /*fixed=*/false);
+        state.add_downstream_event(make_deletion(D_gene_seq, Three_prime, 0, 2, 1));
+        state.set_alignments(D_gene, {});
+        state.set_marginal(0, 1.0L);
+
+        auto rec = call_iterate_recording(d_event, state);
+        dump(rec, "D sliding, 3' deletions");
+
+        // Start is unchanged at 2 -- 3' deletions say nothing about the left edge -- and
+        // two extra positions appear on the right.
+        REQUIRE(rec->call_count() == 16);
+        CHECK(rec->calls.front().five_prime(D_gene_seq) == 2);
+        CHECK(rec->calls.back().five_prime(D_gene_seq) == 17);
+    }
+
+    SECTION("D sliding: a 3' deletion budget reaching the template length is clamped")
+    {
+        // abs(d_3_max_del) < d_size fails, so d_3_min_offset collapses to d_5_off: the
+        // whole template is deletable, and the loop bound stops depending on its length.
+        const std::string d_gene = "TTTT";
+        auto state = create_iterate_state("ACGTACGTACGTTTTTTTTT");
+        auto d_event = make_gene_choice(D_gene, {{"D1", d_gene}}, 0, /*fixed=*/false);
+        state.add_downstream_event(make_deletion(D_gene_seq, Three_prime, 0, 4, 1));
+        state.set_alignments(D_gene, {});
+        state.set_marginal(0, 1.0L);
+
+        auto rec = call_iterate_recording(d_event, state);
+        dump(rec, "D sliding, oversized 3' budget");
+
+        REQUIRE(rec->call_count() == 17);
+        CHECK(rec->calls.front().five_prime(D_gene_seq) == 2);
+        CHECK(rec->calls.back().five_prime(D_gene_seq) == 18);
     }
 
     SECTION("D with no alignments and both neighbours chosen uses the position map")
