@@ -185,7 +185,7 @@ void call_iterate(const std::shared_ptr<Rec_Event> &event, IterateTestState &sta
         (void)key;
         const int event_index = ev->get_event_identifier();
         state.exploration.index_map.request_layer(event_index);
-        state.exploration.index_map.set(event_index, 0, 0);
+        state.exploration.index_map.set(event_index, state.base_index_for(event_index), 0);
         ev->set_event_marginal_size(ev->size());
         ev->set_crude_upper_bound_proba(0, ev->size(),
                                         const_cast<Marginal_array_p &>(state.model.model_parameters));

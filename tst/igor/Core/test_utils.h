@@ -209,6 +209,8 @@ private:
     /// Events after the event under test in the model queue, in order.
     std::vector<std::shared_ptr<Rec_Event>> downstream_;
 
+    std::unordered_map<int, std::size_t> base_index_overrides_;
+
 public:
     QuerySequenceContext query;
     ModelContext model;
@@ -226,6 +228,7 @@ public:
           preset_sequences_{},
           preset_mismatches_{},
           downstream_{},
+          base_index_overrides_{},
           query(query_storage.sequence, query_storage.int_sequence, query_storage.gene_alignments),
           model(model_storage.model_marginals, model_storage.offset_map, model_storage.events_map,
                 model_storage.model_queue),
@@ -284,6 +287,23 @@ public:
         scenario_storage.constructed_sequences.set(seq_type, &preset_sequences_.back(), 0);
         preset_mismatches_.push_back(mismatches);
         scenario_storage.mismatches_lists.set(seq_type, &preset_mismatches_.back(), 0);
+    }
+
+    /// The probability the event under test inherits from upstream. Defaults to 1.
+    void set_scenario_proba(double proba) { scenario_storage.scenario_proba = proba; }
+
+    /// Override the base index an event reads its marginals from. call_iterate() puts every
+    /// event at 0 unless told otherwise; a non-zero value pins that the marginal read is
+    /// base_index + realization_index rather than realization_index alone.
+    void set_base_index(int event_id, std::size_t base_index)
+    {
+        base_index_overrides_[event_id] = base_index;
+    }
+
+    std::size_t base_index_for(int event_id) const
+    {
+        const auto found = base_index_overrides_.find(event_id);
+        return found == base_index_overrides_.end() ? 0 : found->second;
     }
 
     /// One entry of the model marginal array, by flat index.

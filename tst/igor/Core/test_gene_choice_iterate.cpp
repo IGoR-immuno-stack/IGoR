@@ -192,6 +192,7 @@ TEST_CASE("Gene_choice::iterate template overhangs are trimmed away (G4, feeds B
 
     SECTION("V does not clip a 3' overhang, and J does not clip a 5' one")
     {
+        // FIXME
         // The asymmetry is deliberate in the sense that each gene only ever overhangs the
         // side it faces -- but nothing enforces it, and the generic B11 body will have one
         // clip path rather than two. Pinning it here so that unifying them is a visible
@@ -351,6 +352,146 @@ TEST_CASE("Gene_choice::iterate overlap verdicts (G2/G3)", "[gene_choice][iterat
         REQUIRE(rec->call_count() == 1);
         CHECK(rec->calls.at(0).safety.at(Event_safety::VD_safe) == true);
         CHECK(rec->calls.at(0).safety.at(Event_safety::VJ_safe) == true);
+    }
+}
+
+TEST_CASE("Gene_choice::iterate realization branching and probability",
+          "[gene_choice][iterate][branching]")
+{
+    // Gene_choice is is_branching: one alignment in, one call to the next event out, each
+    // carrying its own realization probability. The probability the next event sees is
+    //
+    //     incoming scenario probability  x  model_parameters[base_index + realization index]
+    //
+    // and -- the part a careless rewrite loses -- each realization restarts from the
+    // *incoming* probability, not from the previous realization's result. Genechoice.cpp
+    // captures base_scenario_proba once at entry and assigns scenario.scenario_proba only
+    // just before handing off.
+    const std::string gene_a = "ACGTACGTACGT";
+    const std::string gene_b = "TTTTAAAACCCC";
+    const std::string gene_c = "GGGGTTTTAAAA";
+    const std::string read = "ACGTACGTACGTTTTTTTT";
+
+    SECTION("One call per alignment, in alignment order, each with its own probability")
+    {
+        auto state = create_iterate_state(read);
+        auto v_event = make_gene_choice(
+                V_gene, {{"V1", gene_a}, {"V2", gene_b}, {"V3", gene_c}}, 0, /*fixed=*/false);
+        state.set_alignments(V_gene, {create_perfect_alignment("V1", 0, gene_a.size()),
+                                      create_perfect_alignment("V2", 0, gene_b.size()),
+                                      create_perfect_alignment("V3", 0, gene_c.size())});
+        // add_realization() numbers realizations in insertion order, so V1/V2/V3 read
+        // marginals 0/1/2.
+        state.set_marginal(0, 0.5L);
+        state.set_marginal(1, 0.25L);
+        state.set_marginal(2, 0.125L);
+
+        auto rec = call_iterate_recording(v_event, state);
+        dump(rec, "branching");
+
+        REQUIRE(rec->call_count() == 3);
+        CHECK(rec->calls.at(0).scenario_proba == 0.5);
+        CHECK(rec->calls.at(1).scenario_proba == 0.25);
+        CHECK(rec->calls.at(2).scenario_proba == 0.125);
+        // Each call carries its own gene, not the last one written.
+        CHECK(rec->calls.at(0).sequences.at(V_gene_seq) == gene_a);
+        CHECK(rec->calls.at(1).sequences.at(V_gene_seq) == gene_b);
+        CHECK(rec->calls.at(2).sequences.at(V_gene_seq) == gene_c);
+    }
+
+    SECTION("Realizations do not compound: each restarts from the incoming probability")
+    {
+        // The failure this guards against is `scenario_proba *= contribution` on the shared
+        // field instead of on a per-realization copy, which would give 0.5 then 0.125
+        // instead of 0.5 then 0.25.
+        auto state = create_iterate_state(read);
+        auto v_event =
+                make_gene_choice(V_gene, {{"V1", gene_a}, {"V2", gene_b}}, 0, /*fixed=*/false);
+        state.set_alignments(V_gene, {create_perfect_alignment("V1", 0, gene_a.size()),
+                                      create_perfect_alignment("V2", 0, gene_b.size())});
+        state.set_marginal(0, 0.5L);
+        state.set_marginal(1, 0.25L);
+
+        auto rec = call_iterate_recording(v_event, state);
+        REQUIRE(rec->call_count() == 2);
+        CHECK(rec->calls.at(1).scenario_proba == 0.25);
+        CHECK(rec->calls.at(1).scenario_proba != 0.5 * 0.25);
+    }
+
+    SECTION("The incoming scenario probability multiplies through")
+    {
+        auto state = create_iterate_state(read);
+        state.set_scenario_proba(0.4);
+        auto v_event =
+                make_gene_choice(V_gene, {{"V1", gene_a}, {"V2", gene_b}}, 0, /*fixed=*/false);
+        state.set_alignments(V_gene, {create_perfect_alignment("V1", 0, gene_a.size()),
+                                      create_perfect_alignment("V2", 0, gene_b.size())});
+        state.set_marginal(0, 0.5L);
+        state.set_marginal(1, 0.25L);
+
+        auto rec = call_iterate_recording(v_event, state);
+        REQUIRE(rec->call_count() == 2);
+        CHECK_THAT(rec->calls.at(0).scenario_proba, Catch::Matchers::WithinRel(0.4 * 0.5, 1e-12));
+        CHECK_THAT(rec->calls.at(1).scenario_proba, Catch::Matchers::WithinRel(0.4 * 0.25, 1e-12));
+    }
+
+    SECTION("The marginal read is base_index + realization index, not the index alone")
+    {
+        auto state = create_iterate_state(read);
+        auto v_event =
+                make_gene_choice(V_gene, {{"V1", gene_a}, {"V2", gene_b}}, 0, /*fixed=*/false);
+        state.set_alignments(V_gene, {create_perfect_alignment("V1", 0, gene_a.size()),
+                                      create_perfect_alignment("V2", 0, gene_b.size())});
+        state.set_base_index(0, 10);
+        // Values at 0 and 1 are decoys: reading them would mean base_index was ignored.
+        state.set_marginal(0, 0.9L);
+        state.set_marginal(1, 0.8L);
+        state.set_marginal(10, 0.5L);
+        state.set_marginal(11, 0.25L);
+
+        auto rec = call_iterate_recording(v_event, state);
+        REQUIRE(rec->call_count() == 2);
+        CHECK(rec->calls.at(0).scenario_proba == 0.5);
+        CHECK(rec->calls.at(1).scenario_proba == 0.25);
+    }
+
+    SECTION("Two alignments of one gene branch separately at the same probability")
+    {
+        // Realization identity and placement are independent: the same template aligned at
+        // two positions is two scenarios drawing on one marginal entry. This is the shape
+        // tandem D needs -- one alignment set, several placements.
+        auto state = create_iterate_state("ACGTACGTACGTACGTACGT");
+        auto d_event = make_gene_choice(D_gene, {{"D1", "ACGT"}}, 0, /*fixed=*/false);
+        state.set_alignments(D_gene, {create_perfect_alignment("D1", 4, 4),
+                                      create_perfect_alignment("D1", 12, 4)});
+        state.set_marginal(0, 0.6L);
+
+        auto rec = call_iterate_recording(d_event, state);
+        dump(rec, "same gene, two placements");
+
+        REQUIRE(rec->call_count() == 2);
+        CHECK(rec->calls.at(0).scenario_proba == 0.6);
+        CHECK(rec->calls.at(1).scenario_proba == 0.6);
+        CHECK(rec->calls.at(0).five_prime(D_gene_seq) == 4);
+        CHECK(rec->calls.at(1).five_prime(D_gene_seq) == 12);
+    }
+
+    SECTION("A realization with zero probability still branches")
+    {
+        // Genechoice has no `if (proba == 0) continue`, unlike Insertion. Pinned because
+        // the generic B11 body is an obvious place to add one, and doing so would change
+        // which scenarios reach the next event.
+        auto state = create_iterate_state(read);
+        auto v_event =
+                make_gene_choice(V_gene, {{"V1", gene_a}, {"V2", gene_b}}, 0, /*fixed=*/false);
+        state.set_alignments(V_gene, {create_perfect_alignment("V1", 0, gene_a.size()),
+                                      create_perfect_alignment("V2", 0, gene_b.size())});
+        state.set_marginal(0, 0.5L);
+        state.set_marginal(1, 0.0L);
+
+        auto rec = call_iterate_recording(v_event, state);
+        REQUIRE(rec->call_count() == 2);
+        CHECK(rec->calls.at(1).scenario_proba == 0.0);
     }
 }
 
