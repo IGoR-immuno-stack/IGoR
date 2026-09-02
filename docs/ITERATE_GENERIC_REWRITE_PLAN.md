@@ -886,6 +886,7 @@ each against the current implementation, since the branch predates B2/B8.
 | `TEST_CASE` | Sections | Notes |
 |---|---:|---|
 | Baseline writes (G4) | 3 | V, D, J |
+| Alignment mismatch propagation | 6 | V, D, J verbatim; outside-core kept; per-realization; empty-not-absent |
 | Realization branching and probability | 6 | one call per alignment; no compounding; incoming proba; `base_index + realization`; one gene at two placements; zero-probability realization |
 | Template overhangs (G4 → B3) | 3 | V negative offset, J past read end, and the asymmetry itself |
 | Overlap verdicts (G2/G3) | 6 | Infeasible + control, Safe, Undetermined, not-chosen, no-counterpart |
@@ -894,10 +895,11 @@ each against the current implementation, since the branch predates B2/B8.
 | Pruning | 2 | below threshold + control |
 | Exhaustive fallback (G6) | 5 | V off, J off, sliding, position map, per-position mismatches |
 
-**29 sections in 8 `TEST_CASE`s plus 4 `[!shouldfail]` defect cases**, 132 assertions. Six
+**35 sections in 9 `TEST_CASE`s plus 4 `[!shouldfail]` defect cases**, 146 assertions. Seven
 mutations run: the safe-verdict force, the junction-guard removal, the §7.1 sign correction,
-compounding the scenario probability across realizations, and dropping `base_index` from the
-marginal read are all caught; the overlap `continue` removal is not, which is §7.6.
+compounding the scenario probability across realizations, dropping `base_index` from the marginal
+read, and trimming the mismatch list to the surviving core are all caught; the overlap `continue`
+removal is not, which is §7.6.
 
 Known defects are **not** pinned at their wrong values. Each gets a section-free
 `[!shouldfail]` case asserting what the code should do — §7.1 for V, J and D, and §7.8 for the

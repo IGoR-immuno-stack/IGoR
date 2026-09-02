@@ -109,6 +109,8 @@ TEST_CASE("Gene_choice::iterate baseline writes (G4)", "[gene_choice][iterate][b
         CHECK(s.five_prime(D_gene_seq) == 8);
         CHECK(s.three_prime(D_gene_seq) == 15);
         CHECK(s.sequences.at(D_gene_seq) == d_gene);
+        CHECK(s.mismatches.at(D_gene_seq).empty());
+        CHECK(s.scenario_proba == 1.0);
     }
 
     SECTION("J: one alignment writes offsets, sequence and mismatches")
@@ -127,6 +129,122 @@ TEST_CASE("Gene_choice::iterate baseline writes (G4)", "[gene_choice][iterate][b
         CHECK(s.five_prime(J_gene_seq) == 12);
         CHECK(s.three_prime(J_gene_seq) == 19);
         CHECK(s.sequences.at(J_gene_seq) == j_gene);
+        CHECK(s.mismatches.at(J_gene_seq).empty());
+        CHECK(s.scenario_proba == 1.0);
+    }
+}
+
+TEST_CASE("Gene_choice::iterate carries alignment mismatches into the scenario",
+          "[gene_choice][iterate][mismatches]")
+{
+    // set_mismatches() stores a *pointer* to the alignment's own vector
+    // (Genechoice.cpp:317 and its D and J counterparts), so what the next event reads is
+    // the aligner's list verbatim: no filtering, no re-sorting, no truncation to the part
+    // of the gene that survives deletion. The endogenous count computed for the error
+    // bound is a separate quantity and does not touch this list.
+    const std::vector<std::size_t> mismatches{2, 5, 9};
+
+    SECTION("V: the alignment's list arrives unchanged")
+    {
+        const std::string v_gene = "ACGTACGTACGT";
+        auto state = create_iterate_state("ACGTACGTACGTTTTTTTT");
+        auto v_event = make_gene_choice(V_gene, {{"V1", v_gene}}, 0, /*fixed=*/false);
+        state.set_alignments(
+                V_gene, {create_alignment_with_mismatches("V1", 0, v_gene.size(), mismatches)});
+        state.set_marginal(0, 1.0L);
+
+        auto rec = call_iterate_recording(v_event, state);
+        dump(rec, "V mismatches");
+
+        REQUIRE(rec->call_count() == 1);
+        CHECK(rec->calls.at(0).mismatches.at(V_gene_seq) == mismatches);
+    }
+
+    SECTION("D: the alignment path carries the list, unlike the sliding path which rebuilds it")
+    {
+        const std::string d_gene = "TTTTAAAA";
+        auto state = create_iterate_state("ACGTACGTTTTTAAAAGGGGCCCC");
+        auto d_event = make_gene_choice(D_gene, {{"D1", d_gene}}, 0, /*fixed=*/false);
+        state.set_alignments(
+                D_gene, {create_alignment_with_mismatches("D1", 8, d_gene.size(), mismatches)});
+        state.set_marginal(0, 1.0L);
+
+        auto rec = call_iterate_recording(d_event, state);
+        REQUIRE(rec->call_count() == 1);
+        CHECK(rec->calls.at(0).mismatches.at(D_gene_seq) == mismatches);
+    }
+
+    SECTION("J: the alignment's list arrives unchanged")
+    {
+        const std::string j_gene = "GGGGCCCC";
+        auto state = create_iterate_state("ACGTACGTACGTGGGGCCCC");
+        auto j_event = make_gene_choice(J_gene, {{"J1", j_gene}}, 0, /*fixed=*/false);
+        state.set_alignments(
+                J_gene, {create_alignment_with_mismatches("J1", 12, j_gene.size(), {13, 17})});
+        state.set_marginal(0, 1.0L);
+
+        auto rec = call_iterate_recording(j_event, state);
+        REQUIRE(rec->call_count() == 1);
+        CHECK(rec->calls.at(0).mismatches.at(J_gene_seq) == std::vector<std::size_t>{13, 17});
+    }
+
+    SECTION("Mismatches outside the surviving core are still carried")
+    {
+        // With V 3' deletions [0,4] the core is [0,7], so the mismatch at 9 is not
+        // endogenous and does not enter the error bound -- but it stays in the list,
+        // because a later Deletion is what decides whether it survives. Trimming it here
+        // would double-count the deletion.
+        const std::string v_gene = "ACGTACGTACGT";
+        auto state = create_iterate_state("ACGTACGTACGTTTTTTTT");
+        auto v_event = make_gene_choice(V_gene, {{"V1", v_gene}}, 0, /*fixed=*/false);
+        state.add_downstream_event(make_deletion(V_gene_seq, Three_prime, 0, 4, 2));
+        state.set_alignments(V_gene,
+                             {create_alignment_with_mismatches("V1", 0, v_gene.size(), {2, 9})});
+        state.set_marginal(0, 1.0L);
+
+        auto rec = call_iterate_recording(v_event, state);
+        REQUIRE(rec->call_count() == 1);
+        CHECK(rec->calls.at(0).mismatches.at(V_gene_seq) == std::vector<std::size_t>{2, 9});
+    }
+
+    SECTION("Each realization carries its own alignment's list")
+    {
+        // The stored value is a pointer into query.gene_alignments, so a rewrite that
+        // reused one buffer across realizations -- or that let the pointer outlive the
+        // alignment -- would show up here as two calls sharing one list.
+        const std::string gene_a = "ACGTACGTACGT";
+        const std::string gene_b = "TTTTAAAACCCC";
+        auto state = create_iterate_state("ACGTACGTACGTTTTTTTT");
+        auto v_event =
+                make_gene_choice(V_gene, {{"V1", gene_a}, {"V2", gene_b}}, 0, /*fixed=*/false);
+        state.set_alignments(V_gene,
+                             {create_alignment_with_mismatches("V1", 0, gene_a.size(), {1}),
+                              create_alignment_with_mismatches("V2", 0, gene_b.size(), {5, 6})});
+        state.set_marginal(0, 0.5L);
+        state.set_marginal(1, 0.5L);
+
+        auto rec = call_iterate_recording(v_event, state);
+        dump(rec, "per-realization mismatches");
+
+        REQUIRE(rec->call_count() == 2);
+        CHECK(rec->calls.at(0).mismatches.at(V_gene_seq) == std::vector<std::size_t>{1});
+        CHECK(rec->calls.at(1).mismatches.at(V_gene_seq) == std::vector<std::size_t>{5, 6});
+    }
+
+    SECTION("An alignment with no mismatches yields an empty list, not an absent one")
+    {
+        // exists() true, contents empty -- the distinction DynamicSequenceMap keeps and
+        // that B10 depends on. An absent entry would mean "this event has not run yet".
+        const std::string v_gene = "ACGTACGTACGT";
+        auto state = create_iterate_state("ACGTACGTACGTTTTTTTT");
+        auto v_event = make_gene_choice(V_gene, {{"V1", v_gene}}, 0, /*fixed=*/false);
+        state.set_alignments(V_gene, {create_perfect_alignment("V1", 0, v_gene.size())});
+        state.set_marginal(0, 1.0L);
+
+        auto rec = call_iterate_recording(v_event, state);
+        REQUIRE(rec->call_count() == 1);
+        REQUIRE(rec->calls.at(0).mismatches.count(V_gene_seq) == 1);
+        CHECK(rec->calls.at(0).mismatches.at(V_gene_seq).empty());
     }
 }
 
