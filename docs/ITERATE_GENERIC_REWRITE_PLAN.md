@@ -910,6 +910,11 @@ Deferred to step 4 rather than written here: the zero-length-junction section. `
 never writes an empty segment — a genomic template is never empty — so B10's degenerate offset
 convention can only be exercised from `Deletion`.
 
+> **Writing the sections is documented separately.** [ITERATE_TEST_GUIDE.md](ITERATE_TEST_GUIDE.md)
+> carries the harness reference, the nine-row matrix every event's tests must fill, the setup
+> recipes, the traps, and the `[!shouldfail]` convention. Steps 1, 2 and 4 follow it rather than
+> re-deriving the shape.
+
 #### Scope discipline
 
 T0 covers `Gene_choice` only, matching the sketch's reach. Sections for `Deletion`, `Insertion` and
