@@ -305,6 +305,11 @@ bool has_safety(const IterateTestState &state, Event_safety safety_type)
     return state.exploration.safety_set.exists(safety_type);
 }
 
+int safety_current_layer(const IterateTestState &state, Event_safety safety_type)
+{
+    return static_cast<int>(state.exploration.safety_set.current_layer(safety_type));
+}
+
 double get_downstream_bound(const IterateTestState &state, Seq_type seq_type, std::size_t layer)
 {
     return state.exploration.downstream_proba_map.get(seq_type, layer);

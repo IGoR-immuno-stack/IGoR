@@ -82,7 +82,7 @@ Non-negotiable, per the standing constraint that every step must be independentl
 | unit | `pixi run test_unit` | always |
 | integration | `pixi run test_integration` | always |
 | regression | `pixi run test_regression` | always — this is the bitwise gate |
-| convergence | `pixi run test_convergence` | on every step that touches pruning bounds |
+| convergence | `pixi run test_convergence` | **on every step that touches source** — not just pruning bounds. It is excluded from `pixi run test` and `test_unit`, and it is the only gate that caught §7.9 |
 | benchmark | `pixi run benchmark` | on B5 and B11 (the two hot paths) |
 
 ---
@@ -1127,6 +1127,61 @@ by a `[!shouldfail]` case in the T0 suite.
 **This is for the maintainer to adjudicate, not for the refactor to decide.** It changes inference
 results on any model where the exhaustive path fires, so it is a modelling-visible fix and belongs
 with §7.1 at the end, not inside B11. B11 must reproduce it verbatim and generalise it unchanged.
+
+### 7.9 — The `no_d_align` path wrote no overlap verdict, and the B8 port turned that into a crash
+
+*(Found Sep 2 2026 while verifying A0. Fixed in the same commit; recorded because the shape
+recurs.)*
+
+`Gene_choice`'s D branch writes `VD_safe` / `DJ_safe` in two places: the preamble, when the
+neighbour has **not** been chosen, and inside the alignment loop under `vd_check` / `dj_check`,
+when it has. The `no_d_align` block runs neither — there was not one `set_overlap_safety()` call
+between [Genechoice.cpp:538](../src/igor/Core/Genechoice.cpp#L538) and
+[:846](../src/igor/Core/Genechoice.cpp#L846) — so with a chosen neighbour the flag was never
+written at this event's layer.
+
+A downstream `Deletion` reads `memory_layer_safety - 1`, i.e. exactly that layer. Confirmed by
+backtrace on the `[convergence]` inference test:
+
+```
+V_choice (Genechoice.cpp:362) → J_choice (:995)
+  → D_choice, no_d_align position map (:678)
+    → Deletion::iterate V case (Deletion.cpp:267)   ← throws
+```
+
+**Why it surfaced only now.** Before B8's `a58808b`, that read was
+`Enum_fast_memory_map::at(key, layer)`, which accepted `layer <= current + 1` — one layer *above*
+current — set it current, and returned the slot. The storage was `new bool[]`, i.e.
+uninitialized, so the overlap verdict for every exhaustive-path scenario was whatever happened to
+be in memory. `LayeredArray::get()` refuses that read. The port converted silent undefined
+behaviour into an abort.
+
+Note what "current layer" means here: `request_layer()` advances it, but `set()` pulls it back to
+the layer written, so after `iterate()` it tracks the last **write**. `V_choice` writing at layer
+0 is what leaves `D_choice`'s layer 1 unreadable.
+
+**Fix**: write the conservative verdict `false` ("not established safe") at the top of the
+`no_d_align` block, guarded by `v_chosen` / `j_chosen` so it fills exactly the gap the preamble
+leaves. Every downstream deletion then performs its own check rather than skipping it — the same
+value the alignment loop writes whenever the verdict is undetermined. There is no prior behaviour
+to preserve: the old value was uninitialized memory.
+
+**B11 owes the real verdict here.** `d_5_off` and `d_full_3_offset` are known per position, so the
+exhaustive path can compute the same three-way outcome the alignment path does. The conservative
+write is a stopgap that makes the path defined, not the right long-term answer.
+
+**Process consequences**, both larger than the bug:
+
+1. **`[convergence]` must join the verification ladder** for any step touching source. It is
+   excluded from both `pixi run test` (`-LE convergence`) and `test_unit`, which is how
+   `a58808b` shipped: that commit recorded "218/218 unit and integration tests, and all four
+   regression suites" — and none of those run it. §1's ladder is updated accordingly.
+2. **`[!mayfail]` does not contain a crash.** The convergence case carries it, but a SIGABRT
+   takes the process down regardless, so an abort there costs the whole suite, not one test.
+3. `a58808b`'s claim that "all six `is_overlap_safe()` reads are the read-at-layer-1-then-write
+   shape already established" was reasoning by analogy with `Index_map`, where the property was
+   actually proved. It was not checked for this map. When porting a container whose accessor
+   tightens a precondition, each call site needs the argument made, not inherited.
 
 ## 8. Decisions taken (Sep 1 2026 review)
 

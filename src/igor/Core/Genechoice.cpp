@@ -541,6 +541,27 @@ void Gene_choice::iterate(
             //Pass the mismatch vector pointer to the memory map once (will be updated in the next loop)
             scenario.set_mismatches(D_gene_seq, &no_d_mismatches, memory_layer_mismatches);
 
+            //Record an overlap verdict at this event's layer, which the exhaustive path
+            //below never does. The preamble already wrote one for a neighbour that has not
+            //been chosen; when it has been, the alignment loop is what writes it, and this
+            //path does not run that loop. A downstream Deletion reads
+            //memory_layer_safety - 1, i.e. exactly this layer, and LayeredArray::get()
+            //refuses a layer above the last one written -- so leaving it unwritten aborts
+            //the run. Before the B8 container port the same read returned uninitialized
+            //storage instead, which is why this went unnoticed.
+            //
+            //`false` means "not established safe", so the downstream deletion performs its
+            //own check rather than skipping it: the conservative direction, and the same
+            //value the alignment loop writes whenever the verdict is undetermined. B11
+            //should compute the real verdict here, since d_5_off and d_full_3_offset are
+            //known per position. See docs/ITERATE_GENERIC_REWRITE_PLAN.md section 7.9.
+            if (v_chosen) {
+                exploration.set_overlap_safety(Event_safety::VD_safe, false, memory_layer_safety_1);
+            }
+            if (j_chosen) {
+                exploration.set_overlap_safety(Event_safety::DJ_safe, false, memory_layer_safety_2);
+            }
+
             if (v_chosen and j_chosen) {
                 int vj_len = j_offset - v_offset - 1;
                 if (vj_length_d_position_proba.count(vj_len) != 0) {

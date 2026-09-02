@@ -329,6 +329,14 @@ public:
 
     const std::vector<std::shared_ptr<Rec_Event>> &downstream_events() const { return downstream_; }
 
+    /// Write an overlap safety flag at layer 0, as an upstream Gene_choice would have.
+    /// Pair with a later event that requests its own layer: the current layer then tracks
+    /// the last *write*, so an event that requests a layer and never writes leaves it here.
+    void preset_safety(Event_safety safety, bool value)
+    {
+        exploration_storage.safety_set.set(safety, value, 0);
+    }
+
     /// Replace the error model. Defaults to Single_error_rate(0.0); a non-zero rate is
     /// what makes the downstream error bound a number worth asserting on.
     void set_error_rate(double rate)
@@ -459,6 +467,11 @@ std::vector<std::size_t> get_mismatches(const IterateTestState &state, Seq_type 
 
 bool is_safe(const IterateTestState &state, Event_safety safety_type, std::size_t layer = 0);
 bool has_safety(const IterateTestState &state, Event_safety safety_type);
+
+/// The layer a safety flag was most recently *written* at. request_layer() advances it too,
+/// but set() pulls it back to the layer written, so after a full iterate() this reports the
+/// last writer -- which is what a downstream reader of `memory_layer - 1` depends on.
+int safety_current_layer(const IterateTestState &state, Event_safety safety_type);
 
 double get_downstream_bound(const IterateTestState &state, Seq_type seq_type,
                             std::size_t layer = 0);
