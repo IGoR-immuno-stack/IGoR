@@ -773,7 +773,7 @@ already flagged as the milestone-1 blocker and because `Gene_choice` is the only
 | Step | Content | Gate | Bitwise? |
 |---|---|---|---|
 | **T0** | Port the harness from `feature/2_unittests`; drop the 11 non-`iterate()` test cases; write ~22 pattern-keyed sections against observed behaviour (§6.1) | unit | n/a — tests only |
-| **A0** | `OffsetDelta`/`LengthRange` + the two Phase A virtuals on all four subclasses | unit | yes — no caller yet |
+| **A0** | ✅ **done** — `OffsetDelta` / `LengthContribution` + four capability virtuals on all four subclasses | unit | yes — no caller yet |
 | **S2** | `PendingModifierBounds` in `JunctionGeometry.h`; unit-tested against a VDJ and a VJ model | unit + mutation | yes — no caller yet |
 | **S3** | `reachable()` + `Overlap check()`; unit-tested on all eight current comparison shapes | unit + mutation | yes — no caller yet |
 | **1** | **B6** — `Insertion::iterate` generic (G9). Smallest, one hot-loop win. | full ladder | **yes** |
@@ -922,6 +922,34 @@ T0 covers `Gene_choice` only, matching the sketch's reach. Sections for `Deletio
 branches it collapses, into the pattern-keyed `TEST_CASE`s above. The suite grows with the
 migration rather than becoming a project of its own, and the row for each pattern fills in as the
 events are migrated.
+
+### 6.2 — The regression gate has a flaky output
+
+*(Observed Sep 2 2026 during A0.)*
+
+`pixi run test_regression` is designated the bitwise gate for every step of this plan. One of
+its outputs is **not deterministic**: `best_scenarios_counts.csv` mismatched once on an A0 build
+that adds only uncalled virtuals, then matched on the next three runs (two `test_inference`, one
+full `test_regression`), while the pre-A0 baseline matched on its single run.
+
+Mechanism: `Best_scenarios_counter::dump_sequence_data()` is called from
+[GenModel.cpp:512-514](../src/igor/Core/GenModel.cpp#L512-L514) inside
+`#pragma omp critical(dump_counters)`, within the parallel loop over query sequences. `critical`
+serialises but does **not** order, so the rows land in whatever order threads finish sequences.
+Row *content* is deterministic — the tie-break at
+[Bestscenarioscounter.cpp:133](../src/igor/Core/Bestscenarioscounter.cpp#L133) is a strict `>`,
+so ties keep enumeration order, and enumeration within one sequence is single-threaded — but row
+*order* is not.
+
+**This matters more than its size suggests.** A gate that fails intermittently trains its readers
+to re-run rather than investigate, which is exactly how a real regression gets waved through
+during a multi-step refactor. Every "bitwise" claim in §6 depends on this gate meaning what it
+says.
+
+Fix shape (not done here — out of A0's scope): either sort rows by `seq_index` before comparing,
+or make the dump ordered. Confirm first whether the comparator is a plain `diff`; if it is,
+sorting in the comparator is the smaller change and does not touch inference code. Worth doing
+**before step 1**, since steps 1–5 all lean on this gate.
 
 ## 7. Where a generic rewrite would silently change results
 

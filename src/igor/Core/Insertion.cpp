@@ -32,6 +32,8 @@
 
 #include <algorithm>
 
+#include <limits>
+
 using namespace std;
 
 namespace {
@@ -425,6 +427,39 @@ void Insertion::initialize_crude_scenario_proba_bound(
 
     //Apply the computed upper bound
     downstream_proba_bound *= event_upper_bound_proba;
+}
+
+OffsetDelta Insertion::get_offset_delta_bounds(SeqTypeId, Seq_side) const
+{
+    //An insertion writes no offsets at all: its span is *derived* from where its neighbours
+    //already sit, which is exactly what makes the generic B6 rule possible.
+    return {};
+}
+
+LengthContribution Insertion::get_length_contribution(SeqTypeId type_id) const
+{
+    if (type_id != this->seq_type_id || this->event_realizations.empty()) {
+        return {};
+    }
+    int fewest = std::numeric_limits<int>::max();
+    int most = std::numeric_limits<int>::min();
+    for (const auto &[name, realization] : this->event_realizations) {
+        (void)name;
+        fewest = std::min(fewest, realization.value_int);
+        most = std::max(most, realization.value_int);
+    }
+    return {fewest, most};
+}
+
+SeqConstructionRole Insertion::get_seq_construction_role(SeqTypeId type_id) const
+{
+    //Creates the segment, but as placeholders: Dinucl_markov supplies the nucleotides.
+    return type_id == this->seq_type_id ? SeqConstructionRole::Creates : SeqConstructionRole::None;
+}
+
+OffsetRole Insertion::get_offset_role(SeqTypeId, Seq_side) const
+{
+    return OffsetRole::None;
 }
 
 bool Insertion::has_effect_on(Seq_type seq_type) const

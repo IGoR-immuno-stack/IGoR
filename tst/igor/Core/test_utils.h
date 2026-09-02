@@ -402,6 +402,13 @@ public:
             const std::unordered_map<Rec_Event_name,
                                      std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &,
             std::unordered_map<Seq_type, std::string> &, std::mt19937_64 &) const override;
+    OffsetDelta get_offset_delta_bounds(SeqTypeId, Seq_side) const override { return {}; }
+    LengthContribution get_length_contribution(SeqTypeId) const override { return {}; }
+    SeqConstructionRole get_seq_construction_role(SeqTypeId) const override
+    {
+        return SeqConstructionRole::None;
+    }
+    OffsetRole get_offset_role(SeqTypeId, Seq_side) const override { return OffsetRole::None; }
     void write2txt(std::ofstream &) override {}
     void write2txt_legacy(std::ofstream &) override {}
     void write2txt_v2(std::ofstream &) override {}

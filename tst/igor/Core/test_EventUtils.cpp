@@ -49,6 +49,14 @@ public:
       Seq_offsets_map &, Index_map &) override {}
   void add_to_marginals(long double, Marginal_array_p &) const override {}
   shared_ptr<Rec_Event> copy() override { return nullptr; }
+  OffsetDelta get_offset_delta_bounds(SeqTypeId, Seq_side) const override { return {}; }
+  LengthContribution get_length_contribution(SeqTypeId) const override { return {}; }
+  SeqConstructionRole get_seq_construction_role(SeqTypeId) const override {
+    return SeqConstructionRole::None;
+  }
+  OffsetRole get_offset_role(SeqTypeId, Seq_side) const override {
+    return OffsetRole::None;
+  }
   bool has_effect_on(Seq_type) const override { return false; }
   void iterate_initialize_Len_proba(Seq_type, map<int, double> &,
                                     queue<shared_ptr<Rec_Event>> &, double &,

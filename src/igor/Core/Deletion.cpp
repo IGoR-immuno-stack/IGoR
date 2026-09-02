@@ -28,8 +28,8 @@
 #include <igor/Core/gene_to_seqtype_migr.h>
 
 #include <algorithm>
-
-#include <algorithm>
+#include <limits>
+#include <utility>
 
 using namespace std;
 
@@ -1596,6 +1596,71 @@ void Deletion::initialize_event(
     this->Rec_Event::initialize_event(processed_events, events_map, offset_map, downstream_proba_map,
                                       constructed_sequences, safety_set, error_rate_p, mismatches_list, seq_offsets,
                                       index_map);
+}
+
+namespace {
+
+/// The inclusive deletion range, taken straight from the realization set.
+///
+/// Deliberately not read off len_min / len_max: those are accumulated by an `if / else if`
+/// over an unordered map, so a strictly ascending iteration order never reaches the second
+/// branch and leaves one bound at its INT16 sentinel. Latent today -- the hash order for
+/// realistic key sets happens to cooperate -- but the failure would be silent and severe.
+/// See docs/ITERATE_GENERIC_REWRITE_PLAN.md section 7.4.
+std::pair<int, int> deletion_range(const std::unordered_map<std::string, Event_realization> &realizations)
+{
+    if (realizations.empty()) {
+        return {0, 0};
+    }
+    int min_del = std::numeric_limits<int>::max();
+    int max_del = std::numeric_limits<int>::min();
+    for (const auto &[name, realization] : realizations) {
+        (void)name;
+        min_del = std::min(min_del, realization.value_int);
+        max_del = std::max(max_del, realization.value_int);
+    }
+    return {min_del, max_del};
+}
+
+} // namespace
+
+OffsetDelta Deletion::get_offset_delta_bounds(SeqTypeId type_id, Seq_side side) const
+{
+    if (type_id != this->seq_type_id || side != this->event_side) {
+        return {};
+    }
+    const auto [min_del, max_del] = deletion_range(this->event_realizations);
+
+    //A 3' end retreats as nucleotides are removed, a 5' end advances; a negative deletion
+    //(a palindromic insertion) moves it the other way. This sign flip is the one the
+    //current code spells out at each of its eight comparison sites.
+    if (side == Three_prime) {
+        return {-max_del, -min_del};
+    }
+    return {min_del, max_del};
+}
+
+LengthContribution Deletion::get_length_contribution(SeqTypeId type_id) const
+{
+    if (type_id != this->seq_type_id) {
+        return {};
+    }
+    const auto [min_del, max_del] = deletion_range(this->event_realizations);
+    //Removing `k` nucleotides shortens the segment by `k`, whichever end they come from.
+    return {-max_del, -min_del};
+}
+
+SeqConstructionRole Deletion::get_seq_construction_role(SeqTypeId type_id) const
+{
+    return type_id == this->seq_type_id ? SeqConstructionRole::Modifies : SeqConstructionRole::None;
+}
+
+OffsetRole Deletion::get_offset_role(SeqTypeId type_id, Seq_side side) const
+{
+    if (type_id != this->seq_type_id || side != this->event_side) {
+        return OffsetRole::None;
+    }
+    return OffsetRole::Modifies;
 }
 
 void Deletion::add_to_marginals(long double scenario_proba, Marginal_array_p &updated_marginals) const

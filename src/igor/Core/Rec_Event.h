@@ -100,6 +100,55 @@ struct Event_realization
  * The RecEvents design is key to the way IGoR explore all possible scenarios (through the iterate method) and generate sequences (through the draw_random_realization)
  *
  */
+/**
+ * \brief Signed range by which an event shifts one end of a segment.
+ *
+ * A 3' end moves left as nucleotides are deleted, a 5' end moves right, so the sign is
+ * carried here rather than being re-derived at every call site. `{0, 0}` means the event
+ * cannot move that end at all.
+ */
+struct OffsetDelta {
+    int min = 0;
+    int max = 0;
+
+    bool operator==(const OffsetDelta &) const = default;
+};
+
+/**
+ * \brief Signed range of nucleotides an event contributes to a segment's length.
+ *
+ * Positive for an event that supplies sequence (a genomic template, an insertion), negative
+ * for one that removes it (a deletion), zero for one that only fills placeholders.
+ *
+ * This is a *contribution*, not a length: several events compose onto one segment, and the
+ * junction-length DP already sums them. It replaces `get_len_min()` / `get_len_max()`, whose
+ * meaning differs per subclass -- signed delta on Deletion, a length on Insertion and
+ * Gene_choice, never set on Dinucl_markov -- and whose value is accumulated by an
+ * order-dependent `if / else if` over an unordered map. See
+ * docs/ITERATE_GENERIC_REWRITE_PLAN.md sections 2.1 and 7.4.
+ */
+struct LengthContribution {
+    int min = 0;
+    int max = 0;
+
+    bool operator==(const LengthContribution &) const = default;
+};
+
+/// What an event does to a constructed sequence segment.
+enum class SeqConstructionRole {
+    None,     ///< does not touch this segment
+    Creates,  ///< allocates it (possibly containing placeholders)
+    Modifies, ///< truncates or extends an existing one
+    Fills     ///< fills placeholder values in an existing one
+};
+
+/// What an event does to one end of a segment.
+enum class OffsetRole {
+    None,
+    Creates, ///< sets the initial offset
+    Modifies ///< shifts an existing one
+};
+
 class CORE_EXPORT Rec_Event
 {
 public:
@@ -155,6 +204,35 @@ public:
     Event_type get_type() const { return this->type; }
     int get_len_max() const { return this->len_max; };
     int get_len_min() const { return this->len_min; };
+
+    /**
+     * \name Capability queries (Phase A, reduced -- task A0)
+     *
+     * Declarative properties, answered from the event's own instance data. Called during
+     * model initialization, never inside the iterate hot loop, so the virtual dispatch is
+     * free. Pure virtual rather than base members because several answers depend on
+     * instance state a base constructor could not know: which seq_type an event targets,
+     * which end it acts on, and its realization set.
+     *
+     * They exist so that the generic iterate() bodies (B5, B6, B11) can ask "how far can
+     * this end still move" and "how long can what sits here still be" without knowing
+     * which subclass answers. See docs/ITERATE_GENERIC_REWRITE_PLAN.md section 2.1.
+     * @{
+     */
+
+    /// How far this event can still shift `(type_id, side)`. `{0, 0}` if it cannot.
+    virtual OffsetDelta get_offset_delta_bounds(SeqTypeId type_id, Seq_side side) const = 0;
+
+    /// How many nucleotides this event contributes to `type_id`. `{0, 0}` if none.
+    virtual LengthContribution get_length_contribution(SeqTypeId type_id) const = 0;
+
+    /// What this event does to the `type_id` segment.
+    virtual SeqConstructionRole get_seq_construction_role(SeqTypeId type_id) const = 0;
+
+    /// What this event does to one end of the `type_id` segment.
+    virtual OffsetRole get_offset_role(SeqTypeId type_id, Seq_side side) const = 0;
+
+    /** @} */
     const Seq_type_String get_seq_type() const { return seq_type; };
     void set_seq_type(const Seq_type_String &st) { seq_type = st; }
     /// Runtime handle for seq_type, resolved against the model's frozen registry by

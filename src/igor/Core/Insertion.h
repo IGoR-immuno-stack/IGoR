@@ -98,6 +98,12 @@ public:
             const Events_map &events_map) override;
 
     //Proba bound related computation methods
+    //Capability queries (task A0)
+    OffsetDelta get_offset_delta_bounds(SeqTypeId, Seq_side) const override;
+    LengthContribution get_length_contribution(SeqTypeId) const override;
+    SeqConstructionRole get_seq_construction_role(SeqTypeId) const override;
+    OffsetRole get_offset_role(SeqTypeId, Seq_side) const override;
+
     bool has_effect_on(Seq_type) const override;
     void iterate_initialize_Len_proba(Seq_type considered_junction, std::map<int, double> &length_best_proba_map,
                                       std::queue<std::shared_ptr<Rec_Event>> &model_queue, double &scenario_proba,

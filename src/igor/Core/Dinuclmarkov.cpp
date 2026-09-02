@@ -541,6 +541,29 @@ void Dinucl_markov::initialize_crude_scenario_proba_bound(
     updated_proba_list.push_front(this->updated_upper_bound_proba);
 }
 
+OffsetDelta Dinucl_markov::get_offset_delta_bounds(SeqTypeId, Seq_side) const
+{
+    return {};
+}
+
+LengthContribution Dinucl_markov::get_length_contribution(SeqTypeId) const
+{
+    //Fills placeholders that Insertion already allocated, so it adds no nucleotides of its
+    //own. This is the subclass whose len_min / len_max were never set at all, and which
+    //therefore still carries their INT16 sentinels.
+    return {};
+}
+
+SeqConstructionRole Dinucl_markov::get_seq_construction_role(SeqTypeId type_id) const
+{
+    return type_id == this->seq_type_id ? SeqConstructionRole::Fills : SeqConstructionRole::None;
+}
+
+OffsetRole Dinucl_markov::get_offset_role(SeqTypeId, Seq_side) const
+{
+    return OffsetRole::None;
+}
+
 bool Dinucl_markov::has_effect_on(Seq_type seq_type_param) const
 {
     const string &heo_dm_st = this->seq_type;

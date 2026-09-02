@@ -1306,6 +1306,44 @@ void Gene_choice::add_to_marginals(long double scenario_proba, Marginal_array_p 
     }
 }
 
+OffsetDelta Gene_choice::get_offset_delta_bounds(SeqTypeId, Seq_side) const
+{
+    //A gene choice *sets* both offsets from the alignment; it never shifts an existing one,
+    //so it contributes no travel to any end. What its templates make possible is a length,
+    //reported by get_length_contribution().
+    return {};
+}
+
+LengthContribution Gene_choice::get_length_contribution(SeqTypeId type_id) const
+{
+    if (type_id != this->seq_type_id || this->event_realizations.empty()) {
+        return {};
+    }
+    int shortest = std::numeric_limits<int>::max();
+    int longest = std::numeric_limits<int>::min();
+    for (const auto &[name, realization] : this->event_realizations) {
+        (void)name;
+        const int length = static_cast<int>(realization.value_str.size());
+        shortest = std::min(shortest, length);
+        longest = std::max(longest, length);
+    }
+    //The whole template. The portion clipped for an overhanging alignment is not subtracted
+    //here: it depends on the query, not on the model, and task B3 turns it into a flank
+    //segment of its own rather than a shortening of this one.
+    return {shortest, longest};
+}
+
+SeqConstructionRole Gene_choice::get_seq_construction_role(SeqTypeId type_id) const
+{
+    return type_id == this->seq_type_id ? SeqConstructionRole::Creates : SeqConstructionRole::None;
+}
+
+OffsetRole Gene_choice::get_offset_role(SeqTypeId type_id, Seq_side) const
+{
+    //Both ends, since the alignment fixes the segment's position outright.
+    return type_id == this->seq_type_id ? OffsetRole::Creates : OffsetRole::None;
+}
+
 bool Gene_choice::has_effect_on(Seq_type seq_type) const
 {
     switch (this->event_class) {
