@@ -112,6 +112,7 @@ gap, not a judgement call.
 | 7 | **Pruning** | below threshold → skipped; positive control above it | `pruning` |
 | 8 | **Empty vs absent** | a written-but-empty segment has `exists() == true` with empty contents; never-written is absent | `mismatch propagation`, last section |
 | 9 | **Memory layering** | the event reads the layer below and writes its own; state written at one layer is still readable at the other | *(see note)* |
+| 10 | **Layer contract** | every map the event requests a layer in is *written* at that layer on every path that hands off | **automatic** — see §4.1 |
 
 Notes on the two rows that need care:
 
@@ -126,6 +127,39 @@ reads the alignment, so it has little to assert. `Deletion`, `Insertion` and `Di
 all read `memory_layer_X - 1` and write `memory_layer_X`, and a rewrite that reads the wrong
 layer sees stale or absent state. For those, assert that a segment preset at layer 0 is what
 the event reads, and that its own write lands where the next event reads it.
+
+### 4.1 — Row 10 is checked for you
+
+**Requesting a memory layer is a promise to write it before handing off.** An event requests a
+layer so it can write without clobbering the previous value, and so downstream readers of
+`layer - 1` see that previous value. Request-without-write leaves the next reader on unwritten
+storage: `LayeredArray` refuses it and aborts the run, and the pre-B8 containers served it as
+uninitialized memory. That is exactly the defect in plan §7.9 — `Gene_choice`'s `no_d_align` path
+requested the safety layers and never wrote them — and it survived for as long as it did because
+nothing was looking.
+
+`call_iterate_recording()` now checks it on every hand-off, for `constructed_sequences`, both
+ends of `seq_offsets`, `mismatches_lists`, `downstream_proba_map`, `safety_set` and
+`pruning_mismatch_floor`. **You get it by using the harness; there is nothing to write.**
+
+Two things to know about it, because they decide whether it can see anything:
+
+- **It needs downstream events.** `request_layer()` *sets* a key's current layer to the layer
+  requested, so writing at that same layer changes nothing observable on its own. What makes a
+  write visible is that events initialized after this one request further layers, pushing the
+  current layer above this event's — and only a write pulls it back down. A fixture with no
+  `add_downstream_event()` makes the check vacuous. Register the deletions and insertions a real
+  model would carry; the junction-length map needs them anyway (trap 3).
+- **It only covers paths a section actually reaches.** It is a dynamic check on a structural
+  defect, so it finds a missing write only on a branch some test executes. That is what row 4 and
+  coverage are for.
+
+`index_map` is deliberately excluded: its layering is driven by parent-realization tracking
+through `offset_map`, which single-event fixtures do not populate.
+
+When a section trips it, the message names the map, the key, the layer requested and the layer
+actually current — start at the event's `initialize_event()` and find the `request_layer()` whose
+matching write is missing on that path.
 
 ### Rows that only apply to some events
 
@@ -329,7 +363,8 @@ Reference the plan section in the name, so the fix has an obvious landing site.
 
 ### Adding a new event's tests
 
-- [ ] All nine rows of §4 have at least one section
+- [ ] All ten rows of §4 have at least one section (row 10 is automatic, but only if the
+      fixture registers downstream events — see §4.1)
 - [ ] Every `continue` / `break` in the body has a section **and** a positive control
 - [ ] Each section mutation-verified: break the code, confirm *this* section fails
 - [ ] Known-wrong behaviour is `[!shouldfail]`, not pinned

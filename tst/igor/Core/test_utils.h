@@ -166,6 +166,7 @@ struct ExplorationStorage {
     {
         //Mirrors GenModel: downstream bounds start at 1 so multiply_all() is neutral.
         downstream_proba_map.init_first_layer(1.0);
+
     }
 };
 
@@ -364,6 +365,59 @@ IterateTestState create_iterate_state(const std::string &sequence,
 std::string int_str_to_nt(const Int_Str &seq);
 
 /**
+ * @brief Per-key current layer of every layered map, at one instant.
+ *
+ * Taken right after initialize_event(), it records the highest layer any event requested
+ * for each key. See LayerContract below.
+ */
+struct LayerSnapshot {
+    std::map<std::string, std::vector<int>> maps; ///< map name -> current layer per key
+};
+
+/**
+ * @brief The layer contract: requesting a layer is a promise to write it before handing off.
+ *
+ * An event requests a memory layer so it can write without clobbering the previous value,
+ * and so that downstream readers of `layer - 1` see that previous value. An event that
+ * requests a layer and then returns without writing it leaves the next reader on unwritten
+ * storage -- which LayeredArray refuses, aborting the run, and which the pre-B8 containers
+ * served as uninitialized memory. See docs/ITERATE_GENERIC_REWRITE_PLAN.md section 7.9.
+ *
+ * The check needs no per-event knowledge, but it does need two snapshots, because
+ * `request_layer()` *sets* a key's current layer to the layer requested -- so writing at
+ * that layer changes nothing observable on its own. What distinguishes written from
+ * unwritten is that the events initialized *after* this one request further layers, pushing
+ * the current layer above this event's, and only a write pulls it back down:
+ *
+ *     before any init          layer_of = -1
+ *     event under test asks    layer_of = L        <- captured as `mine`
+ *     downstream events ask    layer_of = L+k
+ *     event writes at L        layer_of = L        <- expected at hand-off
+ *     event does not write     layer_of = L+k      <- violation
+ *
+ * So the rule is: for every key this event requested a layer for, the current layer at
+ * hand-off must equal the layer it requested. Every test going through
+ * call_iterate_recording() is checked automatically, so a new event's sections inherit it
+ * without writing anything.
+ *
+ * The check is vacuous for a fixture with no downstream events, since nothing then pushes
+ * the layer up. Fixtures that register the deletions and insertions a real model would
+ * carry -- which they need anyway, for the junction-length map -- get it for free.
+ */
+struct LayerViolation {
+    std::size_t call_index = 0;
+    std::string map_name;
+    std::size_t key = 0;
+    int expected_layer = 0; ///< top layer requested
+    int actual_layer = 0;   ///< layer actually current at hand-off
+
+    std::string describe() const;
+};
+
+/// Snapshot every layered map the harness owns.
+LayerSnapshot capture_layers(const IterateTestState &state);
+
+/**
  * @brief What the next event in the chain would see, captured per surviving realization.
  *
  * Only seq_types that have actually been written are present in the maps, so a missing key
@@ -396,6 +450,17 @@ public:
     explicit RecordingEvent(int event_id);
 
     std::vector<ScenarioSnapshot> calls;
+
+    /// Layers as they stood before any event was initialized.
+    LayerSnapshot layer_before_init;
+
+    /// Layers immediately after the event under test requested its own. Set by
+    /// call_iterate().
+    LayerSnapshot layer_baseline;
+
+    /// Requested-but-unwritten layers seen at any hand-off. Checked automatically by
+    /// call_iterate_recording().
+    std::vector<LayerViolation> layer_violations;
 
     /// Number of realizations that reached the next event.
     std::size_t call_count() const { return calls.size(); }

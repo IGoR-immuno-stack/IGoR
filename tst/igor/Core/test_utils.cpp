@@ -25,6 +25,8 @@
 
 #include "test_utils.h"
 
+#include <catch2/catch_test_macros.hpp>
+
 #include <igor/Core/EventUtils.h>
 #include <igor/Core/gene_to_seqtype_migr.h>
 #include <algorithm>
@@ -77,6 +79,47 @@ IterateTestState create_iterate_state(const std::string &sequence, std::size_t m
                                       std::size_t max_events)
 {
     return IterateTestState(sequence, marginal_array_size, max_events);
+}
+
+std::string LayerViolation::describe() const
+{
+    return map_name + " key " + std::to_string(key) + ": requested layer "
+           + std::to_string(expected_layer) + " but the current layer at hand-off was "
+           + std::to_string(actual_layer)
+           + " -- a layer was requested and never written on this path";
+}
+
+namespace {
+
+template <typename Map>
+std::vector<int> layers_of(const Map &map)
+{
+    std::vector<int> layers;
+    layers.reserve(map.count());
+    for (std::size_t key = 0; key != map.count(); ++key) {
+        layers.push_back(map.current_layer(key));
+    }
+    return layers;
+}
+
+} // namespace
+
+LayerSnapshot capture_layers(const IterateTestState &state)
+{
+    LayerSnapshot snapshot;
+    snapshot.maps.emplace("constructed_sequences", layers_of(state.scenario.constructed_sequences));
+    snapshot.maps.emplace("seq_offsets.five_prime", layers_of(state.scenario.seq_offsets.five_prime));
+    snapshot.maps.emplace("seq_offsets.three_prime",
+                          layers_of(state.scenario.seq_offsets.three_prime));
+    snapshot.maps.emplace("mismatches_lists", layers_of(state.scenario.mismatches_lists));
+    snapshot.maps.emplace("downstream_proba_map", layers_of(state.exploration.downstream_proba_map));
+    snapshot.maps.emplace("safety_set", layers_of(state.exploration.safety_set));
+    snapshot.maps.emplace("pruning_mismatch_floor",
+                          layers_of(state.exploration.pruning_mismatch_floor));
+    //index_map is deliberately excluded: its layering is driven by parent-realization
+    //tracking through offset_map, which single-event tests do not populate, so it carries no
+    //contract here.
+    return snapshot;
 }
 
 std::string int_str_to_nt(const Int_Str &seq)
@@ -151,6 +194,36 @@ void RecordingEvent::iterate(QuerySequenceContext &, const ModelContext &, Scena
         }
     }
 
+    //Layer contract: every layer this event requested must have been written before it
+    //hands off. Checked here rather than in each test, so all sections get it for free.
+    auto check_map = [&](const std::string &name, const std::vector<int> &now) {
+        const auto mine = layer_baseline.maps.find(name);
+        const auto before = layer_before_init.maps.find(name);
+        if (mine == layer_baseline.maps.end() || before == layer_before_init.maps.end()) {
+            return;
+        }
+        for (std::size_t key = 0; key != now.size(); ++key) {
+            if (key >= mine->second.size() || key >= before->second.size()) {
+                break;
+            }
+            //Only keys this event actually requested a layer for carry the contract.
+            if (mine->second[key] <= before->second[key]) {
+                continue;
+            }
+            if (now[key] != mine->second[key]) {
+                layer_violations.push_back(
+                        LayerViolation{calls.size(), name, key, mine->second[key], now[key]});
+            }
+        }
+    };
+    check_map("constructed_sequences", layers_of(scenario.constructed_sequences));
+    check_map("seq_offsets.five_prime", layers_of(scenario.seq_offsets.five_prime));
+    check_map("seq_offsets.three_prime", layers_of(scenario.seq_offsets.three_prime));
+    check_map("mismatches_lists", layers_of(scenario.mismatches_lists));
+    check_map("downstream_proba_map", layers_of(exploration.downstream_proba_map));
+    check_map("safety_set", layers_of(exploration.safety_set));
+    check_map("pruning_mismatch_floor", layers_of(exploration.pruning_mismatch_floor));
+
     calls.push_back(std::move(snapshot));
 }
 
@@ -159,6 +232,14 @@ std::shared_ptr<RecordingEvent> call_iterate_recording(const std::shared_ptr<Rec
 {
     auto recorder = std::make_shared<RecordingEvent>(31);
     call_iterate(event, state, recorder);
+
+    //Every section gets the layer contract checked, without asking for it.
+    for (const LayerViolation &violation : recorder->layer_violations) {
+        UNSCOPED_INFO("layer contract violated at hand-off " << violation.call_index << ": "
+                                                             << violation.describe());
+    }
+    CHECK(recorder->layer_violations.empty());
+
     return recorder;
 }
 
@@ -170,6 +251,10 @@ void call_iterate(const std::shared_ptr<Rec_Event> &event, IterateTestState &sta
     //and omitting it leaves the *_length_best_proba_map members empty, which makes the
     //junction-length guard discard every scenario. That is the single easiest way to write
     //a test that passes for the wrong reason.
+
+    if (next) {
+        next->layer_before_init = capture_layers(state);
+    }
 
     auto &events_map = const_cast<Events_map &>(state.model.events_map);
     auto &offset_map = const_cast<std::unordered_map<
@@ -221,6 +306,15 @@ void call_iterate(const std::shared_ptr<Rec_Event> &event, IterateTestState &sta
                                  state.scenario.constructed_sequences, state.exploration.safety_set,
                                  state.accumulation.error_rate, state.scenario.mismatches_lists,
                                  state.scenario.seq_offsets, state.exploration.index_map);
+
+            //The layer contract baseline, captured the instant the event under test has
+            //requested its layers and before any downstream event requests more. Downstream
+            //events are initialized but never iterate -- the recorder intercepts first -- so
+            //their requested layers are legitimately unwritten and must not be in the
+            //baseline. See LayerContract in test_utils.h.
+            if (next && ev == event) {
+                next->layer_baseline = capture_layers(state);
+            }
         }
     }
 

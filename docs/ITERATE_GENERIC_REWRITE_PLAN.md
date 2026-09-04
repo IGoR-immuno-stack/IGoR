@@ -1166,6 +1166,20 @@ leaves. Every downstream deletion then performs its own check rather than skippi
 value the alignment loop writes whenever the verdict is undetermined. There is no prior behaviour
 to preserve: the old value was uninitialized memory.
 
+**A harness-level guard now covers this class of defect.** `call_iterate_recording()` checks the
+layer contract — *requesting a layer is a promise to write it before handing off* — on every
+hand-off, across all six seq_type-keyed maps, for every section in the suite. Verified against
+this very bug: reverting the fix makes the exhaustive-path sections report
+`safety_set key 0 / key 1: requested layer 0, current layer 2`. See
+[ITERATE_TEST_GUIDE.md](ITERATE_TEST_GUIDE.md) §4.1 for its two limits — it needs the fixture to
+register downstream events, and it only sees branches a test executes.
+
+Worth noting for B5/B11: `Gene_choice::initialize_event` requests the safety layers with its
+`if (d_chosen)` / `if (j_chosen)` guards **commented out** at
+[Genechoice.cpp:1135-1225](../src/igor/Core/Genechoice.cpp#L1135-L1225) — six unconditional
+requests against conditional writes. Restoring those guards is the structural fix; the
+conservative write above is the stopgap.
+
 **B11 owes the real verdict here.** `d_5_off` and `d_full_3_offset` are known per position, so the
 exhaustive path can compute the same three-way outcome the alignment path does. The conservative
 write is a stopgap that makes the path defined, not the right long-term answer.
