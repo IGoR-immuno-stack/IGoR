@@ -276,9 +276,12 @@ What to assert:
 
 ## 8. Rules that keep tests honest
 
-1. **Characterize, do not idealize.** Assert what the code does, derived by running it — not
-   what it ought to do. Several branches are known wrong; pinning the intent there would
-   make the suite red from day one.
+1. **Derive every expectation by running the code** — never from a comment, a doc, or what
+   the implementation looks like it should do. That is where the number comes from. What to
+   do when the number is *wrong* is a separate question, and the answer is not "pin it": a
+   **confirmed** defect is asserted at its intended value under `[!shouldfail]` (§11), and
+   only behaviour whose intent is genuinely undecided is pinned as observed, with a comment
+   saying what is undecided.
 2. **Every test must discriminate.** Break the thing under test and confirm the section
    fails. If it still passes, the section is testing something else — this is not
    hypothetical, it happened twice in T0 (plan §7.6).
@@ -337,10 +340,10 @@ pattern's row fills in.
 
 ---
 
-## 11. Known defects: `[!shouldfail]`
+## 11. Confirmed defects: `[!shouldfail]`
 
-Do **not** pin a known-wrong value. Write the assertion the code *should* satisfy and tag
-the case `[!shouldfail]`:
+Do **not** pin a known-wrong value as the expectation under test. Write the assertion the
+code *should* satisfy and tag the case `[!shouldfail]`:
 
 ```cpp
 TEST_CASE("DEFECT (plan 7.1): V credits an error-free length larger than its surviving core",
@@ -358,6 +361,16 @@ reports the passing ones as unexpected passes.
 
 Reference the plan section in the name, so the fix has an obvious landing site.
 
+**"Confirmed" is a gate.** This applies to a defect that has been diagnosed *and* agreed not
+to be the intended behaviour. Behaviour that is merely surprising gets pinned as observed with
+a comment naming what is undecided — an unestablished suspicion tagged `[!shouldfail]` is a
+guess that reads as a decision.
+
+**A wrong value may still appear as a premise.** `test_event_capabilities.cpp` pins
+`get_len_max() == INT16_MIN` to contrast the legacy accessor against the correct capability
+query asserted beside it. That is the defect serving as the case's setup, not as its
+expectation, and it is fine.
+
 ---
 
 ## 12. Checklists
@@ -367,7 +380,7 @@ Reference the plan section in the name, so the fix has an obvious landing site.
 - [ ] All ten rows of §4 have at least one section (row 10 is automatic — see §4.1)
 - [ ] Every `continue` / `break` in the body has a section **and** a positive control
 - [ ] Each section mutation-verified: break the code, confirm *this* section fails
-- [ ] Known-wrong behaviour is `[!shouldfail]`, not pinned
+- [ ] Confirmed defects assert the **intended** value under `[!shouldfail]`, never pinned wrong
 - [ ] Sections live under pattern-named `TEST_CASE`s, not gene-class ones
 - [ ] `pixi run test_unit` green; expected failures reported as expected
 

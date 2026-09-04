@@ -772,17 +772,34 @@ already flagged as the milestone-1 blocker and because `Gene_choice` is the only
 
 | Step | Content | Gate | Bitwise? |
 |---|---|---|---|
-| **T0** | Port the harness from `feature/2_unittests`; drop the 11 non-`iterate()` test cases; write ~22 pattern-keyed sections against observed behaviour (§6.1) | unit | n/a — tests only |
+| **T0** | ✅ **done** — harness ported from `feature/2_unittests`, 11 non-`iterate()` cases dropped, 39 pattern-keyed sections + 4 `[!shouldfail]` defect cases (§6.1) | unit + mutation | n/a — tests only |
 | **A0** | ✅ **done** — `OffsetDelta` / `LengthContribution` + four capability virtuals on all four subclasses | unit | yes — no caller yet |
 | **S2** | `PendingModifierBounds` in `JunctionGeometry.h`; unit-tested against a VDJ and a VJ model | unit + mutation | yes — no caller yet |
 | **S3** | `reachable()` + `Overlap check()`; unit-tested on all eight current comparison shapes | unit + mutation | yes — no caller yet |
-| **1** | **B6** — `Insertion::iterate` generic (G9). Smallest, one hot-loop win. | full ladder | **yes** |
-| **2** | **B7** — `Dinucl_markov` specs from the registry (G9); skip-empty walk; per-spec buffers | full ladder + the empty-anchor test | **yes** |
+| **1a** | `Insertion` characterization sections, written against the **unmodified** event | unit + mutation | n/a — tests only |
+| **1b** | **B6** — `Insertion::iterate` generic (G9). Smallest, one hot-loop win. | full ladder | **yes** |
+| **2a** | `Dinucl_markov` characterization sections, including the empty-anchor case | unit + mutation | n/a — tests only |
+| **2b** | **B7** — `Dinucl_markov` specs from the registry (G9); skip-empty walk; per-spec buffers | full ladder + the empty-anchor test | **yes** |
 | **S4** | Junction pair key; `has_effect_on(left,right)` in the base; the three overrides deleted | full ladder | **yes** |
-| **3** | **B11a** — `Gene_choice` alignment path generic (G4, G2, G8, and G5 via S4) | full ladder + benchmark | **yes**, except §7.1 |
+| **3** | **B11a** — `Gene_choice` alignment path generic (G4, G2, G8, and G5 via S4). Characterization already delivered by T0 | full ladder + benchmark | **yes**, except §7.1 |
 | **S5** | Safety row-bitmask; row-suffix propagation; `Event_safety` deleted | full ladder + the empty-segment transitivity test | **yes** (§2.3 corollary) |
-| **4** | **B5** — `Deletion::iterate` generic (all patterns) | full ladder + benchmark + convergence | **yes** |
-| **5** | **B11b** — `no_d_align` exhaustive path generic (G6) | full ladder + a fixture that *forces* the path | **yes** |
+| **4a** | `Deletion` characterization sections, including the zero-length junction T0 deferred | unit + mutation | n/a — tests only |
+| **4b** | **B5** — `Deletion::iterate` generic (all patterns) | full ladder + benchmark + convergence | **yes** |
+| **5a** | `no_d_align` characterization beyond T0's G6 sections, on a fixture that *forces* the path | unit + mutation | n/a — tests only |
+| **5b** | **B11b** — `no_d_align` exhaustive path generic (G6) | full ladder + a fixture that *forces* the path | **yes** |
+
+**The split is an ordering requirement, not bookkeeping.** The *a* commit lands before the *b*
+commit and is mutation-verified there, where mutation-verification means something: a
+characterization suite written after its collapse pins the new behaviour and agrees with the
+refactor because it was derived from it. §7.9 is the concrete argument — the regression corpus has
+a TRB topology that never fires `no_d_align`, so "collapse, then assert non-regression, then test"
+has a hole exactly where the risk is. Per-event unit tests are the only cover for branches the
+corpus does not reach, and they are only evidence if they predate the change.
+
+A *b* commit's definition of done is "its *a* sections pass unchanged" — or, where the collapse
+legitimately reorganises a section, each adapted assertion is named in the commit message. Some
+adaptation is expected: the *a* sections are written against the legacy switch structure, and the
+pattern-keyed layout (§6.1) minimises but does not eliminate the churn.
 
 B11 is split: the alignment path (3) is what milestone 1 needs and is straightforward; the
 exhaustive path (5) is the hardest single piece in the whole set and depends on S4 being settled.
@@ -856,7 +873,7 @@ collapse unchanged, and a missing instance is a visible hole in a row.
 | **Overlap verdicts** (G2/G3) | the three-way `check()` outcome | `Infeasible — V 3' vs D 5'`; `Infeasible — D 3' vs J 5'`; `Infeasible — J 5' vs V 3'`; `Safe — min deletions clear`; `Undetermined — inside the deletion range`; `pair not adjacent in the ordering (V vs J across D)`; `counterpart not yet chosen ⇒ no check` | `VD safety check: overlap detected`, `DJ safety overlap detection`, `Overlap causes skip`, `safe with min deletions` (4 asserts), `unsafe in deletion range` (4 asserts), `VJ safety checks (no D gene)`, `VJ safety check (no D)`, `DJ safety check`, `Alignment-based with VD safety check` |
 | **Junction-length bound** (G5) | length lookup miss ⇒ `continue`; hit ⇒ bound set | `achievable length sets the bound`; `unachievable length discards the scenario` | `Junction length probability check` |
 | **Exhaustive position fallback** (G6) | the `no_d_align` path and its switch | `fallback off ⇒ no realization enumerated` *(new — pins the G6 default for V/J)*; `both neighbours chosen — position map path`; `neither chosen — sliding path`; `mismatch profile per position` | `Basic D exhaustive search…`, `Exhaustive search with V and J chosen`, `Exhaustive search sliding D position`, `Mismatch computation in exhaustive search` |
-| **Endogenous mismatch bound** (G8, §7.1) | the surviving-core window and its credited length | `V — pins the match-length sign slip (§7.1)`; `J — pins the same slip`; `D — both ends truncated` | `Alignment with mismatches` (1 assert), `Both ends truncated (max deletions)` (1 assert) |
+| **Endogenous mismatch bound** (G8, §7.1) | the surviving-core window and its credited length | `V — the surviving core`, `J — the same slip`, `D — both ends truncated` (the §7.1 defect asserted at its intended value, `[!shouldfail]`) | `Alignment with mismatches` (1 assert), `Both ends truncated (max deletions)` (1 assert) |
 | **Pruning** | `should_prune` at the realization boundary | `below threshold ⇒ realization skipped` | `Probability threshold filtering` |
 | **Baseline writes** (G4) | the offset/sequence/mismatch triple | `V`; `D`; `J`; `negative alignment offset (pre-alignment strip)`; `zero-length junction between adjacent segments` *(new)* | `Basic V/D/J alignment - no other genes` (5/3/3 asserts), `V gene with negative offset` |
 
@@ -865,18 +882,40 @@ collapse unchanged, and a missing instance is a visible hole in a row.
 convention is what makes §2.3's propagation proof hold at the equality case, and nothing currently
 pins it).
 
-#### Assertions come from observed behaviour, not from the sketch
+#### Assertions come from the running code — but a confirmed defect is asserted at its intended value
 
-Characterization in the strict sense: run the **unmodified** implementation, capture what it does,
-assert that. Not from the sketch's comments, and not from what the code *ought* to do — several of
-these branches are exactly where §7 says it does the wrong thing, and pinning intended behaviour
-would make T0 fail before step 1 starts.
+Characterization here means the expectation is derived by **running the unmodified
+implementation**, never from the sketch's comments and never from what the code looks like it
+should do. That settles where the number comes from. It does not settle what to assert once the
+number turns out to be wrong, and the two questions are separate:
 
-Where a pinned value is known-wrong, name it so the eventual fix has an obvious landing site:
+| The behaviour is | Assert | Marked |
+|---|---|---|
+| correct | the observed value | — |
+| odd, but intent not yet established | the observed value | a comment naming precisely what is undecided |
+| a **confirmed** defect — diagnosed, and agreed not to be intended | the value the code *should* produce | `[!shouldfail]`, section-free |
 
-```cpp
-SECTION("V — pins the match-length sign slip (plan §7.1)") { … }
-```
+**Never pin a value that is known to be wrong as the expectation under test.** Two reasons:
+
+- **It misreads in the diff.** A pinned wrong value has to be *edited* when the defect is fixed,
+  and an edited assertion inside a refactoring diff is indistinguishable from a test accommodated
+  to a behaviour change — the one signal this suite exists to keep trustworthy. Removing a
+  `[!shouldfail]` tag is a one-line, self-describing change that cannot be misread as anything
+  else.
+- **It inverts what the test teaches.** A case asserting the intended value is a specification
+  that happens to fail today; a case asserting the wrong value hands the next reader the wrong
+  invariant, stated with the authority of a green suite.
+
+The objection this rule replaces — that asserting intent would make the suite red before step 1 —
+does not hold. Catch2 reports an expected failure as a pass, so `ctest` stays green; the case turns
+red only when the defect is fixed and the tag is not removed, which is the point.
+
+Two boundaries on it. First, **confirmed** is a real gate: an unestablished suspicion asserted
+under `[!shouldfail]` is a guess that will be read as a decision, so behaviour that is merely
+strange gets the middle row, not the last. Second, a wrong value may still appear as a **premise**
+inside a case whose subject asserts intent — `test_event_capabilities.cpp` pins
+`get_len_max() == INT16_MIN` precisely to contrast the legacy accessor with the correct capability
+query beside it (§7.4). What the rule forbids is the wrong value standing as the expectation.
 
 The 21 live assertions in the sections being kept are a starting point, not a baseline — re-derive
 each against the current implementation, since the branch predates B2/B8.
@@ -917,11 +956,18 @@ convention can only be exercised from `Deletion`.
 
 #### Scope discipline
 
-T0 covers `Gene_choice` only, matching the sketch's reach. Sections for `Deletion`, `Insertion` and
-`Dinucl_markov` are added as part of steps 4, 1 and 2 — each step contributes the instances for the
-branches it collapses, into the pattern-keyed `TEST_CASE`s above. The suite grows with the
-migration rather than becoming a project of its own, and the row for each pattern fills in as the
-events are migrated.
+T0 covers `Gene_choice` only, matching the sketch's reach. Sections for `Insertion`,
+`Dinucl_markov` and `Deletion` arrive as the *a* commit of steps 1, 2 and 4 — each step contributes
+the instances for the branches it is about to collapse, into the pattern-keyed `TEST_CASE`s above.
+The suite grows with the migration rather than becoming a project of its own, and the row for each
+pattern fills in as the events are migrated.
+
+Staging them per event is about **harness churn, not about deferring the testing**: T0 rewrote the
+layer-contract probe three times before the `LayeredArray` split made it work (§7.10), and had four
+event suites existed by then, all four would have carried the broken probe. `Dinucl_markov` in
+particular needs fixture support the harness does not have yet. What is *not* deferred is the
+ordering — see the note under the §6 table: each event's sections land **before** its collapse, in
+their own commit, mutation-verified against the unmodified event.
 
 ### 6.2 — The regression gate has a flaky output
 
