@@ -34,6 +34,18 @@
 
 using namespace std;
 
+namespace {
+/*
+ * Memory budget for the per chunk accumulators of the deterministic reduction
+ * performed in infer_model(). A larger budget yields finer chunks, hence a better
+ * load balance on small datasets, at the cost of holding more partial marginals in
+ * memory. The reduction result depends on the resulting chunk decomposition only,
+ * never on the number of threads, so changing this constant changes the last bits
+ * of the inferred parameters.
+ */
+constexpr size_t REDUCTION_MEMORY_BUDGET_BYTES = 64ull * 1024ull * 1024ull;
+} // namespace
+
 GenModel::GenModel(const Model_Parms &parms, const Model_marginals &marginals,
                    const map<size_t, shared_ptr<Counter>> &count_list)
     : model_parms(parms), model_marginals(marginals), counters_list(count_list)
@@ -225,6 +237,41 @@ bool GenModel::infer_model(
             sequence_util_ptr = &sequences;
         }
 
+        /*
+		 * Deterministic reduction setup.
+		 *
+		 * Floating point addition is not associative, so the summed marginals depend on
+		 * the order in which the per sequence contributions are added. Accumulating per
+		 * thread makes that order depend on the number of threads and on the timing of
+		 * the dynamic schedule, which changes the last bits of the inferred parameters
+		 * from one run to the next; scenarios that are exactly degenerate under the
+		 * model are then ranked differently by the counters.
+		 *
+		 * Instead the sequences are partitioned into fixed contiguous chunks, each
+		 * chunk accumulating into its own slot. schedule(dynamic,chunk_size) hands out
+		 * exactly those chunks, so a chunk is always summed by a single thread in
+		 * increasing sequence order, whichever thread happens to pick it up. Merging the
+		 * slots in chunk order after the parallel region therefore gives the same result
+		 * for any number of threads.
+		 *
+		 * The number of slots is bounded by a memory budget: with few sequences every
+		 * sequence gets its own slot, which is exactly how a plain dynamic schedule
+		 * behaves; with many sequences the chunks grow instead.
+		 */
+        const size_t n_seqs_to_process = sequence_util_ptr->size();
+        const size_t marginals_bytes = new_marginals.get_length() * sizeof(long double);
+        const size_t max_reduction_slots =
+                max<size_t>(1, REDUCTION_MEMORY_BUDGET_BYTES / max<size_t>(marginals_bytes, 1));
+        const size_t chunk_size =
+                max<size_t>(1, (n_seqs_to_process + max_reduction_slots - 1) / max_reduction_slots);
+        const size_t n_reduction_slots = (n_seqs_to_process + chunk_size - 1) / chunk_size;
+        vector<Model_marginals> chunk_marginals(n_reduction_slots, new_marginals.empty_copy());
+        vector<shared_ptr<Error_rate>> chunk_err_rates(n_reduction_slots);
+        vector<map<size_t, shared_ptr<Counter>>> thread_counter_lists(omp_get_max_threads());
+
+        general_logs << "Iteration " << iteration_accomplished + 1 << ": reducing over " << n_reduction_slots
+                     << " chunk(s) of " << chunk_size << " sequence(s)" << endl;
+
         cerr << "Performing Evaluate/Inference iteration " << iteration_accomplished + 1 << endl;
 
 /* omp parallel declaration using OpenMP 4.0 standards
@@ -240,7 +287,6 @@ bool GenModel::infer_model(
             unordered_map<Rec_Event_name, int> single_thread_index_map =
                     model_marginals.get_index_map(model_parms, model_queue);
             Model_marginals single_thread_model_marginals(model_marginals);
-            Model_marginals single_thread_marginals(single_thread_model_parms);
             shared_ptr<Error_rate> single_thread_err_rate = single_thread_model_parms.get_err_rate_p();
             Events_map events_map =
                     single_thread_model_parms.get_events_map();
@@ -253,7 +299,6 @@ bool GenModel::infer_model(
                 }
             }
 
-            single_thread_marginals.debug_marg_name = "single_thread_marginals";
             single_thread_model_marginals.debug_marg_name = "single thread model marginals";
 
             unordered_set<Rec_Event_name> init_processed_events;
@@ -392,11 +437,13 @@ bool GenModel::infer_model(
             chrono::duration<double> seq_time;
 
             //Loop over sequences in parallel, using the number of threads declared previously when declaring the parallel section
-            //Use dynamic scheduling to avoid loss of time due to synchronization
-            auto num_seqs = sequence_util_ptr->size(); // MSVC can't use iterators with openmp !
-#pragma omp for schedule(dynamic) nowait
-            for (auto i = 0; i < num_seqs; ++i) {
+            //Chunks are handed out on demand to keep the load balanced, but each chunk
+            //accumulates into its own slot so that the reduction does not depend on
+            //which thread picked it up nor on how many threads there are
+#pragma omp for schedule(dynamic, chunk_size) nowait
+            for (ptrdiff_t i = 0; i < static_cast<ptrdiff_t>(n_seqs_to_process); ++i) {
 
+                const size_t reduction_slot = static_cast<size_t>(i) / chunk_size;
                 const auto &seq = (*sequence_util_ptr)[i]; // index access
 
                 single_seq_begin = chrono::system_clock::now();
@@ -511,11 +558,19 @@ bool GenModel::infer_model(
                     //Add weighed errors to the normalized error counter
                     single_thread_err_rate->add_to_norm_counter();
 
-                    //Add the single_seq_marginals to the single thread marginals
-                    single_thread_marginals += single_seq_marginals;
+                    //Add the single_seq_marginals to this chunk's marginals
+                    chunk_marginals[reduction_slot] += single_seq_marginals;
                 } else {
                     //Erase seq specific counters so that it won't contribute to the error rate
                     single_thread_err_rate->clean_seq_counters();
+                }
+
+                //Drain the error rate accumulators at the end of each chunk so that they
+                //are summed in chunk order as well
+                if (static_cast<size_t>(i) + 1 == min((reduction_slot + 1) * chunk_size, n_seqs_to_process)) {
+                    chunk_err_rates[reduction_slot] = single_thread_err_rate->copy();
+                    add_to_err_rate(chunk_err_rates[reduction_slot].get(), single_thread_err_rate.get());
+                    single_thread_err_rate->clear_accumulators();
                 }
 
 #pragma omp critical(update_progress_bar)
@@ -528,15 +583,28 @@ bool GenModel::infer_model(
                 }
             }
 
-//Merge single thread error_rates and marginals
-#pragma omp critical(merge_marginals_and_er)
-            {
-                new_marginals += single_thread_marginals;
-                add_to_err_rate(error_rate_copy.get(), single_thread_err_rate.get());
-                for (map<size_t, shared_ptr<Counter>>::iterator iter = single_thread_counter_list.begin();
-                     iter != single_thread_counter_list.end(); ++iter) {
-                    counters_list.at((*iter).first)->add_to_counter((*iter).second);
-                }
+            //Publish this thread's counters, they are merged in thread order below.
+            //The team size can never exceed the omp_get_max_threads() value the vector
+            //was sized with, so the index is always in range.
+            thread_counter_lists[omp_get_thread_num()] = single_thread_counter_list;
+        }
+
+        //Merge the chunk accumulators in chunk order: this is what makes the inferred
+        //parameters independent of the thread count and of the schedule timing
+        for (size_t slot = 0; slot != n_reduction_slots; ++slot) {
+            new_marginals += chunk_marginals[slot];
+            if (chunk_err_rates[slot]) {
+                add_to_err_rate(error_rate_copy.get(), chunk_err_rates[slot].get());
+            }
+        }
+
+        //Counters are accumulated per thread, so their summary output still depends on
+        //the sequence to thread assignment in the last bits. None of them feeds back
+        //into the model parameters, and merging in thread order at least removes the
+        //dependency on the order in which the threads finish.
+        for (const auto &thread_counters : thread_counter_lists) {
+            for (const auto &counter_pair : thread_counters) {
+                counters_list.at(counter_pair.first)->add_to_counter(counter_pair.second);
             }
         }
 
