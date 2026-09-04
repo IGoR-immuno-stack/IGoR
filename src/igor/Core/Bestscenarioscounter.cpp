@@ -163,7 +163,7 @@ void Best_scenarios_counter::count_scenario(
             }
 
             auto jter = this->best_scenarios_vec.begin() + 1;
-            while ((scenario_seq_joint_proba > get<0>(*jter)) and (jter != this->best_scenarios_vec.end())) {
+            while ((jter != this->best_scenarios_vec.end()) and (scenario_seq_joint_proba > get<0>(*jter))) {
                 ++jter;
             }
             this->best_scenarios_vec.emplace(jter, scenario_seq_joint_proba, this->single_scenario_realizations_queue,
@@ -251,7 +251,7 @@ void Best_scenarios_counter::count_scenario(
             }
 
             auto jter = this->best_scenarios_vec.begin() + 1;
-            while ((scenario_seq_joint_proba > get<0>(*jter)) and (jter != this->best_scenarios_vec.end())) {
+            while ((jter != this->best_scenarios_vec.end()) and (scenario_seq_joint_proba > get<0>(*jter))) {
                 ++jter;
             }
             this->best_scenarios_vec.emplace(jter, scenario_seq_joint_proba, this->single_scenario_realizations_queue,
@@ -339,13 +339,11 @@ void Best_scenarios_counter::dump_sequence_data(int seq_index, int iteration_n)
         ss << ";(";
         //Loop over mismatches
         vector<size_t> &mismatches_list = get<2>(*iter);
-        auto util_iter = mismatches_list.end();
-        --util_iter;
         for (auto kter = mismatches_list.begin(); kter != mismatches_list.end(); ++kter) {
-            ss << (*kter);
-            if (kter != util_iter) {
+            if (kter != mismatches_list.begin()) {
                 ss << ",";
             }
+            ss << (*kter);
         }
         ss << ")" << "\n";
         ++counter;
