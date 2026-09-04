@@ -438,7 +438,7 @@ void Dinucl_markov::initialize_event(
 
     for (const auto &spec : this->traversal_specs) {
         downstream_proba_map.request_layer(spec.target_seq);
-        int layer = downstream_proba_map.current_layer(spec.target_seq);
+        int layer = downstream_proba_map.claimed_layer(spec.target_seq);
         if (spec.target_seq == DJ_ins_seq) {
             memory_layer_proba_map_junction_2 = layer;
         } else {

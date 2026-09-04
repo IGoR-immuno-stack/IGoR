@@ -338,7 +338,7 @@ void Insertion::initialize_event(
     }
 
     downstream_proba_map.request_layer(seq_type);
-    memory_layer_proba_map_junction = downstream_proba_map.current_layer(seq_type);
+    memory_layer_proba_map_junction = downstream_proba_map.claimed_layer(seq_type);
 
     this->Rec_Event::initialize_event(processed_events, events_map, offset_map, downstream_proba_map,
                                       constructed_sequences, safety_set, error_rate_p, mismatches_list, seq_offsets,

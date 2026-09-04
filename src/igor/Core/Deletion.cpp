@@ -339,7 +339,7 @@ void Deletion::iterate(
                     if (v_3_new_offset < (j_5_min_offset)) {
                         //Even with minimum number of deletions there's no overlap => safe even without knowing the number of deletions
                         //safety_set_copy.emplace(Event_safety::VD_safe);
-                        //cout<<safety_set.current_layer(Event_safety::VJ_safe)<<endl;
+                        //cout<<safety_set.claimed_layer(Event_safety::VJ_safe)<<endl;
                         exploration.set_overlap_safety(Event_safety::VJ_safe, true, memory_layer_safety_2);
                     } else {
                         exploration.set_overlap_safety(Event_safety::VJ_safe, false, memory_layer_safety_2);
@@ -1406,50 +1406,50 @@ void Deletion::initialize_event(
     switch (target_seq_type) {
     case V_gene_seq:
         seq_offsets.request_layer(V_gene_seq, Three_prime);
-        memory_layer_offset_del = seq_offsets.current_layer(V_gene_seq, Three_prime);
+        memory_layer_offset_del = seq_offsets.claimed_layer(V_gene_seq, Three_prime);
         mismatches_list.request_layer(V_gene_seq);
-        this->memory_layer_mismatches = mismatches_list.current_layer(V_gene_seq);
+        this->memory_layer_mismatches = mismatches_list.claimed_layer(V_gene_seq);
         constructed_sequences.request_layer(V_gene_seq);
-        this->memory_layer_cs = constructed_sequences.current_layer(V_gene_seq);
+        this->memory_layer_cs = constructed_sequences.claimed_layer(V_gene_seq);
         if (d_chosen) {
             safety_set.request_layer(VD_safe);
-            memory_layer_safety_1 = safety_set.current_layer(VD_safe);
-            memory_layer_offset_check1 = seq_offsets.current_layer(D_gene_seq, Five_prime);
+            memory_layer_safety_1 = safety_set.claimed_layer(VD_safe);
+            memory_layer_offset_check1 = seq_offsets.claimed_layer(D_gene_seq, Five_prime);
             //cout<<"v_del_1 : "<<memory_layer_safety_1<<endl;
         }
         if (j_chosen) {
             safety_set.request_layer(VJ_safe);
-            memory_layer_safety_2 = safety_set.current_layer(VJ_safe);
-            memory_layer_offset_check2 = seq_offsets.current_layer(J_gene_seq, Five_prime);
+            memory_layer_safety_2 = safety_set.claimed_layer(VJ_safe);
+            memory_layer_offset_check2 = seq_offsets.claimed_layer(J_gene_seq, Five_prime);
             //cout<<"v_del_2 : "<<memory_layer_safety_2<<endl;
         }
 
         downstream_proba_map.request_layer(V_gene_seq);
-        memory_layer_proba_map_seq = downstream_proba_map.current_layer(V_gene_seq);
+        memory_layer_proba_map_seq = downstream_proba_map.claimed_layer(V_gene_seq);
         if (d_chosen) {
             downstream_proba_map.request_layer(VD_ins_seq);
-            memory_layer_proba_map_junction = downstream_proba_map.current_layer(VD_ins_seq);
+            memory_layer_proba_map_junction = downstream_proba_map.claimed_layer(VD_ins_seq);
         } else if (j_chosen) {
             downstream_proba_map.request_layer(VJ_ins_seq);
-            memory_layer_proba_map_junction = downstream_proba_map.current_layer(VJ_ins_seq);
+            memory_layer_proba_map_junction = downstream_proba_map.claimed_layer(VJ_ins_seq);
         }
 
         break;
     case D_gene_seq:
         mismatches_list.request_layer(D_gene_seq);
-        this->memory_layer_mismatches = mismatches_list.current_layer(D_gene_seq);
+        this->memory_layer_mismatches = mismatches_list.claimed_layer(D_gene_seq);
         constructed_sequences.request_layer(D_gene_seq);
-        this->memory_layer_cs = constructed_sequences.current_layer(D_gene_seq);
+        this->memory_layer_cs = constructed_sequences.claimed_layer(D_gene_seq);
         downstream_proba_map.request_layer(D_gene_seq);
-        this->memory_layer_proba_map_seq = downstream_proba_map.current_layer(D_gene_seq);
+        this->memory_layer_proba_map_seq = downstream_proba_map.claimed_layer(D_gene_seq);
         switch (this->event_side) {
         case Five_prime:
             seq_offsets.request_layer(D_gene_seq, Five_prime);
-            memory_layer_offset_del = seq_offsets.current_layer(D_gene_seq, Five_prime);
+            memory_layer_offset_del = seq_offsets.claimed_layer(D_gene_seq, Five_prime);
             if (v_chosen) {
                 safety_set.request_layer(VD_safe);
-                memory_layer_safety_1 = safety_set.current_layer(VD_safe);
-                memory_layer_offset_check1 = seq_offsets.current_layer(V_gene_seq, Three_prime);
+                memory_layer_safety_1 = safety_set.claimed_layer(VD_safe);
+                memory_layer_offset_check1 = seq_offsets.claimed_layer(V_gene_seq, Three_prime);
                 //cout<<"d_del_1: "<<memory_layer_safety_1<<endl;
             }
             {
@@ -1467,17 +1467,17 @@ void Deletion::initialize_event(
 
             if (v_chosen) {
                 downstream_proba_map.request_layer(VD_ins_seq);
-                memory_layer_proba_map_junction = downstream_proba_map.current_layer(VD_ins_seq);
+                memory_layer_proba_map_junction = downstream_proba_map.claimed_layer(VD_ins_seq);
             }
 
             break;
         case Three_prime:
             seq_offsets.request_layer(D_gene_seq, Three_prime);
-            memory_layer_offset_del = seq_offsets.current_layer(D_gene_seq, Three_prime);
+            memory_layer_offset_del = seq_offsets.claimed_layer(D_gene_seq, Three_prime);
             if (j_chosen) {
                 safety_set.request_layer(DJ_safe);
-                memory_layer_safety_2 = safety_set.current_layer(DJ_safe);
-                memory_layer_offset_check2 = seq_offsets.current_layer(J_gene_seq, Five_prime);
+                memory_layer_safety_2 = safety_set.claimed_layer(DJ_safe);
+                memory_layer_offset_check2 = seq_offsets.claimed_layer(J_gene_seq, Five_prime);
                 //cout<<"d_del_2: "<<memory_layer_safety_2<<endl;
             }
             {
@@ -1495,39 +1495,39 @@ void Deletion::initialize_event(
 
             if (j_chosen) {
                 downstream_proba_map.request_layer(DJ_ins_seq);
-                this->memory_layer_proba_map_junction = downstream_proba_map.current_layer(DJ_ins_seq);
+                this->memory_layer_proba_map_junction = downstream_proba_map.claimed_layer(DJ_ins_seq);
             }
         }
 
         break;
     case J_gene_seq:
         seq_offsets.request_layer(J_gene_seq, Five_prime);
-        memory_layer_offset_del = seq_offsets.current_layer(J_gene_seq, Five_prime);
+        memory_layer_offset_del = seq_offsets.claimed_layer(J_gene_seq, Five_prime);
         mismatches_list.request_layer(J_gene_seq);
-        this->memory_layer_mismatches = mismatches_list.current_layer(J_gene_seq);
+        this->memory_layer_mismatches = mismatches_list.claimed_layer(J_gene_seq);
         constructed_sequences.request_layer(J_gene_seq);
-        this->memory_layer_cs = constructed_sequences.current_layer(J_gene_seq);
+        this->memory_layer_cs = constructed_sequences.claimed_layer(J_gene_seq);
         if (v_chosen) {
             safety_set.request_layer(VJ_safe);
-            memory_layer_safety_1 = safety_set.current_layer(VJ_safe);
-            memory_layer_offset_check1 = seq_offsets.current_layer(V_gene_seq, Three_prime);
+            memory_layer_safety_1 = safety_set.claimed_layer(VJ_safe);
+            memory_layer_offset_check1 = seq_offsets.claimed_layer(V_gene_seq, Three_prime);
             //cout<<"j_del_1: "<<memory_layer_safety_1<<endl;
         }
         if (d_chosen) {
             safety_set.request_layer(DJ_safe);
-            memory_layer_safety_2 = safety_set.current_layer(DJ_safe);
-            memory_layer_offset_check2 = seq_offsets.current_layer(D_gene_seq, Three_prime);
+            memory_layer_safety_2 = safety_set.claimed_layer(DJ_safe);
+            memory_layer_offset_check2 = seq_offsets.claimed_layer(D_gene_seq, Three_prime);
             //cout<<"j_del_2: "<<memory_layer_safety_2<<endl;
         }
 
         downstream_proba_map.request_layer(J_gene_seq);
-        memory_layer_proba_map_seq = downstream_proba_map.current_layer(J_gene_seq);
+        memory_layer_proba_map_seq = downstream_proba_map.claimed_layer(J_gene_seq);
         if (d_chosen) {
             downstream_proba_map.request_layer(DJ_ins_seq);
-            this->memory_layer_proba_map_junction = downstream_proba_map.current_layer(DJ_ins_seq);
+            this->memory_layer_proba_map_junction = downstream_proba_map.claimed_layer(DJ_ins_seq);
         } else if (v_chosen) {
             downstream_proba_map.request_layer(VJ_ins_seq);
-            this->memory_layer_proba_map_junction = downstream_proba_map.current_layer(VJ_ins_seq);
+            this->memory_layer_proba_map_junction = downstream_proba_map.claimed_layer(VJ_ins_seq);
         }
         break;
     default:

@@ -80,6 +80,36 @@ namespace layered_array_detail {
  * deliberately distinct from a key written with an empty value: "not yet processed" versus
  * "actively absent" is the distinction the ordered traversal relies on.
  *
+ * ### Requested layers and written layers are tracked separately
+ *
+ * Two different questions get asked about a key's layers, and conflating them made the
+ * container unable to answer either reliably:
+ *
+ *   - *which layer do I own?*  -- asked at initialization, by an event that has just called
+ *     request_layer(), or that wants the layer its neighbour owns. Answered by
+ *     `claimed_layer()` / `claimed_layers()`.
+ *   - *where does this key's data currently stand?* -- asked at every read, and by
+ *     `exists()`. Answered by `current_layer()`, which moves up and down as the traversal
+ *     writes and backtracks.
+ *
+ * `request_layer()` raises only the first. That matters in three ways:
+ *
+ *   1. `get(key, layer)` on a layer that was requested but never written now always throws.
+ *      When the two were one counter, requesting made the layer readable and it returned
+ *      value-initialized storage; whether a missing write was caught depended on whether
+ *      some *other* event's write happened to have pulled the counter back down first. See
+ *      docs/ITERATE_GENERIC_REWRITE_PLAN.md section 7.9 for the bug that exposed this.
+ *   2. `exists()` means written, not "requested or written". Its callers -- the Scenario
+ *      view, Single_error_rate, the coverage counters, DynamicSequenceMap::occupied() --
+ *      all guard dereferences with it, and a requested-but-unwritten key handed them a
+ *      value-initialized null.
+ *   3. The three-state distinction above becomes real. Under the old scheme a
+ *      not-yet-processed key that some event had requested was indistinguishable from an
+ *      actively-absent one, because both read back as a written default.
+ *
+ * Invariant: `current_layer_[key] <= claimed_layer_[key]`. Writing at a layer claims it,
+ * so `set()` raises the requested mark when it has to.
+ *
  * ### Storage layout and invariants
  *
  *   storage_[key + layer * count_],  size() == count_ * layer_capacity_
@@ -87,8 +117,9 @@ namespace layered_array_detail {
  * Flat and contiguous: one integer multiply-add per access, no pointer chase. The layout is
  * identical to Enum_fast_memory_map's, so the migration is index-for-index.
  *
- *   - `layer_of_[key] == -1`  <=> key never written
- *   - `0 <= layer_of_[key] < layer_capacity_` otherwise
+ *   - `current_layer_[key] == -1`  <=> key never written
+ *   - `0 <= current_layer_[key] <= claimed_layer_[key] < layer_capacity_` otherwise
+ *   - `current_layer()` is the data mark, `claimed_layer()` the ownership mark
  *   - storage_ always holds exactly `count_ * layer_capacity_` elements
  *
  * ### Reads return by value
@@ -106,7 +137,8 @@ public:
     /// \param initial_layers  layers to allocate up front; grows on demand, never shrinks
     explicit LayeredArray(std::size_t count, std::size_t initial_layers = 1)
         : storage_(count * (initial_layers > 0 ? initial_layers : 1)),
-          layer_of_(count, -1),
+          current_layer_(count, -1),
+          claimed_layer_(count, -1),
           count_(count),
           layer_capacity_(initial_layers > 0 ? initial_layers : 1)
     { }
@@ -114,18 +146,25 @@ public:
     std::size_t count() const noexcept { return count_; }
     std::size_t layer_capacity() const noexcept { return layer_capacity_; }
 
-    /// True once the key has been written at least once.
-    bool exists(std::size_t key) const { check_key(key); return layer_of_[key] >= 0; }
+    /// True once the key has been **written** at least once. Requesting a layer does not
+    /// make a key exist -- see "Requested layers and written layers" above.
+    bool exists(std::size_t key) const { check_key(key); return current_layer_[key] >= 0; }
 
-    /// Current layer for this key, or -1 if never written.
-    int current_layer(std::size_t key) const { check_key(key); return layer_of_[key]; }
+    /// The layer this key's data currently stands at -- the last one written -- or -1 if it
+    /// has never been written. This is what get(key) reads and what a rewind moves.
+    int current_layer(std::size_t key) const { check_key(key); return current_layer_[key]; }
+
+    /// The highest layer this key has been *claimed* at, or -1. Ownership, not data: an
+    /// event asks this at initialization to learn the layer request_layer() just granted it,
+    /// or the layer its neighbour owns. Reading a claimed-but-unwritten layer throws.
+    int claimed_layer(std::size_t key) const { check_key(key); return claimed_layer_[key]; }
 
     /// Value at the key's current layer.
     /// \throws std::out_of_range if the key is unknown or has never been written.
     V get(std::size_t key) const
     {
         check_key(key);
-        const int layer = layer_of_[key];
+        const int layer = current_layer_[key];
         if (layer < 0) {
             layered_array_detail::unwritten_key("LayeredArray::get()", key);
         }
@@ -137,7 +176,7 @@ public:
     V get(std::size_t key, std::size_t layer) const
     {
         check_key(key);
-        if (layer >= layer_capacity_ || static_cast<int>(layer) > layer_of_[key]) {
+        if (layer >= layer_capacity_ || static_cast<int>(layer) > current_layer_[key]) {
             layered_array_detail::bad_layer("LayeredArray::get()", key, layer);
         }
         return storage_[index(key, layer)];
@@ -149,14 +188,19 @@ public:
     void set(std::size_t key, const V &value, std::size_t layer)
     {
         check_key(key);
-        // Layers must be filled bottom-up: a key at layer n may only be written at n+1 or
-        // below. Writing higher means the caller is using another map's layer numbering.
-        if (static_cast<int>(layer) > layer_of_[key] + 1) {
+        // Layers are filled bottom-up: a key may be written at any layer it owns, or at one
+        // above (which claims that layer). Writing higher means the caller is using another
+        // map's layer numbering. Validated against the *requested* mark, since an event
+        // writes at the layer it was granted however many writes happened below it.
+        if (static_cast<int>(layer) > claimed_layer_[key] + 1) {
             layered_array_detail::bad_layer("LayeredArray::set()", key, layer);
         }
         ensure_layer(layer);
         storage_[index(key, layer)] = value;
-        layer_of_[key] = static_cast<int>(layer);
+        current_layer_[key] = static_cast<int>(layer);
+        if (static_cast<int>(layer) > claimed_layer_[key]) {
+            claimed_layer_[key] = static_cast<int>(layer);
+        }
     }
 
     /**
@@ -169,31 +213,39 @@ public:
     void set_current(std::size_t key, const V &value)
     {
         check_key(key);
-        const int layer = layer_of_[key] < 0 ? 0 : layer_of_[key];
+        const int layer = current_layer_[key] < 0 ? 0 : current_layer_[key];
         ensure_layer(static_cast<std::size_t>(layer));
         storage_[index(key, static_cast<std::size_t>(layer))] = value;
-        layer_of_[key] = layer;
+        current_layer_[key] = layer;
+        if (layer > claimed_layer_[key]) {
+            claimed_layer_[key] = layer;
+        }
     }
 
-    /// Push a layer for this key. The new layer's content is **unspecified until written**:
-    /// this mirrors Enum_fast_memory_map, whose callers always set() before reading, and
-    /// avoids a read-plus-write of the value on every node of the traversal.
+    /// Claim the next layer for this key. The layer's content is **unspecified until
+    /// written**, and it is not readable until then: requesting is a promise to write, not a
+    /// write. An event that requests a layer and hands off without writing it leaves the
+    /// next reader of `layer - 1` with nothing, which get() now reports rather than serving
+    /// a default.
     void request_layer(std::size_t key)
     {
         check_key(key);
-        const int next = layer_of_[key] + 1;
+        const int next = claimed_layer_[key] + 1;
         ensure_layer(static_cast<std::size_t>(next));
-        layer_of_[key] = next;
+        claimed_layer_[key] = next;
     }
 
-    /// Pop a layer for this key. Popping layer 0 returns the key to the unwritten state.
+    /// Release the top layer for this key, dropping any value written there.
     void restore_layer(std::size_t key)
     {
         check_key(key);
-        if (layer_of_[key] < 0) {
+        if (claimed_layer_[key] < 0) {
             layered_array_detail::unwritten_key("LayeredArray::restore_layer()", key);
         }
-        --layer_of_[key];
+        --claimed_layer_[key];
+        if (current_layer_[key] > claimed_layer_[key]) {
+            current_layer_[key] = claimed_layer_[key];
+        }
     }
 
     /// Rewind (or advance) a key to an already-written layer without reading it. This is the
@@ -201,10 +253,10 @@ public:
     void set_current_layer(std::size_t key, std::size_t layer)
     {
         check_key(key);
-        if (static_cast<int>(layer) > layer_of_[key]) {
+        if (static_cast<int>(layer) > current_layer_[key]) {
             layered_array_detail::bad_layer("LayeredArray::set_current_layer()", key, layer);
         }
-        layer_of_[key] = static_cast<int>(layer);
+        current_layer_[key] = static_cast<int>(layer);
     }
 
     /// One layer as a contiguous row over all keys.
@@ -216,14 +268,20 @@ public:
         return std::span<const V>(storage_.data() + l * count_, count_);
     }
 
-    /// Current layer index of every key, in key order. Replaces the raw int* out-parameter of
-    /// Enum_fast_memory_map::get_all_current_memory_layer().
-    std::span<const int> current_layers() const noexcept { return std::span<const int>(layer_of_); }
+    /// Claimed layer of every key, in key order -- the same ownership answer as
+    /// claimed_layer(). Replaces the raw int* out-parameter of
+    /// Enum_fast_memory_map::get_all_current_memory_layer(). Callers snapshot this at
+    /// initialization and feed it to multiply_all(), so it must name the layers this event
+    /// owns, not what happens to have been written when the snapshot is taken.
+    std::span<const int> claimed_layers() const noexcept
+    {
+        return std::span<const int>(claimed_layer_);
+    }
 
     /**
      * Multiply `acc` by one value per key, each read from the layer named in `layers`.
      *
-     * `layers` is a snapshot previously taken from this same map (see current_layers()), so
+     * `layers` is a snapshot previously taken from this same map (see claimed_layers()), so
      * the entries are known-good and no per-key checking is done -- this sits in the pruning
      * bound computation, which runs at every node of the traversal.
      */
@@ -241,14 +299,22 @@ public:
     {
         for (std::size_t k = 0; k != count_; ++k) {
             storage_[index(k, 0)] = value;
-            layer_of_[k] = 0;
+            current_layer_[k] = 0;
+            if (claimed_layer_[k] < 0) {
+                claimed_layer_[k] = 0;
+            }
         }
     }
 
     /// Return every key that has been written to layer 0, keeping its value.
     void reset()
     {
-        for (auto &l : layer_of_) {
+        for (auto &l : current_layer_) {
+            if (l > 0) {
+                l = 0;
+            }
+        }
+        for (auto &l : claimed_layer_) {
             if (l > 0) {
                 l = 0;
             }
@@ -284,7 +350,8 @@ private:
     }
 
     std::vector<V>   storage_;         ///< storage_[key + layer * count_]
-    std::vector<int> layer_of_;        ///< current layer per key; -1 = never written
+    std::vector<int> current_layer_;   ///< last layer written per key; -1 = never written
+    std::vector<int> claimed_layer_;   ///< highest layer claimed per key; -1 = never claimed
     std::size_t      count_;
     std::size_t      layer_capacity_;
 };

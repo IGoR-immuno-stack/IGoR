@@ -1171,8 +1171,12 @@ layer contract — *requesting a layer is a promise to write it before handing o
 hand-off, across all six seq_type-keyed maps, for every section in the suite. Verified against
 this very bug: reverting the fix makes the exhaustive-path sections report
 `safety_set key 0 / key 1: requested layer 0, current layer 2`. See
-[ITERATE_TEST_GUIDE.md](ITERATE_TEST_GUIDE.md) §4.1 for its two limits — it needs the fixture to
-register downstream events, and it only sees branches a test executes.
+[ITERATE_TEST_GUIDE.md](ITERATE_TEST_GUIDE.md) §4.1. Its one limit is that it only sees branches
+a test executes.
+
+**And the container no longer permits the ambiguity at all** (§7.10): `LayeredArray` now tracks
+the claimed layer and the written layer separately, so reading a requested-but-unwritten layer
+always throws instead of serving value-initialized storage.
 
 Worth noting for B5/B11: `Gene_choice::initialize_event` requests the safety layers with its
 `if (d_chosen)` / `if (j_chosen)` guards **commented out** at
@@ -1196,6 +1200,39 @@ write is a stopgap that makes the path defined, not the right long-term answer.
    shape already established" was reasoning by analogy with `Index_map`, where the property was
    actually proved. It was not checked for this map. When porting a container whose accessor
    tightens a precondition, each call site needs the argument made, not inherited.
+
+### 7.10 — `LayeredArray` conflated "claimed" with "written", making detection order-dependent
+
+*(Raised in review Sep 2 2026, implemented the same day.)*
+
+`request_layer()` advanced `layer_of_`, the same counter `get()` validated against and `exists()`
+reported. Three consequences, none of them visible until §7.9 forced a look:
+
+1. **A requested-but-unwritten layer was readable**, returning value-initialized storage. §7.9
+   threw only because another event's write had pulled `layer_of_` back below the read; under a
+   different interleaving the identical missing write returns a default and nothing notices.
+   **Whether the container caught a missing write depended on the order of unrelated writes.**
+2. **`exists()` meant "requested or written".** Every caller — the `Scenario` view,
+   `Single_error_rate`, `Errorscounter`, `DynamicSequenceMap::occupied()` — guards a dereference
+   with it, and for a pointer-valued map the value-initialized default is `nullptr`.
+3. **B10's three-state distinction was not implementable.** "Not yet processed (layer −1,
+   `exists()` false) / actively absent / present" cannot hold when a request makes a key read
+   back as written-with-a-default, which for `Int_Str*` is indistinguishable from actively absent.
+
+**The split**: the ownership mark is raised by `request_layer()` and reported
+by `claimed_layer()` / `claimed_layers()`; the data mark is moved by `set()` and reported by
+`exists()` and `current_layer()`. Invariant `current_layer() <= claimed_layer()`; writing at a
+layer claims it.
+
+All 74 ownership call sites across the four events are in `initialize_event` and mean
+*"which layer do I own"* (the single hit inside `iterate` is a commented-out `cout`), so they take
+the ownership mark unchanged. `current_layers()` likewise: `Rec_Event` snapshots it at init for
+`multiply_all`, and it has to name the layers the event owns rather than what happened to be
+written when the snapshot was taken.
+
+**This is what makes row 10 of the test guide unconditional.** The harness check no longer needs
+downstream events in the fixture to create an observable gap; it compares written against claimed
+directly.
 
 ## 8. Decisions taken (Sep 1 2026 review)
 

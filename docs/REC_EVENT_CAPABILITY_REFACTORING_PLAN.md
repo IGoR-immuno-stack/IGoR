@@ -1315,6 +1315,53 @@ B10 must specify and test:
 > neither parameter remains interpretable. The `>=` path above is a state that must be *handled
 > correctly*, not a modelling device.
 
+#### The layer contract constrains how absence can be expressed *(added Sep 4 2026)*
+
+`LayeredArray` now separates a key's **claimed** layer from its **current** (last written) one,
+and the rule that came with it is:
+
+> Requesting a memory layer is a promise to write it before handing off.
+
+Reading a claimed-but-unwritten layer throws, and `exists()` reports written rather than
+claimed. See `ITERATE_GENERIC_REWRITE_PLAN.md` §7.10; the defect that motivated it is §7.9.
+
+**This helps B10 more than it hinders it.** The three-state distinction this task rests on —
+*not yet processed* / *actively absent* / *present* — was **not implementable** before the split:
+`request_layer()` made a key read back as written-with-a-default, and for `Int_Str*` that default
+is `nullptr`, which `SeqSegmentEmptiness` already calls empty. So a not-yet-processed segment was
+indistinguishable from an actively-absent one. Now `exists()` false means genuinely not processed,
+and *actively absent* has to be an **explicit written value** — a null or empty `Int_Str*` written
+at the event's own layer — rather than the absence of a write. That is a better contract for B10,
+not a worse one.
+
+**Where it is expected to bite is option (b), the DAG ordering.** Layer numbers are assigned
+**statically**, once, in `initialize_event()`, by walking the model queue in order — the design
+assumes *every event runs on every path*. A DAG breaks that assumption:
+
+- on the path taken through `D1D2_ins → D2 → D2J_ins`, those three events run and write their
+  layers;
+- on the alternative path through a distinct `D1J_ins`, they do not run at all — so they never
+  request, never write, and any downstream reader of `layer − 1` is reading a layer some *other*
+  event owns, with a layer numbering that no longer matches the path actually taken.
+
+So option (b) needs one of:
+
+1. **every event on every branch writes something**, even where it is semantically skipped —
+   which is the "neutralisation" that option (a) was rejected for, reappearing at the container
+   level rather than the model level;
+2. **path-dependent layer assignment**, which the current design cannot express: `initialize_event()`
+   runs once per model, not once per scenario branch; or
+3. **per-branch layer scopes** — a push/pop discipline around each alternative path, which is
+   what `restore_layer()` was presumably meant for and which currently has **no callers at all**.
+
+Option (c), forbidding the configuration, is unaffected by any of this.
+
+**Take this as an input to the (b)-versus-(c) decision, not as a verdict.** It does not make (b)
+impossible, but it adds a container-level cost the earlier estimate did not account for, and (3)
+above is the only one of the three that does not either resurrect (a)'s interpretability problem
+or require reworking how layers are assigned. Settle it before B6's neighbour rule is finalised,
+as the existing note below already says.
+
 #### Milestone 2 design decision: how absence is represented
 
 The chain topology forces a conflation that the same interpretability argument rejects. With

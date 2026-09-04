@@ -371,7 +371,8 @@ std::string int_str_to_nt(const Int_Str &seq);
  * for each key. See LayerContract below.
  */
 struct LayerSnapshot {
-    std::map<std::string, std::vector<int>> maps; ///< map name -> current layer per key
+    std::map<std::string, std::vector<int>> claimed; ///< map name -> claimed_layer() per key
+    std::map<std::string, std::vector<int>> current; ///< map name -> current_layer() per key
 };
 
 /**
@@ -383,33 +384,25 @@ struct LayerSnapshot {
  * storage -- which LayeredArray refuses, aborting the run, and which the pre-B8 containers
  * served as uninitialized memory. See docs/ITERATE_GENERIC_REWRITE_PLAN.md section 7.9.
  *
- * The check needs no per-event knowledge, but it does need two snapshots, because
- * `request_layer()` *sets* a key's current layer to the layer requested -- so writing at
- * that layer changes nothing observable on its own. What distinguishes written from
- * unwritten is that the events initialized *after* this one request further layers, pushing
- * the current layer above this event's, and only a write pulls it back down:
+ * LayeredArray tracks the two marks separately, so the check states the promise directly:
  *
- *     before any init          layer_of = -1
- *     event under test asks    layer_of = L        <- captured as `mine`
- *     downstream events ask    layer_of = L+k
- *     event writes at L        layer_of = L        <- expected at hand-off
- *     event does not write     layer_of = L+k      <- violation
+ *     for every key this event claimed a layer for,
+ *         current_layer(key) == claimed_layer(key)   at hand-off
  *
- * So the rule is: for every key this event requested a layer for, the current layer at
- * hand-off must equal the layer it requested. Every test going through
- * call_iterate_recording() is checked automatically, so a new event's sections inherit it
- * without writing anything.
+ * "Claimed by this event" is the keys whose claimed_layer() the event's initialize_event()
+ * raised, which is why two snapshots are taken -- before any initialization, and once the
+ * event under test has requested its own layers but before downstream events request more.
  *
- * The check is vacuous for a fixture with no downstream events, since nothing then pushes
- * the layer up. Fixtures that register the deletions and insertions a real model would
- * carry -- which they need anyway, for the junction-length map -- get it for free.
+ * Every test going through call_iterate_recording() is checked automatically, so a new
+ * event's sections inherit it without writing anything, and no downstream events are needed
+ * in the fixture for it to see anything.
  */
 struct LayerViolation {
     std::size_t call_index = 0;
     std::string map_name;
     std::size_t key = 0;
-    int expected_layer = 0; ///< top layer requested
-    int actual_layer = 0;   ///< layer actually current at hand-off
+    int claimed_layer = 0; ///< layer this event claimed
+    int current_layer = 0; ///< layer the data actually stands at, at hand-off
 
     std::string describe() const;
 };

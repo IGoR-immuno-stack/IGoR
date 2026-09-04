@@ -142,24 +142,25 @@ nothing was looking.
 ends of `seq_offsets`, `mismatches_lists`, `downstream_proba_map`, `safety_set` and
 `pruning_mismatch_floor`. **You get it by using the harness; there is nothing to write.**
 
-Two things to know about it, because they decide whether it can see anything:
+`LayeredArray` tracks the two marks separately — `claimed_layer()` is the layer a key was
+*claimed* at, `current_layer()` is where its data actually stands — so the check states the
+promise directly:
 
-- **It needs downstream events.** `request_layer()` *sets* a key's current layer to the layer
-  requested, so writing at that same layer changes nothing observable on its own. What makes a
-  write visible is that events initialized after this one request further layers, pushing the
-  current layer above this event's — and only a write pulls it back down. A fixture with no
-  `add_downstream_event()` makes the check vacuous. Register the deletions and insertions a real
-  model would carry; the junction-length map needs them anyway (trap 3).
-- **It only covers paths a section actually reaches.** It is a dynamic check on a structural
-  defect, so it finds a missing write only on a branch some test executes. That is what row 4 and
-  coverage are for.
+```
+for every key this event claimed a layer for:
+    current_layer(key) == claimed_layer(key)   at hand-off
+```
+
+One thing to know about it: **it only covers paths a section actually reaches.** It is a dynamic
+check on a structural defect, so it finds a missing write only on a branch some test executes.
+That is what row 4 and coverage are for.
 
 `index_map` is deliberately excluded: its layering is driven by parent-realization tracking
 through `offset_map`, which single-event fixtures do not populate.
 
-When a section trips it, the message names the map, the key, the layer requested and the layer
-actually current — start at the event's `initialize_event()` and find the `request_layer()` whose
-matching write is missing on that path.
+When a section trips it, the message names the map, the key, the layer claimed and the layer its data
+actually stands at — start at the event's `initialize_event()` and find the `request_layer()`
+whose matching write is missing on that path.
 
 ### Rows that only apply to some events
 
@@ -363,8 +364,7 @@ Reference the plan section in the name, so the fix has an obvious landing site.
 
 ### Adding a new event's tests
 
-- [ ] All ten rows of §4 have at least one section (row 10 is automatic, but only if the
-      fixture registers downstream events — see §4.1)
+- [ ] All ten rows of §4 have at least one section (row 10 is automatic — see §4.1)
 - [ ] Every `continue` / `break` in the body has a section **and** a positive control
 - [ ] Each section mutation-verified: break the code, confirm *this* section fails
 - [ ] Known-wrong behaviour is `[!shouldfail]`, not pinned

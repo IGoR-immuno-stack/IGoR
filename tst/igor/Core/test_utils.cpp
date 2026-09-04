@@ -83,16 +83,27 @@ IterateTestState create_iterate_state(const std::string &sequence, std::size_t m
 
 std::string LayerViolation::describe() const
 {
-    return map_name + " key " + std::to_string(key) + ": requested layer "
-           + std::to_string(expected_layer) + " but the current layer at hand-off was "
-           + std::to_string(actual_layer)
+    return map_name + " key " + std::to_string(key) + ": claimed layer "
+           + std::to_string(claimed_layer) + " but its data stands at layer "
+           + std::to_string(current_layer)
            + " -- a layer was requested and never written on this path";
 }
 
 namespace {
 
 template <typename Map>
-std::vector<int> layers_of(const Map &map)
+std::vector<int> claimed_layers_of(const Map &map)
+{
+    std::vector<int> layers;
+    layers.reserve(map.count());
+    for (std::size_t key = 0; key != map.count(); ++key) {
+        layers.push_back(map.claimed_layer(key));
+    }
+    return layers;
+}
+
+template <typename Map>
+std::vector<int> current_layers_of(const Map &map)
 {
     std::vector<int> layers;
     layers.reserve(map.count());
@@ -107,15 +118,17 @@ std::vector<int> layers_of(const Map &map)
 LayerSnapshot capture_layers(const IterateTestState &state)
 {
     LayerSnapshot snapshot;
-    snapshot.maps.emplace("constructed_sequences", layers_of(state.scenario.constructed_sequences));
-    snapshot.maps.emplace("seq_offsets.five_prime", layers_of(state.scenario.seq_offsets.five_prime));
-    snapshot.maps.emplace("seq_offsets.three_prime",
-                          layers_of(state.scenario.seq_offsets.three_prime));
-    snapshot.maps.emplace("mismatches_lists", layers_of(state.scenario.mismatches_lists));
-    snapshot.maps.emplace("downstream_proba_map", layers_of(state.exploration.downstream_proba_map));
-    snapshot.maps.emplace("safety_set", layers_of(state.exploration.safety_set));
-    snapshot.maps.emplace("pruning_mismatch_floor",
-                          layers_of(state.exploration.pruning_mismatch_floor));
+    auto add = [&](const std::string &name, auto &&map) {
+        snapshot.claimed.emplace(name, claimed_layers_of(map));
+        snapshot.current.emplace(name, current_layers_of(map));
+    };
+    add("constructed_sequences", state.scenario.constructed_sequences);
+    add("seq_offsets.five_prime", state.scenario.seq_offsets.five_prime);
+    add("seq_offsets.three_prime", state.scenario.seq_offsets.three_prime);
+    add("mismatches_lists", state.scenario.mismatches_lists);
+    add("downstream_proba_map", state.exploration.downstream_proba_map);
+    add("safety_set", state.exploration.safety_set);
+    add("pruning_mismatch_floor", state.exploration.pruning_mismatch_floor);
     //index_map is deliberately excluded: its layering is driven by parent-realization
     //tracking through offset_map, which single-event tests do not populate, so it carries no
     //contract here.
@@ -196,33 +209,34 @@ void RecordingEvent::iterate(QuerySequenceContext &, const ModelContext &, Scena
 
     //Layer contract: every layer this event requested must have been written before it
     //hands off. Checked here rather than in each test, so all sections get it for free.
-    auto check_map = [&](const std::string &name, const std::vector<int> &now) {
-        const auto mine = layer_baseline.maps.find(name);
-        const auto before = layer_before_init.maps.find(name);
-        if (mine == layer_baseline.maps.end() || before == layer_before_init.maps.end()) {
+    auto check_map = [&](const std::string &name, const std::vector<int> &current_now) {
+        const auto claimed = layer_baseline.claimed.find(name);
+        const auto before = layer_before_init.claimed.find(name);
+        if (claimed == layer_baseline.claimed.end() || before == layer_before_init.claimed.end()) {
             return;
         }
-        for (std::size_t key = 0; key != now.size(); ++key) {
-            if (key >= mine->second.size() || key >= before->second.size()) {
+        for (std::size_t key = 0; key != current_now.size(); ++key) {
+            if (key >= claimed->second.size() || key >= before->second.size()) {
                 break;
             }
-            //Only keys this event actually requested a layer for carry the contract.
-            if (mine->second[key] <= before->second[key]) {
+            //Only keys this event claimed a layer for carry the promise.
+            if (claimed->second[key] <= before->second[key]) {
                 continue;
             }
-            if (now[key] != mine->second[key]) {
+            if (current_now[key] != claimed->second[key]) {
                 layer_violations.push_back(
-                        LayerViolation{calls.size(), name, key, mine->second[key], now[key]});
+                        LayerViolation{calls.size(), name, key, claimed->second[key],
+                                       current_now[key]});
             }
         }
     };
-    check_map("constructed_sequences", layers_of(scenario.constructed_sequences));
-    check_map("seq_offsets.five_prime", layers_of(scenario.seq_offsets.five_prime));
-    check_map("seq_offsets.three_prime", layers_of(scenario.seq_offsets.three_prime));
-    check_map("mismatches_lists", layers_of(scenario.mismatches_lists));
-    check_map("downstream_proba_map", layers_of(exploration.downstream_proba_map));
-    check_map("safety_set", layers_of(exploration.safety_set));
-    check_map("pruning_mismatch_floor", layers_of(exploration.pruning_mismatch_floor));
+    check_map("constructed_sequences", current_layers_of(scenario.constructed_sequences));
+    check_map("seq_offsets.five_prime", current_layers_of(scenario.seq_offsets.five_prime));
+    check_map("seq_offsets.three_prime", current_layers_of(scenario.seq_offsets.three_prime));
+    check_map("mismatches_lists", current_layers_of(scenario.mismatches_lists));
+    check_map("downstream_proba_map", current_layers_of(exploration.downstream_proba_map));
+    check_map("safety_set", current_layers_of(exploration.safety_set));
+    check_map("pruning_mismatch_floor", current_layers_of(exploration.pruning_mismatch_floor));
 
     calls.push_back(std::move(snapshot));
 }
@@ -401,7 +415,7 @@ bool has_safety(const IterateTestState &state, Event_safety safety_type)
 
 int safety_current_layer(const IterateTestState &state, Event_safety safety_type)
 {
-    return static_cast<int>(state.exploration.safety_set.current_layer(safety_type));
+    return static_cast<int>(state.exploration.safety_set.claimed_layer(safety_type));
 }
 
 double get_downstream_bound(const IterateTestState &state, Seq_type seq_type, std::size_t layer)

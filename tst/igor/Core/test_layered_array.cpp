@@ -22,7 +22,7 @@ TEST_CASE("LayeredArray: unwritten keys are distinct from written-but-empty", "[
 
     for (std::size_t k = 0; k != 4; ++k) {
         CHECK_FALSE(a.exists(k));
-        CHECK(a.current_layer(k) == -1);
+        CHECK(a.claimed_layer(k) == -1);
         CHECK_THROWS_AS(a.get(k), std::out_of_range);
     }
 
@@ -44,9 +44,9 @@ TEST_CASE("LayeredArray: layers are tracked per key independently", "[layered_ar
     a.request_layer(1);
     a.set(1, 21, 1);
 
-    CHECK(a.current_layer(0) == 0);
-    CHECK(a.current_layer(1) == 1);
-    CHECK(a.current_layer(2) == 0);
+    CHECK(a.claimed_layer(0) == 0);
+    CHECK(a.claimed_layer(1) == 1);
+    CHECK(a.claimed_layer(2) == 0);
 
     CHECK(a.get(0) == 10);
     CHECK(a.get(1) == 21);
@@ -113,7 +113,7 @@ TEST_CASE("LayeredArray: request_layer beyond the allocated layers grows the sto
     for (int i = 0; i != 40; ++i) {
         a.request_layer(0);
     }
-    CHECK(a.current_layer(0) == 40);
+    CHECK(a.claimed_layer(0) == 40);
     a.set(0, 42, 40);
     CHECK(a.get(0) == 42);
     CHECK(a.get(0, 0) == 1);       // layer 0 survived every reallocation
@@ -135,17 +135,78 @@ TEST_CASE("LayeredArray: get(key, layer) does not rewind", "[layered_array]")
     LayeredArray<int> a(1);
     a.set(0, 1, 0);
     a.set(0, 2, 1);
-    REQUIRE(a.current_layer(0) == 1);
+    REQUIRE(a.claimed_layer(0) == 1);
 
     // Enum_fast_memory_map::at(key, layer) silently moved the current layer here.
     CHECK(a.get(0, 0) == 1);
-    CHECK(a.current_layer(0) == 1);
+    CHECK(a.claimed_layer(0) == 1);
 
-    // The rewind is available, but only when asked for explicitly.
+    // The rewind is available, but only when asked for explicitly. It moves the *written*
+    // mark -- what get(key) reads back -- and leaves ownership alone.
     a.set_current_layer(0, 0);
     CHECK(a.current_layer(0) == 0);
+    CHECK(a.claimed_layer(0) == 1);
     CHECK(a.get(0) == 1);
     CHECK_THROWS_AS(a.set_current_layer(0, 5), std::out_of_range);
+}
+
+TEST_CASE("LayeredArray: requesting a layer is not writing it", "[layered_array]")
+{
+    // The split that makes a missing write detectable. Before it, request_layer() advanced
+    // the one counter that get() validated against, so a requested-but-unwritten layer read
+    // back as value-initialized storage -- and whether a missing write was caught at all
+    // depended on whether some other key's write had pulled that counter down first.
+    // See docs/ITERATE_GENERIC_REWRITE_PLAN.md section 7.9.
+    LayeredArray<int> a(2);
+    a.set(0, 7, 0);
+    REQUIRE(a.claimed_layer(0) == 0);
+    REQUIRE(a.current_layer(0) == 0);
+
+    a.request_layer(0);
+    // Ownership advances...
+    CHECK(a.claimed_layer(0) == 1);
+    // ...the written mark does not, so the claimed layer is not readable.
+    CHECK(a.current_layer(0) == 0);
+    CHECK_THROWS_AS(a.get(0, 1), std::out_of_range);
+    // and the key still reads back the value it actually holds.
+    CHECK(a.get(0) == 7);
+
+    // Writing the claimed layer settles the promise.
+    a.set(0, 9, 1);
+    CHECK(a.current_layer(0) == 1);
+    CHECK(a.get(0, 1) == 9);
+    CHECK(a.get(0, 0) == 7);
+}
+
+TEST_CASE("LayeredArray: exists() means written, not requested", "[layered_array]")
+{
+    // Its callers -- the Scenario view, Single_error_rate, the coverage counters,
+    // DynamicSequenceMap::occupied() -- all guard a dereference with it, so a
+    // requested-but-unwritten key must not answer true.
+    LayeredArray<int *> a(1);
+    REQUIRE_FALSE(a.exists(0));
+
+    a.request_layer(0);
+    CHECK_FALSE(a.exists(0));
+
+    int value = 3;
+    a.set(0, &value, 0);
+    CHECK(a.exists(0));
+}
+
+TEST_CASE("LayeredArray: restore_layer releases a claim", "[layered_array]")
+{
+    LayeredArray<int> a(1);
+    a.set(0, 1, 0);
+    a.request_layer(0);
+    a.set(0, 2, 1);
+    REQUIRE(a.claimed_layer(0) == 1);
+    REQUIRE(a.current_layer(0) == 1);
+
+    a.restore_layer(0);
+    CHECK(a.claimed_layer(0) == 0);
+    CHECK(a.current_layer(0) == 0);
+    CHECK(a.get(0) == 1);
 }
 
 TEST_CASE("LayeredArray: bounds are checked on every key", "[layered_array]")
@@ -153,7 +214,7 @@ TEST_CASE("LayeredArray: bounds are checked on every key", "[layered_array]")
     LayeredArray<int> a(2);
     CHECK_THROWS_AS(a.set(2, 0, 0), std::out_of_range);
     CHECK_THROWS_AS(a.exists(2), std::out_of_range);
-    CHECK_THROWS_AS(a.current_layer(9), std::out_of_range);
+    CHECK_THROWS_AS(a.claimed_layer(9), std::out_of_range);
 }
 
 TEST_CASE("LayeredArray: row and layer views", "[layered_array]")
@@ -168,13 +229,13 @@ TEST_CASE("LayeredArray: row and layer views", "[layered_array]")
     CHECK(row[0] == 4);
     CHECK(row[2] == 4);
 
-    const std::span<const int> layers = a.current_layers();
+    const std::span<const int> layers = a.claimed_layers();
     REQUIRE(layers.size() == 3);
     CHECK(layers[0] == 0);
 
     a.request_layer(1);
-    CHECK(a.current_layers()[1] == 1);
-    CHECK(a.current_layers()[0] == 0);
+    CHECK(a.claimed_layers()[1] == 1);
+    CHECK(a.claimed_layers()[0] == 0);
 }
 
 TEST_CASE("LayeredArray: copying is value semantics", "[layered_array]")
@@ -209,7 +270,7 @@ TEST_CASE("LayeredArray: steady-state throughput", "[!benchmark][layered_array]"
         for (std::size_t rep = 0; rep != 1000; ++rep) {
             for (std::size_t k : order) {
                 a.request_layer(k);
-                a.set(k, static_cast<Seq_Offset>(k), static_cast<std::size_t>(a.current_layer(k)));
+                a.set(k, static_cast<Seq_Offset>(k), static_cast<std::size_t>(a.claimed_layer(k)));
                 sink += a.get(k);
                 a.restore_layer(k);
             }
@@ -230,6 +291,6 @@ TEST_CASE("LayeredArray: unbounded layer growth", "[!benchmark][layered_array]")
                 a.request_layer(k);
             }
         }
-        return a.current_layer(0);
+        return a.claimed_layer(0);
     };
 }

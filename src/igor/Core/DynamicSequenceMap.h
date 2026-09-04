@@ -104,8 +104,8 @@ public:
 
     // The container surface, keyed by SeqTypeId.
     using Base::count;
-    using Base::current_layer;
-    using Base::current_layers;
+    using Base::claimed_layer;
+    using Base::claimed_layers;
     using Base::exists;
     using Base::get;
     using Base::init_first_layer;
@@ -118,6 +118,7 @@ public:
     using Base::set;
     using Base::set_current;
     using Base::set_current_layer;
+    using Base::current_layer;
 
     const SeqTypeRegistry &registry() const { return registry_; }
 

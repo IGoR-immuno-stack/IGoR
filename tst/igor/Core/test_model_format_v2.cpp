@@ -1131,7 +1131,7 @@ TEST_CASE("Seq_offsets_map accepts non-standard seq_types",
     offsets.request_layer(d1, Five_prime);
     offsets.set(d1, Five_prime, 99, 1);
     CHECK(offsets.get(d1, Five_prime) == 99);
-    CHECK(offsets.current_layer(d1, Five_prime) == 1);
+    CHECK(offsets.claimed_layer(d1, Five_prime) == 1);
     offsets.restore_layer(d1, Five_prime);
     CHECK(offsets.get(d1, Five_prime) == 42);
 

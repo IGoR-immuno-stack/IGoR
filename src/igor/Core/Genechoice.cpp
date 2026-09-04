@@ -1125,123 +1125,123 @@ void Gene_choice::initialize_event(
     switch (this->event_class) {
     case V_gene:
         seq_offsets.request_layer(V_gene_seq, Three_prime);
-        this->memory_layer_off_threep = seq_offsets.current_layer(V_gene_seq, Three_prime);
+        this->memory_layer_off_threep = seq_offsets.claimed_layer(V_gene_seq, Three_prime);
         seq_offsets.request_layer(V_gene_seq, Five_prime);
-        this->memory_layer_off_fivep = seq_offsets.current_layer(V_gene_seq, Five_prime);
+        this->memory_layer_off_fivep = seq_offsets.claimed_layer(V_gene_seq, Five_prime);
         mismatches_list.request_layer(V_gene_seq);
-        this->memory_layer_mismatches = mismatches_list.current_layer(V_gene_seq);
+        this->memory_layer_mismatches = mismatches_list.claimed_layer(V_gene_seq);
         constructed_sequences.request_layer(V_gene_seq);
-        this->memory_layer_cs = constructed_sequences.current_layer(V_gene_seq);
+        this->memory_layer_cs = constructed_sequences.claimed_layer(V_gene_seq);
         //if(d_chosen){
         safety_set.request_layer(VD_safe);
-        memory_layer_safety_1 = safety_set.current_layer(VD_safe);
+        memory_layer_safety_1 = safety_set.claimed_layer(VD_safe);
         //cout<<"V_choice 1: "<<memory_layer_safety_1<<endl;
         //}
         //if(j_chosen){
         safety_set.request_layer(VJ_safe);
-        memory_layer_safety_2 = safety_set.current_layer(VJ_safe);
+        memory_layer_safety_2 = safety_set.claimed_layer(VJ_safe);
         //cout<<"V_choice 2: "<<memory_layer_safety_2<<endl;
         //}
 
         downstream_proba_map.request_layer(V_gene_seq);
-        memory_layer_proba_map_seq = downstream_proba_map.current_layer(V_gene_seq);
+        memory_layer_proba_map_seq = downstream_proba_map.claimed_layer(V_gene_seq);
         if (d_chosen) {
             downstream_proba_map.request_layer(VD_ins_seq);
-            memory_layer_proba_map_junction = downstream_proba_map.current_layer(VD_ins_seq);
+            memory_layer_proba_map_junction = downstream_proba_map.claimed_layer(VD_ins_seq);
         } else if (j_chosen) {
             downstream_proba_map.request_layer(VJ_ins_seq);
-            memory_layer_proba_map_junction = downstream_proba_map.current_layer(VJ_ins_seq);
+            memory_layer_proba_map_junction = downstream_proba_map.claimed_layer(VJ_ins_seq);
         }
 
         if (d_chosen) {
-            memory_layer_offset_check1 = seq_offsets.current_layer(D_gene_seq, Five_prime);
+            memory_layer_offset_check1 = seq_offsets.claimed_layer(D_gene_seq, Five_prime);
         }
         if (j_chosen) {
-            memory_layer_offset_check2 = seq_offsets.current_layer(J_gene_seq, Five_prime);
+            memory_layer_offset_check2 = seq_offsets.claimed_layer(J_gene_seq, Five_prime);
         }
 
         break;
     case D_gene:
         seq_offsets.request_layer(D_gene_seq, Three_prime);
-        this->memory_layer_off_threep = seq_offsets.current_layer(D_gene_seq, Three_prime);
+        this->memory_layer_off_threep = seq_offsets.claimed_layer(D_gene_seq, Three_prime);
         seq_offsets.request_layer(D_gene_seq, Five_prime);
-        this->memory_layer_off_fivep = seq_offsets.current_layer(D_gene_seq, Five_prime);
+        this->memory_layer_off_fivep = seq_offsets.claimed_layer(D_gene_seq, Five_prime);
         mismatches_list.request_layer(D_gene_seq);
-        this->memory_layer_mismatches = mismatches_list.current_layer(D_gene_seq);
+        this->memory_layer_mismatches = mismatches_list.claimed_layer(D_gene_seq);
         constructed_sequences.request_layer(D_gene_seq);
-        this->memory_layer_cs = constructed_sequences.current_layer(D_gene_seq);
+        this->memory_layer_cs = constructed_sequences.claimed_layer(D_gene_seq);
         //if(v_chosen){
         safety_set.request_layer(VD_safe);
-        memory_layer_safety_1 = safety_set.current_layer(VD_safe);
+        memory_layer_safety_1 = safety_set.claimed_layer(VD_safe);
         //cout<<"D_choice 1: "<<memory_layer_safety_1<<endl;
         //}
         //if(j_chosen){
         safety_set.request_layer(DJ_safe);
-        memory_layer_safety_2 = safety_set.current_layer(DJ_safe);
+        memory_layer_safety_2 = safety_set.claimed_layer(DJ_safe);
         //cout<<"D_choice 2: "<<memory_layer_safety_2<<endl;
         //}
 
         downstream_proba_map.request_layer(D_gene_seq);
-        memory_layer_proba_map_seq = downstream_proba_map.current_layer(D_gene_seq);
+        memory_layer_proba_map_seq = downstream_proba_map.claimed_layer(D_gene_seq);
         if (v_chosen) {
             downstream_proba_map.request_layer(VD_ins_seq);
-            memory_layer_proba_map_junction_d2 = downstream_proba_map.current_layer(VD_ins_seq);
+            memory_layer_proba_map_junction_d2 = downstream_proba_map.claimed_layer(VD_ins_seq);
         }
         if (j_chosen) {
             downstream_proba_map.request_layer(DJ_ins_seq);
-            memory_layer_proba_map_junction_d3 = downstream_proba_map.current_layer(DJ_ins_seq);
+            memory_layer_proba_map_junction_d3 = downstream_proba_map.claimed_layer(DJ_ins_seq);
         }
         if (v_chosen and j_chosen) {
             downstream_proba_map.request_layer(VJ_ins_seq);
-            memory_layer_proba_map_junction = downstream_proba_map.current_layer(VJ_ins_seq);
+            memory_layer_proba_map_junction = downstream_proba_map.claimed_layer(VJ_ins_seq);
         }
 
         if (v_chosen) {
-            memory_layer_offset_check1 = seq_offsets.current_layer(V_gene_seq, Three_prime);
+            memory_layer_offset_check1 = seq_offsets.claimed_layer(V_gene_seq, Three_prime);
         } else {
             v_3_min_offset = 0;
             v_3_max_offset = 0;
         }
         if (j_chosen) {
-            memory_layer_offset_check2 = seq_offsets.current_layer(J_gene_seq, Five_prime);
+            memory_layer_offset_check2 = seq_offsets.claimed_layer(J_gene_seq, Five_prime);
         }
 
         break;
     case J_gene:
         seq_offsets.request_layer(J_gene_seq, Three_prime);
-        this->memory_layer_off_threep = seq_offsets.current_layer(J_gene_seq, Three_prime);
+        this->memory_layer_off_threep = seq_offsets.claimed_layer(J_gene_seq, Three_prime);
         seq_offsets.request_layer(J_gene_seq, Five_prime);
-        this->memory_layer_off_fivep = seq_offsets.current_layer(J_gene_seq, Five_prime);
+        this->memory_layer_off_fivep = seq_offsets.claimed_layer(J_gene_seq, Five_prime);
         mismatches_list.request_layer(J_gene_seq);
-        this->memory_layer_mismatches = mismatches_list.current_layer(J_gene_seq);
+        this->memory_layer_mismatches = mismatches_list.claimed_layer(J_gene_seq);
         constructed_sequences.request_layer(J_gene_seq);
-        this->memory_layer_cs = constructed_sequences.current_layer(J_gene_seq);
+        this->memory_layer_cs = constructed_sequences.claimed_layer(J_gene_seq);
         //if(v_chosen){
         safety_set.request_layer(VJ_safe);
-        memory_layer_safety_1 = safety_set.current_layer(VJ_safe);
+        memory_layer_safety_1 = safety_set.claimed_layer(VJ_safe);
         //cout<<"j_choice 1: "<<memory_layer_safety_1<<endl;
         //}
         //if(d_chosen){
         safety_set.request_layer(DJ_safe);
-        memory_layer_safety_2 = safety_set.current_layer(DJ_safe);
+        memory_layer_safety_2 = safety_set.claimed_layer(DJ_safe);
         //cout<<"j_choice 2: "<<memory_layer_safety_2<<endl;
         //}
 
         downstream_proba_map.request_layer(J_gene_seq);
-        memory_layer_proba_map_seq = downstream_proba_map.current_layer(J_gene_seq);
+        memory_layer_proba_map_seq = downstream_proba_map.claimed_layer(J_gene_seq);
         if (d_chosen) {
             downstream_proba_map.request_layer(DJ_ins_seq);
-            memory_layer_proba_map_junction = downstream_proba_map.current_layer(DJ_ins_seq);
+            memory_layer_proba_map_junction = downstream_proba_map.claimed_layer(DJ_ins_seq);
         } else if (v_chosen) {
             downstream_proba_map.request_layer(VJ_ins_seq);
-            memory_layer_proba_map_junction = downstream_proba_map.current_layer(VJ_ins_seq);
+            memory_layer_proba_map_junction = downstream_proba_map.claimed_layer(VJ_ins_seq);
         }
 
         if (v_chosen) {
-            memory_layer_offset_check1 = seq_offsets.current_layer(V_gene_seq, Three_prime);
+            memory_layer_offset_check1 = seq_offsets.claimed_layer(V_gene_seq, Three_prime);
         }
         if (d_chosen) {
-            memory_layer_offset_check2 = seq_offsets.current_layer(D_gene_seq, Three_prime);
+            memory_layer_offset_check2 = seq_offsets.claimed_layer(D_gene_seq, Three_prime);
         }
 
         break;

@@ -129,7 +129,7 @@ void initialize_offset_memory(
     index_map.request_layer(event_identitfier);
     memory_and_offsets.emplace_front(
         event_identitfier,
-        index_map.current_layer(event_identitfier), (*iter).second);
+        index_map.claimed_layer(event_identitfier), (*iter).second);
   }
 }
 } // namespace EventUtils

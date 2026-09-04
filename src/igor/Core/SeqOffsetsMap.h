@@ -93,9 +93,9 @@ public:
 
     bool exists(SeqTypeId type_id, Seq_side seq_side) const { return side(seq_side).exists(type_id); }
 
-    int current_layer(SeqTypeId type_id, Seq_side seq_side) const
+    int claimed_layer(SeqTypeId type_id, Seq_side seq_side) const
     {
-        return side(seq_side).current_layer(type_id);
+        return side(seq_side).claimed_layer(type_id);
     }
 
     void request_layer(SeqTypeId type_id, Seq_side seq_side) { side(seq_side).request_layer(type_id); }

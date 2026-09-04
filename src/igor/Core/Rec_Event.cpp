@@ -250,13 +250,13 @@ void Rec_Event::initialize_event_common(
             //Request memory layer
             int event_identitfier = (*iter).first->get_event_identifier();
             index_map.request_layer(event_identitfier);
-            memory_and_offsets.emplace_front(event_identitfier, index_map.current_layer(event_identitfier),
+            memory_and_offsets.emplace_front(event_identitfier, index_map.claimed_layer(event_identitfier),
                                              (*iter).second);
         }
     }
 
     //Snapshot, not a view: the map's layers move as the traversal proceeds.
-    const auto downstream_layers = downstream_proba_map.current_layers();
+    const auto downstream_layers = downstream_proba_map.claimed_layers();
     current_downstream_proba_memory_layers.assign(downstream_layers.begin(), downstream_layers.end());
 
     processed_events.emplace(this->name);
