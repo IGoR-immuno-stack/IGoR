@@ -472,6 +472,19 @@ std::shared_ptr<Deletion> make_deletion(Seq_type target, Seq_side side, int min_
     return event;
 }
 
+std::shared_ptr<Insertion> make_insertion(Seq_type target, int min_ins, int max_ins, int event_id)
+{
+    auto event = std::make_shared<Insertion>(target, std::make_pair(min_ins, max_ins));
+    event->set_event_identifier(event_id);
+    event->set_priority(1);
+    const Seq_type_String seq_type = EventUtils::seq_type_to_string(target);
+    event->set_seq_type(seq_type);
+    event->set_seq_type_id(legacy_seq_type_registry().id(seq_type));
+    event->update_event_name();
+    event->fix(true);
+    return event;
+}
+
 Alignment_data create_perfect_alignment(const std::string &gene_name, int offset, int gene_length)
 {
     return create_mock_alignment_data(gene_name, offset, offset >= 0 ? offset : 0,

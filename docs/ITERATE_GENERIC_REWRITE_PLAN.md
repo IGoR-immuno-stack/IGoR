@@ -158,6 +158,39 @@ public:
 **Deletes**: the eight `*_min_del` / `*_max_del` members from both `Deletion.h` and
 `Genechoice.h`, and both 60-line lookup blocks.
 
+#### Delivered (S2) *(Sep 7 2026)*
+
+`JunctionGeometry::PendingModifierBounds` in the new `src/igor/Core/JunctionGeometry.h`, header-only,
+no caller yet. Four things settled while writing it that the sketch above left open:
+
+- **It never names a deletion event.** The accumulation loops over *every* unprocessed event in
+  `events_map` and asks the A0 capability queries for every `(id, side)`. Only `Deletion` answers
+  non-zero, so the result is bitwise the legacy lookup — but a topology with more than one
+  modifier per end needs no new code, which is the whole point for tandem D. `Gene_choice` and
+  `Insertion` contribute length and never travel; `Dinucl_markov` contributes neither.
+- **Contributions sum.** `+=`, not last-write. Under today's topologies exactly one term per end
+  is non-zero so the sum is the term; the test that pins the composition uses a synthetic map key,
+  since `Model_Parms` keys events by `(type, seq_type, side)` and could not produce two.
+- **`{0,0}` deliberately conflates two situations** — an end whose modifier is already processed,
+  and an end with no modifier in the model. The legacy scalars conflate them too and no consumer
+  distinguishes them. If one ever needs to, that is a separate query, not a third state.
+- **The length sum is left unclamped.** A palindromic 5' deletion plus a 3' deletion can drive a D
+  segment's lower bound below zero (`{-3, 10}` in the test model). It is a bound, not a reachable
+  length; clamping would invent a semantics no consumer has asked for, and the junction-length DP
+  applies its own floor. Pinned at the negative value so that adding a clamp later is a visible
+  decision rather than a silent one.
+
+The equivalence claim is tested against the legacy arithmetic itself, not against typed-in numbers:
+`legacy_offset_delta()` in the test reads `get_len_min()` / `get_len_max()` off the same event
+objects and applies the legacy `off + X_max_del` / `off - X_min_del` formulas per side. Literal
+expectations sit beside it so that a sign flip on both sides of that comparison cannot pass.
+
+**45 assertions in 7 `TEST_CASE`s. Eight mutations run, all caught**: the `Deletion` 3'/5' sign
+flip, ignoring `processed_events`, last-write instead of `+=` (offsets and lengths separately),
+`resize` instead of `assign` in `rebuild()`, dropping `side` from the index, and removing either
+argument check. Full ladder green including regression and convergence — vacuously, since nothing
+includes the header yet.
+
 ### 2.2 — G2: Reachable-offset interval, and the overlap predicate
 
 **Where it is today**: eight blocks — `Gene_choice` V/D/J (three), `Deletion` V/D-5′/D-3′/J (four
@@ -774,7 +807,7 @@ already flagged as the milestone-1 blocker and because `Gene_choice` is the only
 |---|---|---|---|
 | **T0** | ✅ **done** — harness ported from `feature/2_unittests`, 11 non-`iterate()` cases dropped, 39 pattern-keyed sections + 4 `[!shouldfail]` defect cases (§6.1) | unit + mutation | n/a — tests only |
 | **A0** | ✅ **done** — `OffsetDelta` / `LengthContribution` + four capability virtuals on all four subclasses | unit | yes — no caller yet |
-| **S2** | `PendingModifierBounds` in `JunctionGeometry.h`; unit-tested against a VDJ and a VJ model | unit + mutation | yes — no caller yet |
+| **S2** | ✅ **done** — `JunctionGeometry::PendingModifierBounds` in the new `JunctionGeometry.h`, unit-tested against a VDJ and a VJ model | unit + mutation | yes — no caller yet |
 | **S3** | `reachable()` + `Overlap check()`; unit-tested on all eight current comparison shapes | unit + mutation | yes — no caller yet |
 | **1a** | `Insertion` characterization sections, written against the **unmodified** event | unit + mutation | n/a — tests only |
 | **1b** | **B6** — `Insertion::iterate` generic (G9). Smallest, one hot-loop win. | full ladder | **yes** |

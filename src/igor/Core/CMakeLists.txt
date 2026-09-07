@@ -87,6 +87,7 @@ target_sources(${PROJECT_NAME}
       Insertion.h
       IntStr.h
       JournaledQuery.h
+      JunctionGeometry.h
       ModelContext.h
       Model_Parms.h
       Model_marginals.h

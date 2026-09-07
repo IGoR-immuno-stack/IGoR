@@ -30,6 +30,7 @@
 #include <igor/Core/ExplorationContext.h>
 #include <igor/Core/GenModel.h>
 #include <igor/Core/Genechoice.h>
+#include <igor/Core/Insertion.h>
 #include <igor/Core/ModelContext.h>
 #include <igor/Core/Model_Parms.h>
 #include <igor/Core/Model_marginals.h>
@@ -558,6 +559,10 @@ std::shared_ptr<Gene_choice> make_gene_choice(Gene_class gene_class,
 /// Present purely so a neighbour has non-zero deletion bounds; always fixed.
 std::shared_ptr<Deletion> make_deletion(Seq_type target, Seq_side side, int min_del, int max_del,
                                         int event_id);
+
+/// Build an Insertion event over the inclusive realization range [min_ins, max_ins].
+/// Present purely so a junction has non-zero insertion bounds; always fixed.
+std::shared_ptr<Insertion> make_insertion(Seq_type target, int min_ins, int max_ins, int event_id);
 
 Alignment_data create_perfect_alignment(const std::string &gene_name, int offset, int gene_length);
 
