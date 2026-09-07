@@ -106,6 +106,12 @@ struct Event_realization
  * A 3' end moves left as nucleotides are deleted, a 5' end moves right, so the sign is
  * carried here rather than being re-derived at every call site. `{0, 0}` means the event
  * cannot move that end at all.
+ *
+ * **Invariant: `min <= max`.** The pair is an ordered interval, not a (nearest, farthest)
+ * pair -- an implementer flipping the sign of one end must reorder the two. Consumers rely
+ * on this rather than re-sorting, so that a provider that gets it wrong surfaces as an error
+ * instead of being silently normalised; JunctionGeometry::PendingModifierBounds::rebuild()
+ * is where it is enforced.
  */
 struct OffsetDelta {
     int min = 0;
@@ -119,6 +125,8 @@ struct OffsetDelta {
  *
  * Positive for an event that supplies sequence (a genomic template, an insertion), negative
  * for one that removes it (a deletion), zero for one that only fills placeholders.
+ *
+ * **Invariant: `min <= max`**, as for OffsetDelta.
  *
  * This is a *contribution*, not a length: several events compose onto one segment, and the
  * junction-length DP already sums them. It replaces `get_len_min()` / `get_len_max()`, whose

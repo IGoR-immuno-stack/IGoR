@@ -193,9 +193,11 @@ includes the header yet.
 
 ### 2.2 — G2: Reachable-offset interval, and the overlap predicate
 
-**Where it is today**: eight blocks — `Gene_choice` V/D/J (three), `Deletion` V/D-5′/D-3′/J (four
-sites, five checks), each computing a `*_min_offset` / `*_max_offset` pair and then applying a
-three-way comparison. [Deletion.h:120-146](../src/igor/Core/Deletion.h#L120-L146) holds eight
+**Where it is today**: **twelve** checks — `Gene_choice` V/D/J (six: V-3′ against D-5′ and J-5′,
+D-5′ against V-3′, D-3′ against J-5′, J-5′ against V-3′ and D-3′) and `Deletion` V/D-5′/D-3′/J
+(four sites, six checks). *(Counted from the code during S3; this section previously said eight
+and five.)* Each computes a `*_min_offset` / `*_max_offset` pair and then applies a three-way
+comparison. [Deletion.h:120-146](../src/igor/Core/Deletion.h#L120-L146) holds eight
 scalars for this; `Gene_choice` holds the same eight again.
 
 **The interval**:
@@ -209,9 +211,13 @@ OffsetInterval reachable(SeqTypeId id, Seq_side side, Seq_Offset current) const 
 }
 ```
 
-The `min`/`max` is what absorbs the 5′-vs-3′ sign flip. Verified against all eight sites:
+~~The `min`/`max` is what absorbs the 5′-vs-3′ sign flip.~~ **Wrong, corrected in S3**: the sign
+flip is absorbed by the *provider*. `Deletion::get_offset_delta_bounds` returns `{-max_del, -min_del}`
+on a 3′ end and `{min_del, max_del}` on a 5′ one, both already ordered, so `reachable()` is a plain
+translation and the `min`/`max` was dead code — a mutation removing it changed nothing any test
+could see. See the S3 note below. The arithmetic itself checks out at every site:
 `d_5_min_offset = d_5_offset - d_5_min_del` with `d_5_min_del = get_len_max() = -min_del`
-gives `d_5_offset + min_del` = `current + delta.min` ✓, and symmetrically for the other seven.
+gives `d_5_offset + min_del` = `current + delta.min` ✓, and symmetrically for the rest.
 
 **The predicate**. Let `L` be the left segment's 3′ interval, `R` the right segment's 5′
 interval, and `G` the minimum total length of everything that must sit strictly between them.
@@ -247,6 +253,43 @@ is what lets the predicate stay correct once a tandem-D ordering puts a *gene* s
 two checked ends. **Bitwise-preservation note**: `G` must be computed from `len_min`, which is
 `0` for the current corpus, so this is a no-op today — do not "improve" it to a tighter bound in
 the same step (§7.2).
+
+#### Delivered (S3) *(Sep 7 2026)*
+
+`PendingModifierBounds::reachable()` and the free `JunctionGeometry::check_overlap()`, in the same
+header, no caller yet. `check` is named `check_overlap` because `JunctionGeometry::check(L, R, 0)`
+says nothing at a call site. `gap` is a required argument, not defaulted to `0`: a default is an
+invitation to forget it, and §7.2 is precisely about not letting it drift.
+
+**The equivalence is tested by replay, not by restatement.** Writing the legacy comparisons in the
+new vocabulary would make the test tautological, so the four idioms the twelve sites are written in
+are reproduced in *their own variables* — `own_off + own_max_del >= other_max_offset` and the rest,
+with the legacy negated-deletion scalars read off the same event objects — and the generic
+predicate must agree at every offset across a sweep that crosses both verdict boundaries. A
+separate section counts the verdicts the sweep produces, because two functions that both answer
+`Undetermined` everywhere agree perfectly.
+
+**One design change came out of mutation testing.** `reachable()` as sketched wrapped its bounds in
+`std::min` / `std::max`; removing that wrapper failed no test, because no provider can return an
+unordered `OffsetDelta` — the ordering is established by `Deletion::get_offset_delta_bounds`, not
+recovered downstream. Silently re-sorting therefore bought nothing and would have hidden a provider
+bug behind a merely-narrow interval. Replaced by:
+
+- `min <= max` stated as an invariant on `OffsetDelta` and `LengthContribution` in `Rec_Event.h`;
+- `PendingModifierBounds::rebuild()` throwing `std::logic_error` naming the event, query and
+  seq_type when a provider breaks it, once per event per id at initialization;
+- `reachable()` reduced to a translation.
+
+Testing the guard needs a deliberately-misbehaving event, since no real subclass can trip it —
+`UnorderedDeltaEvent` in the test file — plus a property section asserting that all four real
+subclasses honour the invariant on every end of every segment. Without the fake the guard would be
+unreachable code that no mutation could reach either, which is how the `min`/`max` got there.
+
+**1441 assertions in 12 `TEST_CASE`s** (S2 and S3 together). Nine further mutations run, all
+caught: both comparison operators loosened, each comparison reading the wrong interval end, the
+gap dropped, the verdicts swapped, `reachable()` swapping its bounds or ignoring `current`, and the
+ordering guard disabled. The eight S2 mutations were re-run against the changed `rebuild()` and are
+still caught. Full ladder green, bitwise vacuously — nothing includes the header yet.
 
 ### 2.3 — G3: Storage stays *n(n−1)/2*; only the *work* collapses to O(1) per side
 
@@ -812,7 +855,7 @@ already flagged as the milestone-1 blocker and because `Gene_choice` is the only
 | **T0** | ✅ **done** — harness ported from `feature/2_unittests`, 11 non-`iterate()` cases dropped, 39 pattern-keyed sections + 4 `[!shouldfail]` defect cases (§6.1) | unit + mutation | n/a — tests only |
 | **A0** | ✅ **done** — `OffsetDelta` / `LengthContribution` + four capability virtuals on all four subclasses | unit | yes — no caller yet |
 | **S2** | ✅ **done** — `JunctionGeometry::PendingModifierBounds` in the new `JunctionGeometry.h`, unit-tested against a VDJ and a VJ model | unit + mutation | yes — no caller yet |
-| **S3** | `reachable()` + `Overlap check()`; unit-tested on all eight current comparison shapes | unit + mutation | yes — no caller yet |
+| **S3** | ✅ **done** — `reachable()` + `check_overlap()` in `JunctionGeometry.h`, replayed against all twelve current comparison sites | unit + mutation | yes — no caller yet |
 | **1a** | `Insertion` characterization sections, written against the **unmodified** event | unit + mutation | n/a — tests only |
 | **1b** | **B6** — `Insertion::iterate` generic (G9). Smallest, one hot-loop win. | full ladder | **yes** |
 | **2a** | `Dinucl_markov` characterization sections, including the empty-anchor case | unit + mutation | n/a — tests only |

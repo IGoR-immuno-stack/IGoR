@@ -25,6 +25,7 @@
 #include <igor/Core/CoreEnums.h>
 #include <igor/Core/Rec_Event.h>
 #include <igor/Core/SeqTypeRegistry.h>
+#include <igor/Core/StdTypedefs.h>
 #include <igor/Core/Utils.h>
 
 #include <cstddef>
@@ -69,6 +70,25 @@ namespace JunctionGeometry {
  * deletion bears on a given end, so the sum has a single non-zero term and the result is
  * bitwise what the legacy lookup produced.
  */
+/**
+ * \brief The inclusive range of read positions one segment end can still occupy.
+ *
+ * `lo == hi` means the end is pinned: every pending modifier bearing on it has been decided.
+ */
+struct OffsetInterval {
+    Seq_Offset lo = 0;
+    Seq_Offset hi = 0;
+
+    bool operator==(const OffsetInterval &) const = default;
+};
+
+/// The verdict of check_overlap(): what is still possible for a pair of neighbouring ends.
+enum class Overlap {
+    Infeasible,  ///< no combination of pending realizations avoids the overlap -- discard
+    Safe,        ///< every combination avoids it -- no downstream event need re-check
+    Undetermined ///< some do and some do not -- the deciding event must check again
+};
+
 class PendingModifierBounds
 {
 public:
@@ -103,11 +123,15 @@ public:
                 const auto type_id = static_cast<SeqTypeId>(id);
                 for (const Seq_side side : {Five_prime, Three_prime}) {
                     const OffsetDelta delta = event->get_offset_delta_bounds(type_id, side);
+                    check_ordered(delta.min, delta.max, *event, registry, type_id,
+                                  "get_offset_delta_bounds");
                     OffsetDelta &accumulated = offset_[end_index(id, side)];
                     accumulated.min += delta.min;
                     accumulated.max += delta.max;
                 }
                 const LengthContribution contribution = event->get_length_contribution(type_id);
+                check_ordered(contribution.min, contribution.max, *event, registry, type_id,
+                              "get_length_contribution");
                 LengthContribution &accumulated = length_[id];
                 accumulated.min += contribution.min;
                 accumulated.max += contribution.max;
@@ -129,6 +153,27 @@ public:
         return length_[type_id];
     }
 
+    /**
+     * The interval `(type_id, side)` can still reach from where it currently sits.
+     *
+     * The sign flip is already absorbed by the delta -- a 3' end whose delta is `{-4, 0}`
+     * reaches `[current - 4, current]`, a 5' end whose delta is `{0, 3}` reaches
+     * `[current, current + 3]`, and a palindromic range spans both ways -- so this is a plain
+     * translation. It does *not* re-sort the two bounds: `OffsetDelta` is contractually
+     * ordered, and rebuild() rejects a provider that breaks that rather than papering over it.
+     *
+     * Degenerates to the point `[current, current]` exactly when nothing pending bears on the
+     * end -- which is what makes one predicate serve both callers: in `Gene_choice::iterate`
+     * the segment's own deletion is still pending and this is a proper interval, while in
+     * `Deletion::iterate` the event being consumed *is* that modifier, so its own end has
+     * collapsed by the time the check runs.
+     */
+    OffsetInterval reachable(SeqTypeId type_id, Seq_side side, Seq_Offset current) const
+    {
+        const OffsetDelta delta = offset_delta(type_id, side);
+        return {current + delta.min, current + delta.max};
+    }
+
     /// Number of ids this instance was sized for; valid ids are `[0, seq_type_count())`.
     std::size_t seq_type_count() const noexcept { return length_.size(); }
 
@@ -147,6 +192,20 @@ private:
         return side;
     }
 
+    /// A provider returning `min > max` would make every interval derived from it nonsense --
+    /// and, being merely *narrow* rather than obviously wrong, would survive a long way. This
+    /// runs once per event per id at initialization, never in the hot loop.
+    static void check_ordered(int min, int max, const Rec_Event &event, const SeqTypeRegistry &registry,
+                              SeqTypeId type_id, const char *query)
+    {
+        if (min > max) {
+            throw std::logic_error("PendingModifierBounds: " + event.get_name() + "::" + query
+                                   + "(" + registry.name(type_id) + ") returned an unordered range ["
+                                   + std::to_string(min) + ", " + std::to_string(max)
+                                   + "]; min must not exceed max");
+        }
+    }
+
     void check_id(SeqTypeId type_id, const char *what) const
     {
         if (static_cast<std::size_t>(type_id) >= length_.size()) {
@@ -161,5 +220,39 @@ private:
     /// Indexed [id].
     std::vector<LengthContribution> length_;
 };
+
+/**
+ * Can what sits between two neighbouring ends still fit?
+ *
+ * `left_three_prime` is the reachable interval of the 3' end of the left segment,
+ * `right_five_prime` that of the 5' end of the right one, and `gap` the minimum total number
+ * of nucleotides that must sit strictly between them. The geometric constraint is
+ * `left_3' + gap < right_5'`, so:
+ *
+ * - the best case is the left end as far left as it goes against the right end as far right,
+ *   and if even that violates the constraint no realization can satisfy it -- `Infeasible`;
+ * - the worst case is the reverse, and if even that satisfies it nothing downstream can break
+ *   it -- `Safe`;
+ * - otherwise the outcome depends on realizations not yet drawn -- `Undetermined`.
+ *
+ * This one predicate replaces the twelve hand-written comparisons in `Gene_choice::iterate`
+ * and `Deletion::iterate` (plan section 2.2). The two callers differ only in whether the
+ * moving end's own interval has collapsed to a point, which `reachable()` handles.
+ *
+ * `gap` is 0 at every site today -- every in-between segment can be empty, insertions
+ * included -- and passing it explicitly is what keeps the predicate correct once a tandem-D
+ * ordering puts a gene segment between two checked ends. It must be derived from a *minimum*
+ * length; tightening it is a modelling change, not a refactor (plan section 7.2).
+ */
+inline Overlap check_overlap(OffsetInterval left_three_prime, OffsetInterval right_five_prime, int gap)
+{
+    if (left_three_prime.lo + gap >= right_five_prime.hi) {
+        return Overlap::Infeasible;
+    }
+    if (left_three_prime.hi + gap < right_five_prime.lo) {
+        return Overlap::Safe;
+    }
+    return Overlap::Undetermined;
+}
 
 } // namespace JunctionGeometry

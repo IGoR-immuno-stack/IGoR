@@ -355,3 +355,424 @@ TEST_CASE("PendingModifierBounds: queries outside the contract throw", "[junctio
         CHECK_THROWS_AS(empty.offset_delta(0, Three_prime), std::out_of_range);
     }
 }
+
+// ===========================================================================================
+// S3 -- reachable() and check_overlap()
+// ===========================================================================================
+
+namespace {
+
+using JunctionGeometry::check_overlap;
+using JunctionGeometry::OffsetInterval;
+using JunctionGeometry::Overlap;
+
+/**
+ * The four idioms the twelve legacy comparison sites are written in, each in its own
+ * variables rather than in `lo` / `hi` -- writing them in the new vocabulary would make the
+ * comparison below tautological.
+ *
+ * The scalars are the legacy ones: `X_min_del = get_len_max() = -min_del` and
+ * `X_max_del = get_len_min() = -max_del`, i.e. both hold *negated* deletion counts. An
+ * interval end is then reached by `off + X_*_del` on a 3' end and `off - X_*_del` on a 5' one.
+ */
+struct LegacyScalars {
+    int min_del = 0;   ///< X_min_del: negated *minimum* deletion count
+    int max_del = 0;   ///< X_max_del: negated *maximum* deletion count
+};
+
+/// Genechoice.cpp:265,269 / :440,444 -- the event places a 3' end that can still move, against
+/// a 5' neighbour that can too.
+Overlap legacy_gene_choice_own_three_prime(Seq_Offset own_off, LegacyScalars own,
+                                           Seq_Offset other_off, LegacyScalars other)
+{
+    const Seq_Offset other_min_offset = other_off - other.min_del;
+    const Seq_Offset other_max_offset = other_off - other.max_del;
+    if ((own_off + own.max_del) >= other_max_offset) {
+        return Overlap::Infeasible;
+    }
+    if ((own_off + own.min_del) < other_min_offset) {
+        return Overlap::Safe;
+    }
+    return Overlap::Undetermined;
+}
+
+/// Genechoice.cpp:427,431 / :917,921 / :930,934 -- the event places a 5' end instead, so both
+/// comparisons flip.
+Overlap legacy_gene_choice_own_five_prime(Seq_Offset own_off, LegacyScalars own,
+                                          Seq_Offset other_off, LegacyScalars other)
+{
+    const Seq_Offset other_min_offset = other_off + other.max_del;
+    const Seq_Offset other_max_offset = other_off + other.min_del;
+    if ((own_off - own.max_del) <= other_min_offset) {
+        return Overlap::Infeasible;
+    }
+    if ((own_off - own.min_del) > other_max_offset) {
+        return Overlap::Safe;
+    }
+    return Overlap::Undetermined;
+}
+
+/// Deletion.cpp:320,324 / :335,339 / :787,791 -- the deletion being drawn *is* the 3' end's
+/// modifier, so its own offset is already final and enters as a bare value.
+Overlap legacy_deletion_own_three_prime(Seq_Offset own_new_off, Seq_Offset other_off, LegacyScalars other)
+{
+    const Seq_Offset other_min_offset = other_off - other.min_del;
+    const Seq_Offset other_max_offset = other_off - other.max_del;
+    if (own_new_off >= other_max_offset) {
+        return Overlap::Infeasible;
+    }
+    if (own_new_off < other_min_offset) {
+        return Overlap::Safe;
+    }
+    return Overlap::Undetermined;
+}
+
+/// Deletion.cpp:565,569 / :1049,1053 / :1063,1067 -- the same, for a 5' end.
+Overlap legacy_deletion_own_five_prime(Seq_Offset own_new_off, Seq_Offset other_off, LegacyScalars other)
+{
+    const Seq_Offset other_min_offset = other_off + other.max_del;
+    const Seq_Offset other_max_offset = other_off + other.min_del;
+    if (own_new_off <= other_min_offset) {
+        return Overlap::Infeasible;
+    }
+    if (own_new_off > other_max_offset) {
+        return Overlap::Safe;
+    }
+    return Overlap::Undetermined;
+}
+
+/// The legacy scalars for a deletion event, read off the event itself.
+LegacyScalars scalars_of(const Deletion &deletion)
+{
+    return {deletion.get_len_max(), deletion.get_len_min()};
+}
+
+/// Offsets swept far enough either side of the fixed end to cross both verdict boundaries.
+constexpr Seq_Offset kSweepLo = -25;
+constexpr Seq_Offset kSweepHi = 25;
+
+} // namespace
+
+TEST_CASE("reachable(): the interval absorbs the 5'/3' sign flip", "[junction_geometry][s3]")
+{
+    const VdjModel model;
+    const PendingModifierBounds bounds = model.build();
+
+    // V-3' deletes 0..4: the end can only retreat.
+    CHECK(bounds.reachable(id_of(V_gene_seq), Three_prime, 100) == OffsetInterval{96, 100});
+    // J-5' deletes 0..8: the end can only advance.
+    CHECK(bounds.reachable(id_of(J_gene_seq), Five_prime, 100) == OffsetInterval{100, 108});
+    // D-5' deletes -2..3: a palindromic insertion moves it the other way, so the interval
+    // spans both directions and lo/hi are *not* simply {current, current + something}.
+    CHECK(bounds.reachable(id_of(D_gene_seq), Five_prime, 100) == OffsetInterval{98, 103});
+    CHECK(bounds.reachable(id_of(D_gene_seq), Three_prime, 100) == OffsetInterval{95, 100});
+
+    SECTION("An end nothing pending bears on degenerates to a point")
+    {
+        // The unification the generic predicate rests on: Gene_choice sees a proper interval
+        // for its own end, Deletion sees a point, and both call the same check.
+        const PendingModifierBounds pinned = model.build({model.del_v_3->get_name()});
+        CHECK(pinned.reachable(id_of(V_gene_seq), Three_prime, 100) == OffsetInterval{100, 100});
+        // An end with no modifier at all is a point for the same reason.
+        CHECK(pinned.reachable(id_of(J_gene_seq), Three_prime, 100) == OffsetInterval{100, 100});
+    }
+
+    SECTION("The interval is relative, so it translates with the offset")
+    {
+        const OffsetInterval here = bounds.reachable(id_of(D_gene_seq), Five_prime, 100);
+        const OffsetInterval there = bounds.reachable(id_of(D_gene_seq), Five_prime, 140);
+        CHECK(there.lo - here.lo == 40);
+        CHECK(there.hi - here.hi == 40);
+    }
+}
+
+TEST_CASE("check_overlap(): the verdict boundaries", "[junction_geometry][s3]")
+{
+    // The constraint is left_3' + gap < right_5', strictly: two segments may not occupy the
+    // same read position, and an empty segment between them is allowed. Both boundaries are
+    // therefore checked at the exact transition and one position either side of it.
+    const OffsetInterval left{10, 14};
+
+    SECTION("Infeasible when even the best case overlaps")
+    {
+        // Best case is left.lo against right.hi. left.lo == 10, so right.hi must exceed 10.
+        CHECK(check_overlap(left, OffsetInterval{9, 10}, 0) == Overlap::Infeasible);
+        CHECK(check_overlap(left, OffsetInterval{9, 11}, 0) != Overlap::Infeasible);
+        // Equality is an overlap, not a fit: the two ends would sit on the same position.
+        CHECK(check_overlap(OffsetInterval{10, 10}, OffsetInterval{10, 10}, 0) == Overlap::Infeasible);
+    }
+
+    SECTION("Safe when even the worst case fits")
+    {
+        // Worst case is left.hi against right.lo. left.hi == 14, so right.lo must exceed 14.
+        CHECK(check_overlap(left, OffsetInterval{15, 20}, 0) == Overlap::Safe);
+        CHECK(check_overlap(left, OffsetInterval{14, 20}, 0) != Overlap::Safe);
+    }
+
+    SECTION("Undetermined in between")
+    {
+        CHECK(check_overlap(left, OffsetInterval{11, 20}, 0) == Overlap::Undetermined);
+        CHECK(check_overlap(left, OffsetInterval{14, 20}, 0) == Overlap::Undetermined);
+    }
+
+    SECTION("The three verdicts partition the geometry")
+    {
+        // No pair of intervals falls through, and none satisfies two verdicts at once --
+        // the callers rely on the else-branch of the Safe test meaning Undetermined.
+        for (Seq_Offset lo = kSweepLo; lo <= kSweepHi; ++lo) {
+            for (Seq_Offset span = 0; span != 6; ++span) {
+                const OffsetInterval right{lo, lo + span};
+                const Overlap verdict = check_overlap(left, right, 0);
+                const bool infeasible = verdict == Overlap::Infeasible;
+                const bool safe = verdict == Overlap::Safe;
+                REQUIRE_FALSE((infeasible && safe));
+                REQUIRE((infeasible || safe || verdict == Overlap::Undetermined));
+            }
+        }
+    }
+}
+
+TEST_CASE("check_overlap(): the gap shifts both boundaries together", "[junction_geometry][s3]")
+{
+    // gap is 0 at every site today; it exists so the predicate stays correct once a tandem-D
+    // ordering puts a segment with a non-zero minimum length between two checked ends.
+    const OffsetInterval left{10, 14};
+    const OffsetInterval right{15, 20};
+
+    REQUIRE(check_overlap(left, right, 0) == Overlap::Safe);
+    // Requiring one nucleotide in between costs exactly one position of clearance.
+    CHECK(check_overlap(left, right, 1) == Overlap::Undetermined);
+    // Infeasible only once the gap swallows the whole clearance: left.lo + gap >= right.hi,
+    // i.e. 10 + gap >= 20.
+    CHECK(check_overlap(left, right, 9) == Overlap::Undetermined);
+    CHECK(check_overlap(left, right, 10) == Overlap::Infeasible);
+
+    // Equivalently: a gap of g is the left interval translated right by g.
+    for (int gap = 0; gap != 14; ++gap) {
+        const OffsetInterval shifted{left.lo + gap, left.hi + gap};
+        CHECK(check_overlap(left, right, gap) == check_overlap(shifted, right, 0));
+    }
+}
+
+TEST_CASE("Every legacy comparison site reduces to the same predicate", "[junction_geometry][s3]")
+{
+    // The load-bearing test of S3. Each of the twelve sites is replayed in its own variables
+    // by the lambdas above, and the generic predicate must agree at every offset -- including
+    // both boundary positions, which the sweep crosses.
+    const VdjModel model;
+    const PendingModifierBounds pending = model.build();
+
+    // The Deletion sites run with the drawn event already consumed, so its end is a point.
+    const PendingModifierBounds v_3_drawn = model.build({model.del_v_3->get_name()});
+    const PendingModifierBounds d_5_drawn = model.build({model.del_d_5->get_name()});
+    const PendingModifierBounds d_3_drawn = model.build({model.del_d_3->get_name()});
+    const PendingModifierBounds j_5_drawn = model.build({model.del_j_5->get_name()});
+
+    constexpr Seq_Offset kFixed = 0;
+
+    SECTION("Gene_choice, placing a 3' end (Genechoice.cpp:265,269 and :440,444)")
+    {
+        for (Seq_Offset own_off = kSweepLo; own_off <= kSweepHi; ++own_off) {
+            // V-3' against D-5'
+            REQUIRE(check_overlap(pending.reachable(id_of(V_gene_seq), Three_prime, own_off),
+                                  pending.reachable(id_of(D_gene_seq), Five_prime, kFixed), 0)
+                    == legacy_gene_choice_own_three_prime(own_off, scalars_of(*model.del_v_3),
+                                                          kFixed, scalars_of(*model.del_d_5)));
+            // D-3' against J-5'
+            REQUIRE(check_overlap(pending.reachable(id_of(D_gene_seq), Three_prime, own_off),
+                                  pending.reachable(id_of(J_gene_seq), Five_prime, kFixed), 0)
+                    == legacy_gene_choice_own_three_prime(own_off, scalars_of(*model.del_d_3),
+                                                          kFixed, scalars_of(*model.del_j_5)));
+        }
+    }
+
+    SECTION("Gene_choice, placing a 5' end (Genechoice.cpp:427,431 and :917,921 and :930,934)")
+    {
+        for (Seq_Offset own_off = kSweepLo; own_off <= kSweepHi; ++own_off) {
+            // D-5' against V-3'
+            REQUIRE(check_overlap(pending.reachable(id_of(V_gene_seq), Three_prime, kFixed),
+                                  pending.reachable(id_of(D_gene_seq), Five_prime, own_off), 0)
+                    == legacy_gene_choice_own_five_prime(own_off, scalars_of(*model.del_d_5),
+                                                         kFixed, scalars_of(*model.del_v_3)));
+            // J-5' against V-3'
+            REQUIRE(check_overlap(pending.reachable(id_of(V_gene_seq), Three_prime, kFixed),
+                                  pending.reachable(id_of(J_gene_seq), Five_prime, own_off), 0)
+                    == legacy_gene_choice_own_five_prime(own_off, scalars_of(*model.del_j_5),
+                                                         kFixed, scalars_of(*model.del_v_3)));
+            // J-5' against D-3'
+            REQUIRE(check_overlap(pending.reachable(id_of(D_gene_seq), Three_prime, kFixed),
+                                  pending.reachable(id_of(J_gene_seq), Five_prime, own_off), 0)
+                    == legacy_gene_choice_own_five_prime(own_off, scalars_of(*model.del_j_5),
+                                                         kFixed, scalars_of(*model.del_d_3)));
+        }
+    }
+
+    SECTION("Deletion drawing a 3' end (Deletion.cpp:320,324 and :335,339 and :787,791)")
+    {
+        for (Seq_Offset new_off = kSweepLo; new_off <= kSweepHi; ++new_off) {
+            // V-3' against D-5', and against J-5'
+            REQUIRE(check_overlap(v_3_drawn.reachable(id_of(V_gene_seq), Three_prime, new_off),
+                                  v_3_drawn.reachable(id_of(D_gene_seq), Five_prime, kFixed), 0)
+                    == legacy_deletion_own_three_prime(new_off, kFixed, scalars_of(*model.del_d_5)));
+            REQUIRE(check_overlap(v_3_drawn.reachable(id_of(V_gene_seq), Three_prime, new_off),
+                                  v_3_drawn.reachable(id_of(J_gene_seq), Five_prime, kFixed), 0)
+                    == legacy_deletion_own_three_prime(new_off, kFixed, scalars_of(*model.del_j_5)));
+            // D-3' against J-5'
+            REQUIRE(check_overlap(d_3_drawn.reachable(id_of(D_gene_seq), Three_prime, new_off),
+                                  d_3_drawn.reachable(id_of(J_gene_seq), Five_prime, kFixed), 0)
+                    == legacy_deletion_own_three_prime(new_off, kFixed, scalars_of(*model.del_j_5)));
+        }
+    }
+
+    SECTION("Deletion drawing a 5' end (Deletion.cpp:565,569 and :1049,1053 and :1063,1067)")
+    {
+        for (Seq_Offset new_off = kSweepLo; new_off <= kSweepHi; ++new_off) {
+            // D-5' against V-3'
+            REQUIRE(check_overlap(d_5_drawn.reachable(id_of(V_gene_seq), Three_prime, kFixed),
+                                  d_5_drawn.reachable(id_of(D_gene_seq), Five_prime, new_off), 0)
+                    == legacy_deletion_own_five_prime(new_off, kFixed, scalars_of(*model.del_v_3)));
+            // J-5' against V-3', and against D-3'
+            REQUIRE(check_overlap(j_5_drawn.reachable(id_of(V_gene_seq), Three_prime, kFixed),
+                                  j_5_drawn.reachable(id_of(J_gene_seq), Five_prime, new_off), 0)
+                    == legacy_deletion_own_five_prime(new_off, kFixed, scalars_of(*model.del_v_3)));
+            REQUIRE(check_overlap(j_5_drawn.reachable(id_of(D_gene_seq), Three_prime, kFixed),
+                                  j_5_drawn.reachable(id_of(J_gene_seq), Five_prime, new_off), 0)
+                    == legacy_deletion_own_five_prime(new_off, kFixed, scalars_of(*model.del_d_3)));
+        }
+    }
+
+    SECTION("The sweep actually crosses every verdict")
+    {
+        // Without this the agreement above could be vacuous -- two functions returning
+        // Undetermined everywhere agree perfectly.
+        int infeasible = 0, safe = 0, undetermined = 0;
+        for (Seq_Offset own_off = kSweepLo; own_off <= kSweepHi; ++own_off) {
+            switch (check_overlap(pending.reachable(id_of(V_gene_seq), Three_prime, own_off),
+                                  pending.reachable(id_of(D_gene_seq), Five_prime, kFixed), 0)) {
+            case Overlap::Infeasible: ++infeasible; break;
+            case Overlap::Safe: ++safe; break;
+            case Overlap::Undetermined: ++undetermined; break;
+            }
+        }
+        CHECK(infeasible > 0);
+        CHECK(safe > 0);
+        CHECK(undetermined > 0);
+    }
+}
+
+namespace {
+
+/**
+ * An event whose capability queries answer with a reversed range.
+ *
+ * No real subclass can produce one -- every provider builds its pair already ordered -- which
+ * is exactly why the guard needs a fake to be tested at all. Without this the guard would be
+ * unreachable code that no mutation could reach either.
+ */
+class UnorderedDeltaEvent : public Rec_Event
+{
+public:
+    explicit UnorderedDeltaEvent(bool break_offset) : break_offset_(break_offset)
+    {
+        this->name = break_offset ? "bad_offset_event" : "bad_length_event";
+    }
+
+    OffsetDelta get_offset_delta_bounds(SeqTypeId, Seq_side) const override
+    {
+        return break_offset_ ? OffsetDelta{4, -4} : OffsetDelta{};
+    }
+    LengthContribution get_length_contribution(SeqTypeId) const override
+    {
+        return break_offset_ ? LengthContribution{} : LengthContribution{4, -4};
+    }
+    SeqConstructionRole get_seq_construction_role(SeqTypeId) const override { return SeqConstructionRole::None; }
+    OffsetRole get_offset_role(SeqTypeId, Seq_side) const override { return OffsetRole::None; }
+
+    // Everything below is inert: this event exists only to be asked the four queries above.
+    void iterate(QuerySequenceContext &, const ModelContext &, ScenarioContext &, ExplorationContext &,
+                 AccumulationContext &) override
+    {
+    }
+    std::queue<int> draw_random_realization(
+            const Marginal_array_p &, std::unordered_map<Rec_Event_name, int> &,
+            const std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &,
+            std::unordered_map<Seq_type, std::string> &, std::mt19937_64 &) const override
+    {
+        return {};
+    }
+    void write2txt(std::ofstream &) override {}
+    void write2txt_legacy(std::ofstream &) override {}
+    void write2txt_v2(std::ofstream &) override {}
+    void initialize_event(
+            std::unordered_set<Rec_Event_name> &, const Events_map &,
+            const std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &,
+            Downstream_scenario_proba_bound_map &, Seq_type_str_p_map &, Safety_bool_map &,
+            std::shared_ptr<Error_rate>, Mismatch_vectors_map &, Seq_offsets_map &, Index_map &) override
+    {
+    }
+    void add_to_marginals(long double, Marginal_array_p &) const override {}
+    std::shared_ptr<Rec_Event> copy() override { return nullptr; }
+    bool has_effect_on(Seq_type) const override { return false; }
+    void iterate_initialize_Len_proba(Seq_type, std::map<int, double> &, std::queue<std::shared_ptr<Rec_Event>> &,
+                                      double &, const Marginal_array_p &, Index_map &, Seq_type_str_p_map &,
+                                      int &) const override
+    {
+    }
+    void initialize_Len_proba_bound(std::queue<std::shared_ptr<Rec_Event>> &, const Marginal_array_p &,
+                                    Index_map &) override
+    {
+    }
+
+private:
+    bool break_offset_;
+};
+
+} // namespace
+
+TEST_CASE("An unordered range from a provider is rejected, not silently sorted", "[junction_geometry][s3]")
+{
+    // OffsetDelta and LengthContribution are contractually ordered intervals. reachable()
+    // used to re-sort them, which made a provider bug invisible *and* made the re-sorting
+    // itself untestable: no real subclass can produce an unordered pair, so nothing exercised
+    // it. The guard belongs where the value enters, and it belongs as an error.
+    const SeqTypeRegistry registry = make_registry({"V_gene_seq", "D_gene_seq", "J_gene_seq"});
+    PendingModifierBounds bounds;
+
+    SECTION("An unordered offset delta")
+    {
+        Events_map events_map;
+        events_map.emplace(std::make_tuple(Deletion_t, Seq_type_String("V_gene_seq"), Three_prime),
+                           std::make_shared<UnorderedDeltaEvent>(true));
+        CHECK_THROWS_AS(bounds.rebuild(registry, events_map, {}), std::logic_error);
+    }
+
+    SECTION("An unordered length contribution")
+    {
+        Events_map events_map;
+        events_map.emplace(std::make_tuple(Deletion_t, Seq_type_String("V_gene_seq"), Three_prime),
+                           std::make_shared<UnorderedDeltaEvent>(false));
+        CHECK_THROWS_AS(bounds.rebuild(registry, events_map, {}), std::logic_error);
+    }
+
+    SECTION("The real subclasses all honour it, on every end of every segment")
+    {
+        // The premise reachable() now relies on, checked against the providers themselves
+        // rather than assumed. A palindromic deletion range is the case most likely to break
+        // it, so the VDJ model's D-5' spans [-2, 3].
+        const VdjModel model;
+        CHECK_NOTHROW(model.build());
+        for (const auto &[key, event] : model.events_map) {
+            (void)key;
+            for (SeqTypeId id = 0; id != static_cast<SeqTypeId>(model.registry.total_count()); ++id) {
+                for (const Seq_side side : {Five_prime, Three_prime}) {
+                    const OffsetDelta delta = event->get_offset_delta_bounds(id, side);
+                    INFO(event->get_name() << " offset delta on id " << id << " side " << side);
+                    REQUIRE(delta.min <= delta.max);
+                }
+                const LengthContribution length = event->get_length_contribution(id);
+                INFO(event->get_name() << " length contribution on id " << id);
+                REQUIRE(length.min <= length.max);
+            }
+        }
+    }
+}
