@@ -598,10 +598,19 @@ bool GenModel::infer_model(
             }
         }
 
-        //Counters are accumulated per thread, so their summary output still depends on
-        //the sequence to thread assignment in the last bits. None of them feeds back
-        //into the model parameters, and merging in thread order at least removes the
-        //dependency on the order in which the threads finish.
+        /*
+		 * FIXME counters are still accumulated per thread, so the summary they write
+		 * (the coverage and error counters, the only ones summing over sequences) still
+		 * depends on the sequence to thread assignment in the last bits. Merging in
+		 * thread order only removes the dependency on the order in which the threads
+		 * finish. Giving them chunk slots the way the marginals have would cost one
+		 * counter copy per chunk, which the coverage counter is too large for.
+		 *
+		 * None of the counters feeds back into the model parameters, so this does not
+		 * affect the inference itself. The proper fix is to make the accumulator
+		 * containers themselves aware of the chunked reduction rather than to special
+		 * case every accumulator here.
+		 */
         for (const auto &thread_counters : thread_counter_lists) {
             for (const auto &counter_pair : thread_counters) {
                 counters_list.at(counter_pair.first)->add_to_counter(counter_pair.second);
