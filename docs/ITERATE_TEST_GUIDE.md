@@ -383,6 +383,11 @@ expectation, and it is fine.
 - [ ] Confirmed defects assert the **intended** value under `[!shouldfail]`, never pinned wrong
 - [ ] Sections live under pattern-named `TEST_CASE`s, not gene-class ones
 - [ ] `pixi run test_unit` green; expected failures reported as expected
+- [ ] Coverage reported for the event's `iterate()` and `initialize_event()`:
+      `python3 scripts/tests/coverage_report.py -f '[your_event][iterate]'`. Read the
+      uncovered *lines*, not the ratio -- gcov counts exception edges as branches, so 100%
+      is not the target. Every uncovered branch is either closed with a section or recorded
+      as a deliberate gap
 
 ### Changing tests during a refactor
 

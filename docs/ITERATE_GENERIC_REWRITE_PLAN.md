@@ -921,6 +921,12 @@ a TRB topology that never fires `no_d_align`, so "collapse, then assert non-regr
 has a hole exactly where the risk is. Per-event unit tests are the only cover for branches the
 corpus does not reach, and they are only evidence if they predate the change.
 
+**Each *a* commit reports coverage of the two functions it is characterizing**, via
+`pixi run coverage` (see §6.4). The suite is only evidence for the branches it reaches, so an
+uncovered branch is a gap to close deliberately or to record deliberately — not something to
+discover after the collapse. Writing 1a's report immediately exposed one: the discard path was
+covered on the VD arm only, so a rewrite could have lost two of the three guards undetected.
+
 A *b* commit's definition of done is "its *a* sections pass unchanged" — or, where the collapse
 legitimately reorganises a section, each adapted assertion is named in the commit message. Some
 adaptation is expected: the *a* sections are written against the legacy switch structure, and the
@@ -1150,6 +1156,47 @@ without it, so an `Insertion` cannot be initialized alone.
 out-of-range lengths no longer discarded, the scenario probability not updated, `base_index`
 dropped, the placeholder count wrong, pruning disabled, the downstream bound replaced by a
 constant, and the VJ arm reading the wrong span.
+
+### 6.4 — Coverage of the functions being migrated *(measured Sep 7 2026)*
+
+`pixi run coverage` builds the instrumented tree and reports line, branch and block coverage per
+function for the four `Rec_Event` subclasses' `iterate()` and `initialize_event()`. Scope it with a
+Catch2 spec: `python3 scripts/tests/coverage_report.py -f '[insertion][iterate]'`.
+
+**The tooling was broken and is fixed here.** `ENABLE_COVERAGE` added `-fprofile-generate`, which is
+PGO instrumentation: it emits `.gcda` arc counts but no `.gcno` notes, so `gcov` had nothing to map
+them onto. The `coverage` task then called `llvm-profdata` / `llvm-cov`, which are neither installed
+nor matched to the GCC toolchain. Every report this project could have produced was empty. Now:
+`--coverage` under GNU, the instrumented-Clang flags under Clang — branching on the *compiler*, not
+the OS, which a Linux Clang build also got wrong.
+
+Baseline under the unit suite (`~[integration]~[slow]`), before any event is collapsed:
+
+| Function | Lines | Branch | Blocks | Calls |
+|---|---:|---:|---:|---:|
+| `Gene_choice::iterate` | 71.4% | 46.5% | 59.2% | 42 |
+| `Gene_choice::initialize_event` | 86.8% | 51.8% | 75.3% | 42 |
+| `Insertion::iterate` | 97.6% | 65.4% | 71.9% | 25 |
+| `Insertion::initialize_event` | 100.0% | 62.5% | 77.8% | 26 |
+| **`Deletion::iterate`** | **0.0%** | **0.0%** | **0.0%** | **0** |
+| `Deletion::initialize_event` | 93.0% | 57.4% | 79.8% | 36 |
+| **`Dinucl_markov::iterate`** | **0.0%** | **0.0%** | **0.0%** | **0** |
+| `Dinucl_markov::initialize_event` | 94.7% | 43.3% | 54.1% | 25 |
+
+Two readings matter more than the numbers themselves:
+
+- **`Deletion::iterate` and `Dinucl_markov::iterate` are at zero.** No unit test executes them at
+  all — steps 2a and 4a start from nothing, and until they land the *only* thing standing between a
+  change in those bodies and a wrong answer is the regression corpus. Their `initialize_event`
+  figures are non-zero only because other events' fixtures initialize them as neighbours.
+- **Branch percentages read low and should not be chased to 100%.** gcov counts an exception edge
+  as a branch, so every `.at()`, every string temporary and every destructor contributes an
+  untakeable arc to the denominator. Block coverage is the more honest single number, and the
+  useful artefact is the *list* of uncovered lines, not the ratio.
+
+`Gene_choice::iterate` at 59.2% blocks after T0 is the figure to watch: the uncovered remainder is
+mostly the `no_d_align` exhaustive path, which is step 5 — the hardest piece in the set, and the one
+the regression corpus never reaches either (§7.9).
 
 ### 6.2 — The regression gate has a flaky output
 

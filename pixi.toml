@@ -48,7 +48,10 @@ test_generate = { cmd = "scripts/tests/test_generate.sh", depends-on = ["build"]
 benchmark = { cmd = "scripts/tests/benchmark_run.sh", depends-on = ["build"] }
 doc = "cmake --build build --target doc"
 format = "cmake --build build --target clang-format"
-coverage = {cmd="llvm-profdata merge -sparse build_cov/tst/default.profraw -o default.profdata && llvm-cov show build_cov/bin/igor_tests -instr-profile=default.profdata -format=html -output-dir=htmlcov", depends-on = "build_coverage"}
+# Per-function coverage of the iterate() / initialize_event() bodies being migrated.
+# Defaults to the unit suite; pass a Catch2 spec to scope it, e.g.
+#   pixi run coverage -- -f '[insertion][iterate]'
+coverage = {cmd="python3 scripts/tests/coverage_report.py -f '~[integration]~[slow]'", depends-on = "build_coverage"}
 submodule-update = "git submodule update --init --recursive"
 
 [target.win-64.tasks]
