@@ -425,17 +425,41 @@ TEST_CASE("Insertion: a junction with no segment on one side is rejected", "[ins
     CHECK_THROWS_AS(call_iterate(insertion, state), std::runtime_error);
 }
 
-TEST_CASE("Insertion: an unknown seq_type is rejected before iterate can see it", "[insertion][iterate]")
+TEST_CASE("Insertion: the seq_type name and its registry id must agree", "[insertion][iterate]")
 {
-    // iterate() ends its seq_type chain with `throw invalid_argument`. That arm is not
-    // reachable through the production path: initialize_event() resolves the same string
-    // first and refuses. Pinned so the collapse in B6 knows the throw is a backstop, not a
-    // branch with behaviour to preserve.
-    IterateTestState state = create_iterate_state("ACGTACGTACGTACGT");
-    auto insertion = make_insertion(VD_ins_seq, 0, 6, /*event_id=*/0);
-    insertion->set_seq_type("V_gene_seq");
+    // An event carries its seq_type twice -- the serialization name, and the registry id
+    // resolved from it. Everything in the scenario is keyed by the id, so a disagreement does
+    // not fail: it aliases this event's segment, offsets and bounds onto another seq_type's
+    // keys and comes back as a wrong answer. That is the shape of the trap B2 hit with VJ.
+    //
+    // Checked once at initialize_event(), where both identities are in hand. Before B6 the
+    // same site rejected only an *unrecognised* name, which caught less and did it by
+    // enumerating the three legacy junctions.
+    SECTION("A name that resolves to a different segment than the id")
+    {
+        IterateTestState state = create_iterate_state("ACGTACGTACGTACGT");
+        auto insertion = make_insertion(VD_ins_seq, 0, 6, /*event_id=*/0);
+        insertion->set_seq_type("V_gene_seq");   // id still points at VD_ins_seq
+        CHECK_THROWS_AS(call_iterate(insertion, state), std::runtime_error);
+    }
 
-    CHECK_THROWS_AS(call_iterate(insertion, state), std::runtime_error);
+    SECTION("A name no registry knows")
+    {
+        IterateTestState state = create_iterate_state("ACGTACGTACGTACGT");
+        auto insertion = make_insertion(VD_ins_seq, 0, 6, /*event_id=*/0);
+        insertion->set_seq_type("not_a_seq_type");
+        CHECK_THROWS_AS(call_iterate(insertion, state), std::runtime_error);
+    }
+
+    SECTION("An id never resolved against a registry")
+    {
+        // What an event holds before Model_Parms::finalize() runs. Reaching iterate() in that
+        // state would subscript every scenario map with kNoSeqType.
+        IterateTestState state = create_iterate_state("ACGTACGTACGTACGT");
+        auto insertion = make_insertion(VD_ins_seq, 0, 6, /*event_id=*/0);
+        insertion->set_seq_type_id(kNoSeqType);
+        CHECK_THROWS_AS(call_iterate(insertion, state), std::runtime_error);
+    }
 }
 
 

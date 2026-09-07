@@ -39,12 +39,32 @@ using namespace std;
 namespace {
 /// Convert the seq_type string (e.g. "VD_ins_seq") to a Seq_type enum value.
 /// Returns false when the string is not a recognised insertion seq_type.
+///
+/// Callers left are the ones feeding a genuinely Seq_type-keyed API: the generation path's
+/// `unordered_map<Seq_type, string>` (B9) and the Len_proba machinery (G5/S4). What no longer
+/// needs it is initialize_event(), which addresses the scenario maps -- those are keyed by
+/// SeqTypeId, the only identity a non-legacy seq_type can have at all.
 bool insertion_seq_type_str_to_enum(const Seq_type_String &seq_type_str, Seq_type &out)
 {
     if (seq_type_str == "VD_ins_seq") { out = VD_ins_seq; return true; }
     if (seq_type_str == "DJ_ins_seq") { out = DJ_ins_seq; return true; }
     if (seq_type_str == "VJ_ins_seq") { out = VJ_ins_seq; return true; }
     return false;
+}
+
+/// The same conversion where there is no sensible way to continue without it.
+///
+/// Written as a return value rather than an out-parameter seeded with VD_ins_seq: that idiom
+/// reads as "defaults to the VD junction", which is never what is meant -- the value is dead
+/// on every path that does not throw.
+Seq_type insertion_seq_type_or_throw(const Seq_type_String &seq_type_str, const char *where)
+{
+    Seq_type converted = VD_ins_seq;
+    if (!insertion_seq_type_str_to_enum(seq_type_str, converted)) {
+        throw std::runtime_error(std::string("Unknown insertion seq_type \"") + seq_type_str
+                                 + "\" in " + where);
+    }
+    return converted;
 }
 } // namespace
 
@@ -308,18 +328,24 @@ void Insertion::initialize_event(
         Safety_bool_map &safety_set, shared_ptr<Error_rate> error_rate_p, Mismatch_vectors_map &mismatches_list,
         Seq_offsets_map &seq_offsets, Index_map &index_map)
 {
-    Seq_type seq_type = VD_ins_seq;
-    if (!insertion_seq_type_str_to_enum(this->seq_type, seq_type)) {
-        throw runtime_error("Unknown insertion event_class in initialize_event");
+    //An event carries its seq_type twice: as the serialization name and as the registry id
+    //resolved from it. Everything downstream addresses the id, so a disagreement aliases this
+    //event's whole scenario state onto another segment's keys and shows up as a wrong answer,
+    //not as a failure -- the trap B2 hit with VJ. Checked once, here, where both are in hand.
+    const SeqTypeRegistry &registry = constructed_sequences.registry();
+    if (this->seq_type_id == kNoSeqType
+        || static_cast<std::size_t>(this->seq_type_id) >= registry.total_count()
+        || registry.name(this->seq_type_id) != this->seq_type) {
+        throw runtime_error("Insertion " + this->name + ": seq_type \"" + this->seq_type
+                            + "\" does not match the registry entry for its id");
     }
 
-    downstream_proba_map.request_layer(seq_type);
-    memory_layer_proba_map_junction = downstream_proba_map.claimed_layer(seq_type);
+    downstream_proba_map.request_layer(this->seq_type_id);
+    memory_layer_proba_map_junction = downstream_proba_map.claimed_layer(this->seq_type_id);
 
     //Resolve the junction's neighbours once, from the ordering rather than from the seq_type
     //name. This is what lets iterate() be topology-agnostic: a tandem-D D1D2_ins finds D1 and
     //D2 by the same two lookups that find V and D here.
-    const SeqTypeRegistry &registry = constructed_sequences.registry();
     left_neighbour_id = registry.left_neighbor(this->seq_type_id);
     right_neighbour_id = registry.right_neighbor(this->seq_type_id);
     if (left_neighbour_id == kNoSeqType || right_neighbour_id == kNoSeqType) {
@@ -466,11 +492,11 @@ void Insertion::iterate_initialize_Len_proba(Seq_type considered_junction, std::
         base_index_map.set_current_layer(this->event_index, 0);
         base_index = base_index_map.get(this->event_index);
 
-        //Insert sequence in the right constructed sequence
-        Seq_type seq_type = VD_ins_seq;
-        if (!insertion_seq_type_str_to_enum(this->seq_type, seq_type)) {
-            throw runtime_error("Unknown insertion event_class in iterate_initialize_Len_proba");
-        }
+        //Insert sequence in the right constructed sequence. Still the enum: the whole
+        //Len_proba machinery is Seq_type-keyed (Rec_Event::iterate_initialize_Len_proba), and
+        //re-keying it is G5/S4's business, not B6's.
+        const Seq_type seq_type = insertion_seq_type_or_throw(this->seq_type,
+                                                              "iterate_initialize_Len_proba");
 
         for (unordered_map<string, Event_realization>::const_iterator iter = this->event_realizations.begin();
              iter != this->event_realizations.end(); ++iter) {
@@ -513,13 +539,12 @@ void Insertion::iterate_initialize_Len_proba(Seq_type considered_junction, std::
 void Insertion::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &model_queue,
                                            const Marginal_array_p &model_parameters_point, Index_map &base_index_map)
 {
-    Seq_type seq_type = VD_ins_seq;
-    if (!insertion_seq_type_str_to_enum(this->seq_type, seq_type)) {
-        throw runtime_error("Unknown insertion event_class in initialize_Len_proba_bound");
-    }
+    //Still the enum, for the same reason as iterate_initialize_Len_proba above.
+    const Seq_type seq_type = insertion_seq_type_or_throw(this->seq_type, "initialize_Len_proba_bound");
 
     //Scratch map for the junction length bound, which is still VDJ-hardcoded below;
-    //see legacy_seq_type_registry().
+    //see legacy_seq_type_registry(). It carries no ordering, so any event walked from here
+    //that asks who its neighbours are gets kNoSeqType -- a landmine for B7.
     Seq_type_str_p_map constructed_sequences(legacy_seq_type_registry());
 
     junction_length_best_proba_map.clear();

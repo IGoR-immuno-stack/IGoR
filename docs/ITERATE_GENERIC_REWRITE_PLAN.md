@@ -1222,6 +1222,20 @@ Three things beyond the chain:
   own section, which brought `initialize_event` back to 100% lines.
 - **`initialize_crude_scenario_proba_bound`'s `switch` is one `events_map` lookup.** The switch
   converted `ins_seq_type` back into the very string the map is keyed by.
+- **`initialize_event` addresses `seq_type_id` directly**, instead of converting the name back to a
+  `Seq_type` through a three-way string chain. The scenario maps are `SeqTypeId`-keyed and the id is
+  the only identity a non-legacy seq_type can have, so the conversion was both redundant and a hard
+  ceiling: a tandem-D `D1D2_ins` could not have initialized at all. The chain that remains feeds
+  genuinely `Seq_type`-keyed APIs — the generation path's `unordered_map<Seq_type, string>` (B9) and
+  the Len_proba machinery (G5/S4) — and now goes through a helper that *returns* the value instead
+  of an out-parameter seeded with `VD_ins_seq`, an idiom that reads as "defaults to the VD junction"
+  when the value is in fact dead on every path that does not throw.
+- **The name and the id are checked to agree**, once, at `initialize_event()`. This replaces a
+  weaker guard: rejecting an *unrecognised* name caught less and did it by enumerating the three
+  legacy junctions. A disagreement between the two identities does not fail — everything downstream
+  is keyed by the id, so it aliases the event's segment, offsets and bounds onto another seq_type's
+  keys and returns a wrong answer. That is the shape of the trap B2 hit with VJ, and the constructor
+  fix above is the same class of bug caught one layer down.
 - **The `Insertion(Seq_type)` constructor now sets `seq_type`.** It previously left the string empty
   while `ins_seq_type` held the enum — two identities of the same fact, disagreeing until a caller
   happened to set one. Harmless while every lookup went through the enum; a latent trap the moment
