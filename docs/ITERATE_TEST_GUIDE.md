@@ -298,25 +298,32 @@ What to assert:
 
 ## 9. Traps in this harness
 
-1. **Do not `initialize_event()` a chosen neighbour.** It requests a memory layer per
+1. **A preset segment's sequence must be as long as its offsets say.** A segment occupies
+   `[off(5'), off(3')]` *inclusively*, so its length is `three_prime - five_prime + 1`. A
+   literal string next to a parameterised offset drifts the moment a section passes a
+   different offset, leaving the scenario in a state no upstream event could have produced --
+   harmless while the event under test ignores the content, and a wrong answer as soon as one
+   does not. Use `segment_run(five_prime, three_prime)`, or derive the offsets from the string
+   you want (`five + seq.size() - 1`), so the two cannot disagree.
+2. **Do not `initialize_event()` a chosen neighbour.** It requests a memory layer per
    seq_type it touches, moving that neighbour's current layer to 1 while `preset_segment()`
    writes at 0 — the event under test then reads an unwritten layer and throws. Register and
    mark it; that reproduces everything the code actually queries.
-2. **Stub events must be `fixed`.** At a leaf, `iterate_wrap_up()` calls `add_to_marginals()`
+3. **Stub events must be `fixed`.** At a leaf, `iterate_wrap_up()` calls `add_to_marginals()`
    on every non-fixed event in `events_map`, and a stub that never iterated still has
    `new_index == -1`, so it writes out of bounds. `make_gene_choice()` defaults to
    `fixed = true`; only the event under test is unfixed.
-3. **Without downstream events the junction-length map collapses to `{0: 1.0}`.** Every
+4. **Without downstream events the junction-length map collapses to `{0: 1.0}`.** Every
    geometry whose neighbours are not exactly adjacent is then discarded by the junction
    guard, and a test aimed at some other branch quietly becomes a test of that guard. Add
    the deletions and insertions that feed the map via `add_downstream_event()`.
-4. **`proba_threshold_factor` cannot be changed after construction** — `ExplorationContext`
+5. **`proba_threshold_factor` cannot be changed after construction** — `ExplorationContext`
    holds it by value. The harness pins it at 1 and moves `seq_max_prob` instead, which is
    held by reference. That is what `set_pruning_threshold()` does.
-5. **`*_max_del` and `*_min_del` are negated deletion counts.** They are `Deletion::len_min`
+6. **`*_max_del` and `*_min_del` are negated deletion counts.** They are `Deletion::len_min`
    and `len_max`, so `max_del` is *negative*. Getting this backwards produces fixtures that
    look right and test nothing.
-6. **`set_mismatches()` stores a pointer** into `query.gene_alignments`. Anything that
+7. **`set_mismatches()` stores a pointer** into `query.gene_alignments`. Anything that
    outlives or aliases that vector is a real bug; assert per-realization lists to catch it.
 
 ---

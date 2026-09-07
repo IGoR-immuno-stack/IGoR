@@ -586,6 +586,17 @@ std::shared_ptr<Insertion> make_insertion(Seq_type target, int min_ins, int max_
 /// if it is missing. Always fixed.
 std::shared_ptr<Dinucl_markov> make_dinucl_markov(Seq_type target, int event_id);
 
+/**
+ * A repeating ACGT run spanning the inclusive read positions [five_prime, three_prime].
+ *
+ * For a fixture segment whose *content* does not matter but whose *length* must agree with the
+ * offsets written beside it. A segment occupies its two offsets inclusively, so the length is
+ * `three_prime - five_prime + 1`; hardcoding a string next to a parameterised offset lets the
+ * two drift apart the moment a section passes a different offset, leaving the scenario in a
+ * state no upstream event could have produced.
+ */
+std::string segment_run(Seq_Offset five_prime, Seq_Offset three_prime);
+
 Alignment_data create_perfect_alignment(const std::string &gene_name, int offset, int gene_length);
 
 Alignment_data create_alignment_with_mismatches(const std::string &gene_name, int offset,

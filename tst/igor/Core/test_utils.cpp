@@ -509,6 +509,22 @@ std::shared_ptr<Insertion> make_insertion(Seq_type target, int min_ins, int max_
     return event;
 }
 
+std::string segment_run(Seq_Offset five_prime, Seq_Offset three_prime)
+{
+    if (three_prime < five_prime - 1) {
+        throw std::invalid_argument("segment_run: three_prime is more than one before five_prime; "
+                                    "the empty-segment convention is off(3') == off(5') - 1");
+    }
+    static const std::string kPattern = "ACGT";
+    const auto length = static_cast<std::size_t>(three_prime - five_prime + 1);
+    std::string run;
+    run.reserve(length);
+    for (std::size_t i = 0; i != length; ++i) {
+        run += kPattern[i % kPattern.size()];
+    }
+    return run;
+}
+
 std::shared_ptr<Dinucl_markov> make_dinucl_markov(Seq_type target, int event_id)
 {
     auto event = std::make_shared<Dinucl_markov>(target);

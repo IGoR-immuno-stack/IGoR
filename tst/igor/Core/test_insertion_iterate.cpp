@@ -68,8 +68,9 @@ struct VdJunction {
 
     explicit VdJunction(Seq_Offset v_three_prime = 10, Seq_Offset d_five_prime = 14)
     {
-        state.preset_segment(V_gene_seq, 0, v_three_prime, "ACGTACGTAC");
-        state.preset_segment(D_gene_seq, d_five_prime, d_five_prime + 4, "ACGTA");
+        state.preset_segment(V_gene_seq, 0, v_three_prime, segment_run(0, v_three_prime));
+        state.preset_segment(D_gene_seq, d_five_prime, d_five_prime + 4,
+                             segment_run(d_five_prime, d_five_prime + 4));
         state.add_downstream_event(dinucl);
         // A flat, non-zero marginal: every insertion length is equally probable, so a
         // discarded scenario is never explained by a zero in the model.
@@ -86,8 +87,10 @@ struct DjJunction {
 
     explicit DjJunction(Seq_Offset d_three_prime = 10, Seq_Offset j_five_prime = 14)
     {
-        state.preset_segment(D_gene_seq, d_three_prime - 4, d_three_prime, "ACGTA");
-        state.preset_segment(J_gene_seq, j_five_prime, j_five_prime + 6, "ACGTACG");
+        state.preset_segment(D_gene_seq, d_three_prime - 4, d_three_prime,
+                             segment_run(d_three_prime - 4, d_three_prime));
+        state.preset_segment(J_gene_seq, j_five_prime, j_five_prime + 6,
+                             segment_run(j_five_prime, j_five_prime + 6));
         state.add_downstream_event(make_dinucl_markov(DJ_ins_seq, /*event_id=*/1));
         for (std::size_t i = 0; i != 16; ++i) {
             state.set_marginal(i, 0.5L);
@@ -103,8 +106,9 @@ struct VjJunction {
 
     explicit VjJunction(Seq_Offset v_three_prime = 10, Seq_Offset j_five_prime = 14)
     {
-        state.preset_segment(V_gene_seq, 0, v_three_prime, "ACGTACGTAC");
-        state.preset_segment(J_gene_seq, j_five_prime, j_five_prime + 6, "ACGTACG");
+        state.preset_segment(V_gene_seq, 0, v_three_prime, segment_run(0, v_three_prime));
+        state.preset_segment(J_gene_seq, j_five_prime, j_five_prime + 6,
+                             segment_run(j_five_prime, j_five_prime + 6));
         state.add_downstream_event(make_dinucl_markov(VJ_ins_seq, /*event_id=*/1));
         for (std::size_t i = 0; i != 16; ++i) {
             state.set_marginal(i, 0.5L);
@@ -167,7 +171,7 @@ TEST_CASE("Insertion: the length is derived from the neighbours (G9)", "[inserti
         // rather than a read of uninitialized storage.
         IterateTestState state = create_iterate_state("ACGTACGTACGTACGTACGT");
         auto insertion = make_insertion(VD_ins_seq, 0, 6, 0);
-        state.preset_segment(V_gene_seq, 0, 10, "ACGTACGTAC");
+        state.preset_segment(V_gene_seq, 0, 10, segment_run(0, 10));
         state.add_downstream_event(make_dinucl_markov(VD_ins_seq, 1));
         for (std::size_t i = 0; i != 16; ++i) {
             state.set_marginal(i, 0.5L);
@@ -419,7 +423,7 @@ TEST_CASE("Insertion: a junction with no segment on one side is rejected", "[ins
 
     IterateTestState state = create_iterate_state("ACGTACGTACGTACGT", 1000, 32, truncated);
     auto insertion = make_insertion(VD_ins_seq, 0, 6, /*event_id=*/0);
-    state.preset_segment(V_gene_seq, 0, 10, "ACGTACGTAC");
+    state.preset_segment(V_gene_seq, 0, 10, segment_run(0, 10));
     state.add_downstream_event(make_dinucl_markov(VD_ins_seq, /*event_id=*/1));
 
     CHECK_THROWS_AS(call_iterate(insertion, state), std::runtime_error);
