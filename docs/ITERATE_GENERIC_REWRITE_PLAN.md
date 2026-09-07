@@ -686,9 +686,10 @@ survive inside `iterate()` for the per-junction indices array and memory layer. 
   fixed arrays.
 
 > **Latent bug this exposes.** `previous_seq.back()` / `.front()` is called with **no
-> non-emptiness check**. For VD (anchor V, full deletion forbidden) and DJ (anchor J, `.front()`
-> on a J that has only been 5′-deleted) this is safe today. For a tandem-D `D1D2_ins` whose
-> anchor `D1` has been fully deleted — legal, `>=` guard — it is undefined behaviour. The
+> non-emptiness check**. ~~For VD (anchor V, full deletion forbidden) and DJ this is safe today.~~
+> **Corrected in 2a (§7.12): full deletion of V is *not* forbidden — its `Deletion` branch has no
+> size guard at all — so this segfaults on the current corpus, not only under tandem D.** It is
+> reproduced by a `[.]`-hidden test. The
 > `first_occupied_*` walk fixes this by construction, which is precisely the B7 worked example
 > already unit-tested in `f1d26a4`. **B7 must include a test that reaches this state**, not only
 > the container-level test.
@@ -903,7 +904,7 @@ already flagged as the milestone-1 blocker and because `Gene_choice` is the only
 | **S3** | ✅ **done** — `reachable()` + `check_overlap()` in `JunctionGeometry.h`, replayed against all twelve current comparison sites | unit + mutation | yes — no caller yet |
 | **1a** | ✅ **done** — `Insertion` characterization, 8 `TEST_CASE`s against the **unmodified** event | unit + mutation | n/a — tests only |
 | **1b** | ✅ **done** — **B6**, `Insertion::iterate` generic (G9). Smallest, one hot-loop win. | full ladder | **yes** |
-| **2a** | `Dinucl_markov` characterization sections, including the empty-anchor case | unit + mutation | n/a — tests only |
+| **2a** | ✅ **done** — `Dinucl_markov` characterization, 12 `TEST_CASE`s; the empty-anchor case is `[.]`-hidden because it segfaults (§7.12) | unit + mutation | n/a — tests only |
 | **2b** | **B7** — `Dinucl_markov` specs from the registry (G9); skip-empty walk; per-spec buffers | full ladder + the empty-anchor test | **yes** |
 | **S4** | Junction pair key; `has_effect_on(left,right)` in the base; the three overrides deleted | full ladder | **yes** |
 | **3** | **B11a** — `Gene_choice` alignment path generic (G4, G2, G8, and G5 via S4). Characterization already delivered by T0 | full ladder + benchmark | **yes**, except §7.1 |
@@ -1251,6 +1252,47 @@ every map from `legacy_seq_type_registry()`, which registers the six seq_types b
 ordering** — so `left_neighbor()` answered `kNoSeqType` for everything and *no generic body could be
 tested at all*. Steps 2a and 4a would have hit this too.
 
+### 6.6 — Delivered (2a): the `Dinucl_markov` characterization *(Sep 7 2026)*
+
+`tst/igor/Core/test_dinucl_markov_iterate.cpp`, **75 assertions in 12 `TEST_CASE`s**, against the
+unmodified event. Coverage of `Dinucl_markov::iterate` went from **0% to 98% lines / 69.8% blocks** —
+it had no unit test of any kind before this.
+
+What the sections pin, beyond the matrix rows:
+
+- **The seed is the anchor's own nucleotide; every later pair is read-to-read.** The first term of
+  the product is `(anchor's last nt, first read nt)` and the rest are `(read[i-1], read[i])` — the
+  anchor sequence is used *once*, and nowhere else. A body that seeded from the read instead passes
+  every other assertion, so it gets a dedicated section that changes only the anchor's last base.
+- **The reverse traversal's double reversal.** DJ reverses the read window, fills, and reverses the
+  result back; asserting only the filled content would pass with one of the two reversals dropped,
+  so the section asserts the final orientation *and* that it is not the singly-reversed one.
+- **The two placeholder guards are separate.** The first position has its own copy, because its
+  `previous` nucleotide comes from the anchor. A mutation deleting that copy survived the whole
+  suite until a section pre-filled position 0 specifically — the second guard's section had been
+  overwriting position 1.
+- **The junction is mutated in place, through the pointer the `Insertion` stored.** `Dinucl_markov`
+  never writes the constructed-sequence map, so the filled junction appears at the *Insertion's*
+  layer and no layer is claimed for it. A rewrite that started writing the map would shift the
+  layer numbering every downstream reader depends on.
+- **An ambiguous read position is averaged, not indexed** — `dinuc_proba_matrix` instead of a
+  marginal lookup, and `-1` in the realization indices. The matrix is built by
+  `update_event_internal_probas()`, which `GenModel` calls and `initialize_event()` does not, so the
+  fixture builds it explicitly.
+
+**Ten mutations run, all caught** after the first-position gap was closed: both window offsets, the
+final reversal, the seed source, both placeholder guards, the conditional index losing its
+`previous` nucleotide, the scenario probability, pruning, and the downstream bound.
+
+The one line left uncovered is `iterate()`'s `throw invalid_argument` for an unknown seq_type —
+unreachable, because `initialize_event()` performs the same check first. Exactly the situation
+`Insertion` was in before B6, and B7 deletes it the same way.
+
+Harness addition: `preset_placeholders()`, which writes a junction as an `Insertion` leaves it —
+placeholder nucleotides and **no offsets**. The missing offsets are deliberate: they are the defect
+§6.3 pins, and a fixture that supplied them would test against a scenario the production code cannot
+produce.
+
 ### 6.2 — The regression gate has a flaky output
 
 *(Observed Sep 2 2026 during A0.)*
@@ -1597,6 +1639,34 @@ Two consequences:
 - **When B10 switches to the occupancy walk, the insertion offsets fixed alongside B6 are a
   prerequisite** — the walk lands on a junction segment as soon as a gene segment is skipped, and a
   junction with no offsets cannot answer.
+
+### 7.12 — `Dinucl_markov` reads a seed nucleotide from an empty anchor, and segfaults
+
+*(Found and reproduced Sep 7 2026 during 2a.)*
+
+`Dinucl_markov::iterate` takes its seed from `previous_seq.back()` (forward) or `.front()`
+(reverse), with **no non-emptiness check**. `Int_Str` is a `std::vector<int>`, so on an empty
+anchor `data()` is null and `back()` dereferences `nullptr - 1`. Verified: `SIGSEGV`, not a wrong
+answer.
+
+§2.9 already flagged this, but concluded it was safe on the current corpus and only reachable under
+tandem D. **That is wrong.** The VD junction anchors on V, and an empty V is producible today:
+`Deletion`'s V-3' branch computes `previous_str.size() - value_int` with **no size guard at all**,
+and the D-5' branch guards with a strict `>` so deleting exactly the whole segment is a legal
+realization. Nothing between there and here rejects the resulting scenario — the junction length
+stays in range, since the degenerate offsets are consistent.
+
+This is the second reachable crash this work has turned up in a branch no test executed, after
+§7.9. Both share a shape: a value that is only *usually* present, read without asking. Together they
+are a plausible source of the non-reproducible segfaults reported against the legacy code — the
+scenario has to be enumerated in the right order, on the right read, for either to fire.
+
+**Handling.** The reproducer is in the suite as a `[.]`-hidden case
+(`[dinucl][empty_anchor]`), because a segfault aborts the run rather than failing a test, which
+`[!shouldfail]` cannot express and CI cannot survive. It asserts what B7 owes: an anchor carrying no
+nucleotide must be skipped or rejected, never read. G9's `first_occupied_*` walk is the fix — but
+per §7.11 the walk is *also* a behaviour change, so B7 must land the two together and say which
+scenarios move. When it does, the `[.]` comes off.
 
 ## 8. Decisions taken (Sep 1 2026 review)
 

@@ -308,6 +308,21 @@ public:
         scenario_storage.mismatches_lists.set(seq_type, &preset_mismatches_.back(), 0);
     }
 
+    /**
+     * Write a junction segment exactly as an Insertion leaves it: `length` placeholder
+     * nucleotides (-1) at layer 0, and **no offsets**.
+     *
+     * The missing offsets are deliberate, not an omission -- they are the defect pinned by
+     * test_insertion_iterate.cpp's [!shouldfail] cases, and a Dinucl_markov fixture that
+     * supplied them would be testing against a scenario the production code cannot produce.
+     * Dinucl_markov reads its *anchor's* offset, never the junction's.
+     */
+    void preset_placeholders(Seq_type seq_type, std::size_t length)
+    {
+        preset_sequences_.emplace_back(length, -1);
+        scenario_storage.constructed_sequences.set(seq_type, &preset_sequences_.back(), 0);
+    }
+
     /// The probability the event under test inherits from upstream. Defaults to 1.
     void set_scenario_proba(double proba) { scenario_storage.scenario_proba = proba; }
 
