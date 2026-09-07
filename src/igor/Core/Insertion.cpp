@@ -85,6 +85,11 @@ Insertion::Insertion(Seq_type seq_type)
       dinuc_updated_bound(NULL)
 {
     this->type = Event_type::Insertion_t;
+    //Keep the name and the enum in step from construction. An Insertion built directly from a
+    //Seq_type used to carry an empty seq_type string until a caller happened to set one, which
+    //left the two identities of the same fact disagreeing -- and the events_map is keyed by the
+    //string.
+    this->seq_type = EventUtils::seq_type_to_string(seq_type);
     for (unordered_map<string, Event_realization>::const_iterator iter = this->event_realizations.begin();
          iter != this->event_realizations.end(); ++iter) {
         if ((*iter).second.value_int > this->len_max) {
@@ -165,54 +170,25 @@ void Insertion::iterate(
     base_index = exploration.index_map.get(this->event_index);
     proba_contribution = 1;
 
-    const string &ins_st = this->seq_type;
-    if (ins_st == "VD_ins_seq") {
-        //insertions = seq_offsets.get(d_5_pair) - seq_offsets.get(v_3_pair) -1;
-        insertions = scenario.get_offset(D_gene_seq, Five_prime) - scenario.get_offset(V_gene_seq, Three_prime) - 1;
+    //One junction, whoever its neighbours are. The three hardcoded seq_type comparisons this
+    //replaces ran per scenario; the neighbour ids are resolved once at initialize_event().
+    insertions = scenario.seq_offsets.get(right_neighbour_id, Five_prime)
+                 - scenario.seq_offsets.get(left_neighbour_id, Three_prime) - 1;
 
-        proba_contribution = (*this).iterate_common(proba_contribution, insertions, base_index, exploration.index_map,
-                                                    model.offset_map, model.model_parameters);
-        if (proba_contribution != 0) {
-            inserted_str.assign(insertions, -1);
-            new_index =
-                    base_index + this->event_realizations.at(to_string(insertions)).index; //FIXME this should not exist
-            scenario.constructed_sequences.set_current(VD_ins_seq, &inserted_str);
-            exploration.downstream_proba_map.set(VD_ins_seq, junction_length_best_proba_map.at(insertions),
-                                           memory_layer_proba_map_junction);
-        }
-    } else if (ins_st == "DJ_ins_seq") {
-        //insertions = seq_offsets.get(j_5_pair) - seq_offsets.get(d_3_pair) -1;
-        insertions = scenario.get_offset(J_gene_seq, Five_prime) - scenario.get_offset(D_gene_seq, Three_prime) - 1;
-
-        proba_contribution = iterate_common(proba_contribution, insertions, base_index, exploration.index_map, model.offset_map,
-                                            model.model_parameters);
-
-        if (proba_contribution != 0) {
-            inserted_str.assign(insertions, -1);
-            new_index = base_index + this->event_realizations.at(to_string(insertions)).index;
-            scenario.constructed_sequences.set_current(DJ_ins_seq, &inserted_str);
-            exploration.downstream_proba_map.set(DJ_ins_seq, junction_length_best_proba_map.at(insertions),
-                                           memory_layer_proba_map_junction);
-        }
-    } else if (ins_st == "VJ_ins_seq") {
-        //insertions = seq_offsets.get(j_5_pair) - seq_offsets.get(v_3_pair) -1;
-        insertions = scenario.get_offset(J_gene_seq, Five_prime) - scenario.get_offset(V_gene_seq, Three_prime) - 1;
-        proba_contribution = iterate_common(proba_contribution, insertions, base_index, exploration.index_map, model.offset_map,
-                                            model.model_parameters);
-
-        if (proba_contribution != 0) {
-            inserted_str.assign(insertions, -1);
-            new_index = base_index + realization_index; //this->event_realizations.at(to_string(insertions)).index;
-            scenario.constructed_sequences.set_current(VJ_ins_seq, &inserted_str);
-            exploration.downstream_proba_map.set(VJ_ins_seq, junction_length_best_proba_map.at(insertions),
-                                           memory_layer_proba_map_junction);
-        }
-    } else {
-        throw invalid_argument(std::string("Unknown seq_type for Insertion: ") + ins_st);
-    }
+    proba_contribution = iterate_common(proba_contribution, insertions, base_index, exploration.index_map,
+                                        model.offset_map, model.model_parameters);
 
     if (proba_contribution != 0) {
-        //TODO new_scenario proba necessary?
+        inserted_str.assign(insertions, -1);
+        //The VD and DJ arms used to re-derive this as
+        //`event_realizations.at(to_string(insertions)).index` -- a string conversion and a hash
+        //lookup in the hot loop, carrying its own FIXME. iterate_common() has already resolved
+        //the same value; the two are pinned equal by test_insertion_iterate.cpp.
+        new_index = base_index + realization_index;
+        scenario.constructed_sequences.set_current(seq_type_id, &inserted_str);
+        exploration.downstream_proba_map.set(seq_type_id, junction_length_best_proba_map.at(insertions),
+                                             memory_layer_proba_map_junction);
+
         scenario.scenario_proba *= proba_contribution;
         //tmp_err_w_proba*=proba_contribution;
         (*dinuc_updated_bound) = upper_bound_per_ins.at(insertions);
@@ -340,6 +316,17 @@ void Insertion::initialize_event(
     downstream_proba_map.request_layer(seq_type);
     memory_layer_proba_map_junction = downstream_proba_map.claimed_layer(seq_type);
 
+    //Resolve the junction's neighbours once, from the ordering rather than from the seq_type
+    //name. This is what lets iterate() be topology-agnostic: a tandem-D D1D2_ins finds D1 and
+    //D2 by the same two lookups that find V and D here.
+    const SeqTypeRegistry &registry = constructed_sequences.registry();
+    left_neighbour_id = registry.left_neighbor(this->seq_type_id);
+    right_neighbour_id = registry.right_neighbor(this->seq_type_id);
+    if (left_neighbour_id == kNoSeqType || right_neighbour_id == kNoSeqType) {
+        throw runtime_error("Insertion " + this->name + " has no segment on one side: an "
+                            "insertion is defined by the two segments it sits between");
+    }
+
     this->Rec_Event::initialize_event(processed_events, events_map, offset_map, downstream_proba_map,
                                       constructed_sequences, safety_set, error_rate_p, mismatches_list, seq_offsets,
                                       index_map);
@@ -392,21 +379,12 @@ void Insertion::initialize_crude_scenario_proba_bound(
         ordered_realization_map.emplace((*iter).second.value_int, (*iter).second);
     }
 
-    switch (this->ins_seq_type) {
-    case VD_ins_seq:
-        EventUtils::try_get_event(events_map, Dinuclmarkov_t, VD_ins_seq, Undefined_side, dinuc_event_p);
-        break;
-
-    case VJ_ins_seq:
-        EventUtils::try_get_event(events_map, Dinuclmarkov_t, VJ_ins_seq, Undefined_side, dinuc_event_p);
-        break;
-
-    case DJ_ins_seq:
-        EventUtils::try_get_event(events_map, Dinuclmarkov_t, DJ_ins_seq, Undefined_side, dinuc_event_p);
-        break;
-
-    default:
-        throw runtime_error("Unknown ins_seq_type for insertion in initialize_scenario_proba_bound()");
+    //The switch this replaces converted ins_seq_type back into the very string the map is
+    //keyed by. Dinucl_markov events are keyed with Undefined_side: the seq_type alone
+    //identifies which junction they fill.
+    const auto dinuc_entry = events_map.find(make_tuple(Dinuclmarkov_t, this->seq_type, Undefined_side));
+    if (dinuc_entry != events_map.end()) {
+        dinuc_event_p = dinuc_entry->second;
     }
     if (!dinuc_event_p) {
         throw runtime_error("Could not find associated Dinuclmarkov event for Insertion bounds");

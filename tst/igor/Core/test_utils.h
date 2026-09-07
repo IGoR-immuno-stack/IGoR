@@ -125,6 +125,21 @@ struct ModelStorage {
     {}
 };
 
+/**
+ * The two orderings a legacy model can have, as frozen registries.
+ *
+ * `legacy_seq_type_registry()` registers the six standard seq_types but sets **no ordering**,
+ * so `left_neighbor()` / `right_neighbor()` answer kNoSeqType for everything. That is enough
+ * for an event that addresses seq_types by name, and not enough for one that asks who its
+ * neighbours are -- which is what every generic body does. Fixtures therefore pick an
+ * ordering, exactly as Model_Parms::finalize() does for a real model.
+ *
+ * Both keep the standard enum ids (register_legacy_seq_types() runs first), so preset_segment()
+ * and the Seq_type-keyed accessors stay valid under either.
+ */
+const SeqTypeRegistry &vdj_seq_type_registry();
+const SeqTypeRegistry &vj_seq_type_registry();
+
 /// Storage for ScenarioContext. All three maps are sized from the frozen legacy registry,
 /// so SeqTypeId == Seq_type for the six standard types and enum-keyed access is valid.
 struct ScenarioStorage {
@@ -133,11 +148,11 @@ struct ScenarioStorage {
     Seq_offsets_map seq_offsets;
     Mismatch_vectors_map mismatches_lists;
 
-    ScenarioStorage()
+    explicit ScenarioStorage(const SeqTypeRegistry &registry)
         : scenario_proba(1.0),
-          constructed_sequences(legacy_seq_type_registry(), kTestLayers),
-          seq_offsets(legacy_seq_type_registry(), kTestLayers),
-          mismatches_lists(legacy_seq_type_registry(), kTestLayers)
+          constructed_sequences(registry, kTestLayers),
+          seq_offsets(registry, kTestLayers),
+          mismatches_lists(registry, kTestLayers)
     {}
 };
 
@@ -151,8 +166,8 @@ struct ExplorationStorage {
     Safety_bool_map safety_set;
     Pruning_mismatch_floor_map pruning_mismatch_floor;
 
-    explicit ExplorationStorage(std::size_t max_events)
-        : downstream_proba_map(legacy_seq_type_registry(), kTestLayers),
+    ExplorationStorage(std::size_t max_events, const SeqTypeRegistry &registry)
+        : downstream_proba_map(registry, kTestLayers),
           //ExplorationContext copies proba_threshold_factor by value, so it can only be set
           //here. Fixing it at 1 makes seq_max_prob itself the pruning threshold, and it is a
           //reference, so set_pruning_threshold() can move it afterwards. Starting at 0 means
@@ -164,7 +179,7 @@ struct ExplorationStorage {
           next_event_ptr_arr(new Next_event_ptr[max_events](),
                              std::default_delete<Next_event_ptr[]>()),
           safety_set(3, kTestLayers),
-          pruning_mismatch_floor(legacy_seq_type_registry(), kTestLayers)
+          pruning_mismatch_floor(registry, kTestLayers)
     {
         //Mirrors GenModel: downstream bounds start at 1 so multiply_all() is neutral.
         downstream_proba_map.init_first_layer(1.0);
@@ -221,11 +236,12 @@ public:
     ExplorationContext exploration;
     AccumulationContext accumulation;
 
-    IterateTestState(const std::string &seq, std::size_t marginal_array_size, std::size_t max_events)
+    IterateTestState(const std::string &seq, std::size_t marginal_array_size, std::size_t max_events,
+                     const SeqTypeRegistry &registry)
         : query_storage(seq),
           model_storage(marginal_array_size),
-          scenario_storage(),
-          exploration_storage(max_events),
+          scenario_storage(registry),
+          exploration_storage(max_events, registry),
           accumulation_storage(marginal_array_size),
           processed_events_{},
           preset_sequences_{},
@@ -357,11 +373,11 @@ public:
     std::queue<std::shared_ptr<Rec_Event>> &model_queue() { return model_storage.model_queue; }
 };
 
-/// Factory. marginal_array_size and max_events are generous defaults; raise them for a
-/// test that needs more.
+/// Factory. Defaults to the VDJ ordering; pass vj_seq_type_registry() for a model with no D.
 IterateTestState create_iterate_state(const std::string &sequence,
                                       std::size_t marginal_array_size = 1000,
-                                      std::size_t max_events = 32);
+                                      std::size_t max_events = 32,
+                                      const SeqTypeRegistry &registry = vdj_seq_type_registry());
 
 /// Decode an Int_Str back to letters. Placeholders (-1, written by Insertion) become 'N'.
 std::string int_str_to_nt(const Int_Str &seq);

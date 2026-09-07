@@ -139,6 +139,16 @@ private:
     int memory_layer_proba_map_junction;
     Seq_type ins_seq_type;
 
+    /// The segments this junction sits between, resolved once from the registry ordering at
+    /// initialize_event(). Tier 1 in G10's terms: they depend on the model, never on the
+    /// scenario, so the hot loop reads two members instead of comparing three strings.
+    ///
+    /// Deliberately the *ordering* neighbours and not DynamicSequenceMap's occupancy-skipping
+    /// walk -- see plan section 7.11 for why the two are not interchangeable while a gene
+    /// segment can be written empty.
+    SeqTypeId left_neighbour_id = kNoSeqType;
+    SeqTypeId right_neighbour_id = kNoSeqType;
+
     //Pre create pairs to call seq_offsets (otherwise cost of creating a pair at each call)
     //std::pair<Seq_type,Seq_side> d_5_pair = std::make_pair (D_gene_seq,Five_prime);
     //std::pair<Seq_type,Seq_side> v_3_pair = std::make_pair (V_gene_seq,Three_prime);

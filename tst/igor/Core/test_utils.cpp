@@ -75,10 +75,34 @@ Alignment_data create_mock_alignment_data(
 // iterate() test harness
 // ============================================================================
 
-IterateTestState create_iterate_state(const std::string &sequence, std::size_t marginal_array_size,
-                                      std::size_t max_events)
+const SeqTypeRegistry &vdj_seq_type_registry()
 {
-    return IterateTestState(sequence, marginal_array_size, max_events);
+    static const SeqTypeRegistry registry = [] {
+        SeqTypeRegistry built;
+        built.register_legacy_seq_types();
+        built.set_ordered_types({"V_gene_seq", "VD_ins_seq", "D_gene_seq", "DJ_ins_seq", "J_gene_seq"});
+        built.freeze();
+        return built;
+    }();
+    return registry;
+}
+
+const SeqTypeRegistry &vj_seq_type_registry()
+{
+    static const SeqTypeRegistry registry = [] {
+        SeqTypeRegistry built;
+        built.register_legacy_seq_types();
+        built.set_ordered_types({"V_gene_seq", "VJ_ins_seq", "J_gene_seq"});
+        built.freeze();
+        return built;
+    }();
+    return registry;
+}
+
+IterateTestState create_iterate_state(const std::string &sequence, std::size_t marginal_array_size,
+                                      std::size_t max_events, const SeqTypeRegistry &registry)
+{
+    return IterateTestState(sequence, marginal_array_size, max_events, registry);
 }
 
 std::string LayerViolation::describe() const

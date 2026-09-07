@@ -97,7 +97,8 @@ struct DjJunction {
 
 /// The VJ arm: the whole V-to-J span, as a model with no D declares it.
 struct VjJunction {
-    IterateTestState state = create_iterate_state("ACGTACGTACGTACGTACGTACGTACGT");
+    IterateTestState state = create_iterate_state("ACGTACGTACGTACGTACGTACGTACGT", 1000, 32,
+                                                  vj_seq_type_registry());
     std::shared_ptr<Insertion> insertion = make_insertion(VJ_ins_seq, 0, 6, /*event_id=*/0);
 
     explicit VjJunction(Seq_Offset v_three_prime = 10, Seq_Offset j_five_prime = 14)
@@ -400,6 +401,28 @@ TEST_CASE("Insertion: the three junction branches are one body", "[insertion][it
         CHECK(vd_index == 3);
         CHECK(vj_index == vd_index);
     }
+}
+
+TEST_CASE("Insertion: a junction with no segment on one side is rejected", "[insertion][iterate]")
+{
+    // B6 resolves the neighbours from the ordering at initialize_event() instead of naming
+    // them per seq_type, which introduces a case the string comparisons could not have: an
+    // insertion sitting at the end of the ordering, with nothing beyond it to bound the
+    // junction. Caught at initialization rather than as a kNoSeqType subscript in the hot loop.
+    static const SeqTypeRegistry truncated = [] {
+        SeqTypeRegistry built;
+        built.register_legacy_seq_types();
+        built.set_ordered_types({"V_gene_seq", "VD_ins_seq"});   // nothing to the 3' side
+        built.freeze();
+        return built;
+    }();
+
+    IterateTestState state = create_iterate_state("ACGTACGTACGTACGT", 1000, 32, truncated);
+    auto insertion = make_insertion(VD_ins_seq, 0, 6, /*event_id=*/0);
+    state.preset_segment(V_gene_seq, 0, 10, "ACGTACGTAC");
+    state.add_downstream_event(make_dinucl_markov(VD_ins_seq, /*event_id=*/1));
+
+    CHECK_THROWS_AS(call_iterate(insertion, state), std::runtime_error);
 }
 
 TEST_CASE("Insertion: an unknown seq_type is rejected before iterate can see it", "[insertion][iterate]")

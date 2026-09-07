@@ -902,7 +902,7 @@ already flagged as the milestone-1 blocker and because `Gene_choice` is the only
 | **S2** | ✅ **done** — `JunctionGeometry::PendingModifierBounds` in the new `JunctionGeometry.h`, unit-tested against a VDJ and a VJ model | unit + mutation | yes — no caller yet |
 | **S3** | ✅ **done** — `reachable()` + `check_overlap()` in `JunctionGeometry.h`, replayed against all twelve current comparison sites | unit + mutation | yes — no caller yet |
 | **1a** | ✅ **done** — `Insertion` characterization, 8 `TEST_CASE`s against the **unmodified** event | unit + mutation | n/a — tests only |
-| **1b** | **B6** — `Insertion::iterate` generic (G9). Smallest, one hot-loop win. | full ladder | **yes** |
+| **1b** | ✅ **done** — **B6**, `Insertion::iterate` generic (G9). Smallest, one hot-loop win. | full ladder | **yes** |
 | **2a** | `Dinucl_markov` characterization sections, including the empty-anchor case | unit + mutation | n/a — tests only |
 | **2b** | **B7** — `Dinucl_markov` specs from the registry (G9); skip-empty walk; per-spec buffers | full ladder + the empty-anchor test | **yes** |
 | **S4** | Junction pair key; `has_effect_on(left,right)` in the base; the three overrides deleted | full ladder | **yes** |
@@ -1200,6 +1200,42 @@ is the hardest single piece in the set *and* the one the regression corpus never
 what that combination already cost once. T0 covered the path's entry conditions; 5a has to reach the
 position enumeration itself, on a fixture that forces it. Until then that body has no gate at all
 below the convergence tests, which are unseeded and can only catch a crash.
+
+### 6.5 — Delivered (1b): B6 *(Sep 7 2026)*
+
+The three-arm `if/else` chain is one body. **All of 1a's sections pass unchanged**; one *fixture*
+was adapted — the VJ sections now build their state on a VJ-ordered registry, because a junction
+resolves its neighbours from the ordering and `VJ_ins_seq` has none in a VDJ one. No assertion
+changed. Full ladder green, regression bitwise.
+
+**Coverage: `Insertion::iterate` went to 100% lines, branches and blocks** (from 97.6 / 65.4 / 71.9).
+The collapse deleted exactly the arms nothing could reach — the three-way seq_type chain and the
+`throw invalid_argument` backstop that `initialize_event()` already made unreachable. That is the
+clearest statement of what a branch collapse buys: the untestable code is gone rather than covered.
+
+Three things beyond the chain:
+
+- **The neighbour ids are resolved once at `initialize_event()`**, not per scenario — G10's tier 1.
+  Three `std::string` comparisons per scenario become two member reads. It adds one branch B6 owes:
+  an insertion at the end of the ordering has nothing to bound its junction, rejected at
+  initialization rather than surfacing as a `kNoSeqType` subscript in the hot loop. Covered by its
+  own section, which brought `initialize_event` back to 100% lines.
+- **`initialize_crude_scenario_proba_bound`'s `switch` is one `events_map` lookup.** The switch
+  converted `ins_seq_type` back into the very string the map is keyed by.
+- **The `Insertion(Seq_type)` constructor now sets `seq_type`.** It previously left the string empty
+  while `ins_seq_type` held the enum — two identities of the same fact, disagreeing until a caller
+  happened to set one. Harmless while every lookup went through the enum; a latent trap the moment
+  one goes through the name, which is how `test_EventUtils.cpp`'s bridge test caught it.
+
+The three `[!shouldfail]` defects are **not** fixed here: adding offsets and a mismatch list is a
+behaviour change, and §1 keeps fixes out of refactoring commits. They land next, in their own
+commit, with their own regression run.
+
+**Harness change worth knowing about**: `IterateTestState` now takes a `SeqTypeRegistry`, defaulting
+to a VDJ ordering, with `vj_seq_type_registry()` for a model with no D. The harness previously built
+every map from `legacy_seq_type_registry()`, which registers the six seq_types but sets **no
+ordering** — so `left_neighbor()` answered `kNoSeqType` for everything and *no generic body could be
+tested at all*. Steps 2a and 4a would have hit this too.
 
 ### 6.2 — The regression gate has a flaky output
 
@@ -1511,6 +1547,42 @@ written when the snapshot was taken.
 **This is what makes row 10 of the test guide unconditional.** The harness check no longer needs
 downstream events in the fixture to create an observable gap; it compares written against claimed
 directly.
+
+### 7.11 — The occupancy-skipping neighbour walk is not the ordering neighbour
+
+*(Found Sep 7 2026 while implementing B6.)*
+
+G9 sketches the generic junction length as
+
+```cpp
+const SeqTypeId left = scenario.constructed_sequences.first_occupied_left(seq_type_id);
+```
+
+`first_occupied_left()` skips segments that are **written but empty**, which is not what the
+hardcoded pairs did. The two agree only while no gene segment can be empty — and one can:
+`Deletion` guards its 5' branch with `if (value_int > previous_str.size()) continue`, a strict `>`,
+so deleting exactly the whole segment is legal and `substr(size, npos)` writes an empty `Int_Str`.
+The V 3' branch has no guard at all.
+
+With an empty D in a VDJ model the two disagree concretely. `DJ_ins_seq`'s ordering neighbour to the
+left is `D_gene_seq`, whose offsets are still correct — degenerate, but correct. The occupancy walk
+skips D, reaches `VD_ins_seq`, and asks for *its* 3' offset — which no insertion writes (§6.3), so it
+throws. Skip that too and it reaches `V_gene_seq`, giving the merged V→J span and double-counting
+against the VD junction.
+
+**B6 therefore uses `registry.left_neighbor()` / `right_neighbor()`**, which reproduce the hardcoded
+pairs exactly for every topology where all segments are present — including tandem D, where
+`D1D2_ins`'s ordering neighbours are `D1` and `D2`. Occupancy skipping is the right answer *once
+absence has a defined meaning*, which is B10's decision and explicitly out of scope here (§9).
+
+Two consequences:
+
+- **B7 must make the same choice deliberately.** G9's `Dinucl_markov` anchor lookup has the same
+  shape, and its note about a fully-deleted `D1` anchor is the *same* hazard read from the other
+  side: the walk is what makes that case safe, and also what changes today's answers.
+- **When B10 switches to the occupancy walk, the insertion offsets fixed alongside B6 are a
+  prerequisite** — the walk lands on a junction segment as soon as a gene segment is skipped, and a
+  junction with no offsets cannot answer.
 
 ## 8. Decisions taken (Sep 1 2026 review)
 
