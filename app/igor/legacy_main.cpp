@@ -884,6 +884,15 @@ int igor_legacy_main(int argc, char *argv[])
          * Output arguments parsing
          */
         else if (string(argv[carg_i]) == "-output") {
+            /*
+             * The best scenarios counter is only built once the whole output argument
+             * group has been read, so that the number of scenarios and the settings
+             * driving how ties between them are handled can be given in any order.
+             */
+            int n_record_scenarios = -1;
+            size_t scenario_tie_digits = Best_scenarios_counter::default_tie_digits;
+            bool scenario_keep_ties = true;
+
             while ((carg_i + 1 < argc) and (string(argv[carg_i + 1]).size() > 2)
                    and string(argv[carg_i + 1]).substr(0, 2) == "--") {
 
@@ -895,7 +904,6 @@ int igor_legacy_main(int argc, char *argv[])
                     shared_ptr<Counter> pgen_counter_ptr(new Pgen_counter(cl_path + "output/"));
                     cl_counters_list.emplace(cl_counters_list.size(), pgen_counter_ptr);
                 } else if (string(argv[carg_i]) == "--scenarios") {
-                    int n_record_scenarios;
                     ++carg_i;
                     try {
                         n_record_scenarios = stoi(string(argv[carg_i]));
@@ -909,10 +917,33 @@ int igor_legacy_main(int argc, char *argv[])
                         return terminate_IGoR_with_error_message(
                                 "Number of scenarios to be recorded must be greater than zero");
                     }
-
-                    shared_ptr<Counter> best_sc_ptr(
-                            new Best_scenarios_counter(n_record_scenarios, cl_path + "output/", true));
-                    cl_counters_list.emplace(cl_counters_list.size(), best_sc_ptr);
+                } else if (string(argv[carg_i]) == "--scenario-tie-digits") {
+                    ++carg_i;
+                    try {
+                        const int digits = stoi(string(argv[carg_i]));
+                        if (digits < 0) {
+                            throw invalid_argument("negative");
+                        }
+                        scenario_tie_digits = static_cast<size_t>(digits);
+                    } catch (exception &e) {
+                        return terminate_IGoR_with_error_message(
+                                "Expected the number of significant digits scenario probabilities are compared on "
+                                "(0 to compare them exactly), received: \""
+                                + string(argv[carg_i]) + "\"");
+                    }
+                } else if (string(argv[carg_i]) == "--scenario-keep-ties") {
+                    ++carg_i;
+                    const string keep_ties_arg = string(argv[carg_i]);
+                    if ((keep_ties_arg == "true") or (keep_ties_arg == "1")) {
+                        scenario_keep_ties = true;
+                    } else if ((keep_ties_arg == "false") or (keep_ties_arg == "0")) {
+                        scenario_keep_ties = false;
+                    } else {
+                        return terminate_IGoR_with_error_message(
+                                "Expected whether scenarios tied with the last recorded one should all be kept "
+                                "(true or false), received: \""
+                                + keep_ties_arg + "\"");
+                    }
                 } else if (string(argv[carg_i]) == "--coverage") {
                     string coverage_arg;
                     ++carg_i;
@@ -950,6 +981,14 @@ int igor_legacy_main(int argc, char *argv[])
                     return terminate_IGoR_with_error_message("Unknown subargument \"" + string(argv[carg_i])
                                                              + "\" to specify outputs");
                 }
+            }
+
+            if (n_record_scenarios > 0) {
+                shared_ptr<Best_scenarios_counter> best_sc_ptr(
+                        new Best_scenarios_counter(n_record_scenarios, cl_path + "output/", true));
+                best_sc_ptr->set_tie_digits(scenario_tie_digits);
+                best_sc_ptr->set_keep_ties(scenario_keep_ties);
+                cl_counters_list.emplace(cl_counters_list.size(), best_sc_ptr);
             }
         }
 

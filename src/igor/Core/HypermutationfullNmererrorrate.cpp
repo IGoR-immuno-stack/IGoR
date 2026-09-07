@@ -284,6 +284,17 @@ Error_rate *Hypermutation_full_Nmer_errorrate::add_checked(Error_rate *err_r)
     return &(this->operator+=(*(dynamic_cast<Hypermutation_full_Nmer_errorrate *>(err_r))));
 }
 
+void Hypermutation_full_Nmer_errorrate::clear_accumulators()
+{
+    this->number_seq = 0;
+    this->model_log_likelihood = 0;
+    const size_t array_size = pow(4, mutation_Nmer_size);
+    for (size_t ii = 0; ii != array_size; ++ii) {
+        this->Nmer_N_SHM[ii] = 0;
+        this->Nmer_N_bg[ii] = 0;
+    }
+}
+
 const double &Hypermutation_full_Nmer_errorrate::get_err_rate_upper_bound(size_t n_errors, size_t n_error_free)
 {
 

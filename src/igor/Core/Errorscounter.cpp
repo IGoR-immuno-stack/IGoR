@@ -153,7 +153,7 @@ void Errors_counter::count_scenario(
             if (scenario_seq_joint_proba > get<0>(this->best_scenarios_vec[0])) {
 
                 auto jter = this->best_scenarios_vec.begin() + 1;
-                while ((scenario_seq_joint_proba > get<0>(*jter)) and (jter != this->best_scenarios_vec.end())) {
+                while ((jter != this->best_scenarios_vec.end()) and (scenario_seq_joint_proba > get<0>(*jter))) {
                     ++jter;
                 }
                 this->best_scenarios_vec.emplace(jter, scenario_seq_joint_proba, this->scenario_n_genomic,
@@ -229,7 +229,7 @@ void Errors_counter::count_scenario(
             if (scenario_seq_joint_proba > get<0>(this->best_scenarios_vec[0])) {
 
                 auto jter = this->best_scenarios_vec.begin() + 1;
-                while ((scenario_seq_joint_proba > get<0>(*jter)) and (jter != this->best_scenarios_vec.end())) {
+                while ((jter != this->best_scenarios_vec.end()) and (scenario_seq_joint_proba > get<0>(*jter))) {
                     ++jter;
                 }
                 this->best_scenarios_vec.emplace(jter, scenario_seq_joint_proba, this->scenario_n_genomic,

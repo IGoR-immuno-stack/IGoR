@@ -74,6 +74,7 @@ public:
     initialize(const Events_map &) override;
     void add_to_norm_counter() override;
     void clean_seq_counters() override;
+    void clear_accumulators() override;
     void clean_all_counters();
     void write2txt(std::ofstream &) override;
     void set_output_Nmer_stream(std::string);
