@@ -910,7 +910,7 @@ already flagged as the milestone-1 blocker and because `Gene_choice` is the only
 | **S5** | Safety row-bitmask; row-suffix propagation; `Event_safety` deleted | full ladder + the empty-segment transitivity test | **yes** (§2.3 corollary) |
 | **4a** | `Deletion` characterization sections, including the zero-length junction T0 deferred | unit + mutation | n/a — tests only |
 | **4b** | **B5** — `Deletion::iterate` generic (all patterns) | full ladder + benchmark + convergence | **yes** |
-| **5a** | `no_d_align` characterization beyond T0's G6 sections, on a fixture that *forces* the path | unit + mutation | n/a — tests only |
+| **5a** | `no_d_align` characterization beyond T0's G6 sections, on a fixture that *forces* the path. **Must raise `Gene_choice::iterate` block coverage** — see §6.4 | unit + mutation | n/a — tests only |
 | **5b** | **B11b** — `no_d_align` exhaustive path generic (G6) | full ladder + a fixture that *forces* the path | **yes** |
 
 **The split is an ordering requirement, not bookkeeping.** The *a* commit lands before the *b*
@@ -1194,9 +1194,12 @@ Two readings matter more than the numbers themselves:
   untakeable arc to the denominator. Block coverage is the more honest single number, and the
   useful artefact is the *list* of uncovered lines, not the ratio.
 
-`Gene_choice::iterate` at 59.2% blocks after T0 is the figure to watch: the uncovered remainder is
-mostly the `no_d_align` exhaustive path, which is step 5 — the hardest piece in the set, and the one
-the regression corpus never reaches either (§7.9).
+`Gene_choice::iterate` at 59.2% blocks after T0 is the figure to watch, and **raising it is part of
+5a's definition of done**. The uncovered remainder is mostly the `no_d_align` exhaustive path, which
+is the hardest single piece in the set *and* the one the regression corpus never reaches — §7.9 is
+what that combination already cost once. T0 covered the path's entry conditions; 5a has to reach the
+position enumeration itself, on a fixture that forces it. Until then that body has no gate at all
+below the convergence tests, which are unseeded and can only catch a crash.
 
 ### 6.2 — The regression gate has a flaky output
 
