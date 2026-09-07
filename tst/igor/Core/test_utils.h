@@ -27,6 +27,7 @@
 
 #include <igor/Core/AccumulationContext.h>
 #include <igor/Core/Deletion.h>
+#include <igor/Core/Dinuclmarkov.h>
 #include <igor/Core/ExplorationContext.h>
 #include <igor/Core/GenModel.h>
 #include <igor/Core/Genechoice.h>
@@ -563,6 +564,11 @@ std::shared_ptr<Deletion> make_deletion(Seq_type target, Seq_side side, int min_
 /// Build an Insertion event over the inclusive realization range [min_ins, max_ins].
 /// Present purely so a junction has non-zero insertion bounds; always fixed.
 std::shared_ptr<Insertion> make_insertion(Seq_type target, int min_ins, int max_ins, int event_id);
+
+/// Build the Dinucl_markov event that fills `target`. An Insertion cannot be initialized
+/// without one: initialize_crude_scenario_proba_bound() looks it up in events_map and throws
+/// if it is missing. Always fixed.
+std::shared_ptr<Dinucl_markov> make_dinucl_markov(Seq_type target, int event_id);
 
 Alignment_data create_perfect_alignment(const std::string &gene_name, int offset, int gene_length);
 

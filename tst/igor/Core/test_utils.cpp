@@ -485,6 +485,19 @@ std::shared_ptr<Insertion> make_insertion(Seq_type target, int min_ins, int max_
     return event;
 }
 
+std::shared_ptr<Dinucl_markov> make_dinucl_markov(Seq_type target, int event_id)
+{
+    auto event = std::make_shared<Dinucl_markov>(target);
+    event->set_event_identifier(event_id);
+    event->set_priority(1);
+    const Seq_type_String seq_type = EventUtils::seq_type_to_string(target);
+    event->set_seq_type(seq_type);
+    event->set_seq_type_id(legacy_seq_type_registry().id(seq_type));
+    event->update_event_name();
+    event->fix(true);
+    return event;
+}
+
 Alignment_data create_perfect_alignment(const std::string &gene_name, int offset, int gene_length)
 {
     return create_mock_alignment_data(gene_name, offset, offset >= 0 ? offset : 0,

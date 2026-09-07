@@ -13,6 +13,7 @@ set(CORE_TEST_SOURCES
     test_gene_choice_iterate.cpp
     test_genetic_code.cpp
     test_inference.cpp
+    test_insertion_iterate.cpp
     test_junction_geometry.cpp
     test_layered_array.cpp
     test_model_format_v2.cpp

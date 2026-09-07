@@ -901,7 +901,7 @@ already flagged as the milestone-1 blocker and because `Gene_choice` is the only
 | **A0** | ✅ **done** — `OffsetDelta` / `LengthContribution` + four capability virtuals on all four subclasses | unit | yes — no caller yet |
 | **S2** | ✅ **done** — `JunctionGeometry::PendingModifierBounds` in the new `JunctionGeometry.h`, unit-tested against a VDJ and a VJ model | unit + mutation | yes — no caller yet |
 | **S3** | ✅ **done** — `reachable()` + `check_overlap()` in `JunctionGeometry.h`, replayed against all twelve current comparison sites | unit + mutation | yes — no caller yet |
-| **1a** | `Insertion` characterization sections, written against the **unmodified** event | unit + mutation | n/a — tests only |
+| **1a** | ✅ **done** — `Insertion` characterization, 8 `TEST_CASE`s against the **unmodified** event | unit + mutation | n/a — tests only |
 | **1b** | **B6** — `Insertion::iterate` generic (G9). Smallest, one hot-loop win. | full ladder | **yes** |
 | **2a** | `Dinucl_markov` characterization sections, including the empty-anchor case | unit + mutation | n/a — tests only |
 | **2b** | **B7** — `Dinucl_markov` specs from the registry (G9); skip-empty walk; per-spec buffers | full ladder + the empty-anchor test | **yes** |
@@ -1093,6 +1093,63 @@ event suites existed by then, all four would have carried the broken probe. `Din
 particular needs fixture support the harness does not have yet. What is *not* deferred is the
 ordering — see the note under the §6 table: each event's sections land **before** its collapse, in
 their own commit, mutation-verified against the unmodified event.
+
+### 6.3 — Delivered (1a): the `Insertion` characterization *(Sep 7 2026)*
+
+`tst/igor/Core/test_insertion_iterate.cpp`, **80 assertions in 11 `TEST_CASE`s** (3 of them
+`[!shouldfail]`), written against the unmodified event. All ten matrix rows filled; two change shape because the event never
+branches — row 2 becomes "one hand-off, or none", and row 3's *do not compound* has nothing to
+say. Row 5 has no chosen/unchosen distinction either: `Insertion` never asks whether a neighbour
+was chosen, it reads the offsets and assumes, so the section pinning what happens when they are
+absent stands in for it (it throws, which is `LayeredArray` turning the assumption into an error
+rather than a read of uninitialized storage).
+
+Four things pinned that B6 has to reproduce, none of them obvious from the body:
+
+- **It creates a segment and assigns it neither offsets nor a mismatch list — confirmed defects,
+  not behaviour to reproduce.** The span being *derived* from the neighbours is the shortcut G9 generalises, and it
+  holds only while the error model forbids indels; but a derived offset is still an offset, and
+  requiring a consumer to know that insertion segments have no offsets is exactly the coupling this
+  refactor exists to remove. Two `[!shouldfail]` cases state the intended behaviour: the junction
+  occupies the positions strictly between its neighbours, and an empty one uses B10's degenerate
+  `off(3') == off(5') - 1` convention rather than absence — which is the three-state problem B10
+  has to solve, appearing here concretely. Nothing in Core reads or writes `seq_offsets` for an
+  insertion seq_type today (checked), so **B6 can fix this without touching any consumer**, and the
+  fix is expected to stay bitwise.
+- **The two `new_index` derivations agree.** VD and DJ compute it as
+  `base_index + event_realizations.at(to_string(n)).index` — a string conversion and a hash lookup
+  in the hot loop, carrying its own `FIXME` — while VJ uses the `realization_index` that
+  `iterate_common()` has already resolved. Pinned equal through `add_to_marginals()`, the only
+  reader of `new_index`, so B6 can keep the second and delete the first.
+- **A zero-probability length is discarded exactly like an unreachable one.** `proba_contribution
+  != 0` is the single gate for both. A generic body that separates "not a realization" from
+  "probability zero" changes which scenarios reach the next event.
+- **No layer promise is owed on a discard path.** The event claims its `downstream_proba_map`
+  layer once at `initialize_event()` and leaves it unwritten when the scenario is dropped, which
+  is sound only because there is no hand-off. Claiming per call instead of once would turn this
+  into the §7.9 defect.
+
+**The missing mismatch list is the same defect, and is confirmed too** *(Sep 7 2026)*. A constructed
+sequence implies a comparison against the read, so a constructed segment should carry a list —
+empty at this point, since the junction holds placeholders and nothing is decided yet. Absence
+forces every consumer to know that insertion segments are exempt, which is the coupling being
+removed. It is load-bearing rather than tidy: under amino-acid Pgen a placeholder position scores
+differently under ceiling and floor mismatch semantics, and either choice needs a list to write
+into — an absent list cannot express *no mismatches yet* as distinct from *not compared*, the same
+three-state problem B10 has for sequences. Third `[!shouldfail]` case; B6 fixes all three together.
+
+§7.7's shortcut is pinned as observed, not as a defect: a negative junction length is discarded by
+the *realization lookup*, not by geometry, and the section says so. The guard B6 replaces is a
+set-membership test, which is the same distinction §2.5's open item turns on.
+
+Harness additions: `make_insertion()` and `make_dinucl_markov()`. The latter is not optional —
+`initialize_crude_scenario_proba_bound()` looks the Dinucl_markov up in `events_map` and throws
+without it, so an `Insertion` cannot be initialized alone.
+
+**Nine mutations run, all caught**: the junction length off by one, the neighbour pair swapped,
+out-of-range lengths no longer discarded, the scenario probability not updated, `base_index`
+dropped, the placeholder count wrong, pruning disabled, the downstream bound replaced by a
+constant, and the VJ arm reading the wrong span.
 
 ### 6.2 — The regression gate has a flaky output
 
