@@ -25,6 +25,9 @@
 
 #include <igor/Core/Bestscenarioscounter.h>
 
+#include <cmath>
+#include <limits>
+
 using namespace std;
 
 Best_scenarios_counter::Best_scenarios_counter(size_t n_scenarios) : Counter(), n_scenarios_counted(n_scenarios) { }
@@ -54,6 +57,76 @@ Best_scenarios_counter::Best_scenarios_counter() : Best_scenarios_counter(1, tru
 Best_scenarios_counter::~Best_scenarios_counter()
 {
     // TODO Auto-generated destructor stub
+}
+
+double Best_scenarios_counter::tie_key(double proba) const
+{
+    if (this->tie_digits == 0) {
+        return proba;
+    }
+    //Number of mantissa bits carrying the requested number of decimal digits
+    const int kept_bits = static_cast<int>(ceil(this->tie_digits * 3.321928094887362));
+    if (kept_bits >= numeric_limits<double>::digits) {
+        //More precision was asked for than a double carries: nothing left to round
+        return proba;
+    }
+    int exponent = 0;
+    const double mantissa = frexp(proba, &exponent);
+    return ldexp(nearbyint(ldexp(mantissa, kept_bits)), exponent - kept_bits);
+}
+
+bool Best_scenarios_counter::record_is_worse(const Scenario_record &lhs, const Scenario_record &rhs) const
+{
+    const double lhs_key = this->tie_key(get<0>(lhs));
+    const double rhs_key = this->tie_key(get<0>(rhs));
+    if (lhs_key != rhs_key) {
+        return lhs_key < rhs_key;
+    }
+    //Tied to the requested precision: order on the realizations instead so that the
+    //recorded scenarios do not depend on the order they were enumerated in, the lowest
+    //realization indices ranking best
+    if (get<1>(lhs) != get<1>(rhs)) {
+        return get<1>(lhs) > get<1>(rhs);
+    }
+    return get<2>(lhs) > get<2>(rhs);
+}
+
+void Best_scenarios_counter::collect_realizations()
+{
+    for (forward_list<shared_ptr<const Rec_Event>>::const_iterator iter = this->event_fw_list.begin();
+         iter != this->event_fw_list.end(); ++iter) {
+        this->single_scenario_realizations.emplace_back((*iter)->get_current_realizations_index_vec());
+    }
+}
+
+void Best_scenarios_counter::record_scenario(double scenario_seq_joint_proba)
+{
+    Scenario_record candidate(scenario_seq_joint_proba, this->single_scenario_realizations,
+                              this->single_scenario_mismatches_list);
+
+    auto jter = this->best_scenarios_vec.begin();
+    while ((jter != this->best_scenarios_vec.end()) and this->record_is_worse(*jter, candidate)) {
+        ++jter;
+    }
+    this->best_scenarios_vec.emplace(jter, move(candidate));
+
+    if (this->best_scenarios_vec.size() <= this->n_scenarios_counted) {
+        return;
+    }
+
+    //The list is ordered from the least to the most likely scenario, so the ones
+    //falling out of it are the leading ones
+    auto first_kept = this->best_scenarios_vec.end() - this->n_scenarios_counted;
+    if (this->keep_ties) {
+        //Walk back over the scenarios tied with the N-th best one: recording only part
+        //of a degenerate group would make the reported member arbitrary
+        const double cutoff_key = this->tie_key(get<0>(*first_kept));
+        while ((first_kept != this->best_scenarios_vec.begin())
+               and (this->tie_key(get<0>(*(first_kept - 1))) == cutoff_key)) {
+            --first_kept;
+        }
+    }
+    this->best_scenarios_vec.erase(this->best_scenarios_vec.begin(), first_kept);
 }
 
 // ===== CONTEXT-BASED INTERFACE =====
@@ -97,85 +170,32 @@ void Best_scenarios_counter::count_scenario(
         const ModelContext& model)
 {
     // Use scenario_error_w_proba (already normalized by error rate)
-    long double scenario_seq_joint_proba = scenario.scenario_error_w_proba;
+    const double scenario_seq_joint_proba = scenario.scenario_error_w_proba;
 
-    if (this->best_scenarios_vec.size() < this->n_scenarios_counted) {
-        // Collect realization indices from events
-        for (forward_list<shared_ptr<const Rec_Event>>::const_iterator iter = this->event_fw_list.begin();
-             iter != this->event_fw_list.end(); ++iter) {
-            this->single_scenario_realizations_queue.push((*iter)->get_current_realizations_index_vec());
-        }
+    //Discard the scenarios that cannot make the list before collecting their
+    //realizations, which is the expensive part. Scenarios tied with the least likely
+    //recorded one are kept: whether they make the list depends on their realizations.
+    if ((this->best_scenarios_vec.size() >= this->n_scenarios_counted)
+        and (this->tie_key(scenario_seq_joint_proba) < this->tie_key(get<0>(this->best_scenarios_vec[0])))) {
+        return;
+    }
 
-        // Get mismatches and add them to the mismatch list
-        if (scenario.mismatches[V_gene_seq]) {
-            const vector<size_t> &v_mismatch_list = *scenario.mismatches[V_gene_seq];
-            single_scenario_mismatches_list.insert(single_scenario_mismatches_list.end(), v_mismatch_list.begin(),
-                                                   v_mismatch_list.end());
-        }
-        if (scenario.mismatches[D_gene_seq]) {
-            const vector<size_t> &d_mismatch_list = *scenario.mismatches[D_gene_seq];
-            single_scenario_mismatches_list.insert(single_scenario_mismatches_list.end(), d_mismatch_list.begin(),
-                                                   d_mismatch_list.end());
-        }
-        if (scenario.mismatches[J_gene_seq]) {
-            const vector<size_t> &j_mismatch_list = *scenario.mismatches[J_gene_seq];
-            single_scenario_mismatches_list.insert(single_scenario_mismatches_list.end(), j_mismatch_list.begin(),
-                                                   j_mismatch_list.end());
-        }
+    // Collect realization indices from events
+    this->collect_realizations();
 
-        if (this->best_scenarios_vec.empty()) {
-            this->best_scenarios_vec.emplace_back(
-                    scenario_seq_joint_proba,
-                    const_cast<queue<vector<int>> &>(this->single_scenario_realizations_queue),
-                    single_scenario_mismatches_list);
-        } else {
-            auto jter = this->best_scenarios_vec.begin();
-            while ((jter != this->best_scenarios_vec.end()) and (scenario_seq_joint_proba > get<0>(*jter))) {
-                ++jter;
-            }
-            this->best_scenarios_vec.emplace(jter, scenario_seq_joint_proba,
-                                             const_cast<queue<vector<int>> &>(this->single_scenario_realizations_queue),
-                                             single_scenario_mismatches_list);
-        }
-    } else {
-        if (scenario_seq_joint_proba > get<0>(this->best_scenarios_vec[0])) {
-            // Collect realization indices from events
-            for (forward_list<shared_ptr<const Rec_Event>>::const_iterator iter = this->event_fw_list.begin();
-                 iter != this->event_fw_list.end(); ++iter) {
-                this->single_scenario_realizations_queue.push((*iter)->get_current_realizations_index_vec());
-            }
-
-            // Get mismatches and add them to the mismatch list
-            if (scenario.mismatches[V_gene_seq]) {
-                const vector<size_t> &v_mismatch_list = *scenario.mismatches[V_gene_seq];
-                single_scenario_mismatches_list.insert(single_scenario_mismatches_list.end(), v_mismatch_list.begin(),
-                                                       v_mismatch_list.end());
-            }
-            if (scenario.mismatches[D_gene_seq]) {
-                const vector<size_t> &d_mismatch_list = *scenario.mismatches[D_gene_seq];
-                single_scenario_mismatches_list.insert(single_scenario_mismatches_list.end(), d_mismatch_list.begin(),
-                                                       d_mismatch_list.end());
-            }
-            if (scenario.mismatches[J_gene_seq]) {
-                const vector<size_t> &j_mismatch_list = *scenario.mismatches[J_gene_seq];
-                single_scenario_mismatches_list.insert(single_scenario_mismatches_list.end(), j_mismatch_list.begin(),
-                                                       j_mismatch_list.end());
-            }
-
-            auto jter = this->best_scenarios_vec.begin() + 1;
-            while ((jter != this->best_scenarios_vec.end()) and (scenario_seq_joint_proba > get<0>(*jter))) {
-                ++jter;
-            }
-            this->best_scenarios_vec.emplace(jter, scenario_seq_joint_proba, this->single_scenario_realizations_queue,
-                                             single_scenario_mismatches_list);
-            this->best_scenarios_vec.erase(this->best_scenarios_vec.begin());
+    // Get mismatches and add them to the mismatch list
+    for (Seq_type seq_type : { V_gene_seq, D_gene_seq, J_gene_seq }) {
+        if (scenario.mismatches[seq_type]) {
+            const vector<size_t> &mismatch_list = *scenario.mismatches[seq_type];
+            single_scenario_mismatches_list.insert(single_scenario_mismatches_list.end(), mismatch_list.begin(),
+                                                   mismatch_list.end());
         }
     }
+
+    this->record_scenario(scenario_seq_joint_proba);
 
     // Clean up temporary containers
-    while (not this->single_scenario_realizations_queue.empty()) {
-        this->single_scenario_realizations_queue.pop();
-    }
+    this->single_scenario_realizations.clear();
     single_scenario_mismatches_list.clear();
 }
 
@@ -187,82 +207,28 @@ void Best_scenarios_counter::count_scenario(
         const Events_map &events_map,
         Mismatch_vectors_map &mismatches_lists)
 {
+    const double joint_proba = scenario_seq_joint_proba;
 
-    if (this->best_scenarios_vec.size() < this->n_scenarios_counted) {
-        for (forward_list<shared_ptr<const Rec_Event>>::const_iterator iter = this->event_fw_list.begin();
-             iter != this->event_fw_list.end(); ++iter) {
-            this->single_scenario_realizations_queue.push((*iter)->get_current_realizations_index_vec());
-        }
+    //See the context based overload
+    if ((this->best_scenarios_vec.size() >= this->n_scenarios_counted)
+        and (this->tie_key(joint_proba) < this->tie_key(get<0>(this->best_scenarios_vec[0])))) {
+        return;
+    }
 
-        // Get mismatches and add them to the mismatch list
-        if (mismatches_lists.exist(V_gene_seq)) {
-            const vector<size_t> &v_mismatch_list = *mismatches_lists.at(V_gene_seq);
-            single_scenario_mismatches_list.insert(single_scenario_mismatches_list.end(), v_mismatch_list.begin(),
-                                                   v_mismatch_list.end());
-        }
-        if (mismatches_lists.exist(D_gene_seq)) {
-            const vector<size_t> &d_mismatch_list = *mismatches_lists[D_gene_seq];
-            single_scenario_mismatches_list.insert(single_scenario_mismatches_list.end(), d_mismatch_list.begin(),
-                                                   d_mismatch_list.end());
-        }
-        if (mismatches_lists.exist(J_gene_seq)) {
-            const vector<size_t> &j_mismatch_list = *mismatches_lists.at(J_gene_seq);
-            single_scenario_mismatches_list.insert(single_scenario_mismatches_list.end(), j_mismatch_list.begin(),
-                                                   j_mismatch_list.end());
-        }
+    this->collect_realizations();
 
-        if (this->best_scenarios_vec.empty()) {
-            this->best_scenarios_vec.emplace_back(
-                    scenario_seq_joint_proba,
-                    const_cast<queue<vector<int>> &>(this->single_scenario_realizations_queue),
-                    single_scenario_mismatches_list);
-        } else {
-            auto jter = this->best_scenarios_vec.begin();
-            while ((jter != this->best_scenarios_vec.end()) and (scenario_seq_joint_proba > get<0>(*jter))) {
-                ++jter;
-            }
-            this->best_scenarios_vec.emplace(jter, scenario_seq_joint_proba,
-                                             const_cast<queue<vector<int>> &>(this->single_scenario_realizations_queue),
-                                             single_scenario_mismatches_list);
-        }
-    } else {
-        if (scenario_seq_joint_proba > get<0>(this->best_scenarios_vec[0])) {
-
-            for (forward_list<shared_ptr<const Rec_Event>>::const_iterator iter = this->event_fw_list.begin();
-                 iter != this->event_fw_list.end(); ++iter) {
-                this->single_scenario_realizations_queue.push((*iter)->get_current_realizations_index_vec());
-            }
-
-            // Get mismatches and add them to the mismatch list
-            if (mismatches_lists.exist(V_gene_seq)) {
-                const vector<size_t> &v_mismatch_list = *mismatches_lists.at(V_gene_seq);
-                single_scenario_mismatches_list.insert(single_scenario_mismatches_list.end(), v_mismatch_list.begin(),
-                                                       v_mismatch_list.end());
-            }
-            if (mismatches_lists.exist(D_gene_seq)) {
-                const vector<size_t> &d_mismatch_list = *mismatches_lists[D_gene_seq];
-                single_scenario_mismatches_list.insert(single_scenario_mismatches_list.end(), d_mismatch_list.begin(),
-                                                       d_mismatch_list.end());
-            }
-            if (mismatches_lists.exist(J_gene_seq)) {
-                const vector<size_t> &j_mismatch_list = *mismatches_lists.at(J_gene_seq);
-                single_scenario_mismatches_list.insert(single_scenario_mismatches_list.end(), j_mismatch_list.begin(),
-                                                       j_mismatch_list.end());
-            }
-
-            auto jter = this->best_scenarios_vec.begin() + 1;
-            while ((jter != this->best_scenarios_vec.end()) and (scenario_seq_joint_proba > get<0>(*jter))) {
-                ++jter;
-            }
-            this->best_scenarios_vec.emplace(jter, scenario_seq_joint_proba, this->single_scenario_realizations_queue,
-                                             single_scenario_mismatches_list);
-            this->best_scenarios_vec.erase(this->best_scenarios_vec.begin());
+    // Get mismatches and add them to the mismatch list
+    for (Seq_type seq_type : { V_gene_seq, D_gene_seq, J_gene_seq }) {
+        if (mismatches_lists.exist(seq_type)) {
+            const vector<size_t> &mismatch_list = *mismatches_lists.at(seq_type);
+            single_scenario_mismatches_list.insert(single_scenario_mismatches_list.end(), mismatch_list.begin(),
+                                                   mismatch_list.end());
         }
     }
 
-    while (not this->single_scenario_realizations_queue.empty()) {
-        this->single_scenario_realizations_queue.pop();
-    }
+    this->record_scenario(joint_proba);
+
+    this->single_scenario_realizations.clear();
     single_scenario_mismatches_list.clear();
 }
 
@@ -321,24 +287,21 @@ void Best_scenarios_counter::dump_sequence_data(int seq_index, int iteration_n)
                  this->best_scenarios_vec.rbegin();
          iter != this->best_scenarios_vec.rend(); ++iter) {
         ss << seq_index << ";" << counter << ";" << get<0>(*iter);
-        queue<vector<int>> &scenario_queue = get<1>(*iter);
         //Loop over events
-        while (not scenario_queue.empty()) {
-            const vector<int> &real_vec = scenario_queue.front();
+        for (const vector<int> &real_vec : get<1>(*iter)) {
             ss << ";(";
             //Loop over event realizations
             for (vector<int>::const_iterator jter = real_vec.begin(); jter != real_vec.end(); ++jter) {
-                ss << (*jter);
-                if (jter != real_vec.end() - 1) {
+                if (jter != real_vec.begin()) {
                     ss << ",";
                 }
+                ss << (*jter);
             }
             ss << ")";
-            scenario_queue.pop();
         }
         ss << ";(";
         //Loop over mismatches
-        vector<size_t> &mismatches_list = get<2>(*iter);
+        const vector<size_t> &mismatches_list = get<2>(*iter);
         for (auto kter = mismatches_list.begin(); kter != mismatches_list.end(); ++kter) {
             if (kter != mismatches_list.begin()) {
                 ss << ",";
@@ -359,6 +322,8 @@ void Best_scenarios_counter::dump_sequence_data(int seq_index, int iteration_n)
 shared_ptr<Counter> Best_scenarios_counter::copy() const
 {
     shared_ptr<Best_scenarios_counter> counter_copy_ptr(new Best_scenarios_counter(this->n_scenarios_counted));
+    counter_copy_ptr->tie_digits = this->tie_digits;
+    counter_copy_ptr->keep_ties = this->keep_ties;
     counter_copy_ptr->fstreams_created = this->fstreams_created;
     if (this->fstreams_created) {
         counter_copy_ptr->output_scenario_file_ptr = this->output_scenario_file_ptr;
