@@ -247,6 +247,9 @@ interval has collapsed:
 There is at most one deletion event per `(seq_type, side)`, so the collapse is guaranteed, not
 incidental. **One predicate replaces all eight blocks.**
 
+`G` is a *lower* bound only; the corresponding upper bound is implicit in the junction-length
+map's key set, and whether the two should be unified is recorded as an open item under §2.5.
+
 `G` is `0` in every check performed today (all in-between segments have `len_min == 0`, and
 `Insertion` events legitimately allow zero insertions). Keeping `G` explicit costs nothing and
 is what lets the predicate stay correct once a tandem-D ordering puts a *gene* segment between
@@ -461,6 +464,48 @@ Two constraints on doing it:
 Classified as **premature optimisation for this work**: keep `std::map` through steps 1–5, and
 measure before changing it. The pair-keyed indirection introduced here is what makes the swap a
 one-line change later, which is the actual point.
+
+#### Open: only the *lower* bound on a junction span is explicit
+
+*(Raised Sep 7 2026 reviewing S3.)*
+
+`check_overlap()` takes `gap` — the minimum number of nucleotides that must sit between two ends —
+and encodes nothing about the maximum. That is not an oversight in the port: the legacy code has no
+maximum-side check either. The upper bound exists, but it is **implicit in the key set of the
+junction-length map**, which holds exactly the achievable gaps and whose largest key is
+`max_ins − min_del_left − min_del_right`. A geometrically-possible-but-too-large gap is therefore
+rejected at the map lookup, never earlier.
+
+So the two mechanisms are doing overlapping jobs: `check_overlap` duplicates the lower side of the
+map's feasibility test as an early-out (§7.6 proves the containment), and the map carries the upper
+side alone, plus the probability bound.
+
+**Full unification is not available.** Achievability is *set membership*, not range membership:
+a gap is producible iff `L = ins − del_left − del_right` for some legal triple, and if any of the
+three realization sets is sparse — nothing in the model format forbids an insertion event with
+realizations `{0, 5, 10}` — the achievable set has holes. An interval test can only ever check the
+convex hull, so the map stays the authority and any bounds check is strictly weaker than it.
+
+**What *is* worth unifying is the hull.** `[G_min, G_max]` for a junction is derivable from A0 data
+already: sum `length()` over the segments strictly between the two ends, and add the two ends'
+`offset_delta`. Making that a `span_bounds(left, right)` alongside S4's junction pair key would
+give both bounds one derivation and one place to be wrong, instead of one bound in the predicate
+and the other buried in a map's keys. It is also the shape a dynamic-programming interface wants:
+**an interval to iterate over, plus a per-length oracle** — which is exactly the hull and the map,
+named as such.
+
+**Not in this refactor**, for two reasons:
+
+- there is no legacy counterpart to a maximum-side early-out, so it cannot be justified as
+  preservation; by §7.6's second consequence these checks are optimizations, and adding one is a
+  performance change to be measured rather than assumed;
+- moving *when* a scenario is discarded is only bitwise-safe if nothing observable happened in
+  between, and in `Gene_choice`'s V branch the `set_overlap_safety` writes sit between the two
+  points. Almost certainly harmless — a discarded realization's flag is overwritten by the next
+  one — but §7.9 is what happens when a write in one branch is reasoned about instead of checked.
+
+Candidate home: with S4, which is already building the junction identity. Revisit when the Phase D
+interface variables are settled.
 
 ### 2.6 — G6: Position enumeration for an unanchored segment (`no_d_align`)
 
