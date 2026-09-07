@@ -685,6 +685,10 @@ Five new pieces, in dependency order. Each is one commit with its own tests.
 `JunctionGeometry.h` is deliberately a **new header, not an addition to `Utils.h`** — `Utils.h`
 went 709 → 582 lines across B8 and should keep shrinking.
 
+S4 is the step to watch for the `Events_map` keying limitation recorded in §9: its `has_effect_on`
+should return a *set* of bearing events, not the first match, even though today the set is always
+a singleton.
+
 S2/S3 are per-`Rec_Event`-instance state rebuilt at `initialize_event()`, matching the parent
 plan's B5 open item: *"plausibly a plain `std::vector<std::pair<Seq_Offset,Seq_Offset>>` indexed
 by `SeqTypeId`, with no layers at all, rebuilt per call"*. This design agrees, with one
@@ -1377,3 +1381,25 @@ Recording them so the eventual indel work has a stated landing point rather than
   above inherits it.
 - **Phase D decomposition** — G5's junction pair key is plausibly the interface variable Phase D
   needs (`D.3 — Interface Variables`), but that is not established here.
+- **Re-keying `Events_map`** — see below. S2 exposed the limitation; fixing it is a `Model_Parms`
+  change with its own blast radius, and nothing in B5–B11 needs it.
+
+### The `Events_map` key cannot express more than one modifier per end
+
+`Model_Parms::get_events_map()` keys by `(Event_type, seq_type, Seq_side)` and inserts with
+`emplace`, so a second event of the same type bearing on the same end is **silently dropped**, not
+added. No topology IGoR builds today produces one, but nothing in the model formalism forbids it:
+a junction with two offset modifiers is a perfectly reasonable thing for a future model to
+declare, and tandem D is the direction that makes it likely.
+
+S2 is unaffected — `PendingModifierBounds` accumulates by addition and never queries the map by
+key, so it composes correctly the moment the map can hold both. The test that pins that composition
+has to insert under a synthetic key precisely because the real keying cannot produce the input
+(`test_junction_geometry.cpp`, "two modifiers on one end sum").
+
+**The eventual fix is to query by capability rather than by key** — the map becomes a flat list of
+events and consumers ask `get_offset_delta_bounds` / `get_offset_role` / `has_effect_on` which ones
+bear on the end in question, which is what A0 exists to make possible. Every consumer S4 touches
+should be written so that it does not care how many events answer. Recorded as future work, not
+scheduled: it is a `Model_Parms` change, and every remaining `try_get_event` caller is a site that
+would have to stop assuming a unique answer.
