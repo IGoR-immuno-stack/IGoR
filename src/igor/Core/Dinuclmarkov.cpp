@@ -57,56 +57,45 @@ Dinucl_markov::~Dinucl_markov()
 }
 
 /**
- * Turn "which junction do I fill, and who seeds it" into stored ids.
+ * Which junction this event fills, and which segment seeds it.
  *
- * Replaces a switch over the three legacy junctions. The ordering says which segment is
- * adjacent; `event_side` says which side this event's Markov chain runs from, which is a
- * property of the model and not of the topology -- Model_Parms derives it from the gene class
- * for legacy files and reads it directly for v2 ones.
+ * Replaces a switch over the three legacy junctions *and* the resolution step that first
+ * replaced it. Both facts are already on the event: Model_Parms::finalize() resolved the
+ * neighbours, and `event_side` says which of the two the Markov chain runs from -- the
+ * ordering is the model's fact, the direction is this event's.
  *
  * Deliberately the *ordering* neighbour and not DynamicSequenceMap's occupancy-skipping walk:
  * the two differ exactly when the anchor is empty, which today is plan section 7.12's crash.
  * Swapping them is that defect's fix and a behaviour change, so it lands separately (7.11).
- *
- * Idempotent: initialize_event() calls it again for models built in code rather than read from
- * a file, which never reach Model_Parms::finalize().
  */
-void Dinucl_markov::resolve_topology(const SeqTypeRegistry &registry)
+DinuclTraversalSpec Dinucl_markov::get_junction() const
 {
-    traversal_specs.clear();
-    if (this->seq_type_id == kNoSeqType
-        || static_cast<std::size_t>(this->seq_type_id) >= registry.total_count()) {
-        return;
-    }
-
     DinuclTraversalSpec spec;
+    if (this->seq_type_id == kNoSeqType) {
+        return spec;
+    }
     spec.target_id = this->seq_type_id;
     spec.anchor_side = this->event_side;
     if (spec.anchor_side == Three_prime) {
-        spec.anchor_id = registry.left_neighbor(spec.target_id);
+        spec.anchor_id = this->left_adjacent_id;
     } else if (spec.anchor_side == Five_prime) {
-        spec.anchor_id = registry.right_neighbor(spec.target_id);
+        spec.anchor_id = this->right_adjacent_id;
     } else {
-        //No direction declared: the model does not say which way this chain runs.
-        return;
-    }
-    if (spec.anchor_id == kNoSeqType) {
-        return;
+        //No direction declared: the model does not say which way this chain runs, and the two
+        //neighbours are equally adjacent.
+        return spec;
     }
 
-    //The generation path is still keyed by the Seq_type enum; resolve the handles when the
-    //names allow it, and leave the spec usable for inference either way.
-    const Seq_type_String &target_name = registry.name(spec.target_id);
-    const Seq_type_String &anchor_name = registry.name(spec.anchor_id);
-    try {
-        spec.target_seq = str2SeqType(target_name);
-        spec.anchor_seq = str2SeqType(anchor_name);
+    //The generation path is still keyed by the Seq_type enum. Resolve the handles when the
+    //ids allow it and flag them otherwise, rather than leaving a plausible-looking default.
+    if (spec.anchor_id != kNoSeqType
+        && static_cast<std::size_t>(spec.target_id) < kLegacySeqTypeCount
+        && static_cast<std::size_t>(spec.anchor_id) < kLegacySeqTypeCount) {
+        spec.target_seq = static_cast<Seq_type>(spec.target_id);
+        spec.anchor_seq = static_cast<Seq_type>(spec.anchor_id);
         spec.legacy_enums_valid = true;
-    } catch (const std::runtime_error &) {
-        spec.legacy_enums_valid = false;
     }
-
-    traversal_specs.push_back(std::move(spec));
+    return spec;
 }
 
 shared_ptr<Rec_Event> Dinucl_markov::copy()
@@ -121,9 +110,8 @@ shared_ptr<Rec_Event> Dinucl_markov::copy()
     new_dinucl_markov_p->set_seq_type(this->get_seq_type());
     new_dinucl_markov_p->set_seq_type_id(this->get_seq_type_id());
     new_dinucl_markov_p->set_event_side(this->get_side());
-    //Carry the resolved topology: a per-thread copy is made after Model_Parms::finalize() has
-    //run, and the generation path never initializes the copy.
-    new_dinucl_markov_p->traversal_specs = this->traversal_specs;
+    //Adjacency is not carried here: Model_Parms' copy constructor re-runs finalize(), which
+    //is the one place that resolves it.
     return new_dinucl_markov_p;
 }
 
@@ -156,17 +144,18 @@ void Dinucl_markov::iterate(
     //No emptiness check on traversal_specs: initialize_event() refuses to leave them empty, so
     //the arm this replaces was unreachable through the production path -- the same dead
     //backstop B6 removed from Insertion::iterate.
-    for (auto &spec : this->traversal_specs) {
+    {
+        const DinuclTraversalSpec spec = get_junction();
         previous_seq = (*scenario.constructed_sequences.get(spec.anchor_id));
         Int_Str &target_seq = *const_cast<Int_Str *>(scenario.constructed_sequences.get(spec.target_id));
         //One entry per position actually filled, appended as the fill proceeds: a position
         //that already held a nucleotide contributes no probability term and now records no
         //index either, where the fixed-width array kept the previous scenario's value there.
-        spec.realization_indices.clear();
+        realization_indices.clear();
         //Capacity comes from the paired Insertion's longest realization, so the push_backs
         //below never reallocate. Worth stating: a junction that outgrew it would still be
         //correct, just quietly allocating in the hot loop.
-        assert(spec.realization_indices.capacity() >= target_seq.size()
+        assert(realization_indices.capacity() >= target_seq.size()
                && "junction longer than its Insertion's longest realization");
 
         //anchor_side is the anchor's end facing the junction, so it also says which way the
@@ -180,7 +169,7 @@ void Dinucl_markov::iterate(
             data_seq_substr = query.int_sequence.substr(char_index, target_seq.size());
             previous_nt_str = previous_seq.front();
             reverse(data_seq_substr.begin(), data_seq_substr.end());
-            iterate_common(spec.realization_indices, previous_nt_str, target_seq,
+            iterate_common(realization_indices, previous_nt_str, target_seq,
                            model.model_parameters);
             reverse(target_seq.begin(), target_seq.end());
         } else {
@@ -188,11 +177,11 @@ void Dinucl_markov::iterate(
                     scenario.seq_offsets.get(spec.anchor_id, spec.anchor_side) + 1;
             data_seq_substr = query.int_sequence.substr(start_index, target_seq.size());
             previous_nt_str = previous_seq.back();
-            iterate_common(spec.realization_indices, previous_nt_str, target_seq,
+            iterate_common(realization_indices, previous_nt_str, target_seq,
                            model.model_parameters);
         }
 
-        exploration.downstream_proba_map.set(spec.target_id, 1.0, spec.memory_layer);
+        exploration.downstream_proba_map.set(spec.target_id, 1.0, memory_layer_junction);
     }
 
     scenario.scenario_proba *= proba_contribution;
@@ -218,11 +207,15 @@ queue<int> Dinucl_markov::draw_random_realization(
     int index = index_map.at(this->get_name());
     queue<int> realization_queue;
 
-    if (this->traversal_specs.empty()) {
-        throw invalid_argument(std::string("Unknown seq_type for DinuclMarkov model: ") + to_string(this->ins_seq_type));
+    const DinuclTraversalSpec spec = get_junction();
+    if (!spec.legacy_enums_valid) {
+        throw invalid_argument("Dinucl_markov " + this->name
+                               + ": generation needs a junction and an anchor that the Seq_type "
+                                 "enum names. Model_Parms::finalize() must have run, and the "
+                                 "topology must be one of the legacy ones (see B9).");
     }
 
-    for (const auto &spec : this->traversal_specs) {
+    {
         string &target_ins_seq = constructed_sequences.at(spec.target_seq);
         string anchor_seq = constructed_sequences.at(spec.anchor_seq);
         bool reverse_traversal = (spec.anchor_side == Five_prime);
@@ -445,28 +438,22 @@ void Dinucl_markov::initialize_event(
         Seq_offsets_map &seq_offsets, Index_map &index_map)
 {
 
-    //A model built in code never reaches Model_Parms::finalize(), so resolve here too. The
-    //override is idempotent; for a model read from a file this recomputes the same specs.
-    this->resolve_topology(constructed_sequences.registry());
-
-    if (this->traversal_specs.empty()) {
+    const DinuclTraversalSpec spec = get_junction();
+    if (spec.anchor_id == kNoSeqType) {
         throw invalid_argument("Dinucl_markov " + this->name
-                               + ": no junction to fill. Its seq_type must be in the registry, it "
-                                 "must declare which side its chain runs from, and that side must "
-                                 "have a neighbouring segment.");
+                               + ": no junction to fill. Its seq_type must be in the registry "
+                                 "(Model_Parms::finalize() resolves that), it must declare which "
+                                 "side its chain runs from, and that side must have a neighbour.");
     }
 
-    for (auto &spec : this->traversal_specs) {
-        downstream_proba_map.request_layer(spec.target_id);
-        spec.memory_layer = downstream_proba_map.claimed_layer(spec.target_id);
+    downstream_proba_map.request_layer(spec.target_id);
+    memory_layer_junction = downstream_proba_map.claimed_layer(spec.target_id);
 
-        //One index slot per position the junction can ever hold, taken from the Insertion that
-        //allocates it. Sized per spec, so a model with several junctions per event needs no
-        //new members -- and freed with the event, unlike the three raw arrays this replaces.
-        const int longest = EventUtils::get_insertion_len_max(
-                constructed_sequences.registry().name(spec.target_id), events_map);
-        spec.realization_indices.reserve(static_cast<std::size_t>(std::max(longest, 0)));
-    }
+    //One index slot per position the junction can ever hold, taken from the Insertion that
+    //allocates it, so the per-scenario push_backs never reallocate.
+    const int longest = EventUtils::get_insertion_len_max(
+            constructed_sequences.registry().name(spec.target_id), events_map);
+    realization_indices.reserve(static_cast<std::size_t>(std::max(longest, 0)));
 
     index_map.set_current_layer(this->event_index, 0);
     unmutable_base_index = index_map.get(this->event_index);
@@ -487,11 +474,9 @@ void Dinucl_markov::add_to_marginals(long double scenario_proba, Marginal_array_
         }
     }
 
-    for (const auto &spec : this->traversal_specs) {
-        for (const int index : spec.realization_indices) {
-            if (index >= 0) {
-                updated_marginals[index] += scenario_proba;
-            }
+    for (const int index : realization_indices) {
+        if (index >= 0) {
+            updated_marginals[index] += scenario_proba;
         }
     }
 }

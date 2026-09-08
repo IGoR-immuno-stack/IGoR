@@ -28,6 +28,8 @@
  */
 
 #include <igor/Core/Model_Parms.h>
+
+#include <cassert>
 #include <igor/Core/gene_to_seqtype_migr.h>
 #include <igor/Core/EventUtils.h>
 using namespace std;
@@ -98,6 +100,11 @@ Model_Parms::Model_Parms(const Model_Parms &other)
     //It must be carried over: inference deep-copies Model_Parms once per OpenMP
     //thread, and every consumer of the seq_type ordering reads it from that copy.
     this->seq_type_registry = other.seq_type_registry;
+
+    //The events above were rebuilt through copy(), which does not carry resolved ids or
+    //adjacency. Re-running finalize() restores them; the registry is already frozen, so this
+    //resolves and does not rebuild.
+    this->finalize();
 }
 
 /*
@@ -130,6 +137,7 @@ Model_Parms::~Model_Parms()
  */
 bool Model_Parms::add_event(shared_ptr<Rec_Event> event_point)
 {
+    needs_finalize = true;
     //Adding an event after finalize() would leave it with an unresolved SeqTypeId, and
     //could require a seq_type the frozen registry no longer accepts.
     if (seq_type_registry.is_frozen()) {
@@ -532,6 +540,10 @@ void Model_Parms::update_edge_event_name(Rec_Event_name former_name, Rec_Event_n
 
 Events_map Model_Parms::get_events_map() const
 {
+    //Handing out a model whose events do not know their seq_type id or their neighbours is
+    //the failure this flag exists to catch: it shows up far away, as an event addressing the
+    //wrong segment. Debug-only -- the check is one bool, the fix is to call finalize().
+    assert(!needs_finalize && "Model_Parms::finalize() must run after the last add_event()");
     Events_map events_map;
     for (list<shared_ptr<Rec_Event>>::const_iterator iter = this->events.begin(); iter != this->events.end(); ++iter) {
         // DinucMarkov is keyed with Undefined_side: the seq_type already uniquely identifies
@@ -544,6 +556,10 @@ Events_map Model_Parms::get_events_map() const
 
 Events_map Model_Parms::get_events_map()
 {
+    //Handing out a model whose events do not know their seq_type id or their neighbours is
+    //the failure this flag exists to catch: it shows up far away, as an event addressing the
+    //wrong segment. Debug-only -- the check is one bool, the fix is to call finalize().
+    assert(!needs_finalize && "Model_Parms::finalize() must run after the last add_event()");
     Events_map events_map;
     for (list<shared_ptr<Rec_Event>>::const_iterator iter = this->events.begin(); iter != this->events.end(); ++iter) {
         Seq_side map_side = ((*iter)->get_type() == Dinuclmarkov_t) ? Undefined_side : (*iter)->get_side();
@@ -592,12 +608,21 @@ void Model_Parms::finalize()
         }
     }
 
-    //Second pass, once every id is known: let each event resolve what it needs from the
-    //ordering. Separate from the loop above because an event may ask about its *neighbours*,
-    //whose ids the first pass may not have assigned yet.
+    //Second pass, once every id is known: tell each event what sits next to it. This is the
+    //only place the ordering is turned into adjacency -- events are handed the answer rather
+    //than given a registry to ask, so "who is my neighbour" has one owner and one moment.
+    //Separate from the loop above because it reads ids the first pass may not have set yet.
     for (const auto &event : events) {
-        event->resolve_topology(seq_type_registry);
+        const SeqTypeId id = event->get_seq_type_id();
+        if (id == kNoSeqType) {
+            event->set_adjacent_segments(kNoSeqType, kNoSeqType);
+            continue;
+        }
+        event->set_adjacent_segments(seq_type_registry.left_neighbor(id),
+                                     seq_type_registry.right_neighbor(id));
     }
+
+    needs_finalize = false;
 }
 
 bool Model_Parms::requires_extended_format() const

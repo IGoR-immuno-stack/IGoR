@@ -241,18 +241,24 @@ public:
     virtual OffsetRole get_offset_role(SeqTypeId type_id, Seq_side side) const = 0;
 
     /**
-     * Resolve whatever this event needs from the model's *topology*, once.
+     * The segments immediately 5' and 3' of this event's own, in the registry ordering.
      *
-     * Called by Model_Parms::finalize() after every seq_type_id is assigned, so an event can
-     * turn "who is next to me" into stored ids instead of asking per scenario -- or, worse,
-     * hardcoding the answer. Tier 0 in G10's terms: it depends on the model alone.
+     * Set by Model_Parms::finalize() for every event, once per model, and `kNoSeqType` where
+     * the ordering runs out or the event has no seq_type. **Topology is the model's fact, not
+     * the event's**: events are told what is next to them rather than asking a registry, so
+     * there is exactly one place that reads the ordering and one moment at which it is read.
      *
-     * It is deliberately *not* initialize_event(): that runs only on the inference path, and
-     * the generation path draws realizations from events it never initializes. Overriders must
-     * be idempotent, since initialize_event() may call it again for a model built in code
-     * rather than read from a file.
+     * What an event *does* with its neighbours is its own business: an Insertion spans both,
+     * a Dinucl_markov seeds from whichever side its Markov chain runs from, a Gene_choice
+     * ignores them.
      */
-    virtual void resolve_topology(const SeqTypeRegistry &) {}
+    void set_adjacent_segments(SeqTypeId left, SeqTypeId right)
+    {
+        left_adjacent_id = left;
+        right_adjacent_id = right;
+    }
+    SeqTypeId get_left_adjacent_id() const { return left_adjacent_id; }
+    SeqTypeId get_right_adjacent_id() const { return right_adjacent_id; }
 
     /** @} */
     const Seq_type_String get_seq_type() const { return seq_type; };
@@ -365,6 +371,9 @@ protected:
     std::string nickname;
     Seq_type_String seq_type; // Seq_type for v2.0 format (e.g., "V_gene_seq", "VD_ins_seq")
     SeqTypeId seq_type_id = kNoSeqType; // resolved from seq_type by Model_Parms::finalize()
+    /// Neighbours in the registry ordering, also resolved by Model_Parms::finalize().
+    SeqTypeId left_adjacent_id = kNoSeqType;
+    SeqTypeId right_adjacent_id = kNoSeqType;
     int len_min;
     int len_max;
     Event_type type;

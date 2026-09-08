@@ -50,9 +50,6 @@
  * from the model file -- it is a property of the Markov chain's direction, not of the
  * topology, so the registry supplies *which* segment is the neighbour and the event supplies
  * *which side* it seeds from.
- *
- * The per-junction scratch state lives here too, so that a model with more than one junction
- * per event needs no more named members.
  */
 struct DinuclTraversalSpec {
     SeqTypeId target_id = kNoSeqType;
@@ -67,14 +64,6 @@ struct DinuclTraversalSpec {
     Seq_type anchor_seq = V_gene_seq;
     bool legacy_enums_valid = false;
     ///@}
-
-    /// One entry per position this event actually filled in the last scenario: the marginal
-    /// index credited there, or -1 where the pair involved an ambiguous nucleotide. Cleared
-    /// and refilled per scenario; its capacity is reserved once at initialize_event() from the
-    /// paired Insertion's longest realization, so the hot loop never allocates.
-    std::vector<int> realization_indices;
-    /// Layer this event claimed in the downstream-proba map for `target_id`.
-    int memory_layer = -1;
 };
 
 /**
@@ -102,12 +91,19 @@ public:
 
     //Accessors
     std::shared_ptr<Rec_Event> copy() override;
-    void resolve_topology(const SeqTypeRegistry &registry) override;
-
-    /// The junctions this event fills, as resolved by resolve_topology(). Exposed for tests:
-    /// a topology with no Seq_type enum entry cannot be checked through iterate() until the
-    /// harness can build events by SeqTypeId.
-    const std::vector<DinuclTraversalSpec> &get_traversal_specs() const { return traversal_specs; }
+    /**
+     * The junction this event fills and where it seeds from, derived rather than stored.
+     *
+     * Everything it needs is already on the event: its own seq_type id, the neighbours
+     * Model_Parms::finalize() resolved, and `event_side` -- which says which way the Markov
+     * chain runs and is therefore the event's own fact, not the topology's. Nothing to
+     * resolve, nothing to keep in sync, nothing to make idempotent.
+     *
+     * `anchor_id` is `kNoSeqType` when the model does not define one: no ordering, no
+     * declared direction, or nothing on the side the chain runs from. initialize_event()
+     * refuses that; iterate() may then assume it.
+     */
+    DinuclTraversalSpec get_junction() const;
     int size() const override;
 
     // Context-based iterate() interface
@@ -177,7 +173,14 @@ private:
     mutable bool correct_class;
 
     Seq_type ins_seq_type;
-    std::vector<DinuclTraversalSpec> traversal_specs;
+
+    /// One entry per position this event actually filled in the last scenario: the marginal
+    /// index credited there, or -1 where the pair involved an ambiguous nucleotide. Cleared
+    /// and refilled per scenario; its capacity is reserved once at initialize_event() from the
+    /// paired Insertion's longest realization, so the hot loop never allocates.
+    std::vector<int> realization_indices;
+    /// Layer claimed in the downstream-proba map for the junction this event fills.
+    int memory_layer_junction = -1;
 
     //std::pair<Seq_type,Seq_side> v_5_pair = std::make_pair (V_gene_seq,Five_prime);
     //std::pair<Seq_type,Seq_side> j_5_pair = std::make_pair (J_gene_seq,Five_prime);

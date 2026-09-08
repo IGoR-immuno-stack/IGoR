@@ -604,45 +604,54 @@ TEST_CASE("Dinucl_markov leaves no unfilled position behind", "[dinucl][invarian
 TEST_CASE("Dinucl_markov: a junction no Seq_type enum names still resolves", "[dinucl][iterate]")
 {
     // The capability B7 exists for. A tandem-D model's D1D2 junction has no entry in the
-    // Seq_type enum, so nothing about it can be recovered from a switch -- but the registry
-    // orders it like any other segment, and the event's own side says which way its chain
-    // runs. resolve_topology() must produce a usable spec, flagging only that the *generation*
-    // path's enum handles are unavailable.
+    // Seq_type enum, so nothing about it can be recovered from a switch -- but the ordering
+    // places it like any other segment and the event's own side says which way its chain runs.
+    //
+    // The event is told its neighbours, exactly as Model_Parms::finalize() tells them: the
+    // registry is read in one place, and the event only combines that answer with its own
+    // direction.
     SeqTypeRegistry tandem;
     tandem.register_legacy_seq_types();
     tandem.set_ordered_types({"V_gene_seq", "VD_ins_seq", "D_gene_seq", "D1D2_ins_seq",
                               "D2_gene_seq", "DJ_ins_seq", "J_gene_seq"});
     tandem.freeze();
 
+    const SeqTypeId junction_id = tandem.id("D1D2_ins_seq");
     Dinucl_markov dinucl(VD_ins_seq);
     dinucl.set_seq_type("D1D2_ins_seq");
-    dinucl.set_seq_type_id(tandem.id("D1D2_ins_seq"));
+    dinucl.set_seq_type_id(junction_id);
+    dinucl.set_adjacent_segments(tandem.left_neighbor(junction_id), tandem.right_neighbor(junction_id));
     dinucl.set_event_side(Three_prime);
-    dinucl.resolve_topology(tandem);
 
-    const auto &specs = dinucl.get_traversal_specs();
-    REQUIRE(specs.size() == 1);
-    CHECK(specs.front().target_id == tandem.id("D1D2_ins_seq"));
-    CHECK(specs.front().anchor_id == tandem.id("D_gene_seq"));
-    CHECK(specs.front().anchor_side == Three_prime);
+    const DinuclTraversalSpec forward = dinucl.get_junction();
+    CHECK(forward.target_id == junction_id);
+    CHECK(forward.anchor_id == tandem.id("D_gene_seq"));
+    CHECK(forward.anchor_side == Three_prime);
     // No Seq_type for either name, so the generation path's handles stay unset -- and are
-    // flagged as such rather than left silently wrong.
-    CHECK_FALSE(specs.front().legacy_enums_valid);
+    // flagged as such rather than left at a plausible-looking default.
+    CHECK_FALSE(forward.legacy_enums_valid);
 
     SECTION("The same event seeded from the other side anchors on the other neighbour")
     {
         dinucl.set_event_side(Five_prime);
-        dinucl.resolve_topology(tandem);
-        REQUIRE(dinucl.get_traversal_specs().size() == 1);
-        CHECK(dinucl.get_traversal_specs().front().anchor_id == tandem.id("D2_gene_seq"));
+        CHECK(dinucl.get_junction().anchor_id == tandem.id("D2_gene_seq"));
     }
 
-    SECTION("resolve_topology is idempotent")
+    SECTION("Deriving it twice gives the same answer")
     {
-        // initialize_event() calls it again for models built in code; running it twice must
-        // not accumulate specs.
-        dinucl.resolve_topology(tandem);
-        dinucl.resolve_topology(tandem);
-        CHECK(dinucl.get_traversal_specs().size() == 1);
+        // Nothing is stored, so there is no resolution step to run twice and no state to keep
+        // in sync -- which is the point of deriving rather than resolving.
+        CHECK(dinucl.get_junction().anchor_id == forward.anchor_id);
+        CHECK(dinucl.get_junction().target_id == forward.target_id);
+    }
+
+    SECTION("Without adjacency there is no junction")
+    {
+        // What an event holds before Model_Parms::finalize() has run.
+        Dinucl_markov unresolved(VD_ins_seq);
+        unresolved.set_seq_type("D1D2_ins_seq");
+        unresolved.set_seq_type_id(junction_id);
+        unresolved.set_event_side(Three_prime);
+        CHECK(unresolved.get_junction().anchor_id == kNoSeqType);
     }
 }

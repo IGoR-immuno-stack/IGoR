@@ -192,8 +192,8 @@ void Insertion::iterate(
 
     //One junction, whoever its neighbours are. The three hardcoded seq_type comparisons this
     //replaces ran per scenario; the neighbour ids are resolved once at initialize_event().
-    insertions = scenario.seq_offsets.get(right_neighbour_id, Five_prime)
-                 - scenario.seq_offsets.get(left_neighbour_id, Three_prime) - 1;
+    insertions = scenario.seq_offsets.get(get_right_adjacent_id(), Five_prime)
+                 - scenario.seq_offsets.get(get_left_adjacent_id(), Three_prime) - 1;
 
     proba_contribution = iterate_common(proba_contribution, insertions, base_index, exploration.index_map,
                                         model.offset_map, model.model_parameters);
@@ -343,14 +343,13 @@ void Insertion::initialize_event(
     downstream_proba_map.request_layer(this->seq_type_id);
     memory_layer_proba_map_junction = downstream_proba_map.claimed_layer(this->seq_type_id);
 
-    //Resolve the junction's neighbours once, from the ordering rather than from the seq_type
-    //name. This is what lets iterate() be topology-agnostic: a tandem-D D1D2_ins finds D1 and
-    //D2 by the same two lookups that find V and D here.
-    left_neighbour_id = registry.left_neighbor(this->seq_type_id);
-    right_neighbour_id = registry.right_neighbor(this->seq_type_id);
-    if (left_neighbour_id == kNoSeqType || right_neighbour_id == kNoSeqType) {
+    //The neighbours come from Model_Parms::finalize(), which is the one place that reads the
+    //ordering. A tandem-D D1D2_ins is told about D1 and D2 by the same pass that tells this
+    //event about V and D.
+    if (get_left_adjacent_id() == kNoSeqType || get_right_adjacent_id() == kNoSeqType) {
         throw runtime_error("Insertion " + this->name + " has no segment on one side: an "
-                            "insertion is defined by the two segments it sits between");
+                            "insertion is defined by the two segments it sits between, and "
+                            "Model_Parms::finalize() must have resolved them");
     }
 
     this->Rec_Event::initialize_event(processed_events, events_map, offset_map, downstream_proba_map,

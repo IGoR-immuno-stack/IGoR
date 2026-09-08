@@ -62,6 +62,11 @@ using SeqTypeId = std::uint16_t;
 /// whose seq_type has not been resolved against a registry yet.
 inline constexpr SeqTypeId kNoSeqType = std::numeric_limits<SeqTypeId>::max();
 
+/// The six seq_types register_legacy_seq_types() pins at their Seq_type enum values. An id
+/// below this is castable to a Seq_type; anything at or above it exists only as a name and an
+/// id, which is what a tandem-D junction looks like.
+inline constexpr std::size_t kLegacySeqTypeCount = 6;
+
 /**
  * \class SeqTypeRegistry SeqTypeRegistry.h
  * \brief Registry for the ordered sequence types in a constructed sequence (v2.0 format).

@@ -167,4 +167,10 @@ private:
     std::unordered_map<Rec_Event_name, Adjacency_list> edges;
     std::shared_ptr<Error_rate> error_rate;
     SeqTypeRegistry seq_type_registry;
+
+    /// True once an event has been added or renamed since the last finalize(). Events carry
+    /// resolved ids and adjacency, so a model handed out in this state would give its
+    /// consumers an event that does not know where it sits. Checked, in debug builds, where
+    /// the model is handed out.
+    bool needs_finalize = true;
 };

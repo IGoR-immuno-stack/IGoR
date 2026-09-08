@@ -1312,11 +1312,24 @@ recovered from the name.
 
 Three supporting changes:
 
-- **`Rec_Event::resolve_topology(const SeqTypeRegistry&)`**, called by `Model_Parms::finalize()`
-  after every id is assigned. Deliberately not `initialize_event()`: that runs on the inference path
-  only, and the generation path draws realizations from events it never initializes.
-  `Dinucl_markov::initialize_event()` calls it again for models built in code, which never reach
-  `finalize()` — so the override is required to be idempotent, and a test says so.
+- **`Model_Parms::finalize()` tells every event what sits next to it** — `Rec_Event` gains two ids
+  and a non-virtual `set_adjacent_segments()`. Topology is the model's fact: the ordering is read in
+  one place, at one moment, and events are *told* rather than handed a registry to ask.
+  `Dinucl_markov` derives its junction from those two ids plus its own `event_side` and stores
+  nothing, so there is no resolution step to run twice, no state to keep in sync and nothing to
+  make idempotent. `Insertion` uses the same two ids instead of resolving its own.
+
+  *(This replaces a first attempt that put a `resolve_topology()` virtual on `Rec_Event`, called
+  from `finalize()` and again from `initialize_event()`. Quentin's objection was right on three
+  counts: it made a model-level fact the event's responsibility, the second call was compensation
+  for un-finalized models rather than design, and it sat among inference-only lifecycle methods
+  while also serving generation.)*
+- **Finalization is no longer optional.** `Model_Parms` tracks whether an event has been added since
+  the last `finalize()` and asserts on it where the model is handed out, and the copy constructor
+  re-finalizes — a deep copy rebuilds events through `copy()`, which does not carry resolved state,
+  and inference makes one copy per thread. Fixtures that build an `events_map` without a
+  `Model_Parms` now do the adjacency pass themselves, which is the honest place for it: the harness
+  is what stands in for `finalize()`.
 - **Per-spec scratch state.** The index buffer and memory layer live in the spec. A model with
   several junctions per event needs no new members, and the buffer is freed with the event rather
   than by three hand-written `delete[]`s. It is `clear()`ed and `push_back`-filled per scenario with

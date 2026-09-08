@@ -311,10 +311,23 @@ void call_iterate(const std::shared_ptr<Rec_Event> &event, IterateTestState &sta
     //The event under test must be reachable through events_map like any other.
     events_map[IterateTestState::events_map_key(event)] = event;
 
-    //Step 1: every event gets a base index of 0 at layer 0, plus a marginal size and a
-    //crude upper bound. iterate_common() and add_to_marginals() both read these.
+    //Step 1: every event gets a base index of 0 at layer 0, plus a marginal size, a crude
+    //upper bound, and the neighbours the ordering gives it. iterate_common() and
+    //add_to_marginals() read the first two; anything generic reads the third.
+    //
+    //The adjacency pass is this harness standing in for Model_Parms::finalize(), which is
+    //where production resolves it. These fixtures build an events_map directly and never
+    //construct a Model_Parms, so the improvising belongs here -- not in an event method
+    //compensating for a model that was never finalized.
+    const SeqTypeRegistry &registry = state.scenario.constructed_sequences.registry();
     for (const auto &[key, ev] : events_map) {
         (void)key;
+        const SeqTypeId type_id = ev->get_seq_type_id();
+        if (type_id != kNoSeqType && static_cast<std::size_t>(type_id) < registry.total_count()) {
+            ev->set_adjacent_segments(registry.left_neighbor(type_id), registry.right_neighbor(type_id));
+        } else {
+            ev->set_adjacent_segments(kNoSeqType, kNoSeqType);
+        }
         const int event_index = ev->get_event_identifier();
         state.exploration.index_map.request_layer(event_index);
         state.exploration.index_map.set(event_index, state.base_index_for(event_index), 0);
