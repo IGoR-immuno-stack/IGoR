@@ -1734,6 +1734,14 @@ Unreachable today, because every anchor is a gene segment. It becomes reachable 
 occupancy walk lands: skip an empty D and `DJ_ins_seq`'s anchor is `VD_ins_seq`, whose last position
 is undefined until its own `Dinucl_markov` has run. §7.11, §7.12 and this entry are one cluster.
 
+**Enforced at the one boundary where it has to hold.** `Rec_Event::iterate_wrap_up`'s leaf branch
+asserts that no segment reaching the error rate still carries a placeholder, via
+`first_unfilled_segment()`. Under `#ifndef NDEBUG` only: the walk is linear in the scenario's
+length, and the default build is RelWithDebInfo, so release pays nothing — verified by the message
+string being absent from `libigorCore.so`. The predicate is exposed rather than buried in the assert
+so it can be unit-tested without a debug build, and the check itself was verified by forcing the
+guard on with the fill disabled, which reports the offending seq_type and aborts.
+
 Tests render an undefined position as `.` and an ambiguity code as `N`, so a failure message cannot
 blur the two. That change alone corrected four assertions that described a freshly-allocated
 junction as `"NNN"` — it is `"..."`.

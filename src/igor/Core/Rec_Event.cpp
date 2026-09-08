@@ -30,6 +30,9 @@
 #include <igor/Core/EventUtils.h>
 #include <igor/Core/Scenario.h>  // For Scenario view construction
 
+#include <cassert>
+#include <iostream>
+
 using namespace std;
 
 
@@ -186,6 +189,21 @@ void Rec_Event::iterate_wrap_up(
         );
     } else {
         // Leaf node - complete scenario and accumulate
+
+#ifndef NDEBUG
+        // Every position of every segment must be determined by now: int_undefined is a
+        // placeholder that e.g. Insertion leaves for its Dinucl_markov, never a value a consumer can
+        // interpret. Checked here because this is the one boundary where the invariant has to
+        // hold, and only under assertions -- the walk is linear in the scenario's length, and
+        // the default build defines NDEBUG, so release pays nothing.
+        if (const SeqTypeId unfilled = first_unfilled_segment(scenario.constructed_sequences);
+            unfilled != kNoSeqType) {
+            std::cerr << "Scenario leaf reached with unfilled nucleotides in "
+                      << scenario.constructed_sequences.registry().name(unfilled)
+                      << std::endl;
+            assert(false && "unfilled nucleotide in a completed scenario");
+        }
+#endif
 
         // Compute error-weighted probability using error_rate
         // TODO (Future): Consider changing compute_scenario_error_probability() to void return

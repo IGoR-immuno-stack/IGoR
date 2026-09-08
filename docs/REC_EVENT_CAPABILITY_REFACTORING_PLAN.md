@@ -1266,6 +1266,33 @@ single-D code path.
 
 **Dependencies**: B0, B2, B8 (seq_type-indexed maps must exist first). Blocks milestone 1.
 
+#### The `int_undefined` nucleotide contract is named, not finished *(added Sep 8 2026)*
+
+A constructed sequence carries the same three states as a *segment* does, one level down: a position
+can be absent from the string, present but not yet determined, or present and ambiguous. Until now
+the middle one existed only as a bare `-1` shared between `Insertion` and `Dinucl_markov`, with no
+name and no consumer contract; it is now `int_undefined`, placed past the real codes so that using
+it as an index is caught rather than wrapping, and asserted absent at the leaf in debug builds. See
+§7.14 of [ITERATE_GENERIC_REWRITE_PLAN.md](ITERATE_GENERIC_REWRITE_PLAN.md).
+
+**That is enough for the work in front of us and not enough in general.** What is still missing:
+
+- **The invariant is checked at one boundary, not established by the type.** Any new consumer of a
+  mid-scenario segment — a counter, a DP subscenario (Phase D), an error model that inspects
+  partial state — inherits an assumption nothing enforces at the point of use.
+- **Only `Insertion` may produce it and only `Dinucl_markov` may consume it.** That pairing is
+  convention, not contract. Phase A's capability queries are where it belongs: an event that
+  *creates* a segment it does not fill should have to say so, and the event that fills it should be
+  derivable rather than assumed adjacent.
+- **The decision to keep the state at all is open.** `Insertion` knows both neighbour offsets, so it
+  could write the read window itself and leave `Dinucl_markov` computing only probability — no
+  undetermined state anywhere. That forecloses a branching `Dinucl_markov`, and it interacts with
+  the borrowed-buffer defect (§7.13).
+
+**Decide it with B10**, not before: "allocated but undetermined" and "processed but absent" are the
+same question asked of a nucleotide and of a segment, and settling them apart risks settling them in
+opposite directions.
+
 ### B10 — Absent-segment semantics *(new; added Aug 27 2026, revised same day)*
 
 > **Status: ⬜ NOT STARTED — and deliberately *off* the tandem-D critical path.**

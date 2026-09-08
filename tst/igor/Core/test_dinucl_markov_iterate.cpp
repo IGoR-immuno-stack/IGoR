@@ -421,7 +421,11 @@ TEST_CASE("Dinucl_markov: a seq_type with no traversal spec is rejected", "[dinu
 // ===========================================================================================
 // The empty-anchor hazard (plan section 2.9, and now 7.12).
 //
-// Tagged [.] so it does NOT run by default. This is not squeamishness: the defect is an
+// Tagged [.] so it does NOT run by default, and deliberately *not* tagged [dinucl] either:
+// Catch2 runs a hidden test when a filter names one of its tags, so leaving [dinucl] on it
+// would make `igor_tests "[dinucl]"` segfault mid-run. Select it by [empty_anchor] alone.
+//
+// This is not squeamishness: the defect is an
 // unguarded `previous_seq.back()` on an empty Int_Str -- a std::vector<int> whose data() is
 // null -- so the failure mode is a segfault that takes the whole test binary down, which
 // [!shouldfail] cannot catch and CI cannot survive. Run it deliberately:
@@ -433,7 +437,7 @@ TEST_CASE("Dinucl_markov: a seq_type with no traversal spec is rejected", "[dinu
 // [.] tag comes off.
 // ===========================================================================================
 TEST_CASE("DEFECT (plan 7.12): a fully deleted anchor is read for a seed nucleotide",
-          "[.][dinucl][empty_anchor][defect]")
+          "[.][empty_anchor][defect]")   // deliberately NOT tagged [dinucl]: see below
 {
     IterateTestState state = create_iterate_state(kRead);
     auto dinucl = make_dinucl_markov(VD_ins_seq, /*event_id=*/0);
@@ -481,4 +485,75 @@ TEST_CASE("DEFECT (plan 7.13): Dinucl_markov fills the Insertion's buffer instea
     const Int_Str *own_layer = get_constructed_sequence(fixture.state, VD_ins_seq, 1);
     REQUIRE(own_layer != nullptr);
     CHECK(int_str_to_nt(*own_layer) == "GTA");
+}
+
+// ===========================================================================================
+// The completed-scenario invariant.
+//
+// int_undefined is a placeholder inside one scenario, never a value a consumer can interpret,
+// so by the time a scenario reaches the error rate every position must be determined.
+// Rec_Event::iterate_wrap_up asserts it at the leaf, under NDEBUG only -- the default build is
+// RelWithDebInfo, so these test the predicate directly rather than the assertion.
+// ===========================================================================================
+
+TEST_CASE("first_unfilled_segment: reports the placeholder, not the ambiguity code", "[dinucl][invariant]")
+{
+    Seq_type_str_p_map sequences(legacy_seq_type_registry(), 4);
+
+    SECTION("Nothing written at all")
+    {
+        CHECK(first_unfilled_segment(sequences) == kNoSeqType);
+    }
+
+    SECTION("Determined segments, ambiguity codes included")
+    {
+        // int_N is *determined*: the read says this position is ambiguous. It must not be
+        // reported -- conflating it with a placeholder is exactly the confusion int_undefined
+        // was moved to 15 to prevent.
+        Int_Str gene = nt2int("ACGT");
+        Int_Str ambiguous = nt2int("ANNT");
+        sequences.set(V_gene_seq, &gene, 0);
+        sequences.set(D_gene_seq, &ambiguous, 0);
+        CHECK(first_unfilled_segment(sequences) == kNoSeqType);
+    }
+
+    SECTION("A junction still holding placeholders")
+    {
+        Int_Str gene = nt2int("ACGT");
+        Int_Str junction(3, int_undefined);
+        sequences.set(V_gene_seq, &gene, 0);
+        sequences.set(VD_ins_seq, &junction, 0);
+        CHECK(first_unfilled_segment(sequences) == static_cast<SeqTypeId>(VD_ins_seq));
+    }
+
+    SECTION("A single unfilled position among filled ones is enough")
+    {
+        Int_Str partly = nt2int("ACGT");
+        partly.at(2) = int_undefined;
+        sequences.set(DJ_ins_seq, &partly, 0);
+        CHECK(first_unfilled_segment(sequences) == static_cast<SeqTypeId>(DJ_ins_seq));
+    }
+
+    SECTION("An empty segment and a null pointer are not unfilled")
+    {
+        // Both are legitimate states -- actively absent, and never written -- and neither
+        // holds a placeholder.
+        Int_Str empty;
+        sequences.set(VD_ins_seq, &empty, 0);
+        sequences.set(DJ_ins_seq, nullptr, 0);
+        CHECK(first_unfilled_segment(sequences) == kNoSeqType);
+    }
+}
+
+TEST_CASE("Dinucl_markov leaves no unfilled position behind", "[dinucl][invariant]")
+{
+    // The invariant as the production pair actually maintains it: the Insertion's placeholders
+    // are all gone once its Dinucl_markov has run.
+    VdFill fixture;
+    REQUIRE(first_unfilled_segment(fixture.state.scenario.constructed_sequences)
+            == static_cast<SeqTypeId>(VD_ins_seq));
+
+    const auto next = call_iterate_recording(fixture.dinucl, fixture.state);
+    REQUIRE(next->call_count() == 1);
+    CHECK(first_unfilled_segment(fixture.state.scenario.constructed_sequences) == kNoSeqType);
 }

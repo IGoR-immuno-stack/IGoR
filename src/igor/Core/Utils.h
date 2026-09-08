@@ -451,6 +451,21 @@ std::ostream &operator<<(std::ostream &stream, const Matrix<T> &mat)
 //distinguishes from a segment that has not been written yet (see SeqSegmentEmptiness).
 typedef DynamicSequenceMap<Int_Str_ptr> Seq_type_str_p_map;
 
+/**
+ * The first segment still holding an `int_undefined` position, or `kNoSeqType` if none does.
+ *
+ * `int_undefined` is a placeholder inside one scenario, not a value: an `Insertion` allocates
+ * a junction of the right length and the `Dinucl_markov` that follows fills it. By the time a
+ * scenario is complete every position must be determined, so anything that *consumes* a
+ * finished scenario -- the error rate, the counters, the output writers -- may assume it.
+ *
+ * The assumption is checked at the one place it has to hold (`Rec_Event::iterate_wrap_up`'s
+ * leaf branch) and only in a build with assertions enabled: the walk is linear in the
+ * scenario's length and the default build is RelWithDebInfo, which defines `NDEBUG`. Exposed
+ * rather than hidden in that assert so it can be unit-tested without a debug build.
+ */
+CORE_EXPORT SeqTypeId first_unfilled_segment(const Seq_type_str_p_map &constructed_sequences);
+
 //Keyed by the Event_safety enum as an opaque dense integer, hence LayeredArray rather than
 //DynamicSequenceMap: safety is not per-seq_type today. It is *pairwise* between gene
 //segments -- VD_safe, DJ_safe and VJ_safe are the three unordered pairs of V, D and J, and

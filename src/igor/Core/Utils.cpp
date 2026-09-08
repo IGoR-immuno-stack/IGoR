@@ -722,3 +722,24 @@ string translate(const string &seq)
         return AAChain;
     }
 }
+
+SeqTypeId first_unfilled_segment(const Seq_type_str_p_map &constructed_sequences)
+{
+    const SeqTypeRegistry &registry = constructed_sequences.registry();
+    for (std::size_t id = 0; id != registry.total_count(); ++id) {
+        const auto type_id = static_cast<SeqTypeId>(id);
+        if (!constructed_sequences.exists(type_id)) {
+            continue;
+        }
+        const Int_Str *segment = constructed_sequences.get(type_id);
+        if (segment == nullptr) {
+            continue;
+        }
+        for (const int nucleotide : *segment) {
+            if (nucleotide == int_undefined) {
+                return type_id;
+            }
+        }
+    }
+    return kNoSeqType;
+}
