@@ -1271,14 +1271,17 @@ What the sections pin, beyond the matrix rows:
   `previous` nucleotide comes from the anchor. A mutation deleting that copy survived the whole
   suite until a section pre-filled position 0 specifically — the second guard's section had been
   overwriting position 1.
-- **The junction is mutated in place, through the pointer the `Insertion` stored.** `Dinucl_markov`
-  never writes the constructed-sequence map, so the filled junction appears at the *Insertion's*
-  layer and no layer is claimed for it. A rewrite that started writing the map would shift the
-  layer numbering every downstream reader depends on.
+- **The junction is mutated in place, through the pointer the `Insertion` stored** — a confirmed
+  defect, §7.13, pinned by a `[!shouldfail]` case rather than asserted.
 - **An ambiguous read position is averaged, not indexed** — `dinuc_proba_matrix` instead of a
   marginal lookup, and `-1` in the realization indices. The matrix is built by
   `update_event_internal_probas()`, which `GenModel` calls and `initialize_event()` does not, so the
-  fixture builds it explicitly.
+  fixture builds it explicitly. **Follow-up (agreed, not scheduled here):** that construction belongs
+  in `initialize_event()`. It is a tier-0 computation in G10's terms — it depends only on the
+  marginals — and leaving it to an out-of-band call means the matrix is whatever the last caller
+  left, or zero. Any consumer that forgets it gets probability 0 for every ambiguous position, with
+  no diagnostic. Moving it is a behaviour-preserving change for `GenModel` and removes a way to hold
+  the event wrong.
 
 **Ten mutations run, all caught** after the first-position gap was closed: both window offsets, the
 final reversal, the seed source, both placeholder guards, the conditional index losing its
@@ -1667,6 +1670,36 @@ scenario has to be enumerated in the right order, on the right read, for either 
 nucleotide must be skipped or rejected, never read. G9's `first_occupied_*` walk is the fix — but
 per §7.11 the walk is *also* a behaviour change, so B7 must land the two together and say which
 scenarios move. When it does, the `[.]` comes off.
+
+### 7.13 — `Dinucl_markov` writes through the `Insertion`'s pointer, claiming no layer of its own
+
+*(Raised Sep 8 2026 reviewing 2a.)*
+
+Every other event claims a memory layer for what it writes, so a sibling scenario restores the
+previous value on backtracking. `Dinucl_markov` does not: it takes the `Int_Str *` the `Insertion`
+left in the constructed-sequence map and fills that buffer in place, claiming nothing and never
+writing the map. The filled junction therefore stands at the *Insertion's* layer.
+
+**This is sound only because the two events behave as one.** Neither branches — an insertion's
+realization is determined by its neighbours and a Dinucl_markov's by the read — so there is never a
+sibling scenario to corrupt, and the `Insertion` re-assigns the buffer on its next call regardless.
+That is a property of the current pair, not of the layer contract.
+
+It breaks as soon as either side gains a branch, and both are plausible:
+
+- an `Insertion` that enumerates lengths rather than deriving one — which is what an indel-aware
+  error model needs, and which §8.1 already lists as a coming requirement;
+- a `Dinucl_markov` that branched over the nucleotides an ambiguous read position stands for.
+
+In either case two sibling scenarios share one buffer, and the second reads the first's nucleotides
+where it expects placeholders. Silently: the fill is guarded by `ins_seq.at(i) == -1`, so an
+already-written position reads as *someone has filled this*, which is exactly what the second
+sibling must not conclude.
+
+**Pinned as a `[!shouldfail]` case** stating the intended behaviour — the filled junction at this
+event's own layer, the placeholders still readable at the layer below. Not fixed in B7: it changes
+which layer a downstream reader finds the junction at, so it needs its own commit and its own
+regression run. It is also a prerequisite for either branching change, not a tidy-up.
 
 ## 8. Decisions taken (Sep 1 2026 review)
 

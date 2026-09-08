@@ -329,20 +329,6 @@ TEST_CASE("Dinucl_markov: downstream bound and memory layering", "[dinucl][itera
         CHECK(get_downstream_bound(fixture.state, VD_ins_seq, 1) == Approx(1.0));
     }
 
-    SECTION("The junction sequence is mutated in place, at the layer it already stood on")
-    {
-        // Unlike every other event, Dinucl_markov does not write the constructed-sequence map
-        // at all: it takes the pointer the Insertion stored and fills the buffer through it.
-        // So the filled junction appears at layer 0 -- the Insertion's layer -- and no layer
-        // is claimed for it. A rewrite that started writing the map instead would change the
-        // layer numbering every downstream reader depends on.
-        VdFill fixture;
-        const auto next = call_iterate_recording(fixture.dinucl, fixture.state);
-        REQUIRE(next->call_count() == 1);
-        const Int_Str *at_layer_zero = get_constructed_sequence(fixture.state, VD_ins_seq, 0);
-        REQUIRE(at_layer_zero != nullptr);
-        CHECK(int_str_to_nt(*at_layer_zero) == "GTA");
-    }
 }
 
 TEST_CASE("Dinucl_markov: pruning", "[dinucl][iterate]")
@@ -464,4 +450,35 @@ TEST_CASE("DEFECT (plan 7.12): a fully deleted anchor is read for a seed nucleot
     }
 
     CHECK_THROWS(call_iterate(dinucl, state));
+}
+
+TEST_CASE("DEFECT (plan 7.13): Dinucl_markov fills the Insertion's buffer instead of its own layer",
+          "[dinucl][iterate][defect][!shouldfail]")
+{
+    // Every other event claims a memory layer for what it writes, so that a sibling scenario
+    // restores the previous value on backtracking. Dinucl_markov does not: it takes the
+    // pointer the Insertion stored in the constructed-sequence map and fills that buffer
+    // through it, claiming nothing and writing the map not at all.
+    //
+    // It works today only because the two events behave as one -- neither branches, so there
+    // is never a sibling to corrupt, and the Insertion re-assigns the buffer on its next call
+    // anyway. That is a property of the current pair, not of the contract: an Insertion that
+    // looped over lengths (an indel-aware error model) or a Dinucl_markov that branched over
+    // ambiguous nucleotides would have siblings sharing one buffer, and the second would read
+    // the first's nucleotides where it expects placeholders -- silently, since the
+    // placeholder guard treats an already-written position as "someone filled this".
+    //
+    // Intended: the filled junction stands at this event's own layer, and the layer below
+    // still holds the placeholders the Insertion wrote.
+    VdFill fixture;
+    const auto next = call_iterate_recording(fixture.dinucl, fixture.state);
+    REQUIRE(next->call_count() == 1);
+
+    const Int_Str *insertion_layer = get_constructed_sequence(fixture.state, VD_ins_seq, 0);
+    REQUIRE(insertion_layer != nullptr);
+    CHECK(int_str_to_nt(*insertion_layer) == "NNN");
+
+    const Int_Str *own_layer = get_constructed_sequence(fixture.state, VD_ins_seq, 1);
+    REQUIRE(own_layer != nullptr);
+    CHECK(int_str_to_nt(*own_layer) == "GTA");
 }
