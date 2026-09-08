@@ -309,7 +309,7 @@ void call_iterate(const std::shared_ptr<Rec_Event> &event, IterateTestState &sta
             state.model.offset_map);
 
     //The event under test must be reachable through events_map like any other.
-    events_map[std::make_tuple(event->get_type(), event->get_seq_type(), event->get_side())] = event;
+    events_map[IterateTestState::events_map_key(event)] = event;
 
     //Step 1: every event gets a base index of 0 at layer 0, plus a marginal size and a
     //crude upper bound. iterate_common() and add_to_marginals() both read these.
@@ -534,9 +534,15 @@ std::string segment_run(Seq_Offset five_prime, Seq_Offset three_prime)
     return run;
 }
 
-std::shared_ptr<Dinucl_markov> make_dinucl_markov(Seq_type target, int event_id)
+std::shared_ptr<Dinucl_markov> make_dinucl_markov(Seq_type target, int event_id, Seq_side chain_side)
 {
     auto event = std::make_shared<Dinucl_markov>(target);
+    if (chain_side == Undefined_side) {
+        //As Model_Parms does for a legacy model file, which declares Undefined_side and lets
+        //the reader derive the direction from the gene class.
+        chain_side = (target == DJ_ins_seq) ? Five_prime : Three_prime;
+    }
+    event->set_event_side(chain_side);
     event->set_event_identifier(event_id);
     event->set_priority(1);
     const Seq_type_String seq_type = EventUtils::seq_type_to_string(target);

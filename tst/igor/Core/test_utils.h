@@ -279,8 +279,18 @@ public:
      */
     void add_event(const std::shared_ptr<Rec_Event> &event)
     {
-        model_storage.events_map[std::make_tuple(event->get_type(), event->get_seq_type(),
-                                                 event->get_side())] = event;
+        model_storage.events_map[events_map_key(event)] = event;
+    }
+
+    /// Key an event exactly as Model_Parms::get_events_map() does. Dinucl_markov is keyed with
+    /// Undefined_side whatever its own side: for that event the side carries the direction its
+    /// Markov chain runs in, not part of its identity, and every lookup uses Undefined_side.
+    static std::tuple<Event_type, Seq_type_String, Seq_side>
+    events_map_key(const std::shared_ptr<Rec_Event> &event)
+    {
+        const Seq_side map_side =
+                (event->get_type() == Dinuclmarkov_t) ? Undefined_side : event->get_side();
+        return std::make_tuple(event->get_type(), event->get_seq_type(), map_side);
     }
 
     /// Mark an event as already processed, so *_chosen is true for the event under test.
@@ -597,10 +607,19 @@ std::shared_ptr<Deletion> make_deletion(Seq_type target, Seq_side side, int min_
 /// Present purely so a junction has non-zero insertion bounds; always fixed.
 std::shared_ptr<Insertion> make_insertion(Seq_type target, int min_ins, int max_ins, int event_id);
 
-/// Build the Dinucl_markov event that fills `target`. An Insertion cannot be initialized
-/// without one: initialize_crude_scenario_proba_bound() looks it up in events_map and throws
-/// if it is missing. Always fixed.
-std::shared_ptr<Dinucl_markov> make_dinucl_markov(Seq_type target, int event_id);
+/**
+ * Build the Dinucl_markov event that fills `target`. An Insertion cannot be initialized
+ * without one: initialize_crude_scenario_proba_bound() looks it up in events_map and throws
+ * if it is missing. Always fixed.
+ *
+ * `chain_side` is the anchor's end facing the junction, i.e. the direction the Markov chain
+ * runs from. It defaults to what Model_Parms derives for a legacy model file -- VD and VJ seed
+ * from the 3' end of the segment on their left, DJ from the 5' end of the one on their right.
+ * The event carries it as its `event_side`, and B7 resolves the anchor from it plus the
+ * registry ordering, so a fixture that leaves it Undefined_side has no junction to fill.
+ */
+std::shared_ptr<Dinucl_markov> make_dinucl_markov(Seq_type target, int event_id,
+                                                  Seq_side chain_side = Undefined_side);
 
 /**
  * A repeating ACGT run spanning the inclusive read positions [five_prime, three_prime].

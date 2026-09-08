@@ -41,10 +41,40 @@
 
 #include <igorCoreExport.h>
 
+/**
+ * One junction a Dinucl_markov event fills, and where it takes its seed nucleotide from.
+ *
+ * `anchor_side` is the *anchor's* end facing the junction: `Three_prime` means the anchor sits
+ * to the 5' side and the chain runs forward, `Five_prime` that it sits to the 3' side and the
+ * chain runs backwards. It comes from the event's own `event_side`, which Model_Parms sets
+ * from the model file -- it is a property of the Markov chain's direction, not of the
+ * topology, so the registry supplies *which* segment is the neighbour and the event supplies
+ * *which side* it seeds from.
+ *
+ * The per-junction scratch state lives here too, so that a model with more than one junction
+ * per event needs no more named members.
+ */
 struct DinuclTraversalSpec {
-    Seq_type target_seq;
-    Seq_type anchor_seq;
-    Seq_side anchor_side;
+    SeqTypeId target_id = kNoSeqType;
+    SeqTypeId anchor_id = kNoSeqType;
+    Seq_side anchor_side = Undefined_side;
+
+    ///@{ \name Legacy enum handles, for the generation path only
+    /// draw_random_realization() writes into an `unordered_map<Seq_type, string>`, which no
+    /// non-legacy seq_type can key. Resolved when the names allow it and unused otherwise;
+    /// B9 removes them with the rest of the generation path's enum dependency.
+    Seq_type target_seq = VD_ins_seq;
+    Seq_type anchor_seq = V_gene_seq;
+    bool legacy_enums_valid = false;
+    ///@}
+
+    /// Marginal index per filled position, or -1 where the pair was ambiguous. Sized at
+    /// initialize_event() from the paired Insertion's longest realization.
+    std::vector<int> realization_indices;
+    /// How much of `realization_indices` the last iterate() filled.
+    std::size_t filled_size = 0;
+    /// Layer this event claimed in the downstream-proba map for `target_id`.
+    int memory_layer = -1;
 };
 
 /**
@@ -72,6 +102,12 @@ public:
 
     //Accessors
     std::shared_ptr<Rec_Event> copy() override;
+    void resolve_topology(const SeqTypeRegistry &registry) override;
+
+    /// The junctions this event fills, as resolved by resolve_topology(). Exposed for tests:
+    /// a topology with no Seq_type enum entry cannot be checked through iterate() until the
+    /// harness can build events by SeqTypeId.
+    const std::vector<DinuclTraversalSpec> &get_traversal_specs() const { return traversal_specs; }
     int size() const override;
 
     // Context-based iterate() interface
@@ -128,18 +164,6 @@ private:
     Matrix<double> dinuc_proba_matrix;
 
     int total_nucl_count;
-    //Int_Str vd_seq;//&
-    int max_vd_ins;
-    int *vd_realizations_indices = nullptr;
-    size_t vd_seq_size;
-    //Int_Str vj_seq;//&
-    int max_vj_ins;
-    int *vj_realizations_indices = nullptr;
-    size_t vj_seq_size;
-    //Int_Str dj_seq;//&
-    int max_dj_ins;
-    int *dj_realizations_indices = nullptr;
-    size_t dj_seq_size;
 
     Int_Str previous_seq; //&
     size_t previous_seq_size;
@@ -152,8 +176,6 @@ private:
     double proba_contribution;
     mutable bool correct_class;
 
-    int memory_layer_proba_map_junction_1;
-    int memory_layer_proba_map_junction_2;
     Seq_type ins_seq_type;
     std::vector<DinuclTraversalSpec> traversal_specs;
 

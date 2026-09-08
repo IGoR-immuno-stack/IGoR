@@ -408,14 +408,57 @@ TEST_CASE("Dinucl_markov: an ambiguous read position is averaged, not indexed", 
     CHECK(next->calls.front().sequences.at(VD_ins_seq) == "N");
 }
 
-TEST_CASE("Dinucl_markov: a seq_type with no traversal spec is rejected", "[dinucl][iterate]")
+TEST_CASE("Dinucl_markov: a junction with nothing to seed from is rejected", "[dinucl][iterate]")
 {
-    // The specs come from a hardcoded switch over the three legacy junctions, so any other
-    // seq_type yields an empty vector. B7 derives them from the registry instead, at which
-    // point this becomes "a seq_type with no neighbours".
+    // Before B7 this read "a seq_type outside the hardcoded switch"; now it is the general
+    // statement, and there are three ways to fail it.
+    SECTION("Nothing on the side the chain runs from")
+    {
+        // V_gene_seq is first in the ordering, so a chain seeding from its left has no anchor.
+        IterateTestState state = create_iterate_state(kRead);
+        auto dinucl = make_dinucl_markov(V_gene_seq, /*event_id=*/0, Three_prime);
+        CHECK_THROWS_AS(call_iterate(dinucl, state), std::invalid_argument);
+    }
+
+    SECTION("No direction declared")
+    {
+        // event_side is what says which way the Markov chain runs. Without it the ordering
+        // alone cannot choose between the two neighbours -- both are equally adjacent.
+        IterateTestState state = create_iterate_state(kRead);
+        auto dinucl = make_dinucl_markov(VD_ins_seq, /*event_id=*/0);
+        dinucl->set_event_side(Undefined_side);
+        CHECK_THROWS_AS(call_iterate(dinucl, state), std::invalid_argument);
+    }
+
+    SECTION("A seq_type the registry does not know")
+    {
+        IterateTestState state = create_iterate_state(kRead);
+        auto dinucl = make_dinucl_markov(VD_ins_seq, /*event_id=*/0);
+        dinucl->set_seq_type_id(kNoSeqType);
+        CHECK_THROWS_AS(call_iterate(dinucl, state), std::invalid_argument);
+    }
+}
+
+TEST_CASE("Dinucl_markov: the direction comes from the event, the anchor from the ordering",
+          "[dinucl][iterate]")
+{
+    // The split B7 rests on. The registry says which segments are adjacent; event_side says
+    // which of the two seeds the chain. Building a VD junction that seeds from its *right*
+    // neighbour is not a model IGoR ships, but it is a model the code must now express --
+    // and it proves the anchor is not being recovered from the seq_type name.
     IterateTestState state = create_iterate_state(kRead);
-    auto dinucl = make_dinucl_markov(V_gene_seq, /*event_id=*/0);
-    CHECK_THROWS_AS(call_iterate(dinucl, state), std::invalid_argument);
+    auto dinucl = make_dinucl_markov(VD_ins_seq, /*event_id=*/0, /*chain_side=*/Five_prime);
+    state.preset_segment(D_gene_seq, 14, 18, segment_run(14, 18));
+    state.preset_placeholders(VD_ins_seq, 3);
+    state.add_event(make_insertion(VD_ins_seq, 0, 6, /*event_id=*/1));
+    for (std::size_t i = 0; i != 32; ++i) {
+        state.set_marginal(i, 0.5L);
+    }
+
+    const auto next = call_iterate_recording(dinucl, state);
+    REQUIRE(next->call_count() == 1);
+    // Reverse traversal off D's 5' end at 14: read positions 11, 12, 13.
+    CHECK(next->calls.front().sequences.at(VD_ins_seq) == "TAC");
 }
 
 // ===========================================================================================
@@ -556,4 +599,50 @@ TEST_CASE("Dinucl_markov leaves no unfilled position behind", "[dinucl][invarian
     const auto next = call_iterate_recording(fixture.dinucl, fixture.state);
     REQUIRE(next->call_count() == 1);
     CHECK(first_unfilled_segment(fixture.state.scenario.constructed_sequences) == kNoSeqType);
+}
+
+TEST_CASE("Dinucl_markov: a junction no Seq_type enum names still resolves", "[dinucl][iterate]")
+{
+    // The capability B7 exists for. A tandem-D model's D1D2 junction has no entry in the
+    // Seq_type enum, so nothing about it can be recovered from a switch -- but the registry
+    // orders it like any other segment, and the event's own side says which way its chain
+    // runs. resolve_topology() must produce a usable spec, flagging only that the *generation*
+    // path's enum handles are unavailable.
+    SeqTypeRegistry tandem;
+    tandem.register_legacy_seq_types();
+    tandem.set_ordered_types({"V_gene_seq", "VD_ins_seq", "D_gene_seq", "D1D2_ins_seq",
+                              "D2_gene_seq", "DJ_ins_seq", "J_gene_seq"});
+    tandem.freeze();
+
+    Dinucl_markov dinucl(VD_ins_seq);
+    dinucl.set_seq_type("D1D2_ins_seq");
+    dinucl.set_seq_type_id(tandem.id("D1D2_ins_seq"));
+    dinucl.set_event_side(Three_prime);
+    dinucl.resolve_topology(tandem);
+
+    const auto &specs = dinucl.get_traversal_specs();
+    REQUIRE(specs.size() == 1);
+    CHECK(specs.front().target_id == tandem.id("D1D2_ins_seq"));
+    CHECK(specs.front().anchor_id == tandem.id("D_gene_seq"));
+    CHECK(specs.front().anchor_side == Three_prime);
+    // No Seq_type for either name, so the generation path's handles stay unset -- and are
+    // flagged as such rather than left silently wrong.
+    CHECK_FALSE(specs.front().legacy_enums_valid);
+
+    SECTION("The same event seeded from the other side anchors on the other neighbour")
+    {
+        dinucl.set_event_side(Five_prime);
+        dinucl.resolve_topology(tandem);
+        REQUIRE(dinucl.get_traversal_specs().size() == 1);
+        CHECK(dinucl.get_traversal_specs().front().anchor_id == tandem.id("D2_gene_seq"));
+    }
+
+    SECTION("resolve_topology is idempotent")
+    {
+        // initialize_event() calls it again for models built in code; running it twice must
+        // not accumulate specs.
+        dinucl.resolve_topology(tandem);
+        dinucl.resolve_topology(tandem);
+        CHECK(dinucl.get_traversal_specs().size() == 1);
+    }
 }

@@ -905,7 +905,7 @@ already flagged as the milestone-1 blocker and because `Gene_choice` is the only
 | **1a** | ✅ **done** — `Insertion` characterization, 8 `TEST_CASE`s against the **unmodified** event | unit + mutation | n/a — tests only |
 | **1b** | ✅ **done** — **B6**, `Insertion::iterate` generic (G9). Smallest, one hot-loop win. | full ladder | **yes** |
 | **2a** | ✅ **done** — `Dinucl_markov` characterization, 12 `TEST_CASE`s; the empty-anchor case is `[.]`-hidden because it segfaults (§7.12) | unit + mutation | n/a — tests only |
-| **2b** | **B7** — `Dinucl_markov` specs from the registry (G9); skip-empty walk; per-spec buffers | full ladder + the empty-anchor test | **yes** |
+| **2b** | ✅ **done** — **B7**, specs from the registry (G9) and per-spec buffers. Skip-empty walk **deferred**: it is §7.12's fix, not a refactor (§7.11) | full ladder | **yes** |
 | **S4** | Junction pair key; `has_effect_on(left,right)` in the base; the three overrides deleted | full ladder | **yes** |
 | **3** | **B11a** — `Gene_choice` alignment path generic (G4, G2, G8, and G5 via S4). Characterization already delivered by T0 | full ladder + benchmark | **yes**, except §7.1 |
 | **S5** | Safety row-bitmask; row-suffix propagation; `Event_safety` deleted | full ladder + the empty-segment transitivity test | **yes** (§2.3 corollary) |
@@ -1296,6 +1296,49 @@ placeholder nucleotides and **no offsets**. The missing offsets are deliberate: 
 §6.3 pins, and a fixture that supplied them would test against a scenario the production code cannot
 produce.
 
+### 6.7 — Delivered (2b): B7 *(Sep 8 2026)*
+
+The hardcoded traversal-spec table, the two residual `switch`es in `iterate()`, the one in
+`add_to_marginals()`, three raw `new int[]` buffers and nine named members are gone.
+**All of 2a's sections pass unchanged.** `Dinucl_markov::iterate` reaches **100% lines and blocks**.
+
+The load-bearing decision: **the registry supplies *which* segment is adjacent, the event supplies
+*which side* seeds the chain.** They are different kinds of fact — the ordering is topology, the
+direction is a property of the Markov chain — and the old table conflated them. `event_side`
+already carried the direction; `Model_Parms` derives it from the gene class for legacy files and
+reads it from the file for v2 ones, so B7 changes no model format. A test builds a VD junction
+seeded from its *right* neighbour, which IGoR ships no model for, to show the anchor is not being
+recovered from the name.
+
+Three supporting changes:
+
+- **`Rec_Event::resolve_topology(const SeqTypeRegistry&)`**, called by `Model_Parms::finalize()`
+  after every id is assigned. Deliberately not `initialize_event()`: that runs on the inference path
+  only, and the generation path draws realizations from events it never initializes.
+  `Dinucl_markov::initialize_event()` calls it again for models built in code, which never reach
+  `finalize()` — so the override is required to be idempotent, and a test says so.
+- **Per-spec scratch state.** The index buffer, filled size and memory layer live in the spec, sized
+  from the paired `Insertion`'s longest realization. A model with several junctions per event needs
+  no new members, and the buffers are freed with the event rather than by three hand-written
+  `delete[]`s.
+- **`iterate()`'s empty-specs `throw` is deleted** — unreachable, since `initialize_event()` refuses
+  to leave them empty. The same dead backstop B6 removed from `Insertion`.
+
+**Deferred, deliberately**: G9's `first_occupied_*` walk. It differs from the ordering neighbour
+exactly when the anchor is empty, which is §7.12's crash, so swapping it in *is* that fix rather
+than a refactor (§7.11). It needs a behaviour decision — reject the scenario, or discard it — and
+its own regression run.
+
+A tandem-D `D1D2_ins_seq` junction, which no `Seq_type` enum names, resolves correctly today; the
+test checks it through `resolve_topology()` rather than `iterate()`, because the harness cannot yet
+build events keyed by `SeqTypeId` alone.
+
+**Two fixture changes, no assertion changes.** `make_dinucl_markov()` now sets the chain direction
+the model file carries — the fixture had been under-specifying the event and relying on the
+hardcoded table to supply it. And `IterateTestState::add_event()` now keys events exactly as
+`Model_Parms::get_events_map()` does, with `Undefined_side` for `Dinucl_markov`; the harness had
+been keying by the event's own side, which only worked while that side was always `Undefined_side`.
+
 ### 6.2 — The regression gate has a flaky output
 
 *(Observed Sep 2 2026 during A0.)*
@@ -1305,24 +1348,33 @@ its outputs is **not deterministic**: `best_scenarios_counts.csv` mismatched onc
 that adds only uncalled virtuals, then matched on the next three runs (two `test_inference`, one
 full `test_regression`), while the pre-A0 baseline matched on its single run.
 
-Mechanism: `Best_scenarios_counter::dump_sequence_data()` is called from
-[GenModel.cpp:512-514](../src/igor/Core/GenModel.cpp#L512-L514) inside
-`#pragma omp critical(dump_counters)`, within the parallel loop over query sequences. `critical`
-serialises but does **not** order, so the rows land in whatever order threads finish sequences.
-Row *content* is deterministic — the tie-break at
-[Bestscenarioscounter.cpp:133](../src/igor/Core/Bestscenarioscounter.cpp#L133) is a strict `>`,
-so ties keep enumeration order, and enumeration within one sequence is single-threaded — but row
-*order* is not.
+**Mechanism (diagnosed properly since; the row-ordering explanation this section used to give was
+wrong — the comparator sorts by sequence index before comparing).** The marginals themselves are
+non-deterministic: `#pragma omp for schedule(dynamic) nowait` over query sequences, per-thread
+`single_thread_marginals +=`, merged under `#pragma omp critical`. Floating-point addition is not
+associative, so the sums differ by a few ULP between runs — invisible in the six-digit
+`iteration_N.txt` dumps, which is why only this one output moves.
+
+Those ULP differences decide a strict `>` in `Best_scenarios_counter` between realizations that are
+*exactly* degenerate: TRBV3-1\*01, TRBV3-2\*01 and TRBV3-2\*02 have identical
+`P(V=g) · P(v_3_del=d | V=g)` for d ≤ 7 under a uniform initialization with indistinguishable
+alignments. It only surfaces when that degenerate group straddles the `output.scenarios` cutoff of
+10; with 15 scenarios all three are kept and the comparison passes.
+
+**Discriminating a flake from a regression**: re-run with `OMP_NUM_THREADS=1`. One thread is
+deterministic, so a single-threaded pass plus a multi-threaded failure confined to
+`best_scenarios_counts.csv` is the flake. This is what 2b's first regression run turned out to be.
 
 **This matters more than its size suggests.** A gate that fails intermittently trains its readers
 to re-run rather than investigate, which is exactly how a real regression gets waved through
 during a multi-step refactor. Every "bitwise" claim in §6 depends on this gate meaning what it
 says.
 
-Fix shape (not done here — out of A0's scope): either sort rows by `seq_index` before comparing,
-or make the dump ordered. Confirm first whether the comparator is a plain `diff`; if it is,
-sorting in the comparator is the smaller change and does not touch inference code. Worth doing
-**before step 1**, since steps 1–5 all lean on this gate.
+Fix shape: either make the reduction deterministic (fixed chunks accumulated in index order) or
+give the counter a canonical tie-break (relative epsilon, then realization-vector ordering).
+Pinning the thread count alone is not enough with `schedule(dynamic)`. Sorting rows in the
+comparator — this section's original suggestion — would **not** help, since the rows differ in
+content, not order.
 
 ## 7. Where a generic rewrite would silently change results
 

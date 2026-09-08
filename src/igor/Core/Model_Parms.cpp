@@ -591,6 +591,13 @@ void Model_Parms::finalize()
             event->set_seq_type_id(seq_type_registry.id(name));
         }
     }
+
+    //Second pass, once every id is known: let each event resolve what it needs from the
+    //ordering. Separate from the loop above because an event may ask about its *neighbours*,
+    //whose ids the first pass may not have assigned yet.
+    for (const auto &event : events) {
+        event->resolve_topology(seq_type_registry);
+    }
 }
 
 bool Model_Parms::requires_extended_format() const

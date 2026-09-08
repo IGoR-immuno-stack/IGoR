@@ -240,6 +240,20 @@ public:
     /// What this event does to one end of the `type_id` segment.
     virtual OffsetRole get_offset_role(SeqTypeId type_id, Seq_side side) const = 0;
 
+    /**
+     * Resolve whatever this event needs from the model's *topology*, once.
+     *
+     * Called by Model_Parms::finalize() after every seq_type_id is assigned, so an event can
+     * turn "who is next to me" into stored ids instead of asking per scenario -- or, worse,
+     * hardcoding the answer. Tier 0 in G10's terms: it depends on the model alone.
+     *
+     * It is deliberately *not* initialize_event(): that runs only on the inference path, and
+     * the generation path draws realizations from events it never initializes. Overriders must
+     * be idempotent, since initialize_event() may call it again for a model built in code
+     * rather than read from a file.
+     */
+    virtual void resolve_topology(const SeqTypeRegistry &) {}
+
     /** @} */
     const Seq_type_String get_seq_type() const { return seq_type; };
     void set_seq_type(const Seq_type_String &st) { seq_type = st; }
