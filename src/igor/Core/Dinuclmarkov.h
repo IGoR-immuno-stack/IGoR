@@ -68,11 +68,11 @@ struct DinuclTraversalSpec {
     bool legacy_enums_valid = false;
     ///@}
 
-    /// Marginal index per filled position, or -1 where the pair was ambiguous. Sized at
-    /// initialize_event() from the paired Insertion's longest realization.
+    /// One entry per position this event actually filled in the last scenario: the marginal
+    /// index credited there, or -1 where the pair involved an ambiguous nucleotide. Cleared
+    /// and refilled per scenario; its capacity is reserved once at initialize_event() from the
+    /// paired Insertion's longest realization, so the hot loop never allocates.
     std::vector<int> realization_indices;
-    /// How much of `realization_indices` the last iterate() filled.
-    std::size_t filled_size = 0;
     /// Layer this event claimed in the downstream-proba map for `target_id`.
     int memory_layer = -1;
 };
@@ -188,7 +188,7 @@ private:
     int offset;
     int realization_final_index;
 
-    inline void iterate_common(int *, int &, Int_Str &, const Marginal_array_p &);
+    inline void iterate_common(std::vector<int> &, int &, Int_Str &, const Marginal_array_p &);
     inline std::queue<int> draw_random_common(const std::string &, std::string &, const Marginal_array_p &, int,
                                               std::uniform_real_distribution<double> &, std::mt19937_64 &) const;
     inline double compute_nt_freq(int, const Marginal_array_p &) const;

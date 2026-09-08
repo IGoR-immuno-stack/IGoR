@@ -1317,17 +1317,25 @@ Three supporting changes:
   only, and the generation path draws realizations from events it never initializes.
   `Dinucl_markov::initialize_event()` calls it again for models built in code, which never reach
   `finalize()` — so the override is required to be idempotent, and a test says so.
-- **Per-spec scratch state.** The index buffer, filled size and memory layer live in the spec, sized
-  from the paired `Insertion`'s longest realization. A model with several junctions per event needs
-  no new members, and the buffers are freed with the event rather than by three hand-written
-  `delete[]`s.
+- **Per-spec scratch state.** The index buffer and memory layer live in the spec. A model with
+  several junctions per event needs no new members, and the buffer is freed with the event rather
+  than by three hand-written `delete[]`s. It is `clear()`ed and `push_back`-filled per scenario with
+  its capacity reserved once, rather than written at fixed offsets alongside a separate filled
+  count — which also removes a latent fault the fixed-width array carried: a position that arrives
+  already filled contributes no probability term, but its *previous* scenario's index stayed in the
+  array and was still credited by `add_to_marginals()`. Unreachable today, because `Insertion`
+  re-allocates the junction as placeholders on every call; reachable the moment §7.13's shared
+  buffer gains a sibling.
 - **`iterate()`'s empty-specs `throw` is deleted** — unreachable, since `initialize_event()` refuses
   to leave them empty. The same dead backstop B6 removed from `Insertion`.
 
 **Deferred, deliberately**: G9's `first_occupied_*` walk. It differs from the ordering neighbour
 exactly when the anchor is empty, which is §7.12's crash, so swapping it in *is* that fix rather
-than a refactor (§7.11). It needs a behaviour decision — reject the scenario, or discard it — and
-its own regression run.
+than a refactor (§7.11). **The behaviour is decided (Sep 8 2026): throw.** Silently discarding a
+scenario whose anchor was fully deleted would bias the model — those scenarios are geometrically
+legitimate and their absence would not be visible anywhere — whereas a scenario that cannot be
+scored is a modelling error the user must see. It still changes behaviour relative to today's
+segfault, so it lands in its own commit with its own regression run, not in a refactoring step.
 
 A tandem-D `D1D2_ins_seq` junction, which no `Seq_type` enum names, resolves correctly today; the
 test checks it through `resolve_topology()` rather than `iterate()`, because the harness cannot yet
@@ -1716,10 +1724,13 @@ This is the second reachable crash this work has turned up in a branch no test e
 are a plausible source of the non-reproducible segfaults reported against the legacy code — the
 scenario has to be enumerated in the right order, on the right read, for either to fire.
 
-**Handling.** The reproducer is in the suite as a `[.]`-hidden case
-(`[dinucl][empty_anchor]`), because a segfault aborts the run rather than failing a test, which
-`[!shouldfail]` cannot express and CI cannot survive. It asserts what B7 owes: an anchor carrying no
-nucleotide must be skipped or rejected, never read. G9's `first_occupied_*` walk is the fix — but
+**Handling.** The reproducer is in the suite as a `[.]`-hidden case (`[empty_anchor]`), because a
+segfault aborts the run rather than failing a test, which `[!shouldfail]` cannot express and CI
+cannot survive. It asserts what the fix owes: an anchor carrying no nucleotide must be rejected,
+never read. **Decided (Sep 8 2026): throw, do not discard.** A scenario whose anchor was fully
+deleted is geometrically legitimate, so dropping it silently removes probability mass the model
+should account for and leaves no trace that it happened; a scenario that cannot be scored is a
+modelling error, and the user has to see it. G9's `first_occupied_*` walk is the fix — but
 per §7.11 the walk is *also* a behaviour change, so B7 must land the two together and say which
 scenarios move. When it does, the `[.]` comes off.
 

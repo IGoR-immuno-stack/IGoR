@@ -159,11 +159,14 @@ void Dinucl_markov::iterate(
     for (auto &spec : this->traversal_specs) {
         previous_seq = (*scenario.constructed_sequences.get(spec.anchor_id));
         Int_Str &target_seq = *const_cast<Int_Str *>(scenario.constructed_sequences.get(spec.target_id));
-        spec.filled_size = target_seq.size();
-        //The index buffer is sized from the paired Insertion's longest realization, so a
-        //junction can never outgrow it. Cheap to state, and the alternative is a silent write
-        //past the end -- which the three raw arrays this replaces would also have done.
-        assert(spec.realization_indices.size() >= target_seq.size()
+        //One entry per position actually filled, appended as the fill proceeds: a position
+        //that already held a nucleotide contributes no probability term and now records no
+        //index either, where the fixed-width array kept the previous scenario's value there.
+        spec.realization_indices.clear();
+        //Capacity comes from the paired Insertion's longest realization, so the push_backs
+        //below never reallocate. Worth stating: a junction that outgrew it would still be
+        //correct, just quietly allocating in the hot loop.
+        assert(spec.realization_indices.capacity() >= target_seq.size()
                && "junction longer than its Insertion's longest realization");
 
         //anchor_side is the anchor's end facing the junction, so it also says which way the
@@ -177,7 +180,7 @@ void Dinucl_markov::iterate(
             data_seq_substr = query.int_sequence.substr(char_index, target_seq.size());
             previous_nt_str = previous_seq.front();
             reverse(data_seq_substr.begin(), data_seq_substr.end());
-            iterate_common(spec.realization_indices.data(), previous_nt_str, target_seq,
+            iterate_common(spec.realization_indices, previous_nt_str, target_seq,
                            model.model_parameters);
             reverse(target_seq.begin(), target_seq.end());
         } else {
@@ -185,7 +188,7 @@ void Dinucl_markov::iterate(
                     scenario.seq_offsets.get(spec.anchor_id, spec.anchor_side) + 1;
             data_seq_substr = query.int_sequence.substr(start_index, target_seq.size());
             previous_nt_str = previous_seq.back();
-            iterate_common(spec.realization_indices.data(), previous_nt_str, target_seq,
+            iterate_common(spec.realization_indices, previous_nt_str, target_seq,
                            model.model_parameters);
         }
 
@@ -341,8 +344,8 @@ void Dinucl_markov::write2txt_v2(ofstream &outfile)
 }
 
 
-void Dinucl_markov::iterate_common(int *indices_array, int &previous_assigned_nt, Int_Str &ins_seq,
-                                   const Marginal_array_p &model_parameters_point)
+void Dinucl_markov::iterate_common(std::vector<int> &realization_indices, int &previous_assigned_nt,
+                                   Int_Str &ins_seq, const Marginal_array_p &model_parameters_point)
 {
 
     if (!ins_seq.empty()) {
@@ -362,11 +365,11 @@ void Dinucl_markov::iterate_common(int *indices_array, int &previous_assigned_nt
                 realization_final_index = base_index + offset + sec_nt_index;
                 proba_contribution *= model_parameters_point
                         [realization_final_index]; ///compute_nt_freq(base_index+offset , model_parameters_point);
-                indices_array[0] = realization_final_index;
+                realization_indices.push_back(realization_final_index);
             } else {
                 //If an ambiguous nucleotide is present we take the average probability over possible underlying nts
                 proba_contribution *= dinuc_proba_matrix(first_nt_index, sec_nt_index);
-                indices_array[0] = -1;
+                realization_indices.push_back(-1);
             }
 
             ins_seq.at(0) = data_seq_substr.at(0);
@@ -391,11 +394,11 @@ void Dinucl_markov::iterate_common(int *indices_array, int &previous_assigned_nt
                     proba_contribution *= model_parameters_point
                             [base_index + offset
                              + sec_nt_index]; ///compute_nt_freq(base_index+offset , model_parameters_point);
-                    indices_array[i] = realization_final_index;
+                    realization_indices.push_back(realization_final_index);
                 } else {
                     //If an ambiguous nucleotide is present we take the average probability over possible underlying nts
                     proba_contribution *= dinuc_proba_matrix(first_nt_index, sec_nt_index);
-                    indices_array[i] = -1;
+                    realization_indices.push_back(-1);
                 }
 
                 ins_seq.at(i) = data_seq_substr.at(i);
@@ -462,7 +465,7 @@ void Dinucl_markov::initialize_event(
         //new members -- and freed with the event, unlike the three raw arrays this replaces.
         const int longest = EventUtils::get_insertion_len_max(
                 constructed_sequences.registry().name(spec.target_id), events_map);
-        spec.realization_indices.assign(static_cast<std::size_t>(std::max(longest, 0)), -1);
+        spec.realization_indices.reserve(static_cast<std::size_t>(std::max(longest, 0)));
     }
 
     index_map.set_current_layer(this->event_index, 0);
@@ -485,9 +488,9 @@ void Dinucl_markov::add_to_marginals(long double scenario_proba, Marginal_array_
     }
 
     for (const auto &spec : this->traversal_specs) {
-        for (size_t i = 0; i != spec.filled_size && i != spec.realization_indices.size(); ++i) {
-            if (spec.realization_indices[i] >= 0) {
-                updated_marginals[spec.realization_indices[i]] += scenario_proba;
+        for (const int index : spec.realization_indices) {
+            if (index >= 0) {
+                updated_marginals[index] += scenario_proba;
             }
         }
     }
