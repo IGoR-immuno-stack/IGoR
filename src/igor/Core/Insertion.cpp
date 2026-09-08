@@ -199,7 +199,7 @@ void Insertion::iterate(
                                         model.offset_map, model.model_parameters);
 
     if (proba_contribution != 0) {
-        inserted_str.assign(insertions, -1);
+        inserted_str.assign(insertions, int_undefined);
         //The VD and DJ arms used to re-derive this as
         //`event_realizations.at(to_string(insertions)).index` -- a string conversion and a hash
         //lookup in the hot loop, carrying its own FIXME. iterate_common() has already resolved
@@ -520,7 +520,7 @@ void Insertion::iterate_initialize_Len_proba(Seq_type considered_junction, std::
             }
 
             //Build an inserted sequence to let the Dinuc know about the number of insertions considered
-            inserted_str.assign(iter->second.value_int, -1);
+            inserted_str.assign(iter->second.value_int, int_undefined);
             constructed_sequences.set_current(seq_type, &inserted_str);
 
             //Update the length and the probability within the recursive call
@@ -551,7 +551,7 @@ void Insertion::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &model_q
 
     for (unordered_map<string, Event_realization>::const_iterator iter = this->event_realizations.begin();
          iter != this->event_realizations.end(); ++iter) {
-        inserted_str.assign(iter->second.value_int, -1);
+        inserted_str.assign(iter->second.value_int, int_undefined);
         constructed_sequences.set_current(seq_type, &inserted_str);
         double init_proba = 1.0;
         this->Rec_Event::iterate_initialize_Len_proba(seq_type, junction_length_best_proba_map, model_queue, init_proba,

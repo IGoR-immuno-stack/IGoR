@@ -1701,6 +1701,50 @@ event's own layer, the placeholders still readable at the layer below. Not fixed
 which layer a downstream reader finds the junction at, so it needs its own commit and its own
 regression run. It is also a prerequisite for either branching change, not a tidy-up.
 
+### 7.14 — "Not filled yet" was a bare `-1`, on the same axis as `int_N`
+
+*(Raised and addressed Sep 8 2026 reviewing 2a.)*
+
+`Int_Str` carried three states on one axis, only two of them named:
+
+| State | Was | Meaning |
+|---|---|---|
+| position absent | not in the string | the segment is shorter, or not there |
+| present, undetermined | `-1` | allocated by `Insertion`, not yet filled |
+| present, ambiguous | `int_N = 14` | filled; the read does not say which base |
+
+The middle one existed **only as a private protocol between `Insertion` and `Dinucl_markov`** —
+written as a bare literal in five places, produced by one event and consumed by one other, with no
+name, no type support and no consumer contract. It is the same three-state problem as B10's
+absent-segment semantics, one level down.
+
+**Addressed by naming it, at 15 rather than −1** — `int_undefined`, immediately past the real codes,
+with `kIntNtCount` defined *from* it so the two cannot drift. The position is what makes it more
+than a rename:
+
+- `dinuc_proba_matrix` is `kIntNtCount` square, so `matrix(int_undefined, j)` trips its bounds
+  assertion, where `matrix(-1, j)` read one row *before* the array — silently, since
+  `Matrix::operator()` asserts only the upper bound and asserts are compiled out under `NDEBUG`;
+- the guard `if ((first_nt_index < 4) & (sec_nt_index < 4))` now means what it reads as. With `-1`
+  an undefined nucleotide **satisfied** `x < 4` and went down the *unambiguous* path, indexing the
+  marginal array at `base_index + (-1) * 4 + sec` — four entries before the intended block, no
+  crash, no diagnostic. With 15 it takes the ambiguous path and lands on a bounds-checkable index.
+
+Unreachable today, because every anchor is a gene segment. It becomes reachable the moment §7.11's
+occupancy walk lands: skip an empty D and `DJ_ins_seq`'s anchor is `VD_ins_seq`, whose last position
+is undefined until its own `Dinucl_markov` has run. §7.11, §7.12 and this entry are one cluster.
+
+Tests render an undefined position as `.` and an ambiguity code as `N`, so a failure message cannot
+blur the two. That change alone corrected four assertions that described a freshly-allocated
+junction as `"NNN"` — it is `"..."`.
+
+**Still open**: whether to *drop* the state rather than name it. `Insertion` knows both neighbour
+offsets, so it could write the read window itself and leave `Dinucl_markov` computing only
+probability — no undetermined state anywhere. That forecloses a branching `Dinucl_markov`, and it
+depends on §7.13, since sharing a buffer is what makes writing earlier equivalent. Decide it with
+B10: "allocated but undetermined" and "processed but absent" are the same question asked of a
+nucleotide and of a segment, and deciding them apart risks deciding them in opposite directions.
+
 ## 8. Decisions taken (Sep 1 2026 review)
 
 | # | Question | Decision |

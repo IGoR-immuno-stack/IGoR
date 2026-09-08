@@ -165,7 +165,16 @@ std::string int_str_to_nt(const Int_Str &seq)
     std::string out;
     out.reserve(seq.size());
     for (int value : seq) {
-        out.push_back((value >= 0 && value < 4) ? kBases[value] : 'N');
+        if (value >= 0 && value < 4) {
+            out.push_back(kBases[value]);
+        } else if (value == int_undefined) {
+            //Rendered apart from 'N' on purpose: "not filled yet" and "filled, but the read is
+            //ambiguous here" are different states, and a failure message that prints both the
+            //same way hides exactly the confusion this notation exists to prevent.
+            out.push_back('.');
+        } else {
+            out.push_back('N');
+        }
     }
     return out;
 }

@@ -126,10 +126,12 @@ TEST_CASE("Insertion: baseline write (G4)", "[insertion][iterate]")
     REQUIRE(next->call_count() == 1);
     const auto &call = next->calls.front();
 
-    // Three placeholder nucleotides, one per position between the two neighbours. They decode
-    // to 'N': Insertion allocates the segment, Dinucl_markov fills it.
+    // Three *unfilled* positions, one per read position between the two neighbours. They
+    // decode to '.', not to 'N': Insertion allocates the segment and Dinucl_markov fills it,
+    // so at this point the content is undetermined rather than ambiguous. See int_undefined
+    // in Utils.h -- the two states are distinct and the notation keeps them so.
     REQUIRE(call.sequences.count(VD_ins_seq) == 1);
-    CHECK(call.sequences.at(VD_ins_seq) == "NNN");
+    CHECK(call.sequences.at(VD_ins_seq) == "...");
 
     // It writes neither offsets nor a mismatch list for the segment it just created. Both are
     // defects, pinned by the [!shouldfail] cases at the end of this file rather than asserted
@@ -149,7 +151,7 @@ TEST_CASE("Insertion: the length is derived from the neighbours (G9)", "[inserti
         VdJunction fixture(/*v_three_prime=*/10, /*d_five_prime=*/16);
         const auto next = call_iterate_recording(fixture.insertion, fixture.state);
         REQUIRE(next->call_count() == 1);
-        CHECK(next->calls.front().sequences.at(VD_ins_seq) == "NNNNN");
+        CHECK(next->calls.front().sequences.at(VD_ins_seq) == ".....");
     }
 
     SECTION("Adjacent neighbours give a written-but-empty segment")
@@ -355,7 +357,7 @@ TEST_CASE("Insertion: the three junction branches are one body", "[insertion][it
         DjJunction fixture;
         const auto next = call_iterate_recording(fixture.insertion, fixture.state);
         REQUIRE(next->call_count() == 1);
-        CHECK(next->calls.front().sequences.at(DJ_ins_seq) == "NNN");
+        CHECK(next->calls.front().sequences.at(DJ_ins_seq) == "...");
         CHECK(next->calls.front().downstream_bounds.count(DJ_ins_seq) == 1);
     }
 
@@ -364,7 +366,7 @@ TEST_CASE("Insertion: the three junction branches are one body", "[insertion][it
         VjJunction fixture;
         const auto next = call_iterate_recording(fixture.insertion, fixture.state);
         REQUIRE(next->call_count() == 1);
-        CHECK(next->calls.front().sequences.at(VJ_ins_seq) == "NNN");
+        CHECK(next->calls.front().sequences.at(VJ_ins_seq) == "...");
         CHECK(next->calls.front().downstream_bounds.count(VJ_ins_seq) == 1);
     }
 

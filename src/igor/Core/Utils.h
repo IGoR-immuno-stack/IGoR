@@ -198,6 +198,31 @@ enum CORE_EXPORT Gene_class_legacy {
 /// Convert legacy gene class (base gene only, not junction) to new Gene_class.
 CORE_EXPORT Gene_class gene_class_legacy_to_new(Gene_class_legacy);
 enum Fileformat { CSV_f, FASTA_f, TXT_f, FASTQ_f };
+/**
+ * \brief The IUPAC nucleotide codes, plus one value that is not a nucleotide.
+ *
+ * `int_A` through `int_N` are the fifteen codes a read can contain: four bases and the eleven
+ * ambiguity codes. `int_undefined` is a **third state** on the same axis, and the distinction
+ * it makes is easy to lose:
+ *
+ * - `int_N` means *this position is determined, and the read does not say which base it is*.
+ *   It comes from the data, and every consumer handles it -- averaged over its underlying
+ *   bases by Dinucl_markov, matched permissively by the aligner.
+ * - `int_undefined` means *this position is not determined yet*. It comes from
+ *   Insertion::iterate, which allocates a junction of the right length before anything knows
+ *   its content, and it is consumed by Dinucl_markov, which fills exactly the positions
+ *   holding it. **No read ever contains it**: nt2int() cannot produce it.
+ *
+ * It is a placeholder inside one scenario, not a value. A segment handed to an error rate, a
+ * counter or an output file must contain none.
+ *
+ * It sits immediately *past* the real codes rather than at -1, so that using it as an index
+ * is caught rather than silently wrapping: `dinuc_proba_matrix` is `kIntNtCount` square, so
+ * `matrix(int_undefined, j)` trips its bounds assertion, while `matrix(-1, j)` would have read
+ * one row before the array. The same choice keeps `< 4` tests meaning what they read as: an
+ * undefined position is *not* one of the four bases, where -1 satisfied `x < 4` and sent an
+ * undefined nucleotide down the unambiguous path with a negative marginal offset.
+ */
 enum Int_nt {
     int_A = 0,
     int_C = 1,
@@ -213,8 +238,14 @@ enum Int_nt {
     int_D = 11,
     int_H = 12,
     int_V = 13,
-    int_N = 14
+    int_N = 14,
+    int_undefined = 15 ///< allocated but not yet filled; never present in a read
 };
+
+/// Number of real nucleotide codes, i.e. every value a read can hold. Equal to
+/// `int_undefined` by construction: anything that sizes a table by nucleotide gets a table
+/// the placeholder cannot index into.
+constexpr std::size_t kIntNtCount = static_cast<std::size_t>(int_undefined);
 
 CORE_EXPORT Seq_type str2SeqType(const Seq_type_String &);
 CORE_EXPORT Seq_type_String to_string(const Seq_type);

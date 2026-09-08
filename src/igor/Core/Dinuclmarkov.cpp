@@ -61,7 +61,7 @@ Dinucl_markov::Dinucl_markov(Seq_type seq_type) : Rec_Event(), total_nucl_count(
     updated = true;
     updated_upper_bound_proba = new double;
 
-    dinuc_proba_matrix = Matrix<double>(15, 15);
+    dinuc_proba_matrix = Matrix<double>(kIntNtCount, kIntNtCount);
     this->traversal_specs = get_dinucl_traversal_specs(this->ins_seq_type);
     this->update_event_name();
 }
@@ -332,7 +332,7 @@ void Dinucl_markov::iterate_common(int *indices_array, int &previous_assigned_nt
 {
 
     if (!ins_seq.empty()) {
-        if (ins_seq.at(0) == -1) {
+        if (ins_seq.at(0) == int_undefined) {
 
             //first_nt_index = event_realizations.at(previous_assigned_nt).index;
             //sec_nt_index = event_realizations.at(data_seq_substr.substr(0,1)).index;
@@ -360,7 +360,7 @@ void Dinucl_markov::iterate_common(int *indices_array, int &previous_assigned_nt
         }
 
         for (size_t i = 1; i != ins_seq.size(); ++i) {
-            if (ins_seq.at(i) == -1) {
+            if (ins_seq.at(i) == int_undefined) {
 
                 //first_nt_index = event_realizations.at(data_seq_substr.substr(i-1,1)).index;
                 //sec_nt_index = event_realizations.at(data_seq_substr.substr(i,1)).index;
@@ -507,8 +507,8 @@ void Dinucl_markov::update_event_internal_probas(const Marginal_array_p &margina
     Int_nt const all_nt_vals[] = { int_A, int_C, int_G, int_T, int_R, int_Y, int_K, int_M,
                                    int_S, int_W, int_B, int_D, int_H, int_V, int_N };
     size_t event_index = index_map.at(this->get_name());
-    for (size_t i = 0; i != 15; ++i) {
-        for (size_t j = 0; j != 15; ++j) {
+    for (size_t i = 0; i != kIntNtCount; ++i) {
+        for (size_t j = 0; j != kIntNtCount; ++j) {
             list<Int_nt> previous_list = get_ambiguous_nt_list(all_nt_vals[i]);
             list<Int_nt> next_list = get_ambiguous_nt_list(all_nt_vals[j]);
 

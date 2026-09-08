@@ -319,7 +319,7 @@ public:
      */
     void preset_placeholders(Seq_type seq_type, std::size_t length)
     {
-        preset_sequences_.emplace_back(length, -1);
+        preset_sequences_.emplace_back(length, int_undefined);
         scenario_storage.constructed_sequences.set(seq_type, &preset_sequences_.back(), 0);
     }
 
@@ -394,7 +394,8 @@ IterateTestState create_iterate_state(const std::string &sequence,
                                       std::size_t max_events = 32,
                                       const SeqTypeRegistry &registry = vdj_seq_type_registry());
 
-/// Decode an Int_Str back to letters. Placeholders (-1, written by Insertion) become 'N'.
+/// Decode an Int_Str back to letters: the four bases as themselves, an ambiguity code as 'N',
+/// and an unfilled position (int_undefined, written by Insertion) as '.'.
 std::string int_str_to_nt(const Int_Str &seq);
 
 /**

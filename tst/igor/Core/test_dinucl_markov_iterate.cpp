@@ -476,7 +476,7 @@ TEST_CASE("DEFECT (plan 7.13): Dinucl_markov fills the Insertion's buffer instea
 
     const Int_Str *insertion_layer = get_constructed_sequence(fixture.state, VD_ins_seq, 0);
     REQUIRE(insertion_layer != nullptr);
-    CHECK(int_str_to_nt(*insertion_layer) == "NNN");
+    CHECK(int_str_to_nt(*insertion_layer) == "...");   // still unfilled, not 'N'
 
     const Int_Str *own_layer = get_constructed_sequence(fixture.state, VD_ins_seq, 1);
     REQUIRE(own_layer != nullptr);
