@@ -465,6 +465,323 @@ Classified as **premature optimisation for this work**: keep `std::map` through 
 measure before changing it. The pair-keyed indirection introduced here is what makes the swap a
 one-line change later, which is the actual point.
 
+**The containers stage by dimension** *(Quentin, Sep 10 2026)*. The three objects G5 needs are 1-D,
+2-D and 3-D, and each has a different natural home:
+
+| | what | today | target |
+|---|---|---|---|
+| **1-D** | span profile: length → best proba | `std::map<int,double>` — a red-black descent with a pointer chase per level | `std::vector<double>` + stored offset, or `Matrix<double>(1,N)` ([Utils.h:291](../src/igor/Core/Utils.h#L291)). Build is a max-accumulation, so order-independent and bitwise identical |
+| **2-D** | parent-indexed profile: conditioning context × length | does not exist | `Matrix<double>` natively — this is the cross-clique tightening (§6.9 R6) |
+| **3-D** | `vj_length_d_position_proba`: total length × `(realization, left_len)` | `map<int, vector<tuple<…>>>` | the **Tensor API**, hence S4d |
+
+Two *different* lookup costs are in play and should not be conflated: the length maps are
+`std::map` (tree descent), while the enumeration additionally does an `unordered_map<string,…>`
+**hash** lookup per candidate — `event_realizations.at(get<0>(*d_position_iter))` — which is fixed
+by carrying a realization index instead of a gene name, independently of any container change.
+
+**S4d is gated, and the gate is unlikely to open first.** The Tensor API is `feature/TensorLinalg`,
+which needs `std::mdspan` and therefore C++23, and the parent plan records that the C++23 bump is
+**currently blocked** by a sparrow `nullable_variant` visitor interaction (199/201 streaming tests
+on C++23 against 201/201 on C++20). So S4d is recorded as a last optional step rather than
+scheduled, and the 1-D `Matrix`/vector swap is available meanwhile without waiting for any of it.
+
+#### The frame, the algebra, and what decomposition is retained
+
+*(Established Sep 9 2026 — see §6.10 for the evidence and the incidental findings.)*
+
+**The coordinate frame, which was written down nowhere.** State it in A0's vocabulary rather than
+in V/D/J terms, because the VDJ reading bakes in two accidents of the current model set:
+
+> **A span's length is the read-space distance between the *as-created* facing boundaries of the
+> two segments that anchor it** — the offsets an `OffsetRole::Creates` event wrote, before any
+> `OffsetRole::Modifies` event shifted them.
+>
+> Equivalently, and this is the same statement: **it is the signed sum of every event's
+> per-realization `LengthContribution` over the region** — `Creates` positive, `Modifies` negative.
+
+The two formulations agreeing is exactly why `Δ(r)` is the only thing that differs between the four
+`iterate_initialize_Len_proba` bodies (§6.10).
+
+**The anchor criterion is about offsets, not content** — `Insertion` is a content creator too, so
+`SeqConstructionRole::Creates` does not pick one out. **But it is not a static capability either,
+and two attempts to make it one were wrong.**
+
+*First attempt: `OffsetRole::Creates`.* That only appears to work because `Insertion` currently
+reports [`None`](../src/igor/Core/Insertion.cpp#L463), which is the defect R3 fixes (§6.9).
+
+*Second attempt: split `Creates` into `Anchors` (set from an alignment) and `Derives` (computed
+from neighbours),* on the argument that an insertion segment must never anchor because
+span(V, VD_ins) would be trivially zero-width. **Also wrong** *(Quentin, Sep 10 2026)*, and the
+reason matters: whether a particular span is zero-width is a **consumer** question — it asks
+whether that consumer should be computing that span at all — not a property of the segment. The
+zero-width is an artefact of today's `Insertion`, which requires *both* neighbours to already hold
+offsets. An `Insertion` that **enumerated** its realizations could be processed before any D
+choice, and span(VD_ins, DJ_ins) would then be non-zero and perfectly meaningful. Reasoning from
+the current VDJ model and the current implementation produced a criterion that only holds for them.
+
+**The criterion is dynamic:**
+
+> A segment anchors a span, *for a given consumer*, iff its offsets have already been created at
+> that consumer's position in the priority order.
+
+Which is what the code already computes: `v_chosen` / `d_chosen` / `j_chosen` are
+`exists && already in processed_events`
+([Genechoice.cpp:1111](../src/igor/Core/Genechoice.cpp#L1111)). The reason only gene segments
+anchor today is not a capability fact — it is that `Gene_choice` is the only event that writes
+offsets at all.
+
+It is still **statically resolvable**, which is what the cache needs: priority order is model data
+fixed at load, so the consumer→anchors map is settled in `initialize_event()` and the set of spans
+anyone will ever ask for is known before the first read.
+
+So `Insertion` takes plain `OffsetRole::Creates` under R3 and **the enum does not grow**. The
+question `Derives` was reaching for — *can this event run before its neighbours?* — is a **context
+dependency**, D.9's `get_context_seq_types()`, and belongs there: today's `Insertion` depends on
+both neighbours' offsets, an enumerating one would depend on neither, and that difference is
+precisely what would let it be scheduled earlier.
+
+**Two capabilities that are redundant today but must stay separate** *(Quentin, Sep 10 2026)*. No
+event currently creates a sequence without also creating its offsets, so
+`SeqConstructionRole::Creates` and `OffsetRole::Creates` always coincide. They remain different
+statements — an event could construct content and leave placement to a downstream event — so keep
+both queries rather than collapsing them. What ties them is a leaf invariant:
+
+> **For every seq_type in the registry, both a sequence *and* its offsets must have been created by
+> the time a scenario reaches a leaf** — not necessarily by the same event.
+
+Half of that is already asserted: the debug-only leaf check in
+[`Rec_Event::iterate_wrap_up`](../src/igor/Core/Rec_Event.cpp#L193) (`1794b5f`) rejects a scenario
+carrying `int_undefined` — content allocated but never filled (§7.14). **The offsets half has no
+counterpart**, and R3 is what makes it assertable at all: while `Insertion` writes no offsets, an
+offsets-complete leaf check would fire on every scenario. Adding it belongs with R3.
+
+**Two enforcement points, catching different things** *(Quentin, Sep 10 2026)*:
+
+| | where | scope | catches |
+|---|---|---|---|
+| **1 — capability** | `Model_Parms::finalize()` | whole model, static, at load | a registered seq_type *no event declares* it will create — a tandem-D ordering listing `D1D2_ins` with no `Insertion` for it. Sufficient as the **runtime** guard |
+| **2 — leaf** | `iterate_wrap_up()`'s debug check | whole scenario, dynamic | any gap at all, but only on paths actually reached, and only in a build carrying asserts |
+| **3 — hand-off** | `RecordingEvent::iterate` | **one event**, per realization | the event under test not honouring its own declarations, on every path its unit suite reaches |
+
+Complementary rather than belt-and-braces, and the second covers the class that has actually
+bitten: a **path-dependent** gap, where the event writes on most branches and not on one, is
+invisible to a static check by construction. That is precisely §7.9 (`no_d_align` recorded no
+overlap verdict) and §7.12.
+
+Note the key differs between the two halves. The sequence half is per `SeqTypeId`; the offsets half
+must be per **(`SeqTypeId`, `Seq_side`)**, since `get_offset_role` is side-taking and the two ends
+of a segment can be created by different events in principle.
+
+**The dynamic check's worth is bounded by branch coverage.** An assert on a branch no test reaches
+buys nothing, so it belongs with the *a* steps rather than as an item of its own — and
+`Deletion::iterate` at 0 % (§6.4) means it would cover none of that body until 4a lands.
+
+**Neither tier is live today** *(measured Sep 10 2026)*, but the gap is wiring rather than
+anything structural:
+
+- The capability check **cannot precede R3**: `Insertion::get_offset_role()` returns `None`, so
+  every existing model would fail the offsets half at load.
+- The **Debug build links and is green** — a scratch `-DCMAKE_BUILD_TYPE=Debug` tree builds
+  clean, `ctest -L unit` passes 220/220 in 1.9 s and `-L integration` 5/5 in 3.2 s, asserts
+  enabled throughout. So nothing about the assert is broken.
+- But it is **compiled out of every build the §1 ladder runs**: `pixi run configure` passes no
+  `CMAKE_BUILD_TYPE`, [CMakeLists.txt:39-42](../CMakeLists.txt#L39) defaults to `RelWithDebInfo`,
+  and the configured cache carries `-O2 -g -DNDEBUG`. `test_debug` / `test_unit_debug` exist but
+  are not in the ladder.
+- And **the unit suite never reaches the leaf branch**, in any build. `RecordingEvent::iterate`
+  "record[s] what the real next event would read, then stop[s]. No recursion, no error rate."
+  The leaf runs only when the model queue empties, which the harness never lets happen. Only the
+  integration tests — the real-inference smoke in particular — get there.
+
+So `1794b5f`'s `int_undefined` check, the precedent the offsets half would follow, is exercised
+**only by integration, and only in a build nobody runs.**
+
+Adding `test_integration_debug` to the §1 ladder costs ~3 s per step and activates tier 2 on the
+real inference path immediately. But **integration coverage is topology-dependent** — the
+regression corpus is one TRB model, so `no_d_align` never fires and whole branches never execute —
+so tier 2 cannot be relied on to reach every event. That is what tier 3 is for.
+
+#### Tier 3: check the declaration at the hand-off *(Quentin, Sep 10 2026)*
+
+`call_iterate_recording()` queries the event under test's A0 attributes and passes them to the
+`RecordingEvent` constructor; `RecordingEvent::iterate()` — which already receives the scenario
+exactly at hand-off — asserts that what the event *declared* it would write, it *did*.
+
+This is strictly better placed than a leaf check for unit testing. A leaf needs every registered
+seq_type created, which the single event under test cannot achieve alone; a hand-off check asks
+only "did **this** event honour **its own** declarations", which is precisely what a unit test of
+that event can establish. It also localises the failure to the event that caused it instead of
+reporting that something, somewhere, is incomplete.
+
+The harness is already shaped for it: the layer-contract check runs in the same place, collects
+`LayerViolation`s, and `call_iterate_recording()` surfaces them — so *"every test going through
+`call_iterate_recording()` is checked automatically, and a new event's sections inherit it without
+writing anything"* already holds, and a capability check is a direct sibling.
+
+What it can assert at hand-off:
+
+| declared for a seq_type | assertion |
+|---|---|
+| `SeqConstructionRole::Creates` | the segment exists, at this event's own claimed layer |
+| `SeqConstructionRole::Fills` | the segment exists **and holds no `int_undefined`** |
+| `SeqConstructionRole::Modifies` | written at its own layer — *not* that the value changed, since a zero deletion is legal |
+| `SeqConstructionRole::None` | this event did **not** advance that key's layer |
+| `OffsetRole::Creates` for (id, side) | that end exists, at this event's own layer |
+| `OffsetRole::None` for (id, side) | this event did **not** advance that end |
+
+Two rows earn their place beyond the obvious:
+
+- **`Fills` is a better home for the `int_undefined` invariant than the leaf.** At a leaf you learn
+  that something, somewhere, is unfilled; at the hand-off you learn that the event which declared
+  it would fill *this* segment did not. Same invariant, localised, and no complete fixture needed.
+- **The `None` rows catch the converse** — an event touching a segment it never declared. That is
+  §7.13's shape exactly: `Dinucl_markov` writing through the pointer `Insertion` stored, at a layer
+  it never claimed.
+
+A **static** sibling is available for free at `call_iterate()` time, after `initialize_event()` and
+before `iterate()`: the layers an event *requested* must agree with what it *declares*. Requesting
+a layer for a seq_type declared `None` is an inconsistency needing no scenario to detect, and the
+harness already captures `layer_before_init` and `layer_baseline` at exactly the right moments.
+
+**Scheduling.** Tier 3 is **test-only**, so it is not a behaviour change and escapes O7 — it can
+land whenever, and does not wait for R3. Better still, it can land *before* R3 and pass:
+`Insertion` currently declares `OffsetRole::None` and writes none, which is self-consistent (wrong,
+but consistent). R3 then flips the declaration and the write together, with tier 3 keeping them
+honest — which makes R3 self-verifying rather than reliant on its three `[!shouldfail]` cases
+alone. Natural home is S4a or 4a, whichever comes first.
+
+**Its honest limit**: tier 3 verifies *consistency*, not *correctness* of the declarations. An
+event declaring `None` everywhere would pass trivially. Tier 1 is what makes the declarations
+non-vacuous, by requiring some event to declare a creator for every registered seq_type. The three
+together say: **someone declares it** (1), **the declarer does it** (3), and **nothing slips
+through on an unexercised path** (2).
+
+**Relationship to the existing layer check**: the layer check is *claimed ⇒ written*; tier 3 is
+*declared ⇒ claimed ⇒ written* plus *undeclared ⇒ not claimed*. They overlap on declared keys and
+diverge on undeclared ones — the layer check still catches an event that claims a layer while
+declaring nothing at all. Keep both; neither subsumes the other.
+
+**Consistent with B10, and worth saying so.** B10 already requires an absent segment to be an
+*explicit written value* — a null or empty `Int_Str*` at the event's own layer — rather than the
+absence of a write, precisely because the claimed/current layer split made the three states
+distinguishable. So an absent segment still satisfies "created", and its offsets half is satisfied
+by the degenerate convention `3' == 5' − 1`. No segment gets exempted from the invariant on
+grounds of being absent.
+
+**Worked instance (VDJ, V–D).** With V's and D's as-created facing boundaries at read positions
+`v3` and `d5`, and deletions `dv`, `dd`, the post-deletion gap is `(d5 + dd) − (v3 − dv) − 1`. Under
+the current `Insertion`, whose length is *derived* from that gap rather than chosen, this gives
+`n_ins = (d5 + dd) − (v3 − dv) − 1`, hence `d5 − v3 − 1 = n_ins − dv − dd` — precisely what the
+traversal accumulates (`+n_ins`, `−dv`, `−dd`) and what the consumers look up.
+
+**Why the general form matters, and not only for tidiness** *(Quentin, Sep 9 2026)*. Writing the
+frame as "the gap the insertion fills" makes the *shortcut* part of the definition. An `Insertion`
+implemented by **enumerating** its realizations instead of deriving the one consistent count would
+turn that equation from a definition of `n_ins` into a genuine constraint — `Σ contributions =
+as-created gap` — which the derived form silently satisfies and an enumerating form must be
+*checked* against. Stated as a signed sum over `LengthContribution`, the frame holds either way, and
+the same is true of any future `Modifies` event that is not a `Deletion`.
+
+Note what the frame implies about attribution: **a `Modifies` event belongs to the span, not to the
+segment it modifies.** It moves a boundary away from where that boundary was created, so it widens
+the span rather than shortening the segment as far as this key is concerned. Any factorisation that
+attributes a deletion to its own segment is in a different frame and will not reproduce these keys.
+
+The one visible inconsistency the frame would expose —
+`get_deletion_effective_junctions(D_gene_seq, ·)` omits the V→J span while
+`Gene_choice(D)::has_effect_on(VJ_ins_seq)` includes it — is harmless only because that map is
+never read (§6.10, finding 2).
+
+**The elementary factors** are therefore alternating, not per-seq_type. "Anchor" below is the
+dynamic criterion just given. Because the consumer→anchors map is fixed at initialization, the
+finest useful partition is nonetheless static: cut the ordering wherever *any* consumer anchors,
+and every span anyone asks for is a contiguous fold over those pieces. Today the cuts fall exactly
+at the `Gene_choice` segments — but nothing in the algebra depends on that, nor on the anchors
+being genomic:
+
+- `T_a[n]` — for each **anchor** segment: the best probability of it contributing as-created
+  length `n`;
+- `G_i[n]` — for each maximal **inter-anchor gap**: the best probability of that gap having
+  read-space width `n`, folding everything strictly inside it — the insertion's contribution, the
+  Dinucl `p^L` factor — together with **both** bounding `Modifies` contributions, which belong to
+  the gap and not to the anchors they trim (see the frame above).
+
+**The composition.** For anchors `A`, `B` with anchors `C₁…C_k` between them:
+
+> span(A,B) = `G₀ ⊗ T_C₁ ⊗ G₁ ⊗ … ⊗ T_Ck ⊗ G_k`
+
+where `⊗` is **max-product convolution**, `(X ⊗ Y)[n] = maxᵢ₊ⱼ₌ₙ X[i]·Y[j]`. It is associative
+over non-negative reals, which is what makes the fold order-free and the intermediate results
+cacheable. Checked against the current code: `k = 0` is `vd_length_best_proba_map`; `k = 1` is
+`vj_length_d_position_proba`, whose `(gene, vd_len, dj_len)` triple is precisely the index triple
+`(T_D, G₀, G₁)`. **The two objects are the same operator at `k = 0` and `k = 1`.**
+
+Two variants, one of which is the forgetful projection of the other:
+
+| | keeps | consumed as |
+|---|---|---|
+| `⊗ᵐᵃˣ` | the max per total length | the pruning bound |
+| `⊗ᵉⁿᵘᵐ` | every composition, sorted by decreasing proba | the enumeration domain (`no_d_align`) |
+
+**The retained decomposition is always three components, for any topology.** An anchor `G`
+enumerating exhaustively between anchors `A` and `B` branches on exactly two things — which
+realization, and where its 5' end sits — and its 3' remainder is then arithmetic. Everything past
+the next anchor is marginalised into `span(G,B)` by `⊗ᵐᵃˣ`, because the events out there do their
+own enumeration when they run. So the tuple is
+
+> `( len(span(A,G)), G realization, len(span(G,B)), proba )`
+
+and stays three-plus-proba whether one anchor or four sit between `G` and `B`. The current code
+already says so: `get<2>` is never a free dimension — the commented-out block at
+[Genechoice.cpp:609-617](../src/igor/Core/Genechoice.cpp#L609) recomputes it as
+`j_offset − d_full_3_offset − 1`. It is memoised, not enumerated.
+
+*(An earlier reading of this section claimed a tandem-D D1 would need a five-component tuple. That
+was a conflation of the fold that **builds** a span with the decomposition **retained** in the
+queried map. Corrected by Quentin, Sep 9 2026.)*
+
+**Cost, restated correctly.** Per enumerating anchor the stored object holds
+`|R| × |left range| × |right range|` entries, `|R|` being that anchor's realization count. That is
+the same order as today, independent of how many anchors were marginalised into the right span,
+because within one length bucket `(realization, left_len)` determines `right_len`. The k-fold product is **build-time work only**: `O(∏ ranges)` time
+collapsing into a 1-D array of `O(range)`. Tandem D's exhaustive path is affordable on this
+structure.
+
+**What must generalise in the type is not the arity** but (i) the `std::string` gene handle, which
+costs a hash lookup per candidate inside the hot enumeration, and (ii) the implicit binding of the
+two `int`s to `vd_length_best_proba_map` / `dj_length_best_proba_map` by name — they must index
+whichever two spans the enumerating gene actually sits between.
+
+#### Relation to Phase D
+
+G5's structure **is** Phase D's DP with the interface variable collapsed to a single integer and
+the semiring relaxed:
+
+| | G5 bound fold | Phase D scenario DP |
+|---|---|---|
+| semiring | **(max, ×)** | (+, ×) |
+| interface variable | **one integer: length** | D.3's tuple — offset, boundary nt, frame phase, window |
+| conditional dependencies | **relaxed** — `maxᵢ marginals[base + r.index + i·size()]` | carried exactly |
+| sequence content | **discarded** | required (mismatches, error weighting) |
+| query dependence | **none** — built once from the marginals | per read |
+| separability | exact, everywhere | only where D.3's interface closes a boundary |
+
+The single line that buys all of it is `real_max_proba = maxᵢ marginals[…]`. Maxing over the
+conditioning dimension makes a child's contribution independent of its parent's realization, and
+that independence is what lets the profile factorise per gap. Discarding sequence content removes
+the mismatch coupling; having no query removes the third. Max-product over a superset of
+decompositions dominates the true sum-product optimum, so the relaxation is a safe **upper** bound,
+which is what pruning requires.
+
+Consequence for how this is built: `fold(⊗, factors)` over a span key means Phase D **widens the
+key and swaps the semiring** rather than starting over. That is the concrete reason to reserve
+`SegmentSpan` now (§6.10), rather than an aesthetic one.
+
+The one thing that does not carry over: `Dinucl_markov`'s `p^L` is exact under this relaxation only
+because it genuinely depends on length alone. Under Phase D it becomes an interface-variable
+dependency (D.3's `LeftNt` / `RightNt` rows), so the probability hook should take the accumulator
+rather than a bare length — cheap now, and it is the seam Phase D's version attaches to.
+
 #### Open: only the *lower* bound on a junction span is explicit
 
 *(Raised Sep 7 2026 reviewing S3.)*
@@ -905,14 +1222,20 @@ already flagged as the milestone-1 blocker and because `Gene_choice` is the only
 | **1a** | ✅ **done** — `Insertion` characterization, 8 `TEST_CASE`s against the **unmodified** event | unit + mutation | n/a — tests only |
 | **1b** | ✅ **done** — **B6**, `Insertion::iterate` generic (G9). Smallest, one hot-loop win. | full ladder | **yes** |
 | **2a** | ✅ **done** — `Dinucl_markov` characterization, 12 `TEST_CASE`s; the empty-anchor case is `[.]`-hidden because it segfaults (§7.12) | unit + mutation | n/a — tests only |
-| **2b** | ✅ **done** — **B7**, specs from the registry (G9) and per-spec buffers. Skip-empty walk **deferred**: it is §7.12's fix, not a refactor (§7.11) | full ladder | **yes** |
-| **S4** | Junction pair key; `has_effect_on(left,right)` in the base; the three overrides deleted | full ladder | **yes** |
-| **3** | **B11a** — `Gene_choice` alignment path generic (G4, G2, G8, and G5 via S4). Characterization already delivered by T0 | full ladder + benchmark | **yes**, except §7.1 |
-| **S5** | Safety row-bitmask; row-suffix propagation; `Event_safety` deleted | full ladder + the empty-segment transitivity test | **yes** (§2.3 corollary) |
-| **4a** | `Deletion` characterization sections, including the zero-length junction T0 deferred | unit + mutation | n/a — tests only |
-| **4b** | **B5** — `Deletion::iterate` generic (all patterns) | full ladder + benchmark + convergence | **yes** |
-| **5a** | `no_d_align` characterization beyond T0's G6 sections, on a fixture that *forces* the path. **Must raise `Gene_choice::iterate` block coverage** — see §6.4 | unit + mutation | n/a — tests only |
-| **5b** | **B11b** — `no_d_align` exhaustive path generic (G6) | full ladder + a fixture that *forces* the path | **yes** |
+| **2b** | ✅ **done** — **B7**, specs from the registry (G9) and per-spec buffers. Skip-empty walk **deferred to phase R**: it is §7.12's fix, not a refactor (§7.11) | full ladder | **yes** |
+| **S4a** | `SegmentSpan`; `affects_length_of(SegmentSpan)` replacing `has_effect_on`; the queue-level filter restored and the per-body self-filter removed (§6.10). Also lands the **tier-3 hand-off capability check** in the harness (§2.5) — test-only, so it carries no bitwise risk | full ladder | **yes** |
+| **S4b** | `length_delta` + `span_proba_factor` as **group** hooks; the four `iterate_initialize_Len_proba` bodies → one non-virtual traversal; `SpanAccumulator` replaces the `constructed_sequences` side channel (§6.10) | full ladder | **yes** |
+| **S4c** | Span-keyed structure owned by the model; `⊗ᵐᵃˣ`; six members → one; each span built once instead of five times; `initialize_Len_proba_bound` de-virtualised; findings 2–3's dead code deleted. **Removes the tandem-D enum ceiling** — on the milestone-1 critical path | full ladder + init-time measurement | **yes** |
+| **S4d** | Tensor-backed containers for the 3-D `no_d_align` structure — **gated on the Tensor API**, itself blocked on the C++23 bump (§2.5). Optional, performance only | full ladder + benchmark | **yes** |
+| **3** | **B11a** — `Gene_choice` alignment path generic (G4, G2, G8, and G5 via S4a-c). Characterization already delivered by T0. **First production consumer of S3** | full ladder + benchmark | **yes**, except §7.1 |
+| **4a** | `Deletion` characterization sections, including the zero-length junction T0 deferred. **Moved ahead of S5** (§6.8, F4) | unit + mutation | n/a — tests only |
+| **S5** | Safety row-bitmask; row-suffix propagation; `Event_safety` deleted | full ladder + the empty-segment transitivity test + 4a's sections unchanged | **yes** (§2.3 corollary) |
+| **4b** | **B5** — `Deletion::iterate` generic (all patterns). **First production consumer of S2** | full ladder + benchmark + convergence | **yes** |
+| **5a** | `no_d_align` characterization beyond T0's G6 sections, on a fixture that *forces* the path. **Must raise `Gene_choice::iterate` block coverage** — see §6.4. Also lands the `bound / realized_proba` instrumentation (§6.10) | unit + mutation | n/a — tests only |
+| **5b** | **B11b** — `no_d_align` exhaustive path generic (G6), including `⊗ᵉⁿᵘᵐ` — the retained decomposition, always three components (§2.5) | full ladder + a fixture that *forces* the path | **yes** |
+| **R1–R4** | **Repair phase** (§6.9) — the decided behaviour changes, held here so everything above is idempotent end to end: §7.13, §7.12, `Insertion`'s three `[!shouldfail]` defects, `dinuc_proba_matrix` → `initialize_event()` | full ladder, per commit | **no** — golden data may move; each commit names which outputs and why |
+| **R5** | §7.1 and §7.8 off-by-one corrections, per decision O4; the four `[!shouldfail]` tags come off | full ladder + the corrected-core unit tests | **no** — same |
+| **R6** | Within-clique joint max in the span fold (§6.9); optional cross-clique parent indexing | full ladder, **convergence weighted heavily** | **no** — a tighter bound prunes more |
 
 **The split is an ordering requirement, not bookkeeping.** The *a* commit lands before the *b*
 commit and is mutation-verified there, where mutation-verification means something: a
@@ -936,8 +1259,19 @@ pattern-keyed layout (§6.1) minimises but does not eliminate the churn.
 B11 is split: the alignment path (3) is what milestone 1 needs and is straightforward; the
 exhaustive path (5) is the hardest single piece in the whole set and depends on S4 being settled.
 The parent plan's guidance to build the milestone-1 fixture so `no_d_align` never fires stands —
-step 5 is exercised instead by flipping the G6 fallback switch on a gene with no alignments, which
-needs no aligner manipulation.
+step 5 is exercised by handing the D `Gene_choice` an empty alignment list, which needs no aligner
+manipulation. The G6 fallback switch is still built — it is what preserves the V/J-vs-D asymmetry
+once the `case D_gene` that carried it is gone (§2.6, O6).
+
+**Every behaviour change is held to phase R, after 5b.** The rows above are bitwise-exact by
+construction, so `pixi run test_regression` means the same thing at every one of them and the
+golden data never moves inside the refactoring block. Interleaving a fix — even a cheap one landing
+on an event that is freshly migrated and fully covered — would require regenerating golden outputs
+partway through, and from that point on a "regression" is no longer a single unambiguous signal:
+every later step's verdict has to be read against which baseline it was taken on. The cost of
+deferring is re-establishing context on `Insertion` and `Dinucl_markov` later; the cost of not
+deferring is the gate itself, which §6.2 already shows is the fragile part. R is where golden data
+is allowed to move, once, deliberately, with each commit naming the outputs it changes.
 
 ### 6.1 — T0: build a focused `iterate()` characterization suite
 
@@ -1195,6 +1529,13 @@ Two readings matter more than the numbers themselves:
   untakeable arc to the denominator. Block coverage is the more honest single number, and the
   useful artefact is the *list* of uncovered lines, not the ratio.
 
+**Superseded for two rows since (Sep 8 2026).** 1b took `Insertion::iterate` to 100 % lines,
+branches and blocks and `Insertion::initialize_event` back to 100 % lines; 2a/2b took
+`Dinucl_markov::iterate` from 0 % to 100 % lines and blocks. The table above is kept as the
+*pre-migration baseline* — it is what the delivered figures are measured against — but the two open
+rows are now only `Gene_choice::iterate` (59.2 % blocks) and `Deletion::iterate` (**still 0 %**).
+4a is the step that closes the second, and it is now scheduled before S5 (§6.8, F4).
+
 `Gene_choice::iterate` at 59.2% blocks after T0 is the figure to watch, and **raising it is part of
 5a's definition of done**. The uncovered remainder is mostly the `no_d_align` exhaustive path, which
 is the hardest single piece in the set *and* the one the regression corpus never reaches — §7.9 is
@@ -1348,7 +1689,8 @@ than a refactor (§7.11). **The behaviour is decided (Sep 8 2026): throw.** Sile
 scenario whose anchor was fully deleted would bias the model — those scenarios are geometrically
 legitimate and their absence would not be visible anywhere — whereas a scenario that cannot be
 scored is a modelling error the user must see. It still changes behaviour relative to today's
-segfault, so it lands in its own commit with its own regression run, not in a refactoring step.
+segfault, so it lands in its own commit with its own regression run, not in a refactoring step —
+scheduled as R2 in §6.9.
 
 A tandem-D `D1D2_ins_seq` junction, which no `Seq_type` enum names, resolves correctly today; the
 test checks it through `resolve_topology()` rather than `iterate()`, because the harness cannot yet
@@ -1359,6 +1701,345 @@ the model file carries — the fixture had been under-specifying the event and r
 hardcoded table to supply it. And `IterateTestState::add_event()` now keys events exactly as
 `Model_Parms::get_events_map()` does, with `Undefined_side` for `Dinucl_markov`; the harness had
 been keying by the event's own side, which only worked while that side was always `Undefined_side`.
+
+### 6.8 — Re-assessment after 2b *(Sep 9 2026)*
+
+Two of four events are collapsed. By mass that is not half:
+
+| Event | `iterate()` lines | Status |
+|---|---:|---|
+| `Insertion` | ~110 | ✅ 1b |
+| `Dinucl_markov` | ~180 | ✅ 2b |
+| `Gene_choice` | **845** ([Genechoice.cpp:185-1029](../src/igor/Core/Genechoice.cpp#L185)) | steps 3 and 5b |
+| `Deletion` | **1004** ([Deletion.cpp:239-1242](../src/igor/Core/Deletion.cpp#L239)) | step 4b |
+
+**~77 % of the mass is ahead, in two of the remaining rows.** Smallest-first was the right order and
+the two delivered steps validate the method; they do not yet validate the services.
+
+**F1 — A0, S2 and S3 have no production consumer.** `JunctionGeometry.h` is referenced by its own
+test and by one doc comment in [Rec_Event.h:113](../src/igor/Core/Rec_Event.h#L113); the four A0
+capability virtuals are called from exactly one place, `PendingModifierBounds::rebuild()`, itself
+uncalled. §1 allows a service to sit without a caller for one commit; this is three steps.
+
+The risk is specific. B6 and B7 consumed *none* of it — G9 came out instead as
+`Rec_Event::set_adjacent_segments()`, a model-tells-event mechanism invented during 2b and not in
+this plan. So G1/G2/G3 remain the only §2 patterns no production code exercises, and S2/S3 were
+mutation-verified against a specification rather than against a consumer. If B11a finds
+`check_overlap()`'s shape wrong, S3's tests get rewritten *inside* a refactoring diff — the one
+signal §6.1 exists to protect. The response is to get consumers onto them, not to build more
+services: hence steps 3 and 4b are labelled with which service they are the first consumer of, and
+S5 no longer lands before the characterization that would exercise it.
+
+**F3 — S4 was under-scoped, and it is a tandem-D blocker.** As originally written S4 deleted three
+`has_effect_on` overrides, which is cheap and unblocks nothing. G5's actual weight is elsewhere:
+`vd_`/`vj_`/`dj_length_best_proba_map` are duplicated as six members across
+[Genechoice.h:195-197](../src/igor/Core/Genechoice.h#L195) and
+[Deletion.h:214-216](../src/igor/Core/Deletion.h#L214), plus `vj_length_d_position_proba`, and the
+whole machinery hangs off `iterate_initialize_Len_proba(Seq_type considered_junction, …)` — a pure
+virtual on `Rec_Event`, keyed by the enum.
+
+That last point is the finding that matters for the parent plan. `Insertion` reaches it through
+`insertion_seq_type_or_throw()`, which throws on any name the `Seq_type` enum does not know, so **a
+tandem-D `D1D2_ins` junction cannot pass `initialize_Len_proba_bound()` at all** — it throws before
+inference starts. The parent plan's milestone-1 path (`B2 → B8 → B11 → B7 → B6 → B5`) does not
+mention the Len_proba machinery, and is incomplete without it. S4 is therefore the pair-keyed
+junction structure, on the critical path rather than beside it, and it is also C2's stated landing
+point: one accessor, so the exact-match lookup becomes a range scan in one place instead of twenty.
+Per §9 its query returns a *set* of bearing events, not the first match. **§6.10 works the
+analysis through and proposes an S4a/S4b/S4c split.**
+
+**F4 — 4a moves ahead of S5.** `Deletion::iterate` is at 0 % coverage and is the largest single
+untackled job in the plan, bigger than 1a and 2a combined. Scheduling it after S5 would mean
+characterizing a body whose safety mechanism S5 had just replaced. Running it first also gives S5 a
+consumer instead of making it a third uncalled service, and its definition of done becomes "4a's
+sections pass unchanged", the same shape every *b* commit already has.
+
+**F5 — O6's switch is required; only its *fixture* rationale was overstated** *(corrected
+Sep 10 2026)*. An earlier version of this finding claimed O6 was "dissolved" because the exhaustive
+path is reachable from production code without a new switch. That conflated two things, and §2.6
+already had it right.
+
+*True*: `no_d_align` is not "the aligner returned nothing" — it is set `false` only when an
+alignment **survives pruning** ([Genechoice.cpp:530](../src/igor/Core/Genechoice.cpp#L530)). The
+path is therefore reachable two ways, an empty alignment list or a pruning threshold above every
+alignment's bound, and T0's G6 sections already use the first. Step 5's fixture does not need to
+defeat the aligner, and does not need the switch in order to *reach* the path.
+
+*False*: that the switch is therefore unnecessary. **It is required by the collapse itself.** The
+fallback lives inside `case D_gene`, so V and J never reach it — an accident of the switch
+statement rather than a stated policy. Once the body is generic there is no `case D_gene` left to
+confine it to, and the fallback then fires either for every gene class — a behaviour change, and
+catastrophic for V and J at hundreds of templates × hundreds of positions — or for none, also a
+behaviour change, losing D's fallback. The per-`Gene_choice` boolean is what carries the asymmetry
+after the statement that used to carry it is gone. §2.6 specifies it; T0's sections *"V with no
+alignments enumerates nothing"* and *"J with no alignments enumerates nothing"* already pin the
+behaviour it must preserve, and that test file's own comment says exactly this.
+
+Same migration pattern as B7's `event_side`: the hardcoded table held information that had to be
+**relocated into data**, not deleted. Legacy models derive the flag from the gene class, so no
+model-format change; whether v2 should carry it explicitly is open.
+
+What genuinely remains of O6 as a *policy* question is whether V and J should ever fall back. The
+default answers it conservatively either way.
+
+### 6.9 — Phase R: the repair queue
+
+Decided behaviour changes, none of which had a row in §6 before this re-assessment. They land
+**after 5b**, in the order below, each in its own commit with its own regression run.
+
+| # | Fix | Decided | Touches | Expected regression effect |
+|---|---|---|---|---|
+| R1 | §7.13 — give `Dinucl_markov` its own constructed-sequence layer | Sep 7 | `Dinucl_markov` | none expected; the write lands at a different layer, same content |
+| R2 | §7.12 — `first_occupied_*` walk, **throw** on an empty anchor | Sep 8 | `Dinucl_markov` | none on the corpus (no model produces an empty anchor); removes the `[.]` tag from the reproducer |
+| R3 | `Insertion` writes offsets and a mismatch list (three `[!shouldfail]`), **its `get_offset_role` stops reporting `None`**, and the leaf invariant's offsets half becomes assertable (see below) | Sep 7 | `Insertion` | none expected — neither `Insertion::iterate` nor `Dinucl_markov::iterate` touches `seq_offsets` at all |
+| R4 | `dinuc_proba_matrix` construction moves into `initialize_event()` | Sep 7 | `Dinucl_markov` | none — `GenModel` already calls the out-of-band builder |
+| R5 | §7.1 and §7.8 off-by-one corrections (decision O4) | Sep 1 | `Gene_choice` | **golden data moves**; the credited core length changes |
+| R6 | Within-clique **joint** max in the span fold, using S4b's group hook; optionally cross-clique parent indexing after it | Sep 10 | the span fold (all events) | **golden data may move** — a tighter bound prunes more, so fewer scenarios are summed. Needs the **convergence** gate, not just regression |
+
+R1–R4 are each expected to be bitwise-neutral despite being behaviour changes — they close paths
+the corpus does not reach. That expectation is the thing to *test*, not to assume: a surprise here
+is a finding about the corpus, not a reason to accept the diff. R5 and R6 are the two expected to
+move numbers, and they are last for exactly that reason. They are independent of each other.
+
+**R6 in more detail** *(Quentin, Sep 10 2026)*. §6.10 shows the span fold accumulates
+`∏ₑ maxᵢ Pₑ(rₑ|i)`, a product of per-event maxima, and that taking the max **jointly** over a
+conditioned clique — the D block, in every model IGoR ships — removes the dominant slack term at no
+storage cost. It is nonetheless a **behaviour change**: a tighter upper bound prunes more, so
+scenarios that were explored before are now discarded, and the summed marginals move by whatever
+those scenarios contributed. With the probability-ratio threshold set low enough the shift should be
+negligible, but "should be" is what the convergence gate exists to check — this is the one repair
+whose effect is on *which scenarios are summed* rather than on a single value, so regression
+bitwise-equality is the wrong question to ask of it alone.
+
+Optional second stage, same commit or the next: **cross-clique parent indexing**, for `V → D` and
+`J → D`, where the conditioning parent is already chosen at consumption time but unknown when the
+profile is built. Estimated ≈ 270 kB per span per thread at human BCR-H dimensions, against the
+memory S4c's deduplication frees (five builds → one). Strictly optional, and only worth doing if
+R6's first stage shows the remaining slack still matters.
+
+**Naming**: R1–R6 are *repairs*; F1–F5 in §6.8 are the *findings* of the re-assessment. Different
+sequences, deliberately different letters.
+
+#### R3 also has to correct A0, not just `iterate()` *(Quentin, Sep 10 2026)*
+
+`Insertion::get_offset_role()` returns `OffsetRole::None`, and the comment beside
+`get_offset_delta_bounds` justifies it: *"An insertion writes no offsets at all: its span is
+derived from where its neighbours already sit, which is exactly what makes the generic B6 rule
+possible."* Two claims are conflated there. **The span is derived from the neighbours** is true and
+is B6's whole point. **Therefore no offsets are recorded** is the defect.
+
+This matters more than the missing write on its own. A capability query is what a consumer is
+supposed to ask *instead of* knowing which event produced a segment — that is A0's entire purpose —
+so a query reporting the defect propagates exactly the coupling it exists to remove. A0 documented
+the current behaviour as if it were the design.
+
+R3 therefore has three parts, not two: write the offsets, write the mismatch list, and make
+`get_offset_role` report the truth — plain `OffsetRole::Creates`, with **no enum change**; §2.5
+records why the `Anchors`/`Derives` split first proposed here was the wrong answer.
+
+A fourth part is available only once R3 lands: the **offsets half of the leaf invariant** (§2.5).
+`iterate_wrap_up`'s debug check already rejects a leaf carrying unfilled *content*; the matching
+check for unplaced *offsets* cannot be added while `Insertion` writes none, because it would fire
+on every scenario.
+
+Each fix removes a `[!shouldfail]` tag or a `[.]` tag as part of its definition of done. A fix that
+lands without its tag coming off leaves a case that now passes under `[!shouldfail]`, which Catch2
+reports as a failure — the mechanism §6.1 chose deliberately, and the reason the queue can be
+deferred this far without being forgotten.
+
+### 6.10 — G5 analysis: what the Len_proba machinery is, and what S4 must do *(Sep 9 2026)*
+
+Written to settle S4's scope (finding F3, §6.8). Read: all four `iterate_initialize_Len_proba` /
+`initialize_Len_proba_bound` pairs, the base traversal, and every consumer.
+
+#### The four bodies are one body modulo one scalar
+
+`Gene_choice`, `Deletion` and `Insertion` are structurally identical:
+
+```cpp
+if (has_effect_on(J)) {
+    base_index_map.set_current_layer(event_index, 0);
+    base_index = base_index_map.get(event_index);
+    for (auto& r : event_realizations) {
+        real_max_proba = maxᵢ marginals[base_index + r.index + i*size()];
+        wrap_up(..., scenario_proba * real_max_proba, seq_len + Δ(r));
+    }
+} else { wrap_up(..., scenario_proba, seq_len); }
+```
+
+| Event | `Δ(r)` | Enumerates? | Extra |
+|---|---|---|---|
+| `Gene_choice` | `+ r.value_str.length()` | yes | — |
+| `Deletion` | `− r.value_int` | yes | — |
+| `Insertion` | `+ r.value_int` | yes | writes `constructed_sequences` as a **side channel** |
+| `Dinucl_markov` | **0** | **no** | multiplies `p^L`, reading `L` back out of that side channel |
+
+`Dinucl_markov` differs in kind: it contributes probability as a function of an already-accumulated
+length, and learns that length only because `Insertion` stashed a dummy string in
+`constructed_sequences`. That is the `//TODO constructed sequences should not be used but it is
+useful to compute the dinucl contribution` on
+[Rec_Event.cpp:374](../src/igor/Core/Rec_Event.cpp#L374).
+
+#### What `has_effect_on` means
+
+Every implementation answers exactly one question: *does a realization of this event change the
+accumulated length of the span named by this argument?* **Length only** — not offsets, not content,
+not probability. `Dinucl_markov::has_effect_on` returning `true` while contributing zero length, to
+gate a *probability* factor, is the one place the name actively misleads.
+
+And the argument is a **span**, not a seq_type: `VJ_ins_seq` means the VJ insertion segment in a VJ
+model and the whole V→J span in a VDJ one. That is §2.5's "hidden generalisation", confirmed at
+every call site.
+
+#### Five incidental findings
+
+1. **The queue-level filter is commented out.** [Rec_Event.cpp:387-397](../src/igor/Core/Rec_Event.cpp#L387)
+   carries `//if(next_event_p->has_effect_on(considered_junction)){` with
+   `//TODO fix this and find a way not to loop over all events`. The traversal therefore visits
+   every event in the model and each self-filters at the top of its own override — the predicate
+   exists twice over, at the wrong level.
+2. **`Gene_choice::has_effect_on` never returns `true` into a value anyone reads.** It is `true`
+   only for `D_gene` on `VJ_ins_seq`. Every consumer is guarded `if (d_chosen) {adjacent}
+   else if (other_chosen) {vj}` — [Genechoice.cpp:321](../src/igor/Core/Genechoice.cpp#L321),
+   [:975](../src/igor/Core/Genechoice.cpp#L975),
+   [Deletion.cpp:453](../src/igor/Core/Deletion.cpp#L453) — so the VJ map is read only when there
+   is no D, and when there is no D there is no D `Gene_choice` to fire. Dead in both topologies.
+3. **`Deletion` builds `vj_length_best_proba_map` in every VDJ model and nothing reads it.**
+   `get_deletion_effective_junctions(V_gene_seq, ·)` returns `{VD, VJ}` unconditionally. Wasted
+   initialization; also what hides the asymmetry noted in §2.5.
+4. **The VD span profile is built five times per model, per thread** — `Gene_choice(V)`,
+   `Gene_choice(D)`, `Deletion(V,3')`, `Deletion(D,5')`, and `Insertion(VD)`'s own
+   `junction_length_best_proba_map`. Five identical traversals, five stored copies. Same for DJ.
+   Six named members hold three logical maps, across two classes.
+5. **`Insertion::initialize_Len_proba_bound` runs the whole traversal `|R|` times where once would
+   do.** [Insertion.cpp:549-557](../src/igor/Core/Insertion.cpp#L549) loops over its own
+   realizations *outside* the traversal purely to set `inserted_str` for the Dinucl side channel,
+   but `Insertion::iterate_initialize_Len_proba` re-enumerates the same realizations *inside* and
+   overwrites it; `wrap_up` takes `model_queue` by value so the queue survives each pass. With ~40
+   realizations that is a 40× init cost producing an identical map. **High confidence, confirm by
+   measurement in S4b** before removing.
+
+`chosen` is a model-level fact, not a per-scenario one — `EventUtils::check_gene_choice(…,
+processed_events)` at [Genechoice.cpp:1111](../src/igor/Core/Genechoice.cpp#L1111) resolves it once
+during priority-ordered `initialize_event`. Each gene's anchor pair is therefore fixed at init,
+which is what makes a cache keyable at all.
+
+#### API naming — reserve the family now
+
+The ambiguity in `has_effect_on` is that three orthogonal axes get one name. A0 already occupies
+four cells; naming the axes shows which are empty.
+
+| | addressed by a **segment** | addressed by a **span** |
+|---|---|---|
+| offset | `get_offset_role` ✅ A0 · `get_offset_delta_bounds` ✅ A0 | — |
+| length (bounds) | `get_length_contribution` ✅ A0 | **`affects_length_of(SegmentSpan)`** ← replaces `has_effect_on` |
+| length (per realization) | **`length_delta(const Event_realization&)`** ← missing, and it is the hook | — |
+| sequence content | `get_seq_construction_role` ✅ A0 | — |
+| probability | — | **`span_proba_factor(SegmentSpan, const SpanAccumulator&)`** ← `Dinucl_markov`'s cell |
+
+```cpp
+/// An ordered, anchor-exclusive range of the registry ordering. The addressing unit for
+/// junction-length bounds (G5), for effect queries, and for Phase D's cluster boundaries
+/// (D.3) -- the same object in all three, named once.
+struct SegmentSpan { SeqTypeId left, right; };
+```
+
+`affects_length_of` is deliberately narrow rather than a general `affects()`: a general predicate
+would need a "what" argument and would immediately be a worse `has_effect_on`. The narrow name
+leaves `affects_offsets_of` / `affects_content_of` free, and D.9's `get_context_seq_types()`,
+`get_context_dependency()`, `is_branching()`, `is_multi_realization()` stay uncollided.
+
+#### Would more Phase A capabilities help?
+
+Yes, and specifically two — both already implied by the table above:
+
+- **A per-realization length delta.** A0 gives `LengthContribution{min,max}`, the bound over all
+  realizations, which is what `PendingModifierBounds` needs. The traversal needs the value for
+  *one* realization. This single accessor is what collapses four bodies into one.
+- **A probability hook for non-enumerating events.** Phase D already names the shape —
+  D.9's `is_multi_realization()`, "contributes a sum of paths to a single subscenario (e.g.
+  `Dinucl_markov`)". The concept is reserved; G5 is where it first has a caller.
+
+**A modifier-type enum would not help.** The four `Δ` implementations differ by sign and by which
+field of `Event_realization` they read (`value_str.size()` vs `value_int`); a per-realization
+accessor states that directly. A taxonomy tagging events insertion-like / deletion-like would
+re-create `Gene_class` one level up — the mistake B1 has just finished undoing. The *qualitative*
+taxonomy already exists as `SeqConstructionRole{None, Creates, Modifies, Fills}`.
+
+#### Bound tightness: where the relaxation costs pruning
+
+`maxᵢ marginals[base + r.index + i·size()]` is applied **per event** and the results multiplied, so
+the accumulated bound is `∏ₑ maxᵢ Pₑ(rₑ|i)` against a truth of `max_decomp ∏ₑ Pₑ(rₑ|actual)`.
+Product-of-maxes ≥ max-of-products, and the slack **compounds with the number of marginalised
+events**.
+
+That matters because of what gets marginalised. Every VDJ model IGoR ships makes the D block the
+densest conditioning cluster in the graph:
+
+```
+%GeneChoice_V_gene…;GeneChoice_D_gene…            (human TRB, human BCR-H)
+%GeneChoice_J_gene…;GeneChoice_D_gene…            (human TRB, human BCR-H, mouse TRB)
+%GeneChoice_D_gene…;Deletion_D_gene_Three_prime…
+%GeneChoice_D_gene…;Deletion_D_gene_Five_prime…
+%Deletion_D_gene_Five_prime…;Deletion_D_gene_Three_prime…   (mouse TRB)
+```
+
+— and that block is exactly what `span(D1,J)` marginalises when D1 enumerates.
+
+**Within-clique conditioning has a free fix.** For the D block the conditioning parent is *inside*
+the marginalised span, so a **joint** max over `(gene, del5, del3)` is available at build time: no
+extra storage, ~68k evaluations once per model at human BCR-H dimensions (35 × 44 × 44). Today's
+structure cannot express it, because `real_max_proba` is computed inside each event's own body.
+**This is why the S4b hook must fold over contribution *groups* rather than events** — a group
+being one event today and a conditioned clique tomorrow. Reserving that seam is not insurance; it
+is the mitigation.
+
+**Cross-clique conditioning is live but priced.** `V → D` and `J → D` differ: at *consumption* time
+V and J are already chosen, but at *build* time — `initialize_Len_proba_bound` runs once before any
+read — they are not, so the bound discards information the scenario has. Indexing the span profile
+by conditioning context costs `|V| × |J|` copies: ≈ 97 × 7 × 50 lengths × 8 B ≈ **270 kB per span
+per thread** at human BCR-H dimensions *(estimate, worth checking)*. Not obviously prohibitive —
+and S4c's deduplication (finding 4) frees roughly what it would spend, so the two belong on the
+same page rather than being decided apart.
+
+**Measure before milestone 2 commits.** `vj_length_d_position_proba` already marginalises one gene,
+two gaps and two Dinucl — the same mechanism at roughly half the event count, on the existing
+corpus, today. Instrumenting `bound / realized_proba` at leaves gives a measured baseline instead of
+an argument. **Scheduled into 5a**, which already owns raising coverage on that path and already
+needs a fixture that forces it.
+
+#### Proposed S4 split *(not yet approved)*
+
+**Approved Sep 10 2026**, with the joint-max tightening moved out to phase R.
+
+| | Content | Justified by |
+|---|---|---|
+| **S4a** | `SegmentSpan`; `affects_length_of(SegmentSpan)` replacing `has_effect_on`; the filter moved to the queue level (closing finding 1) and removed from the four bodies. Also the tier-3 harness check (§2.5) | naming; no behaviour change |
+| **S4b** | `length_delta` + `span_proba_factor`, both as **group** hooks; the four bodies → one non-virtual traversal; `SpanAccumulator` (carrying per-segment lengths) replaces the `constructed_sequences` side channel and its `Seq_type_str_p_map` parameter | the collapse; findings 1 and 5 |
+| **S4c** | Span-keyed structure owned by the model; `⊗ᵐᵃˣ`; six members → one; each span built once; `initialize_Len_proba_bound` de-virtualised; **the dead code of findings 2 and 3 deleted here** | **removes the tandem-D enum ceiling**; findings 2, 3, 4 |
+| **S4d** | Tensor-backed containers, **gated on the Tensor API landing** — see the container note in §2.5 | performance only; strictly optional |
+| **→ 5b** | `⊗ᵉⁿᵘᵐ` — bucketing `(realization, left_len)` pairs by total, sorted | `no_d_align` only |
+| **→ R6** | The within-clique **joint** max, and optionally cross-clique parent indexing | bound tightening — **changes results**, §6.9 |
+
+**S4b keeps the group-shaped hook but not the joint max.** A group of one is exactly today's
+behaviour — each event's own `maxᵢ`, multiplied in the same order — so S4b stays bitwise. Taking
+the max *jointly* over a conditioned clique tightens the bound and therefore changes which
+scenarios survive pruning, which is a behaviour change and belongs in phase R (R6). Deferring the
+tightening is not the same as deferring the seam: retrofitting a per-event hook into a per-group
+one touches every implementation, so the shape lands in S4b and R6 merely uses it.
+
+**Finding 2 and 3's dead code is deleted in S4c, not deferred to phase R** *(decided Sep 10 2026)*.
+Provably-unread code is not a behaviour change in any observable sense, and porting it into the new
+structure only to remove it later is worse than deleting it at the point of the move. The claim
+"provably unread" is what the S4c regression run has to bear out: if the analysis in findings 2–3 is
+wrong, the run is no longer bitwise, which is exactly the signal wanted.
+
+`⊗ᵐᵃˣ` belongs in S4c, not 5b: every gene needs it to build `span(G,B)` past marginalised genes.
+Only the *retention* of the decomposition is 5b's.
+
+`⊗` must accept a **scalar weight per operand**, not just profiles — see the B10 note in the parent
+plan. Cheap now, and it is what lets an explicitly-weighted absence branch tighten the bound.
+
 
 ### 6.2 — The regression gate has a flaky output
 
@@ -1774,7 +2455,7 @@ sibling must not conclude.
 
 **Pinned as a `[!shouldfail]` case** stating the intended behaviour — the filled junction at this
 event's own layer, the placeholders still readable at the layer below. Not fixed in B7: it changes
-which layer a downstream reader finds the junction at, so it needs its own commit and its own
+which layer a downstream reader finds the junction at, so it needs its own commit (R1, §6.9) and its own
 regression run. It is also a prerequisite for either branching change, not a tidy-up.
 
 ### 7.14 — "Not filled yet" was a bare `-1`, on the same axis as `int_N`
@@ -1829,7 +2510,9 @@ depends on §7.13, since sharing a buffer is what makes writing earlier equivale
 B10: "allocated but undetermined" and "processed but absent" are the same question asked of a
 nucleotide and of a segment, and deciding them apart risks deciding them in opposite directions.
 
-## 8. Decisions taken (Sep 1 2026 review)
+## 8. Decisions taken
+
+O1–O6 from the Sep 1 2026 review; O7–O9 from the Sep 9 2026 re-assessment (§6.8).
 
 | # | Question | Decision |
 |---|---|---|
@@ -1838,7 +2521,10 @@ nucleotide and of a segment, and deciding them apart risks deciding them in oppo
 | O3 | Where does `PendingModifierBounds` live? | **Per event instance.** Not only to match current behaviour: its content depends on `processed_events`, i.e. on where the event sits in the recursion, so it is not shareable via `ModelContext`. |
 | O4 | Does §7.1 get fixed here? | **Reproduce first, fix last.** The sign slip is preserved verbatim through steps 1–5 for regression-testing purposes, then fixed as the final commit with unit tests pinning the corrected core length. |
 | O5 | Milestone-2 absence semantics (a)/(b)/(c) | **Defer; update the parent plan once step 5 is carried.** G5's pair-keyed junctions make (b) cheaper than the parent plan's estimate — re-score it then, not now. |
-| O6 | Second `no_d_align` fixture | **Dissolved into the G6 switch.** The fallback becomes an explicit per-`Gene_choice` boolean, defaulted to reproduce legacy (D on, V/J off); step 5 is tested by flipping it, not by defeating the aligner. |
+| O6 | Second `no_d_align` fixture | **The switch is required; only the fixture rationale changes** *(Sep 1 2026; a Sep 9 amendment claiming it was dissolved was wrong and is withdrawn — §6.8 F5)*. The per-`Gene_choice` boolean is not optional: per §2.6 the generic body has no `case D_gene` left to confine the fallback to, so the flag is what carries the V/J-vs-D asymmetry — default `true` for `D_gene`, `false` for V and J, bitwise by construction. What the amendment got right is narrower: the *fixture* need not defeat the aligner, since an empty alignment list (or a pruning threshold above every bound) reaches the path through production code, as T0's G6 sections already do. Whether V and J *should* fall back stays open policy. |
+| O7 | Where do the decided behaviour fixes land? | **All of them after 5b, as phase R** (§6.9). Landing a fix mid-sequence would move the golden data partway through, after which "bitwise" no longer means one thing across the remaining steps and every verdict has to be read against which baseline it was taken on. The refactoring block stays idempotent end to end; F is the one place golden data may move, once, with each commit naming the outputs it changes. Cost accepted: re-establishing context on `Insertion` and `Dinucl_markov` later. |
+| O8 | Is S4 just the `has_effect_on` overrides? | **No — S4 is the pair-keyed junction structure** (§6.8 F3). The six `*_length_best_proba_map` members plus `vj_length_d_position_proba` collapse to one map keyed by an ordered `(SeqTypeId, SeqTypeId)` behind a single accessor. This is not scope creep: `iterate_initialize_Len_proba` is enum-keyed, so a tandem-D junction throws before inference starts, which puts S4 **on the milestone-1 critical path**. It is also C2's stated landing point. Per §9 the query returns a set, not the first match. **Split into S4a/S4b/S4c by the §6.10 analysis, approved Sep 10 2026**, with an optional S4d for Tensor-backed containers and the joint-max bound tightening moved out to R6 as a behaviour change. The composition operator divides across the split: `⊗ᵐᵃˣ` in S4c because every gene needs it, `⊗ᵉⁿᵘᵐ` in 5b because only `no_d_align` retains the decomposition. |
+| O9 | 4a before or after S5? | **Before.** S5 replaces the safety mechanism `Deletion::iterate` reads; characterizing against a body S5 has already moved is the wrong order. It also gives S5 a consumer rather than making it a third service with none (§6.8 F1), and S5's definition of done becomes "4a's sections pass unchanged". |
 
 ### 8.1 — Two standing design constraints
 

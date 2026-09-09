@@ -4,21 +4,21 @@
 
 ---
 
-## Implementation Status (audited Aug 26 2026; baseline re-checked against `develop` @ `ed5c583`, Aug 27 2026)
+## Implementation Status (audited Aug 26 2026; baseline re-checked against `develop` @ `ed5c583`, Aug 27 2026; Phase A / B0 / B6 / B7 rows re-audited against `feature/tandemD` @ `4a6dfee`, Sep 9 2026)
 
 Legend: ✅ done · 🟡 partial · ⬜ not started
 
 | Task | Status | Notes |
 |------|:------:|-------|
-| Phase A | ⬜ | No capability enums, no pure virtuals. Nothing named `is_branching`, `SeqConstructionRole`, `OffsetRole`, `SeqContextDependency` exists anywhere in the tree. |
-| B0 | 🟡 | `Rec_Event` gained a `Seq_type_String seq_type` **string** member; `event_class` was **kept** on the base. No `seq_type_ids` vector, no `primary_seq_type_id()`. Subclasses gained typed members (`Deletion::target_seq_type`, `Insertion::ins_seq_type`, `Dinucl_markov::ins_seq_type`). `Dinucl_markov::start_side` realised as `DinuclTraversalSpec::anchor_side` + `event_side`. |
+| Phase A | 🟡 | **Two further capabilities identified as missing** *(Sep 9 2026, iterate plan §6.10)*: a **per-realization** length delta (A0 supplies only the `{min,max}` bound over all realizations, but the junction-length fold needs the value for one realization — this is the hook that collapses four `iterate_initialize_Len_proba` bodies into one) and a **probability hook for non-enumerating events**, whose shape D.9 already reserves as `is_multi_realization()`. A *modifier-type* enum was considered and rejected: the four length deltas differ by sign and by which `Event_realization` field they read, which a per-realization accessor states directly, and the qualitative taxonomy already exists as `SeqConstructionRole`. **One delivered A0 query is also wrong** *(Sep 10 2026)*: `Insertion::get_offset_role()` returns `None`, encoding as contract the defect that `Insertion::iterate` records no offsets for the segment it creates — so a query whose purpose is to spare consumers from knowing implementations instead propagates that coupling. Fixed with iterate-plan R3 by reporting plain `Creates`; the enum needs no new value — whether an event can be scheduled before its neighbours is a *context dependency* (D.9's `get_context_seq_types()`), not an offset role, and that is what would differ for an `Insertion` implemented by enumeration rather than by deriving its span. `SeqConstructionRole::Creates` and `OffsetRole::Creates` coincide for every event today but are **not** to be collapsed: an event could construct content and leave placement downstream. The invariant tying them is that **every registry seq_type must have both its sequence and its offsets created by the time a scenario reaches a leaf**, not necessarily by the same event; the content half is already asserted (`1794b5f`), the offsets half becomes assertable with R3. See that plan's §2.5. <br><br>**Partially delivered as A0** *(`db8d960`, Sep 2 2026 — this is decision O2's amendment, recorded here)*. `SeqConstructionRole` and `OffsetRole` exist at [Rec_Event.h:146,154](src/igor/Core/Rec_Event.h#L146), alongside `OffsetDelta` and `LengthContribution` (quantitative bounds the original Phase A did not specify), as four pure virtuals implemented on all four subclasses. Still absent: `is_branching`, `SeqContextDependency`. **No production consumer yet** — the only caller is `JunctionGeometry::PendingModifierBounds::rebuild()`, itself uncalled until step 3 of the iterate plan. |
+| B0 | 🟡 | `Rec_Event` gained a `Seq_type_String seq_type` **string** member; `event_class` was **kept** on the base. No `seq_type_ids` vector, no `primary_seq_type_id()`. Subclasses gained typed members (`Deletion::target_seq_type`, `Insertion::ins_seq_type`, `Dinucl_markov::ins_seq_type`). `Dinucl_markov::start_side` realised as `event_side`, from which `DinuclTraversalSpec::anchor_side` is now **derived** rather than stored (`7104c91`). Adjacency moved onto the base as `left_adjacent_id` / `right_adjacent_id` with a non-virtual `set_adjacent_segments()`, resolved once by `Model_Parms::finalize()` (`4a6dfee`) — topology is told to events, not asked for by them. |
 | B1 | ✅ | `Gene_class` = `{V_gene, D_gene, J_gene, Undefined_gene}`. Junction values moved to a new `Gene_class_legacy` enum confined to file I/O + `gene_to_seqtype_migr` module. |
 | B2 | ✅ | `SeqTypeId` handle layer added to `SeqTypeRegistry` (`1038c5d`), `LayeredArray` (`f6f0101`) and `DynamicSequenceMap` (`f1d26a4`) added as separate headers, legacy ids pinned to the `Seq_type` enum (`7549a4d`). Split into a pure container + a registry-aware view rather than one class; `standard_count()` and `LegacySequenceRegistry` dropped (see below). Flank types await B3. |
 | B3 | ⬜ | No flank seq types. `Gene_choice` friend declarations for `Hypermutation_*` still present. |
 | B4 | ✅ | `Events_map = unordered_map<tuple<Event_type, Seq_type_String, Seq_side>, shared_ptr<Rec_Event>>`, threaded through every `iterate`/`initialize_event`/counter/error-rate signature. Key built from `get_seq_type()`. Tandem-D uniqueness achieved. |
 | B5 | ⬜ | `Deletion::iterate()` still carries the full 4-case switch (now on `target_seq_type` instead of `event_class`) and the hardcoded `VD_safe`/`DJ_safe`/`VJ_safe` checks. |
-| B6 | ⬜ | `Insertion::iterate()` still branches per junction — the `switch(event_class)` became an `if/else` chain of `std::string` comparisons on `this->seq_type`. |
-| B7 | 🟡 | The `if (event_class == …)` chain is gone from `iterate()`; anchor sequence + anchor side are now data (`DinuclTraversalSpec`). But the specs come from a hardcoded `switch(Seq_type)` at construction, not from registry traversal, and there is no skip-empty walk. |
+| B6 | ✅ | `96ed833` (Sep 7 2026), iterate plan step 1b. One generic body driven by the adjacency ids; `initialize_crude_scenario_proba_bound`'s switch is one `events_map` lookup; `initialize_event` addresses `seq_type_id` directly. `Insertion::iterate` at 100 % lines, branches and blocks. Bitwise-exact. |
+| B7 | ✅ | `7104c91` (Sep 8 2026), iterate plan step 2b. The hardcoded spec table, both residual `switch`es in `iterate()`, the one in `add_to_marginals()`, three raw `new int[]` buffers and nine named members are gone; the junction is derived from the registry-resolved adjacency plus the event's own `event_side`. `Dinucl_markov::iterate` at 100 % lines and blocks. Bitwise-exact. **The skip-empty walk is deliberately not part of B7** — it differs from the ordering neighbour exactly when the anchor is empty, which is a live segfault, so it is a fix (throw) scheduled in the iterate plan's phase R (repairs), not a refactor. |
 | B8 | ✅ | All five maps migrated and sized from the frozen registry: downstream proba bounds (`13fcdec`), the two mismatch maps (`1abd908`), constructed sequences (`c86d34e`), offsets split per sequence end (`fe8c5d1`), overlap safety to `LayeredArray<bool>` (`a58808b`). `Enum_fast_memory_map`, `Enum_fast_memory_dual_key_map` and `Str_Dual_key_memory_map` are deleted. Measured cost +9.4 % inference wall clock; accepted for the refactoring's duration, see D4 step 3. |
 | B11 *(new)* | ⬜ | Generalize `Gene_choice` seq_type writes (both the alignment and `no_d_align` exhaustive paths). **Most blocking item for milestone 1** — two D events currently both write `D_gene_seq`. |
 | B10 *(new)* | ⬜ | Absent-segment semantics. **Off the tandem-D critical path** — milestone 1 has both D genes always present. Carries a real modelling decision (chain-with-conflation vs. DAG ordering) deferred to milestone 2. |
@@ -83,7 +83,29 @@ may already satisfy AA plan item §10.4.3 ("dual-track output from `sw_align`, o
 
 ### Step 1 — tandem-D critical path
 
-**Milestone 1 (both D genes always present)**: `B2`-with-SeqTypeId → `B8` → **`B11`** → `B7` → `B6` → `B5` → tandem-D model + round-trip test. B10 is **not** required — the traversal never skips a segment.
+**Milestone 1 (both D genes always present)** *(path corrected Sep 9 2026 — see below)*:
+`B2`-with-SeqTypeId ✅ → `B8` ✅ → `B7` ✅ → `B6` ✅ → **`S4a-c`** → **`B11`** → `B5` → tandem-D model +
+round-trip test. B10 is **not** required — the traversal never skips a segment.
+
+Two changes from the original ordering:
+
+- **`S4` is new on this path, and it is a hard blocker.** The junction-length probability machinery
+  hangs off `Rec_Event::iterate_initialize_Len_proba(Seq_type considered_junction, …)`, a pure
+  virtual keyed by the `Seq_type` **enum**. `Insertion` reaches it through
+  `insertion_seq_type_or_throw()`, which throws on any name the enum does not know — so a tandem-D
+  `D1D2_ins` junction **throws inside `initialize_Len_proba_bound()` before inference starts**. No
+  amount of B11 or B5 work reaches that. S4 (iterate plan §6.8 F3, decision O8) replaces the six
+  `*_length_best_proba_map` members and `vj_length_d_position_proba` with one structure keyed by an
+  ordered `(SeqTypeId, SeqTypeId)` pair behind a single accessor, which is what makes the machinery
+  expressible for a junction the enum cannot name. §6.10 there works the analysis through and
+  proposes the S4a/S4b/S4c split.
+- **`B7` and `B6` are done and moved to the front of the remaining path**, which the original
+  ordering placed after B11. They landed first because they are the smallest, and nothing in B11
+  depended on their being later.
+
+The detailed sequencing of `S4`, `B11` and `B5` — including the characterization commit that
+precedes each collapse, and the behaviour fixes deliberately held until after all of them — lives in
+[ITERATE_GENERIC_REWRITE_PLAN.md §6](ITERATE_GENERIC_REWRITE_PLAN.md).
 
 Milestone 1 runs on a **dummy generative model, not real biological data**. What it validates: structural correctness (registry ordering, `events_map` uniqueness, seq_type-driven writes, generic neighbour-based insertion lengths, generic Dinucl seeding) and the compute-time cost of a second D. What it does **not** validate: aligner behaviour on real tandem-D receptors, the `no_d_align` fallback in practice, or inference quality on biological repertoires.
 
@@ -1413,6 +1435,57 @@ merely an untidy model. So milestone 2 must pick one of:
   between two insertion SeqTypeIds. Cheapest; adequate if the first optional-D models place a single
   insertion between D1 and D2.
 
+#### Pruning efficiency is a second input to (b)-versus-(c) *(added Sep 9 2026)*
+
+Raised by Quentin: skipping D2 creates large drops in achievable length, and the upper bound the
+pruning machinery uses takes a max over conditional dependencies — so an optional segment could
+loosen the bound enough to hinder pruning. It does, by two distinct mechanisms, and the second is
+the one that scales.
+
+**(1) Support widening.** `support(span(D1,J))` becomes the union of the with-D2 and without-D2
+bands, so the hard `count(n) == 0` feasibility gate admits more D1 placements. Bounded, roughly by
+`|D2|` nucleotides' worth.
+
+**(2) Bound slack, compounding multiplicatively.** The junction-length fold accumulates
+`∏ₑ maxᵢ Pₑ(rₑ|i)` against a truth of `max_decomp ∏ₑ Pₑ(rₑ|actual)`; product-of-maxes ≥
+max-of-products, and **every marginalised event contributes its own slack factor**. Marginalising
+D2 into `span(D1,J)` adds four — its gene choice, both deletions, and the `del5 → del3` edge where
+the model has one — and `@Edges` in every VDJ model IGoR ships makes the D block the densest
+conditioning cluster in the graph. The events being added are precisely the most strongly
+conditioned ones.
+
+**This distinguishes (a) from (b).**
+
+- Under **(b) DAG**, absence is a distinct path carrying its own marginal, so the fold becomes
+  `max( P(via D2)·with[n], P(via D1J_ins)·without[n] )`. Each branch is *weighted*: a rare tandem
+  configuration scales its branch down and the bound tightens proportionally on lengths only that
+  branch reaches.
+- Under **(a) chain + neutralisation**, absence is buried in a conditional dependency on the D2
+  realization — precisely a conditioning axis the bound maxes over. The weighting exists in the
+  model and is discarded by the relaxation. (a) was already rejected on interpretability; this is
+  an independent reason.
+- **(c)** sidesteps the whole thing and remains cheapest.
+
+So (b) buys back some of what optional-D2 costs, where the earlier write-up priced (b) as all cost.
+**Still an input, not a verdict** — it does not outweigh the graph-ordering and layer-scoping costs
+above on its own.
+
+**Two consequences for the junction-length structure being built now** (iterate plan §6.10, S4):
+
+- `⊗` must accept a **scalar weight per operand**, not just profiles, or (b)'s weighting cannot be
+  expressed.
+- The fold must be over **contribution groups** rather than single events, so that a conditioned
+  clique can be maxed *jointly* instead of factor-by-factor. For the D block that removes mechanism
+  (2)'s dominant term at no storage cost — the conditioning parent is inside the marginalised span,
+  so the joint max is available at build time.
+
+Both are cheap now and expensive to retrofit. Neither commits (b)-versus-(c).
+
+**Before milestone 2 decides**, measure: today's `vj_length_d_position_proba` already marginalises
+one gene, two gaps and two `Dinucl_markov` — the same mechanism at roughly half the event count, on
+the existing corpus. `bound / realized_proba` at leaves gives a baseline to extrapolate from.
+Scheduled into the iterate plan's step 5a.
+
 Recommendation: ship milestone 1 first, then choose between **(b)** and **(c)**. Record the choice
 here before B6's neighbour rule is finalised, since (b) changes it.
 
@@ -1519,19 +1592,57 @@ The existing `.txt` model format uses `Gene_class` strings (`VD_genes`, `DJ_gene
 2. Construct the standard ordered array: `[left_flank_seq, V_gene_seq, VD_ins_seq, D_gene_seq, DJ_ins_seq, J_gene_seq, right_flank_seq]`
 3. Expand any `VDJ_genes` `Dinucl_markov` into two separate events (VD + DJ) flagged for parameter sharing
 4. Generate safety adjacency entries for each junction from the implied topology
+5. **Take the generation path off the `Seq_type` enum** *(added Sep 9 2026)* — see the scope note below
+
+#### Scope note: what B9 removes, and what outlives it
+
+B9 is routinely read as "remove the `Seq_type` enum". It is not, and the two halves have different
+owners and different end dates.
+
+**B9 removes the generation path's enum dependency.** `Rec_Event::draw_random_realization()` takes
+an `unordered_map<Seq_type, string>& constructed_sequences`; inference migrated to registry-keyed
+`DynamicSequenceMap`, generation never did. Because the map can only be keyed by a value the enum
+names, `Dinucl_markov::get_junction()` has to tell generation whether the junction it derived is one
+the enum can name at all. That is the whole reason for this scaffolding, which retires as a unit:
+
+- `kLegacySeqTypeCount` ([SeqTypeRegistry.h:68](src/igor/Core/SeqTypeRegistry.h#L68)) — a
+  `static_cast` guard with a name, with exactly two use sites, both in `get_junction()`
+- `DinuclTraversalSpec::target_seq` / `anchor_seq` / `legacy_enums_valid`
+  ([Dinuclmarkov.h:63-65](src/igor/Core/Dinuclmarkov.h#L63))
+- the `if` in `get_junction()` that sets them, and the `throw` in `draw_random_realization()` that
+  names B9
+
+Worth recording *why* the guard exists rather than a plain cast: the two `Seq_type` fields must have
+defaults, and the defaults (`VD_ins_seq`, `V_gene_seq`) are **valid keys in a VDJ map**. Without the
+guard a tandem-D junction would not fail — it would seed from V and write into the VD insertion
+segment, silently, with plausible output. `FastGenerator` holds the bulk of the remaining generation
+work (~15 enum uses across `.cpp` and `.h`), so this is not a one-file change.
+
+**The enum *pinning* outlives B9.** `SeqTypeRegistry::register_legacy_seq_types()` assigns the six
+standard names ids 0–5 in `Seq_type` enum order, which is what keeps every enum-keyed consumer
+addressing the right id — around twenty files still read the enum (`Deletion`, `Insertion`,
+`ScenarioContext`, `FastGenerator`, …). The pinning goes with the *last* of those, not with B9.
+
+One thing to add when B9 lands: the pinning's correctness is currently a comment ("Order matters: it
+must match the `Seq_type` enum declared in Utils.h") with nothing enforcing it. A check that
+`register_type("D_gene_seq") == D_gene_seq` for all six costs nothing and catches a reordered enum.
 
 ---
 
 ## Phase C — Model Topology Validation at Initialization
 
-> **Status: ⬜ NOT STARTED.** Blocked on Phase A.
+> **Status: ⬜ NOT STARTED.** Blocked on Phase A — **except items 1 and 1b**, whose inputs
+> (`get_seq_construction_role`, `get_offset_role`) A0 already delivered and whose natural home,
+> `Model_Parms::finalize()`, already exists and already runs a resolution pass. They can land
+> ahead of Phase C proper, though not before iterate-plan R3.
 
 After event graph assembly, validate using capability attributes:
 
 1. **Unique Creates per SeqTypeId**: for each SeqTypeId in registry order, assert exactly one event returns `Creates` in `get_seq_construction_roles()`
+1b. **Unique Creates per (SeqTypeId, Seq_side)** *(added Sep 10 2026)*: the same for `get_offset_role()`. Item 1 covers only the *sequence* half of the invariant that every registered seq_type must have both its content and its offsets created by the time a scenario reaches a leaf; the offsets half was missing, and it is keyed per **end**, not per seq_type, since `get_offset_role` is side-taking. **Cannot be enabled before iterate-plan R3** — `Insertion::get_offset_role()` currently returns `None`, so every existing model would fail at load. See that plan's §2.5 for the invariant and its three enforcement points — this one, the debug leaf assert, and a per-event check at the unit-test hand-off that verifies each event honours the roles it declares
 2. **No multi-realization parents**: for each edge in `offset_map`, assert the parent event satisfies `is_multi_realization() == false`
 3. **Context deps satisfiable**: for each event, assert all SeqTypeIds in `get_context_seq_types()` exist in the registry and appear in the correct position relative to this event in the ordering
-4. **Junction safety coverage**: for each insertion SeqTypeId, assert it is flanked in the ordering by gene-seq-type `Creates` events on both sides
+4. **Junction safety coverage**: for each insertion SeqTypeId, assert it is flanked in the ordering by offset-creating events on both sides. *(Reworded Sep 10 2026: "gene-seq-type `Creates`" baked in an assumption the anchor analysis dissolved — what a junction needs on each side is a segment whose offsets are created, which happens to be the `Gene_choice` segments today but is not required to be. Iterate plan §2.5.)*
 5. **Flank position validity**: assert flank SeqTypeIds are at the leftmost and rightmost positions in the ordering, and their `Creates` events are `Gene_choice` instances
 
 Errors at this stage produce named diagnostics (e.g. "Two events both declare Creates for D1_gene_seq: ...") rather than undefined behaviour at inference time.
