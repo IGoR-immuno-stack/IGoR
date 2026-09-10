@@ -363,8 +363,17 @@ void Rec_Event::iterate_initialize_Len_proba(Seq_type considered_junction, std::
                                              Index_map &base_index_map, Seq_type_str_p_map &constructed_sequences) const
 {
     int seq_len = 0;
-    this->iterate_initialize_Len_proba(considered_junction, length_best_proba_map, model_queue, scenario_proba,
-                                       model_parameters_point, base_index_map, constructed_sequences, seq_len);
+    //This overload is the traversal's entry point, so it bypasses the queue-level filter in
+    //iterate_initialize_Len_proba_wrap_up() and has to apply the same test to itself. It is not
+    //vacuous: Gene_choice(V) opens the VD span traversal but contributes nothing to it.
+    if (this->participates_in_span(legacy_span_of(considered_junction))) {
+        this->iterate_initialize_Len_proba(considered_junction, length_best_proba_map, model_queue, scenario_proba,
+                                           model_parameters_point, base_index_map, constructed_sequences, seq_len);
+    } else {
+        this->iterate_initialize_Len_proba_wrap_up(considered_junction, length_best_proba_map, model_queue,
+                                                   scenario_proba, model_parameters_point, base_index_map,
+                                                   constructed_sequences, seq_len);
+    }
 }
 
 /*
@@ -382,20 +391,22 @@ void Rec_Event::iterate_initialize_Len_proba_wrap_up(Seq_type considered_junctio
                                                      Seq_type_str_p_map &constructed_sequences, int seq_len) const
 {
 
+    //Skip the events that neither change this span's length nor contribute a probability factor
+    //to it, rather than visiting every event in the model and having each self-filter at the top
+    //of its own override. Popping in a loop rather than recursing keeps the depth proportional to
+    //the number of contributing events instead of to the model size.
+    const SegmentSpan span = legacy_span_of(considered_junction);
+    while (not model_queue.empty() and not model_queue.front()->participates_in_span(span)) {
+        model_queue.pop();
+    }
+
     if (not model_queue.empty()) {
         std::shared_ptr<Rec_Event> next_event_p = model_queue.front();
         model_queue.pop();
-        //TODO fix this and find a way not to loop over all events
-        //if(next_event_p->has_effect_on(considered_junction)){
         // Explore realizations of this event
         next_event_p->iterate_initialize_Len_proba(considered_junction, length_best_proba_map, model_queue,
                                                    scenario_proba, model_parameters_point, base_index_map,
                                                    constructed_sequences, seq_len);
-        //}
-        //else{
-        // If this event has no effect on the junction skip it using a recursive call
-        //next_event_p->iterate_initialize_Len_proba_wrap_up(considered_junction , length_best_proba_map , model_queue , scenario_proba , model_parameters_point , base_index_map , constructed_sequences , seq_len);
-        //}
     } else {
         // When all events with an effect on the junction have been processed update the length-proba map
         if (length_best_proba_map.count(seq_len) > 0) {

@@ -465,15 +465,19 @@ OffsetRole Insertion::get_offset_role(SeqTypeId, Seq_side) const
     return OffsetRole::None;
 }
 
-bool Insertion::has_effect_on(Seq_type seq_type) const
+bool Insertion::affects_length_of(SegmentSpan span) const
 {
+    //An insertion segment lies strictly inside every span that brackets it, and adds its
+    //realization's length to each. S4b generalises this off the enum, once the traversal
+    //carries the registry ordering.
+    const Seq_type junction = legacy_junction_of(span);
     const string &heo_st = this->seq_type;
     if (heo_st == "VD_ins_seq") {
-        return (seq_type == VJ_ins_seq || seq_type == VD_ins_seq);
+        return (junction == VJ_ins_seq || junction == VD_ins_seq);
     } else if (heo_st == "VJ_ins_seq") {
-        return (seq_type == VJ_ins_seq);
+        return (junction == VJ_ins_seq);
     } else if (heo_st == "DJ_ins_seq") {
-        return (seq_type == VJ_ins_seq || seq_type == DJ_ins_seq);
+        return (junction == VJ_ins_seq || junction == DJ_ins_seq);
     } else {
         return false;
     }
@@ -485,53 +489,36 @@ void Insertion::iterate_initialize_Len_proba(Seq_type considered_junction, std::
                                              Index_map &base_index_map, Seq_type_str_p_map &constructed_sequences,
                                              int &seq_len /*=0*/) const
 {
+    //No self-filter: the caller -- the queue-level filter in
+    //Rec_Event::iterate_initialize_Len_proba_wrap_up(), or the entry-point overload -- has already
+    //established participates_in_span().
+    base_index_map.set_current_layer(this->event_index, 0);
+    base_index = base_index_map.get(this->event_index);
 
-    if (this->has_effect_on(considered_junction)) {
+    //Insert sequence in the right constructed sequence. Still the enum: the whole
+    //Len_proba machinery is Seq_type-keyed (Rec_Event::iterate_initialize_Len_proba), and
+    //re-keying it is G5/S4c's business.
+    const Seq_type seq_type = insertion_seq_type_or_throw(this->seq_type, "iterate_initialize_Len_proba");
 
-        base_index_map.set_current_layer(this->event_index, 0);
-        base_index = base_index_map.get(this->event_index);
+    for (unordered_map<string, Event_realization>::const_iterator iter = this->event_realizations.begin();
+         iter != this->event_realizations.end(); ++iter) {
 
-        //Insert sequence in the right constructed sequence. Still the enum: the whole
-        //Len_proba machinery is Seq_type-keyed (Rec_Event::iterate_initialize_Len_proba), and
-        //re-keying it is G5/S4's business, not B6's.
-        const Seq_type seq_type = insertion_seq_type_or_throw(this->seq_type,
-                                                              "iterate_initialize_Len_proba");
-
-        for (unordered_map<string, Event_realization>::const_iterator iter = this->event_realizations.begin();
-             iter != this->event_realizations.end(); ++iter) {
-
-            /*		//Update base index map
-			for(forward_list<tuple<int,int,int>>::const_iterator jiter = memory_and_offsets.begin() ; jiter!=memory_and_offsets.end() ; ++jiter){
-				//Get previous index for the considered event
-				size_t previous_index = base_index_map.get(get<0>(*jiter),get<1>(*jiter)-1);
-				//Update the index given the realization and the offset
-				previous_index += iter->second.index *get<2>(*jiter);
-				//Set the value
-				base_index_map.set(get<0>(*jiter) , previous_index , get<1>(*jiter));
-			}*/
-
-            //Get the max proba for this realization (in case the event is child of another)
-            double real_max_proba = 0;
-            for (size_t i = 0; i != this->event_marginal_size / this->size(); ++i) {
-                if (model_parameters_point[base_index + (*iter).second.index + i * this->size()] > real_max_proba) {
-                    real_max_proba = model_parameters_point[base_index + (*iter).second.index + i * this->size()];
-                }
+        //Get the max proba for this realization (in case the event is child of another)
+        double real_max_proba = 0;
+        for (size_t i = 0; i != this->event_marginal_size / this->size(); ++i) {
+            if (model_parameters_point[base_index + (*iter).second.index + i * this->size()] > real_max_proba) {
+                real_max_proba = model_parameters_point[base_index + (*iter).second.index + i * this->size()];
             }
-
-            //Build an inserted sequence to let the Dinuc know about the number of insertions considered
-            inserted_str.assign(iter->second.value_int, int_undefined);
-            constructed_sequences.set_current(seq_type, &inserted_str);
-
-            //Update the length and the probability within the recursive call
-            Rec_Event::iterate_initialize_Len_proba_wrap_up(
-                    considered_junction, length_best_proba_map, model_queue, scenario_proba * real_max_proba,
-                    model_parameters_point, base_index_map, constructed_sequences, seq_len + (*iter).second.value_int);
         }
-    } else {
-        //Recursive call
-        Rec_Event::iterate_initialize_Len_proba_wrap_up(considered_junction, length_best_proba_map, model_queue,
-                                                        scenario_proba, model_parameters_point, base_index_map,
-                                                        constructed_sequences, seq_len);
+
+        //Build an inserted sequence to let the Dinuc know about the number of insertions considered
+        inserted_str.assign(iter->second.value_int, int_undefined);
+        constructed_sequences.set_current(seq_type, &inserted_str);
+
+        //Update the length and the probability within the recursive call
+        Rec_Event::iterate_initialize_Len_proba_wrap_up(
+                considered_junction, length_best_proba_map, model_queue, scenario_proba * real_max_proba,
+                model_parameters_point, base_index_map, constructed_sequences, seq_len + (*iter).second.value_int);
     }
 }
 

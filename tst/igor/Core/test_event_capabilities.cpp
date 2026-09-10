@@ -41,6 +41,7 @@
 
 #include <algorithm>
 #include <limits>
+#include <stdexcept>
 
 using namespace IgorTestUtils;
 
@@ -273,5 +274,143 @@ TEST_CASE("Capability queries agree across the subclasses that share a segment",
         CHECK(v_choice->get_offset_delta_bounds(id_of(V_gene_seq), Three_prime) == OffsetDelta{});
         CHECK(vd_ins->get_offset_delta_bounds(id_of(V_gene_seq), Three_prime) == OffsetDelta{});
         CHECK(v_del->get_offset_delta_bounds(id_of(V_gene_seq), Three_prime) == OffsetDelta{-4, 0});
+    }
+}
+
+// ============================================================================
+// S4a -- span addressing and the two effect predicates
+// ============================================================================
+
+TEST_CASE("A legacy junction seq_type names a span", "[capabilities][span]")
+{
+    SECTION("Each junction resolves to the pair of anchors it sits between")
+    {
+        CHECK(legacy_span_of(VD_ins_seq) == SegmentSpan{id_of(V_gene_seq), id_of(D_gene_seq)});
+        CHECK(legacy_span_of(DJ_ins_seq) == SegmentSpan{id_of(D_gene_seq), id_of(J_gene_seq)});
+        // The ambiguity this type exists to resolve: as an argument to the Len_proba
+        // machinery VJ_ins_seq is the whole V->J span, not the VJ insertion segment.
+        CHECK(legacy_span_of(VJ_ins_seq) == SegmentSpan{id_of(V_gene_seq), id_of(J_gene_seq)});
+    }
+
+    SECTION("The mapping round-trips")
+    {
+        for (const Seq_type junction : {VD_ins_seq, DJ_ins_seq, VJ_ins_seq}) {
+            CHECK(legacy_junction_of(legacy_span_of(junction)) == junction);
+        }
+    }
+
+    SECTION("A seq_type that names no junction is rejected rather than guessed at")
+    {
+        CHECK_THROWS_AS(legacy_span_of(V_gene_seq), std::invalid_argument);
+        CHECK_THROWS_AS(legacy_span_of(D_gene_seq), std::invalid_argument);
+        CHECK_THROWS_AS(legacy_span_of(J_gene_seq), std::invalid_argument);
+        CHECK_THROWS_AS(legacy_junction_of(SegmentSpan{id_of(V_gene_seq), id_of(V_gene_seq)}),
+                        std::invalid_argument);
+    }
+}
+
+TEST_CASE("Span effect queries", "[capabilities][span]")
+{
+    const SegmentSpan vd = legacy_span_of(VD_ins_seq);
+    const SegmentSpan dj = legacy_span_of(DJ_ins_seq);
+    const SegmentSpan vj = legacy_span_of(VJ_ins_seq);
+
+    SECTION("A gene contributes length only to a span it sits strictly inside")
+    {
+        auto v_choice = make_gene_choice(V_gene, {{"V1", "ACGTACGT"}}, 0);
+        auto d_choice = make_gene_choice(D_gene, {{"D1", "ACGT"}}, 1);
+        auto j_choice = make_gene_choice(J_gene, {{"J1", "ACGTACGT"}}, 2);
+
+        // V and J are anchors of every legacy span, never interior: the span is measured
+        // *from* their boundaries, so their own template length is outside the frame.
+        for (const SegmentSpan span : {vd, dj, vj}) {
+            CHECK_FALSE(v_choice->affects_length_of(span));
+            CHECK_FALSE(j_choice->affects_length_of(span));
+        }
+
+        // D is interior to V->J only; at either end of VD and DJ it is the anchor again.
+        CHECK(d_choice->affects_length_of(vj));
+        CHECK_FALSE(d_choice->affects_length_of(vd));
+        CHECK_FALSE(d_choice->affects_length_of(dj));
+    }
+
+    SECTION("An insertion contributes length to every span bracketing it")
+    {
+        auto vd_ins = std::make_shared<Insertion>(VD_ins_seq, std::make_pair(0, 8));
+        vd_ins->set_seq_type("VD_ins_seq");
+        auto dj_ins = std::make_shared<Insertion>(DJ_ins_seq, std::make_pair(0, 8));
+        dj_ins->set_seq_type("DJ_ins_seq");
+
+        CHECK(vd_ins->affects_length_of(vd));
+        CHECK(vd_ins->affects_length_of(vj));
+        CHECK_FALSE(vd_ins->affects_length_of(dj));
+
+        CHECK(dj_ins->affects_length_of(dj));
+        CHECK(dj_ins->affects_length_of(vj));
+        CHECK_FALSE(dj_ins->affects_length_of(vd));
+    }
+
+    SECTION("A deletion widens the span whose anchor boundary it moves")
+    {
+        auto v_del = make_deletion(V_gene_seq, Three_prime, 0, 4, 0);
+        auto d5_del = make_deletion(D_gene_seq, Five_prime, 0, 4, 1);
+        auto d3_del = make_deletion(D_gene_seq, Three_prime, 0, 4, 2);
+        auto j_del = make_deletion(J_gene_seq, Five_prime, 0, 4, 3);
+
+        // V's 3' end bounds both VD and VJ.
+        CHECK(v_del->affects_length_of(vd));
+        CHECK(v_del->affects_length_of(vj));
+        CHECK_FALSE(v_del->affects_length_of(dj));
+
+        // A D deletion moves a boundary interior to V->J, and V->J is measured between V's
+        // and J's *as-created* boundaries -- so it changes VD or DJ but never VJ.
+        CHECK(d5_del->affects_length_of(vd));
+        CHECK_FALSE(d5_del->affects_length_of(dj));
+        CHECK_FALSE(d5_del->affects_length_of(vj));
+        CHECK(d3_del->affects_length_of(dj));
+        CHECK_FALSE(d3_del->affects_length_of(vd));
+        CHECK_FALSE(d3_del->affects_length_of(vj));
+
+        CHECK(j_del->affects_length_of(dj));
+        CHECK(j_del->affects_length_of(vj));
+        CHECK_FALSE(j_del->affects_length_of(vd));
+    }
+
+    SECTION("Dinucl_markov contributes probability, never length")
+    {
+        // The distinction the predecessor has_effect_on() could not express: this event
+        // returned true to gate a probability factor while contributing zero length.
+        auto vd_dinuc = std::make_shared<Dinucl_markov>(VD_ins_seq);
+        vd_dinuc->set_seq_type("VD_ins_seq");
+
+        for (const SegmentSpan span : {vd, dj, vj}) {
+            CHECK_FALSE(vd_dinuc->affects_length_of(span));
+        }
+        CHECK(vd_dinuc->affects_proba_of(vd));
+        CHECK(vd_dinuc->affects_proba_of(vj));
+        CHECK_FALSE(vd_dinuc->affects_proba_of(dj));
+
+        // ...and it is still visited by the traversal, which is what the disjunction is for.
+        CHECK(vd_dinuc->participates_in_span(vd));
+        CHECK_FALSE(vd_dinuc->participates_in_span(dj));
+    }
+
+    SECTION("An unrecognised Dinucl_markov seq_type is rejected, not silently ignored")
+    {
+        // This is where the `correct_class` check that used to sit inside
+        // iterate_initialize_Len_proba() now lives: the traversal consults the predicate
+        // before entering the body, so the throw fires at the same moment as before.
+        auto stray = std::make_shared<Dinucl_markov>(VD_ins_seq);
+        stray->set_seq_type("D1D2_ins_seq");
+        CHECK_THROWS_AS(stray->affects_proba_of(vd), std::invalid_argument);
+    }
+
+    SECTION("Everything else participates through length alone")
+    {
+        auto vd_ins = std::make_shared<Insertion>(VD_ins_seq, std::make_pair(0, 8));
+        vd_ins->set_seq_type("VD_ins_seq");
+        CHECK_FALSE(vd_ins->affects_proba_of(vd));
+        CHECK(vd_ins->participates_in_span(vd));
+        CHECK_FALSE(vd_ins->participates_in_span(dj));
     }
 }

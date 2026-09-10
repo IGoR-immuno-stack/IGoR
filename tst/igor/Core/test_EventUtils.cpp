@@ -57,7 +57,7 @@ public:
   OffsetRole get_offset_role(SeqTypeId, Seq_side) const override {
     return OffsetRole::None;
   }
-  bool has_effect_on(Seq_type) const override { return false; }
+  bool affects_length_of(SegmentSpan) const override { return false; }
   void iterate_initialize_Len_proba(Seq_type, map<int, double> &,
                                     queue<shared_ptr<Rec_Event>> &, double &,
                                     const Marginal_array_p &, Index_map &,

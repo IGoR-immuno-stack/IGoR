@@ -100,7 +100,7 @@ public:
     OffsetRole get_offset_role(SeqTypeId, Seq_side) const override;
 
     //Proba bound related computation methods
-    bool has_effect_on(Seq_type) const override;
+    bool affects_length_of(SegmentSpan) const override;
     void iterate_initialize_Len_proba(Seq_type considered_junction, std::map<int, double> &length_best_proba_map,
                                       std::queue<std::shared_ptr<Rec_Event>> &model_queue, double &scenario_proba,
                                       const Marginal_array_p &model_parameters_point, Index_map &base_index_map,

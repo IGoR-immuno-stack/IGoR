@@ -146,7 +146,8 @@ public:
     SeqConstructionRole get_seq_construction_role(SeqTypeId) const override;
     OffsetRole get_offset_role(SeqTypeId, Seq_side) const override;
 
-    bool has_effect_on(Seq_type) const override;
+    bool affects_length_of(SegmentSpan) const override;
+    bool affects_proba_of(SegmentSpan) const override;
     void iterate_initialize_Len_proba(Seq_type considered_junction, std::map<int, double> &length_best_proba_map,
                                       std::queue<std::shared_ptr<Rec_Event>> &model_queue, double &scenario_proba,
                                       const Marginal_array_p &model_parameters_point, Index_map &base_index_map,
@@ -170,7 +171,6 @@ private:
     int unmutable_base_index;
     double new_scenario_proba;
     double proba_contribution;
-    mutable bool correct_class;
 
     Seq_type ins_seq_type;
 

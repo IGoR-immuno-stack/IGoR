@@ -29,6 +29,7 @@
 #include <igor/Core/Errorrate.h>
 #include <igor/Core/IntStr.h>
 #include <igor/Core/Aligner.h>
+#include <igor/Core/SegmentSpan.h>
 #include <igor/Core/SeqTypeRegistry.h>
 #include <igor/Core/Utils.h>
 #include <igorCoreExport.h>
@@ -342,7 +343,34 @@ public:
     const std::vector<int> &get_current_realizations_index_vec() const { return current_realizations_index_vec; };
 
     //Proba bound related computation methods
-    virtual bool has_effect_on(Seq_type) const = 0;
+
+    /**
+     * \brief Does a realization of this event change the accumulated length of \a span?
+     *
+     * **Length only** -- not offsets, not content, not probability. An event that contributes
+     * a probability factor to a span while contributing no length answers affects_proba_of()
+     * instead; conflating the two is what made the predecessor has_effect_on() misleading.
+     */
+    virtual bool affects_length_of(SegmentSpan span) const = 0;
+
+    /**
+     * \brief Does this event contribute a probability factor to \a span?
+     *
+     * Only Dinucl_markov does today: its p^L factor scales with the span's length without
+     * adding to it. Default false, so an event whose whole contribution is length need not
+     * say anything.
+     */
+    virtual bool affects_proba_of(SegmentSpan) const { return false; }
+
+    /**
+     * \brief Whether the Len_proba traversal must visit this event for \a span at all.
+     *
+     * The filter the traversal applies, at the queue rather than inside each override.
+     */
+    bool participates_in_span(SegmentSpan span) const
+    {
+        return this->affects_length_of(span) or this->affects_proba_of(span);
+    }
     void iterate_initialize_Len_proba_wrap_up(Seq_type considered_junction,
                                               std::map<int, double> &length_best_proba_map,
                                               std::queue<std::shared_ptr<Rec_Event>> model_queue, double scenario_proba,

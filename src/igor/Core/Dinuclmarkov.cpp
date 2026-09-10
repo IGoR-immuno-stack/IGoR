@@ -32,6 +32,25 @@
 
 using namespace std;
 
+namespace {
+/**
+ * Resolve a Dinucl_markov's seq_type name to the legacy insertion enum.
+ *
+ * The Len_proba machinery is still Seq_type-keyed, so the string has to come back to the enum
+ * somewhere; this is the one place, and the one place that rejects an unrecognised name. It
+ * replaces the `correct_class` flag that used to do the same job inline in
+ * Dinucl_markov::iterate_initialize_Len_proba().
+ */
+Seq_type dinucl_ins_seq_type_or_throw(const Seq_type_String &seq_type_str, const char *where)
+{
+    if (seq_type_str == "VD_ins_seq") { return VD_ins_seq; }
+    if (seq_type_str == "DJ_ins_seq") { return DJ_ins_seq; }
+    if (seq_type_str == "VJ_ins_seq") { return VJ_ins_seq; }
+    throw invalid_argument(std::string("Unknown seq_type for DinuclMarkov model: ") + seq_type_str
+                           + " in " + where);
+}
+} // namespace
+
 Dinucl_markov::Dinucl_markov(Seq_type seq_type) : Rec_Event(), total_nucl_count(0), ins_seq_type(seq_type)
 {
     this->type = Event_type::Dinuclmarkov_t;
@@ -548,17 +567,33 @@ OffsetRole Dinucl_markov::get_offset_role(SeqTypeId, Seq_side) const
     return OffsetRole::None;
 }
 
-bool Dinucl_markov::has_effect_on(Seq_type seq_type_param) const
+bool Dinucl_markov::affects_length_of(SegmentSpan) const
 {
-    const string &heo_dm_st = this->seq_type;
-    if (heo_dm_st == "VD_ins_seq") {
-        return (seq_type_param == VJ_ins_seq || seq_type_param == VD_ins_seq);
-    } else if (heo_dm_st == "VJ_ins_seq") {
-        return (seq_type_param == VJ_ins_seq);
-    } else if (heo_dm_st == "DJ_ins_seq") {
-        return (seq_type_param == VJ_ins_seq || seq_type_param == DJ_ins_seq);
-    }
+    //Never. The dinucleotide model fills nucleotides the Insertion already counted; it adds no
+    //length of its own to any span. Its whole contribution to the bound is the p^L factor below.
     return false;
+}
+
+bool Dinucl_markov::affects_proba_of(SegmentSpan span) const
+{
+    //True exactly where the segment this model fills lies inside the span: the p^L factor scales
+    //with that segment's length, so it belongs to every span containing it.
+    //
+    //This also carries the seq_type validation that used to sit in iterate_initialize_Len_proba()
+    //as the `correct_class` check. It fires at the same moment -- when the traversal considers
+    //this event -- because the traversal now consults the predicate before entering the body.
+    const Seq_type ins_seq = dinucl_ins_seq_type_or_throw(this->seq_type, "affects_proba_of");
+    const Seq_type junction = legacy_junction_of(span);
+    switch (ins_seq) {
+    case VD_ins_seq:
+        return (junction == VJ_ins_seq || junction == VD_ins_seq);
+    case DJ_ins_seq:
+        return (junction == VJ_ins_seq || junction == DJ_ins_seq);
+    case VJ_ins_seq:
+        return (junction == VJ_ins_seq);
+    default:
+        return false;
+    }
 }
 
 void Dinucl_markov::iterate_initialize_Len_proba(Seq_type considered_junction,
@@ -571,38 +606,14 @@ void Dinucl_markov::iterate_initialize_Len_proba(Seq_type considered_junction,
     base_index_map.set_current_layer(this->event_index, 0);
     base_index = base_index_map.get(this->event_index);
 
-    correct_class = 0;
-    const string &iilp_dm_st = this->seq_type;
-    if (iilp_dm_st == "VD_ins_seq") {
-        correct_class = 1;
-        if (this->has_effect_on(considered_junction)) {
-            if (constructed_sequences.exists(VD_ins_seq)) {
-                scenario_proba *= pow(this->get_upper_bound_proba(), constructed_sequences.get(VD_ins_seq)->size());
-            }
-            //Otherwise the proba contribution is 1
-        }
+    //No self-filter: the caller has already established participates_in_span(), and since
+    //affects_length_of() is always false for this event that means affects_proba_of() holds --
+    //so the segment this model fills is inside the span and its p^L factor applies.
+    const Seq_type ins_seq = dinucl_ins_seq_type_or_throw(this->seq_type, "iterate_initialize_Len_proba");
+    if (constructed_sequences.exists(ins_seq)) {
+        scenario_proba *= pow(this->get_upper_bound_proba(), constructed_sequences.get(ins_seq)->size());
     }
-    if (iilp_dm_st == "DJ_ins_seq") {
-        correct_class = 1;
-        if (this->has_effect_on(considered_junction)) {
-            if (constructed_sequences.exists(DJ_ins_seq)) {
-                scenario_proba *= pow(this->get_upper_bound_proba(), constructed_sequences.get(DJ_ins_seq)->size());
-            }
-            //Otherwise the proba contribution is 1
-        }
-    }
-    if (iilp_dm_st == "VJ_ins_seq") {
-        correct_class = 1;
-        if (this->has_effect_on(considered_junction)) {
-            if (constructed_sequences.exists(VJ_ins_seq)) {
-                scenario_proba *= pow(this->get_upper_bound_proba(), constructed_sequences.get(VJ_ins_seq)->size());
-            }
-            //Otherwise the proba contribution is 1
-        }
-    }
-    if (!correct_class) {
-        throw invalid_argument(std::string("Unknown seq_type for DinuclMarkov model: ") + iilp_dm_st);
-    }
+    //Otherwise the proba contribution is 1
 
     //TODO use a better proba bound for this dinucleotide markov model
 

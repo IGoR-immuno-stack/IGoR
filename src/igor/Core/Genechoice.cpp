@@ -1365,24 +1365,22 @@ OffsetRole Gene_choice::get_offset_role(SeqTypeId type_id, Seq_side) const
     return type_id == this->seq_type_id ? OffsetRole::Creates : OffsetRole::None;
 }
 
-bool Gene_choice::has_effect_on(Seq_type seq_type) const
+bool Gene_choice::affects_length_of(SegmentSpan span) const
 {
+    //A gene's template contributes length to a span only when the gene sits strictly *inside*
+    //it: at either end it is the anchor the span is measured from, so its own length is outside
+    //the frame. Over the legacy junctions that leaves exactly one case, D within V->J.
+    //S4b generalises this off the enum, once the traversal carries the registry ordering.
     switch (this->event_class) {
     case V_gene:
         return false;
-        break;
 
     case D_gene:
-        if (seq_type == VJ_ins_seq) {
-            return true;
-        } else {
-            return false;
-        }
-        break;
+        return legacy_junction_of(span) == VJ_ins_seq;
 
     case J_gene:
         return false;
-        break;
+
     default:
         return false;
     }
@@ -1395,40 +1393,26 @@ void Gene_choice::iterate_initialize_Len_proba(Seq_type considered_junction,
                                                Index_map &base_index_map, Seq_type_str_p_map &constructed_sequences,
                                                int &seq_len /*=0*/) const
 {
+    //No self-filter: the caller -- the queue-level filter in
+    //Rec_Event::iterate_initialize_Len_proba_wrap_up(), or the entry-point overload -- has already
+    //established participates_in_span().
+    base_index_map.set_current_layer(this->event_index, 0);
+    base_index = base_index_map.get(this->event_index);
+    for (unordered_map<string, Event_realization>::const_iterator iter = this->event_realizations.begin();
+         iter != this->event_realizations.end(); ++iter) {
 
-    if (this->has_effect_on(considered_junction)) {
-        base_index_map.set_current_layer(this->event_index, 0);
-        base_index = base_index_map.get(this->event_index);
-        for (unordered_map<string, Event_realization>::const_iterator iter = this->event_realizations.begin();
-             iter != this->event_realizations.end(); ++iter) {
-
-            /*		//Update base index map
-			for(forward_list<tuple<int,int,int>>::const_iterator jiter = memory_and_offsets.begin() ; jiter!=memory_and_offsets.end() ; ++jiter){
-				//Get previous index for the considered event
-				size_t previous_index = base_index_map.get(get<0>(*jiter),get<1>(*jiter)-1);
-				//Update the index given the realization and the offset
-				previous_index += iter->second.index *get<2>(*jiter);
-				//Set the value
-				base_index_map.set(get<0>(*jiter) , previous_index , get<1>(*jiter));
-			}*/
-
-            //Get the max proba for this realization (in case the event is child of another)
-            double real_max_proba = 0;
-            for (size_t i = 0; i != this->event_marginal_size / this->size(); ++i) {
-                if (model_parameters_point[base_index + (*iter).second.index + i * this->size()] > real_max_proba) {
-                    real_max_proba = model_parameters_point[base_index + (*iter).second.index + i * this->size()];
-                }
+        //Get the max proba for this realization (in case the event is child of another)
+        double real_max_proba = 0;
+        for (size_t i = 0; i != this->event_marginal_size / this->size(); ++i) {
+            if (model_parameters_point[base_index + (*iter).second.index + i * this->size()] > real_max_proba) {
+                real_max_proba = model_parameters_point[base_index + (*iter).second.index + i * this->size()];
             }
-            //Update the length within and probability in the recursive call
-            Rec_Event::iterate_initialize_Len_proba_wrap_up(considered_junction, length_best_proba_map, model_queue,
-                                                            scenario_proba * real_max_proba, model_parameters_point,
-                                                            base_index_map, constructed_sequences,
-                                                            seq_len + (*iter).second.value_str.length());
         }
-    } else {
+        //Update the length within and probability in the recursive call
         Rec_Event::iterate_initialize_Len_proba_wrap_up(considered_junction, length_best_proba_map, model_queue,
-                                                        scenario_proba, model_parameters_point, base_index_map,
-                                                        constructed_sequences, seq_len);
+                                                        scenario_proba * real_max_proba, model_parameters_point,
+                                                        base_index_map, constructed_sequences,
+                                                        seq_len + (*iter).second.value_str.length());
     }
 }
 

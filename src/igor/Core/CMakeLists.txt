@@ -100,6 +100,7 @@ target_sources(${PROJECT_NAME}
       LayeredArray.h
       StdTypedefs.h
       CoreEnums.h
+      SegmentSpan.h
       SeqOffsetsMap.h
       SeqTypeRegistry.h
       Singleerrorrate.h
