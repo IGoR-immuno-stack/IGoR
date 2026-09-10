@@ -499,6 +499,20 @@ in V/D/J terms, because the VDJ reading bakes in two accidents of the current mo
 > Equivalently, and this is the same statement: **it is the signed sum of every event's
 > per-realization `LengthContribution` over the region** — `Creates` positive, `Modifies` negative.
 
+**Two corrections to that statement, both from the Sep 10 investigation below.** It is written as
+though a span had *a* length, in *one* frame; neither holds in general.
+
+- *"As-created"* is the special case of a consumer sitting upstream of every modifier in the span.
+  A boundary is a **slot**, not a constant — `Gene_choice` creates it, `Deletion` moves it — so the
+  general statement is *the boundaries as they stand at the consumer's position in the ordering*.
+  §2.5 already applies this reading to **anchoring**; it applies to modifiers too.
+- *"A length"* is a category error away from *a profile*. Until every contributor in the span has
+  chosen, the span has a **set** of achievable lengths with a best probability each — which is
+  exactly why the object is a `map<int,double>`. The single number is the observed distance the
+  consumer looks up, not the span's length.
+
+See [*A span does not have a length*](#a-span-does-not-have-a-length-it-has-a-profile) below.
+
 The two formulations agreeing is exactly why `Δ(r)` is the only thing that differs between the four
 `iterate_initialize_Len_proba` bodies (§6.10).
 
@@ -736,6 +750,10 @@ segment it modifies.** It moves a boundary away from where that boundary was cre
 the span rather than shortening the segment as far as this key is concerned. Any factorisation that
 attributes a deletion to its own segment is in a different frame and will not reproduce these keys.
 
+*(Frame-relative, per the corrections above: true for a consumer **upstream** of the deletion,
+where it is still to be maximised over. Downstream it is vacuous — the deletion is already baked
+into the slot the consumer reads, and belongs to neither the span nor the segment.)*
+
 The one visible inconsistency the frame would expose —
 `get_deletion_effective_junctions(D_gene_seq, ·)` omits the V→J span while
 `Gene_choice(D)::has_effect_on(VJ_ins_seq)` includes it — is harmless only because that map is
@@ -800,6 +818,238 @@ structure.
 costs a hash lookup per candidate inside the hot enumeration, and (ii) the implicit binding of the
 two `int`s to `vd_length_best_proba_map` / `dj_length_best_proba_map` by name — they must index
 whichever two spans the enumerating gene actually sits between.
+
+#### Boundary-addressed spans *(investigation, Quentin + analysis, Sep 10 2026 — no decision yet)*
+
+The question: `SegmentSpan{left, right}` names two *segments* and means, implicitly, the 3' end of
+the left one and the 5' end of the right one. Carrying an explicit `Seq_side` on each endpoint
+would let a span say *"5' of the left to 3' of the right"* — and so name a segment's own extent,
+not only the gap between two segments. Does that help Phase D?
+
+**The boundary is already a type here; it just has no name.** `SeqOffsetsMap` exposes eight methods
+keyed `(SeqTypeId, Seq_side)`; `get_offset_role` and `get_offset_delta_bounds` are side-taking on
+all four subclasses; `PendingModifierBounds` hand-rolls `end_index(id, side)` to flatten the pair
+into a vector; and the tier-1 note above already requires the offsets half to be keyed per
+`(SeqTypeId, Seq_side)`. A `SegmentBoundary` struct earns its place on that evidence alone,
+independent of the span question.
+
+**What side-tagging buys.** It makes §2.5's elementary factors first-class. `T_a` and `G_i` are
+today two different notions that the fold has to alternate; with boundaries,
+`T_V = Span((V,5'),(V,3'))` and the whole algebra collapses to one law,
+
+> `Span(A,B) ⊗ Span(B,C) = Span(A,C)`
+
+a monoid over boundaries. That is also the direct answer to whether it suits Phase D: under the
+gap-only form, **a decomposition whose unit is one `Seq_type` has no span that names its own unit.**
+Side-tagging fixes exactly that.
+
+##### A boundary must be a cut point, not a nucleotide
+
+With V at read positions 0–9 (`L_V = 10`) and D starting at 15, the two readings this plan has been
+using are opposite: the gap `Span(V3',D5')` excludes both endpoint nucleotides (`d5 − v3 − 1 = 5`),
+while `Span(V5',V3')` includes them (`v3 − v5 + 1 = 10`). No single convention fixes that while a
+boundary is a *nucleotide index* — closed gives V = 10 ✓ but the gap = 7; half-open gives the gap
+= 5 ✓ but V = 9.
+
+Define a boundary as the **cut between nucleotides**, `c(S,5') = offset(S,5')` and
+`c(S,3') = offset(S,3') + 1`:
+
+| span | arithmetic | value |
+|---|---|---|
+| `Span(V5',V3')` | `10 − 0` | 10 = `L_V` |
+| `Span(V3',D5')` | `15 − 10` | 5 = the gap |
+| `Span(V5',D5')` | `15 − 0` | 15 = `10 + 5` |
+
+Plain subtraction throughout, and composition is exact addition with no ±1 correction anywhere —
+which is what makes the monoid law hold literally rather than approximately. Two consequences: the
+conversion is **side-dependent**, and `Seq_Offset` is a nucleotide index everywhere in IGoR, so a
+boundary type lives in a *different coordinate space* from the offsets it is built from. Given that
+§7.1 and §7.8 are both off-by-one bugs in this exact area, that conversion belongs stated once in
+the type rather than at each call site.
+
+##### A span does not have a length — it has a profile
+
+The correction that dissolved most of this analysis's first draft. At a consumer, a span has no
+single length; it has the **set of lengths still achievable, each tagged with its best
+probability**. That is what `map<int,double>` *is*, and why `T_a[n]` and `G_i[n]` are indexed
+objects and `⊗` is a convolution: max-product convolution is precisely the operation for
+concatenating two regions whose lengths are each still uncertain.
+
+Three things that a phrase like "the span's length" runs together:
+
+| | what it is | when it is a scalar |
+|---|---|---|
+| the **span** | a region — a pair of cut points | never |
+| its **profile at a consumer** | `{length → best proba}` over the contributors the scenario has **not yet** committed to | only when nothing is left unresolved |
+| the **observed distance** | one integer, read off the boundary slots as they currently stand | always |
+
+The bound is the second meeting the third: the profile is what the model still allows, the observed
+distance is what the **scenario** has already committed to — the scenario being the confrontation of
+model and read, not the read, which is why the observed distance can differ between consumers while
+the read plainly does not. `profile[observed]` then asks *"what is the best probability of the model
+producing exactly the span this scenario requires"*, which is the pruning bound.
+
+Between them the two account for **every contributor in the span exactly once**, which is the real
+invariant.
+
+##### The composition precondition, stated mechanically
+
+For `Span(A,B) ⊗ Span(B,C) = Span(A,C)`, the shared boundary `B` must stand at **the same stage of
+modification in both factors** — the same slot value. Read `V3'` as post-deletion in one factor and
+as-created in the other and both profiles range over `dv`, so it is counted twice. That is a naming
+error, not a property of the algebra:
+
+| both factors read… | `Span(V5',V3')` | `Span(V3',D5')` | `Span(V5',D5')` | composes |
+|---|---|---|---|---|
+| before the V deletion | `L_V` | `n − dv − dd` | `L_V + n − dv − dd` | ✓ |
+| after the V deletion | `L_V − dv` | `n − dd` | `L_V + n − dv − dd` | ✓ |
+
+*(An earlier draft of this section claimed a deletion "must" be attributed to its adjacent gap, on
+pain of double-counting. That was the frame error above, not a constraint. Withdrawn — and with it
+the objection that a segment's realized length is inexpressible: `Span((V,5'),(V,3'))` read at any
+consumer downstream of the deletion **is** the realized length, which makes the type *more* suited
+to a per-`Seq_type` Phase-D decomposition, not less.)*
+
+##### The profiles are a suffix family, and the code already says so
+
+[GenModel.cpp:369-378](../src/igor/Core/GenModel.cpp#L369) pops the init stack in **reverse**
+priority order and hands each event *the queue after itself*, so every
+`initialize_Len_proba_bound` folds **itself plus its suffix**. Upstream contributors are excluded
+because at that consumer the scenario has already committed to them — which is exactly why the
+observed distance and the profile are in the same frame *by construction*, with no bookkeeping.
+
+That also means the per-consumer profiles are a **suffix fold**, `profile_e = factor_e ⊗
+profile_next(e)`, and `⊗` is associative — so one backward pass with a running composition yields
+all of them. `GenModel` already performs that pass; it simply re-traverses the whole suffix per
+event instead of reusing the previous result.
+
+**This contradicts §6.10's finding 4, which needs re-checking before S4c acts on it.** With the
+regression model's priorities (`GeneChoice` 7/7/6, all four `Deletion` 5, `Insertion` 4 and 2,
+`DinucMarkov` 3 and 1), the VD-span contributors are `Del(V,3')`, `Del(D,5')` and `Ins(VD)`, and the
+five owners that each build a VD profile do not key the same quantity:
+
+| owner | contributors in its suffix | keyed by |
+|---|---|---|
+| `GC(V)`, `GC(D)` | all three | `n − dv − dd` |
+| `Del(V,3')`, `Del(D,5')` | itself + whichever deletion follows it | **tie-order dependent** |
+| `Ins(VD)` | itself only — both deletions upstream | `n` |
+
+So "five identical traversals, five stored copies" is wrong. Note also that the four deletions
+**tie at priority 5**, so which of them sees the other is settled by §7.4's order-dependence — the
+latent hazard, now with a visible consequence. *(Argued from code structure and the model's
+priorities; dumping the five VD profiles from one inference run would confirm it, but nothing below
+waits on that.)*
+
+##### Two claims, and only one of them is S4c's problem *(Quentin, Sep 10 2026)*
+
+The correction splits cleanly, and conflating the halves would misprice the step:
+
+| | claim | when it must be honoured |
+|---|---|---|
+| **correctness** | the five profiles are *different objects*, so the structure must be keyed by **(span, consumer position)** — S4c's "six members → one" cannot be a literal merge | whenever S4c lands |
+| **efficiency** | the same subspan is folded repeatedly across consumers, so the work is redundant | never, strictly — see below |
+
+**The efficiency half is genuinely negligible, and measured.** The
+`initialize_Len_proba_bound` sweep sits inside `#pragma omp parallel` but **before** the
+`#pragma omp for schedule(dynamic)` over `num_seqs`
+([GenModel.cpp](../src/igor/Core/GenModel.cpp#L369)) — so it runs once per thread per EM iteration,
+against 10⁵–10⁶ sequence evaluations in the same region. Even finding 5's ~`|R|`-fold `Insertion`
+redundancy on top of it is amortised to nothing. **Recomputation here is inefficient, not harmful.**
+
+That is good news for the milestone-1 critical path: **S4c only owes the re-keying.** It can keep
+per-consumer storage exactly as today and change the key from enum-named members to
+`(span, consumer)`, which is the part that removes the tandem-D enum ceiling. Sharing the
+computation is a separate, later step, and dropping it from S4c's scope removes work from the one
+step that blocks tandem D.
+
+##### The consumer coordinate is resolved at init, never looked up *(Quentin, Sep 10 2026)*
+
+`(span, consumer position)` is an **identity**, not a runtime key. Keying a structure by it and
+handing consumers "a single accessor" would put a span lookup in `iterate()`'s hot path — at 10⁸–10¹⁰
+scenario nodes, that is a pessimisation, and it is what O8's original wording described. Corrected
+there.
+
+The model owns the span-identified structure at **initialization**; each consumer resolves a
+**handle** to its own profile during `initialize_event()`. The hot path dereferences the handle.
+This is not a new pattern: B7 already resolves adjacency once (`set_adjacent_segments`, the event
+stores ids) and gives `Dinucl_markov` per-spec buffers resolved at init.
+
+**A consumer needs no collection.** Every event has at most a **left span** and a **right span** —
+the same shape as the adjacency ids it already holds — plus, for `Gene_choice(D)`, the separate
+enumeration object. So two named handle members replace the three enum-named maps, and the shape
+generalises to tandem D by construction: D1 and D2 each still have exactly one left and one right
+span. That is the step's whole purpose, reached without a keyed lookup.
+
+**The hot path gets cheaper, not merely equal**, because the baseline is not a free member access —
+see finding 6 in §6.10:
+
+| | today | after |
+|---|---|---|
+| find the profile | member access | one pointer indirection |
+| find the length | **2 ×** `std::map` red-black descent (`count` then `at`) | 1 × bounds check + array index (the container staging above) |
+
+##### Deferred optimisation: cache subspan profiles across the init sweep
+
+*(Quentin, Sep 10 2026. Not scheduled — recorded so the shape is known when it is worth doing.)*
+
+Maintain a running `profile[span]` cache across the reverse init sweep. Processing event `e` in
+that sweep updates every span `e` contributes to; each owner then snapshots the cache rather than
+re-walking its suffix. One pass replaces the per-owner traversals.
+
+**The invalidation predicate already exists.** "Which cached spans does this event disturb" is
+exactly `affects_length_of(span) || affects_proba_of(span)` — S4a's `participates_in_span`, which is
+already the queue filter. The cache needs no new capability.
+
+Because the sweep runs backwards and each step *prepends* a factor, "invalidate on processing" and
+"update on processing" are the same operation: `profile[S] ← factor_e(S) ⊗ profile[S]`. Snapshots
+can be immutable and shared by pointer, so most consumers alias rather than copy.
+
+Four constraints on any implementation of this:
+
+- **Subspan recomposition is valid only within one consumer.** Atoms partition a span's
+  contributors at a given sweep position; across positions they do not, which is the
+  double-counting shown above. So a snapshot is per position, not a single mutable cache read at
+  arbitrary times.
+- **An atom cannot split an `Insertion` from its `Dinucl_markov`.** The `p^L` factor reads the
+  insertion's realized length through the `constructed_sequences` side channel, so the two are
+  coupled inside one factor — which is what S4b's `span_proba_factor` and `SpanAccumulator` exist
+  to carry. Atoms are *(deletion, insertion+dinucl, deletion)* gaps, not per-event.
+- **`⊗ᵉⁿᵘᵐ` cannot be rebuilt from `⊗ᵐᵃˣ` atoms.** The enumeration consumer retains the
+  three-component decomposition, which a max-folded atom has already discarded. The cache serves
+  the bound consumers; `no_d_align` keeps its own retained object (5b).
+- **It freezes the priority-5 tie-break.** Given the same sweep order the cache reproduces today's
+  folds exactly, which is what makes it bitwise — but it also makes §7.4's order-dependence
+  structural rather than incidental. Settle §7.4 first, or at least do not let the cache imply the
+  order is canonical.
+
+##### Recommendation *(not approved)*
+
+Split representation from semantics, so the shape is right before it reaches every signature:
+
+1. **Introduce `SegmentBoundary{SeqTypeId, Seq_side}` now**, carrying the cut-point convention.
+   Justified by the existing signatures alone; no span argument needed.
+2. **Redefine `SegmentSpan` as a pair of boundaries**, with a named constructor `SegmentSpan::gap(l,
+   r)` for today's meaning. Every current caller uses that factory: zero behaviour change, and
+   S4b/S4c need no type migration when Phase D arrives.
+3. **Do not add the general query semantics** until a consumer exists — D.3 or 5b. Unexercised
+   generality in a type that appears in every signature is the expensive kind.
+
+Two things to settle first, both open:
+
+- **What is the key?** If the profile family is per-consumer, `SegmentSpan` alone is not a cache
+  key and `(span, cut point)` is. This is S4c's central design question and the finding-4 doubt
+  above is the same question wearing a different hat.
+- **The alias.** As-created, `(VD_ins,5')` and `(VD_ins,3')` are *derived* from the neighbours, so
+  `{(V,3'),(D,5')}` and `{(VD_ins,5'),(VD_ins,3')}` denote the same span — two keys, one object.
+  Today's `legacy_span_of` resolves this by construction (`VD_ins_seq → {V,D}`); generalising
+  reintroduces it and needs canonicalisation.
+
+**What it does not buy**, so that the case is not overstated: nothing for milestone 1 or for G5 as
+it stands — every current query is gap-bounded, and tandem D's `D1→D2` is a gap like any other. And
+`(id, side)` still cannot cut *mid*-segment, so a codon-frame cut (hazard H8) would need more than
+this. The gain is uniformity now and Phase D later; the "avoids neighbours" gain is real at the
+query level — an event asks *"is my own segment inside this span"* without naming a neighbour — but
+it is only real once **R3** makes an `Insertion` write the offsets that would be addressed.
 
 #### Relation to Phase D
 
@@ -1274,7 +1524,7 @@ already flagged as the milestone-1 blocker and because `Gene_choice` is the only
 | **2b** | ✅ **done** — **B7**, specs from the registry (G9) and per-spec buffers. Skip-empty walk **deferred to phase R**: it is §7.12's fix, not a refactor (§7.11) | full ladder | **yes** |
 | **S4a** | ✅ **done** — `SegmentSpan`; `affects_length_of` / `affects_proba_of` replacing `has_effect_on`; queue-level filter restored, per-body self-filter removed; tier-3 hand-off capability check in the harness (§6.11) | full ladder | **yes** |
 | **S4b** | `length_delta` + `span_proba_factor` as **group** hooks; the four `iterate_initialize_Len_proba` bodies → one non-virtual traversal; `SpanAccumulator` replaces the `constructed_sequences` side channel (§6.10) | full ladder | **yes** |
-| **S4c** | Span-keyed structure owned by the model; `⊗ᵐᵃˣ`; six members → one; each span built once instead of five times; `initialize_Len_proba_bound` de-virtualised; findings 2–3's dead code deleted. **Removes the tandem-D enum ceiling** — on the milestone-1 critical path | full ladder + init-time measurement | **yes** |
+| **S4c** | Span-identified structure owned by the model **at init**; `⊗ᵐᵃˣ`; the enum-named members become a **left-span / right-span handle pair resolved in `initialize_event()`** — no span lookup in `iterate()` (§2.5), and not one merged map (§6.10 finding 4); single value-or-absent accessor replacing `count`+`at` (finding 6); `initialize_Len_proba_bound` de-virtualised; findings 2–3's dead code deleted. Sharing the fold across consumers is **deferred** — init cost is negligible. **Removes the tandem-D enum ceiling** — on the milestone-1 critical path | full ladder + benchmark | **yes** |
 | **S4d** | Tensor-backed containers for the 3-D `no_d_align` structure — **gated on the Tensor API**, itself blocked on the C++23 bump (§2.5). Optional, performance only | full ladder + benchmark | **yes** |
 | **3** | **B11a** — `Gene_choice` alignment path generic (G4, G2, G8, and G5 via S4a-c). Characterization already delivered by T0. **First production consumer of S3** | full ladder + benchmark | **yes**, except §7.1 |
 | **4a** | `Deletion` characterization sections, including the zero-length junction T0 deferred. **Moved ahead of S5** (§6.8, F4) | unit + mutation | n/a — tests only |
@@ -1956,7 +2206,7 @@ And the argument is a **span**, not a seq_type: `VJ_ins_seq` means the VJ insert
 model and the whole V→J span in a VDJ one. That is §2.5's "hidden generalisation", confirmed at
 every call site.
 
-#### Five incidental findings
+#### Six incidental findings
 
 1. ✅ **fixed in S4a** — **The queue-level filter is commented out.**
    [Rec_Event.cpp:387-397](../src/igor/Core/Rec_Event.cpp#L387)
@@ -1973,10 +2223,23 @@ every call site.
 3. **`Deletion` builds `vj_length_best_proba_map` in every VDJ model and nothing reads it.**
    `get_deletion_effective_junctions(V_gene_seq, ·)` returns `{VD, VJ}` unconditionally. Wasted
    initialization; also what hides the asymmetry noted in §2.5.
-4. **The VD span profile is built five times per model, per thread** — `Gene_choice(V)`,
-   `Gene_choice(D)`, `Deletion(V,3')`, `Deletion(D,5')`, and `Insertion(VD)`'s own
+4. ⚠️ **needs re-checking** — **The VD span profile is built five times per model, per thread** —
+   `Gene_choice(V)`, `Gene_choice(D)`, `Deletion(V,3')`, `Deletion(D,5')`, and `Insertion(VD)`'s own
    `junction_length_best_proba_map`. Five identical traversals, five stored copies. Same for DJ.
    Six named members hold three logical maps, across two classes.
+
+   **"Identical" is wrong** *(Sep 10 2026)*. Each owner folds *itself plus its suffix*, so the
+   contributors differ per owner and the five maps are keyed by different quantities —
+   `n − dv − dd` for the gene choices, `n` for the `Insertion`, tie-order dependent for the two
+   deletions. They are a **suffix family**, not five copies.
+
+   Two separable consequences, and only the first is S4c's:
+   **(a) correctness** — the structure must be keyed by `(span, consumer position)`, so "six
+   members → one" cannot be a literal merge; **(b) efficiency** — the repeated folding is real but
+   **negligible and harmless**: the sweep runs once per thread per EM iteration, before the
+   `#pragma omp for` over sequences, against 10⁵–10⁶ per-read evaluations. So S4c owes only the
+   re-keying, and sharing the computation is a deferred optimisation with a recorded shape. See
+   §2.5, *Boundary-addressed spans*.
 5. **`Insertion::initialize_Len_proba_bound` runs the whole traversal `|R|` times where once would
    do.** [Insertion.cpp:549-557](../src/igor/Core/Insertion.cpp#L549) loops over its own
    realizations *outside* the traversal purely to set `inserted_str` for the Dinucl side channel,
@@ -1984,6 +2247,20 @@ every call site.
    overwrites it; `wrap_up` takes `model_queue` by value so the queue survives each pass. With ~40
    realizations that is a 40× init cost producing an identical map. **High confidence, confirm by
    measurement in S4b** before removing.
+
+6. **Every consumption site pays two tree descents where one lookup would do** *(Sep 10 2026)*. The
+   pattern is `if (map.count(k) <= 0) { discard } … map.at(k)` — `std::map<int,double>`, so two
+   red-black descents on the same key, per scenario node, at 10⁸–10¹⁰ nodes. Live sites (excluding
+   the commented-out `no_d_align` block): **12 `count` / 14 `at` in `Gene_choice`**, **6 / 6 in
+   `Deletion`**. This is the hottest loop in IGoR and it is the one place where S4c is not merely
+   re-keying but strictly improving: a single accessor returning *value-or-absent* replaces both
+   calls, and the container staging in §2.5 replaces the descent with an array index.
+
+   `Insertion.cpp:209` is the asymmetry that makes the case: it calls `.at(insertions)` with **no
+   `count` guard**, unlike all 18 other sites, so a length outside the map throws rather than
+   discarding. Whether that is reachable is a separate question — B6's derived length should always
+   be a valid realization — but a value-or-absent accessor removes the entire class, guarded and
+   unguarded alike.
 
 `chosen` is a model-level fact, not a per-scenario one — `EventUtils::check_gene_choice(…,
 processed_events)` at [Genechoice.cpp:1111](../src/igor/Core/Genechoice.cpp#L1111) resolves it once
@@ -2694,9 +2971,10 @@ O1–O6 from the Sep 1 2026 review; O7–O9 from the Sep 9 2026 re-assessment (�
 | O5 | Milestone-2 absence semantics (a)/(b)/(c) | **Defer; update the parent plan once step 5 is carried.** G5's pair-keyed junctions make (b) cheaper than the parent plan's estimate — re-score it then, not now. |
 | O6 | Second `no_d_align` fixture | **The switch is required; only the fixture rationale changes** *(Sep 1 2026; a Sep 9 amendment claiming it was dissolved was wrong and is withdrawn — §6.8 F5)*. The per-`Gene_choice` boolean is not optional: per §2.6 the generic body has no `case D_gene` left to confine the fallback to, so the flag is what carries the V/J-vs-D asymmetry — default `true` for `D_gene`, `false` for V and J, bitwise by construction. What the amendment got right is narrower: the *fixture* need not defeat the aligner, since an empty alignment list (or a pruning threshold above every bound) reaches the path through production code, as T0's G6 sections already do. Whether V and J *should* fall back stays open policy. |
 | O7 | Where do the decided behaviour fixes land? | **All of them after 5b, as phase R** (§6.9). Landing a fix mid-sequence would move the golden data partway through, after which "bitwise" no longer means one thing across the remaining steps and every verdict has to be read against which baseline it was taken on. The refactoring block stays idempotent end to end; F is the one place golden data may move, once, with each commit naming the outputs it changes. Cost accepted: re-establishing context on `Insertion` and `Dinucl_markov` later. |
-| O8 | Is S4 just the `has_effect_on` overrides? | **No — S4 is the pair-keyed junction structure** (§6.8 F3). The six `*_length_best_proba_map` members plus `vj_length_d_position_proba` collapse to one map keyed by an ordered `(SeqTypeId, SeqTypeId)` behind a single accessor. This is not scope creep: `iterate_initialize_Len_proba` is enum-keyed, so a tandem-D junction throws before inference starts, which puts S4 **on the milestone-1 critical path**. It is also C2's stated landing point. Per §9 the query returns a set, not the first match. **Split into S4a/S4b/S4c by the §6.10 analysis, approved Sep 10 2026**, with an optional S4d for Tensor-backed containers and the joint-max bound tightening moved out to R6 as a behaviour change. The composition operator divides across the split: `⊗ᵐᵃˣ` in S4c because every gene needs it, `⊗ᵉⁿᵘᵐ` in 5b because only `no_d_align` retains the decomposition. |
+| O8 | Is S4 just the `has_effect_on` overrides? | **No — S4 is the pair-keyed junction structure** (§6.8 F3). The six `*_length_best_proba_map` members plus `vj_length_d_position_proba` stop being enum-named and become span-identified. **Corrected Sep 10 2026**: the original wording — *"collapse to one map keyed by an ordered `(SeqTypeId, SeqTypeId)` behind a single accessor"* — would have put a span lookup in `iterate()`'s hot path, which is a pessimisation, and it also merges profiles that finding 4 shows are distinct. The span-keyed structure is the **init-time owner**; each consumer resolves a **handle** to its own profile during `initialize_event()` and the hot path never sees a span key. This is not scope creep: `iterate_initialize_Len_proba` is enum-keyed, so a tandem-D junction throws before inference starts, which puts S4 **on the milestone-1 critical path**. It is also C2's stated landing point. Per §9 the query returns a set, not the first match. **Split into S4a/S4b/S4c by the §6.10 analysis, approved Sep 10 2026**, with an optional S4d for Tensor-backed containers and the joint-max bound tightening moved out to R6 as a behaviour change. The composition operator divides across the split: `⊗ᵐᵃˣ` in S4c because every gene needs it, `⊗ᵉⁿᵘᵐ` in 5b because only `no_d_align` retains the decomposition. |
 | O9 | 4a before or after S5? | **Before.** S5 replaces the safety mechanism `Deletion::iterate` reads; characterizing against a body S5 has already moved is the wrong order. It also gives S5 a consumer rather than making it a third service with none (§6.8 F1), and S5's definition of done becomes "4a's sections pass unchanged". |
 | O10 | Should a write to an unrequested layer be possible at all? | **No, and the harness now says so** (§2.5, `f568bd4`). *A written layer must have been requested* is the complement of the existing layer contract, and applies to every layered map rather than only to keys a capability query describes — which is what makes it complementary to the static attribute check rather than a special case of it. Enforced per event under test today, where it found exactly one violation across 49 writes (`Insertion`, repaired in R3). **The runtime home is `LayeredArray::set()`**, which currently *raises* the claim implicitly — "writing at a layer claims it" — rather than requiring it. **Scheduled as R3b, immediately after R3** *(Quentin, Sep 10 2026)*: R3 removes the only violation known today, so R3b starts from a passing tree and anything it then rejects is new information rather than a replay of what the harness already reports. Expect it to surface more — `Deletion::iterate` is at 0 % unit coverage until 4a and the rule has never been enforced anywhere — and each new violation becomes its own R row behind it. |
+| O11 | Should `SegmentSpan` carry a `Seq_side` on each endpoint? | **Open — investigated Sep 10 2026, not decided** (§2.5, *Boundary-addressed spans*). It would make `T_a` and `G_i` one type under a single composition law, and give a per-`Seq_type` Phase-D decomposition a span that names its own unit, which the gap-only form cannot. Recommendation is staged: land `SegmentBoundary{SeqTypeId, Seq_side}` now on the strength of the ~20 existing signatures already keyed that way, redefine `SegmentSpan` as a pair of boundaries with a `gap(l,r)` factory so no caller changes, and defer the general query semantics until D.3 or 5b has a consumer. One open blocker: canonicalising the alias between `{(V,3'),(D,5')}` and `{(VD_ins,5'),(VD_ins,3')}`, which denote the same span. The key question is settled — it is `(span, consumer position)`, per finding 4. Buys nothing for milestone 1. |
 
 ### 8.1 — Two standing design constraints
 
