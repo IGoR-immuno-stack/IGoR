@@ -113,6 +113,12 @@ std::string LayerViolation::describe() const
            + " -- a layer was requested and never written on this path";
 }
 
+std::string CapabilityViolation::describe() const
+{
+    return map_name + " " + EventUtils::seq_type_to_string(seq_type) + ": declared " + declared
+           + ", but " + observed;
+}
+
 namespace {
 
 template <typename Map>
@@ -271,6 +277,116 @@ void RecordingEvent::iterate(QuerySequenceContext &, const ModelContext &, Scena
     check_map("safety_set", current_layers_of(exploration.safety_set));
     check_map("pruning_mismatch_floor", current_layers_of(exploration.pruning_mismatch_floor));
 
+    //Capability contract (tier 3): what this event *declared* through its A0 queries, it must
+    //have *done* by the time it hands off. Consistency, not correctness -- an event declaring
+    //None everywhere passes trivially; tier 1 is what makes the declarations non-vacuous.
+    if (declarations.active) {
+        const auto note = [&](const std::string &map_name, Seq_type seq_type,
+                              const std::string &declared, const std::string &observed) {
+            capability_violations.push_back(
+                    CapabilityViolation{calls.size(), map_name, seq_type, declared, observed});
+        };
+        //Reference point for "this event did not touch that key": the layers as they stood
+        //once the event under test had requested its own and before it iterated.
+        const auto current_before = [&](const std::string &map_name, std::size_t key) -> int {
+            const auto found = layer_baseline.current.find(map_name);
+            if (found == layer_baseline.current.end() || key >= found->second.size()) {
+                return -1;
+            }
+            return found->second[key];
+        };
+        //"Written at its own layer" cannot be phrased as "it raised a claim": only Deletion
+        //ever requests a constructed_sequences layer. A creator -- Gene_choice, Insertion --
+        //writes at layer 0, which it owns implicitly because nothing stands beneath it, so its
+        //claimed mark is still -1 when the baseline is taken. The checkable statement is that
+        //the event *touched* the key, which is the exact complement of the None clause below.
+        const auto touched = [&](const std::string &map_name, std::size_t key,
+                                 const std::vector<int> &current_now) {
+            return key >= current_now.size()
+                   || current_now[key] != current_before(map_name, key);
+        };
+
+        const std::vector<int> seq_layers = current_layers_of(scenario.constructed_sequences);
+        for (const auto &[seq_type, role] : declarations.construction) {
+            const std::size_t key = static_cast<std::size_t>(seq_type);
+            const bool exists = scenario.constructed_sequences.exists(seq_type);
+            switch (role) {
+            case SeqConstructionRole::Creates:
+                if (!exists) {
+                    note("constructed_sequences", seq_type, "Creates", "no segment was written");
+                } else if (!touched("constructed_sequences", key, seq_layers)) {
+                    note("constructed_sequences", seq_type, "Creates",
+                         "the segment was already standing where it stands now -- this event "
+                         "did not write it");
+                }
+                break;
+            case SeqConstructionRole::Fills:
+                //Deliberately no layer clause: Dinucl_markov writes through the pointer
+                //Insertion stored and claims nothing (section 7.13, repaired in R1).
+                if (!exists) {
+                    note("constructed_sequences", seq_type, "Fills", "no segment was written");
+                } else if (const Int_Str *segment = scenario.get_sequence_segment(seq_type);
+                           segment != nullptr
+                           && std::find(segment->begin(), segment->end(), int_undefined)
+                                      != segment->end()) {
+                    note("constructed_sequences", seq_type, "Fills",
+                         "the segment still holds an undetermined nucleotide");
+                }
+                break;
+            case SeqConstructionRole::Modifies:
+                //Not that the value changed -- a zero deletion is legal -- only that it was
+                //written at this event's own layer.
+                if (!touched("constructed_sequences", key, seq_layers)) {
+                    note("constructed_sequences", seq_type, "Modifies",
+                         "this event did not write that segment");
+                }
+                break;
+            case SeqConstructionRole::None:
+                //The converse, and the one that catches an event touching a segment it never
+                //declared -- section 7.13's shape exactly.
+                if (key < seq_layers.size() && seq_layers[key] != current_before("constructed_sequences", key)) {
+                    note("constructed_sequences", seq_type, "None",
+                         "it advanced that segment's layer to "
+                                 + std::to_string(seq_layers[key]));
+                }
+                break;
+            }
+        }
+
+        const std::vector<int> five_layers = current_layers_of(scenario.seq_offsets.five_prime);
+        const std::vector<int> three_layers = current_layers_of(scenario.seq_offsets.three_prime);
+        for (const auto &[key_pair, role] : declarations.offsets) {
+            const auto [seq_type, side] = key_pair;
+            const std::size_t key = static_cast<std::size_t>(seq_type);
+            const std::string map_name = side == Five_prime ? "seq_offsets.five_prime"
+                                                            : "seq_offsets.three_prime";
+            const std::vector<int> &layers = side == Five_prime ? five_layers : three_layers;
+            switch (role) {
+            case OffsetRole::Creates:
+                if (!scenario.seq_offsets.exists(seq_type, side)) {
+                    note(map_name, seq_type, "OffsetRole::Creates", "that end was never written");
+                } else if (!touched(map_name, key, layers)) {
+                    note(map_name, seq_type, "OffsetRole::Creates",
+                         "that end was already standing where it stands now -- this event did "
+                         "not write it");
+                }
+                break;
+            case OffsetRole::Modifies:
+                if (!touched(map_name, key, layers)) {
+                    note(map_name, seq_type, "OffsetRole::Modifies",
+                         "this event did not write that end");
+                }
+                break;
+            case OffsetRole::None:
+                if (key < layers.size() && layers[key] != current_before(map_name, key)) {
+                    note(map_name, seq_type, "OffsetRole::None",
+                         "it advanced that end's layer to " + std::to_string(layers[key]));
+                }
+                break;
+            }
+        }
+    }
+
     calls.push_back(std::move(snapshot));
 }
 
@@ -278,6 +394,22 @@ std::shared_ptr<RecordingEvent> call_iterate_recording(const std::shared_ptr<Rec
                                                        IterateTestState &state)
 {
     auto recorder = std::make_shared<RecordingEvent>(31);
+
+    //Read the event's own A0 declarations before it runs, so the recorder can check them at
+    //the hand-off. Every test going through this function inherits the check; a new event's
+    //sections get it without writing anything.
+    static const Seq_type kAllSeqTypes[] = {V_gene_seq, VD_ins_seq, D_gene_seq,
+                                            DJ_ins_seq, J_gene_seq, VJ_ins_seq};
+    recorder->declarations.active = true;
+    for (Seq_type seq_type : kAllSeqTypes) {
+        const SeqTypeId id = static_cast<SeqTypeId>(seq_type);
+        recorder->declarations.construction.emplace(seq_type, event->get_seq_construction_role(id));
+        for (Seq_side side : {Five_prime, Three_prime}) {
+            recorder->declarations.offsets.emplace(std::make_pair(seq_type, side),
+                                                   event->get_offset_role(id, side));
+        }
+    }
+
     call_iterate(event, state, recorder);
 
     //Every section gets the layer contract checked, without asking for it.
@@ -286,6 +418,13 @@ std::shared_ptr<RecordingEvent> call_iterate_recording(const std::shared_ptr<Rec
                                                              << violation.describe());
     }
     CHECK(recorder->layer_violations.empty());
+
+    //...and the capability contract likewise.
+    for (const CapabilityViolation &violation : recorder->capability_violations) {
+        UNSCOPED_INFO("capability declaration broken at hand-off " << violation.call_index << ": "
+                                                                   << violation.describe());
+    }
+    CHECK(recorder->capability_violations.empty());
 
     return recorder;
 }

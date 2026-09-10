@@ -451,6 +451,27 @@ struct LayerViolation {
     std::string describe() const;
 };
 
+/**
+ * @brief A capability the event under test declared but did not honour at hand-off.
+ *
+ * Tier 3 of the segment-completeness invariant (docs/ITERATE_GENERIC_REWRITE_PLAN.md
+ * section 2.5). Tier 1 -- a check at Model_Parms::finalize() -- asks whether *someone*
+ * declares a creator for every registered seq_type; tier 2 -- the debug assert at the
+ * scenario leaf -- asks whether anything is still missing once every event has run. This
+ * one asks the question a unit test can actually answer: did **this** event do what **it**
+ * said it would? It also localises the failure, where a leaf check only reports that
+ * something, somewhere, is incomplete.
+ */
+struct CapabilityViolation {
+    std::size_t call_index = 0;
+    std::string map_name;
+    Seq_type seq_type = V_gene_seq;
+    std::string declared;  ///< the declaration, and what it promised
+    std::string observed;
+
+    std::string describe() const;
+};
+
 /// Snapshot every layered map the harness owns.
 LayerSnapshot capture_layers(const IterateTestState &state);
 
@@ -498,6 +519,24 @@ public:
     /// Requested-but-unwritten layers seen at any hand-off. Checked automatically by
     /// call_iterate_recording().
     std::vector<LayerViolation> layer_violations;
+
+    /**
+     * What the event under test declared through its A0 capability queries, read by
+     * call_iterate_recording() before the event runs.
+     *
+     * Inactive when call_iterate() is used directly with a hand-made recorder, so a test
+     * that deliberately drives a partially-configured event still works.
+     */
+    struct Declarations {
+        bool active = false;
+        std::map<Seq_type, SeqConstructionRole> construction;
+        std::map<std::pair<Seq_type, Seq_side>, OffsetRole> offsets;
+    };
+    Declarations declarations;
+
+    /// Declarations the event did not honour. Checked automatically by
+    /// call_iterate_recording().
+    std::vector<CapabilityViolation> capability_violations;
 
     /// Number of realizations that reached the next event.
     std::size_t call_count() const { return calls.size(); }
