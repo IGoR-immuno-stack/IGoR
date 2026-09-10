@@ -851,8 +851,8 @@ while `Span(V5',V3')` includes them (`v3 − v5 + 1 = 10`). No single convention
 boundary is a *nucleotide index* — closed gives V = 10 ✓ but the gap = 7; half-open gives the gap
 = 5 ✓ but V = 9.
 
-Define a boundary as the **cut between nucleotides**, `c(S,5') = offset(S,5')` and
-`c(S,3') = offset(S,3') + 1`:
+Define a boundary as a **half-open range bound** — the `begin` or `end` you would slice the read
+with — so `c(S,5') = offset(S,5')` and `c(S,3') = offset(S,3') + 1`:
 
 | span | arithmetic | value |
 |---|---|---|
@@ -861,7 +861,10 @@ Define a boundary as the **cut between nucleotides**, `c(S,5') = offset(S,5')` a
 | `Span(V5',D5')` | `15 − 0` | 15 = `10 + 5` |
 
 Plain subtraction throughout, and composition is exact addition with no ±1 correction anywhere —
-which is what makes the monoid law hold literally rather than approximately. Two consequences: the
+which is what makes the monoid law hold literally rather than approximately. Said plainly: a span
+*is* a `[begin, end)` pair, its length is `end − begin`, and `Span(A,B) ⊗ Span(B,C) = Span(A,C)` is
+`[a,b)` and `[b,c)` making `[a,c)`. The reason offsets cannot serve directly is that `Seq_Offset` is
+a **closed**-interval index, and closed intervals do not compose by subtraction. Two consequences: the
 conversion is **side-dependent**, and `Seq_Offset` is a nucleotide index everywhere in IGoR, so a
 boundary type lives in a *different coordinate space* from the offsets it is built from. Given that
 §7.1 and §7.8 are both off-by-one bugs in this exact area, that conversion belongs stated once in
@@ -2451,6 +2454,25 @@ test. It is genuine cover, but it is thin, and it is precisely the factor S4b tu
 `span_proba_factor`. Widen it in **5a**, whose brief already includes the `bound / realized_proba`
 instrumentation.
 
+#### The span type, corrected *(Sep 10 2026, `868c910`)*
+
+S4a first shipped `SegmentSpan{SeqTypeId left, right}`, which named two *segments* and meant, by
+an unwritten convention, the 3' end of one and the 5' end of the other. O11's investigation
+replaced that with a pair of `SegmentBoundary{SeqTypeId, Seq_side}`, and `SegmentSpan::gap(l, r)`
+is the factory every caller uses — so the delivered behaviour is unchanged and the step stays
+bitwise.
+
+`cut_position()` states the coordinate conversion once. Two mutation results are worth keeping:
+dropping the `+ 1` from the 3' cut fails *both* the segment and the gap measurement, which is the
+off-by-one the type exists to prevent; and swapping `gap()`'s two sides is caught **only** by the
+explicit boundary assertion, because `legacy_span_of` and `legacy_junction_of` round-trip through
+the same factory and agree with each other regardless. A round-trip test alone would have passed a
+broken convention.
+
+What did **not** land, deliberately: the general two-boundary query semantics (O11 step 3). The
+form is representable so Phase D and 5b need no type migration; it has no consumer, so it has no
+behaviour.
+
 #### Tier 3, and the ownership rule it split into
 
 The declaration check landed as specified, on the clause
@@ -2974,7 +2996,7 @@ O1–O6 from the Sep 1 2026 review; O7–O9 from the Sep 9 2026 re-assessment (�
 | O8 | Is S4 just the `has_effect_on` overrides? | **No — S4 is the pair-keyed junction structure** (§6.8 F3). The six `*_length_best_proba_map` members plus `vj_length_d_position_proba` stop being enum-named and become span-identified. **Corrected Sep 10 2026**: the original wording — *"collapse to one map keyed by an ordered `(SeqTypeId, SeqTypeId)` behind a single accessor"* — would have put a span lookup in `iterate()`'s hot path, which is a pessimisation, and it also merges profiles that finding 4 shows are distinct. The span-keyed structure is the **init-time owner**; each consumer resolves a **handle** to its own profile during `initialize_event()` and the hot path never sees a span key. This is not scope creep: `iterate_initialize_Len_proba` is enum-keyed, so a tandem-D junction throws before inference starts, which puts S4 **on the milestone-1 critical path**. It is also C2's stated landing point. Per §9 the query returns a set, not the first match. **Split into S4a/S4b/S4c by the §6.10 analysis, approved Sep 10 2026**, with an optional S4d for Tensor-backed containers and the joint-max bound tightening moved out to R6 as a behaviour change. The composition operator divides across the split: `⊗ᵐᵃˣ` in S4c because every gene needs it, `⊗ᵉⁿᵘᵐ` in 5b because only `no_d_align` retains the decomposition. |
 | O9 | 4a before or after S5? | **Before.** S5 replaces the safety mechanism `Deletion::iterate` reads; characterizing against a body S5 has already moved is the wrong order. It also gives S5 a consumer rather than making it a third service with none (§6.8 F1), and S5's definition of done becomes "4a's sections pass unchanged". |
 | O10 | Should a write to an unrequested layer be possible at all? | **No, and the harness now says so** (§2.5, `f568bd4`). *A written layer must have been requested* is the complement of the existing layer contract, and applies to every layered map rather than only to keys a capability query describes — which is what makes it complementary to the static attribute check rather than a special case of it. Enforced per event under test today, where it found exactly one violation across 49 writes (`Insertion`, repaired in R3). **The runtime home is `LayeredArray::set()`**, which currently *raises* the claim implicitly — "writing at a layer claims it" — rather than requiring it. **Scheduled as R3b, immediately after R3** *(Quentin, Sep 10 2026)*: R3 removes the only violation known today, so R3b starts from a passing tree and anything it then rejects is new information rather than a replay of what the harness already reports. Expect it to surface more — `Deletion::iterate` is at 0 % unit coverage until 4a and the rule has never been enforced anywhere — and each new violation becomes its own R row behind it. |
-| O11 | Should `SegmentSpan` carry a `Seq_side` on each endpoint? | **Open — investigated Sep 10 2026, not decided** (§2.5, *Boundary-addressed spans*). It would make `T_a` and `G_i` one type under a single composition law, and give a per-`Seq_type` Phase-D decomposition a span that names its own unit, which the gap-only form cannot. Recommendation is staged: land `SegmentBoundary{SeqTypeId, Seq_side}` now on the strength of the ~20 existing signatures already keyed that way, redefine `SegmentSpan` as a pair of boundaries with a `gap(l,r)` factory so no caller changes, and defer the general query semantics until D.3 or 5b has a consumer. One open blocker: canonicalising the alias between `{(V,3'),(D,5')}` and `{(VD_ins,5'),(VD_ins,3')}`, which denote the same span. The key question is settled — it is `(span, consumer position)`, per finding 4. Buys nothing for milestone 1. |
+| O11 | Should `SegmentSpan` carry a `Seq_side` on each endpoint? | **Yes — steps 1–2 landed Sep 10 2026 (`868c910`), step 3 deferred** (§2.5, *Boundary-addressed spans*). It would make `T_a` and `G_i` one type under a single composition law, and give a per-`Seq_type` Phase-D decomposition a span that names its own unit, which the gap-only form cannot. Recommendation is staged: land `SegmentBoundary{SeqTypeId, Seq_side}` now on the strength of the ~20 existing signatures already keyed that way, redefine `SegmentSpan` as a pair of boundaries with a `gap(l,r)` factory so no caller changes, and defer the general query semantics until D.3 or 5b has a consumer. The key question is settled — it is `(span, consumer position)`, per finding 4, resolved to a handle at init rather than looked up. One blocker remains, and **step 3 is what makes it reachable**: canonicalising the alias between `{(V,3'),(D,5')}` and `{(VD_ins,5'),(VD_ins,3')}`, which denote the same span. It cannot arise while `gap()` is the only factory, so it is settled with step 3 rather than before it. Buys nothing for milestone 1. |
 
 ### 8.1 — Two standing design constraints
 
