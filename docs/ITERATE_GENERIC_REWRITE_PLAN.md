@@ -622,12 +622,22 @@ What it can assert at hand-off:
 
 | declared for a seq_type | assertion |
 |---|---|
-| `SeqConstructionRole::Creates` | the segment exists, at this event's own claimed layer |
+| `SeqConstructionRole::Creates` | the segment exists, and this event ~~wrote it at its own claimed layer~~ **touched it** |
 | `SeqConstructionRole::Fills` | the segment exists **and holds no `int_undefined`** |
-| `SeqConstructionRole::Modifies` | written at its own layer — *not* that the value changed, since a zero deletion is legal |
+| `SeqConstructionRole::Modifies` | this event touched it — *not* that the value changed, since a zero deletion is legal |
 | `SeqConstructionRole::None` | this event did **not** advance that key's layer |
-| `OffsetRole::Creates` for (id, side) | that end exists, at this event's own layer |
+| `OffsetRole::Creates` for (id, side) | that end exists, and this event touched it |
 | `OffsetRole::None` for (id, side) | this event did **not** advance that end |
+
+**The layer clause as first written is not checkable, and the correction matters beyond wording**
+*(measured Sep 10 2026, delivered in §6.11)*. Only `Deletion` ever calls
+`constructed_sequences.request_layer()`. A creator writes at layer 0, which it owns implicitly
+because nothing stands beneath it, so its **claimed mark is still `-1`** when the baseline is taken.
+"Touched" — `current_layer` at hand-off differs from `current_layer` at the baseline — is the exact
+complement of the `None` row, which makes the two one statement read in opposite directions. It also
+means tier 3 is not merely a sibling of the layer check on declared keys: on a creator, the layer
+check inspects only raised claims and so says **nothing**, and tier 3 is the only one of the two
+that does.
 
 Two rows earn their place beyond the obvious:
 
@@ -1085,7 +1095,7 @@ Five new pieces, in dependency order. Each is one commit with its own tests.
 | S1 | `OffsetDelta` / `LengthRange` + the two Phase A virtuals | `Rec_Event.h` | three conflicting meanings of `len_min`/`len_max` | S2 |
 | S2 | `PendingModifierBounds` | new `src/igor/Core/JunctionGeometry.h` | 8 scalars × 2 classes + 120 lines of lookup | S3, B5, B11 |
 | S3 | `reachable()` + `Overlap check()` | same | 8 comparison blocks | B5, B11 |
-| S4 | Junction key + `has_effect_on(left,right)` non-virtual | `Rec_Event.{h,cpp}` | 3 virtual overrides + 7 named maps | B5, B6, B11 |
+| S4 | `SegmentSpan` + `affects_length_of` / `affects_proba_of` (S4a ✅), then the span-keyed map (S4c) | `Rec_Event.{h,cpp}`, `SegmentSpan.h` | 4 self-filters (✅) + 7 named maps | B5, B6, B11 |
 | S5 | Safety row-bitmask over `LayeredArray<uint32_t>`, indexed by ordering position (§2.3) | `ExplorationContext.h` | `Event_safety` enum | B5, B11 |
 
 `JunctionGeometry.h` is deliberately a **new header, not an addition to `Utils.h`** — `Utils.h`
@@ -1223,7 +1233,7 @@ already flagged as the milestone-1 blocker and because `Gene_choice` is the only
 | **1b** | ✅ **done** — **B6**, `Insertion::iterate` generic (G9). Smallest, one hot-loop win. | full ladder | **yes** |
 | **2a** | ✅ **done** — `Dinucl_markov` characterization, 12 `TEST_CASE`s; the empty-anchor case is `[.]`-hidden because it segfaults (§7.12) | unit + mutation | n/a — tests only |
 | **2b** | ✅ **done** — **B7**, specs from the registry (G9) and per-spec buffers. Skip-empty walk **deferred to phase R**: it is §7.12's fix, not a refactor (§7.11) | full ladder | **yes** |
-| **S4a** | `SegmentSpan`; `affects_length_of(SegmentSpan)` replacing `has_effect_on`; the queue-level filter restored and the per-body self-filter removed (§6.10). Also lands the **tier-3 hand-off capability check** in the harness (§2.5) — test-only, so it carries no bitwise risk | full ladder | **yes** |
+| **S4a** | ✅ **done** — `SegmentSpan`; `affects_length_of` / `affects_proba_of` replacing `has_effect_on`; queue-level filter restored, per-body self-filter removed; tier-3 hand-off capability check in the harness (§6.11) | full ladder | **yes** |
 | **S4b** | `length_delta` + `span_proba_factor` as **group** hooks; the four `iterate_initialize_Len_proba` bodies → one non-virtual traversal; `SpanAccumulator` replaces the `constructed_sequences` side channel (§6.10) | full ladder | **yes** |
 | **S4c** | Span-keyed structure owned by the model; `⊗ᵐᵃˣ`; six members → one; each span built once instead of five times; `initialize_Len_proba_bound` de-virtualised; findings 2–3's dead code deleted. **Removes the tandem-D enum ceiling** — on the milestone-1 critical path | full ladder + init-time measurement | **yes** |
 | **S4d** | Tensor-backed containers for the 3-D `no_d_align` structure — **gated on the Tensor API**, itself blocked on the C++23 bump (§2.5). Optional, performance only | full ladder + benchmark | **yes** |
@@ -1893,11 +1903,12 @@ every call site.
 
 #### Five incidental findings
 
-1. **The queue-level filter is commented out.** [Rec_Event.cpp:387-397](../src/igor/Core/Rec_Event.cpp#L387)
-   carries `//if(next_event_p->has_effect_on(considered_junction)){` with
-   `//TODO fix this and find a way not to loop over all events`. The traversal therefore visits
-   every event in the model and each self-filters at the top of its own override — the predicate
-   exists twice over, at the wrong level.
+1. ✅ **fixed in S4a** — **The queue-level filter is commented out.**
+   [Rec_Event.cpp:387-397](../src/igor/Core/Rec_Event.cpp#L387)
+   carried `//if(next_event_p->has_effect_on(considered_junction)){` with
+   `//TODO fix this and find a way not to loop over all events`. The traversal therefore visited
+   every event in the model and each self-filtered at the top of its own override — the predicate
+   existed twice over, at the wrong level. See §6.11.
 2. **`Gene_choice::has_effect_on` never returns `true` into a value anyone reads.** It is `true`
    only for `D_gene` on `VJ_ins_seq`. Every consumer is guarded `if (d_chosen) {adjacent}
    else if (other_chosen) {vj}` — [Genechoice.cpp:321](../src/igor/Core/Genechoice.cpp#L321),
@@ -1932,10 +1943,10 @@ four cells; naming the axes shows which are empty.
 | | addressed by a **segment** | addressed by a **span** |
 |---|---|---|
 | offset | `get_offset_role` ✅ A0 · `get_offset_delta_bounds` ✅ A0 | — |
-| length (bounds) | `get_length_contribution` ✅ A0 | **`affects_length_of(SegmentSpan)`** ← replaces `has_effect_on` |
+| length (bounds) | `get_length_contribution` ✅ A0 | `affects_length_of(SegmentSpan)` ✅ **S4a** |
 | length (per realization) | **`length_delta(const Event_realization&)`** ← missing, and it is the hook | — |
 | sequence content | `get_seq_construction_role` ✅ A0 | — |
-| probability | — | **`span_proba_factor(SegmentSpan, const SpanAccumulator&)`** ← `Dinucl_markov`'s cell |
+| probability | — | `affects_proba_of(SegmentSpan)` ✅ **S4a** (the predicate) · **`span_proba_factor(SegmentSpan, const SpanAccumulator&)`** ← S4b, the value |
 
 ```cpp
 /// An ordered, anchor-exclusive range of the registry ordering. The addressing unit for
@@ -1943,6 +1954,10 @@ four cells; naming the axes shows which are empty.
 /// (D.3) -- the same object in all three, named once.
 struct SegmentSpan { SeqTypeId left, right; };
 ```
+
+✅ **Landed in S4a**, as `src/igor/Core/SegmentSpan.h`, together with `legacy_span_of()` /
+`legacy_junction_of()` — the single place the VDJ topology is hardcoded for this machinery, and
+which S4c removes when the length maps become span-keyed.
 
 `affects_length_of` is deliberately narrow rather than a general `affects()`: a general predicate
 would need a "what" argument and would immediately be a worse `has_effect_on`. The narrow name
@@ -2040,6 +2055,112 @@ Only the *retention* of the decomposition is 5b's.
 `⊗` must accept a **scalar weight per operand**, not just profiles — see the B10 note in the parent
 plan. Cheap now, and it is what lets an explicitly-weighted absence branch tighten the bound.
 
+
+### 6.11 — Delivered (S4a) *(Sep 10 2026)*
+
+Two commits, both bitwise: `b432247` (the predicate and the filter) and `43b3efd` (tier 3).
+
+**`has_effect_on` split along the axis it was actually on.** It answered one question under a name
+suggesting three, and took an argument whose meaning depended on the topology. It is now
+
+| | |
+|---|---|
+| `affects_length_of(SegmentSpan)` | length only, pure virtual as before |
+| `affects_proba_of(SegmentSpan)` | the probability factor, defaulted to `false` |
+| `participates_in_span(SegmentSpan)` | non-virtual; the disjunction the traversal filters on |
+
+**`Dinucl_markov` is what forced the split, not tidiness.** It contributes *zero* length and
+returned `true` purely to gate its `p^L` factor (§6.10). Under a length-only predicate it answers
+`false`, so restoring the queue filter on `affects_length_of` alone would have silently dropped the
+dinucleotide probability factor from every bound. The `affects_proba_of` cell is not reserved
+naming ahead of a caller — it has one, today.
+
+**The filter is back at the queue.** §6.10's finding 1: the predicate existed twice over, at the
+wrong level, with the queue-level copy commented out since forever behind *"TODO fix this and find
+a way not to loop over all events"*. The four per-body self-filters are gone. Two details that are
+not bookkeeping:
+
+- **The entry-point overload applies the same test to itself.** `Rec_Event::iterate_initialize_Len_proba`
+  (7-arg) is entered directly by `initialize_Len_proba_bound`, bypassing the queue. It is not
+  vacuous: `Gene_choice(V)` opens the VD span traversal and contributes nothing to it, so before
+  S4a its `else` branch was doing real work.
+- **The filter pops in a loop rather than recursing**, as the commented-out code would have.
+  Traversal depth is now proportional to the number of *contributing* events instead of to model
+  size.
+
+**The predicates were deliberately not generalised.** `Gene_choice`'s and `Insertion`'s tables *are*
+"the segment sits strictly inside the span" over the legacy registry — checked case by case.
+`Deletion`'s is not: the generic form is *"(target, side) is an inward-facing endpoint of the
+span"*, but `get_deletion_effective_junctions` is side-**insensitive** for V and J, so the two
+disagree for a hypothetical V 5' or J 3' deletion. That is a semantic change, so all four overrides
+keep their tables verbatim and S4a is bitwise by construction. Reconciling them is S4b's, and the
+divergence is recorded in `Deletion::affects_length_of` itself.
+
+`legacy_span_of()` / `legacy_junction_of()` are the single place the VDJ topology is now hardcoded
+for this machinery. They go away with S4c, when the length maps become span-keyed.
+
+`Dinucl_markov`'s `correct_class` flag is replaced by `dinucl_ins_seq_type_or_throw()`, called from
+`affects_proba_of()`. Since the traversal consults the predicate before entering the body, an
+unrecognised seq_type is still rejected at the same moment.
+
+#### Mutation results
+
+The filter's cover is indirect but real: the harness runs `initialize_Len_proba_bound`, and the
+maps it fills gate scenario retention in the event under test.
+
+| mutation | killed by |
+|---|---|
+| `participates_in_span` → `true` | 3 `Gene_choice::iterate` cases, including the **G5 junction-length bound** |
+| `participates_in_span` → `false` | 7 `Insertion` cases |
+| `Dinucl_markov::affects_proba_of` → `false` | **1** — `Insertion: downstream bound and memory layering` |
+
+**That last row is the finding.** The Dinucl `p^L` factor's entire behavioural cover is a single
+test. It is genuine cover, but it is thin, and it is precisely the factor S4b turns into
+`span_proba_factor`. Widen it in **5a**, whose brief already includes the `bound / realized_proba`
+instrumentation.
+
+#### Tier 3: what §2.5's table got wrong
+
+The check landed as specified, with one clause that could not be written as stated.
+
+> §2.5: `SeqConstructionRole::Creates` → *"the segment exists, at this event's own claimed layer"*
+
+**Not checkable.** Only `Deletion` ever calls `constructed_sequences.request_layer()`. A *creator* —
+`Gene_choice`, `Insertion` — writes at layer 0, which it owns implicitly because nothing stands
+beneath it, so its **claimed mark is still `-1`** when `layer_baseline` is taken during
+initialization. A first attempt phrased the clause as "the event raised a claim" and fired on all
+seven `Insertion` sections; rephrasing it as "the segment stands at the layer value it claimed" fired
+identically, for the same reason.
+
+The clause that *is* checkable, and is strictly better, is **"this event touched the key"** —
+`current_layer` at hand-off differs from `current_layer` at the baseline. It is the exact complement
+of the `None` clause, which makes the two rows one statement read in opposite directions:
+
+> `Creates` / `Modifies` ⇒ touched.  `None` ⇒ not touched.
+
+`Fills` carries no layer clause at all, as §2.5 already had it: §7.13's `Dinucl_markov` writes
+through the pointer `Insertion` stored and claims nothing.
+
+**This also explains why the existing layer contract is vacuous for a creator.** It only inspects
+keys whose claimed mark the event *raised*, so `Gene_choice` writing V at layer 0 carries no
+promise under it. Tier 3 is not merely a sibling of that check on declared keys — on creators it is
+the only one of the two that says anything.
+
+#### Tier 3 mutation results
+
+| mutation | message |
+|---|---|
+| `Insertion` declares `Creates` for a segment it never writes | *"no segment was written"* |
+| `Insertion` declares `OffsetRole::Creates` without writing offsets — **the exact flip R3 will make** | *"that end was never written"*, both ends |
+| `Gene_choice` declares `OffsetRole::None` for ends it does write | *"it advanced that end's layer to 0"* |
+| `Insertion` declares `Fills` while its placeholders are still `int_undefined` | *"the segment still holds an undetermined nucleotide"* |
+
+The second row is the one that matters for scheduling: **R3 is now self-verifying.** Flipping
+`Insertion::get_offset_role` to `Creates` without also writing the offsets fails immediately, on
+both ends, rather than relying on the three `[!shouldfail]` cases alone.
+
+Tier 3 is test-only, so it carries no bitwise risk, and it passes today without waiting for R3 —
+`Insertion` declares `None` and writes none, which is wrong but self-consistent.
 
 ### 6.2 — The regression gate has a flaky output
 
