@@ -285,11 +285,20 @@ TEST_CASE("A legacy junction seq_type names a span", "[capabilities][span]")
 {
     SECTION("Each junction resolves to the pair of anchors it sits between")
     {
-        CHECK(legacy_span_of(VD_ins_seq) == SegmentSpan{id_of(V_gene_seq), id_of(D_gene_seq)});
-        CHECK(legacy_span_of(DJ_ins_seq) == SegmentSpan{id_of(D_gene_seq), id_of(J_gene_seq)});
+        CHECK(legacy_span_of(VD_ins_seq) == SegmentSpan::gap(id_of(V_gene_seq), id_of(D_gene_seq)));
+        CHECK(legacy_span_of(DJ_ins_seq) == SegmentSpan::gap(id_of(D_gene_seq), id_of(J_gene_seq)));
         // The ambiguity this type exists to resolve: as an argument to the Len_proba
         // machinery VJ_ins_seq is the whole V->J span, not the VJ insertion segment.
-        CHECK(legacy_span_of(VJ_ins_seq) == SegmentSpan{id_of(V_gene_seq), id_of(J_gene_seq)});
+        CHECK(legacy_span_of(VJ_ins_seq) == SegmentSpan::gap(id_of(V_gene_seq), id_of(J_gene_seq)));
+    }
+
+    SECTION("A gap runs from the left segment's 3' end to the right segment's 5' end")
+    {
+        // The implicit convention the boundaries now state outright: an event trimming either
+        // of these two ends widens the span rather than shortening its own segment.
+        const SegmentSpan vd = legacy_span_of(VD_ins_seq);
+        CHECK(vd.left == SegmentBoundary{id_of(V_gene_seq), Three_prime});
+        CHECK(vd.right == SegmentBoundary{id_of(D_gene_seq), Five_prime});
     }
 
     SECTION("The mapping round-trips")
@@ -304,7 +313,13 @@ TEST_CASE("A legacy junction seq_type names a span", "[capabilities][span]")
         CHECK_THROWS_AS(legacy_span_of(V_gene_seq), std::invalid_argument);
         CHECK_THROWS_AS(legacy_span_of(D_gene_seq), std::invalid_argument);
         CHECK_THROWS_AS(legacy_span_of(J_gene_seq), std::invalid_argument);
-        CHECK_THROWS_AS(legacy_junction_of(SegmentSpan{id_of(V_gene_seq), id_of(V_gene_seq)}),
+        CHECK_THROWS_AS(legacy_junction_of(SegmentSpan::gap(id_of(V_gene_seq), id_of(V_gene_seq))),
+                        std::invalid_argument);
+        // A segment's own extent is representable but names no legacy junction: the general
+        // two-boundary form exists so Phase D needs no type migration, not because it has a
+        // consumer today (decision O11).
+        CHECK_THROWS_AS(legacy_junction_of(SegmentSpan{SegmentBoundary{id_of(V_gene_seq), Five_prime},
+                                                       SegmentBoundary{id_of(V_gene_seq), Three_prime}}),
                         std::invalid_argument);
     }
 }
@@ -412,5 +427,45 @@ TEST_CASE("Span effect queries", "[capabilities][span]")
         CHECK_FALSE(vd_ins->affects_proba_of(vd));
         CHECK(vd_ins->participates_in_span(vd));
         CHECK_FALSE(vd_ins->participates_in_span(dj));
+    }
+}
+
+TEST_CASE("A boundary is the cut between nucleotides, not a nucleotide", "[capabilities][span]")
+{
+    // The worked example from section 2.5: V occupies read positions 0..9 (length 10) and D
+    // starts at 15, so the gap between them is positions 10..14 (length 5).
+    const Seq_Offset v_five_prime = 0;
+    const Seq_Offset v_three_prime = 9;
+    const Seq_Offset d_five_prime = 15;
+
+    const Seq_Offset v_start = cut_position(Five_prime, v_five_prime);
+    const Seq_Offset v_end = cut_position(Three_prime, v_three_prime);
+    const Seq_Offset d_start = cut_position(Five_prime, d_five_prime);
+
+    SECTION("A segment and the gap after it both measure correctly, under one convention")
+    {
+        CHECK(v_end - v_start == 10); // the V segment
+        CHECK(d_start - v_end == 5);  // the VD gap
+    }
+
+    SECTION("...which is what makes composition exact addition, with no correction term")
+    {
+        CHECK(d_start - v_start == (v_end - v_start) + (d_start - v_end));
+        CHECK(d_start - v_start == 15);
+    }
+
+    SECTION("No nucleotide-index convention can do both, which is why cuts exist")
+    {
+        // Closed on both ends gets the segment right and overcounts the gap by two...
+        CHECK(v_three_prime - v_five_prime + 1 == 10);
+        CHECK(d_five_prime - v_three_prime + 1 == 7);
+        // ...and excluding both ends gets the gap right and leaves the segment two short.
+        CHECK(d_five_prime - v_three_prime - 1 == 5);
+        CHECK(v_three_prime - v_five_prime - 1 == 8);
+    }
+
+    SECTION("A side that names no cut is rejected rather than guessed at")
+    {
+        CHECK_THROWS_AS(cut_position(Undefined_side, 0), std::invalid_argument);
     }
 }
