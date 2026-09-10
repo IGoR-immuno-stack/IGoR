@@ -452,6 +452,28 @@ struct LayerViolation {
 };
 
 /**
+ * @brief A write that landed on a layer the event never requested.
+ *
+ * The exact complement of the layer contract. That one says *a requested layer must be
+ * written*; this one says *a written layer must have been requested*. Together they make the
+ * claimed and current marks move as a pair, which is what lets a downstream reader of
+ * `layer - 1` trust that it sees the previous value.
+ *
+ * It is deliberately **not** a capability check: it applies to every layered map the harness
+ * owns, including `mismatches_lists` and `safety_set`, which no A0 query describes. That is
+ * what makes it complementary to the declaration check rather than a special case of it.
+ */
+struct OwnershipViolation {
+    std::size_t call_index = 0;
+    std::string map_name;
+    std::size_t key = 0;
+    int claimed_layer = 0; ///< highest layer this event requested, at the baseline
+    int written_layer = 0; ///< layer the data stands at, at hand-off
+
+    std::string describe() const;
+};
+
+/**
  * @brief A capability the event under test declared but did not honour at hand-off.
  *
  * Tier 3 of the segment-completeness invariant (docs/ITERATE_GENERIC_REWRITE_PLAN.md
@@ -537,6 +559,13 @@ public:
     /// Declarations the event did not honour. Checked automatically by
     /// call_iterate_recording().
     std::vector<CapabilityViolation> capability_violations;
+
+    /**
+     * Writes that landed above the layer the event requested. Checked automatically by
+     * call_iterate_recording(), which waives one standing defect (see there); this vector is
+     * the **unwaived** record, so a defect case can assert against it directly.
+     */
+    std::vector<OwnershipViolation> ownership_violations;
 
     /// Number of realizations that reached the next event.
     std::size_t call_count() const { return calls.size(); }

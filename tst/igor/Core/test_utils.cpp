@@ -113,6 +113,14 @@ std::string LayerViolation::describe() const
            + " -- a layer was requested and never written on this path";
 }
 
+std::string OwnershipViolation::describe() const
+{
+    return map_name + " key " + std::to_string(key) + ": written at layer "
+           + std::to_string(written_layer) + " but this event requested only up to layer "
+           + std::to_string(claimed_layer)
+           + " -- a layer was written and never requested";
+}
+
 std::string CapabilityViolation::describe() const
 {
     return map_name + " " + EventUtils::seq_type_to_string(seq_type) + ": declared " + declared
@@ -277,6 +285,37 @@ void RecordingEvent::iterate(QuerySequenceContext &, const ModelContext &, Scena
     check_map("safety_set", current_layers_of(exploration.safety_set));
     check_map("pruning_mismatch_floor", current_layers_of(exploration.pruning_mismatch_floor));
 
+    //Layer ownership: the complement of the contract above. Every key whose data moved during
+    //this event's iterate() must stand at a layer this event requested. Applies to every map,
+    //including the two no capability query describes.
+    auto check_ownership = [&](const std::string &map_name, const std::vector<int> &current_now) {
+        const auto claimed = layer_baseline.claimed.find(map_name);
+        const auto before = layer_baseline.current.find(map_name);
+        if (claimed == layer_baseline.claimed.end() || before == layer_baseline.current.end()) {
+            return;
+        }
+        for (std::size_t key = 0; key != current_now.size(); ++key) {
+            if (key >= claimed->second.size() || key >= before->second.size()) {
+                break;
+            }
+            //Only keys this event actually moved; an untouched key carries no promise here.
+            if (current_now[key] == before->second[key]) {
+                continue;
+            }
+            if (current_now[key] > claimed->second[key]) {
+                ownership_violations.push_back(OwnershipViolation{
+                        calls.size(), map_name, key, claimed->second[key], current_now[key]});
+            }
+        }
+    };
+    check_ownership("constructed_sequences", current_layers_of(scenario.constructed_sequences));
+    check_ownership("seq_offsets.five_prime", current_layers_of(scenario.seq_offsets.five_prime));
+    check_ownership("seq_offsets.three_prime", current_layers_of(scenario.seq_offsets.three_prime));
+    check_ownership("mismatches_lists", current_layers_of(scenario.mismatches_lists));
+    check_ownership("downstream_proba_map", current_layers_of(exploration.downstream_proba_map));
+    check_ownership("safety_set", current_layers_of(exploration.safety_set));
+    check_ownership("pruning_mismatch_floor", current_layers_of(exploration.pruning_mismatch_floor));
+
     //Capability contract (tier 3): what this event *declared* through its A0 queries, it must
     //have *done* by the time it hands off. Consistency, not correctness -- an event declaring
     //None everywhere passes trivially; tier 1 is what makes the declarations non-vacuous.
@@ -425,6 +464,26 @@ std::shared_ptr<RecordingEvent> call_iterate_recording(const std::shared_ptr<Rec
                                                                    << violation.describe());
     }
     CHECK(recorder->capability_violations.empty());
+
+    //Layer ownership, minus one standing defect. Insertion writes the segment it creates
+    //without ever requesting a layer for it -- the same under-declaration as its missing
+    //offsets, and repaired with them in R3. Waived by name rather than by disabling the check,
+    //so every other event is held to the rule and an Insertion violation anywhere else still
+    //fails. Delete this waiver with R3; the [!shouldfail] defect case asserting
+    //ownership_violations.empty() is what turns red if it outlives the defect.
+    std::vector<OwnershipViolation> unwaived;
+    for (const OwnershipViolation &violation : recorder->ownership_violations) {
+        const bool waived = event->get_type() == Event_type::Insertion_t
+                            && violation.map_name == "constructed_sequences";
+        if (!waived) {
+            unwaived.push_back(violation);
+        }
+    }
+    for (const OwnershipViolation &violation : unwaived) {
+        UNSCOPED_INFO("layer ownership violated at hand-off " << violation.call_index << ": "
+                                                              << violation.describe());
+    }
+    CHECK(unwaived.empty());
 
     return recorder;
 }

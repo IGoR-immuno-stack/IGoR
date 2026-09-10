@@ -543,3 +543,32 @@ TEST_CASE("DEFECT: Insertion creates a segment but no mismatch list for it",
     REQUIRE(call.mismatches.count(VD_ins_seq) == 1);
     CHECK(call.mismatches.at(VD_ins_seq).empty());
 }
+
+TEST_CASE("DEFECT: Insertion writes the segment it creates on an unrequested layer",
+          "[insertion][iterate][defect][!shouldfail]")
+{
+    // The same under-declaration as the missing offsets above, one level down: the event
+    // writes constructed_sequences for its own seq_type without ever calling
+    // request_layer() for it. Every other event in the model requests the layer it writes --
+    // Gene_choice does so for all three genes, Deletion for the segments it trims, and
+    // Insertion itself does so for its downstream_proba_map entry -- so this is an omission,
+    // not a convention.
+    //
+    // It matters because requesting is what makes the layer *owned*. A write with no request
+    // leaves claimed and current out of step, so a downstream reader of `layer - 1` is
+    // trusting storage nobody promised, and the layer contract -- which only inspects keys
+    // whose claimed mark the event raised -- is silent on exactly this key. The rule the rest
+    // of the suite is held to is the complement of that contract: a written layer must have
+    // been requested.
+    //
+    // Waived by name in call_iterate_recording() so the rule can be enforced everywhere
+    // else. Fix with R3, alongside the offsets, and delete the waiver.
+    VdJunction fixture;
+    const auto next = call_iterate_recording(fixture.insertion, fixture.state);
+    REQUIRE(next->call_count() == 1);
+
+    for (const OwnershipViolation &violation : next->ownership_violations) {
+        UNSCOPED_INFO(violation.describe());
+    }
+    CHECK(next->ownership_violations.empty());
+}
