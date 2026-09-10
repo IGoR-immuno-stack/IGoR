@@ -629,15 +629,54 @@ What it can assert at hand-off:
 | `OffsetRole::Creates` for (id, side) | that end exists, and this event touched it |
 | `OffsetRole::None` for (id, side) | this event did **not** advance that end |
 
-**The layer clause as first written is not checkable, and the correction matters beyond wording**
-*(measured Sep 10 2026, delivered in §6.11)*. Only `Deletion` ever calls
-`constructed_sequences.request_layer()`. A creator writes at layer 0, which it owns implicitly
-because nothing stands beneath it, so its **claimed mark is still `-1`** when the baseline is taken.
-"Touched" — `current_layer` at hand-off differs from `current_layer` at the baseline — is the exact
-complement of the `None` row, which makes the two one statement read in opposite directions. It also
-means tier 3 is not merely a sibling of the layer check on declared keys: on a creator, the layer
-check inspects only raised claims and so says **nothing**, and tier 3 is the only one of the two
-that does.
+The clause is **"this event touched the key"** — `current_layer` at hand-off differs from
+`current_layer` at the baseline — which is the exact complement of the `None` row, making the two
+one statement read in opposite directions.
+
+**The layer half of §2.5's original wording was right, and it belongs in a separate check**
+*(Quentin, Sep 10 2026)*. "At this event's own claimed layer" is checkable, and enforcing it
+found a real defect — see the ownership rule below. It is not a *capability* question, though:
+it applies to `mismatches_lists` and `safety_set`, which no A0 query describes. So it lands as
+its own rule rather than as a clause of the declaration check, and the two stay non-overlapping.
+
+*(An earlier reading of this claimed the clause was unwritable because "only `Deletion` ever
+calls `constructed_sequences.request_layer()`". That was a truncated grep: `Gene_choice` requests
+in all three branches. Corrected by Quentin.)*
+
+#### Layer ownership: a written layer must have been requested
+
+The exact complement of the layer contract (§7.10). That one says *a requested layer must be
+written*; this one says *a written layer must have been requested*, so the claimed and current
+marks move as a pair and a downstream reader of `layer − 1` is never trusting storage nobody
+promised. **Complementary to the static attribute check** rather than derived from it: it holds for
+every layered map, whether or not a capability query describes it.
+
+Note it is exactly the case the layer contract cannot speak about. That check inspects only keys
+whose claimed mark the event *raised*, so on a write with no request at all it is silent by
+construction.
+
+**Measured across the whole `[iterate]` suite** *(Sep 10 2026)*: 49 distinct writes, of which
+exactly **3** violate the rule — `Insertion` writing `constructed_sequences` for the segment it
+creates, in all three junction variants, with `claimed = −1`. Every other write lands exactly at
+its claimed layer.
+
+| event | requests a `constructed_sequences` layer? |
+|---|---|
+| `Gene_choice` | yes, all three genes |
+| `Deletion` | yes, every segment it trims |
+| `Insertion` | **no** — though it does request its `downstream_proba_map` layer |
+| `Dinucl_markov` | n/a — writes through `Insertion`'s pointer (§7.13) |
+
+So it is an omission, not a convention, and it is the same under-declaration as `Insertion`'s
+missing offsets one level down. **Repaired with them in R3.** Until then it is waived by name in
+`call_iterate_recording()` — not by disabling the check, so every other event is held to the rule
+and an `Insertion` violation anywhere else still fails — and a fourth `[!shouldfail]` defect case
+asserts the unwaived result, turning red if the waiver outlives the defect.
+
+**The general form, beyond the harness** *(Quentin, Sep 10 2026)*: once the legacy `Seq_type` enum
+is gone, there should be no constructed sequence, offset or mismatch list standing at a layer no
+event requested. The harness enforces this per event under test; the natural runtime home is
+`LayeredArray::set()`, which today *raises* the claim implicitly rather than requiring it — see O10.
 
 Two rows earn their place beyond the obvious:
 
@@ -1243,7 +1282,7 @@ already flagged as the milestone-1 blocker and because `Gene_choice` is the only
 | **4b** | **B5** — `Deletion::iterate` generic (all patterns). **First production consumer of S2** | full ladder + benchmark + convergence | **yes** |
 | **5a** | `no_d_align` characterization beyond T0's G6 sections, on a fixture that *forces* the path. **Must raise `Gene_choice::iterate` block coverage** — see §6.4. Also lands the `bound / realized_proba` instrumentation (§6.10) | unit + mutation | n/a — tests only |
 | **5b** | **B11b** — `no_d_align` exhaustive path generic (G6), including `⊗ᵉⁿᵘᵐ` — the retained decomposition, always three components (§2.5) | full ladder + a fixture that *forces* the path | **yes** |
-| **R1–R4** | **Repair phase** (§6.9) — the decided behaviour changes, held here so everything above is idempotent end to end: §7.13, §7.12, `Insertion`'s three `[!shouldfail]` defects, `dinuc_proba_matrix` → `initialize_event()` | full ladder, per commit | **no** — golden data may move; each commit names which outputs and why |
+| **R1–R4** | **Repair phase** (§6.9) — the decided behaviour changes, held here so everything above is idempotent end to end: §7.13, §7.12, `Insertion`'s four `[!shouldfail]` defects, **R3b's `LayeredArray::set()` hardening (O10) directly after them**, `dinuc_proba_matrix` → `initialize_event()` | full ladder, per commit | **no** — golden data may move; each commit names which outputs and why |
 | **R5** | §7.1 and §7.8 off-by-one corrections, per decision O4; the four `[!shouldfail]` tags come off | full ladder + the corrected-core unit tests | **no** — same |
 | **R6** | Within-clique joint max in the span fold (§6.9); optional cross-clique parent indexing | full ladder, **convergence weighted heavily** | **no** — a tighter bound prunes more |
 
@@ -1801,7 +1840,8 @@ Decided behaviour changes, none of which had a row in §6 before this re-assessm
 |---|---|---|---|---|
 | R1 | §7.13 — give `Dinucl_markov` its own constructed-sequence layer | Sep 7 | `Dinucl_markov` | none expected; the write lands at a different layer, same content |
 | R2 | §7.12 — `first_occupied_*` walk, **throw** on an empty anchor | Sep 8 | `Dinucl_markov` | none on the corpus (no model produces an empty anchor); removes the `[.]` tag from the reproducer |
-| R3 | `Insertion` writes offsets and a mismatch list (three `[!shouldfail]`), **its `get_offset_role` stops reporting `None`**, and the leaf invariant's offsets half becomes assertable (see below) | Sep 7 | `Insertion` | none expected — neither `Insertion::iterate` nor `Dinucl_markov::iterate` touches `seq_offsets` at all |
+| R3 | `Insertion` writes offsets and a mismatch list (three `[!shouldfail]`), **requests the `constructed_sequences` layer it writes** (a fourth, §2.5), **its `get_offset_role` stops reporting `None`**, and the leaf invariant's offsets half becomes assertable (see below). Deletes the ownership waiver in `call_iterate_recording()` | Sep 7 | `Insertion` | none expected — neither `Insertion::iterate` nor `Dinucl_markov::iterate` touches `seq_offsets` at all, and the missing `request_layer` currently has no second writer to collide with |
+| **R3b** | **O10** — `LayeredArray::set()` stops raising the claim implicitly and *requires* it: writing at an unrequested layer becomes an error rather than a silent claim. Lands **immediately after R3**, which removes the only violation known today | Sep 10 | `LayeredArray`, and whatever R3b surfaces | none expected on the corpus, but this is the row most likely to surface *new* violations — each one is a genuine finding and lands as its own R row after this one |
 | R4 | `dinuc_proba_matrix` construction moves into `initialize_event()` | Sep 7 | `Dinucl_markov` | none — `GenModel` already calls the out-of-band builder |
 | R5 | §7.1 and §7.8 off-by-one corrections (decision O4) | Sep 1 | `Gene_choice` | **golden data moves**; the credited core length changes |
 | R6 | Within-clique **joint** max in the span fold, using S4b's group hook; optionally cross-clique parent indexing after it | Sep 10 | the span fold (all events) | **golden data may move** — a tighter bound prunes more, so fewer scenarios are summed. Needs the **convergence** gate, not just regression |
@@ -1810,6 +1850,21 @@ R1–R4 are each expected to be bitwise-neutral despite being behaviour changes 
 the corpus does not reach. That expectation is the thing to *test*, not to assume: a surprise here
 is a finding about the corpus, not a reason to accept the diff. R5 and R6 are the two expected to
 move numbers, and they are last for exactly that reason. They are independent of each other.
+
+**R3b in more detail** *(Quentin, Sep 10 2026)*. The harness rule landed in S4a —
+[*a written layer must have been requested*](#layer-ownership-a-written-layer-must-have-been-requested)
+— is only half of one invariant; the runtime half is `LayeredArray::set()`, which today *raises*
+the claimed mark when it has to rather than refusing. **Ordering is the whole point of putting it
+here**: R3 removes the single violation the measurement found, so R3b starts from a tree that
+passes, and anything it then rejects is *new information*. Run before R3 it would simply reproduce
+what the harness already reports.
+
+Expect it to surface more than the corpus shows. The harness measured 49 writes across three
+events; `Deletion::iterate` is at 0 % unit coverage until 4a, generation and `no_d_align` are barely
+exercised, and the rule has never been enforced anywhere. **Whatever R3b rejects is a finding, not
+a reason to weaken the rule** — each becomes its own R row after it, on the same
+"expected-bitwise, prove it" footing as R1–R4. If the count is large the sequencing still holds:
+they queue behind R3b rather than forcing it earlier.
 
 **R6 in more detail** *(Quentin, Sep 10 2026)*. §6.10 shows the span fold accumulates
 `∏ₑ maxᵢ Pₑ(rₑ|i)`, a product of per-event maxima, and that taking the max **jointly** over a
@@ -2119,32 +2174,25 @@ test. It is genuine cover, but it is thin, and it is precisely the factor S4b tu
 `span_proba_factor`. Widen it in **5a**, whose brief already includes the `bound / realized_proba`
 instrumentation.
 
-#### Tier 3: what §2.5's table got wrong
+#### Tier 3, and the ownership rule it split into
 
-The check landed as specified, with one clause that could not be written as stated.
+The declaration check landed as specified, on the clause
 
-> §2.5: `SeqConstructionRole::Creates` → *"the segment exists, at this event's own claimed layer"*
+> `Creates` / `Modifies` ⇒ **touched**.  `None` ⇒ **not touched**.
 
-**Not checkable.** Only `Deletion` ever calls `constructed_sequences.request_layer()`. A *creator* —
-`Gene_choice`, `Insertion` — writes at layer 0, which it owns implicitly because nothing stands
-beneath it, so its **claimed mark is still `-1`** when `layer_baseline` is taken during
-initialization. A first attempt phrased the clause as "the event raised a claim" and fired on all
-seven `Insertion` sections; rephrasing it as "the segment stands at the layer value it claimed" fired
-identically, for the same reason.
+which is one statement read in opposite directions. `Fills` carries no layer clause at all, as
+§2.5 already had it: §7.13's `Dinucl_markov` writes through the pointer `Insertion` stored and
+claims nothing.
 
-The clause that *is* checkable, and is strictly better, is **"this event touched the key"** —
-`current_layer` at hand-off differs from `current_layer` at the baseline. It is the exact complement
-of the `None` clause, which makes the two rows one statement read in opposite directions:
+§2.5's other half — *"at this event's own claimed layer"* — **is** checkable and **did** find a
+defect, but it is not a capability question: it applies to `mismatches_lists` and `safety_set`,
+which no A0 query describes. It therefore landed as a separate, general rule, **a written layer
+must have been requested** (`f568bd4`), non-overlapping with the declaration check.
 
-> `Creates` / `Modifies` ⇒ touched.  `None` ⇒ not touched.
-
-`Fills` carries no layer clause at all, as §2.5 already had it: §7.13's `Dinucl_markov` writes
-through the pointer `Insertion` stored and claims nothing.
-
-**This also explains why the existing layer contract is vacuous for a creator.** It only inspects
-keys whose claimed mark the event *raised*, so `Gene_choice` writing V at layer 0 carries no
-promise under it. Tier 3 is not merely a sibling of that check on declared keys — on creators it is
-the only one of the two that says anything.
+*(An earlier reading of this section claimed that clause was unwritable, on the grounds that only
+`Deletion` requests a `constructed_sequences` layer. That came from a truncated grep —
+`Gene_choice` requests in all three branches — and inverted the diagnosis: the check was right and
+the code was wrong. Corrected by Quentin, Sep 10 2026. The measurement and the repair are in §2.5.)*
 
 #### Tier 3 mutation results
 
@@ -2154,6 +2202,8 @@ the only one of the two that says anything.
 | `Insertion` declares `OffsetRole::Creates` without writing offsets — **the exact flip R3 will make** | *"that end was never written"*, both ends |
 | `Gene_choice` declares `OffsetRole::None` for ends it does write | *"it advanced that end's layer to 0"* |
 | `Insertion` declares `Fills` while its placeholders are still `int_undefined` | *"the segment still holds an undetermined nucleotide"* |
+| the ownership waiver removed | exactly the 7 `Insertion` sections red — the rule is what keeps them green |
+| a violation injected on `downstream_proba_map` | fires **through** the waiver — the waiver is narrow |
 
 The second row is the one that matters for scheduling: **R3 is now self-verifying.** Flipping
 `Insertion::get_offset_role` to `Creates` without also writing the offsets fails immediately, on
@@ -2646,6 +2696,7 @@ O1–O6 from the Sep 1 2026 review; O7–O9 from the Sep 9 2026 re-assessment (�
 | O7 | Where do the decided behaviour fixes land? | **All of them after 5b, as phase R** (§6.9). Landing a fix mid-sequence would move the golden data partway through, after which "bitwise" no longer means one thing across the remaining steps and every verdict has to be read against which baseline it was taken on. The refactoring block stays idempotent end to end; F is the one place golden data may move, once, with each commit naming the outputs it changes. Cost accepted: re-establishing context on `Insertion` and `Dinucl_markov` later. |
 | O8 | Is S4 just the `has_effect_on` overrides? | **No — S4 is the pair-keyed junction structure** (§6.8 F3). The six `*_length_best_proba_map` members plus `vj_length_d_position_proba` collapse to one map keyed by an ordered `(SeqTypeId, SeqTypeId)` behind a single accessor. This is not scope creep: `iterate_initialize_Len_proba` is enum-keyed, so a tandem-D junction throws before inference starts, which puts S4 **on the milestone-1 critical path**. It is also C2's stated landing point. Per §9 the query returns a set, not the first match. **Split into S4a/S4b/S4c by the §6.10 analysis, approved Sep 10 2026**, with an optional S4d for Tensor-backed containers and the joint-max bound tightening moved out to R6 as a behaviour change. The composition operator divides across the split: `⊗ᵐᵃˣ` in S4c because every gene needs it, `⊗ᵉⁿᵘᵐ` in 5b because only `no_d_align` retains the decomposition. |
 | O9 | 4a before or after S5? | **Before.** S5 replaces the safety mechanism `Deletion::iterate` reads; characterizing against a body S5 has already moved is the wrong order. It also gives S5 a consumer rather than making it a third service with none (§6.8 F1), and S5's definition of done becomes "4a's sections pass unchanged". |
+| O10 | Should a write to an unrequested layer be possible at all? | **No, and the harness now says so** (§2.5, `f568bd4`). *A written layer must have been requested* is the complement of the existing layer contract, and applies to every layered map rather than only to keys a capability query describes — which is what makes it complementary to the static attribute check rather than a special case of it. Enforced per event under test today, where it found exactly one violation across 49 writes (`Insertion`, repaired in R3). **The runtime home is `LayeredArray::set()`**, which currently *raises* the claim implicitly — "writing at a layer claims it" — rather than requiring it. **Scheduled as R3b, immediately after R3** *(Quentin, Sep 10 2026)*: R3 removes the only violation known today, so R3b starts from a passing tree and anything it then rejects is new information rather than a replay of what the harness already reports. Expect it to surface more — `Deletion::iterate` is at 0 % unit coverage until 4a and the rule has never been enforced anywhere — and each new violation becomes its own R row behind it. |
 
 ### 8.1 — Two standing design constraints
 
