@@ -58,11 +58,7 @@ public:
     return OffsetRole::None;
   }
   bool affects_length_of(SegmentSpan) const override { return false; }
-  void iterate_initialize_Len_proba(Seq_type, map<int, double> &,
-                                    queue<shared_ptr<Rec_Event>> &, double &,
-                                    const Marginal_array_p &, Index_map &,
-                                    Seq_type_str_p_map &,
-                                    int &) const override {}
+  int length_delta(const Event_realization &) const override { return 0; }
   void initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &,
                                   const Marginal_array_p &,
                                   Index_map &) override {}

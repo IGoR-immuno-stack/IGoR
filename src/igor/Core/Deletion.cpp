@@ -1775,39 +1775,17 @@ bool Deletion::affects_length_of(SegmentSpan span) const
     return find(effective_junctions.begin(), effective_junctions.end(), junction) != effective_junctions.end();
 }
 
-void Deletion::iterate_initialize_Len_proba(Seq_type considered_junction, std::map<int, double> &length_best_proba_map,
-                                            std::queue<std::shared_ptr<Rec_Event>> &model_queue, double &scenario_proba,
-                                            const Marginal_array_p &model_parameters_point, Index_map &base_index_map,
-                                            Seq_type_str_p_map &constructed_sequences, int &seq_len /*=0*/) const
+int Deletion::length_delta(const Event_realization &realization) const
 {
-    //No self-filter: the caller -- the queue-level filter in
-    //Rec_Event::iterate_initialize_Len_proba_wrap_up(), or the entry-point overload -- has already
-    //established participates_in_span().
-    base_index_map.set_current_layer(this->event_index, 0);
-    base_index = base_index_map.get(this->event_index);
-    for (unordered_map<string, Event_realization>::const_iterator iter = this->event_realizations.begin();
-         iter != this->event_realizations.end(); ++iter) {
-
-        //Get the max proba for this realization (in case the event is child of another)
-        double real_max_proba = 0;
-        for (size_t i = 0; i != this->event_marginal_size / this->size(); ++i) {
-            if (model_parameters_point[base_index + (*iter).second.index + i * this->size()] > real_max_proba) {
-                real_max_proba = model_parameters_point[base_index + (*iter).second.index + i * this->size()];
-            }
-        }
-        //Update the length and the probability in the recursive call
-        Rec_Event::iterate_initialize_Len_proba_wrap_up(
-                considered_junction, length_best_proba_map, model_queue, scenario_proba * real_max_proba,
-                model_parameters_point, base_index_map, constructed_sequences, seq_len - (*iter).second.value_int);
-    }
+    //Negative: a deletion moves an anchor's boundary away from where it was created, which
+    //widens the span it bounds rather than shortening the anchor (§2.5's frame).
+    return -realization.value_int;
 }
 
 void Deletion::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &model_queue,
                                           const Marginal_array_p &model_parameters_point, Index_map &base_index_map)
 {
-    //Scratch map for the junction length bound, which is still VDJ-hardcoded below;
-    //see legacy_seq_type_registry().
-    Seq_type_str_p_map constructed_sequences(legacy_seq_type_registry());
+    SpanAccumulator lengths(legacy_seq_type_registry().total_count());
     const auto effective_junctions =
             get_deletion_effective_junctions(this->target_seq_type, this->event_side);
     if (effective_junctions.empty()) {
@@ -1836,7 +1814,7 @@ void Deletion::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &model_qu
 
         length_best_proba_map->clear();
         double init_proba = 1.0;
-        this->Rec_Event::iterate_initialize_Len_proba(junction_seq, *length_best_proba_map, model_queue, init_proba,
-                                                      model_parameters_point, base_index_map, constructed_sequences);
+        this->Rec_Event::iterate_initialize_Len_proba(legacy_span_of(junction_seq), *length_best_proba_map, model_queue,
+                                                      init_proba, model_parameters_point, base_index_map, lengths);
     }
 }

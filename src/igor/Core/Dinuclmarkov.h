@@ -148,10 +148,8 @@ public:
 
     bool affects_length_of(SegmentSpan) const override;
     bool affects_proba_of(SegmentSpan) const override;
-    void iterate_initialize_Len_proba(Seq_type considered_junction, std::map<int, double> &length_best_proba_map,
-                                      std::queue<std::shared_ptr<Rec_Event>> &model_queue, double &scenario_proba,
-                                      const Marginal_array_p &model_parameters_point, Index_map &base_index_map,
-                                      Seq_type_str_p_map &constructed_sequences, int &seq_len) const override;
+    int length_delta(const Event_realization &) const override;
+    double span_proba_factor(SegmentSpan, const SpanAccumulator &) const override;
     void initialize_Len_proba_bound(std::queue<std::shared_ptr<Rec_Event>> &model_queue,
                                     const Marginal_array_p &model_parameters_point, Index_map &base_index_map) override;
 

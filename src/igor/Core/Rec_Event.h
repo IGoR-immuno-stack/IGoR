@@ -31,6 +31,7 @@
 #include <igor/Core/Aligner.h>
 #include <igor/Core/SegmentSpan.h>
 #include <igor/Core/SeqTypeRegistry.h>
+#include <igor/Core/SpanAccumulator.h>
 #include <igor/Core/Utils.h>
 #include <igorCoreExport.h>
 
@@ -371,21 +372,51 @@ public:
     {
         return this->affects_length_of(span) or this->affects_proba_of(span);
     }
-    void iterate_initialize_Len_proba_wrap_up(Seq_type considered_junction,
+
+    /**
+     * \brief The length one realization contributes to a span it affects, signed.
+     *
+     * A0's get_length_contribution() gives the `{min,max}` bound over *all* realizations, which
+     * is what the geometry needs; the fold needs the value for **one**. This single accessor is
+     * the whole difference between the four iterate_initialize_Len_proba() bodies this replaced:
+     * `+ value_str.length()` for a gene, `+ value_int` for an insertion, `- value_int` for a
+     * deletion. Only called for an event that answers affects_length_of(), so an event whose
+     * contribution is purely probabilistic never has to invent an answer.
+     *
+     * Group-composable, and deliberately so: a clique's delta is the **sum** of its members', so
+     * R6's within-clique joint max reuses this unchanged.
+     */
+    virtual int length_delta(const Event_realization &realization) const = 0;
+
+    /**
+     * \brief A probability factor this event contributes to \a span, given the lengths already
+     * decided along this path.
+     *
+     * Dinucl_markov's cell, and today its only one: `p^L` where `L` is the length of the segment
+     * it fills, which the segment's creator published into \a lengths. Group-composable like
+     * length_delta(): a clique's factor is the **product** of its members'.
+     */
+    virtual double span_proba_factor(SegmentSpan, const SpanAccumulator &) const { return 1.0; }
+
+    void iterate_initialize_Len_proba_wrap_up(SegmentSpan span,
                                               std::map<int, double> &length_best_proba_map,
                                               std::queue<std::shared_ptr<Rec_Event>> model_queue, double scenario_proba,
                                               const Marginal_array_p &model_parameters_point, Index_map &base_index_map,
-                                              Seq_type_str_p_map &constructed_sequences, int seq_len) const;
-    virtual void iterate_initialize_Len_proba(Seq_type considered_junction,
-                                              std::map<int, double> &length_best_proba_map,
-                                              std::queue<std::shared_ptr<Rec_Event>> &model_queue,
-                                              double &scenario_proba, const Marginal_array_p &model_parameters_point,
-                                              Index_map &base_index_map, Seq_type_str_p_map &constructed_sequences,
-                                              int &seq_len) const = 0;
-    void iterate_initialize_Len_proba(Seq_type considered_junction, std::map<int, double> &length_best_proba_map,
+                                              SpanAccumulator &lengths, int seq_len) const;
+
+    /**
+     * One body for every event. What used to be four overrides differing only in `Δ(r)` -- see
+     * length_delta() -- plus Dinucl_markov, which differs in kind: it does not enumerate at all.
+     */
+    void iterate_initialize_Len_proba(SegmentSpan span, std::map<int, double> &length_best_proba_map,
                                       std::queue<std::shared_ptr<Rec_Event>> &model_queue, double &scenario_proba,
                                       const Marginal_array_p &model_parameters_point, Index_map &base_index_map,
-                                      Seq_type_str_p_map &constructed_sequences) const;
+                                      SpanAccumulator &lengths, int &seq_len) const;
+
+    void iterate_initialize_Len_proba(SegmentSpan span, std::map<int, double> &length_best_proba_map,
+                                      std::queue<std::shared_ptr<Rec_Event>> &model_queue, double &scenario_proba,
+                                      const Marginal_array_p &model_parameters_point, Index_map &base_index_map,
+                                      SpanAccumulator &lengths) const;
     virtual void initialize_Len_proba_bound(std::queue<std::shared_ptr<Rec_Event>> &model_queue,
                                             const Marginal_array_p &model_parameters_point,
                                             Index_map &base_index_map) = 0;

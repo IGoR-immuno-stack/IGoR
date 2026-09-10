@@ -596,31 +596,24 @@ bool Dinucl_markov::affects_proba_of(SegmentSpan span) const
     }
 }
 
-void Dinucl_markov::iterate_initialize_Len_proba(Seq_type considered_junction,
-                                                 std::map<int, double> &length_best_proba_map,
-                                                 std::queue<std::shared_ptr<Rec_Event>> &model_queue,
-                                                 double &scenario_proba, const Marginal_array_p &model_parameters_point,
-                                                 Index_map &base_index_map, Seq_type_str_p_map &constructed_sequences,
-                                                 int &seq_len /*=0*/) const
+int Dinucl_markov::length_delta(const Event_realization &) const
 {
-    base_index_map.set_current_layer(this->event_index, 0);
-    base_index = base_index_map.get(this->event_index);
+    //Never reached: affects_length_of() is always false, so the fold takes the probability
+    //branch and never enumerates this event. Stated rather than defaulted, so an event that
+    //starts contributing length has to say so here too.
+    return 0;
+}
 
-    //No self-filter: the caller has already established participates_in_span(), and since
-    //affects_length_of() is always false for this event that means affects_proba_of() holds --
-    //so the segment this model fills is inside the span and its p^L factor applies.
-    const Seq_type ins_seq = dinucl_ins_seq_type_or_throw(this->seq_type, "iterate_initialize_Len_proba");
-    if (constructed_sequences.exists(ins_seq)) {
-        scenario_proba *= pow(this->get_upper_bound_proba(), constructed_sequences.get(ins_seq)->size());
+double Dinucl_markov::span_proba_factor(SegmentSpan, const SpanAccumulator &lengths) const
+{
+    //p^L over the segment this model fills, whose length its creator (the Insertion) published.
+    //Absent means no creator ran on this path, and the contribution is 1.
+    const Seq_type ins_seq = dinucl_ins_seq_type_or_throw(this->seq_type, "span_proba_factor");
+    const SeqTypeId filled = static_cast<SeqTypeId>(ins_seq);
+    if (not lengths.has(filled)) {
+        return 1.0;
     }
-    //Otherwise the proba contribution is 1
-
-    //TODO use a better proba bound for this dinucleotide markov model
-
-    //Recursive call
-    Rec_Event::iterate_initialize_Len_proba_wrap_up(considered_junction, length_best_proba_map, model_queue,
-                                                    scenario_proba, model_parameters_point, base_index_map,
-                                                    constructed_sequences, seq_len /*=0*/);
+    return pow(this->get_upper_bound_proba(), lengths.length_of(filled));
 }
 
 void Dinucl_markov::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &model_queue,

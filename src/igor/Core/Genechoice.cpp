@@ -1386,34 +1386,10 @@ bool Gene_choice::affects_length_of(SegmentSpan span) const
     }
 }
 
-void Gene_choice::iterate_initialize_Len_proba(Seq_type considered_junction,
-                                               std::map<int, double> &length_best_proba_map,
-                                               std::queue<std::shared_ptr<Rec_Event>> &model_queue,
-                                               double &scenario_proba, const Marginal_array_p &model_parameters_point,
-                                               Index_map &base_index_map, Seq_type_str_p_map &constructed_sequences,
-                                               int &seq_len /*=0*/) const
+int Gene_choice::length_delta(const Event_realization &realization) const
 {
-    //No self-filter: the caller -- the queue-level filter in
-    //Rec_Event::iterate_initialize_Len_proba_wrap_up(), or the entry-point overload -- has already
-    //established participates_in_span().
-    base_index_map.set_current_layer(this->event_index, 0);
-    base_index = base_index_map.get(this->event_index);
-    for (unordered_map<string, Event_realization>::const_iterator iter = this->event_realizations.begin();
-         iter != this->event_realizations.end(); ++iter) {
-
-        //Get the max proba for this realization (in case the event is child of another)
-        double real_max_proba = 0;
-        for (size_t i = 0; i != this->event_marginal_size / this->size(); ++i) {
-            if (model_parameters_point[base_index + (*iter).second.index + i * this->size()] > real_max_proba) {
-                real_max_proba = model_parameters_point[base_index + (*iter).second.index + i * this->size()];
-            }
-        }
-        //Update the length within and probability in the recursive call
-        Rec_Event::iterate_initialize_Len_proba_wrap_up(considered_junction, length_best_proba_map, model_queue,
-                                                        scenario_proba * real_max_proba, model_parameters_point,
-                                                        base_index_map, constructed_sequences,
-                                                        seq_len + (*iter).second.value_str.length());
-    }
+    //The chosen template's length, before any deletion trims it: the gene creates the segment.
+    return static_cast<int>(realization.value_str.length());
 }
 
 void Gene_choice::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &model_queue,
@@ -1422,7 +1398,7 @@ void Gene_choice::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &model
 
     //Scratch map for the junction length bound, which is still VDJ-hardcoded below;
     //see legacy_seq_type_registry().
-    Seq_type_str_p_map constructed_sequences(legacy_seq_type_registry());
+    SpanAccumulator lengths(legacy_seq_type_registry().total_count());
     switch (this->event_class) {
     case V_gene:
         vd_length_best_proba_map.clear();
@@ -1430,14 +1406,14 @@ void Gene_choice::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &model
 
         if (d_chosen) {
             double init_proba = 1.0;
-            this->Rec_Event::iterate_initialize_Len_proba(VD_ins_seq, vd_length_best_proba_map, model_queue, init_proba,
-                                                          model_parameters_point, base_index_map,
-                                                          constructed_sequences);
+            this->Rec_Event::iterate_initialize_Len_proba(legacy_span_of(VD_ins_seq), vd_length_best_proba_map, model_queue,
+                                                          init_proba, model_parameters_point,
+                                                          base_index_map, lengths);
         } else if (j_chosen) {
             double init_proba = 1.0;
-            this->Rec_Event::iterate_initialize_Len_proba(VJ_ins_seq, vj_length_best_proba_map, model_queue, init_proba,
-                                                          model_parameters_point, base_index_map,
-                                                          constructed_sequences);
+            this->Rec_Event::iterate_initialize_Len_proba(legacy_span_of(VJ_ins_seq), vj_length_best_proba_map, model_queue,
+                                                          init_proba, model_parameters_point,
+                                                          base_index_map, lengths);
         }
         break;
     case D_gene:
@@ -1447,17 +1423,17 @@ void Gene_choice::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &model
 
         if (v_chosen) {
             double init_proba = 1.0;
-            constructed_sequences.reset();
-            this->Rec_Event::iterate_initialize_Len_proba(VD_ins_seq, vd_length_best_proba_map, model_queue, init_proba,
-                                                          model_parameters_point, base_index_map,
-                                                          constructed_sequences);
+            lengths.reset();
+            this->Rec_Event::iterate_initialize_Len_proba(legacy_span_of(VD_ins_seq), vd_length_best_proba_map, model_queue,
+                                                          init_proba, model_parameters_point,
+                                                          base_index_map, lengths);
         }
         if (j_chosen) {
             double init_proba = 1.0;
-            constructed_sequences.reset();
-            this->Rec_Event::iterate_initialize_Len_proba(DJ_ins_seq, dj_length_best_proba_map, model_queue, init_proba,
-                                                          model_parameters_point, base_index_map,
-                                                          constructed_sequences);
+            lengths.reset();
+            this->Rec_Event::iterate_initialize_Len_proba(legacy_span_of(DJ_ins_seq), dj_length_best_proba_map, model_queue,
+                                                          init_proba, model_parameters_point,
+                                                          base_index_map, lengths);
         }
 
         if (v_chosen and j_chosen) {
@@ -1517,14 +1493,14 @@ void Gene_choice::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &model
 
         if (d_chosen) {
             double init_proba = 1.0;
-            this->Rec_Event::iterate_initialize_Len_proba(DJ_ins_seq, dj_length_best_proba_map, model_queue, init_proba,
-                                                          model_parameters_point, base_index_map,
-                                                          constructed_sequences);
+            this->Rec_Event::iterate_initialize_Len_proba(legacy_span_of(DJ_ins_seq), dj_length_best_proba_map, model_queue,
+                                                          init_proba, model_parameters_point,
+                                                          base_index_map, lengths);
         } else if (v_chosen) {
             double init_proba = 1.0;
-            this->Rec_Event::iterate_initialize_Len_proba(VJ_ins_seq, vj_length_best_proba_map, model_queue, init_proba,
-                                                          model_parameters_point, base_index_map,
-                                                          constructed_sequences);
+            this->Rec_Event::iterate_initialize_Len_proba(legacy_span_of(VJ_ins_seq), vj_length_best_proba_map, model_queue,
+                                                          init_proba, model_parameters_point,
+                                                          base_index_map, lengths);
         }
         break;
     default:

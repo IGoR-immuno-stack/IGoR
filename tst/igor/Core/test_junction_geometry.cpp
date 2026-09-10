@@ -713,11 +713,7 @@ public:
     void add_to_marginals(long double, Marginal_array_p &) const override {}
     std::shared_ptr<Rec_Event> copy() override { return nullptr; }
     bool affects_length_of(SegmentSpan) const override { return false; }
-    void iterate_initialize_Len_proba(Seq_type, std::map<int, double> &, std::queue<std::shared_ptr<Rec_Event>> &,
-                                      double &, const Marginal_array_p &, Index_map &, Seq_type_str_p_map &,
-                                      int &) const override
-    {
-    }
+    int length_delta(const Event_realization &) const override { return 0; }
     void initialize_Len_proba_bound(std::queue<std::shared_ptr<Rec_Event>> &, const Marginal_array_p &,
                                     Index_map &) override
     {

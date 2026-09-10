@@ -357,45 +357,93 @@ void Rec_Event::compute_crude_upper_bound_scenario_proba(double &tmp_err_w_proba
     }
 }
 
-void Rec_Event::iterate_initialize_Len_proba(Seq_type considered_junction, std::map<int, double> &length_best_proba_map,
+void Rec_Event::iterate_initialize_Len_proba(SegmentSpan span, std::map<int, double> &length_best_proba_map,
                                              std::queue<std::shared_ptr<Rec_Event>> &model_queue,
                                              double &scenario_proba, const Marginal_array_p &model_parameters_point,
-                                             Index_map &base_index_map, Seq_type_str_p_map &constructed_sequences) const
+                                             Index_map &base_index_map, SpanAccumulator &lengths) const
 {
     int seq_len = 0;
     //This overload is the traversal's entry point, so it bypasses the queue-level filter in
     //iterate_initialize_Len_proba_wrap_up() and has to apply the same test to itself. It is not
     //vacuous: Gene_choice(V) opens the VD span traversal but contributes nothing to it.
-    if (this->participates_in_span(legacy_span_of(considered_junction))) {
-        this->iterate_initialize_Len_proba(considered_junction, length_best_proba_map, model_queue, scenario_proba,
-                                           model_parameters_point, base_index_map, constructed_sequences, seq_len);
+    if (this->participates_in_span(span)) {
+        this->iterate_initialize_Len_proba(span, length_best_proba_map, model_queue, scenario_proba,
+                                           model_parameters_point, base_index_map, lengths, seq_len);
     } else {
-        this->iterate_initialize_Len_proba_wrap_up(considered_junction, length_best_proba_map, model_queue,
-                                                   scenario_proba, model_parameters_point, base_index_map,
-                                                   constructed_sequences, seq_len);
+        this->iterate_initialize_Len_proba_wrap_up(span, length_best_proba_map, model_queue, scenario_proba,
+                                                   model_parameters_point, base_index_map, lengths, seq_len);
     }
 }
 
 /*
- * Called when iterating over all possible scenarios during initialization
- * Fills up the length-max_proba_bound for a given junction , and links the call to iterate_initialize_len_proba for two events
- *
- * TODO constructed sequences should not be used but it is useful to compute the dinucl contribution
+ * One body for all four event kinds. Called only for an event the filter has already found to
+ * participate in `span`, so the two branches below are "enumerates its realizations" and
+ * "contributes a probability factor without enumerating" -- which is exactly the
+ * affects_length_of / affects_proba_of split.
  */
-void Rec_Event::iterate_initialize_Len_proba_wrap_up(Seq_type considered_junction,
+void Rec_Event::iterate_initialize_Len_proba(SegmentSpan span, std::map<int, double> &length_best_proba_map,
+                                             std::queue<std::shared_ptr<Rec_Event>> &model_queue,
+                                             double &scenario_proba, const Marginal_array_p &model_parameters_point,
+                                             Index_map &base_index_map, SpanAccumulator &lengths, int &seq_len) const
+{
+    //A local, not the subclasses' `mutable int base_index`: this body is shared, and each of the
+    //four declares its own. Safe because every reader of that member sets it first in the same
+    //call chain -- iterate() and initialize_event() both do -- so the fold never had to publish it.
+    base_index_map.set_current_layer(this->event_index, 0);
+    const int span_base_index = base_index_map.get(this->event_index);
+
+    if (not this->affects_length_of(span)) {
+        //Dinucl_markov: no realization of its own contributes length, and its p^L factor reads a
+        //length some upstream creator already published. One factor, one recursive call.
+        double contributed_proba = scenario_proba * this->span_proba_factor(span, lengths);
+        this->iterate_initialize_Len_proba_wrap_up(span, length_best_proba_map, model_queue, contributed_proba,
+                                                   model_parameters_point, base_index_map, lengths, seq_len);
+        return;
+    }
+
+    //Only a segment's creator publishes its length, so each key has one writer per path and a
+    //published value is a real segment size. A Deletion contributes its negative delta to the
+    //span total without touching the accumulator.
+    const bool publishes_length =
+            this->get_seq_construction_role(this->seq_type_id) == SeqConstructionRole::Creates;
+
+    for (std::unordered_map<std::string, Event_realization>::const_iterator iter = this->event_realizations.begin();
+         iter != this->event_realizations.end(); ++iter) {
+        const Event_realization &realization = iter->second;
+
+        //Get the max proba for this realization (in case the event is child of another).
+        //This maxᵢ is what R6 replaces with a max taken jointly over a conditioned clique.
+        double real_max_proba = 0;
+        for (size_t i = 0; i != this->event_marginal_size / this->size(); ++i) {
+            if (model_parameters_point[span_base_index + realization.index + i * this->size()] > real_max_proba) {
+                real_max_proba = model_parameters_point[span_base_index + realization.index + i * this->size()];
+            }
+        }
+
+        const int delta = this->length_delta(realization);
+        if (publishes_length) {
+            lengths.set(this->seq_type_id, delta);
+        }
+
+        this->iterate_initialize_Len_proba_wrap_up(span, length_best_proba_map, model_queue,
+                                                   scenario_proba * real_max_proba, model_parameters_point,
+                                                   base_index_map, lengths, seq_len + delta);
+    }
+}
+
+void Rec_Event::iterate_initialize_Len_proba_wrap_up(SegmentSpan span,
                                                      std::map<int, double> &length_best_proba_map,
                                                      std::queue<std::shared_ptr<Rec_Event>> model_queue,
                                                      double scenario_proba,
                                                      const Marginal_array_p &model_parameters_point,
-                                                     Index_map &base_index_map,
-                                                     Seq_type_str_p_map &constructed_sequences, int seq_len) const
+                                                     Index_map &base_index_map, SpanAccumulator &lengths,
+                                                     int seq_len) const
 {
 
     //Skip the events that neither change this span's length nor contribute a probability factor
-    //to it, rather than visiting every event in the model and having each self-filter at the top
-    //of its own override. Popping in a loop rather than recursing keeps the depth proportional to
-    //the number of contributing events instead of to the model size.
-    const SegmentSpan span = legacy_span_of(considered_junction);
+    //to it, rather than visiting every event in the model. Popping in a loop rather than recursing
+    //keeps the depth proportional to the number of contributing events instead of to the model
+    //size.
     while (not model_queue.empty() and not model_queue.front()->participates_in_span(span)) {
         model_queue.pop();
     }
@@ -404,9 +452,8 @@ void Rec_Event::iterate_initialize_Len_proba_wrap_up(Seq_type considered_junctio
         std::shared_ptr<Rec_Event> next_event_p = model_queue.front();
         model_queue.pop();
         // Explore realizations of this event
-        next_event_p->iterate_initialize_Len_proba(considered_junction, length_best_proba_map, model_queue,
-                                                   scenario_proba, model_parameters_point, base_index_map,
-                                                   constructed_sequences, seq_len);
+        next_event_p->iterate_initialize_Len_proba(span, length_best_proba_map, model_queue, scenario_proba,
+                                                   model_parameters_point, base_index_map, lengths, seq_len);
     } else {
         // When all events with an effect on the junction have been processed update the length-proba map
         if (length_best_proba_map.count(seq_len) > 0) {

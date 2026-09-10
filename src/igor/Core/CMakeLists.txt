@@ -103,6 +103,7 @@ target_sources(${PROJECT_NAME}
       SegmentSpan.h
       SeqOffsetsMap.h
       SeqTypeRegistry.h
+      SpanAccumulator.h
       Singleerrorrate.h
       Utils.h
       ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_PROJECT_NAME}${PROJECT_NAME}Export.h
