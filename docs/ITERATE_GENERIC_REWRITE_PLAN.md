@@ -1526,7 +1526,7 @@ already flagged as the milestone-1 blocker and because `Gene_choice` is the only
 | **2a** | ✅ **done** — `Dinucl_markov` characterization, 12 `TEST_CASE`s; the empty-anchor case is `[.]`-hidden because it segfaults (§7.12) | unit + mutation | n/a — tests only |
 | **2b** | ✅ **done** — **B7**, specs from the registry (G9) and per-spec buffers. Skip-empty walk **deferred to phase R**: it is §7.12's fix, not a refactor (§7.11) | full ladder | **yes** |
 | **S4a** | ✅ **done** — `SegmentSpan`; `affects_length_of` / `affects_proba_of` replacing `has_effect_on`; queue-level filter restored, per-body self-filter removed; tier-3 hand-off capability check in the harness (§6.11) | full ladder | **yes** |
-| **S4b** | `length_delta` + `span_proba_factor` as **group** hooks; the four `iterate_initialize_Len_proba` bodies → one non-virtual traversal; `SpanAccumulator` replaces the `constructed_sequences` side channel (§6.10) | full ladder | **yes** |
+| **S4b** | ✅ **done** — `length_delta` + `span_proba_factor`; the four `iterate_initialize_Len_proba` bodies → one non-virtual traversal; `SpanAccumulator` replaces the `constructed_sequences` side channel; finding 5's init redundancy removed (§6.12) | full ladder | **yes** |
 | **S4c** | Span-identified structure owned by the model **at init**; `⊗ᵐᵃˣ`; the enum-named members become a **left-span / right-span handle pair resolved in `initialize_event()`** — no span lookup in `iterate()` (§2.5), and not one merged map (§6.10 finding 4); single value-or-absent accessor replacing `count`+`at` (finding 6); `initialize_Len_proba_bound` de-virtualised; findings 2–3's dead code deleted. Sharing the fold across consumers is **deferred** — init cost is negligible. **Removes the tandem-D enum ceiling** — on the milestone-1 critical path | full ladder + benchmark | **yes** |
 | **S4d** | Tensor-backed containers for the 3-D `no_d_align` structure — **gated on the Tensor API**, itself blocked on the C++23 bump (§2.5). Optional, performance only | full ladder + benchmark | **yes** |
 | **3** | **B11a** — `Gene_choice` alignment path generic (G4, G2, G8, and G5 via S4a-c). Characterization already delivered by T0. **First production consumer of S3** | full ladder + benchmark | **yes**, except §7.1 |
@@ -2243,13 +2243,15 @@ every call site.
    `#pragma omp for` over sequences, against 10⁵–10⁶ per-read evaluations. So S4c owes only the
    re-keying, and sharing the computation is a deferred optimisation with a recorded shape. See
    §2.5, *Boundary-addressed spans*.
-5. **`Insertion::initialize_Len_proba_bound` runs the whole traversal `|R|` times where once would
+5. ✅ **fixed in S4b** — **`Insertion::initialize_Len_proba_bound` runs the whole traversal `|R|` times where once would
    do.** [Insertion.cpp:549-557](../src/igor/Core/Insertion.cpp#L549) loops over its own
    realizations *outside* the traversal purely to set `inserted_str` for the Dinucl side channel,
    but `Insertion::iterate_initialize_Len_proba` re-enumerates the same realizations *inside* and
    overwrites it; `wrap_up` takes `model_queue` by value so the queue survives each pass. With ~40
-   realizations that is a 40× init cost producing an identical map. **High confidence, confirm by
-   measurement in S4b** before removing.
+   realizations that is a 40× init cost producing an identical map. **Measured before removal**
+   *(Sep 10 2026)*: instrumented on the regression model, **438 invocations, the map final after the
+   first pass in every one**. The two apparent outliers were interleaved OpenMP stderr, each
+   splitting cleanly at the pass boundary into two constant halves.
 
 6. **Every consumption site pays two tree descents where one lookup would do** *(Sep 10 2026)*. The
    pattern is `if (map.count(k) <= 0) { discard } … map.at(k)` — `std::map<int,double>`, so two
@@ -2510,6 +2512,63 @@ both ends, rather than relying on the three `[!shouldfail]` cases alone.
 
 Tier 3 is test-only, so it carries no bitwise risk, and it passes today without waiting for R3 —
 `Insertion` declares `None` and writes none, which is wrong but self-consistent.
+
+### 6.12 — Delivered (S4b) *(Sep 10 2026, `ce3e4b0`)*
+
+Four `iterate_initialize_Len_proba` overrides → one non-virtual body, behind two hooks:
+
+| | |
+|---|---|
+| `length_delta(const Event_realization&)` | the scalar the four bodies differed by |
+| `span_proba_factor(SegmentSpan, const SpanAccumulator&)` | `Dinucl_markov`'s `p^L`, defaulted to 1 |
+
+**On "group hooks": the per-event hooks are already group-composable, so no group plumbing
+landed.** §6.10 argued the shape had to be group-shaped now because *"retrofitting a per-event hook
+into a per-group one touches every implementation"*. Working it through, that is not where the
+retrofit risk lies: a clique's delta is the **sum** of its members' `length_delta`, and its factor
+the **product** of their `span_proba_factor`, so both survive R6 untouched. What R6 actually
+replaces is the `maxᵢ` — and S4b has already reduced that from four copies to **one named loop in
+one place**. That is the seam, and building joint-enumeration machinery with every group a
+singleton would have been unexercised generality of exactly the kind O11 step 3 was deferred to
+avoid.
+
+**`SpanAccumulator` retires the side channel.** The fold was handed a whole `Seq_type_str_p_map`
+so that `Insertion` could stash a dummy `Int_Str` of the right length for `Dinucl_markov` to read
+`->size()` back out — the *"TODO constructed sequences should not be used but it is useful to
+compute the dinucl contribution"* on `Rec_Event.cpp`. It now carries the integer. Only a segment's
+**creator** publishes (`SeqConstructionRole::Creates`), which is what makes each key single-writer
+per path and every published value a real segment size; a `Deletion` contributes its negative delta
+to the span total without touching it.
+
+The traversal takes a `SegmentSpan` rather than a `Seq_type`, converted once per
+`initialize_Len_proba_bound` entry instead of per node.
+
+**One incidental cleanup**: the shared body uses a *local* base index, not the `mutable int
+base_index` that each of the four subclasses separately declares. Safe because every reader of that
+member sets it first in the same call chain — `iterate()` and `initialize_event()` both do — so the
+fold never had to publish it. A mutable write removed, not added.
+
+#### Mutation results, and what they say about coverage
+
+| mutation | killed by |
+|---|---|
+| `Gene_choice::length_delta` → 0 | **regression only** |
+| `Deletion::length_delta` loses its sign | 2 unit + regression |
+| `Insertion::length_delta` → 0 | 8 unit + regression |
+| `span_proba_factor` → 1.0 | 1 unit + regression |
+| nothing publishes to the accumulator | 1 unit + regression |
+
+Two rows are worth reading rather than counting.
+
+**`Gene_choice::length_delta` escapes the unit suite entirely.** That is a known gap rather than a
+surprise: a gene contributes length only when it sits strictly *inside* the span, which over the
+legacy topology means D within V→J — the `no_d_align` path, whose characterization is **5a** and
+whose blocks §6.4 already records as uncovered. It is nonetheless the sharpest statement of that
+gap so far: a whole capability with no unit cover at all.
+
+**The last two rows kill the same single test**, which is §6.11's thin `p^L` cover seen from the
+other side — the accumulator is the path that feeds it, so breaking either end fails the same
+place. **5a widens both.**
 
 ### 6.2 — The regression gate has a flaky output
 
