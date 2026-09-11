@@ -85,6 +85,16 @@ Non-negotiable, per the standing constraint that every step must be independentl
 | convergence | `pixi run test_convergence` | **on every step that touches source** — not just pruning bounds. It is excluded from `pixi run test` and `test_unit`, and it is the only gate that caught §7.9 |
 | benchmark | `pixi run benchmark` | on B5 and B11 (the two hot paths) |
 
+**The ladder cannot fail on a *weakened* pruning bound**, and S4c is the first step where that
+matters *(Sep 11 2026)*. Mutation-verifying S4c — making every `Deletion` resolve its junction into
+the left-hand slot, so two of four deletions read an unresolved handle and apply no bound at all —
+produced output that is **bitwise identical**, because an upper bound only prunes: a bound that is
+too loose costs time and changes nothing else. What it did produce was a **~75× slowdown** (the
+inference regression ran 25 minutes against ~20 s). So a mis-wired handle is caught by the
+regression gate only when it makes the bound *tighter*; when it makes it looser, only
+`pixi run benchmark` or wall-clock notices. Worth promoting the benchmark from "B5 and B11" to
+"anything touching the bound" — not scheduled.
+
 ---
 
 ## 2. The generic patterns
@@ -1527,7 +1537,7 @@ already flagged as the milestone-1 blocker and because `Gene_choice` is the only
 | **2b** | ✅ **done** — **B7**, specs from the registry (G9) and per-spec buffers. Skip-empty walk **deferred to phase R**: it is §7.12's fix, not a refactor (§7.11) | full ladder | **yes** |
 | **S4a** | ✅ **done** — `SegmentSpan`; `affects_length_of` / `affects_proba_of` replacing `has_effect_on`; queue-level filter restored, per-body self-filter removed; tier-3 hand-off capability check in the harness (§6.11) | full ladder | **yes** |
 | **S4b** | ✅ **done** — `length_delta` + `span_proba_factor`; the four `iterate_initialize_Len_proba` bodies → one non-virtual traversal; `SpanAccumulator` replaces the `constructed_sequences` side channel; finding 5's init redundancy removed (§6.12) | full ladder | **yes** |
-| **S4c** | Span-identified structure owned by the model **at init**; `⊗ᵐᵃˣ`; the enum-named members become a **left-span / right-span handle pair resolved in `initialize_event()`** — no span lookup in `iterate()` (§2.5), and not one merged map (§6.10 finding 4); single value-or-absent accessor replacing `count`+`at` (finding 6); `initialize_Len_proba_bound` de-virtualised; findings 2–3's dead code deleted. Sharing the fold across consumers is **deferred** — init cost is negligible. **Removes the tandem-D enum ceiling** — on the milestone-1 critical path | full ladder + benchmark | **yes** |
+| **S4c** | ✅ **done** — junction bounds resolved in `initialize_event()`, held as `std::array<JunctionBound,3>` on `Rec_Event`; `initialize_Len_proba_bound` de-virtualised to one driver plus a `finalize` hook `Gene_choice(D)` alone uses; `SpanProfile` with a value-or-absent accessor; finding 3's dead fold deleted, finding 2's **member** deleted but not its predicate. Ownership stayed with the event, and `⊗ᵐᵃˣ` was **dropped for want of a consumer** — see §6.10 findings 2 and 7. *Original scope:* Span-identified structure owned by the model **at init**; `⊗ᵐᵃˣ`; the enum-named members become a **left-span / right-span handle pair resolved in `initialize_event()`** — no span lookup in `iterate()` (§2.5), and not one merged map (§6.10 finding 4); single value-or-absent accessor replacing `count`+`at` (finding 6); `initialize_Len_proba_bound` de-virtualised; findings 2–3's dead code deleted. Sharing the fold across consumers is **deferred** — init cost is negligible. **Removes the tandem-D enum ceiling** — on the milestone-1 critical path | full ladder + benchmark | **yes** |
 | **S4e** | Hoist the `initialize_Len_proba_bound` sweep **out of the OpenMP region** — it is model-only and thread-invariant, so 22 threads currently build 22 copies of one answer (§6.10 finding 7). Gated on S4c's ownership move, which is what lets the thread copies share rather than rebuild. The crude-bound pass stays per-thread | full ladder + the init benchmark | **yes** |
 | **S4d** | Tensor-backed containers for the 3-D `no_d_align` structure — **gated on the Tensor API**, itself blocked on the C++23 bump (§2.5). Optional, performance only | full ladder + benchmark | **yes** |
 | **3** | **B11a** — `Gene_choice` alignment path generic (G4, G2, G8, and G5 via S4a-c). Characterization already delivered by T0. **First production consumer of S3** | full ladder + benchmark | **yes**, except §7.1 |
@@ -2218,12 +2228,21 @@ every call site.
    `//TODO fix this and find a way not to loop over all events`. The traversal therefore visited
    every event in the model and each self-filtered at the top of its own override — the predicate
    existed twice over, at the wrong level. See §6.11.
-2. **`Gene_choice::has_effect_on` never returns `true` into a value anyone reads.** It is `true`
-   only for `D_gene` on `VJ_ins_seq`. Every consumer is guarded `if (d_chosen) {adjacent}
+2. ⚠️ **half of it was wrong; the rest fixed in S4c** — **`Gene_choice::has_effect_on` never
+   returns `true` into a value anyone reads.** It is `true` only for `D_gene` on `VJ_ins_seq`. Every consumer is guarded `if (d_chosen) {adjacent}
    else if (other_chosen) {vj}` — [Genechoice.cpp:321](../src/igor/Core/Genechoice.cpp#L321),
    [:975](../src/igor/Core/Genechoice.cpp#L975),
    [Deletion.cpp:453](../src/igor/Core/Deletion.cpp#L453) — so the VJ map is read only when there
    is no D, and when there is no D there is no D `Gene_choice` to fire. Dead in both topologies.
+
+   **The predicate branch is live and must not be deleted** *(Sep 11 2026, found while implementing
+   S4c)*. This finding predates S4a's split of `has_effect_on` into a *predicate*
+   (`affects_length_of`) and a *consumer* (the map); only the second half was ever dead. In a VDJ
+   model `Gene_choice(J)` is priority 7 and the D gene 6, so at J `d_chosen` is false and J folds
+   the whole **V→J** span — with the D gene in its suffix. The queue filter then asks
+   `Gene_choice(D)::affects_length_of(gap(V,J))`, and a `false` there would silently drop the D
+   template's length from J's profile. What S4c deletes is the `vj_length_best_proba_map`
+   **member**, which goes away because an event now holds only the junctions it reads.
 3. **`Deletion` builds `vj_length_best_proba_map` in every VDJ model and nothing reads it.**
    `get_deletion_effective_junctions(V_gene_seq, ·)` returns `{VD, VJ}` unconditionally. Wasted
    initialization; also what hides the asymmetry noted in §2.5.
@@ -2236,6 +2255,14 @@ every call site.
    branch. Contrast `Gene_choice(J)`, whose 501 ms V→J build **is** live: J is priority 7 and the D
    gene 6, so `d_chosen` is false there and J legitimately anchors on V. Deleting the dead map in
    S4c is therefore a measurable saving, not tidiness.
+
+   ✅ **deleted in S4c, and the saving measured** *(Sep 11 2026)*.
+   `Deletion::initialize_Len_proba_bound` and `get_deletion_effective_junctions`'s two-entry tables
+   are gone: a deletion folds the one junction it resolved in `initialize_event()`, so nothing is
+   built that nothing reads. On the corrected benchmark the sweep drops **203 → 143 ms** on the TRB
+   regression corpus and **205 → 146 ms** on human TCR-β, both −29 %, against the ≈25 % predicted
+   here. BCR-heavy gains only 7 %: there `Gene_choice(D)`'s `|D| × |VD| × |DJ|` decomposition
+   dominates and S4c does not touch it.
 4. ⚠️ **needs re-checking** — **The VD span profile is built five times per model, per thread** —
    `Gene_choice(V)`, `Gene_choice(D)`, `Deletion(V,3')`, `Deletion(D,5')`, and `Insertion(VD)`'s own
    `junction_length_best_proba_map`. Five identical traversals, five stored copies. Same for DJ.
@@ -2279,6 +2306,14 @@ every call site.
    be a valid realization — but a value-or-absent accessor removes the entire class, guarded and
    unguarded alike.
 
+   ✅ **done in S4c.** `SpanProfile::best_for()` returns `std::optional<double>` in one descent, and
+   the two `Deletion` arms that guarded early and fetched later carry the value across in a local
+   instead of descending a second time. `SpanProfile::record()` likewise replaces the fold's
+   `count` / `at` / `operator[]` trio with one `try_emplace`. **`Insertion` still throws** rather
+   than discarding — making it discard is a behaviour change and stays with the other `Insertion`
+   defects in phase R — but the asymmetry is now an explicit `throw` beside a comment rather than an
+   invisible property of `std::map::at`.
+
 7. **Every thread rebuilds the identical bound, and there are as many threads as cores**
    *(Sep 11 2026)*. The sweep is model-only and thread-invariant, so N threads compute N copies of
    one answer. Measured on 22 threads: **706 ms per thread in situ against 58.5 ms for the same
@@ -2306,6 +2341,16 @@ every call site.
      free**: its "structure owned by the model" is exactly what lets the model hold one and the
      events hold handles, so the thread copies share rather than rebuild. Hence S4e after S4c, not
      before.
+
+     **S4c put the profiles on the event, not on the model** *(Sep 11 2026)*, so this is
+     half-delivered. Since finding 4's correction the profiles are per **consumer**, so a
+     model-owned store and per-event storage hold the same data and differ only in allocation site
+     — threading a `JunctionBoundStore` through `initialize_event()`'s ten-parameter signature
+     bought nothing that `std::array<JunctionBound,3>` on `Rec_Event` does not. What S4e owes is
+     therefore narrower than "move ownership": make the profile **shareable** across
+     `Rec_Event::copy()`, either as `shared_ptr<const SpanProfile>` inside `JunctionBound` or by
+     moving the profiles — not the handles — into a model-side arena. Each handle's span, key and
+     memory layer are already thread-invariant.
 
    The bound depends on the marginals, which move every EM iteration, so the hoist is **once per
    iteration** rather than once per run.
@@ -2459,6 +2504,11 @@ structure only to remove it later is worse than deleting it at the point of the 
 wrong, the run is no longer bitwise, which is exactly the signal wanted.
 
 `⊗ᵐᵃˣ` belongs in S4c, not 5b: every gene needs it to build `span(G,B)` past marginalised genes.
+**Withdrawn when S4c was implemented** *(Sep 11 2026)*: no current consumer composes two profiles.
+Every query is gap-bounded, and the one event that spans a composition — `Gene_choice(D)` — keeps
+the *retained* decomposition (`⊗ᵉⁿᵘᵐ`), which a max-folded product has already discarded. Adding the
+operator with no caller is exactly what this section's own recommendation 3 warns against, so it
+moves to **5b**, next to `⊗ᵉⁿᵘᵐ`.
 Only the *retention* of the decomposition is 5b's.
 
 `⊗` must accept a **scalar weight per operand**, not just profiles — see the B10 note in the parent

@@ -51,18 +51,30 @@ invocation, and it is model-only so no batch size makes it cheaper per model. Me
 
 Single-threaded, the sweep alone, uniform marginals — `igor_tests "[.benchmark][proba_bound]"`:
 
-| model | topology | mean |
-|---|---|---:|
-| human TCR-α | VJ | 2.4 ms |
-| TRB regression corpus | VDJ | 58.5 ms |
-| human TCR-β | VDJ | 59.9 ms |
-| human BCR-heavy | VDJ | **338 ms** |
+| model | topology | before S4c | after S4c |
+|---|---|---:|---:|
+| human TCR-α | VJ | 4.26 ms | 4.06 ms |
+| TRB regression corpus | VDJ | 203 ms | **143 ms** |
+| human TCR-β | VDJ | 205 ms | **146 ms** |
+| human BCR-heavy | VDJ | 10.46 s | **9.74 s** |
 
-**In a real inference run it is much worse than that**, for a reason worth stating plainly. Timed
-in situ on the TRB corpus with 22 threads: **706 ms mean, 1214 ms max — per thread**, against 58.5 ms
-for the same work alone. The 12× is contention, and every thread is computing **the identical
-result**: the bound is model-only and thread-invariant, so N threads redundantly build N copies of
-one answer. That is a second redundancy stacked on the per-consumer one, and a larger one.
+> **The first version of this table was wrong, by a factor of three.** `d56d1b1`'s fixture ran the
+> bound sweep without the `initialize_event()` pass that precedes it in `GenModel::infer_model`, so
+> `Gene_choice`'s `v_chosen` / `d_chosen` / `j_chosen` flags were read uninitialised and **no gene
+> choice folded anything at all** — the numbers were `Deletion` and `Insertion` only. It went
+> unnoticed because before S4c the sweep picked its junctions from an enum switch and so ran
+> *something* regardless; S4c made the sweep depend on init, which turned a wrong measurement into
+> an obviously empty one. The fixture now runs the init pass, and both columns above are measured
+> with it.
+
+**In a real inference run it is worse than the table suggests.** Timed in situ on the TRB corpus
+with 22 threads: **706 ms mean, 1214 ms max — per thread**, against the 203 ms the same work takes
+alone. The ~3.5× is contention, and every thread is computing **the identical result**: the bound is
+model-only and thread-invariant, so N threads redundantly build N copies of one answer. That is a
+second redundancy stacked on the per-consumer one, and a larger one. *(An earlier draft put this
+ratio at 12×, by comparing the in-situ figure against the broken benchmark's 58.5 ms. S4e's case
+rests on the N-copies redundancy, which is untouched by the correction; only the contention
+multiplier moves.)*
 
 Where the VDJ time goes, per event (in situ, TRB):
 
@@ -73,12 +85,15 @@ Where the VDJ time goes, per event (in situ, TRB):
 | everything else | ~30 ms | — |
 
 So **§6.10 finding 3's dead map is ≈25 % of VDJ initialization**, and deleting it in S4c is a
-measurable saving rather than tidiness. The leaf counts corroborate the split: `GC(J)`'s V→J fold is
+measurable saving rather than tidiness. **Borne out** *(S4c, Sep 11 2026)*: the benchmark's two TRB
+models each lost 29 % of the sweep. BCR-heavy lost only 7 %, because there the cost is dominated by
+`Gene_choice(D)`'s retained decomposition — `|D| × |VD| × |DJ|` — which S4c does not touch. The leaf counts corroborate the split: `GC(J)`'s V→J fold is
 ≈1.39 M leaves against `Deletion(V)`'s ≈464 k, and 501/176 ≈ 2.8 matches the 3×.
 
-A tandem-D row is missing from the benchmark because it cannot be written yet: the maps are
-`Seq_type`-named, so a D1D2 junction throws before the sweep runs. S4c is what admits it — at which
-point the benchmark becomes the evidence that the generalisation did not cost throughput.
+A tandem-D row is still missing from the benchmark, but no longer because the bound machinery
+refuses it: after S4c an event holds junction *handles* and nothing enumerates VD / DJ / VJ. What a
+D1D2 row now waits on is a model that declares the segments — the registry and event wiring, not
+this structure.
 
 ---
 
@@ -222,6 +237,7 @@ One non-virtual body on `Rec_Event`, behind two hooks:
 | **S4a** layer-ownership rule (`f568bd4`) | — | — | — | test-only; same finding |
 | **O11** boundary-addressed spans (`9af1367`) | — | boundaries can name a **segment's own extent**, not only the gap between two segments — which a per-`Seq_type` Phase D decomposition needs and the segment-pair form could not express at all | — | preventive: `cut_position()` states the ±1 convention once, in the area §7.1 and §7.8 are both off-by-one bugs in |
 | **S4b** the collapse (`ce3e4b0`) | four bodies → one; the side channel and its `Seq_type_str_p_map` parameter gone — problems 4, 5 | the fold takes a `SegmentSpan` and keys the accumulator by `SeqTypeId`; `Dinucl_markov` no longer reads a length out of a map `Insertion` wrote, so that **event-to-event linkage is broken** | problem 6 removed — but **worth ~0 ms**, see below | — (bitwise) |
+| **S4c** the re-keying | six enum-named members plus three `memory_layer_proba_map_junction*` scalars → `std::array<JunctionBound,3>` on `Rec_Event`; four `initialize_Len_proba_bound` overrides → one non-virtual driver plus a `finalize` hook only `Gene_choice(D)` uses — problem 10 | **the tandem-D enum ceiling is gone — problem 1**: nothing in the bound machinery enumerates VD / DJ / VJ, and an event holds at most a left, a right and an enclosing junction whatever the topology | value-or-absent accessor replaces `count`+`at` at all 19 consumption sites (problem 7); `record()` is one descent where the fold took up to three; problem 9's dead fold deleted — **29 % of the sweep on both TRB models**, 7 % on BCR-heavy | deletes problem 9's dead code; problem 8's guarded / unguarded asymmetry is gone as a class — (bitwise) |
 
 **Nothing delivered so far is a correctness fix**, and that is by design — every step above is
 bitwise on the regression corpus. What the S4a test infrastructure *did* do is **surface** a defect:
@@ -229,13 +245,13 @@ bitwise on the regression corpus. What the S4a test infrastructure *did* do is *
 of "a written layer must have been requested" among 49 measured writes. It is repaired in **R3**, and
 **R3b** then hardens `LayeredArray::set()` so the rule holds at runtime rather than only under test.
 
-**Nothing delivered so far speeds up the hot loop either**, and the two PERF entries are worth less
-than they look. Both are initialization, and the per-event breakdown above shows where
+**S4c is the first step that touches the hot loop**, and the two PERF entries before it are worth
+less than they look. Both are initialization, and the per-event breakdown above shows where
 initialization actually goes: `Insertion`'s own sweep costs **0.0 ms** on the TRB corpus, so
 finding 6's `\|R\|`-fold removal — which this document's first draft sold as a performance win —
 deleted 41 repetitions of something that was not measurably costing anything. It was redundant work
 and deserved to go; it was not the bottleneck. **The measured costs are `GeneChoice_J_gene` and
-`Deletion_V_gene_Three_prime`, and neither is touched until S4c.**
+`Deletion_V_gene_Three_prime`**; S4c removes the second of the two.
 
 > **Provenance of the S4b measurement.** Finding 6's `\|R\|`-fold redundancy was confirmed by
 > instrumenting the **integration** inference path, which loads the human TCR-α model — a **VJ**
@@ -248,8 +264,8 @@ and deserved to go; it was not the bottleneck. **The measured costs are `GeneCho
 
 | step | REFACTOR | GENERALIZE | PERF | CORRECT |
 |---|---|---|---|---|
-| **S4c** | six enum-named members → a left-span / right-span **handle pair** — problem 10 | **removes the tandem-D enum ceiling — problem 1, the actual milestone-1 blocker** | the only step that touches the hot loop: a *value-or-absent* accessor replaces `count`+`at` (problem 7), handles are resolved at `initialize_event()` so no span lookup enters `iterate()`, and 1-D profiles move from `std::map` tree descent to an array index. **Also the first real init win**: deleting problem 9's dead map is ≈25 % of VDJ initialization | deletes problem 9's dead code; a value-or-absent accessor removes problem 8's guarded/unguarded asymmetry as a class |
-| **S4e** | — | — | hoists the sweep **out of the OpenMP region**: model-only and thread-invariant, so 22 threads currently build 22 copies of one answer. Gated on S4c's ownership move; the crude-bound pass stays per-thread because its `updated_proba_bounds_list` points into per-event mutable state | — |
+| **S4e** | — | — | hoists the sweep **out of the OpenMP region**: model-only and thread-invariant, so 22 threads currently build 22 copies of one answer. S4c left the profiles owned **by the event**, not by the model, so what S4e owes is making them shareable across `Rec_Event::copy()` — a `shared_ptr<const SpanProfile>` in `JunctionBound`, or a model-side arena. The crude-bound pass stays per-thread because its `updated_proba_bounds_list` points into per-event mutable state | — |
+| **S4d** (deferred here) | — | `⊗ᵐᵃˣ`, the max-convolution of two profiles. **Dropped from S4c**: it has no production consumer — every current query is gap-bounded and `Gene_choice(D)` keeps the *retained* decomposition, not a max-folded one — and §2.5's own recommendation is not to add query semantics before a consumer exists. Lands with `⊗ᵉⁿᵘᵐ` in 5b | — | — |
 | **S4d** | — | — | Tensor-backed containers for the 3-D structure. **Gated** on the Tensor API, itself blocked on the C++23 bump | — |
 | **5b** | — | `⊗ᵉⁿᵘᵐ` — the retained decomposition for the `no_d_align` enumeration, always three components whatever the topology | — | — |
 | **R1** | — | — | — | **`Dinucl_markov` creates the insertion segment** (O12 (a′)) — no partially-constructed segment, `int_undefined` leaves constructed sequences, §7.13 dissolves, `SpanAccumulator` deleted |
