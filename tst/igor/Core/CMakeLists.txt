@@ -18,6 +18,7 @@ set(CORE_TEST_SOURCES
     test_junction_geometry.cpp
     test_layered_array.cpp
     test_model_format_v2.cpp
+    test_proba_bound_benchmark.cpp
     test_sanity.cpp
     test_utils.cpp
     AlignerTestUtils.cpp
