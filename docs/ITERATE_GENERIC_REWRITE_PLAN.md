@@ -1528,6 +1528,7 @@ already flagged as the milestone-1 blocker and because `Gene_choice` is the only
 | **S4a** | ✅ **done** — `SegmentSpan`; `affects_length_of` / `affects_proba_of` replacing `has_effect_on`; queue-level filter restored, per-body self-filter removed; tier-3 hand-off capability check in the harness (§6.11) | full ladder | **yes** |
 | **S4b** | ✅ **done** — `length_delta` + `span_proba_factor`; the four `iterate_initialize_Len_proba` bodies → one non-virtual traversal; `SpanAccumulator` replaces the `constructed_sequences` side channel; finding 5's init redundancy removed (§6.12) | full ladder | **yes** |
 | **S4c** | Span-identified structure owned by the model **at init**; `⊗ᵐᵃˣ`; the enum-named members become a **left-span / right-span handle pair resolved in `initialize_event()`** — no span lookup in `iterate()` (§2.5), and not one merged map (§6.10 finding 4); single value-or-absent accessor replacing `count`+`at` (finding 6); `initialize_Len_proba_bound` de-virtualised; findings 2–3's dead code deleted. Sharing the fold across consumers is **deferred** — init cost is negligible. **Removes the tandem-D enum ceiling** — on the milestone-1 critical path | full ladder + benchmark | **yes** |
+| **S4e** | Hoist the `initialize_Len_proba_bound` sweep **out of the OpenMP region** — it is model-only and thread-invariant, so 22 threads currently build 22 copies of one answer (§6.10 finding 7). Gated on S4c's ownership move, which is what lets the thread copies share rather than rebuild. The crude-bound pass stays per-thread | full ladder + the init benchmark | **yes** |
 | **S4d** | Tensor-backed containers for the 3-D `no_d_align` structure — **gated on the Tensor API**, itself blocked on the C++23 bump (§2.5). Optional, performance only | full ladder + benchmark | **yes** |
 | **3** | **B11a** — `Gene_choice` alignment path generic (G4, G2, G8, and G5 via S4a-c). Characterization already delivered by T0. **First production consumer of S3** | full ladder + benchmark | **yes**, except §7.1 |
 | **4a** | `Deletion` characterization sections, including the zero-length junction T0 deferred. **Moved ahead of S5** (§6.8, F4) | unit + mutation | n/a — tests only |
@@ -2091,9 +2092,9 @@ Decided behaviour changes, none of which had a row in §6 before this re-assessm
 
 | # | Fix | Decided | Touches | Expected regression effect |
 |---|---|---|---|---|
-| R1 | §7.13 — give `Dinucl_markov` its own constructed-sequence layer | Sep 7 | `Dinucl_markov` | none expected; the write lands at a different layer, same content |
+| R1 | §7.13 — **`Dinucl_markov` *creates* the insertion segment instead of filling it** (O12, decision (a′)); `Insertion` declares `SeqConstructionRole::None` for the sequence and keeps only length and offsets. Stronger than the original *"give it its own layer"*: no partially-constructed segment exists at all, so `int_undefined` leaves constructed sequences and *"no undetermined nucleotide at any hand-off"* becomes a **global** invariant. `SpanAccumulator` is **kept** but re-based on *offsets-without-sequence* and renamed (§6.10 finding 8) | Sep 7, rescoped Sep 11 | `Dinucl_markov`, `Insertion` | the write lands at a different layer and the segment is transiently absent between the two events; nothing runs in that window today |
 | R2 | §7.12 — `first_occupied_*` walk, **throw** on an empty anchor | Sep 8 | `Dinucl_markov` | none on the corpus (no model produces an empty anchor); removes the `[.]` tag from the reproducer |
-| R3 | `Insertion` writes offsets and a mismatch list (three `[!shouldfail]`), **requests the `constructed_sequences` layer it writes** (a fourth, §2.5), **its `get_offset_role` stops reporting `None`**, and the leaf invariant's offsets half becomes assertable (see below). Deletes the ownership waiver in `call_iterate_recording()` | Sep 7 | `Insertion` | none expected — neither `Insertion::iterate` nor `Dinucl_markov::iterate` touches `seq_offsets` at all, and the missing `request_layer` currently has no second writer to collide with |
+| R3 | `Insertion` writes offsets (two `[!shouldfail]`), **its `get_offset_role` stops reporting `None`**, and the leaf invariant's offsets half becomes assertable (see below). **The mismatch-list defect is dissolved by R1's rescope, not fixed**: under O12's (a′) `Insertion` creates no sequence, so it needs no list for one — that `[!shouldfail]` case is deleted rather than made to pass. The layer-ownership item likewise follows the segment to `Dinucl_markov`. Deletes the ownership waiver in `call_iterate_recording()` | Sep 7, rescoped Sep 11 | `Insertion` | none expected — neither `Insertion::iterate` nor `Dinucl_markov::iterate` touches `seq_offsets` at all |
 | **R3b** | **O10** — `LayeredArray::set()` stops raising the claim implicitly and *requires* it: writing at an unrequested layer becomes an error rather than a silent claim. Lands **immediately after R3**, which removes the only violation known today | Sep 10 | `LayeredArray`, and whatever R3b surfaces | none expected on the corpus, but this is the row most likely to surface *new* violations — each one is a genuine finding and lands as its own R row after this one |
 | R4 | `dinuc_proba_matrix` construction moves into `initialize_event()` | Sep 7 | `Dinucl_markov` | none — `GenModel` already calls the out-of-band builder |
 | R5 | §7.1 and §7.8 off-by-one corrections (decision O4) | Sep 1 | `Gene_choice` | **golden data moves**; the credited core length changes |
@@ -2209,7 +2210,7 @@ And the argument is a **span**, not a seq_type: `VJ_ins_seq` means the VJ insert
 model and the whole V→J span in a VDJ one. That is §2.5's "hidden generalisation", confirmed at
 every call site.
 
-#### Six incidental findings
+#### Eight incidental findings
 
 1. ✅ **fixed in S4a** — **The queue-level filter is commented out.**
    [Rec_Event.cpp:387-397](../src/igor/Core/Rec_Event.cpp#L387)
@@ -2226,6 +2227,15 @@ every call site.
 3. **`Deletion` builds `vj_length_best_proba_map` in every VDJ model and nothing reads it.**
    `get_deletion_effective_junctions(V_gene_seq, ·)` returns `{VD, VJ}` unconditionally. Wasted
    initialization; also what hides the asymmetry noted in §2.5.
+
+   **Measured, and it is not small** *(Sep 11 2026)*: timed in situ on the TRB corpus,
+   `Deletion_V_gene_Three_prime` costs **176 ms of the 706 ms** an initialization sweep takes per
+   thread — **≈25 %** — and essentially all of it is the V→J build, since its VD fold is a few
+   hundred leaves. It is dead because `Deletion(V,3')` sits at priority 5, *below* the D gene, so
+   `d_chosen` is true and [Deletion.cpp:454](../src/igor/Core/Deletion.cpp#L454) takes the VD
+   branch. Contrast `Gene_choice(J)`, whose 501 ms V→J build **is** live: J is priority 7 and the D
+   gene 6, so `d_chosen` is false there and J legitimately anchors on V. Deleting the dead map in
+   S4c is therefore a measurable saving, not tidiness.
 4. ⚠️ **needs re-checking** — **The VD span profile is built five times per model, per thread** —
    `Gene_choice(V)`, `Gene_choice(D)`, `Deletion(V,3')`, `Deletion(D,5')`, and `Insertion(VD)`'s own
    `junction_length_best_proba_map`. Five identical traversals, five stored copies. Same for DJ.
@@ -2268,6 +2278,66 @@ every call site.
    discarding. Whether that is reachable is a separate question — B6's derived length should always
    be a valid realization — but a value-or-absent accessor removes the entire class, guarded and
    unguarded alike.
+
+7. **Every thread rebuilds the identical bound, and there are as many threads as cores**
+   *(Sep 11 2026)*. The sweep is model-only and thread-invariant, so N threads compute N copies of
+   one answer. Measured on 22 threads: **706 ms per thread in situ against 58.5 ms for the same
+   work single-threaded** — the 12× being contention between threads doing identical work. This is a
+   second redundancy stacked on finding 4's per-consumer one, and the larger of the two. Computing
+   it once and sharing it read-only is the obvious answer. **Scheduled as S4e** *(Quentin, Sep 11
+   2026)*, and `tst/igor/Core/test_proba_bound_benchmark.cpp` measures the single-threaded cost per
+   topology so the saving is checkable.
+
+   Three things the hoist has to respect, all checked:
+
+   - **Only half the loop can move.** `initialize_crude_scenario_proba_bound` stores
+     `updated_proba_bounds_list`, a `forward_list<double*>` pointing into *per-event mutable*
+     doubles ([Rec_Event.cpp:332](../src/igor/Core/Rec_Event.cpp#L332),
+     `Dinucl_markov::get_updated_ptr()`). Hoisted, every thread's list would point at the shared
+     model's events. That pass stays per-thread; the loop splits.
+   - **`LayeredArray`'s copy constructor is not the blocker.** It holds three `std::vector`s and two
+     `size_t`s and declares no copy operations, so the implicit one is already correct for
+     `Index_map = LayeredArray<size_t>` — and the hoist needs no copy anyway, since each thread
+     still builds its own `Index_map` cheaply. *(The caveat is real but elsewhere: an instantiation
+     over a **pointer** type — `Pruning_mismatch_floor_map`, `Seq_type_str_p_map` — copies shallowly
+     and would alias. None of those is involved here.)*
+   - **The actual blocker is `Rec_Event::copy()`**, which does not carry the bound maps at all — each
+     thread rebuilds them precisely because the copy does not bring them. **S4c makes this nearly
+     free**: its "structure owned by the model" is exactly what lets the model hold one and the
+     events hold handles, so the thread copies share rather than rebuild. Hence S4e after S4c, not
+     before.
+
+   The bound depends on the marginals, which move every EM iteration, so the hoist is **once per
+   iteration** rather than once per run.
+8. **`SpanAccumulator` survives O12, with a better definition** *(Sep 11 2026)*. Deleting it was
+   considered and rejected. (a′) removes the *reason* `Dinucl_markov` reads a length `Insertion`
+   published — but not the *need*: the fold carries no offsets, so `Dinucl_markov` still has to
+   learn how many nucleotides it will choose. And **the keying is load-bearing**, not decoration: on
+   a V→J span **both** insertion/dinucl pairs participate at once — `affects_proba_of` is true for
+   `VD_ins_seq` and `DJ_ins_seq` alike when the junction is `VJ_ins_seq` — so a single unkeyed
+   scalar would alias the two.
+
+   The content generalises to **"nucleotides implied by the offsets, for which no constructed
+   sequence exists yet"** — still to be chosen. `n` for an insertion under either (a′) or today,
+   **0** for a gene template. Three consequences:
+
+   - The publisher rule migrates with R1/R3 from *"the sequence creator"* to *"whoever creates the
+     offsets but not the sequence"*, which is `get_offset_role` **and**
+     `get_seq_construction_role` — **no new capability**.
+   - `Gene_choice` currently publishes its template length, which under this reading should be
+     **0**. Harmless today because nothing reads a gene's entry; correct it with the rename.
+   - `SpanAccumulator` names the *context*; the content wants a name like
+     **`UnfilledSegmentLengths`** (`unfilled.length_of(id)` at the call site). Land the rename with
+     R1, when the semantic actually moves.
+
+   **This is also A0's first concrete demand for a *precondition*.** *"Offsets placed, sequence
+   absent"* is something `Dinucl_markov` **requires**; every A0 query so far states what an event
+   **provides**. The reserved slot is D.9's `get_context_dependency()` / `get_context_seq_types()`,
+   so Phase D now has a real consumer to design that API against.
+
+   Grouping each `Insertion` with its `Dinucl_markov` in the fold would still remove the channel
+   outright, and the pair is a genuine functional clique — a second consumer for R6's group
+   mechanism. That is an optimisation of the mechanism, not a reason to drop the concept.
 
 `chosen` is a model-level fact, not a per-scenario one — `EventUtils::check_gene_choice(…,
 processed_events)` at [Genechoice.cpp:1111](../src/igor/Core/Genechoice.cpp#L1111) resolves it once
@@ -3058,6 +3128,7 @@ O1–O6 from the Sep 1 2026 review; O7–O9 from the Sep 9 2026 re-assessment (�
 | O9 | 4a before or after S5? | **Before.** S5 replaces the safety mechanism `Deletion::iterate` reads; characterizing against a body S5 has already moved is the wrong order. It also gives S5 a consumer rather than making it a third service with none (§6.8 F1), and S5's definition of done becomes "4a's sections pass unchanged". |
 | O10 | Should a write to an unrequested layer be possible at all? | **No, and the harness now says so** (§2.5, `f568bd4`). *A written layer must have been requested* is the complement of the existing layer contract, and applies to every layered map rather than only to keys a capability query describes — which is what makes it complementary to the static attribute check rather than a special case of it. Enforced per event under test today, where it found exactly one violation across 49 writes (`Insertion`, repaired in R3). **The runtime home is `LayeredArray::set()`**, which currently *raises* the claim implicitly — "writing at a layer claims it" — rather than requiring it. **Scheduled as R3b, immediately after R3** *(Quentin, Sep 10 2026)*: R3 removes the only violation known today, so R3b starts from a passing tree and anything it then rejects is new information rather than a replay of what the harness already reports. Expect it to surface more — `Deletion::iterate` is at 0 % unit coverage until 4a and the rule has never been enforced anywhere — and each new violation becomes its own R row behind it. |
 | O11 | Should `SegmentSpan` carry a `Seq_side` on each endpoint? | **Yes — steps 1–2 landed Sep 10 2026 (`868c910`), step 3 deferred** (§2.5, *Boundary-addressed spans*). It would make `T_a` and `G_i` one type under a single composition law, and give a per-`Seq_type` Phase-D decomposition a span that names its own unit, which the gap-only form cannot. Recommendation is staged: land `SegmentBoundary{SeqTypeId, Seq_side}` now on the strength of the ~20 existing signatures already keyed that way, redefine `SegmentSpan` as a pair of boundaries with a `gap(l,r)` factory so no caller changes, and defer the general query semantics until D.3 or 5b has a consumer. The key question is settled — it is `(span, consumer position)`, per finding 4, resolved to a handle at init rather than looked up. One blocker remains, and **step 3 is what makes it reachable**: canonicalising the alias between `{(V,3'),(D,5')}` and `{(VD_ins,5'),(VD_ins,3')}`, which denote the same span. It cannot arise while `gap()` is the only factory, so it is settled with step 3 rather than before it. Buys nothing for milestone 1. |
+| O12 | Should `Dinucl_markov` **create** the insertion segment instead of filling it? | **Yes — (a′) approved, Quentin, Sep 11 2026**; analysis at ([PROBA_BOUND_MACHINERY.md §7](PROBA_BOUND_MACHINERY.md)). `SpanAccumulator` narrowed the `Insertion`/`Dinucl_markov` handshake to one published integer, but left an unstated assumption: the `p^L` factor uses the published *length*, which is correct only because that length is entirely undetermined. Two ways out, and the second makes the first vacuous. **(b)** publish the *undetermined count* rather than the length — small, local, bitwise, but keeps the placeholder state and introduces a distinction that is identically zero everywhere today. **(a′)** move creation to `Dinucl_markov`, so no partially-constructed segment ever exists — **dissolves §7.13/R1 outright, deletes one of R3's three defects, and makes "no `int_undefined` at any hand-off" a global invariant rather than a `Fills`-conditional one** — at the cost of changing `iterate()` for two events, moving layer claims, and relocating the accumulator's publisher rule from the sequence creator to the length decider. Amino-acid Pgen does **not** force (b): its ambiguity lives in the query (`iupac_union`/`patches`), not in constructed sequences. **(a′) carried**, which makes (b) moot; it lands with R1 and R3, whose scope it changes — R1 becomes *"`Dinucl_markov` creates the segment"* rather than *"give it its own layer"*, and R3 loses its mismatch-list item. **`SpanAccumulator` stays, reinterpreted** *(Quentin, Sep 11 2026, reversing an earlier call to delete it)*: its content generalises to *"the number of nucleotides implied by a segment's offsets for which no constructed sequence exists yet"* — how many are **still to be chosen**, which is `n` for an insertion both before and after (a′), and **0** for a gene template. That phrasing lets `Dinucl_markov` state its requirement as *"offsets placed, sequence not yet created"*, a property of the **state** rather than a reference to `Insertion`; an explicit lookup from a Dinucl to its Insertion would be the very coupling this refactor exists to remove. The publisher rule migrates with R1/R3 from *"the sequence creator"* to *"whoever creates the offsets but not the sequence"* — derivable from `get_offset_role` and `get_seq_construction_role`, so **no new capability**. See §6.10 finding 8, and `PROBA_BOUND_MACHINERY.md` §7. |
 
 ### 8.1 — Two standing design constraints
 
