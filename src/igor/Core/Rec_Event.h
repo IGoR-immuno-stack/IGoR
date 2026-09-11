@@ -32,6 +32,7 @@
 #include <igor/Core/SegmentSpan.h>
 #include <igor/Core/SeqTypeRegistry.h>
 #include <igor/Core/SpanAccumulator.h>
+#include <igor/Core/SpanProfile.h>
 #include <igor/Core/Utils.h>
 #include <igorCoreExport.h>
 
@@ -42,6 +43,7 @@
 #include <igor/Core/ExplorationContext.h>
 #include <igor/Core/AccumulationContext.h>
 
+#include <array>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -398,8 +400,7 @@ public:
      */
     virtual double span_proba_factor(SegmentSpan, const SpanAccumulator &) const { return 1.0; }
 
-    void iterate_initialize_Len_proba_wrap_up(SegmentSpan span,
-                                              std::map<int, double> &length_best_proba_map,
+    void iterate_initialize_Len_proba_wrap_up(SegmentSpan span, SpanProfile &profile,
                                               std::queue<std::shared_ptr<Rec_Event>> model_queue, double scenario_proba,
                                               const Marginal_array_p &model_parameters_point, Index_map &base_index_map,
                                               SpanAccumulator &lengths, int seq_len) const;
@@ -408,20 +409,61 @@ public:
      * One body for every event. What used to be four overrides differing only in `Δ(r)` -- see
      * length_delta() -- plus Dinucl_markov, which differs in kind: it does not enumerate at all.
      */
-    void iterate_initialize_Len_proba(SegmentSpan span, std::map<int, double> &length_best_proba_map,
+    void iterate_initialize_Len_proba(SegmentSpan span, SpanProfile &profile,
                                       std::queue<std::shared_ptr<Rec_Event>> &model_queue, double &scenario_proba,
                                       const Marginal_array_p &model_parameters_point, Index_map &base_index_map,
                                       SpanAccumulator &lengths, int &seq_len) const;
 
-    void iterate_initialize_Len_proba(SegmentSpan span, std::map<int, double> &length_best_proba_map,
+    void iterate_initialize_Len_proba(SegmentSpan span, SpanProfile &profile,
                                       std::queue<std::shared_ptr<Rec_Event>> &model_queue, double &scenario_proba,
                                       const Marginal_array_p &model_parameters_point, Index_map &base_index_map,
                                       SpanAccumulator &lengths) const;
-    virtual void initialize_Len_proba_bound(std::queue<std::shared_ptr<Rec_Event>> &model_queue,
-                                            const Marginal_array_p &model_parameters_point,
-                                            Index_map &base_index_map) = 0;
+
+    /**
+     * \brief Fold the profile of every junction this event reads a bound from.
+     *
+     * No longer virtual, and no longer topology-aware: *which* junctions those are was decided
+     * in initialize_event(), so this walks junction_bounds_ and folds each one the same way.
+     * The four overrides it replaces differed only in the enum-to-member switch they opened
+     * with -- Deletion's ran over a two-entry table of which one entry was dead in every VDJ
+     * model, which is section 6.10's finding 3 and about a quarter of the sweep's cost.
+     *
+     * Runs once per event per thread per EM iteration, after every initialize_event(), over the
+     * queue of events that follow this one.
+     */
+    void initialize_Len_proba_bound(std::queue<std::shared_ptr<Rec_Event>> &model_queue,
+                                    const Marginal_array_p &model_parameters_point, Index_map &base_index_map);
+
+    /**
+     * \brief Hook for a consumer that needs more than the folded profiles.
+     *
+     * Gene_choice(D) alone: it splits the junction it sits inside, so it keeps the *retained*
+     * decomposition of that junction -- which D, at which VD and DJ distances -- rather than the
+     * max-folded profile. Called after every folded junction of this event is built.
+     */
+    virtual void finalize_Len_proba_bound(const Marginal_array_p &, Index_map &) {}
 
 protected:
+    /**
+     * \brief Which junction a JunctionBound slot holds, relative to this event's own segment.
+     *
+     * Three is enough for every event in every topology, because an event's segment has two
+     * flanks and sits inside at most one junction. Tandem D needs no fourth: D1 measures
+     * `V->D1` and `D1->D2` and sits inside `V->J`, exactly like D does today.
+     */
+    enum JunctionSlot : std::size_t {
+        kLeftJunction = 0,      ///< the junction ending at this event's segment (its 5' flank)
+        kRightJunction = 1,     ///< the junction starting at this event's segment (its 3' flank)
+        kEnclosingJunction = 2, ///< the junction this event lies *within* and splits or fills
+        kJunctionSlotCount = 3
+    };
+
+    JunctionBound &junction_bound(JunctionSlot slot) { return junction_bounds_[slot]; }
+    const JunctionBound &junction_bound(JunctionSlot slot) const { return junction_bounds_[slot]; }
+
+    /// Resolved in initialize_event(); never consulted by span in iterate(). See JunctionBound.
+    std::array<JunctionBound, kJunctionSlotCount> junction_bounds_{};
+
     std::unordered_map<std::string, Event_realization> event_realizations;
     int priority;
     Gene_class event_class;

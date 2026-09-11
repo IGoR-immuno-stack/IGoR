@@ -357,7 +357,7 @@ void Rec_Event::compute_crude_upper_bound_scenario_proba(double &tmp_err_w_proba
     }
 }
 
-void Rec_Event::iterate_initialize_Len_proba(SegmentSpan span, std::map<int, double> &length_best_proba_map,
+void Rec_Event::iterate_initialize_Len_proba(SegmentSpan span, SpanProfile &profile,
                                              std::queue<std::shared_ptr<Rec_Event>> &model_queue,
                                              double &scenario_proba, const Marginal_array_p &model_parameters_point,
                                              Index_map &base_index_map, SpanAccumulator &lengths) const
@@ -367,10 +367,10 @@ void Rec_Event::iterate_initialize_Len_proba(SegmentSpan span, std::map<int, dou
     //iterate_initialize_Len_proba_wrap_up() and has to apply the same test to itself. It is not
     //vacuous: Gene_choice(V) opens the VD span traversal but contributes nothing to it.
     if (this->participates_in_span(span)) {
-        this->iterate_initialize_Len_proba(span, length_best_proba_map, model_queue, scenario_proba,
+        this->iterate_initialize_Len_proba(span, profile, model_queue, scenario_proba,
                                            model_parameters_point, base_index_map, lengths, seq_len);
     } else {
-        this->iterate_initialize_Len_proba_wrap_up(span, length_best_proba_map, model_queue, scenario_proba,
+        this->iterate_initialize_Len_proba_wrap_up(span, profile, model_queue, scenario_proba,
                                                    model_parameters_point, base_index_map, lengths, seq_len);
     }
 }
@@ -381,7 +381,7 @@ void Rec_Event::iterate_initialize_Len_proba(SegmentSpan span, std::map<int, dou
  * "contributes a probability factor without enumerating" -- which is exactly the
  * affects_length_of / affects_proba_of split.
  */
-void Rec_Event::iterate_initialize_Len_proba(SegmentSpan span, std::map<int, double> &length_best_proba_map,
+void Rec_Event::iterate_initialize_Len_proba(SegmentSpan span, SpanProfile &profile,
                                              std::queue<std::shared_ptr<Rec_Event>> &model_queue,
                                              double &scenario_proba, const Marginal_array_p &model_parameters_point,
                                              Index_map &base_index_map, SpanAccumulator &lengths, int &seq_len) const
@@ -396,7 +396,7 @@ void Rec_Event::iterate_initialize_Len_proba(SegmentSpan span, std::map<int, dou
         //Dinucl_markov: no realization of its own contributes length, and its p^L factor reads a
         //length some upstream creator already published. One factor, one recursive call.
         double contributed_proba = scenario_proba * this->span_proba_factor(span, lengths);
-        this->iterate_initialize_Len_proba_wrap_up(span, length_best_proba_map, model_queue, contributed_proba,
+        this->iterate_initialize_Len_proba_wrap_up(span, profile, model_queue, contributed_proba,
                                                    model_parameters_point, base_index_map, lengths, seq_len);
         return;
     }
@@ -425,14 +425,13 @@ void Rec_Event::iterate_initialize_Len_proba(SegmentSpan span, std::map<int, dou
             lengths.set(this->seq_type_id, delta);
         }
 
-        this->iterate_initialize_Len_proba_wrap_up(span, length_best_proba_map, model_queue,
+        this->iterate_initialize_Len_proba_wrap_up(span, profile, model_queue,
                                                    scenario_proba * real_max_proba, model_parameters_point,
                                                    base_index_map, lengths, seq_len + delta);
     }
 }
 
-void Rec_Event::iterate_initialize_Len_proba_wrap_up(SegmentSpan span,
-                                                     std::map<int, double> &length_best_proba_map,
+void Rec_Event::iterate_initialize_Len_proba_wrap_up(SegmentSpan span, SpanProfile &profile,
                                                      std::queue<std::shared_ptr<Rec_Event>> model_queue,
                                                      double scenario_proba,
                                                      const Marginal_array_p &model_parameters_point,
@@ -452,17 +451,37 @@ void Rec_Event::iterate_initialize_Len_proba_wrap_up(SegmentSpan span,
         std::shared_ptr<Rec_Event> next_event_p = model_queue.front();
         model_queue.pop();
         // Explore realizations of this event
-        next_event_p->iterate_initialize_Len_proba(span, length_best_proba_map, model_queue, scenario_proba,
+        next_event_p->iterate_initialize_Len_proba(span, profile, model_queue, scenario_proba,
                                                    model_parameters_point, base_index_map, lengths, seq_len);
     } else {
-        // When all events with an effect on the junction have been processed update the length-proba map
-        if (length_best_proba_map.count(seq_len) > 0) {
-            if (scenario_proba > length_best_proba_map.at(seq_len)) {
-                //Keep the best proba for each length
-                length_best_proba_map.at(seq_len) = scenario_proba;
-            }
-        } else {
-            length_best_proba_map[seq_len] = scenario_proba;
-        }
+        // Every event contributing to this span has chosen, so this path reaches `seq_len` with
+        // `scenario_proba`. SpanProfile::record() keeps the better of that and what is already
+        // stored, in one descent rather than the count/at/operator[] trio this replaced.
+        profile.record(seq_len, scenario_proba);
     }
+}
+
+/*
+ * The four per-subclass overrides, minus their enum-to-member switches. Everything topological
+ * was settled in initialize_event(), so all that is left is "fold each junction I read".
+ */
+void Rec_Event::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &model_queue,
+                                           const Marginal_array_p &model_parameters_point, Index_map &base_index_map)
+{
+    //Scoped to one fold and reset between junctions: an entry is a length published by the
+    //segment's creator on the current path, and the paths of two junctions share nothing.
+    SpanAccumulator lengths(legacy_seq_type_registry().total_count());
+
+    for (JunctionBound &bound : junction_bounds_) {
+        if (not bound.resolved() or not bound.folded()) {
+            continue;
+        }
+        bound.mutable_profile().clear();
+        lengths.reset();
+        double init_proba = 1.0;
+        this->iterate_initialize_Len_proba(bound.span(), bound.mutable_profile(), model_queue, init_proba,
+                                           model_parameters_point, base_index_map, lengths);
+    }
+
+    this->finalize_Len_proba_bound(model_parameters_point, base_index_map);
 }

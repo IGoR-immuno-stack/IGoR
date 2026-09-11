@@ -20,6 +20,7 @@ set(CORE_TEST_SOURCES
     test_model_format_v2.cpp
     test_proba_bound_benchmark.cpp
     test_sanity.cpp
+    test_span_profile.cpp
     test_utils.cpp
     AlignerTestUtils.cpp
 )

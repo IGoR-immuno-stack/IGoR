@@ -106,8 +106,6 @@ public:
 
     bool affects_length_of(SegmentSpan) const override;
     int length_delta(const Event_realization &) const override;
-    void initialize_Len_proba_bound(std::queue<std::shared_ptr<Rec_Event>> &model_queue,
-                                    const Marginal_array_p &model_parameters_point, Index_map &base_index_map) override;
 
 private:
     inline double iterate_common(
@@ -116,7 +114,6 @@ private:
             const Marginal_array_p &);
 
     std::map<int, Event_realization> ordered_realization_map;
-    std::map<int, double> junction_length_best_proba_map;
 
     mutable Int_Str inserted_str;
     mutable int base_index;
@@ -133,7 +130,6 @@ private:
 
     double *dinuc_updated_bound;
 
-    int memory_layer_proba_map_junction;
     Seq_type ins_seq_type;
 
     //Pre create pairs to call seq_offsets (otherwise cost of creating a pair at each call)

@@ -102,10 +102,12 @@ public:
     //Proba bound related computation methods
     bool affects_length_of(SegmentSpan) const override;
     int length_delta(const Event_realization &) const override;
-    void initialize_Len_proba_bound(std::queue<std::shared_ptr<Rec_Event>> &model_queue,
-                                    const Marginal_array_p &model_parameters_point, Index_map &base_index_map) override;
 
 private:
+    /// Record \a span as the junction this deletion widens, in the slot matching the side it
+    /// trims. Called from initialize_event() once the neighbour is known.
+    void resolve_junction(SegmentSpan span, SeqTypeId proba_key, int memory_layer);
+
     Seq_type target_seq_type;
 
     inline void iterate_common(
@@ -202,15 +204,11 @@ private:
     int memory_layer_offset_check1;
     int memory_layer_offset_check2;
     int memory_layer_proba_map_seq;
-    int memory_layer_proba_map_junction;
 
     //Iterate common
     int previous_marginal_index;
 
     //Downstream junction length proba bounds
-    std::map<int, double> vd_length_best_proba_map;
-    std::map<int, double> vj_length_best_proba_map;
-    std::map<int, double> dj_length_best_proba_map;
 };
 
 std::string &make_transversions(std::string &, bool);

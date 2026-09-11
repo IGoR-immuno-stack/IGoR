@@ -450,17 +450,20 @@ void Deletion::iterate(
 
                 //new_tmp_err_w_proba*=proba_contribution;
 
-                //Get VD or VJ junction upper bound proba
-                if (d_chosen) {
-                    if (vd_length_best_proba_map.count(d_5_offset - v_3_new_offset - 1) <= 0) {
+                //Get the junction upper bound proba for the span this deletion widens. *Which*
+                //junction that is, where its value goes and at which layer were settled in
+                //initialize_event(); all iterate() does is measure the distance. One descent,
+                //and the value is kept for the second write below (§6.10 finding 6).
+                const JunctionBound &junction = junction_bound(kRightJunction);
+                std::optional<double> junction_bound_proba;
+                if (junction.resolved()) {
+                    const Seq_Offset partner_5_offset =
+                            junction.span().right.id == D_gene_seq ? d_5_offset : j_5_offset;
+                    junction_bound_proba = junction.profile().best_for(partner_5_offset - v_3_new_offset - 1);
+                    if (not junction_bound_proba) {
                         continue; //This means no scenario can lead to a correct solution, would need to be changed for Error models with in/dels
                     }
-                    exploration.downstream_proba_map.set(VD_ins_seq, 1.0, memory_layer_proba_map_junction);
-                } else if (j_chosen) {
-                    if (vj_length_best_proba_map.count(j_5_offset - v_3_new_offset - 1) <= 0) {
-                        continue; //This means no scenario can lead to a correct solution, would need to be changed for Error models with in/dels
-                    }
-                    exploration.downstream_proba_map.set(VJ_ins_seq, 1.0, memory_layer_proba_map_junction);
+                    exploration.downstream_proba_map.set(junction.proba_key(), 1.0, junction.memory_layer());
                 }
 
                 //Update the mismatches penalty
@@ -483,15 +486,11 @@ void Deletion::iterate(
                 }
 
                 new_scenario_proba *= proba_contribution;
-                //Get VD or VJ junction upper bound proba
-                if (d_chosen) {
-                    exploration.downstream_proba_map.set(VD_ins_seq,
-                                                   vd_length_best_proba_map.at(d_5_offset - v_3_new_offset - 1),
-                                                   memory_layer_proba_map_junction);
-                } else if (j_chosen) {
-                    exploration.downstream_proba_map.set(VJ_ins_seq,
-                                                   vj_length_best_proba_map.at(j_5_offset - v_3_new_offset - 1),
-                                                   memory_layer_proba_map_junction);
+                //Same junction, same distance -- the map was not touched in between, so the
+                //value read above still stands.
+                if (junction.resolved()) {
+                    exploration.downstream_proba_map.set(junction.proba_key(), *junction_bound_proba,
+                                                         junction.memory_layer());
                 }
                 //Multiply all downstream probas
                 scenario_upper_bound_proba = exploration.compute_upper_bound(
@@ -670,14 +669,16 @@ void Deletion::iterate(
                     //TODO add mismatches if del_d3 has been processed
 
 
-                    //Get VD upper bound proba
-                    if (v_chosen) {
-                        if (vd_length_best_proba_map.count(d_5_new_offset - v_3_offset - 1) <= 0) {
+                    //Get the upper bound proba for the junction on this segment's 5' flank
+                    const JunctionBound &junction = junction_bound(kLeftJunction);
+                    if (junction.resolved()) {
+                        const std::optional<double> junction_bound_proba =
+                                junction.profile().best_for(d_5_new_offset - v_3_offset - 1);
+                        if (not junction_bound_proba) {
                             continue; //This means no scenario can lead to a correct solution, would need to be changed for Error models with in/dels
                         }
-                        exploration.downstream_proba_map.set(VD_ins_seq,
-                                                       vd_length_best_proba_map.at(d_5_new_offset - v_3_offset - 1),
-                                                       memory_layer_proba_map_junction);
+                        exploration.downstream_proba_map.set(junction.proba_key(), *junction_bound_proba,
+                                                             junction.memory_layer());
                     }
 
                     //Update the mismatches penalty
@@ -906,14 +907,16 @@ void Deletion::iterate(
                     scenario.set_mismatches(D_gene_seq, &mismatches_vector, memory_layer_mismatches);
 
 
-                    //Get VD upper bound proba
-                    if (j_chosen) {
-                        if (dj_length_best_proba_map.count(j_5_offset - d_3_new_offset - 1) <= 0) {
+                    //Get the upper bound proba for the junction on this segment's 3' flank
+                    const JunctionBound &junction = junction_bound(kRightJunction);
+                    if (junction.resolved()) {
+                        const std::optional<double> junction_bound_proba =
+                                junction.profile().best_for(j_5_offset - d_3_new_offset - 1);
+                        if (not junction_bound_proba) {
                             continue; //This means no scenario can lead to a correct solution, would need to be changed for Error models with in/dels
                         }
-                        exploration.downstream_proba_map.set(DJ_ins_seq,
-                                                       dj_length_best_proba_map.at(j_5_offset - d_3_new_offset - 1),
-                                                       memory_layer_proba_map_junction);
+                        exploration.downstream_proba_map.set(junction.proba_key(), *junction_bound_proba,
+                                                             junction.memory_layer());
                     }
 
                     //Update the mismatches penalty
@@ -1168,17 +1171,18 @@ void Deletion::iterate(
 
                 //new_tmp_err_w_proba*=proba_contribution;
 
-                //Get DJ or VJ junction upper bound proba
-                if (d_chosen) {
-                    if (dj_length_best_proba_map.count(j_5_new_offset - d_3_offset - 1) <= 0) {
+                //Get the junction upper bound proba for the span this deletion widens -- see the
+                //V 3' arm above; the only difference is which flank it is on.
+                const JunctionBound &junction = junction_bound(kLeftJunction);
+                std::optional<double> junction_bound_proba;
+                if (junction.resolved()) {
+                    const Seq_Offset partner_3_offset =
+                            junction.span().left.id == D_gene_seq ? d_3_offset : v_3_offset;
+                    junction_bound_proba = junction.profile().best_for(j_5_new_offset - partner_3_offset - 1);
+                    if (not junction_bound_proba) {
                         continue; //This means no scenario can lead to a correct solution, would need to be changed for Error models with in/dels
                     }
-                    exploration.downstream_proba_map.set(DJ_ins_seq, 1.0, memory_layer_proba_map_junction);
-                } else if (v_chosen) {
-                    if (vj_length_best_proba_map.count(j_5_new_offset - v_3_offset - 1) <= 0) {
-                        continue; //This means no scenario can lead to a correct solution, would need to be changed for Error models with in/dels
-                    }
-                    exploration.downstream_proba_map.set(VJ_ins_seq, 1.0, memory_layer_proba_map_junction);
+                    exploration.downstream_proba_map.set(junction.proba_key(), 1.0, junction.memory_layer());
                 }
 
                 //Count the number of mismatches that will not go away even with maximum number of deletions
@@ -1201,15 +1205,9 @@ void Deletion::iterate(
                 }
 
                 new_scenario_proba *= proba_contribution;
-                //Get DJ or VJ junction upper bound proba
-                if (d_chosen) {
-                    exploration.downstream_proba_map.set(DJ_ins_seq,
-                                                   dj_length_best_proba_map.at(j_5_new_offset - d_3_offset - 1),
-                                                   memory_layer_proba_map_junction);
-                } else if (v_chosen) {
-                    exploration.downstream_proba_map.set(VJ_ins_seq,
-                                                   vj_length_best_proba_map.at(j_5_new_offset - v_3_offset - 1),
-                                                   memory_layer_proba_map_junction);
+                if (junction.resolved()) {
+                    exploration.downstream_proba_map.set(junction.proba_key(), *junction_bound_proba,
+                                                         junction.memory_layer());
                 }
                 //Multiply all downstream probas
                 scenario_upper_bound_proba = exploration.compute_upper_bound(
@@ -1428,10 +1426,12 @@ void Deletion::initialize_event(
         memory_layer_proba_map_seq = downstream_proba_map.claimed_layer(V_gene_seq);
         if (d_chosen) {
             downstream_proba_map.request_layer(VD_ins_seq);
-            memory_layer_proba_map_junction = downstream_proba_map.claimed_layer(VD_ins_seq);
+            resolve_junction(SegmentSpan::gap(V_gene_seq, D_gene_seq), VD_ins_seq,
+                             downstream_proba_map.claimed_layer(VD_ins_seq));
         } else if (j_chosen) {
             downstream_proba_map.request_layer(VJ_ins_seq);
-            memory_layer_proba_map_junction = downstream_proba_map.claimed_layer(VJ_ins_seq);
+            resolve_junction(SegmentSpan::gap(V_gene_seq, J_gene_seq), VJ_ins_seq,
+                             downstream_proba_map.claimed_layer(VJ_ins_seq));
         }
 
         break;
@@ -1467,7 +1467,8 @@ void Deletion::initialize_event(
 
             if (v_chosen) {
                 downstream_proba_map.request_layer(VD_ins_seq);
-                memory_layer_proba_map_junction = downstream_proba_map.claimed_layer(VD_ins_seq);
+                resolve_junction(SegmentSpan::gap(V_gene_seq, D_gene_seq), VD_ins_seq,
+                                 downstream_proba_map.claimed_layer(VD_ins_seq));
             }
 
             break;
@@ -1495,7 +1496,8 @@ void Deletion::initialize_event(
 
             if (j_chosen) {
                 downstream_proba_map.request_layer(DJ_ins_seq);
-                this->memory_layer_proba_map_junction = downstream_proba_map.claimed_layer(DJ_ins_seq);
+                resolve_junction(SegmentSpan::gap(D_gene_seq, J_gene_seq), DJ_ins_seq,
+                                 downstream_proba_map.claimed_layer(DJ_ins_seq));
             }
         }
 
@@ -1524,10 +1526,12 @@ void Deletion::initialize_event(
         memory_layer_proba_map_seq = downstream_proba_map.claimed_layer(J_gene_seq);
         if (d_chosen) {
             downstream_proba_map.request_layer(DJ_ins_seq);
-            this->memory_layer_proba_map_junction = downstream_proba_map.claimed_layer(DJ_ins_seq);
+            resolve_junction(SegmentSpan::gap(D_gene_seq, J_gene_seq), DJ_ins_seq,
+                             downstream_proba_map.claimed_layer(DJ_ins_seq));
         } else if (v_chosen) {
             downstream_proba_map.request_layer(VJ_ins_seq);
-            this->memory_layer_proba_map_junction = downstream_proba_map.claimed_layer(VJ_ins_seq);
+            resolve_junction(SegmentSpan::gap(V_gene_seq, J_gene_seq), VJ_ins_seq,
+                             downstream_proba_map.claimed_layer(VJ_ins_seq));
         }
         break;
     default:
@@ -1782,39 +1786,16 @@ int Deletion::length_delta(const Event_realization &realization) const
     return -realization.value_int;
 }
 
-void Deletion::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &model_queue,
-                                          const Marginal_array_p &model_parameters_point, Index_map &base_index_map)
+/*
+ * A deletion reads exactly one junction: the one on the side it trims. The table this replaces
+ * named two for a V or a J deletion -- {VD, VJ} and {VJ, DJ} -- of which one was always dead,
+ * because the consumption site picks by `d_chosen` and the other branch is never taken. On the
+ * TRB corpus that dead V->J fold was 176 ms of the 706 ms sweep, about a quarter (§6.10
+ * finding 3). Resolving the junction in initialize_event() removes the choice, so nothing is
+ * built that nothing reads.
+ */
+void Deletion::resolve_junction(SegmentSpan span, SeqTypeId proba_key, int memory_layer)
 {
-    SpanAccumulator lengths(legacy_seq_type_registry().total_count());
-    const auto effective_junctions =
-            get_deletion_effective_junctions(this->target_seq_type, this->event_side);
-    if (effective_junctions.empty()) {
-        throw invalid_argument(std::string("Unknown gene for deletions : ") + this->event_class);
-    }
-
-    for (Seq_type junction_seq : effective_junctions) {
-        std::map<int, double> *length_best_proba_map = nullptr;
-        switch (junction_seq) {
-        case VD_ins_seq:
-            length_best_proba_map = &vd_length_best_proba_map;
-            break;
-        case DJ_ins_seq:
-            length_best_proba_map = &dj_length_best_proba_map;
-            break;
-        case VJ_ins_seq:
-            length_best_proba_map = &vj_length_best_proba_map;
-            break;
-        default:
-            continue;
-        }
-
-        if (!this->affects_length_of(legacy_span_of(junction_seq))) {
-            continue;
-        }
-
-        length_best_proba_map->clear();
-        double init_proba = 1.0;
-        this->Rec_Event::iterate_initialize_Len_proba(legacy_span_of(junction_seq), *length_best_proba_map, model_queue,
-                                                      init_proba, model_parameters_point, base_index_map, lengths);
-    }
+    junction_bound(this->event_side == Five_prime ? kLeftJunction : kRightJunction)
+            .resolve(span, proba_key, memory_layer, JunctionBound::Fold::Yes);
 }

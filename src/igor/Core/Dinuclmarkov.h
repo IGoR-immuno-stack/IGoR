@@ -150,8 +150,6 @@ public:
     bool affects_proba_of(SegmentSpan) const override;
     int length_delta(const Event_realization &) const override;
     double span_proba_factor(SegmentSpan, const SpanAccumulator &) const override;
-    void initialize_Len_proba_bound(std::queue<std::shared_ptr<Rec_Event>> &model_queue,
-                                    const Marginal_array_p &model_parameters_point, Index_map &base_index_map) override;
 
 private:
     double *updated_upper_bound_proba =

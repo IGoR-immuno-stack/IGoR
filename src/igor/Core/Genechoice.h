@@ -99,14 +99,19 @@ public:
 
     bool affects_length_of(SegmentSpan) const override;
     int length_delta(const Event_realization &) const override;
-    void initialize_Len_proba_bound(std::queue<std::shared_ptr<Rec_Event>> &model_queue,
-                                    const Marginal_array_p &model_parameters_point, Index_map &base_index_map) override;
+    void finalize_Len_proba_bound(const Marginal_array_p &model_parameters_point,
+                                  Index_map &base_index_map) override;
 
 private:
     inline double iterate_common(
             double, const int &, int, Index_map &,
             const std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &,
             const Marginal_array_p &);
+
+    /// Write the bounds for the two junctions a D placed at [\a d_5, \a d_3] creates, plus the
+    /// neutral element into the junction it splits. False when the placement is unreachable.
+    bool write_d_flanking_bounds(Downstream_scenario_proba_bound_map &proba_map, Seq_Offset d_5,
+                                 Seq_Offset d_3) const;
 
     //Inference variables
     //Bool checks
@@ -165,9 +170,6 @@ private:
     int memory_layer_offset_check1;
     int memory_layer_offset_check2;
     int memory_layer_proba_map_seq;
-    int memory_layer_proba_map_junction;
-    int memory_layer_proba_map_junction_d2; //If V and J have been chosen D will need to update VJ, VD and DJ
-    int memory_layer_proba_map_junction_d3;
 
     //Gene choices
     bool v_chosen;
@@ -187,11 +189,6 @@ private:
     int v_3_min_del;
     int d_3_max_del;
     int d_3_min_del;
-
-    //Downstream junction length proba bounds
-    std::map<int, double> vd_length_best_proba_map;
-    std::map<int, double> vj_length_best_proba_map;
-    std::map<int, double> dj_length_best_proba_map;
 
     //No D prunning proba bound map
     std::map<int, std::vector<std::tuple<std::string, int, int, double>>> vj_length_d_position_proba;

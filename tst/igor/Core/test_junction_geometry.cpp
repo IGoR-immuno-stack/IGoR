@@ -714,10 +714,6 @@ public:
     std::shared_ptr<Rec_Event> copy() override { return nullptr; }
     bool affects_length_of(SegmentSpan) const override { return false; }
     int length_delta(const Event_realization &) const override { return 0; }
-    void initialize_Len_proba_bound(std::queue<std::shared_ptr<Rec_Event>> &, const Marginal_array_p &,
-                                    Index_map &) override
-    {
-    }
 
 private:
     bool break_offset_;

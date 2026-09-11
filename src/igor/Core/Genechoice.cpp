@@ -317,19 +317,20 @@ void Gene_choice::iterate(
             scenario.set_mismatches(V_gene_seq, &(*iter).get_all_mismatches(), memory_layer_mismatches);
 
 
-            //Get VD or VJ junction upper bound proba
-            if (d_chosen) {
-                if (vd_length_best_proba_map.count(d_offset - v_3_off - 1) <= 0) {
+            //Get the upper bound proba for the junction on this gene's 3' flank. Which junction,
+            //which slot and which layer were settled in initialize_event(); one descent here
+            //where count()-then-at() took two (§6.10 finding 6).
+            const JunctionBound &right_junction = junction_bound(kRightJunction);
+            if (right_junction.resolved()) {
+                const Seq_Offset partner_5_offset =
+                        right_junction.span().right.id == D_gene_seq ? d_offset : j_offset;
+                const std::optional<double> junction_bound_proba =
+                        right_junction.profile().best_for(partner_5_offset - v_3_off - 1);
+                if (not junction_bound_proba) {
                     continue; //This means no scenario can lead to a correct solution, would need to be changed for Error models with in/dels
                 }
-                exploration.downstream_proba_map.set(VD_ins_seq, vd_length_best_proba_map.at(d_offset - v_3_off - 1),
-                                               memory_layer_proba_map_junction);
-            } else if (j_chosen) {
-                if (vj_length_best_proba_map.count(j_offset - v_3_off - 1) <= 0) {
-                    continue; //This means no scenario can lead to a correct solution, would need to be changed for Error models with in/dels
-                }
-                exploration.downstream_proba_map.set(VJ_ins_seq, vj_length_best_proba_map.at(j_offset - v_3_off - 1),
-                                               memory_layer_proba_map_junction);
+                exploration.downstream_proba_map.set(right_junction.proba_key(), *junction_bound_proba,
+                                                     right_junction.memory_layer());
             }
 
             //Count the number of mismatches that will not go away whatever the number off deletions
@@ -472,29 +473,9 @@ void Gene_choice::iterate(
             scenario.set_mismatches(D_gene_seq, &(*iter).get_all_mismatches(), memory_layer_mismatches);
 
 
-            //Get DJ or VJ junction upper bound proba
-            if (v_chosen and j_chosen) {
-                if (vd_length_best_proba_map.count(d_5_off - v_offset - 1) <= 0
-                    or dj_length_best_proba_map.count(j_offset - d_3_off - 1) <= 0) {
-                    continue; //This means no scenario can lead to a correct solution, would need to be changed for Error models with in/dels
-                }
-                exploration.downstream_proba_map.set(VJ_ins_seq, 1.0, memory_layer_proba_map_junction);
-                exploration.downstream_proba_map.set(VD_ins_seq, vd_length_best_proba_map.at(d_5_off - v_offset - 1),
-                                               memory_layer_proba_map_junction_d2);
-                exploration.downstream_proba_map.set(DJ_ins_seq, dj_length_best_proba_map.at(j_offset - d_3_off - 1),
-                                               memory_layer_proba_map_junction_d3);
-            } else if (v_chosen) {
-                if (vd_length_best_proba_map.count(d_5_off - v_offset - 1) <= 0) {
-                    continue; //This means no scenario can lead to a correct solution, would need to be changed for Error models with in/dels
-                }
-                exploration.downstream_proba_map.set(VD_ins_seq, vd_length_best_proba_map.at(d_5_off - v_offset - 1),
-                                               memory_layer_proba_map_junction_d2);
-            } else if (j_chosen) {
-                if (dj_length_best_proba_map.count(j_offset - d_3_off - 1) <= 0) {
-                    continue; //This means no scenario can lead to a correct solution, would need to be changed for Error models with in/dels
-                }
-                exploration.downstream_proba_map.set(DJ_ins_seq, dj_length_best_proba_map.at(j_offset - d_3_off - 1),
-                                               memory_layer_proba_map_junction_d3);
+            //Get the upper bound probas for the junctions this D placement creates
+            if (not write_d_flanking_bounds(exploration.downstream_proba_map, d_5_off, d_3_off)) {
+                continue; //This means no scenario can lead to a correct solution, would need to be changed for Error models with in/dels
             }
 
             //Count the number of mismatches that will not go away even with maximum number of deletions
@@ -609,13 +590,18 @@ void Gene_choice::iterate(
 									if(vd_length_best_proba_map.count(d_5_off - v_offset -1)<=0 or dj_length_best_proba_map.count(j_offset - d_full_3_offset  -1)<=0){
 										continue; //This means no scenario can lead to a correct solution, would need to be changed for Error models with in/dels
 									}*/
-                        exploration.downstream_proba_map.set(VJ_ins_seq, 1.0, memory_layer_proba_map_junction);
-                        exploration.downstream_proba_map.set(VD_ins_seq,
-                                                       vd_length_best_proba_map.at(get<1>(*d_position_iter)),
-                                                       memory_layer_proba_map_junction_d2);
-                        exploration.downstream_proba_map.set(DJ_ins_seq,
-                                                       dj_length_best_proba_map.at(get<2>(*d_position_iter)),
-                                                       memory_layer_proba_map_junction_d3);
+                        //The two distances come out of the retained decomposition, so they are
+                        //entries of the profiles by construction and need no guard.
+                        exploration.downstream_proba_map.set(junction_bound(kEnclosingJunction).proba_key(), 1.0,
+                                                       junction_bound(kEnclosingJunction).memory_layer());
+                        exploration.downstream_proba_map.set(
+                                junction_bound(kLeftJunction).proba_key(),
+                                *junction_bound(kLeftJunction).profile().best_for(get<1>(*d_position_iter)),
+                                junction_bound(kLeftJunction).memory_layer());
+                        exploration.downstream_proba_map.set(
+                                junction_bound(kRightJunction).proba_key(),
+                                *junction_bound(kRightJunction).profile().best_for(get<2>(*d_position_iter)),
+                                junction_bound(kRightJunction).memory_layer());
                         exploration.downstream_proba_map.set(D_gene_seq, 1.0,
                                                        memory_layer_proba_map_seq); //Lift the penalty on D gene seq
 
@@ -777,33 +763,10 @@ void Gene_choice::iterate(
                         scenario.set_offset(D_gene_seq, Three_prime, d_full_3_offset, memory_layer_off_threep);
 
 
-                        //Get DJ or VJ junction upper bound proba
-                        if (v_chosen and j_chosen) {
-                            if (vd_length_best_proba_map.count(d_5_off - v_offset - 1) <= 0
-                                or dj_length_best_proba_map.count(j_offset - d_full_3_offset - 1) <= 0) {
-                                continue; //This means no scenario can lead to a correct solution, would need to be changed for Error models with in/dels
-                            }
-                            exploration.downstream_proba_map.set(VJ_ins_seq, 1.0, memory_layer_proba_map_junction);
-                            exploration.downstream_proba_map.set(VD_ins_seq,
-                                                           vd_length_best_proba_map.at(d_5_off - v_offset - 1),
-                                                           memory_layer_proba_map_junction_d2);
-                            exploration.downstream_proba_map.set(DJ_ins_seq,
-                                                           dj_length_best_proba_map.at(j_offset - d_full_3_offset - 1),
-                                                           memory_layer_proba_map_junction_d3);
-                        } else if (v_chosen) {
-                            if (vd_length_best_proba_map.count(d_5_off - v_offset - 1) <= 0) {
-                                continue; //This means no scenario can lead to a correct solution, would need to be changed for Error models with in/dels
-                            }
-                            exploration.downstream_proba_map.set(VD_ins_seq,
-                                                           vd_length_best_proba_map.at(d_5_off - v_offset - 1),
-                                                           memory_layer_proba_map_junction_d2);
-                        } else if (j_chosen) {
-                            if (dj_length_best_proba_map.count(j_offset - d_full_3_offset - 1) <= 0) {
-                                continue; //This means no scenario can lead to a correct solution, would need to be changed for Error models with in/dels
-                            }
-                            exploration.downstream_proba_map.set(DJ_ins_seq,
-                                                           dj_length_best_proba_map.at(j_offset - d_full_3_offset - 1),
-                                                           memory_layer_proba_map_junction_d3);
+                        //Get the upper bound probas for the junctions this D placement creates
+                        if (not write_d_flanking_bounds(exploration.downstream_proba_map, d_5_off,
+                                                        d_full_3_offset)) {
+                            continue; //This means no scenario can lead to a correct solution, would need to be changed for Error models with in/dels
                         }
 
                         //Count the number of mismatches that will not go away even with maximum number of deletions
@@ -971,19 +934,19 @@ void Gene_choice::iterate(
             scenario.set_mismatches(J_gene_seq, &(*iter).get_all_mismatches(), memory_layer_mismatches);
 
 
-            //Get DJ or VJ junction upper bound proba
-            if (d_chosen) {
-                if (dj_length_best_proba_map.count(j_5_off - d_offset - 1) <= 0) {
+            //Get the upper bound proba for the junction on this gene's 5' flank -- the mirror of
+            //the V arm above.
+            const JunctionBound &left_junction = junction_bound(kLeftJunction);
+            if (left_junction.resolved()) {
+                const Seq_Offset partner_3_offset =
+                        left_junction.span().left.id == D_gene_seq ? d_offset : v_offset;
+                const std::optional<double> junction_bound_proba =
+                        left_junction.profile().best_for(j_5_off - partner_3_offset - 1);
+                if (not junction_bound_proba) {
                     continue; //This means no scenario can lead to a correct solution, would need to be changed for Error models with in/dels
                 }
-                exploration.downstream_proba_map.set(DJ_ins_seq, dj_length_best_proba_map.at(j_5_off - d_offset - 1),
-                                               memory_layer_proba_map_junction);
-            } else if (v_chosen) {
-                if (vj_length_best_proba_map.count(j_5_off - v_offset - 1) <= 0) {
-                    continue; //This means no scenario can lead to a correct solution, would need to be changed for Error models with in/dels
-                }
-                exploration.downstream_proba_map.set(VJ_ins_seq, vj_length_best_proba_map.at(j_5_off - v_offset - 1),
-                                               memory_layer_proba_map_junction);
+                exploration.downstream_proba_map.set(left_junction.proba_key(), *junction_bound_proba,
+                                                     left_junction.memory_layer());
             }
 
             //Count the number of mismatches that will not go away even with maximum number of deletions
@@ -1145,12 +1108,18 @@ void Gene_choice::initialize_event(
 
         downstream_proba_map.request_layer(V_gene_seq);
         memory_layer_proba_map_seq = downstream_proba_map.claimed_layer(V_gene_seq);
+        //The junction on this gene's 3' flank: whichever segment was picked next. Resolved once,
+        //here -- iterate() then dereferences a handle instead of choosing a member by enum.
         if (d_chosen) {
             downstream_proba_map.request_layer(VD_ins_seq);
-            memory_layer_proba_map_junction = downstream_proba_map.claimed_layer(VD_ins_seq);
+            junction_bound(kRightJunction)
+                    .resolve(SegmentSpan::gap(V_gene_seq, D_gene_seq), VD_ins_seq,
+                             downstream_proba_map.claimed_layer(VD_ins_seq), JunctionBound::Fold::Yes);
         } else if (j_chosen) {
             downstream_proba_map.request_layer(VJ_ins_seq);
-            memory_layer_proba_map_junction = downstream_proba_map.claimed_layer(VJ_ins_seq);
+            junction_bound(kRightJunction)
+                    .resolve(SegmentSpan::gap(V_gene_seq, J_gene_seq), VJ_ins_seq,
+                             downstream_proba_map.claimed_layer(VJ_ins_seq), JunctionBound::Fold::Yes);
         }
 
         if (d_chosen) {
@@ -1183,17 +1152,27 @@ void Gene_choice::initialize_event(
 
         downstream_proba_map.request_layer(D_gene_seq);
         memory_layer_proba_map_seq = downstream_proba_map.claimed_layer(D_gene_seq);
+        //Three junctions, which is what makes this the event the enum could not grow past: the
+        //two flanks, plus the one it sits inside and splits. The enclosing one carries no folded
+        //profile -- placing the D refines it into the other two, so iterate() writes the neutral
+        //1.0 there and the decomposition lives in vj_length_d_position_proba instead.
         if (v_chosen) {
             downstream_proba_map.request_layer(VD_ins_seq);
-            memory_layer_proba_map_junction_d2 = downstream_proba_map.claimed_layer(VD_ins_seq);
+            junction_bound(kLeftJunction)
+                    .resolve(SegmentSpan::gap(V_gene_seq, D_gene_seq), VD_ins_seq,
+                             downstream_proba_map.claimed_layer(VD_ins_seq), JunctionBound::Fold::Yes);
         }
         if (j_chosen) {
             downstream_proba_map.request_layer(DJ_ins_seq);
-            memory_layer_proba_map_junction_d3 = downstream_proba_map.claimed_layer(DJ_ins_seq);
+            junction_bound(kRightJunction)
+                    .resolve(SegmentSpan::gap(D_gene_seq, J_gene_seq), DJ_ins_seq,
+                             downstream_proba_map.claimed_layer(DJ_ins_seq), JunctionBound::Fold::Yes);
         }
         if (v_chosen and j_chosen) {
             downstream_proba_map.request_layer(VJ_ins_seq);
-            memory_layer_proba_map_junction = downstream_proba_map.claimed_layer(VJ_ins_seq);
+            junction_bound(kEnclosingJunction)
+                    .resolve(SegmentSpan::gap(V_gene_seq, J_gene_seq), VJ_ins_seq,
+                             downstream_proba_map.claimed_layer(VJ_ins_seq), JunctionBound::Fold::No);
         }
 
         if (v_chosen) {
@@ -1229,12 +1208,17 @@ void Gene_choice::initialize_event(
 
         downstream_proba_map.request_layer(J_gene_seq);
         memory_layer_proba_map_seq = downstream_proba_map.claimed_layer(J_gene_seq);
+        //The junction on this gene's 5' flank -- the mirror of the V arm above.
         if (d_chosen) {
             downstream_proba_map.request_layer(DJ_ins_seq);
-            memory_layer_proba_map_junction = downstream_proba_map.claimed_layer(DJ_ins_seq);
+            junction_bound(kLeftJunction)
+                    .resolve(SegmentSpan::gap(D_gene_seq, J_gene_seq), DJ_ins_seq,
+                             downstream_proba_map.claimed_layer(DJ_ins_seq), JunctionBound::Fold::Yes);
         } else if (v_chosen) {
             downstream_proba_map.request_layer(VJ_ins_seq);
-            memory_layer_proba_map_junction = downstream_proba_map.claimed_layer(VJ_ins_seq);
+            junction_bound(kLeftJunction)
+                    .resolve(SegmentSpan::gap(V_gene_seq, J_gene_seq), VJ_ins_seq,
+                             downstream_proba_map.claimed_layer(VJ_ins_seq), JunctionBound::Fold::Yes);
         }
 
         if (v_chosen) {
@@ -1365,6 +1349,50 @@ OffsetRole Gene_choice::get_offset_role(SeqTypeId type_id, Seq_side) const
     return type_id == this->seq_type_id ? OffsetRole::Creates : OffsetRole::None;
 }
 
+/*
+ * The D gene is the one event that reads three junctions: the two it creates by being placed, and
+ * the one it splits. Writing the neutral 1.0 into the enclosing slot and the refinements into the
+ * two halves *is* the composition -- an upstream J choice bounded the whole V->J span, and placing
+ * the D replaces that estimate with a tighter pair. Both arms of iterate() do it identically,
+ * differing only in which D 3' offset they have in hand.
+ *
+ * Returns false when no scenario reaches one of the two distances, which is the caller's cue to
+ * discard the branch rather than score it.
+ */
+bool Gene_choice::write_d_flanking_bounds(Downstream_scenario_proba_bound_map &proba_map, Seq_Offset d_5,
+                                          Seq_Offset d_3) const
+{
+    const JunctionBound &left = junction_bound(kLeftJunction);
+    const JunctionBound &right = junction_bound(kRightJunction);
+
+    optional<double> left_proba;
+    if (left.resolved()) {
+        left_proba = left.profile().best_for(d_5 - v_offset - 1);
+        if (not left_proba) {
+            return false;
+        }
+    }
+    optional<double> right_proba;
+    if (right.resolved()) {
+        right_proba = right.profile().best_for(j_offset - d_3 - 1);
+        if (not right_proba) {
+            return false;
+        }
+    }
+
+    const JunctionBound &enclosing = junction_bound(kEnclosingJunction);
+    if (enclosing.resolved()) {
+        proba_map.set(enclosing.proba_key(), 1.0, enclosing.memory_layer());
+    }
+    if (left.resolved()) {
+        proba_map.set(left.proba_key(), *left_proba, left.memory_layer());
+    }
+    if (right.resolved()) {
+        proba_map.set(right.proba_key(), *right_proba, right.memory_layer());
+    }
+    return true;
+}
+
 bool Gene_choice::affects_length_of(SegmentSpan span) const
 {
     //A gene's template contributes length to a span only when the gene sits strictly *inside*
@@ -1392,118 +1420,71 @@ int Gene_choice::length_delta(const Event_realization &realization) const
     return static_cast<int>(realization.value_str.length());
 }
 
-void Gene_choice::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &model_queue,
-                                             const Marginal_array_p &model_parameters_point, Index_map &base_index_map)
+/*
+ * The retained decomposition of the junction this D splits: for each achievable V->J distance,
+ * every (D gene, VD distance, DJ distance) that reaches it, best first. Section 2.5's composition
+ * operator in the variant that keeps its arguments rather than max-folding them -- which is why it
+ * cannot be rebuilt from the two profiles after the fact, and why it is built here rather than
+ * derived on demand.
+ *
+ * Called from Rec_Event::initialize_Len_proba_bound() once every folded junction of this event
+ * exists, so the profiles it reads are the current EM iteration's. The three-way enum switch it
+ * replaces is gone entirely: a V or a J gene choice has nothing to add beyond its folded profile,
+ * which the base class already built.
+ */
+void Gene_choice::finalize_Len_proba_bound(const Marginal_array_p &model_parameters_point, Index_map &base_index_map)
 {
+    if (this->event_class != D_gene) {
+        return;
+    }
 
-    //Scratch map for the junction length bound, which is still VDJ-hardcoded below;
-    //see legacy_seq_type_registry().
-    SpanAccumulator lengths(legacy_seq_type_registry().total_count());
-    switch (this->event_class) {
-    case V_gene:
-        vd_length_best_proba_map.clear();
-        vj_length_best_proba_map.clear();
+    vj_length_d_position_proba.clear();
 
-        if (d_chosen) {
-            double init_proba = 1.0;
-            this->Rec_Event::iterate_initialize_Len_proba(legacy_span_of(VD_ins_seq), vd_length_best_proba_map, model_queue,
-                                                          init_proba, model_parameters_point,
-                                                          base_index_map, lengths);
-        } else if (j_chosen) {
-            double init_proba = 1.0;
-            this->Rec_Event::iterate_initialize_Len_proba(legacy_span_of(VJ_ins_seq), vj_length_best_proba_map, model_queue,
-                                                          init_proba, model_parameters_point,
-                                                          base_index_map, lengths);
-        }
-        break;
-    case D_gene:
-        vd_length_best_proba_map.clear();
-        dj_length_best_proba_map.clear();
-        vj_length_d_position_proba.clear();
+    const JunctionBound &left = junction_bound(kLeftJunction);
+    const JunctionBound &right = junction_bound(kRightJunction);
+    if (not left.resolved() or not right.resolved()) {
+        return;
+    }
 
-        if (v_chosen) {
-            double init_proba = 1.0;
-            lengths.reset();
-            this->Rec_Event::iterate_initialize_Len_proba(legacy_span_of(VD_ins_seq), vd_length_best_proba_map, model_queue,
-                                                          init_proba, model_parameters_point,
-                                                          base_index_map, lengths);
-        }
-        if (j_chosen) {
-            double init_proba = 1.0;
-            lengths.reset();
-            this->Rec_Event::iterate_initialize_Len_proba(legacy_span_of(DJ_ins_seq), dj_length_best_proba_map, model_queue,
-                                                          init_proba, model_parameters_point,
-                                                          base_index_map, lengths);
-        }
-
-        if (v_chosen and j_chosen) {
-            int junction_len;
-
-            //Loop over D gene choices
-            for (unordered_map<string, Event_realization>::const_iterator d_gene_iter =
-                         this->event_realizations.begin();
-                 d_gene_iter != this->event_realizations.end(); ++d_gene_iter) {
-                //Get considered D gene best proba
-                double d_gene_max_proba = 0;
-                base_index_map.set_current_layer(this->event_index, 0);
-                base_index = base_index_map.get(this->event_index);
-                for (size_t i = 0; i != this->event_marginal_size / this->size(); ++i) {
-                    if (model_parameters_point[base_index + d_gene_iter->second.index + i * this->size()]
-                        > d_gene_max_proba) {
-                        d_gene_max_proba =
-                                model_parameters_point[base_index + d_gene_iter->second.index + i * this->size()];
-                    }
-                }
-                //Loop over possible VD junction lengths
-                for (map<int, double>::const_iterator vd_len_iter = vd_length_best_proba_map.begin();
-                     vd_len_iter != vd_length_best_proba_map.end(); ++vd_len_iter) {
-                    //Loop over possible DJ junction lengths
-                    for (map<int, double>::const_iterator dj_len_iter = dj_length_best_proba_map.begin();
-                         dj_len_iter != dj_length_best_proba_map.end(); ++dj_len_iter) {
-                        junction_len = d_gene_iter->second.value_str.size() + vd_len_iter->first + dj_len_iter->first;
-
-                        if (vj_length_d_position_proba.count(junction_len) != 0) {
-                            vj_length_d_position_proba.at(junction_len)
-                                    .emplace_back(d_gene_iter->first, vd_len_iter->first, dj_len_iter->first,
-                                                  (d_gene_max_proba * vd_len_iter->second * dj_len_iter->second));
-                        } else {
-                            vj_length_d_position_proba.emplace(
-                                    piecewise_construct, make_tuple(junction_len),
-                                    make_tuple(1,
-                                               make_tuple(d_gene_iter->first, vd_len_iter->first, dj_len_iter->first,
-                                                          (d_gene_max_proba * vd_len_iter->second
-                                                           * dj_len_iter->second))));
-                        }
-                    }
-                }
-            }
-
-            //Now sort each vector in the map in decreasing order of probability (according to the model)
-            for (map<int, vector<tuple<string, int, int, double>>>::iterator d_position_map_iter =
-                         vj_length_d_position_proba.begin();
-                 d_position_map_iter != vj_length_d_position_proba.end(); ++d_position_map_iter) {
-                sort(d_position_map_iter->second.begin(), d_position_map_iter->second.end(), D_position_tuple);
+    //Loop over D gene choices
+    for (unordered_map<string, Event_realization>::const_iterator d_gene_iter = this->event_realizations.begin();
+         d_gene_iter != this->event_realizations.end(); ++d_gene_iter) {
+        //Get considered D gene best proba
+        double d_gene_max_proba = 0;
+        base_index_map.set_current_layer(this->event_index, 0);
+        base_index = base_index_map.get(this->event_index);
+        for (size_t i = 0; i != this->event_marginal_size / this->size(); ++i) {
+            if (model_parameters_point[base_index + d_gene_iter->second.index + i * this->size()] > d_gene_max_proba) {
+                d_gene_max_proba = model_parameters_point[base_index + d_gene_iter->second.index + i * this->size()];
             }
         }
+        //Loop over possible VD junction lengths
+        for (SpanProfile::const_iterator vd_len_iter = left.profile().begin(); vd_len_iter != left.profile().end();
+             ++vd_len_iter) {
+            //Loop over possible DJ junction lengths
+            for (SpanProfile::const_iterator dj_len_iter = right.profile().begin();
+                 dj_len_iter != right.profile().end(); ++dj_len_iter) {
+                const int junction_len =
+                        d_gene_iter->second.value_str.size() + vd_len_iter->first + dj_len_iter->first;
 
-        break;
-    case J_gene:
-        dj_length_best_proba_map.clear();
-        vj_length_best_proba_map.clear();
-
-        if (d_chosen) {
-            double init_proba = 1.0;
-            this->Rec_Event::iterate_initialize_Len_proba(legacy_span_of(DJ_ins_seq), dj_length_best_proba_map, model_queue,
-                                                          init_proba, model_parameters_point,
-                                                          base_index_map, lengths);
-        } else if (v_chosen) {
-            double init_proba = 1.0;
-            this->Rec_Event::iterate_initialize_Len_proba(legacy_span_of(VJ_ins_seq), vj_length_best_proba_map, model_queue,
-                                                          init_proba, model_parameters_point,
-                                                          base_index_map, lengths);
+                if (vj_length_d_position_proba.count(junction_len) != 0) {
+                    vj_length_d_position_proba.at(junction_len)
+                            .emplace_back(d_gene_iter->first, vd_len_iter->first, dj_len_iter->first,
+                                          (d_gene_max_proba * vd_len_iter->second * dj_len_iter->second));
+                } else {
+                    vj_length_d_position_proba.emplace(
+                            piecewise_construct, make_tuple(junction_len),
+                            make_tuple(1, make_tuple(d_gene_iter->first, vd_len_iter->first, dj_len_iter->first,
+                                                     (d_gene_max_proba * vd_len_iter->second * dj_len_iter->second))));
+                }
+            }
         }
-        break;
-    default:
-        break;
+    }
+
+    //Now sort each vector in the map in decreasing order of probability (according to the model)
+    for (map<int, vector<tuple<string, int, int, double>>>::iterator d_position_map_iter =
+                 vj_length_d_position_proba.begin();
+         d_position_map_iter != vj_length_d_position_proba.end(); ++d_position_map_iter) {
+        sort(d_position_map_iter->second.begin(), d_position_map_iter->second.end(), D_position_tuple);
     }
 }

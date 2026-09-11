@@ -59,9 +59,6 @@ public:
   }
   bool affects_length_of(SegmentSpan) const override { return false; }
   int length_delta(const Event_realization &) const override { return 0; }
-  void initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &,
-                                  const Marginal_array_p &,
-                                  Index_map &) override {}
 };
 
 TEST_CASE("EventUtils CheckGeneChoice", "[EventUtils]") {

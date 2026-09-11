@@ -144,7 +144,15 @@ struct SegmentSpan {
  * two meanings: VJ_ins_seq is a *segment* in a VJ model but the whole V->J *span* in a VDJ
  * one. This function resolves that ambiguity in the only direction the legacy code needs --
  * the argument is always the span reading -- and is the single place the legacy VDJ topology
- * is hardcoded. It goes away with S4c, when the length maps become span-keyed.
+ * is hardcoded.
+ *
+ * S4c was expected to remove it and did not, though it did narrow it: **its only caller is now
+ * legacy_junction_of() below**, which the four affects_length_of() predicates use to keep their
+ * enum-written tables. The bound structure itself is span-addressed, and no span is constructed
+ * inside `iterate()` at all. What remains enum-bound is *which* junction an event resolves in
+ * `initialize_event()` -- decided by `v_chosen` / `d_chosen` / `j_chosen`, name lookups against the
+ * legacy seq_types, and B11a's to generalise once an event can ask the registry for its next
+ * segment instead of naming D and J.
  *
  * \throws std::invalid_argument for a seq_type that names no junction.
  */

@@ -616,18 +616,6 @@ double Dinucl_markov::span_proba_factor(SegmentSpan, const SpanAccumulator &leng
     return pow(this->get_upper_bound_proba(), lengths.length_of(filled));
 }
 
-void Dinucl_markov::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &model_queue,
-                                               const Marginal_array_p &model_parameters_point,
-                                               Index_map &base_index_map)
-{
-    //Do nothing
-    /*
-	 * For now let's assume nothing can happen to the junction once the dinucleotide has been chosen
-	 * =>no errors
-	 * =>no in/dels
-	 */
-}
-
 void Dinucl_markov::update_event_name()
 {
     Seq_type_String seq_type_str;

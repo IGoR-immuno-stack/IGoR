@@ -52,20 +52,6 @@ bool insertion_seq_type_str_to_enum(const Seq_type_String &seq_type_str, Seq_typ
     return false;
 }
 
-/// The same conversion where there is no sensible way to continue without it.
-///
-/// Written as a return value rather than an out-parameter seeded with VD_ins_seq: that idiom
-/// reads as "defaults to the VD junction", which is never what is meant -- the value is dead
-/// on every path that does not throw.
-Seq_type insertion_seq_type_or_throw(const Seq_type_String &seq_type_str, const char *where)
-{
-    Seq_type converted = VD_ins_seq;
-    if (!insertion_seq_type_str_to_enum(seq_type_str, converted)) {
-        throw std::runtime_error(std::string("Unknown insertion seq_type \"") + seq_type_str
-                                 + "\" in " + where);
-    }
-    return converted;
-}
 } // namespace
 
 
@@ -206,8 +192,18 @@ void Insertion::iterate(
         //the same value; the two are pinned equal by test_insertion_iterate.cpp.
         new_index = base_index + realization_index;
         scenario.constructed_sequences.set_current(seq_type_id, &inserted_str);
-        exploration.downstream_proba_map.set(seq_type_id, junction_length_best_proba_map.at(insertions),
-                                             memory_layer_proba_map_junction);
+        const JunctionBound &junction = junction_bound(kEnclosingJunction);
+        //One descent, where the other 18 consumption sites in Gene_choice and Deletion took two
+        //(§6.10 finding 6). Unlike them this one has never had a guard, so an unreachable
+        //distance throws rather than discarding the branch; turning that into a discard is a
+        //behaviour change and belongs with the other Insertion defects in phase R.
+        const std::optional<double> junction_bound_proba = junction.profile().best_for(insertions);
+        if (not junction_bound_proba) {
+            throw out_of_range("Insertion " + this->name + ": no junction bound for "
+                               + to_string(insertions) + " insertions");
+        }
+        exploration.downstream_proba_map.set(junction.proba_key(), *junction_bound_proba,
+                                             junction.memory_layer());
 
         scenario.scenario_proba *= proba_contribution;
         //tmp_err_w_proba*=proba_contribution;
@@ -341,7 +337,6 @@ void Insertion::initialize_event(
     }
 
     downstream_proba_map.request_layer(this->seq_type_id);
-    memory_layer_proba_map_junction = downstream_proba_map.claimed_layer(this->seq_type_id);
 
     //The neighbours come from Model_Parms::finalize(), which is the one place that reads the
     //ordering. A tandem-D D1D2_ins is told about D1 and D2 by the same pass that tells this
@@ -351,6 +346,13 @@ void Insertion::initialize_event(
                             "insertion is defined by the two segments it sits between, and "
                             "Model_Parms::finalize() must have resolved them");
     }
+
+    //The junction this insertion fills -- the gap between the two segments it sits between, which
+    //is the same pair iterate() measures the observed distance across. Resolved here and never
+    //again: the profile is reached through the handle, not by asking which span this is.
+    junction_bound(kEnclosingJunction)
+            .resolve(SegmentSpan::gap(get_left_adjacent_id(), get_right_adjacent_id()), this->seq_type_id,
+                     downstream_proba_map.claimed_layer(this->seq_type_id), JunctionBound::Fold::Yes);
 
     this->Rec_Event::initialize_event(processed_events, events_map, offset_map, downstream_proba_map,
                                       constructed_sequences, safety_set, error_rate_p, mismatches_list, seq_offsets,
@@ -487,28 +489,6 @@ int Insertion::length_delta(const Event_realization &realization) const
 {
     //The number of nucleotides inserted: the insertion creates the junction segment.
     return realization.value_int;
-}
-
-void Insertion::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &model_queue,
-                                           const Marginal_array_p &model_parameters_point, Index_map &base_index_map)
-{
-    //Still the enum: the length maps are Seq_type-named until S4c re-keys them.
-    const Seq_type seq_type = insertion_seq_type_or_throw(this->seq_type, "initialize_Len_proba_bound");
-
-    SpanAccumulator lengths(legacy_seq_type_registry().total_count());
-
-    junction_length_best_proba_map.clear();
-
-    //One pass, not one per realization. The loop that used to wrap this existed only to stash a
-    //dummy Int_Str of each length in the scratch sequence map for Dinucl_markov to read back --
-    //and the traversal re-enumerates the same realizations inside, overwriting it every time, so
-    //passes 2..|R| rebuilt an identical map. Measured before removal (§6.10 finding 5): across 438
-    //invocations on the integration inference path (human TCR-alpha, a VJ model with 41 insertion
-    //realizations) the map is final after the first pass in every one.
-    double init_proba = 1.0;
-    this->Rec_Event::iterate_initialize_Len_proba(legacy_span_of(seq_type), junction_length_best_proba_map,
-                                                  model_queue, init_proba, model_parameters_point, base_index_map,
-                                                  lengths);
 }
 
 void Insertion::update_event_name()
