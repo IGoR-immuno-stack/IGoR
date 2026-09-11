@@ -50,6 +50,9 @@
 #include <stack>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
+#include <utility>
+#include <vector>
 
 #ifndef IGOR_SOURCE_DIR
 #error "IGOR_SOURCE_DIR must be defined (set by CMake)"
@@ -94,6 +97,30 @@ public:
                                                marginals_.marginal_array_smart_p);
         }
         events_map_ = parms_.get_events_map();
+        const auto offset_map = marginals_.get_offsets_map(parms_, model_queue_);
+
+        //The forward initialize_event() pass, which the sweep depends on: it is where each
+        //event resolves *which* junctions it reads a bound for. Skipping it used to be harmless
+        //because the sweep picked its junctions from an enum switch; since S4c it would measure
+        //an empty sweep. Part of the fixture rather than of the timed region, exactly as in
+        //GenModel::infer_model, where it runs before the bound loop.
+        Safety_bool_map safety_set(3);
+        Seq_type_str_p_map constructed_sequences(parms_.get_seq_type_registry());
+        Mismatch_vectors_map mismatches_lists(parms_.get_seq_type_registry());
+        Seq_offsets_map seq_offsets(parms_.get_seq_type_registry());
+        Downstream_scenario_proba_bound_map downstream_proba_map(parms_.get_seq_type_registry());
+        downstream_proba_map.init_first_layer(1.0);
+        std::shared_ptr<Error_rate> err_rate = parms_.get_err_rate_p();
+
+        std::unordered_set<Rec_Event_name> processed_events;
+        std::queue<std::shared_ptr<Rec_Event>> init_queue = model_queue_;
+        while (!init_queue.empty()) {
+            std::shared_ptr<Rec_Event> event = init_queue.front();
+            init_queue.pop();
+            event->initialize_event(processed_events, events_map_, offset_map, downstream_proba_map,
+                                    constructed_sequences, safety_set, err_rate, mismatches_lists, seq_offsets,
+                                    index_map_);
+        }
     }
 
     /// The reverse sweep, exactly as GenModel::infer_model runs it.
