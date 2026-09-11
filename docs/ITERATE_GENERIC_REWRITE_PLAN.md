@@ -2249,9 +2249,11 @@ every call site.
    but `Insertion::iterate_initialize_Len_proba` re-enumerates the same realizations *inside* and
    overwrites it; `wrap_up` takes `model_queue` by value so the queue survives each pass. With ~40
    realizations that is a 40× init cost producing an identical map. **Measured before removal**
-   *(Sep 10 2026)*: instrumented on the regression model, **438 invocations, the map final after the
-   first pass in every one**. The two apparent outliers were interleaved OpenMP stderr, each
-   splitting cleanly at the pass boundary into two constant halves.
+   *(Sep 10 2026)*: instrumented on the **integration inference path**, which loads the human TCR-α
+   model — a **VJ** model with 41 insertion realizations — giving **438 invocations, the map final
+   after the first pass in every one**. The two apparent outliers were interleaved OpenMP stderr,
+   each splitting cleanly at the pass boundary into two constant halves. The argument is structural
+   and holds for a VDJ model equally, but **the measurement covers the VJ case only**.
 
 6. **Every consumption site pays two tree descents where one lookup would do** *(Sep 10 2026)*. The
    pattern is `if (map.count(k) <= 0) { discard } … map.at(k)` — `std::map<int,double>`, so two

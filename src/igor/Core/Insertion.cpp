@@ -502,8 +502,9 @@ void Insertion::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &model_q
     //One pass, not one per realization. The loop that used to wrap this existed only to stash a
     //dummy Int_Str of each length in the scratch sequence map for Dinucl_markov to read back --
     //and the traversal re-enumerates the same realizations inside, overwriting it every time, so
-    //passes 2..|R| rebuilt an identical map. Measured before removal (§6.10 finding 5): across
-    //438 invocations on the regression model the map is final after the first pass in every one.
+    //passes 2..|R| rebuilt an identical map. Measured before removal (§6.10 finding 5): across 438
+    //invocations on the integration inference path (human TCR-alpha, a VJ model with 41 insertion
+    //realizations) the map is final after the first pass in every one.
     double init_proba = 1.0;
     this->Rec_Event::iterate_initialize_Len_proba(legacy_span_of(seq_type), junction_length_best_proba_map,
                                                   model_queue, init_proba, model_parameters_point, base_index_map,
