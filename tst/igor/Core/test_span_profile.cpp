@@ -97,10 +97,44 @@ TEST_CASE("SpanProfile iterates in distance order", "[unit][span_profile]")
     profile.record(3, 0.3);
 
     std::vector<int> distances;
-    for (const auto &entry : profile) {
-        distances.push_back(entry.first);
+    std::vector<double> probas;
+    for (const SpanProfile::Entry entry : profile) {
+        distances.push_back(entry.distance);
+        probas.push_back(entry.proba);
     }
+    //1 and 5 are the extremes and 3 sits between them, so the walk has to skip the four slots
+    //the dense array holds for distances 2 and 4 without ever reporting them.
     REQUIRE(distances == std::vector<int>{1, 3, 5});
+    REQUIRE(probas == std::vector<double>{0.2, 0.3, 0.1});
+    REQUIRE(profile.size() == 3);
+}
+
+TEST_CASE("SpanProfile grows to whichever distances arrive", "[unit][span_profile]")
+{
+    //The fold records leaves in no particular order, so the array has to extend at either end.
+    //Nothing else pins this: every other test happens to record in a convenient order.
+    SpanProfile profile;
+    profile.record(10, 0.5);
+    profile.record(-5, 0.4);
+    profile.record(30, 0.3);
+
+    REQUIRE(profile.best_for(10) == 0.5);
+    REQUIRE(profile.best_for(-5) == 0.4);
+    REQUIRE(profile.best_for(30) == 0.3);
+    REQUIRE(profile.size() == 3);
+
+    //Distances inside the extent but never recorded, and distances outside it, are alike absent.
+    REQUIRE_FALSE(profile.best_for(0).has_value());
+    REQUIRE_FALSE(profile.best_for(-6).has_value());
+    REQUIRE_FALSE(profile.best_for(31).has_value());
+    REQUIRE_FALSE(profile.best_for(-100000).has_value());
+    REQUIRE_FALSE(profile.best_for(100000).has_value());
+
+    //Growing must not move what is already stored.
+    profile.record(-5, 0.9);
+    REQUIRE(profile.best_for(-5) == 0.9);
+    REQUIRE(profile.best_for(30) == 0.3);
+    REQUIRE(profile.size() == 3);
 }
 
 TEST_CASE("JunctionBound starts unresolved", "[unit][span_profile]")

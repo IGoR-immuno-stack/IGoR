@@ -1459,23 +1459,19 @@ void Gene_choice::finalize_Len_proba_bound(const Marginal_array_p &model_paramet
             }
         }
         //Loop over possible VD junction lengths
-        for (SpanProfile::const_iterator vd_len_iter = left.profile().begin(); vd_len_iter != left.profile().end();
-             ++vd_len_iter) {
+        for (const SpanProfile::Entry vd : left.profile()) {
             //Loop over possible DJ junction lengths
-            for (SpanProfile::const_iterator dj_len_iter = right.profile().begin();
-                 dj_len_iter != right.profile().end(); ++dj_len_iter) {
-                const int junction_len =
-                        d_gene_iter->second.value_str.size() + vd_len_iter->first + dj_len_iter->first;
+            for (const SpanProfile::Entry dj : right.profile()) {
+                const int junction_len = d_gene_iter->second.value_str.size() + vd.distance + dj.distance;
+                const double position_proba = d_gene_max_proba * vd.proba * dj.proba;
 
                 if (vj_length_d_position_proba.count(junction_len) != 0) {
                     vj_length_d_position_proba.at(junction_len)
-                            .emplace_back(d_gene_iter->first, vd_len_iter->first, dj_len_iter->first,
-                                          (d_gene_max_proba * vd_len_iter->second * dj_len_iter->second));
+                            .emplace_back(d_gene_iter->first, vd.distance, dj.distance, position_proba);
                 } else {
                     vj_length_d_position_proba.emplace(
                             piecewise_construct, make_tuple(junction_len),
-                            make_tuple(1, make_tuple(d_gene_iter->first, vd_len_iter->first, dj_len_iter->first,
-                                                     (d_gene_max_proba * vd_len_iter->second * dj_len_iter->second))));
+                            make_tuple(1, make_tuple(d_gene_iter->first, vd.distance, dj.distance, position_proba)));
                 }
             }
         }

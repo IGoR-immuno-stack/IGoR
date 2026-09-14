@@ -25,17 +25,33 @@
 #include <igor/Core/SegmentSpan.h>
 #include <igor/Core/SeqTypeRegistry.h>
 
-#include <map>
+#include <cstddef>
+#include <iterator>
 #include <optional>
+#include <vector>
 
 /**
  * \brief What a SegmentSpan has instead of a length: every achievable distance, with the best
  * probability any completion of the scenario can reach at that distance.
  *
- * This is the `map<int,double>` the junction-length fold has always built, named. The naming is
- * what lets the bound stop being addressed by the `Seq_type` enum: a profile no longer *is*
- * `vd_length_best_proba_map`, it is the profile of some span, held by whichever event reads it
- * (JunctionBound below).
+ * A **dense array indexed by distance**, not an associative container. The distances a span can
+ * take are the sumset of its contributors' realization ranges -- deletions, insertions and one
+ * gene template, each a contiguous run of integers -- so the key space is a short contiguous
+ * interval with no holes worth naming. Measured over the two ends of the model range:
+ *
+ *     Insertion(VD), demo TRB model   [0, 30]      31 entries     248 B
+ *     Gene_choice(J), V->J, demo TRB  [-57, 85]   143 entries     1.1 kB
+ *     the same, human BCR-heavy       [-104, 154] 259 entries     2.1 kB
+ *
+ * Every profile in every model IGoR ships therefore fits in L1, which is what makes indexing
+ * the right answer and a tree the wrong one. The `std::map` this replaced spent seven or eight
+ * *dependent* compares per lookup to address 2 kB: `best_for` was **4.6 % of total runtime and
+ * 8 % of iterate()**, of which 87 % was `_M_lower_bound` alone. See section 6.13 of
+ * docs/ITERATE_GENERIC_REWRITE_PLAN.md for the profile.
+ *
+ * The access pattern makes it better still. `Deletion` walks its realizations in decreasing
+ * deletion count, so the distance it asks for **decreases by one per iteration**: the loop is a
+ * unit-stride backwards scan over this array, which a tree expressed as N independent descents.
  *
  * ### It belongs to a span *and* to a reading position
  *
@@ -47,54 +63,176 @@
  *
  * ### Reading it
  *
- * best_for() is the whole read interface, and it answers *value-or-absent* in one descent. The
- * `count()`-then-`at()` pattern it replaces cost two red-black descents of the same key at every
- * scenario node -- 18 such sites across Gene_choice and Deletion, plus one `at()` with no guard
- * at all (Insertion), which threw where the others discarded. See section 6.10, finding 6.
+ * best_for() is the whole read interface, and it answers *value-or-absent* in one bounds check
+ * and one load. The `count()`-then-`at()` pattern it originally replaced cost two red-black
+ * descents of the same key at every scenario node -- 18 such sites across Gene_choice and
+ * Deletion, plus one `at()` with no guard at all (Insertion), which threw where the others
+ * discarded. See section 6.10, finding 6.
  */
 class SpanProfile
 {
 public:
-    using const_iterator = std::map<int, double>::const_iterator;
-
-    /// Drop every entry, for an owner about to re-fold at the next EM iteration.
-    void clear() { best_proba_by_distance_.clear(); }
+    /**
+     * One achievable distance and the bound at it. A named pair because the call site reads
+     * better for it -- `vd.distance` over `vd_len_iter->first`.
+     */
+    struct Entry {
+        int distance;
+        double proba;
+    };
 
     /**
-     * \brief Offer \a proba as the bound at distance \a distance, keeping the better of the two.
+     * Forward iterator over the *present* entries, in increasing distance. Absent slots are
+     * skipped, so a walk visits exactly size() entries whatever the array's extent.
+     */
+    class const_iterator
+    {
+    public:
+        using iterator_category = std::forward_iterator_tag;
+        using value_type = Entry;
+        using difference_type = std::ptrdiff_t;
+        using reference = Entry;
+        using pointer = void;
+
+        const_iterator() = default;
+        const_iterator(const SpanProfile *owner, std::size_t index) : owner_(owner), index_(index)
+        {
+            skip_absent();
+        }
+
+        Entry operator*() const
+        {
+            return Entry{owner_->min_distance_ + static_cast<int>(index_), owner_->slots_[index_]};
+        }
+
+        const_iterator &operator++()
+        {
+            ++index_;
+            skip_absent();
+            return *this;
+        }
+
+        const_iterator operator++(int)
+        {
+            const_iterator before = *this;
+            ++*this;
+            return before;
+        }
+
+        friend bool operator==(const const_iterator &l, const const_iterator &r)
+        {
+            return l.index_ == r.index_;
+        }
+        friend bool operator!=(const const_iterator &l, const const_iterator &r) { return not(l == r); }
+
+    private:
+        void skip_absent()
+        {
+            while (index_ < owner_->slots_.size() and is_absent(owner_->slots_[index_])) {
+                ++index_;
+            }
+        }
+
+        const SpanProfile *owner_ = nullptr;
+        std::size_t index_ = 0;
+    };
+
+    /// Drop every entry, for an owner about to re-fold at the next EM iteration. Keeps the
+    /// allocation: the next iteration's range is the same one, since it depends on the model's
+    /// realization sets and not on its probabilities.
+    void clear()
+    {
+        slots_.clear();
+        present_ = 0;
+        min_distance_ = 0;
+    }
+
+    /**
+     * \brief Offer \a proba as the bound at \a distance, keeping the better of the two.
      *
-     * The fold's combine step -- max over scenarios reaching the same distance. One descent,
-     * against the up-to-three the `count` / `at` / `operator[]` form took.
+     * The fold's combine step -- max over scenarios reaching the same distance -- and the only
+     * operation that can grow the array. Growth happens a handful of times per fold while the
+     * range fills in and never again, against the ~10^6 leaves a fold visits, so the memmove a
+     * front-extension costs is not worth designing around.
+     *
+     * \a proba must be non-negative, which it is by construction: it is a product of marginal
+     * entries. A negative value would be indistinguishable from an empty slot.
      */
     void record(int distance, double proba)
     {
-        const auto [entry, inserted] = best_proba_by_distance_.try_emplace(distance, proba);
-        if (not inserted and proba > entry->second) {
-            entry->second = proba;
+        make_room_for(distance);
+        double &slot = slots_[static_cast<std::size_t>(distance - min_distance_)];
+        if (is_absent(slot)) {
+            slot = proba;
+            ++present_;
+        } else if (proba > slot) {
+            slot = proba;
         }
     }
 
-    /// The bound at \a distance, or nothing if no scenario reaches it -- in which case the
-    /// caller's branch is dead and must be discarded rather than scored.
+    /**
+     * \brief The bound at \a distance, or nothing if no scenario reaches it -- in which case the
+     * caller's branch is dead and must be discarded rather than scored.
+     *
+     * The single unsigned comparison catches both ends: a distance below min_distance_ makes the
+     * subtraction negative, which wraps to a value no smaller than the array's extent.
+     */
     std::optional<double> best_for(int distance) const
     {
-        const auto entry = best_proba_by_distance_.find(distance);
-        if (entry == best_proba_by_distance_.end()) {
+        const std::size_t index = static_cast<std::size_t>(distance - min_distance_);
+        if (index >= slots_.size()) {
             return std::nullopt;
         }
-        return entry->second;
+        const double proba = slots_[index];
+        if (is_absent(proba)) {
+            return std::nullopt;
+        }
+        return proba;
     }
 
-    bool empty() const { return best_proba_by_distance_.empty(); }
-    std::size_t size() const { return best_proba_by_distance_.size(); }
+    /// Present entries, not the array's extent -- the two differ if the achievable distances
+    /// have a hole, which the contributors' contiguous ranges make unlikely but not impossible.
+    std::size_t size() const { return present_; }
+    bool empty() const { return present_ == 0; }
 
-    /// Ordered by distance. For the consumers that enumerate rather than look up -- today only
-    /// Gene_choice(D), building the retained decomposition of the span it splits.
-    const_iterator begin() const { return best_proba_by_distance_.begin(); }
-    const_iterator end() const { return best_proba_by_distance_.end(); }
+    /// Ordered by distance, absent slots skipped. For the consumers that enumerate rather than
+    /// look up -- today only Gene_choice(D), building the retained decomposition of the span it
+    /// splits.
+    const_iterator begin() const { return const_iterator(this, 0); }
+    const_iterator end() const { return const_iterator(this, slots_.size()); }
 
 private:
-    std::map<int, double> best_proba_by_distance_;
+    /// Distinguishable from any bound, which is a probability and so >= 0. The same convention
+    /// SpanAccumulator uses for an unpublished length, and for the same reason: zero is a
+    /// legitimate value here. A scenario whose bound is 0.0 is pruned on probability, where an
+    /// absent one is discarded outright -- and in Deletion::iterate those take different exits,
+    /// `break` against `continue`, so conflating them would not be bitwise.
+    static constexpr double kAbsent = -1.0;
+    static bool is_absent(double proba) { return proba < 0.0; }
+
+    /// Extend the array so that \a distance is addressable, leaving new slots absent.
+    void make_room_for(int distance)
+    {
+        if (slots_.empty()) {
+            min_distance_ = distance;
+            slots_.assign(1, kAbsent);
+            return;
+        }
+        if (distance < min_distance_) {
+            slots_.insert(slots_.begin(), static_cast<std::size_t>(min_distance_ - distance), kAbsent);
+            min_distance_ = distance;
+            return;
+        }
+        const std::size_t index = static_cast<std::size_t>(distance - min_distance_);
+        if (index >= slots_.size()) {
+            slots_.resize(index + 1, kAbsent);
+        }
+    }
+
+    /// The distance slots_[0] stands for. Meaningless while slots_ is empty.
+    int min_distance_ = 0;
+    std::size_t present_ = 0;
+    std::vector<double> slots_;
 };
 
 /**
