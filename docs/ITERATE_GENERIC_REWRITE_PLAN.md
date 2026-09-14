@@ -480,7 +480,7 @@ one-line change later, which is the actual point.
 
 | | what | today | target |
 |---|---|---|---|
-| **1-D** | span profile: length → best proba | `std::map<int,double>` — a red-black descent with a pointer chase per level | `std::vector<double>` + stored offset, or `Matrix<double>(1,N)` ([Utils.h:291](../src/igor/Core/Utils.h#L291)). Build is a max-accumulation, so order-independent and bitwise identical |
+| **1-D** | span profile: length → best proba | ✅ **`std::vector<double>` + stored offset** *(Sep 14 2026)* — was `std::map<int,double>`, a red-black descent with a pointer chase per level | delivered as proposed here; `Matrix<double>(1,N)` proved unnecessary. Build is a max-accumulation, so order-independent and bitwise identical, which it was. §6.10 finding 6, §6.13 |
 | **2-D** | parent-indexed profile: conditioning context × length | does not exist | `Matrix<double>` natively — this is the cross-clique tightening (§6.9 R6) |
 | **3-D** | `vj_length_d_position_proba`: total length × `(realization, left_len)` | `map<int, vector<tuple<…>>>` | the **Tensor API**, hence S4d |
 
@@ -1000,6 +1000,9 @@ see finding 6 in §6.10:
 |---|---|---|
 | find the profile | member access | one pointer indirection |
 | find the length | **2 ×** `std::map` red-black descent (`count` then `at`) | 1 × bounds check + array index (the container staging above) |
+
+*(Delivered in two steps: S4c made it one descent behind a value-or-absent accessor, and the dense
+`SpanProfile` then turned that descent into the array index. §6.10 finding 6, §6.13.)*
 
 ##### Deferred optimisation: cache subspan profiles across the init sweep
 
@@ -2314,6 +2317,21 @@ every call site.
    defects in phase R — but the asymmetry is now an explicit `throw` beside a comment rather than an
    invisible property of `std::map::at`.
 
+   ✅ **and the container itself replaced** *(Sep 14 2026)*. S4c kept `std::map<int,double>` under
+   the new accessor, which left the descent in place: profiling put `best_for` at **8 % of
+   `iterate`**, 87 % of it `_M_lower_bound`. The distances a span can take are the sumset of its
+   contributors' realization ranges — contiguous runs of integers — so the key space is a short
+   interval with no holes: 31 entries for an insertion, 143 for the demo model's V→J span, 259 in
+   the worst case across the shipped models, i.e. **2 kB**. `SpanProfile` is now a dense
+   `std::vector<double>` indexed by `distance - min_distance_`, with a negative sentinel for absent.
+   `best_for` becomes one unsigned compare — which catches both ends, since a distance below the
+   minimum wraps — and one load. Measured: `best_for` **8 % → 2 % of `iterate`**, inference on the
+   N=1000 pipeline **20.2 → 18.3 s median** (interleaved A/B, alignment unchanged as control), and
+   the init sweep 143 → 138 ms on TRB and **9.74 → 8.33 s on BCR-heavy** — the last because
+   `Gene_choice(D)`'s enumeration *iterates* both profiles, and a contiguous walk beats a tree walk.
+   See §6.13. `record()`'s `try_emplace` is gone with it, though the profile says that was never
+   costing anything (0.55 %).
+
 7. **Every thread rebuilds the identical bound, and there are as many threads as cores**
    *(Sep 11 2026)*. The sweep is model-only and thread-invariant, so N threads compute N copies of
    one answer. Measured on 22 threads: **706 ms per thread in situ against 58.5 ms for the same
@@ -2728,6 +2746,96 @@ give the counter a canonical tie-break (relative epsilon, then realization-vecto
 Pinning the thread count alone is not enough with `schedule(dynamic)`. Sorting rows in the
 comparator — this section's original suggestion — would **not** help, since the rows differ in
 content, not order.
+
+**The convergence gate has the same problem in a different form** *(Sep 14 2026)*.
+`convergence::Inference recovers ground truth model` builds its corpus with
+`GenModel::generate_sequences`, which seeds `mt19937_64` from
+`draw_random_64bits_seed()` — the timer ([GenModel.cpp:592-601](../src/igor/Core/GenModel.cpp#L592)).
+So every run infers on a **different corpus**. Observed wall times across three runs of unchanged
+code: **524 s, 50 s, 113 s** — a 10× spread, because the sampled sequences decide how much the
+bound prunes. The gate still means something (a real convergence failure would fail it), but it is
+not reproducible, its cost is unpredictable, and a rare corpus-dependent break would show up as a
+one-off that re-running "fixes". `generate_sequences` already takes an optional `seed` on its other
+overload ([:627](../src/igor/Core/GenModel.cpp#L627)); passing a fixed one from the test is the
+whole fix.
+
+### 6.13 — Where inference time actually goes *(Sep 14 2026, `perf`)*
+
+Profiled with `pixi run profile` on the demo TRB model, N=100 sequences, `cpu_core/cycles/pp`,
+3K samples. Percentages are of total process samples; `GenModel::infer_model` is 62.01 % and
+`iterate` 54.91 % of those, so divide by those to read a share of inference.
+
+*(Read the `cpu_core` section, not the `cpu_atom` one at the top of the report: the E-core section's
+99.42 % `blas_thread_server` is idle OpenBLAS spin threads, not work. Cache-miss attribution for
+inference is also misleading in this run — 79.72 % of all misses are in alignment loading, so
+inference's share of the miss profile says little about inference's own behaviour.)*
+
+| symbol | self, `std::map` | share of `iterate` | self, dense |
+|---|---:|---:|---:|
+| `Deletion::iterate` | 26.84 % | 49 % | 24.84 % |
+| **`LayeredArray<double>::set`** | **6.48 %** | **12 %** | 5.28 % |
+| **`multiply_all`** (under `compute_upper_bound`) | **4.80 %** | **9 %** | 5.14 % |
+| `Insertion::iterate` | 4.75 % | 9 % | 4.57 % |
+| `SpanProfile::best_for` | 4.56 % | 8 % | **1.10 %** |
+| `_M_assign_aux<int>` + `__memmove_avx` (`Int_Str` copies) | 4.52 % | 8 % | 4.06 % |
+| `initialize_Len_proba_bound` (whole sweep) | 8.38 % | — | 7.97 % |
+
+The last column re-profiles the same run after the dense rewrite, with `iterate` at 53.25 % rather
+than 54.91 %: `best_for` falls from **8 % of `iterate` to 2 %**, and `_M_lower_bound` disappears from
+underneath it entirely. Everything else moves by less than the run-to-run spread.
+
+The other three entries in bold are recorded below because each is **larger than or comparable to**
+the lookup the dense rewrite removed, and none is scheduled.
+
+#### O13 — the downstream-bound array is the largest single hot-loop cost after `Deletion::iterate`
+
+`LayeredArray<double>::set` at 6.48 % plus `multiply_all` at 4.80 % is **~11 % of total, ~21 % of
+`iterate`** — more than twice the profile lookup the dense rewrite just removed. Both are the
+`Downstream_scenario_proba_bound_map`: every event writes its slot at every node (`set`, through
+`ensure_layer` and `operator[]`), and `compute_upper_bound` then multiplies **all** layers back
+together to get the scenario bound.
+
+Two shapes worth examining, neither investigated:
+
+- **The product is recomputed from scratch at every node**, though each node changes one slot. A
+  running product with division would be numerically unsafe, but the fold is over a short fixed
+  array whose length is known at init, and the layer structure is a stack — so a per-depth
+  *prefix* product, written on descent and read on backtrack, would make `compute_upper_bound` a
+  single multiply. This is the same suffix-fold observation §2.5 makes about the junction profiles.
+- **`ensure_layer` shows up inside `set`** (1.18 % + 0.92 % + 0.75 % across call sites), meaning the
+  layer is being materialised lazily in the hot path. Layers are claimed at `initialize_event()`;
+  pre-sizing at claim time would make `set` a bare indexed store.
+
+#### O14 — the junction-length fold copies its queue at every node
+
+`initialize_Len_proba_bound` is 8.38 % here, and **its cost is not the profile container** —
+`record` is 0.55 % and did not move measurably in the dense rewrite. It is
+`iterate_initialize_Len_proba_wrap_up` taking `std::queue<std::shared_ptr<Rec_Event>> model_queue`
+**by value**: `queue` / `deque` construction and destruction plus `shared_ptr` refcount traffic
+account for roughly 3–4 of the 8.38 %, spread over `queue (inlined)` 0.88 %, `~queue` 0.78 %,
+`deque::_M_initialize` 0.56 % and `pop → ~shared_ptr → _M_release` 0.67 % at one nesting level, and
+again at the next.
+
+The by-value copy exists so the callee can pop without disturbing the caller's queue — but the
+queue is the same immutable suffix of the model ordering at every node. Replacing it with a
+`const std::vector<Rec_Event *>` plus an integer cursor removes the allocation, the copy and the
+atomics in one change, and needs no new capability. **Cheap, and larger than anything else on the
+init side.** It also composes with S4e: a flattened, immutable suffix array is trivially shareable
+between threads, which the queue was not.
+
+#### O15 — `Int_Str` segments are copied per scenario node
+
+`std::vector<int>::_M_assign_aux` at 4.52 %, almost all of it `__memmove_avx_unaligned_erms`
+underneath `substr` and `assign` — the constructed-sequence segments being rebuilt as `Deletion`
+and `Gene_choice` trim and write them. Comparable in size to the profile lookup.
+
+The write pattern is *prefix or suffix truncation* of a segment the parent already holds, so most
+of these copies are expressible as a `(pointer, length)` view over the parent's buffer, with a real
+copy only where a palindrome inserts new nucleotides. That is a change to `Int_Str` and to
+`Seq_type_str_p_map`'s ownership model rather than to any event, so it is **not** a phase-R item and
+does not belong to any current step. Recorded so it is not rediscovered from the same profile.
+
+---
 
 ## 7. Where a generic rewrite would silently change results
 
