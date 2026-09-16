@@ -4,6 +4,9 @@
 changing existing ones while refactoring.
 **Reference implementation**: [tst/igor/Core/test_gene_choice_iterate.cpp](../tst/igor/Core/test_gene_choice_iterate.cpp)
 — `Gene_choice` is fully covered and every pattern below has a worked instance there.
+For an event whose body repeats the same pattern in several near-identical arms, see
+[test_deletion_iterate.cpp](../tst/igor/Core/test_deletion_iterate.cpp) instead: it shows how the
+sections stay organised by pattern when each arm has its own copy of every guard.
 **Harness**: [tst/igor/Core/test_utils.h](../tst/igor/Core/test_utils.h) / [.cpp](../tst/igor/Core/test_utils.cpp)
 **Related**: [ITERATE_GENERIC_REWRITE_PLAN.md](ITERATE_GENERIC_REWRITE_PLAN.md) (what the
 rewrite is), [ITERATE_METHOD_ANALYSIS.md](ITERATE_METHOD_ANALYSIS.md) (what each `iterate()`
@@ -182,16 +185,23 @@ switch. Also the template-overhang clipping (negative offset for V, past-the-rea
 J), which B3 will replace with flank segments.
 
 ### `Deletion`
+**Delivered** — [tst/igor/Core/test_deletion_iterate.cpp](../tst/igor/Core/test_deletion_iterate.cpp)
+(plan step 4a). Read it before adding to it; the list below is what it covers.
+
 - positive deletion: sequence truncated, offset moved, mismatch list trimmed to a
-  **contiguous subrange** of the incoming list
+  **contiguous subrange** of the incoming list — the *prefix* for a 3' deletion, the *suffix*
+  for a 5' one
 - negative deletion (palindrome): reverse-complement appended (3') or prepended (5'), new
-  mismatches computed against the read, and the 5' case re-sorts
-- the full-deletion guards: V forbids it (`>`), D and J allow it (`>=`) — assert the
-  asymmetry, it is a modelling decision not a refactoring one
+  mismatches computed against the read, and the 5' cases re-sort
+- the full-deletion guards: V and **J** forbid it (`>`), D allows it on both sides (`>=`) —
+  assert the asymmetry, it is a modelling decision not a refactoring one. (An earlier version
+  of this line said "D and J allow it"; J does not.)
 - a zero-length segment: written, `exists()` true, offsets in the degenerate convention
   `three_prime == five_prime - 1`
 - the two-stage prune: the first check `break`s (deletions are enumerated in decreasing
-  order), the second `continue`s
+  order), the second `continue`s. **The two are not separable by observation** — the first
+  bound dominates the second and both are monotone along the enumeration order — so pin the
+  stopping, not the mechanism, and say so in the section
 
 ### `Insertion`
 - insertion count derived from the neighbours' facing offsets, not from a stored value
@@ -325,6 +335,19 @@ What to assert:
    look right and test nothing.
 7. **`set_mismatches()` stores a pointer** into `query.gene_alignments`. Anything that
    outlives or aliases that vector is a real bug; assert per-realization lists to catch it.
+8. **The junction fold's distance axis is not the gap the consumer looks up.** A deletion's
+   `length_delta` is `-value_int`, so the profile is indexed by a quantity that moves *down* as
+   the deletion widens, while `iterate()` asks for `partner_offset - my_new_offset - 1`, which
+   moves *up*. The event is in its own fold, so the profile's reachable range is roughly
+   `[-max_deletion, +max_insertion]` while the queries run the other way. Two consequences for a
+   fixture. A realization whose gap is more negative than the fold's own deletions can reach is
+   discarded by the **junction guard**, not by whatever the section is aiming at — which is how a
+   boundary comparison (`<=` versus `<`) ends up with no test at all, because the boundary
+   realization is exactly the one that lands at a negative distance. Give the event under test a
+   deletion range that spans zero, or one realization wider than the geometry needs, and check by
+   mutation that the comparison is actually reached. And a section aimed at a guard *inside* the
+   arm often needs the neighbour **unchosen**, so that no junction is resolved and nothing is
+   discarded before the branch under test runs.
 
 ---
 

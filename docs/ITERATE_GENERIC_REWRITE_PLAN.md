@@ -1262,8 +1262,33 @@ inconsistently across the four branches:
 | J | [:1043](../src/igor/Core/Deletion.cpp#L1043) `size() > value_int` — **forbidden** | *none* |
 
 Neither condition is uniform, and (b) is present for V as settled policy, for D 5′ as an
-acknowledged temporary fix, and nowhere else. A generic body cannot pick one behaviour without
-changing results, so B5 introduces **two independent, explicitly-named switches**:
+acknowledged temporary fix, and nowhere else.
+
+**A third condition, on the palindrome path, behaves the same way** *(added by 4a, Sep 16 2026)*.
+A negative deletion pushes the moving end *outward*, so it asks the same question in the other
+direction — and gets four more answers:
+
+| | (c) the palindrome runs off the read | (c′) the palindrome is longer than the template |
+|---|---|---|
+| V | [:393](../src/igor/Core/Deletion.cpp#L393) `v_3_new_offset < sequence.size()` — rejects | [:395](../src/igor/Core/Deletion.cpp#L395) `-value <= size` — rejects |
+| D 5′ | inside the loop at [:646](../src/igor/Core/Deletion.cpp#L646) — skips the out-of-range positions | [:631](../src/igor/Core/Deletion.cpp#L631) — rejects |
+| D 3′ | [:857](../src/igor/Core/Deletion.cpp#L857) `d_3_new_offset < sequence.size()` — rejects, **and** [:887](../src/igor/Core/Deletion.cpp#L887) inside the loop | [:859](../src/igor/Core/Deletion.cpp#L859) — rejects |
+| J | **none — the unguarded access of §7.15** | [:1120](../src/igor/Core/Deletion.cpp#L1120) — rejects |
+
+(c′) is uniform; (c) is not, and its three implementations do not even agree on *whether to reject
+the realization or to score the in-range part of it*. That difference is visible in the bound, so
+it is a modelling decision like the rest of this section, and `require_visible_nucleotide_` is
+where it belongs.
+
+Two of the guards in the (b) column turn out to be **dead**, which 4a established by disabling each
+and finding no assertion moved (§6.14): V's `v_3_new_offset < 0` cannot fire given the (a) guard
+above it, and D 5′'s `d_5_new_offset >= 0` — on the palindrome path — is subsumed by the `//FIXME`
+in the same column, which compares a *signed* offset against `size()` and so rejects negative
+offsets through unsigned wraparound. The `//FIXME` does two jobs and is named for one of them; B5
+should not assume that deleting it leaves only the read-end behaviour behind.
+
+A generic body cannot pick one behaviour without changing results, so B5 introduces **two
+independent, explicitly-named switches**:
 
 ```cpp
 bool allow_full_template_deletion_;   // (a) per Deletion event, from the model
@@ -1584,7 +1609,7 @@ already flagged as the milestone-1 blocker and because `Gene_choice` is the only
 | **S4e** | ✅ **done** — the sweep runs **once per EM iteration instead of once per thread**: the init loop splits, the crude bound stays per-thread, and the junction-length fold runs under `omp single` while the other threads adopt its result. Sharing is a **value copy** of the profile, not the `shared_ptr` §2.5 proposed — see there for why. Init wall time on 22 threads: mean 132 → 48 ms per thread, max 209 → 58 ms. *Original scope:* hoist the `initialize_Len_proba_bound` sweep **out of the OpenMP region** — it is model-only and thread-invariant, so 22 threads built 22 copies of one answer (§6.10 finding 7). Gated on S4c's ownership move. The crude-bound pass stays per-thread | full ladder + the init benchmark | **yes** |
 | **S4d** | Tensor-backed containers for the 3-D `no_d_align` structure — **gated on `feature/TensorLinalg` merging**, expected end of phase B, not merely on the API existing: that branch also reworks model topology and marginals, so anything written against today's handling would need backporting (§2.5). Optional, performance only | full ladder + benchmark | **yes** |
 | **3** | ✅ **done** — **B11a**, `Gene_choice::iterate`'s three-way switch and the twelve alignment-path branches gone; first production consumer of S2/S3. The V/J-versus-D asymmetry is read off the ordering (`left_neighbor`/`right_neighbor` == `kNoSeqType`), which settles O6's fallback switch as one boolean and gives a tandem D1/D2 pair the internal behaviour unnamed. §7.1's two arithmetics are one helper with both arms named, carried verbatim. 939 lines deleted, 628 added, fifteen members gone. *Original scope:* `Gene_choice` alignment path generic (G4, G2, G8, and G5 via S4a-c). Characterization already delivered by T0 | full ladder + benchmark | **yes**, except §7.1 |
-| **4a** | `Deletion` characterization sections, including the zero-length junction T0 deferred. **Moved ahead of S5** (§6.8, F4) | unit + mutation | n/a — tests only |
+| **4a** | ✅ **done** — `tst/igor/Core/test_deletion_iterate.cpp`, **662 assertions in 18 `TEST_CASE`s**, against the unmodified event. `Deletion::iterate` went from **0 % to 98.7 % lines / 91.8 % blocks**; 55 mutations run, 49 caught, and the six survivors are **five provably dead or dominated branches**, each named in §6.14. Includes the zero-length junction T0 deferred, and found the unguarded J palindrome of §7.15. **Moved ahead of S5** (§6.8, F4) | unit + mutation | n/a — tests only |
 | **S5** | Safety row-bitmask; row-suffix propagation; `Event_safety` deleted | full ladder + the empty-segment transitivity test + 4a's sections unchanged | **yes** (§2.3 corollary) |
 | **4b** | **B5** — `Deletion::iterate` generic (all patterns). **First production consumer of S2** | full ladder + benchmark + convergence | **yes** |
 | **5a** | `no_d_align` characterization beyond T0's G6 sections, on a fixture that *forces* the path. **Must raise `Gene_choice::iterate` block coverage** — see §6.4. Also lands the `bound / realized_proba` instrumentation (§6.10). **The end-to-end half is already delivered** (Sep 16 2026): `scripts/tests/test_no_d_align.sh` gives 5b a bitwise gate on this path, which it did not have — see §7.9. What 5a still owes is the per-branch unit sections | unit + mutation | n/a — tests only |
@@ -1885,12 +1910,28 @@ Two readings matter more than the numbers themselves:
   untakeable arc to the denominator. Block coverage is the more honest single number, and the
   useful artefact is the *list* of uncovered lines, not the ratio.
 
-**Superseded for two rows since (Sep 8 2026).** 1b took `Insertion::iterate` to 100 % lines,
-branches and blocks and `Insertion::initialize_event` back to 100 % lines; 2a/2b took
-`Dinucl_markov::iterate` from 0 % to 100 % lines and blocks. The table above is kept as the
-*pre-migration baseline* — it is what the delivered figures are measured against — but the two open
-rows are now only `Gene_choice::iterate` (59.2 % blocks) and `Deletion::iterate` (**still 0 %**).
-4a is the step that closes the second, and it is now scheduled before S5 (§6.8, F4).
+**Superseded for every row since.** 1b took `Insertion::iterate` to 100 % lines, branches and
+blocks and `Insertion::initialize_event` back to 100 % lines; 2a/2b took `Dinucl_markov::iterate`
+from 0 % to 100 % lines and blocks; B11a and 4a closed the last two. The table above is kept as the
+*pre-migration baseline* — it is what the delivered figures are measured against. Re-measured over
+the unit suite after 4a (Sep 16 2026):
+
+| Function | Lines | Branch | Blocks | Calls |
+|---|---:|---:|---:|---:|
+| `Gene_choice::iterate` | 90.4% | 76.5% | 87.4% | 42 |
+| `Gene_choice::initialize_event` | 96.0% | 60.7% | 78.7% | 42 |
+| `Insertion::iterate` | 92.0% | 43.8% | 38.1% | 27 |
+| `Deletion::iterate` | 98.7% | 88.3% | 91.8% | 93 |
+| `Deletion::initialize_event` | 94.4% | 57.8% | 81.2% | 133 |
+| `Dinucl_markov::iterate` | 100.0% | 75.0% | 96.4% | 21 |
+
+Two things the re-measurement says that the delivered figures above do not. `Gene_choice::iterate`
+is at **87.4 % blocks** rather than the 59.2 % that 5a is scheduled to raise — B11a deleted most of
+what was uncovered, so 5a's remaining job is the `no_d_align` enumeration itself and not the ratio.
+And `Insertion::iterate` reads **38.1 % blocks**, well below the 100 % 1b recorded: the suite it is
+measured over has grown, so the figure is not comparable to 1b's and is not evidence of a
+regression — but it is also no longer evidence of anything, and re-establishing it belongs with
+R3's `Insertion` repairs rather than here.
 
 `Gene_choice::iterate` at 59.2% blocks after T0 is the figure to watch, and **raising it is part of
 5a's definition of done**. The uncovered remainder is mostly the `no_d_align` exhaustive path, which
@@ -2936,6 +2977,61 @@ copy only where a palindrome inserts new nucleotides. That is a change to `Int_S
 `Seq_type_str_p_map`'s ownership model rather than to any event, so it is **not** a phase-R item and
 does not belong to any current step. Recorded so it is not rediscovered from the same profile.
 
+### 6.14 — Delivered (4a): the `Deletion` characterization *(Sep 16 2026)*
+
+`tst/igor/Core/test_deletion_iterate.cpp`, **662 assertions in 18 `TEST_CASE`s**, against the
+unmodified event. Coverage of `Deletion::iterate` went from **0 % to 98.7 % lines / 88.3 % branches
+/ 91.8 % blocks** — it had no unit test of any kind before this, and at 1004 lines it was the
+largest untested body in the project.
+
+All ten rows of the test guide's matrix are filled, in each of the four arms where the arm has its
+own copy of the pattern. What the sections pin beyond the matrix:
+
+- **The full-deletion asymmetry is real and is now gated.** V and J test `size() > value` and keep
+  at least one nucleotide of the template; D tests `size() >= value` on both sides and may delete
+  itself away entirely, leaving a written-but-empty segment at the degenerate offsets
+  `three_prime == five_prime - 1`. §2.7 calls this a modelling decision rather than an accident;
+  four sections now say so in assertions, and the mutation that unifies the four comparisons is
+  caught in each arm separately.
+- **Mismatch trimming is a contiguous-subrange walk whose direction is the opposite of the arm's
+  name.** A 3′ deletion keeps the *prefix* of the ordered list, a 5′ deletion the *suffix*. The two
+  5′ arms then `sort()` after a palindrome, because the positions they prepend are below everything
+  already in the list; the two 3′ arms do not, because appending preserves the order. Removing
+  either `sort()` is caught.
+- **The junction bound is read at a distance the fold measures with the opposite sign.** The
+  profile's axis is the *sumset of length deltas*, and `Deletion::length_delta` returns
+  `-value_int`, so a widening deletion moves the profile's index **down** while the consumer looks
+  the gap up as `partner_offset - my_new_offset - 1`, which moves **up**. The event is in its own
+  fold, so its own deletion is counted twice, in opposite directions. This is carried verbatim from
+  the legacy map and is a *weakening* of the bound, so it is bitwise-invisible (§1) — recorded here
+  because it is the single most confusing thing about writing a fixture for this body, and because
+  B5 will have to decide whether to keep it.
+- **The four arms disagree about the read boundary, and one of them crashes.** §7.15.
+
+**55 mutations run, 49 caught.** The six survivors are not gaps; each is a branch that cannot be
+observed, and four of them are dead code that B5 can delete outright:
+
+| Mutation | Site | Why it survives |
+|---|---|---|
+| `break` → `continue`, and the check removed entirely, in the V arm's **first** prune stage | [Deletion.cpp:482-485](../src/igor/Core/Deletion.cpp#L482) | The first stage's bound is the second's divided by the realization's marginal and by the junction bound, both ≤ 1, so it can only fire where the second fires too. Both bounds are monotone along the enumeration order, so stopping and skipping are the same. **The `break` is an optimisation, not a behaviour** |
+| the same, J arm | [:1201](../src/igor/Core/Deletion.cpp#L1201) | identical argument |
+| `if (v_3_new_offset < 0) continue;` | [:315](../src/igor/Core/Deletion.cpp#L315) | **Dead.** The guard above it already requires `value < size`, and with `size == 3' - 5' + 1` and a 5′ offset at or after the start of the read that gives `value <= 3'`. Reachable only for a segment whose length disagrees with its offsets, which no upstream event produces — `Gene_choice` clips a V template that starts before the read (B11a) |
+| `if (d_5_new_offset >= 0)` in the D 5′ palindrome branch | [:629](../src/igor/Core/Deletion.cpp#L629) | **Dead.** The `//THIS IS A TEMPORARY FIX //FIXME` guard above it compares the *signed* offset against `int_sequence.size()`, so a negative offset wraps to a huge unsigned value and is rejected there first. The FIXME does two jobs, only one of which it is named for |
+| `if (value_int > previous_str.size())` inside `d_del_opposite_side_processed`, both D arms | [:595](../src/igor/Core/Deletion.cpp#L595), [:819](../src/igor/Core/Deletion.cpp#L819) | **Dead.** The loop guard already requires `value_int <= size`. One of the two §7.3 `//FIXME`s is a no-op |
+
+Two more lines stay uncovered and have no section: the outer `default: throw` at
+[:1232](../src/igor/Core/Deletion.cpp#L1232), unreachable because `get_deletion_gene_class()`
+rejects any other target in the constructor. Its inner counterpart — a D deletion with no side —
+*is* reachable and has a section, because B5 deletes both and the removal should be deliberate.
+
+**What this buys 4b.** B5's definition of done is "4a's sections pass unchanged", and the sections
+are now specific enough for that to mean something: every `continue` in the body has one, every
+comparison has its boundary realization exercised rather than a value near it (three sections had
+to be tightened after the first mutation pass reported the boundary mutants surviving — the
+geometry that separates `<=` from `<` sits at a *negative* junction distance, which only a fold
+whose own deletions reach that far down can answer), and the five dead branches above are named so
+that deleting them is a decision rather than a side effect.
+
 ---
 
 ## 7. Where a generic rewrite would silently change results
@@ -3023,6 +3119,15 @@ Two `//THIS IS A TEMPORARY FIX //FIXME` guards
 off it. They interact with the order of the two D deletion events, and the `else` branch has a
 commented-out body plus a `//TODO finish this part`. A generic rewrite that "cleans this up"
 changes results. Carry it forward literally.
+
+**Halved by 4a** *(Sep 16 2026)*. The two guards are **dead**: each sits under
+`if ((int)previous_str.size() >= (*iter).value_int)`, which already gives `value_int <= size`, so
+`value_int > size` cannot hold. Disabling both changes no assertion in a 662-assertion suite that
+covers 98.7 % of the body. What is *not* dead is the pair of endogenous-mismatch branches: when the
+opposite side's deletion is still to come, the arm writes `1.0` for the segment instead of an error
+bound, and 4a pins both outcomes in both D arms (inverting the branch is caught). That is a weaker
+bound rather than a wrong one, so it is pinned as observed, not as intended — the `//TODO` names a
+computation nobody has decided on.
 
 ### 7.4 — `len_min` / `len_max` accumulation is order-dependent (latent)
 
@@ -3410,6 +3515,42 @@ probability — no undetermined state anywhere. That forecloses a branching `Din
 depends on §7.13, since sharing a buffer is what makes writing earlier equivalent. Decide it with
 B10: "allocated but undetermined" and "processed but absent" are the same question asked of a
 nucleotide and of a segment, and deciding them apart risks deciding them in opposite directions.
+
+### 7.15 — The J arm scores its palindrome against the read with no bounds check, and throws
+
+*(Found by 4a, Sep 16 2026.)*
+
+A negative deletion is a palindromic insertion: the `k` nucleotides nearest the trimmed end are
+reversed, complemented, put back on the far side of it, and then compared against the read so that
+any disagreement joins the mismatch list. Three of the four arms bound that comparison against the
+read before making it. The J arm does not:
+
+| arm | guard before the comparison loop | site |
+|---|---|---|
+| V 3′ | `if (v_3_new_offset < (int)sequence.size())` — rejects the realization | [Deletion.cpp:393](../src/igor/Core/Deletion.cpp#L393) |
+| D 5′ | `if (d_5_new_offset + i < int_sequence.size())` — skips the out-of-range positions, inside the loop | [:646](../src/igor/Core/Deletion.cpp#L646) |
+| D 3′ | `if (d_3_offset + 1 + i >= 0)` — likewise, inside the loop | [:887](../src/igor/Core/Deletion.cpp#L887) |
+| **J 5′** | **none** | [:1141](../src/igor/Core/Deletion.cpp#L1141) |
+
+So `query.int_sequence.at(j_5_new_offset + i)` is called with `j_5_new_offset` free to be negative,
+which converts to a huge `size_t` and makes `.at()` throw `std::out_of_range`. Reproduced on a
+two-line fixture: a J segment at read offset 2 with a −3 palindrome throws; the same event with the
+segment at offset 4 hands off normally; the V arm in the mirror-image geometry discards the
+realization instead.
+
+**Reachable in production**, though rarely: it needs J's 5′ end within `k` positions of the start of
+the read *and* the overlap check not to have discarded the realization first, which requires V's own
+deletions to reach below zero — a one-nucleotide V alignment. That is the same shape as §7.9: a
+path nothing exercised, holding an unguarded access, behind a guard that happens to cover it on the
+corpus.
+
+**Not fixed here.** The three guarded arms disagree on *what* to do — V rejects the realization, the
+two D arms score the in-range positions and ignore the rest — so choosing one is a modelling
+decision with a visible effect on the bound, not a refactor. 4a pins the current behaviour as
+observed (a `CHECK_THROWS_AS`, with a positive control two read positions over and the V arm's
+contrasting outcome beside it), so B5 cannot change it silently; the decision itself belongs with
+§2.7's `require_visible_nucleotide_` switch, which is the same question asked of the positive
+deletions.
 
 ## 8. Decisions taken
 
