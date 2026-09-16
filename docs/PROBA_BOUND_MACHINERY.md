@@ -67,6 +67,24 @@ Single-threaded, the sweep alone, uniform marginals — `igor_tests "[.benchmark
 > an obviously empty one. The fixture now runs the init pass, and both columns above are measured
 > with it.
 
+Two later changes moved it again, and neither is comparable to the table above: the machine reads
+~25 % slower on Sep 16 than it did on Sep 11, so both are measured **interleaved against each
+other** in one session (20 samples, three repetitions, rebuilding between each) rather than against
+the Sep 11 column.
+
+| model | dense profile (`18cf2e4`) | **+ O14**, the flat participant array | |
+|---|---:|---:|---:|
+| human TCR-α | 4.26 ms | **1.40 ms** | 3.0× |
+| TRB regression corpus | 152 ms | **46.1 ms** | 3.3× |
+| human TCR-β | 160 ms | **49.8 ms** | 3.2× |
+| human BCR-heavy | 8.70 s | **2.59 s** | 3.4× |
+
+Those are the *coldest* pair of each — the first repetition after a rebuild. Across the three
+repetitions the old code drifts upward (TRB 152 → 187 → 209 ms) and the new one does not (46.1 →
+44.5 → 44.8 ms), so **3× is the conservative reading of this change and 4× the warm one**. The
+asymmetry is itself informative: the old fold's cost is dominated by allocation and refcount
+traffic, which is what degrades as the machine warms.
+
 **In a real inference run it is worse than the table suggests.** Timed in situ on the TRB corpus
 with 22 threads: **706 ms mean, 1214 ms max — per thread**, against the 203 ms the same work takes
 alone. The ~3.5× is contention, and every thread is computing **the identical result**: the bound is
@@ -75,6 +93,10 @@ second redundancy stacked on the per-consumer one, and a larger one. *(An earlie
 ratio at 12×, by comparing the in-situ figure against the broken benchmark's 58.5 ms. S4e's case
 rests on the N-copies redundancy, which is untouched by the correction; only the contention
 multiplier moves.)*
+
+*(That in-situ figure predates S4c. The sweep is ~4× cheaper single-threaded since, so the absolute
+per-thread cost is now a fraction of 706 ms — but S4e's case never rested on the absolute: N threads
+still compute the identical model-only answer N times, and that is unchanged.)*
 
 Where the VDJ time goes, per event (in situ, TRB):
 
@@ -238,6 +260,7 @@ One non-virtual body on `Rec_Event`, behind two hooks:
 | **O11** boundary-addressed spans (`9af1367`) | — | boundaries can name a **segment's own extent**, not only the gap between two segments — which a per-`Seq_type` Phase D decomposition needs and the segment-pair form could not express at all | — | preventive: `cut_position()` states the ±1 convention once, in the area §7.1 and §7.8 are both off-by-one bugs in |
 | **S4b** the collapse (`ce3e4b0`) | four bodies → one; the side channel and its `Seq_type_str_p_map` parameter gone — problems 4, 5 | the fold takes a `SegmentSpan` and keys the accumulator by `SeqTypeId`; `Dinucl_markov` no longer reads a length out of a map `Insertion` wrote, so that **event-to-event linkage is broken** | problem 6 removed — but **worth ~0 ms**, see below | — (bitwise) |
 | **S4c** the re-keying | six enum-named members plus three `memory_layer_proba_map_junction*` scalars → `std::array<JunctionBound,3>` on `Rec_Event`; four `initialize_Len_proba_bound` overrides → one non-virtual driver plus a `finalize` hook only `Gene_choice(D)` uses — problem 10 | **the tandem-D enum ceiling is gone — problem 1**: nothing in the bound machinery enumerates VD / DJ / VJ, and an event holds at most a left, a right and an enclosing junction whatever the topology | value-or-absent accessor replaces `count`+`at` at all 19 consumption sites (problem 7); `record()` is one descent where the fold took up to three; problem 9's dead fold deleted — **29 % of the sweep on both TRB models**, 7 % on BCR-heavy | deletes problem 9's dead code; problem 8's guarded / unguarded asymmetry is gone as a class — (bitwise) |
+| **O14** the flat participant array | the fold's three signatures stop naming a `std::queue` at all; `SpanParticipants` is a plain `vector<const Rec_Event *>` | the participant list is **immutable and shareable**, which the by-value queue was not — the precondition S4e needs to hand one fold's work to every thread | the queue copy (a deque allocation and a `shared_ptr` refcount pair, per event, per node) and the per-node participation filter both collapse to once per junction: **3–4× on the whole sweep**, every model | — (bitwise, plus a 17-digit profile-equality probe) |
 | **S4c** the dense profile | — | — | `SpanProfile` becomes a `std::vector<double>` indexed by distance, replacing the `std::map` S4c kept: **`best_for` falls from 8 % to 2 % of `iterate()`**, inference 20.2 → 18.3 s on the N=1000 pipeline, and the init sweep 9.74 → 8.33 s on BCR-heavy. The key space is the sumset of the contributors' realization ranges, so it is contiguous and at most 2 kB — problem 7, finished | — (bitwise) |
 
 **Nothing delivered so far is a correctness fix**, and that is by design — every step above is

@@ -2403,6 +2403,12 @@ every call site.
      moving the profiles — not the handles — into a model-side arena. Each handle's span, key and
      memory layer are already thread-invariant.
 
+     **O14 shrank what is left again** *(Sep 16 2026)*: the sweep it would hoist is now 3–4× cheaper
+     than the 706 ms-per-thread figure §2.5 quotes, so S4e's payoff scales down with it — the
+     redundancy is unchanged (N threads, one answer), the absolute is not. O14 also supplied half
+     the mechanism: `SpanParticipants` is already an immutable, shareable list, so only the profile
+     itself still has to be made shareable.
+
    The bound depends on the marginals, which move every EM iteration, so the hoist is **once per
    iteration** rather than once per run.
 8. **`SpanAccumulator` survives O12, with a better definition** *(Sep 11 2026)*. Deleting it was
@@ -2839,7 +2845,7 @@ Two shapes worth examining, neither investigated:
   layer is being materialised lazily in the hot path. Layers are claimed at `initialize_event()`;
   pre-sizing at claim time would make `set` a bare indexed store.
 
-#### O14 — the junction-length fold copies its queue at every node
+#### O14 — the junction-length fold copies its queue at every node — **delivered Sep 16 2026**
 
 `initialize_Len_proba_bound` is 8.38 % here, and **its cost is not the profile container** —
 `record` is 0.55 % and did not move measurably in the dense rewrite. It is
@@ -2855,6 +2861,24 @@ queue is the same immutable suffix of the model ordering at every node. Replacin
 atomics in one change, and needs no new capability. **Cheap, and larger than anything else on the
 init side.** It also composes with S4e: a flattened, immutable suffix array is trivially shareable
 between threads, which the queue was not.
+
+**Done, and it was larger than the profile made it look.** The queue is now flattened once per
+event into a `SpanParticipants` (`std::vector<const Rec_Event *>`) and the traversal descends by
+incrementing an index into it. The same change also hoists the *participation filter*: which events
+participate depends only on the span and on the events themselves, both fixed for the whole fold, so
+the `while (... not participates_in_span)` loop that ran below every node now runs once per junction.
+Measured interleaved against `18cf2e4`, single-threaded: **TRB 152 → 46.1 ms, BCR-heavy 8.70 →
+2.59 s, TCR-α 4.26 → 1.40 ms** — 3× on the coldest pair of each, 4× once the machine is warm, since
+the old fold's cost is allocation and refcount traffic and degrades with temperature.
+
+Two notes for whoever reads the numbers later. The profile attributed ~3–4 of the sweep's 8.38 % to
+queue construction and destruction, and the whole sweep to 8.38 %; a 3× on the whole sweep is more
+than that budget allows, so the filter hoist — which the profile did **not** separate out, because
+`participates_in_span` inlines into the caller — is a large part of the win. And the bitwise
+regression gate is **not** the binding check here: a dropped contributor only weakens an upper
+bound, and §1 records that a weakened bound is bitwise-invisible. The check that binds is a probe
+that dumped all 18 folded profiles at 17 significant digits across two EM iterations, before and
+after, and compared them byte-for-byte.
 
 #### O15 — `Int_Str` segments are copied per scenario node
 
