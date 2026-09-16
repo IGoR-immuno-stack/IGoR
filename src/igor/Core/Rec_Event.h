@@ -400,8 +400,22 @@ public:
      */
     virtual double span_proba_factor(SegmentSpan, const SpanAccumulator &) const { return 1.0; }
 
+    /**
+     * \brief The events after this one that contribute to the span being folded, in model order.
+     *
+     * Built once per junction and walked by index, replacing the std::queue the fold used to
+     * copy -- deque allocation, and a shared_ptr refcount per entry -- at every node. It is also
+     * **pre-filtered**: an event that neither changes the span's length nor contributes a factor
+     * to it is dropped once here, rather than skipped again below every node.
+     *
+     * Raw pointers, and const: the events outlive the fold (the model queue owns them for the
+     * whole EM iteration) and the fold only reads them.
+     */
+    using SpanParticipants = std::vector<const Rec_Event *>;
+
     void iterate_initialize_Len_proba_wrap_up(SegmentSpan span, SpanProfile &profile,
-                                              std::queue<std::shared_ptr<Rec_Event>> model_queue, double scenario_proba,
+                                              const SpanParticipants &participants, std::size_t cursor,
+                                              double scenario_proba,
                                               const Marginal_array_p &model_parameters_point, Index_map &base_index_map,
                                               SpanAccumulator &lengths, int seq_len) const;
 
@@ -410,12 +424,13 @@ public:
      * length_delta() -- plus Dinucl_markov, which differs in kind: it does not enumerate at all.
      */
     void iterate_initialize_Len_proba(SegmentSpan span, SpanProfile &profile,
-                                      std::queue<std::shared_ptr<Rec_Event>> &model_queue, double &scenario_proba,
+                                      const SpanParticipants &participants, std::size_t cursor,
+                                      double &scenario_proba,
                                       const Marginal_array_p &model_parameters_point, Index_map &base_index_map,
                                       SpanAccumulator &lengths, int &seq_len) const;
 
     void iterate_initialize_Len_proba(SegmentSpan span, SpanProfile &profile,
-                                      std::queue<std::shared_ptr<Rec_Event>> &model_queue, double &scenario_proba,
+                                      const SpanParticipants &participants, double &scenario_proba,
                                       const Marginal_array_p &model_parameters_point, Index_map &base_index_map,
                                       SpanAccumulator &lengths) const;
 
