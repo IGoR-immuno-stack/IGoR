@@ -629,7 +629,7 @@ So `1794b5f`'s `int_undefined` check, the precedent the offsets half would follo
 
 Adding `test_integration_debug` to the §1 ladder costs ~3 s per step and activates tier 2 on the
 real inference path immediately. But **integration coverage is topology-dependent** — the
-regression corpus is one TRB model, so `no_d_align` never fires and whole branches never execute —
+regression corpus is one TRB model, where `no_d_align` fires for about 0.2 % of D choices — see §7.9 —
 so tier 2 cannot be relied on to reach every event. That is what tier 3 is for.
 
 #### Tier 3: check the declaration at the hand-off *(Quentin, Sep 10 2026)*
@@ -1231,7 +1231,7 @@ already flags as a per-candidate hash lookup to replace with a realization index
 **End state**: a third mode on the junction an event splits — `JunctionBound::Fold::Yes` / `No` /
 **`Retain`** — executed by the base driver and gated by `exhaustive_position_fallback_`. The hook
 then goes away and the sweep has no virtuals left. **Do it in 5b, not before**: the regression
-corpus is one TRB model where `no_d_align` never fires, so an error in generalising it is invisible
+corpus is one TRB model where `no_d_align` fires for about 0.2 % of D choices, so an error in generalising it is very nearly invisible
 to the bitwise gate, and 5a exists precisely to characterize the path first. 5b is also where the
 D1/D2 case first tests whether one enclosing junction per event is enough.
 
@@ -1464,16 +1464,16 @@ segment have independent pending modifiers.
 
 | # | Current branch | Collapses to | Pattern |
 |---|---|---|---|
-| 1 | `switch(event_class)` V/D/J at [:195](../src/igor/Core/Genechoice.cpp#L195) | — (deleted) | G4 |
-| 2–4 | V/D/J "check D choice" / "check J choice" preambles | one loop over the ≤2 nearest chosen neighbours | G1+G3 |
-| 5–7 | `vd_check` / `vj_check` / `dj_check` comparison blocks | one `check()` call per side | G2 |
-| 8–10 | per-class offset writes (5′ and 3′) | `set_offset(seq_type_id, side, …)` | G4 |
-| 11 | per-class junction-bound lookup (`vd_`/`dj_`/`vj_length_best_proba_map`) | `junction_len_best_proba_[(A,B)]` | G5 |
-| 12 | per-class endogenous-mismatch window | `core = {reachable(5').hi, reachable(3').lo}` | G8 |
+| 1 ✅ | `switch(event_class)` V/D/J | — (deleted, step 3) | G4 |
+| 2–4 ✅ | V/D/J "check D choice" / "check J choice" preambles | one loop over `flank_checks_` (step 3) | G1+G3 |
+| 5–7 ✅ | `vd_check` / `vj_check` / `dj_check` comparison blocks | one `check_overlap()` per neighbour (step 3) | G2 |
+| 8–10 ✅ | per-class offset writes (5′ and 3′) | `set_offset(seq_type_id, side, …)` (step 3) | G4 |
+| 11 ✅ | per-class junction-bound lookup | `write_junction_bounds()` over the S4c handles (step 3) | G5 |
+| 12 ✅ | per-class endogenous-mismatch window | `core = {reachable(5').hi, reachable(3').lo}` (step 3); the *credited length* stays two-armed until R5 | G8 |
 | 13 | `no_d_align` exhaustive path, both sub-branches | neighbour-derived span composition | G6 |
-| — | `switch(event_class)` in `initialize_event` at [:1104](../src/igor/Core/Genechoice.cpp#L1104) | one block over `seq_type_id` / `event_side` | G1 |
-| — | `switch` in `initialize_Len_proba_bound` at [:1383](../src/igor/Core/Genechoice.cpp#L1383) | pair-keyed build | G5 |
-| — | `has_effect_on` switch at [:1311](../src/igor/Core/Genechoice.cpp#L1311) | base-class implementation | G5 |
+| — ✅ | `switch(event_class)` in `initialize_event` | one block over `seq_type_id` (step 3) | G1 |
+| — ✅ | `switch` in `initialize_Len_proba_bound` | span-keyed build (S4c) | G5 |
+| — | `affects_length_of`'s switch, what `has_effect_on` became | base-class implementation over the ordering — **not step 3's**: it is a `Rec_Event` change touching all four subclasses, so it belongs with S4's remainder | G5 |
 
 `event_class` **stays** and remains the alignment-strategy key —
 `query.gene_alignments` is keyed by `Gene_class` and D1/D2 correctly share one alignment set.
@@ -1583,11 +1583,11 @@ already flagged as the milestone-1 blocker and because `Gene_choice` is the only
 | **S4c** | ✅ **done** — junction bounds resolved in `initialize_event()`, held as `std::array<JunctionBound,3>` on `Rec_Event`; `initialize_Len_proba_bound` de-virtualised to one driver plus a `finalize` hook `Gene_choice(D)` alone uses — **a placeholder for `Fold::Retain`, expiring in 5b, see §2.6**; `SpanProfile` with a value-or-absent accessor; finding 3's dead fold deleted, finding 2's **member** deleted but not its predicate. Ownership stayed with the event, and `⊗ᵐᵃˣ` was **dropped for want of a consumer** — see §6.10 findings 2 and 7. *Original scope:* Span-identified structure owned by the model **at init**; `⊗ᵐᵃˣ`; the enum-named members become a **left-span / right-span handle pair resolved in `initialize_event()`** — no span lookup in `iterate()` (§2.5), and not one merged map (§6.10 finding 4); single value-or-absent accessor replacing `count`+`at` (finding 6); `initialize_Len_proba_bound` de-virtualised; findings 2–3's dead code deleted. Sharing the fold across consumers is **deferred** — init cost is negligible. **Removes the tandem-D enum ceiling** — on the milestone-1 critical path | full ladder + benchmark | **yes** |
 | **S4e** | ✅ **done** — the sweep runs **once per EM iteration instead of once per thread**: the init loop splits, the crude bound stays per-thread, and the junction-length fold runs under `omp single` while the other threads adopt its result. Sharing is a **value copy** of the profile, not the `shared_ptr` §2.5 proposed — see there for why. Init wall time on 22 threads: mean 132 → 48 ms per thread, max 209 → 58 ms. *Original scope:* hoist the `initialize_Len_proba_bound` sweep **out of the OpenMP region** — it is model-only and thread-invariant, so 22 threads built 22 copies of one answer (§6.10 finding 7). Gated on S4c's ownership move. The crude-bound pass stays per-thread | full ladder + the init benchmark | **yes** |
 | **S4d** | Tensor-backed containers for the 3-D `no_d_align` structure — **gated on `feature/TensorLinalg` merging**, expected end of phase B, not merely on the API existing: that branch also reworks model topology and marginals, so anything written against today's handling would need backporting (§2.5). Optional, performance only | full ladder + benchmark | **yes** |
-| **3** | **B11a** — `Gene_choice` alignment path generic (G4, G2, G8, and G5 via S4a-c). Characterization already delivered by T0. **First production consumer of S3** | full ladder + benchmark | **yes**, except §7.1 |
+| **3** | ✅ **done** — **B11a**, `Gene_choice::iterate`'s three-way switch and the twelve alignment-path branches gone; first production consumer of S2/S3. The V/J-versus-D asymmetry is read off the ordering (`left_neighbor`/`right_neighbor` == `kNoSeqType`), which settles O6's fallback switch as one boolean and gives a tandem D1/D2 pair the internal behaviour unnamed. §7.1's two arithmetics are one helper with both arms named, carried verbatim. 939 lines deleted, 628 added, fifteen members gone. *Original scope:* `Gene_choice` alignment path generic (G4, G2, G8, and G5 via S4a-c). Characterization already delivered by T0 | full ladder + benchmark | **yes**, except §7.1 |
 | **4a** | `Deletion` characterization sections, including the zero-length junction T0 deferred. **Moved ahead of S5** (§6.8, F4) | unit + mutation | n/a — tests only |
 | **S5** | Safety row-bitmask; row-suffix propagation; `Event_safety` deleted | full ladder + the empty-segment transitivity test + 4a's sections unchanged | **yes** (§2.3 corollary) |
 | **4b** | **B5** — `Deletion::iterate` generic (all patterns). **First production consumer of S2** | full ladder + benchmark + convergence | **yes** |
-| **5a** | `no_d_align` characterization beyond T0's G6 sections, on a fixture that *forces* the path. **Must raise `Gene_choice::iterate` block coverage** — see §6.4. Also lands the `bound / realized_proba` instrumentation (§6.10) | unit + mutation | n/a — tests only |
+| **5a** | `no_d_align` characterization beyond T0's G6 sections, on a fixture that *forces* the path. **Must raise `Gene_choice::iterate` block coverage** — see §6.4. Also lands the `bound / realized_proba` instrumentation (§6.10). **The end-to-end half is already delivered** (Sep 16 2026): `scripts/tests/test_no_d_align.sh` gives 5b a bitwise gate on this path, which it did not have — see §7.9. What 5a still owes is the per-branch unit sections | unit + mutation | n/a — tests only |
 | **5b** | **B11b** — `no_d_align` exhaustive path generic (G6), including `⊗ᵉⁿᵘᵐ` — the retained decomposition, always three components (§2.5). **Retires `Gene_choice::finalize_Len_proba_bound`** into `JunctionBound::Fold::Retain`, gated by `exhaustive_position_fallback_` (§2.6) | full ladder + a fixture that *forces* the path | **yes** |
 | **R1–R4** | **Repair phase** (§6.9) — the decided behaviour changes, held here so everything above is idempotent end to end: §7.13, §7.12, `Insertion`'s four `[!shouldfail]` defects, **R3b's `LayeredArray::set()` hardening (O10) directly after them**, `dinuc_proba_matrix` → `initialize_event()` | full ladder, per commit | **no** — golden data may move; each commit names which outputs and why |
 | **R5** | §7.1 and §7.8 off-by-one corrections, per decision O4; the four `[!shouldfail]` tags come off | full ladder + the corrected-core unit tests | **no** — same |
@@ -1597,7 +1597,7 @@ already flagged as the milestone-1 blocker and because `Gene_choice` is the only
 commit and is mutation-verified there, where mutation-verification means something: a
 characterization suite written after its collapse pins the new behaviour and agrees with the
 refactor because it was derived from it. §7.9 is the concrete argument — the regression corpus has
-a TRB topology that never fires `no_d_align`, so "collapse, then assert non-regression, then test"
+a TRB topology that fires `no_d_align` for about 0.2 % of D choices, so "collapse, then assert non-regression, then test"
 has a hole exactly where the risk is. Per-event unit tests are the only cover for branches the
 corpus does not reach, and they are only evidence if they predate the change.
 
@@ -2981,6 +2981,22 @@ computes the core correctly and would therefore **change Pgen values** on the re
 arithmetic verbatim — **parameterise the sign, do not derive it** — and every step through 5 keeps
 it, so the whole migration stays regression-testable against the existing corpus.
 
+**Where it lives now** *(step 3, Sep 16 2026)*. `Gene_choice::credited_core_length()`, one helper
+with both arms named: `Truncated` measures the core between two movable ends (right in shape, one
+short of the inclusive count) and `Inflated` adds the single movable end's travel where the core
+loses it. Which arm an event uses is settled at `initialize_event()` from its position in the
+ordering — a gene anchored by a read end gets `Inflated` — so R5 is a one-function change and
+needs no new plumbing.
+
+> **The current arithmetic is pinned nowhere, and cannot be.** Mutating step 3 to give *every*
+> gene the `Truncated` arm passes the full ladder and T0 alike: it only ever *weakens* the bound,
+> and §1 records that a weakened bound is bitwise-invisible. T0 deliberately asserts the correct
+> value under `[!shouldfail]` rather than pinning the wrong one, so nothing in the suite would
+> catch a step that changed the credited length in the weakening direction. **Any step that
+> touches this arithmetic owes a direct probe**, not a green ladder. Step 3's was a dump of every
+> `(endogenous count, credited length)` pair over two EM iterations of the demo inference — 240783
+> calls, identical before and after.
+
 **How it is tested (revised after review)**: the T0 sections assert the **correct** value and
 carry Catch2's `[!shouldfail]` tag, rather than pinning the buggy value. Catch2 reports an
 expected failure as a pass, so the suite stays green, and the moment the defect is fixed the case
@@ -3152,6 +3168,31 @@ the layer written, so after `iterate()` it tracks the last **write**. `V_choice`
 leaves. Every downstream deletion then performs its own check rather than skipping it — the same
 value the alignment loop writes whenever the verdict is undetermined. There is no prior behaviour
 to preserve: the old value was uninitialized memory.
+
+**How much the fix moved, measured** *(Sep 16 2026, `scripts/tests/test_no_d_align.sh`)*. The new
+regression test below forces this path for about **48 %** of D choices instead of the corpus's
+0.2 %, and comparing its output against a build of `fix/scenario_tie` — a branch that predates the
+whole refactoring — puts a number on "the old value was uninitialized memory": **346 of the 300
+Pgen rows differ**, along with 30 J and 70 V coverage rows. The same comparison with the D
+alignments left intact is **bitwise identical** for all three, so the divergence is this path and
+nothing else. The pre-B8 build reproduces its own output run to run, which is why an uninitialized
+read went unnoticed for so long, and is also why it must not be used as golden data.
+
+**A regression test now covers the path** *(Sep 16 2026)*. `scripts/tests/test_no_d_align.sh`,
+wired into `pixi run test_regression` as test 4: one `evaluate` pass over the reference TRB model
+and the usual 300 demo sequences, with the D alignment file reduced to its header row. That is the
+manipulation §6 prescribes for step 5 — no aligner change, just an empty alignment set — and it
+raises this path from 5 firings per iteration to ~1200. Golden data is this branch's, from the
+first commit at which the path has defined behaviour, for the reason above.
+
+It has teeth, and the existing suite does not: flipping the conservative `false` verdict to `true`
+makes all four of its files mismatch, while `test_inference.sh` reports **zero** mismatches on the
+same binary.
+
+*(One consequence for planning: step 3 was verified against this fixture after the fact, and is
+bitwise on it — `769e1b3` and the B11a working tree produce identical Pgen and coverage counters
+under empty D alignments. So B11a's rewiring of the exhaustive block is covered by evidence, not
+only by the corpus's five firings.)*
 
 **A harness-level guard now covers this class of defect.** `call_iterate_recording()` checks the
 layer contract — *requesting a layer is a promise to write it before handing off* — on every
