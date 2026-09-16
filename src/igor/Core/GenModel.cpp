@@ -231,8 +231,14 @@ bool GenModel::infer_model(
 		 * #pragma omp parallel for schedule(dynamic) reduction(+:error_rate_copy,new_marginals) firstprivate(model_queue,index_map,offset_map,model_marginals_copy,events_map , processed_events , safety_set , write_index_list) //num_threads(6)
 		 */
 
+        //Where the thread that folds the junction-length bounds publishes its events for the
+        //others to adopt from. Shared, and re-created every iteration because the bound follows
+        //the marginals. Sized inside the region, by the thread that fills it.
+        vector<shared_ptr<Rec_Event>> len_proba_bound_source_events;
+
 //Declare variables to use OpenMP 3.1 standards
-#pragma omp parallel shared(new_marginals, error_rate_copy, sequences_processed, sequence_util_ptr, sequences) \
+#pragma omp parallel shared(new_marginals, error_rate_copy, sequences_processed, sequence_util_ptr, sequences, \
+        len_proba_bound_source_events) \
         firstprivate(model_queue, proba_threshold_factor) //num_threads(1)
         {
             //Make single thread copies of objects for thread safety
@@ -360,27 +366,50 @@ bool GenModel::infer_model(
             {
                 cerr << "Initializing probability bounds..." << endl;
             }
-            //Compute upper proba bounds for downstream scenarios for each event
+            //Compute upper proba bounds for downstream scenarios for each event.
+            //
+            //The crude bound stays per-thread: initialize_crude_scenario_proba_bound() stores a
+            //forward_list<double*> pointing into *this thread's* mutable event members, so a
+            //shared one would leave every thread pointing at one model's doubles.
             double downstream_proba_bound = 1;
             forward_list<double *> updated_proba_list;
+            vector<shared_ptr<Rec_Event>> len_proba_bound_order;
+            len_proba_bound_order.reserve(init_single_thread_stack.size());
             while (!init_single_thread_stack.empty()) {
                 shared_ptr<Rec_Event> last_proba_init_event = init_single_thread_stack.top();
-                queue<shared_ptr<Rec_Event>> tmp_init_proba_single_thread_model_queue = single_thread_model_queue;
                 init_single_thread_stack.pop();
-                while (tmp_init_proba_single_thread_model_queue.front() != last_proba_init_event) {
-                    tmp_init_proba_single_thread_model_queue.pop();
-                }
-                tmp_init_proba_single_thread_model_queue.pop();
                 last_proba_init_event->initialize_crude_scenario_proba_bound(downstream_proba_bound,
                                                                              updated_proba_list, events_map);
+                len_proba_bound_order.push_back(last_proba_init_event);
+            }
 
-                last_proba_init_event->initialize_Len_proba_bound(tmp_init_proba_single_thread_model_queue,
-                                                                  single_thread_model_marginals.marginal_array_smart_p,
-                                                                  index_mapp);
-                /*#pragma omp single nowait
-				{
-					cerr<<last_proba_init_event->get_name()<<" initialized"<<endl;
-				}*/
+            //The junction-length bound, by contrast, is a function of the marginals alone, so all
+            //N threads used to compute the identical answer N times (section 2.5 finding 7 of
+            //docs/ITERATE_GENERIC_REWRITE_PLAN.md). One thread folds it and the rest copy the
+            //result, which is orders of magnitude below folding it again.
+            bool folded_len_proba_bounds = false;
+#pragma omp single
+            {
+                len_proba_bound_source_events.assign(single_thread_model_parms.get_event_list().size(), nullptr);
+                for (const shared_ptr<Rec_Event> &len_proba_init_event : len_proba_bound_order) {
+                    queue<shared_ptr<Rec_Event>> tmp_init_proba_single_thread_model_queue = single_thread_model_queue;
+                    while (tmp_init_proba_single_thread_model_queue.front() != len_proba_init_event) {
+                        tmp_init_proba_single_thread_model_queue.pop();
+                    }
+                    tmp_init_proba_single_thread_model_queue.pop();
+                    len_proba_init_event->initialize_Len_proba_bound(
+                            tmp_init_proba_single_thread_model_queue,
+                            single_thread_model_marginals.marginal_array_smart_p, index_mapp);
+                    len_proba_bound_source_events[len_proba_init_event->get_event_identifier()] = len_proba_init_event;
+                }
+                folded_len_proba_bounds = true;
+            }
+            //omp single's implicit barrier is what publishes the folds above to the readers below.
+            if (not folded_len_proba_bounds) {
+                for (const shared_ptr<Rec_Event> &len_proba_init_event : len_proba_bound_order) {
+                    len_proba_init_event->adopt_Len_proba_bound(
+                            *len_proba_bound_source_events[len_proba_init_event->get_event_identifier()]);
+                }
             }
 #pragma omp single nowait
             {

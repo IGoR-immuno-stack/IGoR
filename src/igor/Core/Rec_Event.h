@@ -467,7 +467,34 @@ public:
      */
     virtual void finalize_Len_proba_bound(const Marginal_array_p &, Index_map &) {}
 
+    /**
+     * \brief Take this iteration's folded bounds from \a source instead of folding them again.
+     *
+     * The bound is a function of the marginals alone, so every thread's copy of an event folds
+     * the identical answer -- section 2.5's finding 7. One thread folds, the rest adopt.
+     *
+     * It copies the profiles rather than sharing a pointer to them, which is the cheaper of the
+     * two: a profile is a contiguous run of at most ~300 doubles, so the copy is far below the
+     * fold that produced it, while a `shared_ptr` would put an indirection in front of
+     * best_for() -- called at every one of the 10^8-10^10 scenario nodes, and the thing the dense
+     * rewrite was for. It also keeps the threads' profiles genuinely independent, so nothing has
+     * to reason about whether iterate() might write through one.
+     *
+     *  source must be the same event of another thread's model copy: its junctions are resolved
+     * by the same initialize_event(), so only the profiles move.
+     */
+    void adopt_Len_proba_bound(const Rec_Event &source);
+
 protected:
+    /**
+     * \brief Hook for a consumer that keeps more than the folded profiles -- the adopting half
+     * of finalize_Len_proba_bound(), and it expires with it in 5b.
+     *
+     * Gene_choice(D) alone, for the same reason: its retained decomposition is not in any
+     * JunctionBound, so the base class cannot move it.
+     */
+    virtual void adopt_finalized_Len_proba_bound(const Rec_Event &) {}
+
     /**
      * \brief Which junction a JunctionBound slot holds, relative to this event's own segment.
      *

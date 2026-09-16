@@ -102,6 +102,9 @@ public:
     void finalize_Len_proba_bound(const Marginal_array_p &model_parameters_point,
                                   Index_map &base_index_map) override;
 
+protected:
+    void adopt_finalized_Len_proba_bound(const Rec_Event &source) override;
+
 private:
     inline double iterate_common(
             double, const int &, int, Index_map &,

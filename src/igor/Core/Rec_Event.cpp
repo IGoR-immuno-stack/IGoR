@@ -499,3 +499,16 @@ void Rec_Event::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &model_q
 
     this->finalize_Len_proba_bound(model_parameters_point, base_index_map);
 }
+
+void Rec_Event::adopt_Len_proba_bound(const Rec_Event &source)
+{
+    for (std::size_t slot = 0; slot != kJunctionSlotCount; ++slot) {
+        JunctionBound &bound = junction_bounds_[slot];
+        if (not bound.resolved() or not bound.folded()) {
+            continue;
+        }
+        bound.mutable_profile() = source.junction_bounds_[slot].profile();
+    }
+
+    this->adopt_finalized_Len_proba_bound(source);
+}

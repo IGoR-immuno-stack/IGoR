@@ -1484,3 +1484,19 @@ void Gene_choice::finalize_Len_proba_bound(const Marginal_array_p &model_paramet
         sort(d_position_map_iter->second.begin(), d_position_map_iter->second.end(), D_position_tuple);
     }
 }
+
+/*
+ * The adopting half of the above. vj_length_d_position_proba is not in any JunctionBound, so the
+ * base class cannot move it; both this and finalize_Len_proba_bound() disappear when 5b turns the
+ * retained decomposition into JunctionBound::Fold::Retain.
+ */
+void Gene_choice::adopt_finalized_Len_proba_bound(const Rec_Event &source)
+{
+    if (this->event_class != D_gene) {
+        return;
+    }
+
+    //The caller passes the same event of another thread's model copy, so this is a Gene_choice(D).
+    const Gene_choice &gene_source = dynamic_cast<const Gene_choice &>(source);
+    vj_length_d_position_proba = gene_source.vj_length_d_position_proba;
+}
