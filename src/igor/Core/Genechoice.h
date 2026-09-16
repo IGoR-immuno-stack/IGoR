@@ -26,7 +26,9 @@
 #pragma once
 
 #include <igor/Core/Rec_Event.h>
+#include <igor/Core/JunctionGeometry.h>
 #include <igor/Core/Utils.h>
+#include <array>
 #include <forward_list>
 #include <unordered_map>
 #include <string>
@@ -111,38 +113,92 @@ private:
             const std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &,
             const Marginal_array_p &);
 
-    /// Write the bounds for the two junctions a D placed at [\a d_5, \a d_3] creates, plus the
-    /// neutral element into the junction it splits. False when the placement is unreachable.
-    bool write_d_flanking_bounds(Downstream_scenario_proba_bound_map &proba_map, Seq_Offset d_5,
-                                 Seq_Offset d_3) const;
+    /// Write the bound for every junction this placement fixes: the one on each flank, and the
+    /// neutral element into the junction an internal segment splits. False when no scenario
+    /// reaches one of those distances, which is the caller's cue to discard the placement.
+    bool write_junction_bounds(Downstream_scenario_proba_bound_map &proba_map, Seq_Offset five_off,
+                               Seq_Offset three_off) const;
+
+    /**
+     * \brief The error-free length credited to this placement, in nucleotides.
+     *
+     * **Section 7.1's defect, carried verbatim.** A segment with a movable end at each side
+     * credits the core between them -- right in shape, one short of the inclusive count. A
+     * segment anchored on a read end credits `size + travel` where at most `size - travel` can
+     * survive, so its bound comes out too small and prunes harder than the model justifies.
+     * Decision O4: step 3 reproduces both arithmetics rather than deriving one, and R5 replaces
+     * them with `core_3 - core_5 + 1`.
+     */
+    int credited_core_length(Seq_Offset core_5, Seq_Offset core_3) const;
+
+    /**
+     * \brief The Event_safety slot naming a pair of gene segments, by their 5'->3' positions.
+     *
+     * The enum can name only the three pairs a single-D model has, so a tandem-D ordering
+     * produces pairs it cannot name. That ceiling is S5's to lift -- a safety row bitmask
+     * indexed by ordering position -- and until then it is better visible at initialization
+     * than silently aliased in the hot loop.
+     */
+    static Event_safety legacy_safety_slot(std::size_t left_position, std::size_t right_position);
+
+    /**
+     * \brief One neighbouring segment end this gene's placement is checked against.
+     *
+     * Resolved in initialize_event(); iterate() reads it. The two entries a VDJ model produces
+     * are the former memory_layer_safety_1 / _2 pair, in the same order -- the neighbour that
+     * sits further 5' first -- which is what keeps the claimed layers where they were.
+     */
+    struct FlankCheck {
+        SeqTypeId partner_id = kNoSeqType;
+        Seq_side partner_side = Five_prime;   ///< the partner end facing this gene
+        bool this_is_left = true;             ///< the partner sits 3' of this gene
+        Event_safety safety_slot = VD_safe;   ///< S5 replaces this enum with a row bitmask
+        int safety_layer = -1;
+        int partner_offset_layer = -1;
+        bool partner_exists = false;          ///< the model has a gene choice for that segment
+        bool partner_chosen = false;          ///< ...and it is placed before this one
+        bool active = false;                  ///< per scenario: the partner is placed, so check
+    };
+
+    /// Section 7.1's two arithmetics. See credited_core_length().
+    enum class EndogenousCore { Inflated, Truncated };
+
+    std::vector<FlankCheck> flank_checks_;
+
+    /// What each checked neighbour's facing end can still reach, and where it sits. Indexed by
+    /// the neighbour's SeqTypeId; filled once per scenario by the preamble of iterate().
+    std::vector<JunctionGeometry::OffsetInterval> neighbour_reach_;
+    std::vector<Seq_Offset> neighbour_offset_;
+
+    /// Every pending offset modifier in the model, rebuilt at initialize_event(). The four
+    /// hand-written deletion lookups it replaces are the same query asked four times.
+    JunctionGeometry::PendingModifierBounds pending_;
+
+    /// Resolved from the ordering, not from event_class: a gene at an end of the constructed
+    /// sequence is anchored by the read rather than by a neighbour, which is what makes its
+    /// template able to overhang, its error-free core credited the other way, and its position
+    /// not something to scan for when the aligner finds nothing.
+    bool clip_template_before_read_ = false;
+    bool clip_template_after_read_ = false;
+    bool exhaustive_position_fallback_ = false;
+    bool publishes_alignment_state_ = true;
+    EndogenousCore endogenous_core_ = EndogenousCore::Inflated;
+
+    /// This placement's own two ends, for the scenario being explored.
+    Seq_Offset my_5_off = 0;
+    Seq_Offset my_3_off = 0;
 
     //Inference variables
     //Bool checks
-    bool vd_check;
-    bool vj_check;
-    bool dj_check;
 
     //Offsets checks
 
-    Seq_Offset d_5_min_offset;
-    Seq_Offset d_5_max_offset;
-    Seq_Offset j_5_min_offset;
-    Seq_Offset j_5_max_offset;
-    Seq_Offset v_5_off;
-    Seq_Offset v_3_off;
-    Seq_Offset d_offset;
-    Seq_Offset j_offset;
-    Seq_Offset v_offset;
 
-    Seq_Offset v_3_min_offset;
-    Seq_Offset v_3_max_offset;
-    Seq_Offset d_3_off;
     Seq_Offset d_5_off;
 
     Seq_Offset d_3_min_offset;
     Seq_Offset d_3_max_offset;
 
-    Seq_Offset j_5_off;
 
     //Suitable D align bool
     bool no_d_align;
@@ -158,20 +214,16 @@ private:
     Int_Str gene_seq;
     int new_index;
     const int *alignment_offset_p;
+    /// Scratch for the no_d_align scan only; the alignment path counts its core inline.
     std::vector<size_t>::const_iterator mism_iter;
-    std::vector<size_t>::const_reverse_iterator rev_mism_iter;
     size_t endogeneous_mismatches;
 
     //Constants
     //Memory Layers
     int memory_layer_cs;
     int memory_layer_mismatches;
-    int memory_layer_safety_1;
-    int memory_layer_safety_2;
     int memory_layer_off_threep;
     int memory_layer_off_fivep;
-    int memory_layer_offset_check1;
-    int memory_layer_offset_check2;
     int memory_layer_proba_map_seq;
 
     //Gene choices
@@ -186,10 +238,6 @@ private:
     int d_5_max_del;
     int d_5_min_del;
     int d_5_real_max_del;
-    int j_5_max_del;
-    int j_5_min_del;
-    int v_3_max_del;
-    int v_3_min_del;
     int d_3_max_del;
     int d_3_min_del;
 
