@@ -1574,7 +1574,7 @@ already flagged as the milestone-1 blocker and because `Gene_choice` is the only
 | **S4a** | ✅ **done** — `SegmentSpan`; `affects_length_of` / `affects_proba_of` replacing `has_effect_on`; queue-level filter restored, per-body self-filter removed; tier-3 hand-off capability check in the harness (§6.11) | full ladder | **yes** |
 | **S4b** | ✅ **done** — `length_delta` + `span_proba_factor`; the four `iterate_initialize_Len_proba` bodies → one non-virtual traversal; `SpanAccumulator` replaces the `constructed_sequences` side channel; finding 5's init redundancy removed (§6.12) | full ladder | **yes** |
 | **S4c** | ✅ **done** — junction bounds resolved in `initialize_event()`, held as `std::array<JunctionBound,3>` on `Rec_Event`; `initialize_Len_proba_bound` de-virtualised to one driver plus a `finalize` hook `Gene_choice(D)` alone uses — **a placeholder for `Fold::Retain`, expiring in 5b, see §2.6**; `SpanProfile` with a value-or-absent accessor; finding 3's dead fold deleted, finding 2's **member** deleted but not its predicate. Ownership stayed with the event, and `⊗ᵐᵃˣ` was **dropped for want of a consumer** — see §6.10 findings 2 and 7. *Original scope:* Span-identified structure owned by the model **at init**; `⊗ᵐᵃˣ`; the enum-named members become a **left-span / right-span handle pair resolved in `initialize_event()`** — no span lookup in `iterate()` (§2.5), and not one merged map (§6.10 finding 4); single value-or-absent accessor replacing `count`+`at` (finding 6); `initialize_Len_proba_bound` de-virtualised; findings 2–3's dead code deleted. Sharing the fold across consumers is **deferred** — init cost is negligible. **Removes the tandem-D enum ceiling** — on the milestone-1 critical path | full ladder + benchmark | **yes** |
-| **S4e** | Hoist the `initialize_Len_proba_bound` sweep **out of the OpenMP region** — it is model-only and thread-invariant, so 22 threads currently build 22 copies of one answer (§6.10 finding 7). Gated on S4c's ownership move, which is what lets the thread copies share rather than rebuild. The crude-bound pass stays per-thread | full ladder + the init benchmark | **yes** |
+| **S4e** | ✅ **done** — the sweep runs **once per EM iteration instead of once per thread**: the init loop splits, the crude bound stays per-thread, and the junction-length fold runs under `omp single` while the other threads adopt its result. Sharing is a **value copy** of the profile, not the `shared_ptr` §2.5 proposed — see there for why. Init wall time on 22 threads: mean 132 → 48 ms per thread, max 209 → 58 ms. *Original scope:* hoist the `initialize_Len_proba_bound` sweep **out of the OpenMP region** — it is model-only and thread-invariant, so 22 threads built 22 copies of one answer (§6.10 finding 7). Gated on S4c's ownership move. The crude-bound pass stays per-thread | full ladder + the init benchmark | **yes** |
 | **S4d** | Tensor-backed containers for the 3-D `no_d_align` structure — **gated on the Tensor API**, itself blocked on the C++23 bump (§2.5). Optional, performance only | full ladder + benchmark | **yes** |
 | **3** | **B11a** — `Gene_choice` alignment path generic (G4, G2, G8, and G5 via S4a-c). Characterization already delivered by T0. **First production consumer of S3** | full ladder + benchmark | **yes**, except §7.1 |
 | **4a** | `Deletion` characterization sections, including the zero-length junction T0 deferred. **Moved ahead of S5** (§6.8, F4) | unit + mutation | n/a — tests only |
@@ -2408,6 +2408,43 @@ every call site.
      redundancy is unchanged (N threads, one answer), the absolute is not. O14 also supplied half
      the mechanism: `SpanParticipants` is already an immutable, shareable list, so only the profile
      itself still has to be made shareable.
+
+     **Delivered *(Sep 16 2026)*, and by neither of the two routes above.** The profiles are copied
+     by **value** from the folding thread to the others, not shared through a `shared_ptr` and not
+     moved into an arena. Three reasons, in order of weight:
+
+     - A `shared_ptr` inside `JunctionBound` puts an indirection in front of `best_for()`, which
+       runs at every one of the 10⁸–10¹⁰ scenario nodes. That is the cost the dense rewrite existed
+       to remove; paying it back to save an init-time copy would be a bad trade at any ratio.
+     - A profile is at most ~300 contiguous doubles, so copying one is orders of magnitude below
+       folding it. **The saving was never the storage — it is not folding N times.**
+     - Value copies keep the threads' profiles genuinely independent, so nothing downstream has to
+       establish that `iterate()` never writes through one. Shared mutable-looking state in a hot
+       parallel loop is a liability disproportionate to ~2 kB.
+
+     The same argument covers `Gene_choice(D)`'s retained decomposition, which is much larger
+     (~15 k tuples on TRB) and is copied the same way through `adopt_finalized_Len_proba_bound()` —
+     the adopting half of `finalize_Len_proba_bound()`, and expiring with it in 5b. Memory is
+     unchanged from before S4e: every thread held its own copy already.
+
+     **Mechanism.** The init loop splits in two. The crude bound stays per-thread, for the reason
+     recorded above. The fold then runs under `#pragma omp single`, publishing the folding thread's
+     events into a vector shared across the team; `single`'s implicit barrier is what makes the
+     folds visible, and every other thread then calls `adopt_Len_proba_bound()`. A thread knows
+     which side it is on from a private flag the `single` block sets.
+
+     **Measured**, 22 threads, TRB corpus, timing the whole bound-init phase per thread:
+
+     | | mean per thread | max per thread |
+     |---|---:|---:|
+     | before | 132–141 ms | 209–263 ms |
+     | after | 48–50 ms | 57–58 ms |
+
+     The mean falls 2.7× and the max 4×, but the **spread** is the real result: 48 ms is what one
+     fold costs single-threaded (the TRB benchmark says 46 ms), so the init phase now costs one
+     fold plus a barrier wait, and the 209 ms tail — contention between threads doing identical
+     work — is gone rather than reduced. *(These "before" figures are ~4× below §2.5's 706 ms
+     because O14 landed in between.)*
 
    The bound depends on the marginals, which move every EM iteration, so the hoist is **once per
    iteration** rather than once per run.
