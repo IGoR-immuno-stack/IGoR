@@ -495,6 +495,13 @@ which needs `std::mdspan` and therefore C++23, and the parent plan records that 
 on C++23 against 201/201 on C++20). So S4d is recorded as a last optional step rather than
 scheduled, and the 1-D `Matrix`/vector swap is available meanwhile without waiting for any of it.
 
+**Sharpened *(Quentin, Sep 16 2026)*: the gate is the branch *merging*, not the API existing**, and
+the expected point is the **end of phase B**. `feature/TensorLinalg` carries the model-topology and
+model-marginals rework alongside the Tensor API, so anything written against today's topology
+handling has to be backported to the new one. That makes S4d a post-merge item by the same argument
+that holds the parent plan's Phases C and D until then — see its execution plan. S4d is performance
+only, so nothing on the tandem-D critical path waits for it.
+
 #### The frame, the algebra, and what decomposition is retained
 
 *(Established Sep 9 2026 — see §6.10 for the evidence and the incidental findings.)*
@@ -1575,7 +1582,7 @@ already flagged as the milestone-1 blocker and because `Gene_choice` is the only
 | **S4b** | ✅ **done** — `length_delta` + `span_proba_factor`; the four `iterate_initialize_Len_proba` bodies → one non-virtual traversal; `SpanAccumulator` replaces the `constructed_sequences` side channel; finding 5's init redundancy removed (§6.12) | full ladder | **yes** |
 | **S4c** | ✅ **done** — junction bounds resolved in `initialize_event()`, held as `std::array<JunctionBound,3>` on `Rec_Event`; `initialize_Len_proba_bound` de-virtualised to one driver plus a `finalize` hook `Gene_choice(D)` alone uses — **a placeholder for `Fold::Retain`, expiring in 5b, see §2.6**; `SpanProfile` with a value-or-absent accessor; finding 3's dead fold deleted, finding 2's **member** deleted but not its predicate. Ownership stayed with the event, and `⊗ᵐᵃˣ` was **dropped for want of a consumer** — see §6.10 findings 2 and 7. *Original scope:* Span-identified structure owned by the model **at init**; `⊗ᵐᵃˣ`; the enum-named members become a **left-span / right-span handle pair resolved in `initialize_event()`** — no span lookup in `iterate()` (§2.5), and not one merged map (§6.10 finding 4); single value-or-absent accessor replacing `count`+`at` (finding 6); `initialize_Len_proba_bound` de-virtualised; findings 2–3's dead code deleted. Sharing the fold across consumers is **deferred** — init cost is negligible. **Removes the tandem-D enum ceiling** — on the milestone-1 critical path | full ladder + benchmark | **yes** |
 | **S4e** | ✅ **done** — the sweep runs **once per EM iteration instead of once per thread**: the init loop splits, the crude bound stays per-thread, and the junction-length fold runs under `omp single` while the other threads adopt its result. Sharing is a **value copy** of the profile, not the `shared_ptr` §2.5 proposed — see there for why. Init wall time on 22 threads: mean 132 → 48 ms per thread, max 209 → 58 ms. *Original scope:* hoist the `initialize_Len_proba_bound` sweep **out of the OpenMP region** — it is model-only and thread-invariant, so 22 threads built 22 copies of one answer (§6.10 finding 7). Gated on S4c's ownership move. The crude-bound pass stays per-thread | full ladder + the init benchmark | **yes** |
-| **S4d** | Tensor-backed containers for the 3-D `no_d_align` structure — **gated on the Tensor API**, itself blocked on the C++23 bump (§2.5). Optional, performance only | full ladder + benchmark | **yes** |
+| **S4d** | Tensor-backed containers for the 3-D `no_d_align` structure — **gated on `feature/TensorLinalg` merging**, expected end of phase B, not merely on the API existing: that branch also reworks model topology and marginals, so anything written against today's handling would need backporting (§2.5). Optional, performance only | full ladder + benchmark | **yes** |
 | **3** | **B11a** — `Gene_choice` alignment path generic (G4, G2, G8, and G5 via S4a-c). Characterization already delivered by T0. **First production consumer of S3** | full ladder + benchmark | **yes**, except §7.1 |
 | **4a** | `Deletion` characterization sections, including the zero-length junction T0 deferred. **Moved ahead of S5** (§6.8, F4) | unit + mutation | n/a — tests only |
 | **S5** | Safety row-bitmask; row-suffix propagation; `Event_safety` deleted | full ladder + the empty-segment transitivity test + 4a's sections unchanged | **yes** (§2.3 corollary) |
@@ -2580,7 +2587,7 @@ needs a fixture that forces it.
 | **S4a** | `SegmentSpan`; `affects_length_of(SegmentSpan)` replacing `has_effect_on`; the filter moved to the queue level (closing finding 1) and removed from the four bodies. Also the tier-3 harness check (§2.5) | naming; no behaviour change |
 | **S4b** | `length_delta` + `span_proba_factor`, both as **group** hooks; the four bodies → one non-virtual traversal; `SpanAccumulator` (carrying per-segment lengths) replaces the `constructed_sequences` side channel and its `Seq_type_str_p_map` parameter | the collapse; findings 1 and 5 |
 | **S4c** | Span-keyed structure owned by the model; `⊗ᵐᵃˣ`; six members → one; each span built once; `initialize_Len_proba_bound` de-virtualised; **the dead code of findings 2 and 3 deleted here** | **removes the tandem-D enum ceiling**; findings 2, 3, 4 |
-| **S4d** | Tensor-backed containers, **gated on the Tensor API landing** — see the container note in §2.5 | performance only; strictly optional |
+| **S4d** | Tensor-backed containers, **gated on `feature/TensorLinalg` merging** (end of phase B) — see the container note in §2.5 | performance only; strictly optional |
 | **→ 5b** | `⊗ᵉⁿᵘᵐ` — bucketing `(realization, left_len)` pairs by total, sorted | `no_d_align` only |
 | **→ R6** | The within-clique **joint** max, and optionally cross-clique parent indexing | bound tightening — **changes results**, §6.9 |
 

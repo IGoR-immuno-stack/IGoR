@@ -23,8 +23,8 @@ Legend: ✅ done · 🟡 partial · ⬜ not started
 | B11 *(new)* | ⬜ | Generalize `Gene_choice` seq_type writes (both the alignment and `no_d_align` exhaustive paths). **Most blocking item for milestone 1** — two D events currently both write `D_gene_seq`. |
 | B10 *(new)* | ⬜ | Absent-segment semantics. **Off the tandem-D critical path** — milestone 1 has both D genes always present. Carries a real modelling decision (chain-with-conflation vs. DAG ordering) deferred to milestone 2. |
 | B9 | 🟡 | Legacy→seq_type inference, registry inference (VDJ/VJ), `write_model_parms_legacy` / `write_model_parms_v2` split, v2 `@Version` / `@Seq_type_order` parsing and per-event `write2txt_v2()` are all implemented. `VDJ_genes` `Dinucl_markov` expansion (B9 step 3) and junction safety adjacency generation (step 4) are not. |
-| Phase C | ⬜ | — |
-| Phase D | ⬜ | — |
+| Phase C | ⬜ | **Waits for the Tensor / topology branch merge** (expected end of phase B) — it validates the interfaces that branch replaces. See the execution plan below. |
+| Phase D | ⬜ | Same gate as Phase C, and additionally wants that branch's containers. |
 | Phase E | ⬜ | — |
 
 ## Execution plan (as of `ed5c583`, Aug 27 2026)
@@ -115,6 +115,15 @@ Milestone 1 runs on a **dummy generative model, not real biological data**. What
 **Milestone 2 (optional D2)**: `B10`, including the chain-vs-DAG decision recorded there.
 
 Not on the path, deliberately deferred: B3 (flanks), B9 steps 3–4, Phase A, Phase C, Phases D/E.
+
+**Phases C and D wait for the Tensor / topology branch to merge** *(Quentin, Sep 16 2026)*. That
+branch carries both the Tensor API and the model-topology / model-marginals rework, so it replaces
+the very interfaces C validates and D partitions. Carrying C or D against today's topology handling
+would mean writing validation and decomposition code against an API that is already scheduled to be
+replaced, and then backporting every line of it — the work would be done twice and the second time
+without the context that produced it. The merge is expected at the **end of phase B**, which is also
+what ungates the iterate plan's **S4d**; both are performance or validation, neither is on the
+tandem-D critical path, so nothing in milestone 1 waits on them.
 
 Build in while passing through, both nearly free now and expensive to retrofit:
 
