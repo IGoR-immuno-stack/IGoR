@@ -17,6 +17,7 @@ TEST_NAMES=(
     "cli"
     "align"
     "inference"
+    "no_d_align"
     "generate"
 )
 
@@ -24,6 +25,7 @@ TEST_SCRIPTS=(
     "$SCRIPT_DIR/test_cli.sh"
     "$SCRIPT_DIR/test_align.sh"
     "$SCRIPT_DIR/test_inference.sh"
+    "$SCRIPT_DIR/test_no_d_align.sh"
     "$SCRIPT_DIR/test_generate.sh"
 )
 
@@ -31,6 +33,7 @@ TEST_DESCRIPTIONS=(
     "CLI smoke, config, manifest, replay tests"
     "Alignment tests"
     "Inference tests"
+    "Evaluate with no D alignment, forcing the exhaustive position scan"
     "Generation tests"
 )
 
@@ -49,8 +52,8 @@ Run regression tests and generate detailed reports.
 
 Arguments:
   TEST_SPEC           Test to run (index, name, or 'all')
-                      Index: 1, 2, 3, 4
-                      Name: cli, align, inference, generate
+                      Index: 1, 2, 3, 4, 5
+                      Name: cli, align, inference, no_d_align, generate
                       Default: all
 
 Options:
