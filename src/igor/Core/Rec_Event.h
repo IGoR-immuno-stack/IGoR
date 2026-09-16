@@ -440,6 +440,15 @@ public:
      * Gene_choice(D) alone: it splits the junction it sits inside, so it keeps the *retained*
      * decomposition of that junction -- which D, at which VD and DJ distances -- rather than the
      * max-folded profile. Called after every folded junction of this event is built.
+     *
+     * **Placeholder, not an extension point.** It is the only place left where a subclass runs
+     * arbitrary code inside the initialization sweep, and its body is generic in disguise: the
+     * per-realization max it computes duplicates the fold's own, `value_str.size()` is
+     * length_delta(), and the rest is left profile (x) right profile. It becomes a third
+     * JunctionBound::Fold mode -- `Retain` -- driven by the base class and gated by
+     * `exhaustive_position_fallback_`, in 5b and not before: the regression corpus never fires
+     * `no_d_align`, so generalising it ahead of 5a's characterization fixture would be unchecked.
+     * Section 2.6 of docs/ITERATE_GENERIC_REWRITE_PLAN.md.
      */
     virtual void finalize_Len_proba_bound(const Marginal_array_p &, Index_map &) {}
 

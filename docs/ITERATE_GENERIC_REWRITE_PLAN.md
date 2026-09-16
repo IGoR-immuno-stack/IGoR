@@ -1195,6 +1195,39 @@ bool exhaustive_position_fallback_ = false;   // Gene_choice member
 - Resolves open item **O6**: the fixture question dissolves — step 5 is tested by flipping the
   switch on a gene whose alignments are empty, not by defeating the aligner.
 
+##### `Gene_choice::finalize_Len_proba_bound` is this flag's placeholder, and expires here *(Sep 16 2026)*
+
+S4c de-virtualised `initialize_Len_proba_bound` into one base driver plus a virtual
+`finalize_Len_proba_bound` hook, overridden only by `Gene_choice` and active only for `D_gene`,
+which builds `vj_length_d_position_proba` once the two flanking profiles exist. **It is a
+placeholder, not a settled extension point**, and its lifetime is worth stating because nothing
+else about it says so:
+
+- **Not tied to the `Deletion` refactor.** 4b/B5 rewrites `Deletion::iterate` and touches none of
+  this. The hook passes through that step unchanged.
+- **What it builds is permanent.** `⊗ᵉⁿᵘᵐ` is 5b's deliverable, S4d gives it a Tensor container, and
+  the composition above is the same for a tandem D with different neighbours. Something must build
+  it after the folds, indefinitely.
+- **The hook itself should not be.** It is the only place left where a subclass runs arbitrary code
+  inside the initialization sweep; S4a, S4b and S4c turned every other per-event decision in this
+  machinery into a declaration (`affects_length_of`, `length_delta`, `span_proba_factor`,
+  `JunctionBound::Fold`).
+
+Its body is already generic in disguise. `d_gene_max_proba`
+([Genechoice.cpp:1452-1459](../src/igor/Core/Genechoice.cpp#L1452)) recomputes, identically, the
+`real_max_proba` the fold derives per realization
+([Rec_Event.cpp:416-421](../src/igor/Core/Rec_Event.cpp#L416)); `value_str.size()` is
+`length_delta(realization)`; and the rest is left profile ⊗ right profile. The only genuinely
+`Gene_choice`-shaped thing is that the retained tuple carries a gene **name string**, which §2.5
+already flags as a per-candidate hash lookup to replace with a realization index.
+
+**End state**: a third mode on the junction an event splits — `JunctionBound::Fold::Yes` / `No` /
+**`Retain`** — executed by the base driver and gated by `exhaustive_position_fallback_`. The hook
+then goes away and the sweep has no virtuals left. **Do it in 5b, not before**: the regression
+corpus is one TRB model where `no_d_align` never fires, so an error in generalising it is invisible
+to the bitwise gate, and 5a exists precisely to characterize the path first. 5b is also where the
+D1/D2 case first tests whether one enclosing junction per event is enough.
+
 ### 2.7 — G7: Mismatch-list trimming and palindrome construction
 
 Two mirror-image pairs, four sites, ~180 lines:
@@ -1540,7 +1573,7 @@ already flagged as the milestone-1 blocker and because `Gene_choice` is the only
 | **2b** | ✅ **done** — **B7**, specs from the registry (G9) and per-spec buffers. Skip-empty walk **deferred to phase R**: it is §7.12's fix, not a refactor (§7.11) | full ladder | **yes** |
 | **S4a** | ✅ **done** — `SegmentSpan`; `affects_length_of` / `affects_proba_of` replacing `has_effect_on`; queue-level filter restored, per-body self-filter removed; tier-3 hand-off capability check in the harness (§6.11) | full ladder | **yes** |
 | **S4b** | ✅ **done** — `length_delta` + `span_proba_factor`; the four `iterate_initialize_Len_proba` bodies → one non-virtual traversal; `SpanAccumulator` replaces the `constructed_sequences` side channel; finding 5's init redundancy removed (§6.12) | full ladder | **yes** |
-| **S4c** | ✅ **done** — junction bounds resolved in `initialize_event()`, held as `std::array<JunctionBound,3>` on `Rec_Event`; `initialize_Len_proba_bound` de-virtualised to one driver plus a `finalize` hook `Gene_choice(D)` alone uses; `SpanProfile` with a value-or-absent accessor; finding 3's dead fold deleted, finding 2's **member** deleted but not its predicate. Ownership stayed with the event, and `⊗ᵐᵃˣ` was **dropped for want of a consumer** — see §6.10 findings 2 and 7. *Original scope:* Span-identified structure owned by the model **at init**; `⊗ᵐᵃˣ`; the enum-named members become a **left-span / right-span handle pair resolved in `initialize_event()`** — no span lookup in `iterate()` (§2.5), and not one merged map (§6.10 finding 4); single value-or-absent accessor replacing `count`+`at` (finding 6); `initialize_Len_proba_bound` de-virtualised; findings 2–3's dead code deleted. Sharing the fold across consumers is **deferred** — init cost is negligible. **Removes the tandem-D enum ceiling** — on the milestone-1 critical path | full ladder + benchmark | **yes** |
+| **S4c** | ✅ **done** — junction bounds resolved in `initialize_event()`, held as `std::array<JunctionBound,3>` on `Rec_Event`; `initialize_Len_proba_bound` de-virtualised to one driver plus a `finalize` hook `Gene_choice(D)` alone uses — **a placeholder for `Fold::Retain`, expiring in 5b, see §2.6**; `SpanProfile` with a value-or-absent accessor; finding 3's dead fold deleted, finding 2's **member** deleted but not its predicate. Ownership stayed with the event, and `⊗ᵐᵃˣ` was **dropped for want of a consumer** — see §6.10 findings 2 and 7. *Original scope:* Span-identified structure owned by the model **at init**; `⊗ᵐᵃˣ`; the enum-named members become a **left-span / right-span handle pair resolved in `initialize_event()`** — no span lookup in `iterate()` (§2.5), and not one merged map (§6.10 finding 4); single value-or-absent accessor replacing `count`+`at` (finding 6); `initialize_Len_proba_bound` de-virtualised; findings 2–3's dead code deleted. Sharing the fold across consumers is **deferred** — init cost is negligible. **Removes the tandem-D enum ceiling** — on the milestone-1 critical path | full ladder + benchmark | **yes** |
 | **S4e** | Hoist the `initialize_Len_proba_bound` sweep **out of the OpenMP region** — it is model-only and thread-invariant, so 22 threads currently build 22 copies of one answer (§6.10 finding 7). Gated on S4c's ownership move, which is what lets the thread copies share rather than rebuild. The crude-bound pass stays per-thread | full ladder + the init benchmark | **yes** |
 | **S4d** | Tensor-backed containers for the 3-D `no_d_align` structure — **gated on the Tensor API**, itself blocked on the C++23 bump (§2.5). Optional, performance only | full ladder + benchmark | **yes** |
 | **3** | **B11a** — `Gene_choice` alignment path generic (G4, G2, G8, and G5 via S4a-c). Characterization already delivered by T0. **First production consumer of S3** | full ladder + benchmark | **yes**, except §7.1 |
@@ -1548,7 +1581,7 @@ already flagged as the milestone-1 blocker and because `Gene_choice` is the only
 | **S5** | Safety row-bitmask; row-suffix propagation; `Event_safety` deleted | full ladder + the empty-segment transitivity test + 4a's sections unchanged | **yes** (§2.3 corollary) |
 | **4b** | **B5** — `Deletion::iterate` generic (all patterns). **First production consumer of S2** | full ladder + benchmark + convergence | **yes** |
 | **5a** | `no_d_align` characterization beyond T0's G6 sections, on a fixture that *forces* the path. **Must raise `Gene_choice::iterate` block coverage** — see §6.4. Also lands the `bound / realized_proba` instrumentation (§6.10) | unit + mutation | n/a — tests only |
-| **5b** | **B11b** — `no_d_align` exhaustive path generic (G6), including `⊗ᵉⁿᵘᵐ` — the retained decomposition, always three components (§2.5) | full ladder + a fixture that *forces* the path | **yes** |
+| **5b** | **B11b** — `no_d_align` exhaustive path generic (G6), including `⊗ᵉⁿᵘᵐ` — the retained decomposition, always three components (§2.5). **Retires `Gene_choice::finalize_Len_proba_bound`** into `JunctionBound::Fold::Retain`, gated by `exhaustive_position_fallback_` (§2.6) | full ladder + a fixture that *forces* the path | **yes** |
 | **R1–R4** | **Repair phase** (§6.9) — the decided behaviour changes, held here so everything above is idempotent end to end: §7.13, §7.12, `Insertion`'s four `[!shouldfail]` defects, **R3b's `LayeredArray::set()` hardening (O10) directly after them**, `dinuc_proba_matrix` → `initialize_event()` | full ladder, per commit | **no** — golden data may move; each commit names which outputs and why |
 | **R5** | §7.1 and §7.8 off-by-one corrections, per decision O4; the four `[!shouldfail]` tags come off | full ladder + the corrected-core unit tests | **no** — same |
 | **R6** | Within-clique joint max in the span fold (§6.9); optional cross-clique parent indexing | full ladder, **convergence weighted heavily** | **no** — a tighter bound prunes more |
