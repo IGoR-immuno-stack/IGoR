@@ -1230,7 +1230,16 @@ already flags as a per-candidate hash lookup to replace with a realization index
 
 **End state**: a third mode on the junction an event splits — `JunctionBound::Fold::Yes` / `No` /
 **`Retain`** — executed by the base driver and gated by `exhaustive_position_fallback_`. The hook
-then goes away and the sweep has no virtuals left. **Do it in 5b, not before**: the regression
+then goes away and the sweep has no virtuals left.
+
+**What 5a handed 5b** *(Sep 16 2026)*. Beyond the sections themselves (§6.15), three constraints
+the generic body has to satisfy that were not visible before it: the enumeration must stay ordered
+by decreasing probability, because that is the only thing making the prune's `break` exact; the
+window must advance in the loop *header*, which makes §7.17's non-termination unexpressible rather
+than fixed; and the probability each placement carries must restart from the value the event
+inherited, not from the previous placement's (§7.16) — a repair 5b gets for free if it derives the
+probability the way the alignment path does, but a regression it reintroduces just as easily if it
+carries the current shape forward. **Do it in 5b, not before**: the regression
 corpus is one TRB model where `no_d_align` fires for about 0.2 % of D choices, so an error in generalising it is very nearly invisible
 to the bitwise gate, and 5a exists precisely to characterize the path first. 5b is also where the
 D1/D2 case first tests whether one enclosing junction per event is enough.
@@ -1612,10 +1621,11 @@ already flagged as the milestone-1 blocker and because `Gene_choice` is the only
 | **4a** | ✅ **done** — `tst/igor/Core/test_deletion_iterate.cpp`, **662 assertions in 18 `TEST_CASE`s**, against the unmodified event. `Deletion::iterate` went from **0 % to 98.7 % lines / 91.8 % blocks**; 55 mutations run, 49 caught, and the six survivors are **five provably dead or dominated branches**, each named in §6.14. Includes the zero-length junction T0 deferred, and found the unguarded J palindrome of §7.15. **Moved ahead of S5** (§6.8, F4) | unit + mutation | n/a — tests only |
 | **S5** | Safety row-bitmask; row-suffix propagation; `Event_safety` deleted | full ladder + the empty-segment transitivity test + 4a's sections unchanged | **yes** (§2.3 corollary) |
 | **4b** | **B5** — `Deletion::iterate` generic (all patterns). **First production consumer of S2** | full ladder + benchmark + convergence | **yes** |
-| **5a** | `no_d_align` characterization beyond T0's G6 sections, on a fixture that *forces* the path. **Must raise `Gene_choice::iterate` block coverage** — see §6.4. Also lands the `bound / realized_proba` instrumentation (§6.10). **The end-to-end half is already delivered** (Sep 16 2026): `scripts/tests/test_no_d_align.sh` gives 5b a bitwise gate on this path, which it did not have — see §7.9. What 5a still owes is the per-branch unit sections | unit + mutation | n/a — tests only |
+| **5a** | 🟡 **mostly done** — the per-branch unit sections landed (Sep 16 2026): nine `TEST_CASE`s over both sub-branches, taking `Gene_choice::iterate` from **87.4 % to 96.3 % blocks**, with every branch of the body now covered *except the two that do not terminate* (§7.17). Found three defects — §7.16, §7.17, §7.18 — none repaired here. The end-to-end half landed earlier the same day: `scripts/tests/test_no_d_align.sh`, see §7.9. **Still owed: the `bound / realized_proba` instrumentation** (§6.10) and the widened cover for `span_proba_factor` (§6.12) | unit + mutation | n/a — tests only |
 | **5b** | **B11b** — `no_d_align` exhaustive path generic (G6), including `⊗ᵉⁿᵘᵐ` — the retained decomposition, always three components (§2.5). **Retires `Gene_choice::finalize_Len_proba_bound`** into `JunctionBound::Fold::Retain`, gated by `exhaustive_position_fallback_` (§2.6) | full ladder + a fixture that *forces* the path | **yes** |
 | **R1–R4** | **Repair phase** (§6.9) — the decided behaviour changes, held here so everything above is idempotent end to end: §7.13, §7.12, `Insertion`'s four `[!shouldfail]` defects, **R3b's `LayeredArray::set()` hardening (O10) directly after them**, `dinuc_proba_matrix` → `initialize_event()` | full ladder, per commit | **no** — golden data may move; each commit names which outputs and why |
-| **R5** | §7.1 and §7.8 off-by-one corrections, per decision O4; the four `[!shouldfail]` tags come off | full ladder + the corrected-core unit tests | **no** — same |
+| **R5** | §7.1 and §7.8 off-by-one corrections, per decision O4; the four `[!shouldfail]` tags come off. **Also §7.18**: the credited length can come out negative and the error-rate accessor takes `size_t`, so correct the derivation and the signature together (latent on both corpora today, measured) | full ladder + the corrected-core unit tests | **no** — same |
+| **R7** | **§7.16** — the `no_d_align` probability compounds across placements. Its two `[!shouldfail]` tags come off, and `scripts/tests/data/reference/no_d_align_output/` moves with it. Held out of 5b so the collapse there stays bitwise | full ladder + the `no_d_align` regression, regenerated | **no** — the golden data for that path moves |
 | **R6** | Within-clique joint max in the span fold (§6.9); optional cross-clique parent indexing | full ladder, **convergence weighted heavily** | **no** — a tighter bound prunes more |
 
 **The split is an ordering requirement, not bookkeeping.** The *a* commit lands before the *b*
@@ -1918,16 +1928,17 @@ the unit suite after 4a (Sep 16 2026):
 
 | Function | Lines | Branch | Blocks | Calls |
 |---|---:|---:|---:|---:|
-| `Gene_choice::iterate` | 90.4% | 76.5% | 87.4% | 42 |
-| `Gene_choice::initialize_event` | 96.0% | 60.7% | 78.7% | 42 |
+| `Gene_choice::iterate` | 99.1% | 89.4% | 96.3% | 57 |
+| `Gene_choice::initialize_event` | 96.0% | 60.7% | 78.7% | 57 |
 | `Insertion::iterate` | 92.0% | 43.8% | 38.1% | 27 |
 | `Deletion::iterate` | 98.7% | 88.3% | 91.8% | 93 |
 | `Deletion::initialize_event` | 94.4% | 57.8% | 81.2% | 133 |
 | `Dinucl_markov::iterate` | 100.0% | 75.0% | 96.4% | 21 |
 
 Two things the re-measurement says that the delivered figures above do not. `Gene_choice::iterate`
-is at **87.4 % blocks** rather than the 59.2 % that 5a is scheduled to raise — B11a deleted most of
-what was uncovered, so 5a's remaining job is the `no_d_align` enumeration itself and not the ratio.
+was at **87.4 % blocks** before 5a rather than the 59.2 % 5a was scheduled to raise — B11a deleted
+most of what was uncovered, so 5a's job was the `no_d_align` enumeration itself and not the ratio.
+5a then took it to **96.3 %**, and the row above is the post-5a figure.
 And `Insertion::iterate` reads **38.1 % blocks**, well below the 100 % 1b recorded: the suite it is
 measured over has grown, so the figure is not comparable to 1b's and is not evidence of a
 regression — but it is also no longer evidence of anything, and re-establishing it belongs with
@@ -3032,6 +3043,53 @@ geometry that separates `<=` from `<` sits at a *negative* junction distance, wh
 whose own deletions reach that far down can answer), and the five dead branches above are named so
 that deleting them is a decision rather than a side effect.
 
+### 6.15 — Delivered (5a): the `no_d_align` per-branch sections *(Sep 16 2026)*
+
+Nine `TEST_CASE`s appended to `tst/igor/Core/test_gene_choice_iterate.cpp`, covering the inside of
+both exhaustive sub-branches. `Gene_choice::iterate` went from **87.4 % to 96.3 % blocks**
+(99.1 % lines, 89.4 % branches), and **every branch of the body is now covered except the two that
+do not terminate** — §7.17's pair of `continue`s, which no test can reach and return from.
+
+What the sections pin, branch by branch:
+
+- **The position map's two feasibility guards.** A placement is rejected when its 5′ end reaches
+  J's furthest reach, or when its 3′ end fails to clear V's. Each is reached by giving D a deletion
+  on the *opposite* side, which is what lets the corresponding junction take a negative length in
+  the fold and so pushes placements past the neighbour.
+- **That the enumeration is ordered by decreasing probability, not by position.** Placements 5 and
+  4 arrive *after* 10. This is what licenses the `break` in the prune, and it is the property 5b's
+  `⊗ᵉⁿᵘᵐ` has to preserve.
+- **The endogenous-mismatch count**, including that the window is the *maximally* deleted span on
+  both sides and that a budget able to consume the whole template lifts the penalty to 1.0.
+- **Both prune stages**, and that only the second is observable — the first is the same dominated
+  check as `Deletion`'s (§6.14): its bound is the second's with the segment's layer still at 1.0,
+  so it can only fire where the second fires too. Neither disabling it nor turning its `break` into
+  a `continue` moves an assertion. An optimisation; 5b should treat it as one.
+- **The slide anchoring on a chosen neighbour.** The sliding branch runs whenever *either*
+  neighbour is unchosen, not only when both are — T0's sections chose neither, so the arm that
+  starts the window from V's furthest reach had never run.
+- **A D whose surviving core is empty is not charged** — the last uncovered branch of the
+  alignment path, and the same question the position map's `else` arm asks.
+
+Two guards are recorded as deliberately uncovered rather than chased. The mismatch scan's read
+check `((d_5_off + i) >= 0) && (d_5_off + i) < size` is exercised on its lower half — one placement
+does start at −1 — but removing that half changes no assertion, because what it prevents is an
+out-of-bounds read whose value happens to compare equal: undefined behaviour is not a branch a test
+can pin. The upper half is unreachable in this branch at all, since the guard that rejects a
+placement at J's reach already bounds every placement by a read position.
+
+**Three defects fell out of writing them**, none repaired here:
+
+| | What | Where it bites |
+|---|---|---|
+| §7.16 | the scenario probability **compounds across placements** | both sub-branches; placement *k* carries `incoming × p^k` |
+| §7.17 | the sliding window **does not terminate** when a placement is discarded | two `continue`s that skip the loop's increments |
+| §7.18 | a negative credited length **reads outside the error-bound matrix** | `credited_core_length()` and the exhaustive path's own arithmetic |
+
+The first two are specific to this path. The third is not: it is reachable from an ordinary D
+alignment, and it is the consequence of §7.1's credited length being wrong in a direction nothing
+bounds.
+
 ---
 
 ## 7. Where a generic rewrite would silently change results
@@ -3040,6 +3098,10 @@ These are the traps. Each must be preserved bit-for-bit in the step that touches
 in a separate, explicitly-labelled commit — never folded into a refactor.
 
 ### 7.1 — The credited match length in `Gene_choice` V and J (a real bound bug)
+
+> **Consequence found later** *(§7.18, Sep 16 2026)*: because this length is derived wrongly, it
+> can come out **negative**, and the error-rate accessor takes its counts as `size_t`. R5 should
+> correct the derivation and the signature together rather than clamping at the call site.
 
 `Gene_choice` passes `n_error_free` to `get_err_rate_upper_bound()` as:
 
@@ -3551,6 +3613,131 @@ observed (a `CHECK_THROWS_AS`, with a positive control two read positions over a
 contrasting outcome beside it), so B5 cannot change it silently; the decision itself belongs with
 §2.7's `require_visible_nucleotide_` switch, which is the same question asked of the positive
 deletions.
+
+### 7.16 — The `no_d_align` path compounds the D probability across placements
+
+*(Found by 5a, Sep 16 2026.)*
+
+Every placement the exhaustive path emits is the **same realization of the same event** — one D
+gene, tried at several positions — so every hand-off should carry the same probability: the one it
+inherited, times that realization's marginal. The alignment path in the same function does exactly
+that, because it restarts from a value captured once before the loop:
+
+```cpp
+const double base_scenario_proba = scenario.scenario_proba;   // Genechoice.cpp:182
+...
+new_scenario_proba = base_scenario_proba;                      // :259, alignment loop
+```
+
+Both exhaustive loops read the live field instead:
+
+```cpp
+new_scenario_proba = scenario.scenario_proba * proba_contribution;   // :402 position map
+new_scenario_proba = scenario.scenario_proba * proba_contribution;   // :568 sliding window
+...
+scenario.scenario_proba = new_scenario_proba;                        // :500 / :623
+```
+
+and the write at the bottom is what the *next* placement reads. So placement `k` is handed off at
+`incoming × p^k`. Measured on a flat model where every marginal is 0.5: the five placements of one
+gene arrive at 0.5, 0.25, 0.125, 0.0625, 0.03125, where all five should be 0.5.
+
+Nothing caught it before: T0's sections on this path assert offsets, sequences and mismatch lists,
+never probabilities — which is exactly the failure mode the test guide's row 3 exists for, *"a body
+that does `scenario.scenario_proba *= contribution` on the shared field passes every other row."*
+
+**Consequences worth knowing before repairing it.** The error is not a constant factor: it depends
+on how many placements were emitted *before* this one, so it reweights placements against each
+other, not just against other scenarios. It also makes the enumeration's bound monotone, which is
+part of why the first prune stage's `break` is currently safe (§6.15) — a repair has to re-check
+that, though the map's own sort order should carry it.
+
+**Pinned, not fixed**: two `[!shouldfail]` cases, one per sub-branch, asserting the flat value.
+They start passing the moment the repair lands, which is what forces the tags off deliberately. The
+repair itself is a behaviour change on a path the regression corpus exercises (about 0.2 % of D
+choices, §7.9), so it belongs in phase R with its own golden-data movement — including
+`scripts/tests/data/reference/no_d_align_output/`, which encodes the current values.
+
+### 7.17 — The sliding window does not advance when a placement is discarded
+
+*(Found by 5a, Sep 16 2026.)*
+
+The sliding branch advances its window at the *bottom* of the loop body:
+
+```cpp
+while (d_3_min_offset < neighbour_reach_[J_gene_seq].lo) {
+    ...
+    if (not write_junction_bounds(...)) { continue; }        // :586
+    ...
+    if (exploration.should_prune(...)) { continue; }          // :619
+    ...
+    ++d_5_off; ++d_full_3_offset; ++d_3_min_offset; ++d_3_max_offset;
+}
+```
+
+Both `continue`s skip all four increments, so the next pass recomputes the same placement from the
+same state, reaches the same `continue`, and the loop never terminates. Reproduced on a fixture of
+a dozen lines: a D with no alignment, J chosen and V not, and a DJ junction whose profile cannot
+reach the gap the first placement leaves. The suite hangs; it does not fail.
+
+**Why nothing has hit it.** The branch needs *one* of V and J unchosen at the moment the D gene
+choice runs, and in a standard VDJ ordering both gene choices have higher priority than D — so the
+corpus takes the position-map branch every time (§7.9's 0.2 %), never this one. T0's sections on
+this branch chose *neither* neighbour, which resolves no junction at all, so `write_junction_bounds`
+returned true vacuously and no threshold was set; none of them could reach either `continue`.
+
+**Pinned as a `[.]`-hidden case**, the same handling as §7.12's segfault: a hanging test cannot be
+`[!shouldfail]` and CI cannot survive it. It is tagged `[sliding_hang]` and deliberately *not*
+`[gene_choice]` or `[exhaustive]`, so that filtering on either does not hang the run. Select it
+explicitly, with a timeout:
+
+```
+timeout 10 ./build/bin/igor_tests "[sliding_hang]"
+```
+
+**5b owns the fix**, and it is nearly free there: the generic body will advance the window in the
+loop header rather than at the end of its body, which is what makes the bug unexpressible rather
+than fixed. The assertion the hidden case carries states the requirement — a placement that cannot
+be scored is skipped *and the window still advances*.
+
+### 7.18 — A negative credited length reads outside the error-rate matrix
+
+*(Found by 5a, Sep 16 2026. Latent on the current corpora — measured below.)*
+
+`Error_rate::get_err_rate_upper_bound(size_t n_errors, size_t n_error_free)` takes **unsigned**
+counts. Two callers can hand it a negative one:
+
+- `Gene_choice::credited_core_length()`, whose `Truncated` arm returns
+  `(core_3 - core_5) - endogeneous_mismatches` — negative as soon as the core carries more
+  mismatches than it spans positions;
+- the exhaustive path's own arithmetic,
+  `(d_full_3_offset + d_3_max_del) - (d_5_off - d_5_max_del) - endogeneous_mismatches`, which is
+  the same quantity written out.
+
+A negative value wraps to a huge `size_t`, and every layer below fails to stop it:
+
+1. the growth check adds ten to it, which **wraps back to 9**, so the matrix is not resized;
+2. `Matrix::operator()` takes its indices as **`int`**, so the huge value converts back to −1;
+3. its `assert` is `(i <= rows - 1) && (j <= cols - 1)` — an upper-bound check only, which −1
+   satisfies, so a debug build does not catch it either;
+4. `array_p[i + rows * j]` with `j == -1` reads *before* the allocation.
+
+Measured on a four-line fixture — a D aligned with three mismatches inside a core spanning two
+credited positions — the bound comes back as `5.31441e-07` where the formula gives `4.11523e-05`;
+a second fixture with the same credited length of −1 returns `0`. Two different answers for the
+same arithmetic is the signature: the value depends on what happens to sit before the array.
+
+**It does not fire on either corpus today.** Instrumenting both call sites and running the
+inference regression: **0 negative out of 2948** credited lengths; the `no_d_align` regression:
+**0 out of 2774**. So this is a latent trap, not a wrong answer being produced now — which is why
+it is recorded here rather than repaired under time pressure.
+
+**Where the repair belongs.** Not in 5b. The narrow fix is a clamp at the call site, but the reason
+the quantity can go negative at all is §7.1: the credited length is *derived wrongly* in both arms,
+and R5 already owns correcting it. Do them together, and give the signature a type that cannot
+express the failure — the counts are naturally `int` — rather than clamping a symptom. The
+`Matrix::operator()` assert should gain its lower bound regardless; that one is cheap and
+independent.
 
 ## 8. Decisions taken
 
