@@ -1621,11 +1621,12 @@ already flagged as the milestone-1 blocker and because `Gene_choice` is the only
 | **4a** | ✅ **done** — `tst/igor/Core/test_deletion_iterate.cpp`, **662 assertions in 18 `TEST_CASE`s**, against the unmodified event. `Deletion::iterate` went from **0 % to 98.7 % lines / 91.8 % blocks**; 55 mutations run, 49 caught, and the six survivors are **five provably dead or dominated branches**, each named in §6.14. Includes the zero-length junction T0 deferred, and found the unguarded J palindrome of §7.15. **Moved ahead of S5** (§6.8, F4) | unit + mutation | n/a — tests only |
 | **S5** | Safety row-bitmask; row-suffix propagation; `Event_safety` deleted | full ladder + the empty-segment transitivity test + 4a's sections unchanged | **yes** (§2.3 corollary) |
 | **4b** | **B5** — `Deletion::iterate` generic (all patterns). **First production consumer of S2** | full ladder + benchmark + convergence | **yes** |
-| **5a** | 🟡 **mostly done** — the per-branch unit sections landed (Sep 16 2026): nine `TEST_CASE`s over both sub-branches, taking `Gene_choice::iterate` from **87.4 % to 96.3 % blocks**, with every branch of the body now covered *except the two that do not terminate* (§7.17). Found three defects — §7.16, §7.17, §7.18 — none repaired here. The end-to-end half landed earlier the same day: `scripts/tests/test_no_d_align.sh`, see §7.9. **Still owed: the `bound / realized_proba` instrumentation** (§6.10) and the widened cover for `span_proba_factor` (§6.12) | unit + mutation | n/a — tests only |
+| **5a** | ✅ **done** — three parts. (i) The per-branch unit sections (Sep 16 2026): nine `TEST_CASE`s over both sub-branches, `Gene_choice::iterate` from **87.4 % to 96.3 % blocks**, every branch covered *except the two that do not terminate* (§7.17); §7.16, §7.17 and §7.18 fell out of writing them. (ii) The `bound / realized_proba` instrumentation (§6.16), which measured what §6.10 asked and found §7.19. (iii) The widened `span_proba_factor` cover (§6.16). The end-to-end half landed earlier: `scripts/tests/test_no_d_align.sh`, see §7.9 | unit + mutation | n/a — tests and an off-by-default instrument |
 | **5b** | **B11b** — `no_d_align` exhaustive path generic (G6), including `⊗ᵉⁿᵘᵐ` — the retained decomposition, always three components (§2.5). **Retires `Gene_choice::finalize_Len_proba_bound`** into `JunctionBound::Fold::Retain`, gated by `exhaustive_position_fallback_` (§2.6) | full ladder + a fixture that *forces* the path | **yes** |
 | **R1–R4** | **Repair phase** (§6.9) — the decided behaviour changes, held here so everything above is idempotent end to end: §7.13, §7.12, `Insertion`'s four `[!shouldfail]` defects, **R3b's `LayeredArray::set()` hardening (O10) directly after them**, `dinuc_proba_matrix` → `initialize_event()` | full ladder, per commit | **no** — golden data may move; each commit names which outputs and why |
 | **R5** | §7.1 and §7.8 off-by-one corrections, per decision O4; the four `[!shouldfail]` tags come off. **Also §7.18**: the credited length can come out negative and the error-rate accessor takes `size_t`, so correct the derivation and the signature together (latent on both corpora today, measured) | full ladder + the corrected-core unit tests | **no** — same |
 | **R7** | **§7.16** — the `no_d_align` probability compounds across placements. Its two `[!shouldfail]` tags come off, and `scripts/tests/data/reference/no_d_align_output/` moves with it. Held out of 5b so the collapse there stays bitwise | full ladder + the `no_d_align` regression, regenerated | **no** — the golden data for that path moves |
+| **R8** | **§7.19** — an `Insertion`'s bound counts its own realization twice and falls below the truth, so insertion nodes prune harder than the threshold asks. Needs a decision first: fix the consumer, or stop folding the consuming event into its own junction (which is also 6.14's mirror finding on `Deletion`). Re-measure with 5a's instrument afterwards | full ladder + the bound instrument | **no** — every output moves |
 | **R6** | Within-clique joint max in the span fold (§6.9); optional cross-clique parent indexing | full ladder, **convergence weighted heavily** | **no** — a tighter bound prunes more |
 
 **The split is an ordering requirement, not bookkeeping.** The *a* commit lands before the *b*
@@ -2630,6 +2631,13 @@ corpus, today. Instrumenting `bound / realized_proba` at leaves gives a measured
 an argument. **Scheduled into 5a**, which already owns raising coverage on that path and already
 needs a fixture that forces it.
 
+> **Measured, and the proposal needed correcting** *(5a, Sep 17 2026 — §6.16)*. At **leaves** the
+> ratio is 1 for every scenario on the corpus: by then every entry of the bound map has been
+> replaced by the factor the scenario realized, so the two quantities are the same product. The
+> measurement that discriminates is at **internal nodes** — a node's bound against the best any
+> leaf below it reached — and there the answer is large: a median over-estimate of **10^15 at the
+> first event**, falling to 10^2 by the seventh. R6 has its baseline, and it says there is room.
+
 #### Proposed S4 split *(not yet approved)*
 
 **Approved Sep 10 2026**, with the joint-max tightening moved out to phase R.
@@ -2730,6 +2738,22 @@ maps it fills gate scenario retention in the event under test.
 test. It is genuine cover, but it is thin, and it is precisely the factor S4b turns into
 `span_proba_factor`. Widen it in **5a**, whose brief already includes the `bound / realized_proba`
 instrumentation.
+
+> **Widened, and it found the table to be redundant** *(5a, Sep 17 2026)*. 4a and 5a raised the
+> same mutation from **1 killing case to 8**, because every junction bound they assert carries the
+> factor. What was still untested was the branch that decides when the factor applies at all —
+> `span_proba_factor`'s `lengths.has(filled)` guard — now pinned by its own pair of sections.
+>
+> Writing them established something S4b's reconciliation should know: **the
+> `affects_proba_of` table's off-diagonal precision has no behavioural consequence.** Admitting a
+> VD `Dinucl_markov` to the DJ span changes no assertion in the whole suite bar one — and that one
+> is `test_event_capabilities.cpp`'s *declaration* test, not a scenario. The reason is the guard:
+> a dinucl admitted to a span whose fold publishes no length for its segment returns 1.0 anyway.
+> The two mechanisms are redundant with each other, so the table can be simplified on the
+> evidence rather than carried verbatim out of caution. Its `junction == VJ_ins_seq` clauses in
+> the VD and DJ rows are dead for a further reason: every model IGoR ships orders the D gene
+> choice before the deletions that would otherwise resolve a V→J span, so a VD dinucl and a VJ
+> span never coexist. 5b's `Fold::Retain` may make them live.
 
 #### The span type, corrected *(Sep 10 2026, `868c910`)*
 
@@ -3016,7 +3040,8 @@ own copy of the pattern. What the sections pin beyond the matrix:
   fold, so its own deletion is counted twice, in opposite directions. This is carried verbatim from
   the legacy map and is a *weakening* of the bound, so it is bitwise-invisible (§1) — recorded here
   because it is the single most confusing thing about writing a fixture for this body, and because
-  B5 will have to decide whether to keep it.
+  B5 will have to decide whether to keep it. **`Insertion` has the same structure with the opposite
+  sign and it is not invisible**: §7.19, found by 5a's instrument.
 - **The four arms disagree about the read boundary, and one of them crashes.** §7.15.
 
 **55 mutations run, 49 caught.** The six survivors are not gaps; each is a branch that cannot be
@@ -3089,6 +3114,72 @@ placement at J's reach already bounds every placement by a read position.
 The first two are specific to this path. The third is not: it is reachable from an ordinary D
 alignment, and it is the consequence of §7.1's credited length being wrong in a direction nothing
 bounds.
+
+### 6.16 — Delivered (5a, the rest): the bound instrumentation, and what it measured *(Sep 17 2026)*
+
+Two things 5a owed beyond its sections: a measured baseline for how loose the pruning bound is,
+and behavioural cover for the `p^L` factor §6.12 found resting on one test.
+
+#### The instrument
+
+`src/igor/Core/BoundTightness.h`, header-only, and **compiled out unless asked for**: `record()`,
+`enter()` and `leave()` are empty inlines unless `IGOR_BOUND_INSTRUMENTATION` is defined, so the
+three call sites in `Rec_Event::iterate_wrap_up` need no `#ifdef` and the default build pays
+nothing. A measuring binary is `pixi run build_instrumented`; the report goes to stderr at exit.
+The bucketing is a pure function with its own unit tests, so the classification is checked without
+the accumulator.
+
+#### What it measured, on the TRB regression corpus (one EM iteration, 4 threads)
+
+**At leaves — the measurement §6.10 proposed — the answer is degenerate.** All 1,691,694 scenarios
+land in the tightest bucket, `bound / realized < 10^0.25`, and none is unsound. That is not a
+finding about the model: by the leaf every entry of the downstream bound map has been replaced by
+the factor the scenario actually realized, so the two quantities are the same product in a
+different association. §6.10's proposal cannot discriminate, and the plan is corrected there.
+
+**At internal nodes it discriminates sharply.** The instrument brackets each descent, so it can
+compare the bound that admitted a node against the best probability any leaf below it reached:
+
+| depth | nodes | barren | unsound | median | p90 | p99 |
+|---:|---:|---:|---:|---:|---:|---:|
+| 0 | 501 | 0 | 0 | 10^15.25 | ≥10^20 | ≥10^20 |
+| 1 | 576 | 0 | 0 | 10^8.00 | 10^12.25 | 10^17.50 |
+| 2 | 73 826 | 38 580 | 131 | 10^7.00 | 10^11.25 | 10^16.00 |
+| 3 | 914 154 | 806 894 | 1 494 | 10^5.75 | 10^10.00 | 10^14.25 |
+| 4 | 9 057 381 | 8 551 693 | 2 683 | 10^4.50 | 10^9.25 | 10^13.00 |
+| 5 | 14 934 203 | 14 141 858 | 45 010 | 10^3.25 | 10^6.25 | 10^8.75 |
+| 6 | 24 147 780 | 22 456 086 | 158 885 | 10^2.00 | 10^2.00 | 10^2.00 |
+| 7 | 4 539 363 | 2 847 669 | **1 691 694** | — | — | — |
+| 8 | 4 539 363 | 2 847 669 | 239 006 | 10^1.00 | 10^1.00 | 10^1.00 |
+| 9 | 1 691 694 | 0 | **1 691 694** | — | — | — |
+
+*barren* is a node no descendant of which ever reached a leaf. *unsound* is a node whose bound sat
+**below** the best leaf under it. The quantiles cover the rest. 10^20 is the histogram's ceiling.
+
+Three readings:
+
+- **R6 has room.** The bound over-estimates by a median of fifteen decades at the first event and
+  is still two decades loose at the seventh. Whatever a conditioned bound costs in storage, it is
+  not competing against a tight baseline.
+- **Most of the walk is barren.** At depth 4, 94 % of nodes yield no leaf at all — the pruning
+  working, and also the measure of what a tighter bound would delete. The ratio is the *potential*;
+  the barren count is the *volume*.
+- **The bound is not a bound at insertion nodes.** Every non-barren node at depths 7 and 9 —
+  1 691 694 of them, i.e. all of them — has a bound below what the leaf under it realizes. That is
+  §7.19.
+
+#### The `p^L` factor
+
+§6.12 recorded that `Dinucl_markov::affects_proba_of → false` was killed by exactly **one** test.
+It is now killed by **eight**: 4a and 5a's junction-bound assertions carry the factor, so widening
+happened largely as a side effect of the two characterizations. What remained genuinely untested
+was `span_proba_factor`'s `lengths.has(filled)` guard — *"absent means no creator ran on this path,
+and the contribution is 1"* — because every fixture in the suite puts an Insertion in the fold.
+Two sections in `test_deletion_iterate.cpp` now pin it, on a geometry with no Insertion at all.
+
+Writing them turned up something for S4b: **the `affects_proba_of` table and the `has()` guard are
+redundant with each other**, so the table's off-diagonal precision has no behavioural consequence.
+See the note in §6.12.
 
 ---
 
@@ -3738,6 +3829,58 @@ and R5 already owns correcting it. Do them together, and give the signature a ty
 express the failure — the counts are naturally `int` — rather than clamping a symptom. The
 `Matrix::operator()` assert should gain its lower bound regardless; that one is cheap and
 independent.
+
+### 7.19 — An `Insertion`'s pruning bound counts its own realization twice, and falls below the truth
+
+*(Measured by 5a's instrument, Sep 17 2026. Present since the first commit — not introduced by this
+refactor.)*
+
+`Insertion::iterate` does two things per realization, in this order
+([Insertion.cpp:205-216](../src/igor/Core/Insertion.cpp#L205)):
+
+```cpp
+exploration.downstream_proba_map.set(junction.proba_key(), *junction_bound_proba, ...);  // :205
+scenario.scenario_proba *= proba_contribution;                                            // :208
+scenario_upper_bound_proba = exploration.compute_upper_bound(scenario.scenario_proba, …); // :213
+```
+
+`proba_contribution` is this insertion length's marginal. `*junction_bound_proba` is the junction's
+span profile at that same length — and the profile is folded over **this event and its suffix**, so
+it already contains that same marginal. The bound is therefore
+`scenario_proba × p_ins × (p_ins × dinucl_max)`: the insertion's own realization is counted twice,
+and the bound comes out **smaller than the probability the scenario goes on to realize**.
+
+Measured on the TRB corpus with the uniform starting marginals, where an insertion has 31 equally
+likely lengths: **every non-barren insertion node's bound sits below the best leaf under it**
+— 1 691 694 of 1 691 694 at each of the two insertion depths — and the ratio at the DJ insertion is
+exactly `1/31`, its own marginal, to seventeen significant figures. That is the arithmetic
+signature, not a coincidence.
+
+**It is original behaviour.** The first commit already folds the insertion's `real_max_proba` into
+`junction_length_best_proba_map` and multiplies `proba_contribution` into the scenario probability
+separately. Every refactor since has carried it, and the golden data encodes it.
+
+**What it costs.** `should_prune` compares this bound against `seq_max_prob × factor`, so at
+insertion nodes the walk prunes *harder* than the configured threshold asks — by the insertion
+marginal, which is 1/31 under uniform marginals and closer to 1 under an inferred model where the
+lengths are peaked. Scenarios whose true contribution is above the threshold can be discarded, so
+the E-step loses mass it was asked to keep. It is a heuristic deviation rather than a crash, and it
+is bounded by the marginal, but it is not what the threshold means.
+
+**Not repaired here, and the fix is not obvious.** Two shapes, and they differ in what else moves:
+
+1. **The consumer stops double-counting** — write `profile(L) / p_ins(L)`, or equivalently have the
+   Insertion look up a profile folded over its *suffix only*. Cheap, local, and changes only the
+   insertion's own bound.
+2. **The fold stops including the event that consumes it.** §2.5's frame says each owner folds
+   itself plus its suffix, which is right for an event *reading a neighbour's* junction and wrong
+   for one reading its own. `Deletion` has the mirror of this — 4a (§6.14) found its own deletion
+   counted twice in *opposite* directions, which weakens rather than strengthens and is therefore
+   invisible. Deciding this once would settle both.
+
+Either way it moves every output, so it belongs in phase R with its own golden-data movement, and
+it wants a decision on which of the two readings is intended before code is written. Recorded as
+**R8**.
 
 ## 8. Decisions taken
 
