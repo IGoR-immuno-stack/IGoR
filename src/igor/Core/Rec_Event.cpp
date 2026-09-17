@@ -185,7 +185,10 @@ void Rec_Event::iterate_wrap_up(
         //bound that admitted this node against the best any leaf below it turned out to reach --
         //which is the quantity pruning acts on, and the one the leaf ratio cannot show. Both
         //calls compile to nothing unless IGOR_BOUND_INSTRUMENTATION is defined.
-        BoundTightness::enter(this->scenario_upper_bound_proba);
+        //The name labels this depth's row in the per-event decomposition. Taken by value and
+        //copied straight into a static table: a pointer into a per-thread event copy would
+        //dangle long before the report runs.
+        BoundTightness::enter(this->scenario_upper_bound_proba, this->get_name().c_str());
 
         // Not a leaf node - recursively call next event's iterate_wrap_up
         exploration.next_event_ptr_arr.get()[this->event_index]->iterate(
@@ -237,10 +240,15 @@ void Rec_Event::iterate_wrap_up(
         //Recorded before the threshold test, not after: a scenario the threshold discards is
         //still one the bound admitted, and leaving those out would measure only the tail that
         //survived.
-        BoundTightness::record(this->scenario_upper_bound_proba, scenario.scenario_error_w_proba);
+        BoundTightness::record(this->scenario_upper_bound_proba, scenario.scenario_error_w_proba,
+                               this->get_name().c_str());
 
-        // Check pruning threshold
-        if (not exploration.should_prune(scenario.scenario_error_w_proba)) {
+        // Check pruning threshold. `is_below_threshold` rather than `should_prune`: the value
+        // tested here is what the scenario realized, not a bound on what it might still become,
+        // and the decision discards one completed scenario rather than a subtree. The
+        // instrumentation counts subtree prunings to tell a barren node that a tighter bound
+        // could have deleted from one that died on geometry, and this test belongs to neither.
+        if (not exploration.is_below_threshold(scenario.scenario_error_w_proba)) {
             // Update best scenario probability if needed
             exploration.update_max_prob(scenario.scenario_error_w_proba);
 

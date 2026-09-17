@@ -1,5 +1,6 @@
 #pragma once
 
+#include <igor/Core/BoundTightness.h>
 #include <igor/Core/Utils.h>
 #include <span>
 
@@ -94,11 +95,30 @@ struct ExplorationContext {
     ExplorationContext& operator=(ExplorationContext&&) = delete;
 
     /**
+     * @brief The threshold comparison itself, with nothing observing it
+     *
+     * Used where the value being tested is a *realized* probability rather than a bound -- the
+     * leaf, where the comparison accepts or rejects a completed scenario instead of pruning a
+     * subtree. Keeping the two callable separately is what lets the instrumentation count
+     * subtree prunings without the leaf test inflating the count.
+     */
+    inline bool is_below_threshold(double proba) const {
+        return proba < (seq_max_prob_scenario * proba_threshold_factor);
+    }
+
+    /**
      * @brief Check if scenario probability is above pruning threshold
+     *
+     * The outcome is offered to the bound instrumentation, which attributes it to the node whose
+     * child event took the decision: a node all of whose children were tested and rejected is one
+     * a tighter bound would have deleted, and a node whose children were never tested at all died
+     * on geometry rather than on probability. `note_prune` is an empty inline unless
+     * `IGOR_BOUND_INSTRUMENTATION` is defined.
      */
     inline bool should_prune(double scenario_upper_bound_proba) const {
-        return scenario_upper_bound_proba <
-               (seq_max_prob_scenario * proba_threshold_factor);
+        const bool prune = is_below_threshold(scenario_upper_bound_proba);
+        BoundTightness::note_prune(prune);
+        return prune;
     }
 
     /**

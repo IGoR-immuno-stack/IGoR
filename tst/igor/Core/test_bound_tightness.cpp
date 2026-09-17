@@ -93,12 +93,55 @@ TEST_CASE("BoundTightness::bucket_for classifies a leaf by decades of over-estim
     }
 }
 
-TEST_CASE("BoundTightness::record is callable whether or not the build measures",
+TEST_CASE("BoundTightness::barren_cause separates the waste a better bound could delete",
           "[bound_tightness]")
 {
-    // The call site in Rec_Event::iterate_wrap_up is unconditional; this is what says so. In a
-    // default build it does nothing, in an instrumented one it tallies -- either way it links.
-    BoundTightness::record(1.0, 0.5L);
-    BoundTightness::record(0.0, 0.0L);
+    using BoundTightness::BarrenCause;
+    using BoundTightness::barren_cause;
+
+    SECTION("A node with a leaf below it is not barren, whatever that leaf was worth")
+    {
+        // Including a leaf worth nothing: the walk reached the bottom, so the enumeration was
+        // not wasted in the sense this measures. The ratio histogram takes it from there.
+        CHECK(barren_cause(true, 0, 0) == BarrenCause::NotBarren);
+        CHECK(barren_cause(true, 3, 7) == BarrenCause::NotBarren);
+    }
+
+    SECTION("No probability test at all means no probability bound could have helped")
+    {
+        // Every realization the child event offered was rejected on geometry, safety or read
+        // bounds before any bound was compared. This is the count that decides whether
+        // tightening the bound is worth doing at all -- if it dominates, it is not.
+        CHECK(barren_cause(false, 0, 0) == BarrenCause::Starved);
+    }
+
+    SECTION("All feasible children tested and rejected is the case a tighter bound deletes")
+    {
+        // The node itself would never have been expanded had its own bound been tight enough to
+        // fall below the cutoff -- so this is the volume a better bound is competing for.
+        CHECK(barren_cause(false, 0, 1) == BarrenCause::Pruned);
+        CHECK(barren_cause(false, 0, 400) == BarrenCause::Pruned);
+    }
+
+    SECTION("Expanding any child moves the finding down to that child")
+    {
+        // A node that descended into something was not a dead end at its own level, so it is
+        // neither starved nor pruned however many of its other children were rejected. The
+        // child that was the dead end carries the finding, at its own depth.
+        CHECK(barren_cause(false, 1, 0) == BarrenCause::Hollow);
+        CHECK(barren_cause(false, 1, 99) == BarrenCause::Hollow);
+    }
+}
+
+TEST_CASE("BoundTightness entry points are callable whether or not the build measures",
+          "[bound_tightness]")
+{
+    // The call sites in Rec_Event::iterate_wrap_up and ExplorationContext are unconditional;
+    // this is what says so. In a default build they do nothing, in an instrumented one they
+    // tally -- either way they link.
+    BoundTightness::record(1.0, 0.5L, "V_gene");
+    BoundTightness::record(0.0, 0.0L, nullptr);
+    BoundTightness::note_prune(true);
+    BoundTightness::note_prune(false);
     SUCCEED();
 }
