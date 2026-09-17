@@ -33,6 +33,10 @@ configure_coverage = "cmake -S . -B build_cov -DBUILD_DOC_DOXYGEN=ON -DENABLE_CO
 build = {cmd="cmake --build build --parallel", depends-on = "configure"}
 build_debug = {cmd="cmake --build build --parallel", depends-on = "configure_debug"}
 build_coverage = {cmd="cmake --build build_cov -j8", depends-on = "configure_coverage"}
+# A binary that reports bound / realized probability at every scenario leaf, into build_instr.
+# Run any igor command from build_instr/bin; the histogram goes to stderr at exit.
+configure_instrumented = "cmake -S . -B build_instr -G Ninja -DENABLE_BOUND_INSTRUMENTATION=ON"
+build_instrumented = {cmd="cmake --build build_instr --parallel", depends-on = "configure_instrumented"}
 test = {cmd="ctest --test-dir build --output-on-failure -LE convergence", depends-on = "build"}
 test_debug = {cmd="ctest --test-dir build --output-on-failure -LE convergence", depends-on = "build_debug"}
 test_unit = {cmd="ctest --test-dir build --output-on-failure -L unit", depends-on = "build"}

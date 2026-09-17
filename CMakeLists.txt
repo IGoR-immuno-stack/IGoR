@@ -128,6 +128,14 @@ find_package(sparrow REQUIRED)
 
 option(BUILD_DOC_DOXYGEN "Build Doxygen Documentation." false)
 option(ENABLE_COVERAGE "Enable code coverage." false)
+# Measures how far the pruning bound sits above what each scenario realizes -- the baseline
+# R6 needs before deciding whether a conditioned bound is worth its storage. See
+# src/igor/Core/BoundTightness.h. Off by default: the call site compiles to nothing.
+option(ENABLE_BOUND_INSTRUMENTATION "Measure bound / realized probability at scenario leaves." false)
+
+if(ENABLE_BOUND_INSTRUMENTATION)
+    add_compile_definitions(IGOR_BOUND_INSTRUMENTATION)
+endif(ENABLE_BOUND_INSTRUMENTATION)
 
 if(ENABLE_COVERAGE)
   if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")

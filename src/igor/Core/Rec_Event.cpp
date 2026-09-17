@@ -29,6 +29,7 @@
 #include <igor/Core/Counter.h>
 #include <igor/Core/EventUtils.h>
 #include <igor/Core/Scenario.h>  // For Scenario view construction
+#include <igor/Core/BoundTightness.h>
 
 #include <cassert>
 #include <iostream>
@@ -179,6 +180,13 @@ void Rec_Event::iterate_wrap_up(
         AccumulationContext& accumulation)
 {
     if (exploration.next_event_ptr_arr.get()[this->event_index]) {
+        //One node of the scenario tree: this event's realization, and everything the walk
+        //explores under it. The pair brackets the descent so the instrumentation can compare the
+        //bound that admitted this node against the best any leaf below it turned out to reach --
+        //which is the quantity pruning acts on, and the one the leaf ratio cannot show. Both
+        //calls compile to nothing unless IGOR_BOUND_INSTRUMENTATION is defined.
+        BoundTightness::enter(this->scenario_upper_bound_proba);
+
         // Not a leaf node - recursively call next event's iterate_wrap_up
         exploration.next_event_ptr_arr.get()[this->event_index]->iterate(
             query,
@@ -187,6 +195,8 @@ void Rec_Event::iterate_wrap_up(
             exploration,
             accumulation
         );
+
+        BoundTightness::leave();
     } else {
         // Leaf node - complete scenario and accumulate
 
@@ -217,6 +227,17 @@ void Rec_Event::iterate_wrap_up(
             scenario,
             exploration
         );
+
+        //How far above the realized probability the bound that let this scenario through sits.
+        //`scenario_upper_bound_proba` is the value *this* event computed before handing off, and
+        //at a leaf this event is the last one in the queue -- so it is the bound the whole
+        //descent ended on. Compiled out unless IGOR_BOUND_INSTRUMENTATION is defined; see
+        //BoundTightness.h and section 6.10 of docs/ITERATE_GENERIC_REWRITE_PLAN.md.
+        //
+        //Recorded before the threshold test, not after: a scenario the threshold discards is
+        //still one the bound admitted, and leaving those out would measure only the tail that
+        //survived.
+        BoundTightness::record(this->scenario_upper_bound_proba, scenario.scenario_error_w_proba);
 
         // Check pruning threshold
         if (not exploration.should_prune(scenario.scenario_error_w_proba)) {

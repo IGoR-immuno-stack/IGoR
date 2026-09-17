@@ -4,6 +4,7 @@ set(CORE_TEST_SOURCES
     test_aligner.cpp
     test_aligner_benchmark.cpp
     test_alignment_cigar.cpp
+    test_bound_tightness.cpp
     test_Contexts.cpp
     test_EventUtils.cpp
     test_deletion_iterate.cpp

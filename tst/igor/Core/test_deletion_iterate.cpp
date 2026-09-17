@@ -1214,6 +1214,58 @@ TEST_CASE("Deletion: the junction-length bound (G5/S4)", "[deletion][iterate]")
     }
 }
 
+TEST_CASE("Deletion: what the junction fold composes", "[deletion][iterate][junction]")
+{
+    // The bound the sections above assert is a product over the events the fold walks, and one
+    // of its factors is not a realization at all: Dinucl_markov contributes `p^L` for the
+    // segment it fills, where L is the length the segment's *creator* published on that path.
+    //
+    // That factor's whole behavioural cover used to be a single assertion (plan 6.12). The
+    // sections above widened it by accident -- every junction bound they assert carries it --
+    // but they all place an Insertion in the fold, so the branch that decides what happens when
+    // no creator ran was still untested. These two sections are that branch, and its control.
+    //
+    // The geometry is deliberately tight: with no Insertion the fold can only *shorten* the
+    // junction, so the neighbours have to be adjacent for any distance to be reachable at all.
+
+    const auto vd_bound_with = [](bool with_insertion) {
+        IterateTestState state = create_iterate_state(kRead);
+        auto deletion = make_deletion(V_gene_seq, Three_prime, 0, 0, /*id=*/0);
+        state.preset_safety(Event_safety::VD_safe, false);
+        state.preset_segment(V_gene_seq, 0, 13, read_run(0, 13));
+        auto d_stub = make_gene_choice(D_gene, {{"D1", "ACGTA"}}, /*id=*/1);
+        state.add_event(d_stub);
+        state.mark_chosen(d_stub);
+        state.preset_segment(D_gene_seq, 14, 18, read_run(14, 18));
+        state.add_downstream_event(make_deletion(D_gene_seq, Five_prime, 0, 2, /*id=*/2));
+        if (with_insertion) {
+            state.add_downstream_event(make_insertion(VD_ins_seq, 0, 4, /*id=*/3));
+        }
+        state.add_downstream_event(make_dinucl_markov(VD_ins_seq, /*id=*/4));
+        for (std::size_t i = 0; i != 64; ++i) {
+            state.set_marginal(i, 0.5L);
+        }
+        const auto next = call_iterate_recording(deletion, state);
+        REQUIRE(next->call_count() == 1);
+        return next->calls.front().downstream_bounds.at(VD_ins_seq);
+    };
+
+    SECTION("A Dinucl_markov whose segment nothing created contributes 1, not p")
+    {
+        // Two events enumerate realizations here -- this deletion and the D 5' one -- and each
+        // carries a flat 0.5. The Dinucl is in the fold (it is asked for a factor) but the
+        // junction it fills has no creator on this path, so it must contribute nothing.
+        CHECK(vd_bound_with(/*with_insertion=*/false) == Approx(0.25));
+    }
+
+    SECTION("Positive control -- with the creator in the fold the insertion's own factor appears")
+    {
+        // Same geometry, same distance of zero. The extra halving is the Insertion's marginal,
+        // not the Dinucl's: at length zero `p^L` is still 1.
+        CHECK(vd_bound_with(/*with_insertion=*/true) == Approx(0.125));
+    }
+}
+
 TEST_CASE("Deletion: the segment's own error bound", "[deletion][iterate]")
 {
     SECTION("V publishes the bound for what survives the deletion")
