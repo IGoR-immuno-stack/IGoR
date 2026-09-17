@@ -428,7 +428,138 @@ Worth stating so the scope is not over-read:
 
 ---
 
-## 9. Where to read further
+## 9. Measuring the bound: `BoundTightness`
+
+The sections above say what the bound *is*. This one says how loose it is, because until
+`src/igor/Core/BoundTightness.h` existed nobody had measured it and R6 was being sized against a
+guess.
+
+### Running it
+
+The instrument is header-only and **compiled out unless asked for** — every entry point is an
+empty inline unless `IGOR_BOUND_INSTRUMENTATION` is defined, so the call sites carry no `#ifdef`
+and the default build is bit-for-bit what it was.
+
+```
+pixi run build_instrumented     # configures build_instr/ with -DENABLE_BOUND_INSTRUMENTATION=ON
+build_instr/bin/igor …          # run anything; the report goes to stderr at exit
+```
+
+Four call sites, all in code the walk already executes:
+
+| call | where | what it observes |
+|---|---|---|
+| `enter(bound, name)` / `leave()` | `Rec_Event::iterate_wrap_up`, around the descent | one node of the scenario tree |
+| `record(bound, realized, name)` | the same method's leaf branch | one completed scenario |
+| `note_prune(bool)` | `ExplorationContext::should_prune` | one probability test and its outcome |
+
+`should_prune` acquired a twin, `is_below_threshold`, which is the same comparison with nothing
+observing it. The leaf uses the twin: what it tests is a *realized* probability, and it accepts or
+rejects one finished scenario rather than pruning a subtree. Keeping the two callable separately
+is what lets the barren-cause split below count subtree prunings without the leaf test inflating
+them.
+
+### What it reports, and how to read it
+
+**1. `bound / realized` at leaves.** The obvious measurement, and it is degenerate: 100 % of
+scenarios land within a factor of 1.8 and none is unsound. By the leaf every slot of the
+downstream bound map has been set to 1.0 by the event that owns it, so the bound *is* the realized
+probability. Kept as an invariant check — if this distribution ever widens, something writes a
+slot it does not own.
+
+**2. `bound / best leaf below`, per depth.** The quantity pruning acts on. The histogram is signed:
+a node whose bound sat *below* the best leaf under it is filed at the decade of the shortfall
+rather than dropped, because at the insertion depths that is every node and a median over the
+handful that are not would describe nothing.
+
+**3. Why a barren node was barren.** Most of the walk reaches no leaf, and "barren" alone does not
+say whether a better bound could have avoided it. Three causes, from the pure function
+`barren_cause()`:
+
+| | meaning | what would remove it |
+|---|---|---|
+| `starved` | no child was ever probability-tested — every realization the child event offered died on geometry, safety or read bounds | a feasibility test at the parent; **no probability bound can reach these** |
+| `pruned` | every feasible child was tested and fell below the cutoff | a tighter bound *at this node*, which would have deleted the node itself |
+| `hollow` | some child was expanded; the waste is deeper, and that child's own row records why | — |
+
+**4. The over-estimate, decomposed by the event that resolves it.** A node's bound divided by the
+bound of the child that led to the best leaf is exactly how much the bound tightened when that
+child's event ran — i.e. how optimistic the parent's bound was *about that event*. The steps
+telescope: their product down the winning path is the parent's whole over-estimate, so the rows
+are additive in decades. A row at `1e0.00` is an event whose bound the parent already knew and
+where conditioning would buy nothing.
+
+The decomposition is **per event, not per segment slot**, and the reason is the finding in (1): an
+event sets its slot to 1.0 once its segment is resolved ([Genechoice.cpp:300](../src/igor/Core/Genechoice.cpp#L300),
+[Deletion.cpp:700](../src/igor/Core/Deletion.cpp#L700), [Dinuclmarkov.cpp:203](../src/igor/Core/Dinuclmarkov.cpp#L203))
+and multiplies what it realized into the scenario probability instead. So a slot-by-slot ratio
+against the best leaf is a ratio against 1, and measures the slot's value rather than its slack.
+A per-slot table was built first, and said exactly that in a way that took a while to see: every
+insertion slot read "100 % below the leaf's", which is only the statement that an insertion slot
+holds a probability smaller than one. It was replaced rather than annotated.
+
+### The baseline, and the caveat that governs it
+
+TRB regression corpus, `default` batch, **one** EM iteration, `likelihood_threshold` 1e-60,
+`probability_ratio_threshold` 1e-5. 922 755 scenarios from 23 005 770 expanded nodes — **24.9
+nodes visited per scenario produced**, and 81.4 % of nodes barren.
+
+| depth | event | nodes | barren | median over-estimate | step resolved here |
+|---:|---|---:|---:|---:|---:|
+| 0 | `GeneChoice_V_gene` | 501 | 0 | 10^15.25 | — |
+| 1 | `GeneChoice_J_gene` | 577 | 7 | 10^8.00 | **10^7.25** |
+| 2 | `GeneChoice_D_gene` | 15 872 | 5 749 | 10^6.50 | 10^2.50 |
+| 3 | `Deletion_V_3'` | 232 740 | 193 857 | 10^5.25 | 10^1.25 |
+| 4 | `Deletion_D_5'` | 2 654 365 | 2 481 986 | 10^4.50 | 10^1.00 |
+| 5 | `Deletion_D_3'` | 5 261 598 | 4 892 994 | 10^2.75 | 10^1.25 |
+| 6 | `Deletion_J_5'` | 9 743 284 | 8 820 529 | 10^2.00 | 10^1.00 |
+| 7 | `Insertion_VD` | 2 087 039 | 1 164 284 | 10^-0.25 | 10^2.50 |
+| 8 | `DinucMarkov_VD` | 2 087 039 | 1 164 284 | 10^1.00 | **10^-1.25** |
+| 9 | `Insertion_DJ` | 922 755 | 0 | 10^-1.25 | 10^2.50 |
+| 10 | `DinucMarkov_DJ` | — | — | — | **10^-1.25** |
+
+The step column sums to 16.75 decades against the 15.25 the aggregate reports at depth 0 — medians
+do not sum exactly, and 1.5 decades out of 15 is the whole of the discrepancy. The decomposition
+accounts for the bound.
+
+Three readings.
+
+- **The J gene choice carries half the slack.** 7.25 of the 15.25 decades at the root are the
+  bound's optimism about which J will be chosen — more than the four deletions and the D choice
+  put together. If R6 conditions one thing, it is this one. The four deletions are 1.0–1.25 decades
+  each and, individually, nearly not worth conditioning.
+- **The negative steps are §7.19, localised.** `DinucMarkov_VD` and `DinucMarkov_DJ` both show the
+  bound *growing* by 10^1.25 on the event's own realization, which an upper bound may not do. The
+  parent in each case is the `Insertion` whose bound counts its own realization twice. The
+  instrument finds it without being told where to look.
+- **Barren is a probability story, not a geometry one.** Of 18 723 690 barren nodes, 0.22 % were
+  starved and 66.88 % pruned (the rest hollow, i.e. their cause is recorded one level down).
+  Among the 12 564 150 *frontier* barren nodes — those that are one or the other — **99.67 % died
+  on probability**. So the waste is in reach of a tighter bound, and a feasibility pre-check is
+  not the lever. This is the measurement that says R6 is worth doing.
+
+**The caveat.** This was run on `TRB_uniform_model_marginals.txt` at EM iteration 1. Under a
+uniform model every realization of an event is equiprobable, so `bound / realized` is close to the
+product of the remaining events' cardinalities — which is why depth 6 reports median, p90 and p99
+all at exactly 10^2.00, and why §7.19's DJ ratio came out at exactly 1/31. **These numbers
+characterise the shape of the scenario tree, not the looseness a converged model produces**, and
+under peaked marginals the max/typical ratios move in both directions. Re-measure on an `evaluate`
+pass with an inferred model before sizing anything against them.
+
+### What the instrument does not measure
+
+It says how far the bound sits above the truth. It says nothing about **how much likelihood mass a
+higher threshold would discard**, which is the other half of any decision to run faster. The two
+are the same lever on speed — a bound uniformly loose by a factor `c` is exactly a threshold
+loosened by `c`, since both sides of `should_prune` scale together — but they are opposite
+currencies on accuracy: tightening a sound bound changes no result, while raising the threshold
+drops scenarios that belong in it. Choosing `probability_ratio_threshold` on evidence needs a
+different measurement, at the same call site: the CDF of leaf probability relative to the
+per-sequence best. Not built.
+
+---
+
+## 10. Where to read further
 
 | | |
 |---|---|
@@ -437,3 +568,4 @@ Worth stating so the scope is not over-read:
 | delivered notes per step | §6.11 (S4a), §6.12 (S4b) |
 | the repair queue and its gates | §6.9 |
 | decisions O8 (S4 scope), O10 (layer ownership), O11 (boundary spans) | §8 |
+| the bound's measured looseness, and the instrument | §9 above, and §6.16 of the iterate plan |

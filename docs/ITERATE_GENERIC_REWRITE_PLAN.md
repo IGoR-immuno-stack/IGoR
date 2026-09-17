@@ -3168,6 +3168,60 @@ Three readings:
   1 691 694 of them, i.e. all of them — has a bound below what the leaf under it realizes. That is
   §7.19.
 
+#### Extended (Sep 17 2026): why a barren node is barren, and whose bound is loose
+
+The table above says the bound over-estimates and that most of the walk is barren, and neither
+statement on its own says what to do. Two additions close that, both measured on the same corpus
+(`default` batch, one EM iteration). **The full reading is now
+[PROBA_BOUND_MACHINERY.md §9](PROBA_BOUND_MACHINERY.md), which is where the instrument is
+documented; what follows is what it changes for this plan.**
+
+**Barren splits into three, and only one of them is out of reach.** `should_prune` now offers its
+outcome to the instrument, and a node records whether any child was ever probability-tested. Of
+18 723 690 barren nodes, 0.22 % were *starved* — no child tested at all, every realization dead on
+geometry — and 66.88 % *pruned*; the rest are *hollow*, their cause recorded one level down. Among
+the 12 564 150 frontier barren nodes, **99.67 % died on probability**. So the waste a tighter bound
+could delete is essentially all of it, and a feasibility pre-check is not the lever. **This is the
+measurement that says R6 is worth doing**, and it was not available before.
+
+**The over-estimate decomposes per event, and one event dominates.** A node's bound over the bound
+of the child that led to the best leaf is how optimistic the parent was *about that event*; the
+steps telescope down the winning path, so they are additive in decades.
+
+| event | step | | event | step |
+|---|---:|---|---|---:|
+| `GeneChoice_J_gene` | **10^7.25** | | `Deletion_J_5'` | 10^1.00 |
+| `GeneChoice_D_gene` | 10^2.50 | | `Insertion_VD` | 10^2.50 |
+| `Deletion_V_3'` | 10^1.25 | | `DinucMarkov_VD` | **10^-1.25** |
+| `Deletion_D_5'` | 10^1.00 | | `Insertion_DJ` | 10^2.50 |
+| `Deletion_D_3'` | 10^1.25 | | `DinucMarkov_DJ` | **10^-1.25** |
+
+Summing to 16.75 against the 15.25 the aggregate reports at depth 0 — medians do not sum exactly,
+and that is the whole discrepancy.
+
+- **R6 has a target, and it is the J gene choice**: 7.25 of the 15.25 decades at the root, more
+  than the D choice and all four deletions together. The deletions are 1.0–1.25 decades each and
+  individually near the noise.
+- **The two negative steps are §7.19 found blind.** The bound *grows* by 10^1.25 when each
+  `DinucMarkov` runs, which an upper bound may not do; the parent in both cases is the `Insertion`
+  that counts its own realization twice. The instrument localises the defect to the event without
+  being told where to look, which is the check R8 should keep after the repair.
+
+**And a correction to what this instrument was first built to do.** The decomposition is per
+*event*, not per *segment slot*, because an event sets its downstream slot to 1.0 once its segment
+is resolved and multiplies what it realized into the scenario probability instead. So at the leaf
+every slot is 1, and a slot-by-slot ratio against the best leaf compares a bound against nothing —
+the same fact that makes the leaf ratio 1 by construction. A per-slot table was built first and
+reported every insertion slot as "100 % below the leaf's", which is only the statement that an
+insertion slot holds a probability below one. It was replaced rather than annotated.
+
+**The caveat governs all of it**: the run is on `TRB_uniform_model_marginals.txt` at EM iteration
+1, where every realization of an event is equiprobable and `bound / realized` is close to the
+product of the remaining events' cardinalities — which is why depth 6 reports median, p90 and p99
+all at exactly 10^2.00, and why §7.19's DJ ratio is exactly 1/31. **These numbers characterise the
+shape of the scenario tree, not the looseness a converged model produces.** Re-measure on an
+`evaluate` pass with an inferred model before sizing R6 against them.
+
 #### The `p^L` factor
 
 §6.12 recorded that `Dinucl_markov::affects_proba_of → false` was killed by exactly **one** test.
