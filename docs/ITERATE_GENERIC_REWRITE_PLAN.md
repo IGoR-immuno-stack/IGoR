@@ -1485,8 +1485,8 @@ Five new pieces, in dependency order. Each is one commit with its own tests.
 | # | Component | Home | Replaces | Consumers |
 |---|---|---|---|---|
 | S1 | `OffsetDelta` / `LengthRange` + the two Phase A virtuals | `Rec_Event.h` | three conflicting meanings of `len_min`/`len_max` | S2 |
-| S2 | `PendingModifierBounds` | new `src/igor/Core/JunctionGeometry.h` | 8 scalars × 2 classes + 120 lines of lookup | S3, B5, B11 |
-| S3 | `reachable()` + `Overlap check()` | same | 8 comparison blocks | B5, B11 |
+| S2 | ✅ **built** — `PendingModifierBounds` | new `src/igor/Core/JunctionGeometry.h` | 8 scalars × 2 classes + 120 lines of lookup | S3, B11 (✅ B11a); **B5 is R10's**, because S2 is right and B5's four arms were not (§7.4) |
+| S3 | ✅ **built and consumed** — `reachable()` + `Overlap check_overlap()` | same | 8 comparison blocks | B5 (✅ 4b), B11 (✅ B11a) |
 | S4 | `SegmentSpan` + `affects_length_of` / `affects_proba_of` (S4a ✅), then the span-keyed map (S4c) | `Rec_Event.{h,cpp}`, `SegmentSpan.h` | 4 self-filters (✅) + 7 named maps | B5, B6, B11 |
 | S5 | ✅ **done** — `SafetyMatrix`: row bitmask over `LayeredArray<uint32_t>`, indexed by ordering position (§2.3, §6.17) | new `src/igor/Core/SafetyMatrix.h` + `ExplorationContext.h` | `Event_safety` enum, `Safety_bool_map` | B5, B11 |
 
@@ -1633,7 +1633,7 @@ already flagged as the milestone-1 blocker and because `Gene_choice` is the only
 | **3** | ✅ **done** — **B11a**, `Gene_choice::iterate`'s three-way switch and the twelve alignment-path branches gone; first production consumer of S2/S3. The V/J-versus-D asymmetry is read off the ordering (`left_neighbor`/`right_neighbor` == `kNoSeqType`), which settles O6's fallback switch as one boolean and gives a tandem D1/D2 pair the internal behaviour unnamed. §7.1's two arithmetics are one helper with both arms named, carried verbatim. 939 lines deleted, 628 added, fifteen members gone. *Original scope:* `Gene_choice` alignment path generic (G4, G2, G8, and G5 via S4a-c). Characterization already delivered by T0 | full ladder + benchmark | **yes**, except §7.1 |
 | **4a** | ✅ **done** — `tst/igor/Core/test_deletion_iterate.cpp`, **662 assertions in 18 `TEST_CASE`s**, against the unmodified event. `Deletion::iterate` went from **0 % to 98.7 % lines / 91.8 % blocks**; 55 mutations run, 49 caught, and the six survivors are **five provably dead or dominated branches**, each named in §6.14. Includes the zero-length junction T0 deferred, and found the unguarded J palindrome of §7.15. **Moved ahead of S5** (§6.8, F4) | unit + mutation | n/a — tests only |
 | **S5** | ✅ **done** — `SafetyMatrix` in its own header; the pair is a `SafetyCell` (row, column) in **ordering positions, not seq_type ids** — the VJ model is where the two disagree; row-suffix propagation; `Event_safety` and `Safety_bool_map` deleted. Three departures from §2.3, all in §6.17: the 32-position limit lives in the container rather than in `freeze()`, a write is read-modify-write (which is what makes `layer - 1` still mean what it did), and a row is claimed **once per row, not once per check**. Propagation is measurably free and structurally inert in VDJ — the only cell it can reach there is (V, J), and that cell is rewritten before anyone reads it. 6 mutations, all caught; 4a's sections pass with their expectations unchanged | full ladder + the empty-segment transitivity test + 4a's sections unchanged | **yes** (§2.3 corollary) |
-| **4b** | **B5** — `Deletion::iterate` generic (all patterns). **First production consumer of S2** | full ladder + benchmark + convergence | **yes** |
+| **4b** | ✅ **done** — **B5**, `Deletion::iterate` generic. The four-arm switch is gone: **981 → 246 lines**, 1266 deleted against 512 added, thirty-one members retired. Everything the arms differed in is read at init from `event_side` and from whether the segment is anchored on an end of the read — the same boolean B11a gave `Gene_choice` — plus one A0 query for "does anything still move my other end". First production consumer of **S3**; **S2 is R10's**, because `pending_` is *correct* and the four arms were not (§7.4, measured active). §7.21 found and fixed. §6.18 | full ladder + benchmark + convergence | **yes**, via §7.4's reproduction |
 | **5a** | ✅ **done** — three parts. (i) The per-branch unit sections (Sep 16 2026): nine `TEST_CASE`s over both sub-branches, `Gene_choice::iterate` from **87.4 % to 96.3 % blocks**, every branch covered *except the two that do not terminate* (§7.17); §7.16, §7.17 and §7.18 fell out of writing them. (ii) The `bound / realized_proba` instrumentation (§6.16), which measured what §6.10 asked and found §7.19. (iii) The widened `span_proba_factor` cover (§6.16). The end-to-end half landed earlier: `scripts/tests/test_no_d_align.sh`, see §7.9 | unit + mutation | n/a — tests and an off-by-default instrument |
 | **5b** | **B11b** — `no_d_align` exhaustive path generic (G6), including `⊗ᵉⁿᵘᵐ` — the retained decomposition, always three components (§2.5). **Retires `Gene_choice::finalize_Len_proba_bound`** into `JunctionBound::Fold::Retain`, gated by `exhaustive_position_fallback_` (§2.6) | full ladder + a fixture that *forces* the path | **yes** |
 | **R1–R4** | **Repair phase** (§6.9) — the decided behaviour changes, held here so everything above is idempotent end to end: §7.13, §7.12, `Insertion`'s four `[!shouldfail]` defects, **R3b's `LayeredArray::set()` hardening (O10) directly after them**, `dinuc_proba_matrix` → `initialize_event()` | full ladder, per commit | **no** — golden data may move; each commit names which outputs and why |
@@ -1642,6 +1642,7 @@ already flagged as the milestone-1 blocker and because `Gene_choice` is the only
 | **R8** | **§7.19** — an `Insertion`'s bound counts its own realization twice and falls below the truth, so insertion nodes prune harder than the threshold asks. Needs a decision first: fix the consumer, or stop folding the consuming event into its own junction (which is also 6.14's mirror finding on `Deletion`). Re-measure with 5a's instrument afterwards | full ladder + the bound instrument | **no** — every output moves |
 | **R6** | Within-clique joint max in the span fold (§6.9); optional cross-clique parent indexing | full ladder, **convergence weighted heavily** | **no** — a tighter bound prunes more |
 | **R9** | **§7.20** — `make_transversions`'s `is_int_seq` arm and its multi-character `'14'` deleted. The only R row that is **bitwise-neutral by construction**: nothing calls it. Queued for tidiness, not blocked | full ladder | **yes** |
+| **R10** | **§7.4** — `Deletion::legacy_offset_delta()` deleted, the partner interval read from `PendingModifierBounds`. 4b carries the short bound so that the collapse itself is bitwise; this is where it stops. Also the last hardcoded per-partner lookup in the body | full ladder + the no_d_align reference, regenerated | **no** — the no_d_align golden data moves |
 
 **The split is an ordering requirement, not bookkeeping.** The *a* commit lands before the *b*
 commit and is mutation-verified there, where mutation-verification means something: a
@@ -2220,6 +2221,7 @@ Decided behaviour changes, none of which had a row in §6 before this re-assessm
 | R5 | §7.1 and §7.8 off-by-one corrections (decision O4) | Sep 1 | `Gene_choice` | **golden data moves**; the credited core length changes |
 | R6 | Within-clique **joint** max in the span fold, using S4b's group hook; optionally cross-clique parent indexing after it | Sep 10 | the span fold (all events) | **golden data may move** — a tighter bound prunes more, so fewer scenarios are summed. Needs the **convergence** gate, not just regression |
 | R9 | §7.20 — delete `make_transversions`'s `is_int_seq` arm, whose `'14'` is a multi-character constant and whose representation cannot hold the code it tests for. **Not blocked on 5b**: no caller reaches it, so the deletion is bitwise-neutral by construction and can land whenever it is convenient | Sep 21 | `Deletion.{h,cpp}` | none — dead code, zero call sites |
+| R10 | §7.4 — `Deletion` stops reproducing the short `len_min` / `len_max` bound. Delete `Deletion::legacy_offset_delta()`, give the event a `JunctionGeometry::PendingModifierBounds` and read the partner interval from it. **One line of behaviour, and it is the line 4b could not take**: `Gene_choice` has been on the correct interval since B11a, so this is also what makes the two agree again | Sep 21 | `Deletion` | **the no_d_align golden data moves** — pairs stop being marked established-safe when they are not, so a downstream deletion performs a check it used to skip. Measured: `Pgen` and both coverage tracks move in the 4th significant digit |
 
 R1–R4 are each expected to be bitwise-neutral despite being behaviour changes — they close paths
 the corpus does not reach. That expectation is the thing to *test*, not to assume: a surprise here
@@ -3313,6 +3315,81 @@ One cleanup rode along: seventeen commented-out lines in `Deletion.cpp` calling 
 `unordered_set<Event_safety> safety_set`, the container two generations back. One of them named the
 wrong pair for the write it sat above.
 
+### 6.18 — Delivered (4b): `Deletion::iterate` generic *(Sep 21 2026)*
+
+The four-arm switch is gone. `Deletion::iterate` went **981 → 246 lines**, the file 1266 deleted
+against 512 added, and **forty-two members retired** — every `*_check` boolean, every
+`*_min_offset` / `*_max_offset` pair, all eight `*_min_del` / `*_max_del` scalars, the three
+`*_chosen` flags, both `memory_layer_safety_*` and both `memory_layer_offset_check*`, and four
+that nothing had read since before B8. What replaces them is one `FlankCheck` vector and six
+booleans resolved at `initialize_event()`.
+
+**Everything the four arms differed in reduces to three questions**, and none of them is a gene
+class:
+
+| question | answers | what it decides |
+|---|---|---|
+| which end does this deletion move? | `event_side` | which neighbours it is checked against, which end of the template is cut, which junction it widens, which way the mismatch list is trimmed, whether a palindrome's positions need re-sorting |
+| is the segment anchored on an end of the read? | `left_neighbor`/`right_neighbor == kNoSeqType` | whether the template may be deleted away entirely (§2.7), whether the enumeration carries the dominated early prune stage (§6.14), whether the palindrome's read positions are bounds-checked (§7.15) — and, for an internal 5′ deletion, §7.3's surviving `//FIXME` |
+| does anything still move the other end? | an A0 `get_offset_role` scan | whether the segment's error bound is written or left neutral — was `d_del_opposite_side_processed` |
+
+The second is the same boolean B11a gave `Gene_choice`, which is what makes a tandem D1/D2 pair
+inherit D's behaviour without either of them being named. The third replaces a lookup of "the D
+deletion on the opposite side" with a query, which is what makes it answerable when there are two
+Ds.
+
+**A deletion is checked only against the neighbours on the side it trims.** That is why each arm
+compared against one or two partners and never all three, and it is now one line rather than four
+different partner lists. The comparisons themselves are `JunctionGeometry::check_overlap` with the
+moving end pinned to a point — eight hand-written comparisons replaced by S3's predicate, its
+**first production consumer in `Deletion`**.
+
+**S2 is not consumed here, and that is the finding.** `PendingModifierBounds` answers the partner
+interval correctly; the four arms did not. §7.4 — recorded in September as *latent* — is **active
+on the demo model**: the D 5′ deletion's `get_len_max()` is 3 where its realizations say 4, so the
+interval a V deletion compared D's 5′ end against was `[-3, 16]` instead of `[-4, 16]`. Only the
+lower bound moves, and the lower bound decides `Safe`, so the effect is that pairs were marked
+established-safe when they were not and a downstream deletion skipped a check it should have made.
+Switching the one call to `pending_.reachable()` makes the no_d_align reference move.
+
+Rather than mix that with the collapse, 4b reproduces the short bound in one named function,
+`Deletion::legacy_offset_delta()`, whose whole job is to be deleted. It is still generic — it sums
+over the pending events instead of looking one up by `(Deletion_t, seq_type, side)`, so even the
+bug-compatible form handles two deletions on one end. **R10** deletes it, gives the event a
+`pending_`, and moves the golden data. That was the choice put to the maintainer and taken
+deliberately; O7's rule that the refactoring block stays idempotent end to end is what decided it.
+
+*Measured, and the reason it is worth saying twice*: shimming the legacy interval back in makes
+**all five regression tests bitwise**. §7.4 is the only divergence in the whole collapse.
+
+**§7.21 fell out of writing it**, and was fixed rather than carried: the V arm read J's offset
+only when the overlap check was going to run, then measured the V→J junction against it — so in a
+model where J is the junction partner and `(V, J)` was already safe, the length was measured
+against a stale, and on the first scenario uninitialized, member. It cannot fire where D is
+chosen, which is the whole corpus.
+
+**Two `default: throw` arms became one check at initialization.** A deletion that names neither
+end of its segment, and one whose segment the ordering leaves out, are now rejected before
+inference rather than a million nodes into it. 4a's section anticipated the first and says so; it
+keeps its assertion and gains a second. What §2.3 asks of B5 beyond that — validating that *every
+pair adjacent in chosen order is checked by someone* — is **not** discharged here and cannot be:
+no single event can see the property, and `Gene_choice`'s candidate partner list is still the
+legacy three by name, so no ordering that violates it can be constructed until B9 step 3. It stays
+phase C's, as §2.3 says.
+
+**Verification.** 262 unit (4a's 662 assertions unchanged, only the spelling of the
+`Undefined_side` case's title), 5 integration, 5 regression **bitwise**, 2 convergence. The
+benchmark shows no separable difference: interleaved on the same machine, the N=1000/T=4 inference
+step is 6.99 s median before and 7.06 s after, against a run-to-run spread of ±0.2 s on either —
+so any cost of trading four straight-line loops for one with four runtime predicates is under the
+harness's resolution.
+
+**Four dead branches deleted, as 4a asked.** `v_3_new_offset < 0`, the D 5′ palindrome's
+`d_5_new_offset >= 0`, and the `value_int > previous_str.size()` guard inside
+`d_del_opposite_side_processed` in both D arms — each named in §6.14 as provably unreachable, each
+gone. §7.3's surviving `//FIXME` is the one that does two jobs and stays, unsigned comparison and
+all.
+
 ---
 
 ## 7. Where a generic rewrite would silently change results
@@ -3414,7 +3491,7 @@ bound, and 4a pins both outcomes in both D arms (inverting the branch is caught)
 bound rather than a wrong one, so it is pinned as observed, not as intended — the `//TODO` names a
 computation nobody has decided on.
 
-### 7.4 — `len_min` / `len_max` accumulation is order-dependent (latent)
+### 7.4 — `len_min` / `len_max` accumulation is order-dependent (**active**, not latent)
 
 Both file-loading constructors — `Deletion(seq_type, side, realizations)`
 ([Deletion.cpp:175-189](../src/igor/Core/Deletion.cpp#L175-L189)) and
@@ -3432,16 +3509,32 @@ it and leaves `len_max` at its `INT16_MIN` sentinel. The range constructors
 (`Deletion(…, pair<int,int>)`, `Insertion(…, pair<int,int>)`) pre-seed both bounds and are
 unaffected; the constructors the model reader actually uses do not.
 
-**Measured, not assumed**: replaying the exact accumulation over `std::unordered_map<std::string,…>`
-for the realistic key sets (deletions −4..16 and 0..16, insertions 0..30, and the 2- and
-3-realization minimal-model cases) gives the correct bounds in every case on this libstdc++ —
-the hash order places a near-maximal key early enough. **The bug is latent, not active.**
+**Originally measured as latent, and that was wrong.** The Sep 1 note here said that replaying
+the accumulation over `std::unordered_map<std::string,…>` for the realistic key sets gives the
+correct bounds in every case on this libstdc++, and concluded the bug was latent. The replay was
+of the *range* constructors' key sets; the model reader uses the realizations-map constructor,
+and 4b caught it live.
 
-It is worth recording anyway, because the failure mode is silent and severe: `get_len_max()` is
-read as `*_min_del`, so a sentinel value would push `v_3_max_offset` far negative and mark every
-overlap check "safe", skipping real constraints. A0 removes the whole class of hazard by
-computing the bounds once, correctly, in one place. Add a unit test asserting the bounds against
-`std::minmax_element` over the realization set as part of A0.
+**Measured active, Sep 21 2026 (4b).** On `demo_inference/final_parms.txt` the D 5′ deletion's
+`get_len_max()` returns **3** where its realization set says **4**. So the interval a V deletion
+compares D's 5′ end against is `[-3, 16]` where the truth is `[-4, 16]`.
+
+It is the *lower* bound that moves, and the lower bound decides `Safe` rather than `Infeasible`
+— so nothing is wrongly discarded. What happens instead is that pairs are marked
+**established-safe when they are not**, the downstream deletion skips the check it would
+otherwise perform, and scenarios survive that a correct interval discards. The no_d_align
+reference encodes those extra scenarios.
+
+`JunctionGeometry::PendingModifierBounds` reads the realization set through `deletion_range()`
+and is right, which is why `Gene_choice` has been on the correct interval since B11a and
+`Deletion` was not: the two disagreed with each other from B11a until 4b, and still do until
+**R10**. 4b reproduces the short bound in one named function, `Deletion::legacy_offset_delta()`,
+so that the collapse itself stays bitwise; R10 deletes that function and reads
+`pending_.offset_delta()` instead, and the no_d_align golden data moves there.
+
+The accumulation itself is still worth repairing at the source — `else if` → two `if`s — but it
+is read by `Insertion` and by `Gene_choice`'s surviving `no_d_align` scalars too, so fixing it
+there moves more than one baseline at once. R10 does the narrow thing.
 
 ### 7.6 — In `Gene_choice`, the overlap early-out is subsumed by the junction-length guard
 
@@ -4046,6 +4139,44 @@ leaving `make_transversions(string &)` for ACGT and `make_transversions(Int_Str 
 Bitwise-neutral by construction — no reachable path changes — so unlike the rest of phase R it does
 not need to wait for 5b and carries no golden-data movement. It is queued as **R9** only because it
 is unrelated to anything in flight, not because it is blocked.
+
+### 7.21 — A V deletion measured its junction against a stale neighbour offset
+
+*(Found by 4b, Sep 21 2026. Fixed in the same commit; the shape is §7.9's.)*
+
+Three of the four arms read their neighbour's offset unconditionally. The V arm read D's
+unconditionally and **J's only when the overlap check was going to run**:
+
+```cpp
+if (j_chosen) {
+    if (!is_overlap_safe(VJ_safe, memory_layer_safety_2 - 1)) {
+        j_5_offset = scenario.get_offset(J_gene_seq, Five_prime, …);   // <- only here
+        …
+    } else { vj_check = false; set_overlap_safety(VJ_safe, true, …); }
+}
+```
+
+and then measured the junction it widens against whichever of the two it had:
+
+```cpp
+const Seq_Offset partner_5_offset = junction.span().right.id == D_gene_seq ? d_5_offset : j_5_offset;
+```
+
+`j_5_offset` is the branch's own member, not a local. So in a model where the V→J junction is
+the one a V deletion bounds — **a VJ model, or any model where D is not chosen at that point** —
+and where `(V, J)` had already been established safe upstream, the junction length was measured
+against the value left by a *previous scenario*, and on the first one against an **uninitialized
+member**. That is §7.9's shape exactly: undefined behaviour behind a guard that happens to cover
+it on the corpus.
+
+It cannot fire where D is chosen, because then D is the junction partner and D's offset was
+always refreshed — which is the whole regression corpus, and why the fix is bitwise there.
+
+**Fixed rather than carried.** The generic body reads every placed partner's offset in the
+preamble, before deciding whether the comparison runs. Preserving the defect would have meant
+deliberately keeping a partner's offset stale across scenarios inside a struct built to hold
+per-scenario state, and reading a member whose first read is uninitialized — which is not a
+behaviour to reproduce, it is one to stop.
 
 ## 8. Decisions taken
 
