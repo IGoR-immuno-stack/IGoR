@@ -25,6 +25,7 @@
 
 #pragma once
 
+#include <igor/Core/JunctionGeometry.h>
 #include <igor/Core/Rec_Event.h>
 #include <igor/Core/Utils.h>
 #include <igor/Core/Errorrate.h>
@@ -108,6 +109,9 @@ private:
     /// trims. Called from initialize_event() once the neighbour is known.
     void resolve_junction(SegmentSpan span, SeqTypeId proba_key, int memory_layer);
 
+    /// Keep the mismatches that survive the trim. See the definition for the direction.
+    void trim_mismatches(const std::vector<std::size_t> &previous_mismatches);
+
     Seq_type target_seq_type;
 
     inline void iterate_common(
@@ -117,106 +121,85 @@ private:
 
     std::forward_list<Event_realization> int_value_and_index;
 
-    //Declare variables for V part
-    bool vd_check;
-    bool vj_check;
-    Seq_Offset v_3_offset;
-    Seq_Offset v_3_new_offset;
-    Seq_Offset d_5_min_offset;
-    Seq_Offset d_5_max_offset;
-    Seq_Offset j_5_min_offset;
-    Seq_Offset j_5_max_offset;
+    /**
+     * \brief One neighbouring gene segment this deletion's moving end is checked against.
+     *
+     * Resolved in initialize_event(), ordered 5'->3' by the partner's position -- the order the
+     * four arms this replaces performed their comparisons in. A deletion is checked only
+     * against the partners on the side it trims: the other side of its segment is not moving,
+     * so nothing there can newly collide.
+     */
+    struct FlankCheck {
+        SeqTypeId partner_id = kNoSeqType;
+        Seq_side partner_side = Five_prime;   ///< the partner end facing this deletion
+        SafetyCell safety_cell;               ///< the pair, by ordering position (S5)
+        int safety_layer = -1;                ///< one per *row*, so same-row checks share it
+        int partner_offset_layer = -1;
+        bool partner_chosen = false;          ///< the partner is placed before this event
 
-    //Declare variables for D part
-    //Five prime
-    //bool vd_check;
-    Seq_Offset d_5_offset;
-    Seq_Offset d_5_new_offset;
-    Seq_Offset v_3_min_offset;
-    Seq_Offset v_3_max_offset;
+        /// How far the partner's facing end can still travel. See legacy_offset_delta(): this
+        /// is §7.4's short answer, not `PendingModifierBounds`', and R10 is the swap.
+        OffsetDelta partner_delta{};
 
-    //Three Prime
-    bool dj_check;
-    Seq_Offset d_3_offset;
-    Seq_Offset d_3_new_offset;
-    //Seq_Offset j_5_min_offset;
-    //Seq_Offset j_5_max_offset;
+        //Per scenario, filled by the preamble of iterate():
+        Seq_Offset offset = 0;                            ///< where the partner's facing end is
+        JunctionGeometry::OffsetInterval reach{};         ///< ...and where it can still go
+        bool active = false;                  ///< placed, and not already established safe
+    };
 
-    //Declare variables for J part
-    //bool dj_check;
-    //bool vj_check;
-    Seq_Offset j_5_offset;
-    Seq_Offset j_5_new_offset;
-    Seq_Offset d_3_min_offset;
-    Seq_Offset d_3_max_offset;
-    //Seq_Offset v_3_min_offset;
-    //Seq_Offset v_3_max_offset;
+    std::vector<FlankCheck> flank_checks_;
 
-    //Initialized variables
-    int d_5_max_del;
-    int d_5_min_del;
-    int j_5_max_del;
-    int j_5_min_del;
-    int v_3_max_del;
-    int v_3_min_del;
-    int d_3_max_del;
-    int d_3_min_del;
+    /// §7.4's accumulated offset bounds, summed over the pending events. See the definition
+    /// for why this is here instead of `JunctionGeometry::PendingModifierBounds`.
+    static OffsetDelta legacy_offset_delta(
+            SeqTypeId, Seq_side, const Events_map &,
+            const std::unordered_set<Rec_Event_name> &);
 
-    //Gene choices
-    bool v_chosen;
-    bool d_chosen;
-    bool j_chosen;
+    /// Index into flank_checks_ of the neighbour bounding the junction this deletion widens --
+    /// the nearest placed one on the trimmed side -- or -1 when there is none.
+    int junction_partner_ = -1;
 
-    //D_del bool
-    bool d_del_opposite_side_processed;
+    /// `event_side == Three_prime`, cached: it selects the direction of every asymmetry in the
+    /// body, from which end of the template is cut to which way the mismatch list is trimmed.
+    bool trims_three_prime_ = false;
+
+    /// Resolved from the ordering, not from the gene class. A segment anchored on an end of the
+    /// read keeps at least one nucleotide of its template (§2.7), carries the dominated early
+    /// prune stage (§6.14), and does *not* bounds-check its palindrome's read positions
+    /// (§7.15); an internal one does the opposite in all three, and an internal 5' deletion
+    /// additionally carries §7.3's surviving `//FIXME`.
+    bool keep_one_nucleotide_ = false;
+    bool early_prune_stage_ = false;
+    bool guard_palindrome_positions_ = false;
+    bool discard_offset_outside_read_ = false;
+
+    /// Another unprocessed event still moves the opposite end of my segment, so nothing of the
+    /// template is settled and its error bound stays neutral. Was `d_del_opposite_side_processed`,
+    /// negated, and answered by an A0 query rather than by naming the D deletion on the far side.
+    bool opposite_end_still_moves_ = false;
+
+    /// This deletion's own end, for the scenario being explored.
+    Seq_Offset my_offset = 0;
+    Seq_Offset my_new_offset = 0;
 
     //Common variables
     mutable int base_index;
-    double err_rate_upper_bound;
     double new_scenario_proba;
-    double new_tmp_err_w_proba;
     double proba_contribution;
     int new_index;
-    //Int_Str previous_str;//&
     mutable Int_Str new_str;
     mutable Int_Str tmp_str;
     mutable std::string gen_new_str;
     mutable std::string gen_tmp_str;
-    std::vector<size_t> mismatches_vector;
-    std::vector<size_t>::const_iterator mis_iter;
-    std::vector<size_t>::const_reverse_iterator rev_mis_iter;
-    size_t endogeneous_mismatches;
+    std::vector<std::size_t> mismatches_vector;
+    std::vector<std::size_t>::const_iterator mis_iter;
     bool end_reached;
     int deletion_value;
 
-    //Pre create pairs to call seq_offsets (otherwise cost of creating a pair at each call)
-    //std::pair<Seq_type,Seq_side> d_5_pair = std::make_pair (D_gene_seq,Five_prime);
-    //std::pair<Seq_type,Seq_side> v_3_pair = std::make_pair (V_gene_seq,Three_prime);
-    //std::pair<Seq_type,Seq_side> j_5_pair = std::make_pair (J_gene_seq,Five_prime);
-    //std::pair<Seq_type,Seq_side> d_3_pair = std::make_pair (D_gene_seq,Three_prime);
-
-    //Seq_type_str_p_map constructed_sequences_copy;
     int memory_layer_cs;
     int memory_layer_mismatches;
-    /// The two pairs this deletion's end is checked against, resolved in initialize_event()
-    /// from the model's 5'->3' ordering. Each pairs with the memory layer of the same number;
-    /// which partner each names is the branch's business, exactly as the Event_safety values
-    /// they replace were. Unresolved when the model has no such partner, in which case the
-    /// matching check never runs.
-    SafetyCell safety_cell_1;
-    SafetyCell safety_cell_2;
-
-    int memory_layer_safety_1;
-    int memory_layer_safety_2;
     int memory_layer_offset_del;
-    int memory_layer_offset_check1;
-    int memory_layer_offset_check2;
     int memory_layer_proba_map_seq;
-
-    //Iterate common
-    int previous_marginal_index;
-
-    //Downstream junction length proba bounds
 };
 
 std::string &make_transversions(std::string &, bool);

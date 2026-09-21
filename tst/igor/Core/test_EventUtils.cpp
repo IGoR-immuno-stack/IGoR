@@ -437,8 +437,14 @@ TEST_CASE("Insertion Bridge Integration", "[Insertion]") {
 class DeletionTest {
 public:
   static void test_initialization() {
-    Deletion del_event;
+    //A side is required since B5: it is what the generic body reads instead of switching on
+    //the gene, and initialize_event() rejects a deletion that names neither end.
+    Deletion del_event(V_gene_seq, Three_prime);
     del_event.event_class = V_gene;
+    //B5 addresses the scenario maps by seq_type id rather than by the legacy enum, so an event
+    //assembled by hand has to carry one -- exactly as IgorTestUtils::make_deletion() does.
+    del_event.set_seq_type("V_gene_seq");
+    del_event.set_seq_type_id(IgorTestUtils::vdj_seq_type_registry().id("V_gene_seq"));
 
     // Create mock objects for initialize_event — use string-keyed Events_map
     std::unordered_set<Rec_Event_name> processed_events;
@@ -448,29 +454,37 @@ public:
     std::shared_ptr<Rec_Event> mock_v = std::make_shared<MockEvent>("V_choice");
     events_map[std::make_tuple(GeneChoice_t, std::string("V_gene_seq"), Undefined_side)] = mock_v;
 
+    //A registry with an *ordering*, not the bare legacy one: since B5 initialize_event() reads
+    //the topology off it -- which neighbours to check, and whether the segment is anchored on
+    //an end of the read -- exactly as Gene_choice has since B11a.
+    const SeqTypeRegistry &registry = IgorTestUtils::vdj_seq_type_registry();
     std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> offset_map;
-    Downstream_scenario_proba_bound_map downstream_proba_map(legacy_seq_type_registry());
-    Seq_type_str_p_map constructed_sequences(legacy_seq_type_registry());
-    SafetyMatrix safety_set(IgorTestUtils::vdj_seq_type_registry());
+    Downstream_scenario_proba_bound_map downstream_proba_map(registry);
+    Seq_type_str_p_map constructed_sequences(registry);
+    SafetyMatrix safety_set(registry);
     std::shared_ptr<Error_rate> error_rate_p;
-    Mismatch_vectors_map mismatches_list(legacy_seq_type_registry());
-    Seq_offsets_map seq_offsets(legacy_seq_type_registry());
+    Mismatch_vectors_map mismatches_list(registry);
+    Seq_offsets_map seq_offsets(registry);
     Index_map index_map(6);
 
-    // Force initial state to true to verify that initialize_event actually overwrites it
-    del_event.v_chosen = true;
-    del_event.d_chosen = true;
-    del_event.j_chosen = true;
+    // Force stale state in, to verify that initialize_event actually rebuilds it. The three
+    // v_chosen / d_chosen / j_chosen booleans this used to poke went with B5's collapse; what
+    // carries the same per-model state now is the flank-check list, and it is rebuilt rather
+    // than appended to -- which is the property worth a regression test.
+    del_event.flank_checks_.resize(7);
+    del_event.flank_checks_.front().partner_chosen = true;
 
     del_event.initialize_event(processed_events, events_map, offset_map, downstream_proba_map,
                                constructed_sequences, safety_set, error_rate_p, mismatches_list,
                                seq_offsets, index_map);
 
+    // A V 3' deletion is checked against the segments 3' of V: D and J, both in this registry.
+    REQUIRE(del_event.flank_checks_.size() == 2);
     // GeneChoiceStatus sets chosen only if the event is in processed_events.
     // Since processed_events is empty, chosen will be false even though V exists.
-    REQUIRE(del_event.v_chosen == false);
-    REQUIRE(del_event.d_chosen == false);
-    REQUIRE(del_event.j_chosen == false);
+    for (const auto &check : del_event.flank_checks_) {
+        REQUIRE(check.partner_chosen == false);
+    }
   }
 };
 

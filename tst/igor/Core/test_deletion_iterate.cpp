@@ -1502,21 +1502,45 @@ TEST_CASE("Deletion: it reads the layer below and writes its own", "[deletion][i
 // The read-boundary asymmetry between the four arms
 // =======================================================================================
 
-TEST_CASE("Deletion: a D deletion with no side is rejected at the scenario node",
+TEST_CASE("Deletion: a model the generic body cannot read is rejected before it runs",
           "[deletion][iterate]")
 {
-    // The backstop inside `case D_gene_seq`, and the only one of the body's two `default:` arms
-    // that is reachable: the outer one guards against a target that is not V, D or J, which the
-    // constructor has already rejected through get_deletion_gene_class(). B5 removes both --
-    // the side stops being a branch at all -- so this section is what says the removal was
-    // deliberate.
-    auto deletion = make_deletion(D_gene_seq, Undefined_side, /*min_del=*/0, /*max_del=*/4,
-                                  /*id=*/0);
-    IterateTestState state = create_iterate_state(kRead);
-    state.preset_segment(D_gene_seq, 14, 18, read_run(14, 18));
-    for (std::size_t i = 0; i != 64; ++i) { state.set_marginal(i, 0.5L); }
+    // Was "a D deletion with no side is rejected at the scenario node": the backstop inside
+    // `case D_gene_seq`, and the only one of the body's two `default:` arms that was reachable.
+    // B5 removed both -- the side stopped being a branch at all -- and put the question where
+    // it belongs, in initialize_event(). The verdict is the same exception; what changed is
+    // that it is raised once per model instead of once per scenario node, which is the shape
+    // §2.3 asks of B5 for topology it cannot honour.
+    //
+    // What is *not* checked here is the model-level invariant §2.3's propagation proof rests
+    // on -- "every pair adjacent in chosen order is checked by someone". No single event can
+    // see it, and `Gene_choice`'s candidate partner list is still the legacy three by name, so
+    // no ordering that violates it can be built yet. It stays phase C's, as §2.3 says.
 
-    CHECK_THROWS_AS(call_iterate_recording(deletion, state), std::invalid_argument);
+    SECTION("A deletion that names neither end of its segment")
+    {
+        auto deletion = make_deletion(D_gene_seq, Undefined_side, /*min_del=*/0, /*max_del=*/4,
+                                      /*id=*/0);
+        IterateTestState state = create_iterate_state(kRead);
+        state.preset_segment(D_gene_seq, 14, 18, read_run(14, 18));
+        for (std::size_t i = 0; i != 64; ++i) { state.set_marginal(i, 0.5L); }
+
+        CHECK_THROWS_AS(call_iterate_recording(deletion, state), std::invalid_argument);
+    }
+
+    SECTION("A deletion whose segment the ordering leaves out")
+    {
+        // A D deletion in a model with no D. D_gene_seq is registered -- the legacy six always
+        // are -- but it is not in a VJ ordering, so it has no neighbours, no read end and no
+        // pairs: every flag initialize_event() resolves would be answered by silence rather
+        // than by the model. The four-arm body ran it anyway, on a segment nothing writes.
+        auto deletion = make_deletion(D_gene_seq, Five_prime, /*min_del=*/0, /*max_del=*/4,
+                                      /*id=*/0);
+        IterateTestState state = create_iterate_state(kRead, 1000, 32, vj_seq_type_registry());
+        for (std::size_t i = 0; i != 64; ++i) { state.set_marginal(i, 0.5L); }
+
+        CHECK_THROWS_AS(call_iterate_recording(deletion, state), std::invalid_argument);
+    }
 }
 
 TEST_CASE("Deletion: the J arm does not guard its palindrome against the start of the read",
