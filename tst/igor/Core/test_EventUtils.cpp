@@ -45,7 +45,7 @@ public:
       const unordered_map<Rec_Event_name,
                           vector<pair<shared_ptr<const Rec_Event>, int>>> &,
       Downstream_scenario_proba_bound_map &, Seq_type_str_p_map &,
-      Safety_bool_map &, shared_ptr<Error_rate>, Mismatch_vectors_map &,
+      SafetyMatrix &, shared_ptr<Error_rate>, Mismatch_vectors_map &,
       Seq_offsets_map &, Index_map &) override {}
   void add_to_marginals(long double, Marginal_array_p &) const override {}
   shared_ptr<Rec_Event> copy() override { return nullptr; }
@@ -451,7 +451,7 @@ public:
     std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> offset_map;
     Downstream_scenario_proba_bound_map downstream_proba_map(legacy_seq_type_registry());
     Seq_type_str_p_map constructed_sequences(legacy_seq_type_registry());
-    Safety_bool_map safety_set(6);
+    SafetyMatrix safety_set(IgorTestUtils::vdj_seq_type_registry());
     std::shared_ptr<Error_rate> error_rate_p;
     Mismatch_vectors_map mismatches_list(legacy_seq_type_registry());
     Seq_offsets_map seq_offsets(legacy_seq_type_registry());

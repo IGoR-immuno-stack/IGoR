@@ -248,9 +248,20 @@ void RecordingEvent::iterate(QuerySequenceContext &, const ModelContext &, Scena
         }
     }
 
-    for (Event_safety safety : {Event_safety::VD_safe, Event_safety::VJ_safe, Event_safety::DJ_safe}) {
-        if (exploration.safety_set.exists(safety)) {
-            snapshot.safety.emplace(safety, exploration.safety_set.get(safety));
+    //The three gene pairs of a legacy model, in 5'->3' order. A pair whose left member's row
+    //nobody has written is left out; once a row is written its word answers for every cell,
+    //so the other two appear with the verdict the enclosing depth left them.
+    for (const auto &[left, right] : {std::pair<Seq_type, Seq_type>{V_gene_seq, D_gene_seq},
+                                      std::pair<Seq_type, Seq_type>{V_gene_seq, J_gene_seq},
+                                      std::pair<Seq_type, Seq_type>{D_gene_seq, J_gene_seq}}) {
+        if (not exploration.safety_set.addresses(static_cast<SeqTypeId>(left))
+            or not exploration.safety_set.addresses(static_cast<SeqTypeId>(right))) {
+            continue; //a VJ model has no D: the pair does not exist, rather than being unset
+        }
+        const SafetyCell cell = exploration.safety_set.cell(static_cast<SeqTypeId>(left),
+                                                            static_cast<SeqTypeId>(right));
+        if (exploration.safety_set.exists(cell)) {
+            snapshot.safety.emplace(std::make_pair(left, right), exploration.safety_set.get(cell));
         }
     }
 
@@ -647,19 +658,27 @@ std::vector<std::size_t> get_mismatches(const IterateTestState &state, Seq_type 
     return v ? *v : std::vector<std::size_t>{};
 }
 
-bool is_safe(const IterateTestState &state, Event_safety safety_type, std::size_t layer)
+namespace {
+SafetyCell safety_cell_of(const IterateTestState &state, Seq_type left, Seq_type right)
 {
-    return state.exploration.safety_set.get(safety_type, layer);
+    return state.exploration.safety_set.cell(static_cast<SeqTypeId>(left),
+                                             static_cast<SeqTypeId>(right));
+}
+} // namespace
+
+bool is_safe(const IterateTestState &state, Seq_type left, Seq_type right, std::size_t layer)
+{
+    return state.exploration.safety_set.get(safety_cell_of(state, left, right), layer);
 }
 
-bool has_safety(const IterateTestState &state, Event_safety safety_type)
+bool has_safety(const IterateTestState &state, Seq_type left, Seq_type right)
 {
-    return state.exploration.safety_set.exists(safety_type);
+    return state.exploration.safety_set.exists(safety_cell_of(state, left, right));
 }
 
-int safety_current_layer(const IterateTestState &state, Event_safety safety_type)
+int safety_current_layer(const IterateTestState &state, Seq_type left, Seq_type right)
 {
-    return static_cast<int>(state.exploration.safety_set.claimed_layer(safety_type));
+    return state.exploration.safety_set.claimed_layer(safety_cell_of(state, left, right));
 }
 
 double get_downstream_bound(const IterateTestState &state, Seq_type seq_type, std::size_t layer)

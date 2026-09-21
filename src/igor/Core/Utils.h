@@ -466,13 +466,6 @@ typedef DynamicSequenceMap<Int_Str_ptr> Seq_type_str_p_map;
  */
 CORE_EXPORT SeqTypeId first_unfilled_segment(const Seq_type_str_p_map &constructed_sequences);
 
-//Keyed by the Event_safety enum as an opaque dense integer, hence LayeredArray rather than
-//DynamicSequenceMap: safety is not per-seq_type today. It is *pairwise* between gene
-//segments -- VD_safe, DJ_safe and VJ_safe are the three unordered pairs of V, D and J, and
-//VJ_safe is live in VDJ models where V and J are not adjacent. Re-expressing it per junction
-//only becomes correct once B5/B6/B11 find neighbours dynamically; see the note under B5.
-typedef LayeredArray<bool> Safety_bool_map;
-
 //Keyed by SeqTypeId. An empty mismatch vector means "zero mismatches", which is present,
 //not absent -- so the default SeqSegmentEmptiness (never empty) is the right one here.
 typedef DynamicSequenceMap<std::vector<size_t> *> Mismatch_vectors_map;
@@ -584,12 +577,6 @@ struct hash<std::pair<Seq_type, Seq_side>>
     {
         return (hash<int>()(seq_pair.first) ^ (hash<int>()(seq_pair.second) << 1)) >> 1;
     }
-};
-
-template <>
-struct hash<Event_safety>
-{
-    std::size_t operator()(const Event_safety ev_saf) const { return (hash<int>()(ev_saf)); }
 };
 } // namespace std
 

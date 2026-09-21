@@ -61,8 +61,8 @@ void dump(const std::shared_ptr<RecordingEvent> &rec, const char *label)
         for (const auto &[seq_type, seq] : s.sequences) {
             UNSCOPED_INFO("      seq[" << seq_type << "] = \"" << seq << "\"");
         }
-        for (const auto &[safety, value] : s.safety) {
-            UNSCOPED_INFO("      safety[" << safety << "] = " << value);
+        for (const auto &[pair, value] : s.safety) {
+            UNSCOPED_INFO("      safety[" << pair.first << ", " << pair.second << "] = " << value);
         }
         for (const auto &[seq_type, bound] : s.downstream_bounds) {
             UNSCOPED_INFO("      bound[" << seq_type << "] = " << bound);
@@ -430,7 +430,7 @@ TEST_CASE("Gene_choice::iterate overlap verdicts (G2/G3)", "[gene_choice][iterat
         auto rec = call_iterate_recording(v_event, state);
         dump(rec, "VD safe");
         REQUIRE(rec->call_count() == 1);
-        CHECK(rec->calls.at(0).safety.at(Event_safety::VD_safe) == true);
+        CHECK(rec->calls.at(0).safety.at({V_gene_seq, D_gene_seq}) == true);
     }
 
     SECTION("Undetermined: palindromic D 5' insertions could still reach V")
@@ -443,7 +443,7 @@ TEST_CASE("Gene_choice::iterate overlap verdicts (G2/G3)", "[gene_choice][iterat
         auto rec = call_iterate_recording(v_event, state);
         dump(rec, "VD undetermined");
         REQUIRE(rec->call_count() == 1);
-        CHECK(rec->calls.at(0).safety.at(Event_safety::VD_safe) == false);
+        CHECK(rec->calls.at(0).safety.at({V_gene_seq, D_gene_seq}) == false);
     }
 
     SECTION("Counterpart not chosen: no check is performed and the pair is marked unsafe")
@@ -459,7 +459,7 @@ TEST_CASE("Gene_choice::iterate overlap verdicts (G2/G3)", "[gene_choice][iterat
         auto rec = call_iterate_recording(v_event, state);
         dump(rec, "VD not chosen");
         REQUIRE(rec->call_count() == 1);
-        CHECK(rec->calls.at(0).safety.at(Event_safety::VD_safe) == false);
+        CHECK(rec->calls.at(0).safety.at({V_gene_seq, D_gene_seq}) == false);
     }
 
     SECTION("No counterpart in the model at all: the pair is marked safe")
@@ -471,8 +471,8 @@ TEST_CASE("Gene_choice::iterate overlap verdicts (G2/G3)", "[gene_choice][iterat
 
         auto rec = call_iterate_recording(v_event, state);
         REQUIRE(rec->call_count() == 1);
-        CHECK(rec->calls.at(0).safety.at(Event_safety::VD_safe) == true);
-        CHECK(rec->calls.at(0).safety.at(Event_safety::VJ_safe) == true);
+        CHECK(rec->calls.at(0).safety.at({V_gene_seq, D_gene_seq}) == true);
+        CHECK(rec->calls.at(0).safety.at({V_gene_seq, J_gene_seq}) == true);
     }
 }
 

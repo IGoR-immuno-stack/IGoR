@@ -1,5 +1,6 @@
 #pragma once
 
+#include <igor/Core/SafetyMatrix.h>
 #include <igor/Core/BoundTightness.h>
 #include <igor/Core/Utils.h>
 #include <span>
@@ -43,11 +44,10 @@ struct ExplorationContext {
     // Array indexed by event_index to find which event comes next
     std::shared_ptr<Next_event_ptr>& next_event_ptr_arr;
 
-    // Safety flags for gene overlap validation (exploration policy)
-    // Used to decide which branches are safe to explore (VD_safe, DJ_safe, VJ_safe)
+    // Which pairs of segments are already known not to overlap (exploration policy)
     // Guides exploration: determines if overlap checks are needed until reaching leaf
     // Once at leaf node, this doesn't describe the scenario - only guided exploration
-    Safety_bool_map& safety_set;
+    SafetyMatrix& safety_set;
 
     /**
      * @brief NT-floor mismatch positions per Seq_type (conservative pruning bound)
@@ -75,7 +75,7 @@ struct ExplorationContext {
         double proba_threshold_factor_,
         Index_map& index_map_,
         std::shared_ptr<Next_event_ptr>& next_event_ptr_arr_,
-        Safety_bool_map& safety_set_,
+        SafetyMatrix& safety_set_,
         Pruning_mismatch_floor_map& pruning_mismatch_floor_
     ) : downstream_proba_map(downstream_proba_map_),
         seq_max_prob_scenario(seq_max_prob_scenario_),
@@ -157,44 +157,48 @@ struct ExplorationContext {
     // These methods guide exploration by marking which gene arrangements
     // are safe to explore (no invalid overlaps).
     //
+    // The pair is named by a SafetyCell, resolved once in initialize_event() from the
+    // model's 5'->3' ordering. It used to be named by the Event_safety enum, which could
+    // spell only the three pairs a single-D model has -- the tandem-D ceiling S5 lifted.
+    //
     // PERFORMANCE: All inline - zero overhead.
     // ========================================================================
 
     /**
-     * @brief Check if gene overlap is safe
+     * @brief Is this pair of segments already known not to overlap?
      *
-     * Used by Gene_choice to verify V-D or D-J don't overlap in invalid ways.
-     * Guides exploration: determines if we can safely explore this branch.
+     * @param cell         the pair, resolved at initialization
+     * @param memory_layer Memory layer to query -- the caller's own layer minus one, i.e.
+     *                     what the enclosing depth left for this pair
+     * @return true if no realization still pending can make them overlap
      *
-     * @param safety_type Safety check type (VD_safe, DJ_safe, VJ_safe)
-     * @param memory_layer Memory layer to query
-     * @return true if overlap is safe, false otherwise
-     *
-     * PERFORMANCE: Inline, single map lookup
+     * PERFORMANCE: Inline, one array read and one bit test
      */
     inline bool is_overlap_safe(
-        Event_safety safety_type,
+        SafetyCell cell,
         size_t memory_layer
     ) const {
-        return safety_set.get(safety_type, memory_layer);
+        return safety_set.get(cell, memory_layer);
     }
 
     /**
-     * @brief Mark gene overlap as safe or unsafe
+     * @brief Record whether this pair is established as non-overlapping
      *
-     * Sets safety flag for future overlap checks during exploration.
+     * A `true` verdict also marks every pair between the same left segment and anything
+     * further 3' -- section 2.3's corollary, which moves where such a scenario is
+     * discarded without changing whether it is. See SafetyMatrix.
      *
-     * @param safety_type Safety check type (VD_safe, DJ_safe, VJ_safe)
-     * @param is_safe Whether this arrangement is safe
+     * @param cell         the pair, resolved at initialization
+     * @param is_safe      Whether this arrangement is established safe
      * @param memory_layer Memory layer for storage
      *
-     * PERFORMANCE: Inline, single map write
+     * PERFORMANCE: Inline, one read-modify-write of the row word
      */
     inline void set_overlap_safety(
-        Event_safety safety_type,
+        SafetyCell cell,
         bool is_safe,
         size_t memory_layer
     ) {
-        safety_set.set(safety_type, is_safe, memory_layer);
+        safety_set.set(cell, is_safe, memory_layer);
     }
 };

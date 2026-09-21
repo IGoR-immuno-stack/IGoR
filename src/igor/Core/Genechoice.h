@@ -88,7 +88,7 @@ public:
             std::unordered_set<Rec_Event_name> &,
             const Events_map &,
             const std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &,
-            Downstream_scenario_proba_bound_map &, Seq_type_str_p_map &, Safety_bool_map &, std::shared_ptr<Error_rate>,
+            Downstream_scenario_proba_bound_map &, Seq_type_str_p_map &, SafetyMatrix &, std::shared_ptr<Error_rate>,
             Mismatch_vectors_map &, Seq_offsets_map &, Index_map &) override;
     void add_to_marginals(long double, Marginal_array_p &) const override;
 
@@ -132,16 +132,6 @@ private:
     int credited_core_length(Seq_Offset core_5, Seq_Offset core_3) const;
 
     /**
-     * \brief The Event_safety slot naming a pair of gene segments, by their 5'->3' positions.
-     *
-     * The enum can name only the three pairs a single-D model has, so a tandem-D ordering
-     * produces pairs it cannot name. That ceiling is S5's to lift -- a safety row bitmask
-     * indexed by ordering position -- and until then it is better visible at initialization
-     * than silently aliased in the hot loop.
-     */
-    static Event_safety legacy_safety_slot(std::size_t left_position, std::size_t right_position);
-
-    /**
      * \brief One neighbouring segment end this gene's placement is checked against.
      *
      * Resolved in initialize_event(); iterate() reads it. The two entries a VDJ model produces
@@ -152,8 +142,8 @@ private:
         SeqTypeId partner_id = kNoSeqType;
         Seq_side partner_side = Five_prime;   ///< the partner end facing this gene
         bool this_is_left = true;             ///< the partner sits 3' of this gene
-        Event_safety safety_slot = VD_safe;   ///< S5 replaces this enum with a row bitmask
-        int safety_layer = -1;
+        SafetyCell safety_cell;               ///< the pair, by ordering position (S5)
+        int safety_layer = -1;                ///< one per *row*, so same-row checks share it
         int partner_offset_layer = -1;
         bool partner_exists = false;          ///< the model has a gene choice for that segment
         bool partner_chosen = false;          ///< ...and it is placed before this one

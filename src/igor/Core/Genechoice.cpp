@@ -195,7 +195,7 @@ void Gene_choice::iterate(
             check.active = true;
         } else {
             check.active = false;
-            exploration.set_overlap_safety(check.safety_slot, not check.partner_exists, check.safety_layer);
+            exploration.set_overlap_safety(check.safety_cell, not check.partner_exists, check.safety_layer);
             if (exhaustive_position_fallback_ and check.this_is_left) {
                 //Nothing placed to the right, so the exhaustive scan's right wall is the end of
                 //the read. Read only by the no_d_align path below, which is 5b's.
@@ -246,7 +246,7 @@ void Gene_choice::iterate(
                 infeasible = true;
                 break;
             }
-            exploration.set_overlap_safety(check.safety_slot,
+            exploration.set_overlap_safety(check.safety_cell,
                                            verdict == JunctionGeometry::Overlap::Safe,
                                            check.safety_layer);
         }
@@ -354,10 +354,10 @@ void Gene_choice::iterate(
         //should compute the real verdict here, since d_5_off and d_full_3_offset are
         //known per position. See docs/ITERATE_GENERIC_REWRITE_PLAN.md section 7.9.
         if (v_chosen) {
-            exploration.set_overlap_safety(flank_checks_[0].safety_slot, false, flank_checks_[0].safety_layer);
+            exploration.set_overlap_safety(flank_checks_[0].safety_cell, false, flank_checks_[0].safety_layer);
         }
         if (j_chosen) {
-            exploration.set_overlap_safety(flank_checks_[1].safety_slot, false, flank_checks_[1].safety_layer);
+            exploration.set_overlap_safety(flank_checks_[1].safety_cell, false, flank_checks_[1].safety_layer);
         }
 
         if (v_chosen and j_chosen) {
@@ -690,24 +690,6 @@ bool Gene_choice::write_junction_bounds(Downstream_scenario_proba_bound_map &pro
     return true;
 }
 
-Event_safety Gene_choice::legacy_safety_slot(std::size_t left_position, std::size_t right_position)
-{
-    //Positions in the legacy 5'->3' gene order: 0 = V, 1 = D, 2 = J.
-    if (left_position == 0 and right_position == 1) {
-        return VD_safe;
-    }
-    if (left_position == 1 and right_position == 2) {
-        return DJ_safe;
-    }
-    if (left_position == 0 and right_position == 2) {
-        return VJ_safe;
-    }
-    throw std::logic_error("Gene_choice: the Event_safety enum cannot name the gene pair at "
-                           "ordering positions " + std::to_string(left_position) + " and "
-                           + std::to_string(right_position) + "; that is what S5's safety row "
-                           "bitmask replaces it with");
-}
-
 int Gene_choice::credited_core_length(Seq_Offset core_5, Seq_Offset core_3) const
 {
     if (endogenous_core_ == EndogenousCore::Truncated) {
@@ -803,7 +785,7 @@ void Gene_choice::initialize_event(
         const Events_map &events_map,
         const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
         Downstream_scenario_proba_bound_map &downstream_proba_map, Seq_type_str_p_map &constructed_sequences,
-        Safety_bool_map &safety_set, shared_ptr<Error_rate> error_rate_p, Mismatch_vectors_map &mismatches_list,
+        SafetyMatrix &safety_set, shared_ptr<Error_rate> error_rate_p, Mismatch_vectors_map &mismatches_list,
         Seq_offsets_map &seq_offsets, Index_map &index_map)
 {
     //Check V choice
@@ -866,8 +848,7 @@ void Gene_choice::initialize_event(
         check.partner_id = registry.id(partner_name);
         check.this_is_left = position > my_position;
         check.partner_side = check.this_is_left ? Five_prime : Three_prime;
-        check.safety_slot = legacy_safety_slot(std::min(position, my_position),
-                                               std::max(position, my_position));
+        check.safety_cell = safety_set.cell(this->seq_type_id, check.partner_id);
         check.partner_exists = status.exists;
         check.partner_chosen = status.chosen;
         flank_checks_.push_back(check);
@@ -884,9 +865,21 @@ void Gene_choice::initialize_event(
 
     //Claimed whether or not the neighbour is there, which is what the commented-out `if`s in the
     //three arms this replaces were about: a downstream Deletion reads this layer unconditionally.
-    for (FlankCheck &check : flank_checks_) {
-        safety_set.request_layer(check.safety_slot);
-        check.safety_layer = safety_set.claimed_layer(check.safety_slot);
+    //One claim per *row*, not per check: two neighbours on the same side of this gene name two
+    //cells of one row, which share a word and therefore a layer. Claiming twice would leave the
+    //second layer unwritten, and an unwritten layer is unreadable by design (section 7.9).
+    for (std::size_t i = 0; i != flank_checks_.size(); ++i) {
+        FlankCheck &check = flank_checks_[i];
+        std::size_t earlier = 0;
+        while (earlier != i and flank_checks_[earlier].safety_cell.row != check.safety_cell.row) {
+            ++earlier;
+        }
+        if (earlier != i) {
+            check.safety_layer = flank_checks_[earlier].safety_layer;
+            continue;
+        }
+        safety_set.request_layer(check.safety_cell);
+        check.safety_layer = safety_set.claimed_layer(check.safety_cell);
     }
 
     downstream_proba_map.request_layer(this->seq_type_id);

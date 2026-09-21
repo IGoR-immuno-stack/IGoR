@@ -263,8 +263,7 @@ void Deletion::iterate(
         if (d_chosen) {
             d_5_offset = scenario.get_offset(D_gene_seq, Five_prime, memory_layer_offset_check1);
 
-            //if(safety_set.count(Event_safety::VD_safe) == 0){
-            if (!exploration.is_overlap_safe(Event_safety::VD_safe, memory_layer_safety_1 - 1)) {
+            if (!exploration.is_overlap_safe(safety_cell_1, memory_layer_safety_1 - 1)) {
                 //d_5_offset = seq_offsets.get(pair<Seq_type,Seq_side>(D_gene_seq , Five_prime));
                 //d_5_offset = seq_offsets.get(d_5_pair);
 
@@ -274,7 +273,7 @@ void Deletion::iterate(
                 vd_check = true; //Further check needed
             } else {
                 vd_check = false;
-                exploration.set_overlap_safety(Event_safety::VD_safe, true, memory_layer_safety_1);
+                exploration.set_overlap_safety(safety_cell_1, true, memory_layer_safety_1);
             }
         } else {
             vd_check = false; //No point of checking if D has not been picked because the offset is unknown
@@ -283,8 +282,7 @@ void Deletion::iterate(
         //Check J choice
         if (j_chosen) {
 
-            //if(safety_set.count(Event_safety::VJ_safe) == 0){
-            if (!exploration.is_overlap_safe(Event_safety::VJ_safe, memory_layer_safety_2 - 1)) {
+            if (!exploration.is_overlap_safe(safety_cell_2, memory_layer_safety_2 - 1)) {
                 //j_5_offset = seq_offsets.get(pair<Seq_type,Seq_side>(J_gene_seq , Five_prime));
                 //j_5_offset = seq_offsets.get(j_5_pair);
                 j_5_offset = scenario.get_offset(J_gene_seq, Five_prime, memory_layer_offset_check2);
@@ -295,7 +293,7 @@ void Deletion::iterate(
                 vj_check = true; //Further check needed
             } else {
                 vj_check = false;
-                exploration.set_overlap_safety(Event_safety::VJ_safe, true, memory_layer_safety_2);
+                exploration.set_overlap_safety(safety_cell_2, true, memory_layer_safety_2);
             }
         } else {
             vj_check = false; //No point of checking if J has not been picked because the offset is unknown
@@ -307,7 +305,6 @@ void Deletion::iterate(
              iter != (*this).int_value_and_index.end(); ++iter) {
             if ((int)previous_str.size() > (*iter).value_int) { //Do not allow for deletion of the entire V
                 //TODO What about deletions going outside the read?
-                //unordered_set<Event_safety> safety_set_copy = safety_set;
 
                 v_3_new_offset = v_3_offset - (*iter).value_int;
 
@@ -323,10 +320,9 @@ void Deletion::iterate(
                     }
                     if (v_3_new_offset < (d_5_min_offset)) {
                         //Even with minimum number of deletions there's no overlap => safe even without knowing the number of deletions
-                        //safety_set_copy.emplace(Event_safety::VD_safe);
-                        exploration.set_overlap_safety(Event_safety::VD_safe, true, memory_layer_safety_1);
+                        exploration.set_overlap_safety(safety_cell_1, true, memory_layer_safety_1);
                     } else {
-                        exploration.set_overlap_safety(Event_safety::VD_safe, false, memory_layer_safety_1);
+                        exploration.set_overlap_safety(safety_cell_1, false, memory_layer_safety_1);
                     }
                     //Already unsafe otherwise
                 }
@@ -338,11 +334,9 @@ void Deletion::iterate(
                     }
                     if (v_3_new_offset < (j_5_min_offset)) {
                         //Even with minimum number of deletions there's no overlap => safe even without knowing the number of deletions
-                        //safety_set_copy.emplace(Event_safety::VD_safe);
-                        //cout<<safety_set.claimed_layer(Event_safety::VJ_safe)<<endl;
-                        exploration.set_overlap_safety(Event_safety::VJ_safe, true, memory_layer_safety_2);
+                        exploration.set_overlap_safety(safety_cell_2, true, memory_layer_safety_2);
                     } else {
-                        exploration.set_overlap_safety(Event_safety::VJ_safe, false, memory_layer_safety_2);
+                        exploration.set_overlap_safety(safety_cell_2, false, memory_layer_safety_2);
                     }
                     //Already unsafe otherwise
                 }
@@ -523,8 +517,7 @@ void Deletion::iterate(
             if (v_chosen) {
                 v_3_offset = scenario.get_offset(V_gene_seq, Three_prime, memory_layer_offset_check1);
 
-                //if(safety_set.count(Event_safety::VD_safe) == 0){
-                if (!exploration.is_overlap_safe(Event_safety::VD_safe, memory_layer_safety_1 - 1)) {
+                if (!exploration.is_overlap_safe(safety_cell_1, memory_layer_safety_1 - 1)) {
                     //v_3_offset = seq_offsets.get(pair<Seq_type,Seq_side>(V_gene_seq , Three_prime));
                     //v_3_offset = seq_offsets.get(v_3_pair);
 
@@ -534,7 +527,7 @@ void Deletion::iterate(
                     vd_check = true; //Further check needed
                 } else {
                     vd_check = false;
-                    exploration.set_overlap_safety(Event_safety::VD_safe, true, memory_layer_safety_1);
+                    exploration.set_overlap_safety(safety_cell_1, true, memory_layer_safety_1);
                 }
 
             } else {
@@ -548,7 +541,6 @@ void Deletion::iterate(
                  iter != (*this).int_value_and_index.end(); ++iter) {
                 if ((int)previous_str.size() >= (*iter).value_int) {
 
-                    //unordered_set<Event_safety> safety_set_copy = safety_set;
 
                     d_5_new_offset = d_5_offset + (*iter).value_int;
 
@@ -567,10 +559,9 @@ void Deletion::iterate(
                         }
                         if (d_5_new_offset > (v_3_max_offset)) {
                             //Even with minimum number of deletions there's no overlap => safe even without knowing the number of deletions
-                            //safety_set_copy.emplace(Event_safety::VD_safe);
-                            exploration.set_overlap_safety(Event_safety::VD_safe, true, memory_layer_safety_1);
+                            exploration.set_overlap_safety(safety_cell_1, true, memory_layer_safety_1);
                         } else {
-                            exploration.set_overlap_safety(Event_safety::VD_safe, false, memory_layer_safety_1);
+                            exploration.set_overlap_safety(safety_cell_1, false, memory_layer_safety_1);
                         }
                         //Already unsafe otherwise
                     }
@@ -757,8 +748,7 @@ void Deletion::iterate(
             if (j_chosen) {
                 j_5_offset = scenario.get_offset(J_gene_seq, Five_prime, memory_layer_offset_check2);
 
-                //if(safety_set.count(Event_safety::DJ_safe) == 0){
-                if (!exploration.is_overlap_safe(Event_safety::DJ_safe, memory_layer_safety_2 - 1)) {
+                if (!exploration.is_overlap_safe(safety_cell_2, memory_layer_safety_2 - 1)) {
                     //j_5_offset = seq_offsets.get(pair<Seq_type,Seq_side>(J_gene_seq , Five_prime));
                     //j_5_offset = seq_offsets.get(j_5_pair);
 
@@ -768,7 +758,7 @@ void Deletion::iterate(
                     dj_check = true; //Further check needed
                 } else {
                     dj_check = false;
-                    exploration.set_overlap_safety(Event_safety::DJ_safe, true, memory_layer_safety_2);
+                    exploration.set_overlap_safety(safety_cell_2, true, memory_layer_safety_2);
                 }
             } else {
                 dj_check = false;
@@ -781,7 +771,6 @@ void Deletion::iterate(
                  iter != (*this).int_value_and_index.end(); ++iter) {
                 if ((int)previous_str.size() >= (*iter).value_int) {
 
-                    //unordered_set<Event_safety> safety_set_copy = safety_set;
 
                     d_3_new_offset = d_3_offset - (*iter).value_int;
                     if (dj_check) {
@@ -791,10 +780,9 @@ void Deletion::iterate(
                         }
                         if (d_3_new_offset < (j_5_min_offset)) {
                             //Even with minimum number of deletions there's no overlap => safe even without knowing the number of deletions
-                            //safety_set_copy.emplace(Event_safety::VJ_safe);
-                            exploration.set_overlap_safety(Event_safety::DJ_safe, true, memory_layer_safety_2);
+                            exploration.set_overlap_safety(safety_cell_2, true, memory_layer_safety_2);
                         } else {
-                            exploration.set_overlap_safety(Event_safety::DJ_safe, false, memory_layer_safety_2);
+                            exploration.set_overlap_safety(safety_cell_2, false, memory_layer_safety_2);
                         }
                         //Already unsafe otherwise
                     }
@@ -1002,8 +990,7 @@ void Deletion::iterate(
         if (d_chosen) {
             d_3_offset = scenario.get_offset(D_gene_seq, Three_prime, memory_layer_offset_check2);
 
-            //if(safety_set.count(Event_safety::DJ_safe) == 0){
-            if (!exploration.is_overlap_safe(Event_safety::DJ_safe, memory_layer_safety_2 - 1)) {
+            if (!exploration.is_overlap_safe(safety_cell_2, memory_layer_safety_2 - 1)) {
                 //d_3_offset = seq_offsets.get(pair<Seq_type,Seq_side>(D_gene_seq , Three_prime));
                 //d_3_offset = seq_offsets.get(d_3_pair);
 
@@ -1013,7 +1000,7 @@ void Deletion::iterate(
                 dj_check = true; //Further check needed
             } else {
                 dj_check = false;
-                exploration.set_overlap_safety(Event_safety::DJ_safe, true, memory_layer_safety_2);
+                exploration.set_overlap_safety(safety_cell_2, true, memory_layer_safety_2);
             }
         } else {
             dj_check = false;
@@ -1022,8 +1009,7 @@ void Deletion::iterate(
         //Check V choice
         if (v_chosen) {
             v_3_offset = scenario.get_offset(V_gene_seq, Three_prime, memory_layer_offset_check1);
-            //if(safety_set.count(Event_safety::VJ_safe) == 0){
-            if (!exploration.is_overlap_safe(Event_safety::VJ_safe, memory_layer_safety_1 - 1)) {
+            if (!exploration.is_overlap_safe(safety_cell_1, memory_layer_safety_1 - 1)) {
                 //v_3_offset = seq_offsets.get(pair<Seq_type,Seq_side>(V_gene_seq , Three_prime));
                 //v_3_offset = seq_offsets.get(v_3_pair);
 
@@ -1033,7 +1019,7 @@ void Deletion::iterate(
                 vj_check = true; //Further check needed
             } else {
                 vj_check = false;
-                exploration.set_overlap_safety(Event_safety::VJ_safe, true, memory_layer_safety_1);
+                exploration.set_overlap_safety(safety_cell_1, true, memory_layer_safety_1);
             }
         } else {
             vj_check = false;
@@ -1045,7 +1031,6 @@ void Deletion::iterate(
              iter != (*this).int_value_and_index.end(); ++iter) {
             if ((int)previous_str.size() > (*iter).value_int) {
 
-                //unordered_set<Event_safety> safety_set_copy = safety_set;
 
                 j_5_new_offset = j_5_offset + (*iter).value_int;
                 if (vj_check) {
@@ -1055,10 +1040,9 @@ void Deletion::iterate(
                     }
                     if (j_5_new_offset > (v_3_max_offset)) {
                         //Even with minimum number of deletions there's no overlap => safe even without knowing the number of deletions
-                        //safety_set_copy.emplace(Event_safety::VD_safe);
-                        exploration.set_overlap_safety(Event_safety::VJ_safe, true, memory_layer_safety_1);
+                        exploration.set_overlap_safety(safety_cell_1, true, memory_layer_safety_1);
                     } else {
-                        exploration.set_overlap_safety(Event_safety::VJ_safe, false, memory_layer_safety_1);
+                        exploration.set_overlap_safety(safety_cell_1, false, memory_layer_safety_1);
                     }
                     //Already unsafe otherwise
                 }
@@ -1069,10 +1053,9 @@ void Deletion::iterate(
                     }
                     if (j_5_new_offset > (d_3_max_offset)) {
                         //Even with minimum number of deletions there's no overlap => safe even without knowing the number of deletions
-                        //safety_set_copy.emplace(Event_safety::VJ_safe);
-                        exploration.set_overlap_safety(Event_safety::DJ_safe, true, memory_layer_safety_2);
+                        exploration.set_overlap_safety(safety_cell_2, true, memory_layer_safety_2);
                     } else {
-                        exploration.set_overlap_safety(Event_safety::DJ_safe, false, memory_layer_safety_2);
+                        exploration.set_overlap_safety(safety_cell_2, false, memory_layer_safety_2);
                     }
                     //Already unsafe otherwise
                 }
@@ -1373,7 +1356,7 @@ void Deletion::initialize_event(
         const Events_map &events_map,
         const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
         Downstream_scenario_proba_bound_map &downstream_proba_map, Seq_type_str_p_map &constructed_sequences,
-        Safety_bool_map &safety_set, shared_ptr<Error_rate> error_rate_p, Mismatch_vectors_map &mismatches_list,
+        SafetyMatrix &safety_set, shared_ptr<Error_rate> error_rate_p, Mismatch_vectors_map &mismatches_list,
         Seq_offsets_map &seq_offsets, Index_map &index_map)
 {
 
@@ -1410,16 +1393,21 @@ void Deletion::initialize_event(
         constructed_sequences.request_layer(V_gene_seq);
         this->memory_layer_cs = constructed_sequences.claimed_layer(V_gene_seq);
         if (d_chosen) {
-            safety_set.request_layer(VD_safe);
-            memory_layer_safety_1 = safety_set.claimed_layer(VD_safe);
+            safety_cell_1 = safety_set.cell(V_gene_seq, D_gene_seq);
             memory_layer_offset_check1 = seq_offsets.claimed_layer(D_gene_seq, Five_prime);
-            //cout<<"v_del_1 : "<<memory_layer_safety_1<<endl;
         }
         if (j_chosen) {
-            safety_set.request_layer(VJ_safe);
-            memory_layer_safety_2 = safety_set.claimed_layer(VJ_safe);
+            safety_cell_2 = safety_set.cell(V_gene_seq, J_gene_seq);
             memory_layer_offset_check2 = seq_offsets.claimed_layer(J_gene_seq, Five_prime);
-            //cout<<"v_del_2 : "<<memory_layer_safety_2<<endl;
+        }
+        //Both pairs sit in row V -- this is the one event whose two checks face the same way --
+        //so they share a word and therefore a layer. The two scalars survive (section 2.3) and
+        //simply carry the same number here.
+        if (d_chosen or j_chosen) {
+            const SafetyCell row = d_chosen ? safety_cell_1 : safety_cell_2;
+            safety_set.request_layer(row);
+            memory_layer_safety_1 = safety_set.claimed_layer(row);
+            memory_layer_safety_2 = memory_layer_safety_1;
         }
 
         downstream_proba_map.request_layer(V_gene_seq);
@@ -1447,8 +1435,9 @@ void Deletion::initialize_event(
             seq_offsets.request_layer(D_gene_seq, Five_prime);
             memory_layer_offset_del = seq_offsets.claimed_layer(D_gene_seq, Five_prime);
             if (v_chosen) {
-                safety_set.request_layer(VD_safe);
-                memory_layer_safety_1 = safety_set.claimed_layer(VD_safe);
+                safety_cell_1 = safety_set.cell(V_gene_seq, D_gene_seq);
+                safety_set.request_layer(safety_cell_1);
+                memory_layer_safety_1 = safety_set.claimed_layer(safety_cell_1);
                 memory_layer_offset_check1 = seq_offsets.claimed_layer(V_gene_seq, Three_prime);
                 //cout<<"d_del_1: "<<memory_layer_safety_1<<endl;
             }
@@ -1476,8 +1465,9 @@ void Deletion::initialize_event(
             seq_offsets.request_layer(D_gene_seq, Three_prime);
             memory_layer_offset_del = seq_offsets.claimed_layer(D_gene_seq, Three_prime);
             if (j_chosen) {
-                safety_set.request_layer(DJ_safe);
-                memory_layer_safety_2 = safety_set.claimed_layer(DJ_safe);
+                safety_cell_2 = safety_set.cell(D_gene_seq, J_gene_seq);
+                safety_set.request_layer(safety_cell_2);
+                memory_layer_safety_2 = safety_set.claimed_layer(safety_cell_2);
                 memory_layer_offset_check2 = seq_offsets.claimed_layer(J_gene_seq, Five_prime);
                 //cout<<"d_del_2: "<<memory_layer_safety_2<<endl;
             }
@@ -1510,14 +1500,16 @@ void Deletion::initialize_event(
         constructed_sequences.request_layer(J_gene_seq);
         this->memory_layer_cs = constructed_sequences.claimed_layer(J_gene_seq);
         if (v_chosen) {
-            safety_set.request_layer(VJ_safe);
-            memory_layer_safety_1 = safety_set.claimed_layer(VJ_safe);
+            safety_cell_1 = safety_set.cell(V_gene_seq, J_gene_seq);
+            safety_set.request_layer(safety_cell_1);
+            memory_layer_safety_1 = safety_set.claimed_layer(safety_cell_1);
             memory_layer_offset_check1 = seq_offsets.claimed_layer(V_gene_seq, Three_prime);
             //cout<<"j_del_1: "<<memory_layer_safety_1<<endl;
         }
         if (d_chosen) {
-            safety_set.request_layer(DJ_safe);
-            memory_layer_safety_2 = safety_set.claimed_layer(DJ_safe);
+            safety_cell_2 = safety_set.cell(D_gene_seq, J_gene_seq);
+            safety_set.request_layer(safety_cell_2);
+            memory_layer_safety_2 = safety_set.claimed_layer(safety_cell_2);
             memory_layer_offset_check2 = seq_offsets.claimed_layer(D_gene_seq, Three_prime);
             //cout<<"j_del_2: "<<memory_layer_safety_2<<endl;
         }

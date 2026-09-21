@@ -265,7 +265,7 @@ bool GenModel::infer_model(
             unordered_set<Rec_Event_name> init_processed_events;
 
             //Initialize Enum_fast_memory map and dual maps
-            Safety_bool_map safety_set(3);
+            SafetyMatrix safety_set(single_thread_model_parms.get_seq_type_registry());
             Seq_type_str_p_map constructed_sequences(single_thread_model_parms.get_seq_type_registry());
             Mismatch_vectors_map mismatches_lists(single_thread_model_parms.get_seq_type_registry());
             // Conservative pruning track. For exact NT queries it is identical to

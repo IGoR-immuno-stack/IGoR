@@ -163,7 +163,7 @@ struct ExplorationStorage {
     double proba_threshold;
     Index_map index_map;
     std::shared_ptr<Next_event_ptr> next_event_ptr_arr;
-    Safety_bool_map safety_set;
+    SafetyMatrix safety_set;
     Pruning_mismatch_floor_map pruning_mismatch_floor;
 
     ExplorationStorage(std::size_t max_events, const SeqTypeRegistry &registry)
@@ -178,7 +178,7 @@ struct ExplorationStorage {
           index_map(max_events, kTestLayers),
           next_event_ptr_arr(new Next_event_ptr[max_events](),
                              std::default_delete<Next_event_ptr[]>()),
-          safety_set(3, kTestLayers),
+          safety_set(registry, kTestLayers),
           pruning_mismatch_floor(registry, kTestLayers)
     {
         //Mirrors GenModel: downstream bounds start at 1 so multiply_all() is neutral.
@@ -373,12 +373,18 @@ public:
 
     const std::vector<std::shared_ptr<Rec_Event>> &downstream_events() const { return downstream_; }
 
-    /// Write an overlap safety flag at layer 0, as an upstream Gene_choice would have.
-    /// Pair with a later event that requests its own layer: the current layer then tracks
-    /// the last *write*, so an event that requests a layer and never writes leaves it here.
-    void preset_safety(Event_safety safety, bool value)
+    /// Write an overlap verdict for a pair of segments at layer 0, as an upstream
+    /// Gene_choice would have. Pair with a later event that requests its own layer: the
+    /// current layer then tracks the last *write*, so an event that requests a layer and
+    /// never writes leaves it here.
+    ///
+    /// A `true` verdict propagates along the row -- see SafetyMatrix -- so presetting a
+    /// near pair safe also presets everything further 3' of the same left segment.
+    void preset_safety(Seq_type left, Seq_type right, bool value)
     {
-        exploration_storage.safety_set.set(safety, value, 0);
+        const SafetyCell cell = exploration_storage.safety_set.cell(
+                static_cast<SeqTypeId>(left), static_cast<SeqTypeId>(right));
+        exploration_storage.safety_set.set(cell, value, 0);
     }
 
     /// Replace the error model. Defaults to Single_error_rate(0.0); a non-zero rate is
@@ -508,7 +514,10 @@ struct ScenarioSnapshot {
     std::map<Seq_type, std::pair<Seq_Offset, Seq_Offset>> offsets;
     std::map<Seq_type, std::string> sequences; ///< decoded back to ACGT
     std::map<Seq_type, std::vector<std::size_t>> mismatches;
-    std::map<Event_safety, bool> safety;
+    /// Keyed by the pair, 5'-most member first. Present for every pair of a row some event
+    /// has written: the row word carries a verdict for each of its cells, so "absent" means
+    /// nothing touched that left segment at all, not that this one pair went unrecorded.
+    std::map<std::pair<Seq_type, Seq_type>, bool> safety;
     std::map<Seq_type, double> downstream_bounds;
 
     /// Convenience: the 5' offset of a segment, or throws if it was never written.
@@ -628,13 +637,14 @@ bool has_constructed_sequence(const IterateTestState &state, Seq_type seq_type);
 std::vector<std::size_t> get_mismatches(const IterateTestState &state, Seq_type seq_type,
                                         std::size_t layer = 0);
 
-bool is_safe(const IterateTestState &state, Event_safety safety_type, std::size_t layer = 0);
-bool has_safety(const IterateTestState &state, Event_safety safety_type);
+bool is_safe(const IterateTestState &state, Seq_type left, Seq_type right, std::size_t layer = 0);
+bool has_safety(const IterateTestState &state, Seq_type left, Seq_type right);
 
-/// The layer a safety flag was most recently *written* at. request_layer() advances it too,
-/// but set() pulls it back to the layer written, so after a full iterate() this reports the
-/// last writer -- which is what a downstream reader of `memory_layer - 1` depends on.
-int safety_current_layer(const IterateTestState &state, Event_safety safety_type);
+/// The layer a safety verdict was most recently *written* at. request_layer() advances it
+/// too, but set() pulls it back to the layer written, so after a full iterate() this reports
+/// the last writer -- which is what a downstream reader of `memory_layer - 1` depends on.
+/// It is a property of the pair's *row*, since the row is what carries a layer.
+int safety_current_layer(const IterateTestState &state, Seq_type left, Seq_type right);
 
 double get_downstream_bound(const IterateTestState &state, Seq_type seq_type,
                             std::size_t layer = 0);

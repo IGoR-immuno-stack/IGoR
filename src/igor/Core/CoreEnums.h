@@ -34,8 +34,6 @@
 
 enum Event_type { GeneChoice_t, Deletion_t, Insertion_t, Dinuclmarkov_t, Undefined_t };
 
-enum Event_safety { VD_safe = 0, DJ_safe = 1, VJ_safe = 2 };
-
 /// Which end of a constructed sequence segment an offset or a deletion refers to.
 enum Seq_side { Five_prime = 0, Three_prime = 1, Undefined_side = 2 };
 

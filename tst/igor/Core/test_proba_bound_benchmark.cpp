@@ -104,7 +104,7 @@ public:
         //because the sweep picked its junctions from an enum switch; since S4c it would measure
         //an empty sweep. Part of the fixture rather than of the timed region, exactly as in
         //GenModel::infer_model, where it runs before the bound loop.
-        Safety_bool_map safety_set(3);
+        SafetyMatrix safety_set(parms_.get_seq_type_registry());
         Seq_type_str_p_map constructed_sequences(parms_.get_seq_type_registry());
         Mismatch_vectors_map mismatches_lists(parms_.get_seq_type_registry());
         Seq_offsets_map seq_offsets(parms_.get_seq_type_registry());

@@ -128,7 +128,7 @@ struct VDel {
          Seq_Offset v_five = 0, const std::vector<std::size_t> &v_mis = {}, int ins_max = 20)
         : deletion(make_deletion(V_gene_seq, Three_prime, min_del, max_del, /*id=*/0))
     {
-        state.preset_safety(Event_safety::VD_safe, false);
+        state.preset_safety(V_gene_seq, D_gene_seq, false);
         state.preset_segment(V_gene_seq, v_five, v_three, read_run(v_five, v_three), v_mis);
         state.add_event(d_stub);
         state.mark_chosen(d_stub);
@@ -167,7 +167,7 @@ struct D5Del {
           int ins_max = 20)
         : deletion(make_deletion(D_gene_seq, Five_prime, min_del, max_del, /*id=*/0))
     {
-        state.preset_safety(Event_safety::VD_safe, false);
+        state.preset_safety(V_gene_seq, D_gene_seq, false);
         state.preset_segment(D_gene_seq, d_five, d_three, read_run(d_five, d_three), d_mis);
         state.add_event(v_stub);
         state.mark_chosen(v_stub);
@@ -205,7 +205,7 @@ struct D3Del {
           int ins_max = 20)
         : deletion(make_deletion(D_gene_seq, Three_prime, min_del, max_del, /*id=*/0))
     {
-        state.preset_safety(Event_safety::DJ_safe, false);
+        state.preset_safety(D_gene_seq, J_gene_seq, false);
         state.preset_segment(D_gene_seq, d_five, d_three, read_run(d_five, d_three), d_mis);
         state.add_event(j_stub);
         state.mark_chosen(j_stub);
@@ -241,7 +241,7 @@ struct JDel {
          const std::vector<std::size_t> &j_mis = {}, int ins_max = 20)
         : deletion(make_deletion(J_gene_seq, Five_prime, min_del, max_del, /*id=*/0))
     {
-        state.preset_safety(Event_safety::DJ_safe, false);
+        state.preset_safety(D_gene_seq, J_gene_seq, false);
         state.preset_segment(J_gene_seq, j_five, 27, read_run(j_five, 27), j_mis);
         state.add_event(d_stub);
         state.mark_chosen(d_stub);
@@ -277,7 +277,7 @@ struct VJDel {
     VJDel(Seq_Offset v_three = 10, Seq_Offset j_five = 14, int min_del = 0, int max_del = 4)
         : deletion(make_deletion(V_gene_seq, Three_prime, min_del, max_del, /*id=*/0))
     {
-        state.preset_safety(Event_safety::VJ_safe, false);
+        state.preset_safety(V_gene_seq, J_gene_seq, false);
         state.preset_segment(V_gene_seq, 0, v_three, read_run(0, v_three));
         state.add_event(j_stub);
         state.mark_chosen(j_stub);
@@ -558,8 +558,8 @@ TEST_CASE("Deletion: overlap verdicts (G2/G3)", "[deletion][iterate]")
         CHECK(next->calls[0].three_prime(V_gene_seq) == 16);
         CHECK(next->calls[1].three_prime(V_gene_seq) == 17);
         // Both land inside the interval, so neither can be declared safe.
-        CHECK(next->calls[0].safety.at(Event_safety::VD_safe) == false);
-        CHECK(next->calls[1].safety.at(Event_safety::VD_safe) == false);
+        CHECK(next->calls[0].safety.at({V_gene_seq, D_gene_seq}) == false);
+        CHECK(next->calls[1].safety.at({V_gene_seq, D_gene_seq}) == false);
     }
 
     SECTION("V 3' vs D 5' -- Safe, when the V end clears the interval entirely")
@@ -568,7 +568,7 @@ TEST_CASE("Deletion: overlap verdicts (G2/G3)", "[deletion][iterate]")
         const auto next = call_iterate_recording(fixture.deletion, fixture.state);
         REQUIRE(next->call_count() == 5);
         for (const ScenarioSnapshot &call : next->calls) {
-            CHECK(call.safety.at(Event_safety::VD_safe) == true);
+            CHECK(call.safety.at({V_gene_seq, D_gene_seq}) == true);
         }
     }
 
@@ -586,7 +586,7 @@ TEST_CASE("Deletion: overlap verdicts (G2/G3)", "[deletion][iterate]")
         REQUIRE(next->call_count() == 4); // 6 is exactly at V's furthest retreat: discarded
         CHECK(next->calls[0].five_prime(D_gene_seq) == 10);
         CHECK(next->calls[3].five_prime(D_gene_seq) == 7);
-        CHECK(next->calls[0].safety.at(Event_safety::VD_safe) == false);
+        CHECK(next->calls[0].safety.at({V_gene_seq, D_gene_seq}) == false);
     }
 
     SECTION("D 3' vs J 5'")
@@ -598,9 +598,9 @@ TEST_CASE("Deletion: overlap verdicts (G2/G3)", "[deletion][iterate]")
 
         REQUIRE(next->call_count() == 5); // 24 is exactly at J's furthest reach: discarded
         CHECK(next->calls[0].three_prime(D_gene_seq) == 19); // widest deletion first
-        CHECK(next->calls[0].safety.at(Event_safety::DJ_safe) == true);  // clear of the interval
+        CHECK(next->calls[0].safety.at({D_gene_seq, J_gene_seq}) == true);  // clear of the interval
         CHECK(next->calls[4].three_prime(D_gene_seq) == 23);
-        CHECK(next->calls[4].safety.at(Event_safety::DJ_safe) == false); // inside it
+        CHECK(next->calls[4].safety.at({D_gene_seq, J_gene_seq}) == false); // inside it
     }
 
     SECTION("J 5' vs D 3'")
@@ -611,7 +611,7 @@ TEST_CASE("Deletion: overlap verdicts (G2/G3)", "[deletion][iterate]")
         REQUIRE(next->call_count() == 3); // 20 is exactly at D's furthest reach: discarded
         CHECK(next->calls[0].five_prime(J_gene_seq) == 23);
         CHECK(next->calls[2].five_prime(J_gene_seq) == 21);
-        CHECK(next->calls[0].safety.at(Event_safety::DJ_safe) == false);
+        CHECK(next->calls[0].safety.at({D_gene_seq, J_gene_seq}) == false);
     }
 
     SECTION("Safe -- the other three arms, when the moving end clears the interval")
@@ -624,7 +624,7 @@ TEST_CASE("Deletion: overlap verdicts (G2/G3)", "[deletion][iterate]")
             const auto next = call_iterate_recording(fixture.deletion, fixture.state);
             REQUIRE(next->call_count() == 5);
             for (const ScenarioSnapshot &call : next->calls) {
-                CHECK(call.safety.at(Event_safety::VD_safe) == true);
+                CHECK(call.safety.at({V_gene_seq, D_gene_seq}) == true);
             }
         }
         {
@@ -632,7 +632,7 @@ TEST_CASE("Deletion: overlap verdicts (G2/G3)", "[deletion][iterate]")
             const auto next = call_iterate_recording(fixture.deletion, fixture.state);
             REQUIRE(next->call_count() == 5);
             for (const ScenarioSnapshot &call : next->calls) {
-                CHECK(call.safety.at(Event_safety::DJ_safe) == true);
+                CHECK(call.safety.at({D_gene_seq, J_gene_seq}) == true);
             }
         }
         {
@@ -640,7 +640,7 @@ TEST_CASE("Deletion: overlap verdicts (G2/G3)", "[deletion][iterate]")
             const auto next = call_iterate_recording(fixture.deletion, fixture.state);
             REQUIRE(next->call_count() == 5);
             for (const ScenarioSnapshot &call : next->calls) {
-                CHECK(call.safety.at(Event_safety::DJ_safe) == true);
+                CHECK(call.safety.at({D_gene_seq, J_gene_seq}) == true);
             }
         }
     }
@@ -650,12 +650,12 @@ TEST_CASE("Deletion: overlap verdicts (G2/G3)", "[deletion][iterate]")
         // Exactly the geometry of the first section, with one value changed: the incoming
         // VD_safe flag. Nothing is discarded, because the comparison is skipped outright.
         VDel fixture(/*v_three=*/20, /*d_five=*/14);
-        fixture.state.preset_safety(Event_safety::VD_safe, true);
+        fixture.state.preset_safety(V_gene_seq, D_gene_seq, true);
         const auto next = call_iterate_recording(fixture.deletion, fixture.state);
 
         REQUIRE(next->call_count() == 5);
         for (const ScenarioSnapshot &call : next->calls) {
-            CHECK(call.safety.at(Event_safety::VD_safe) == true);
+            CHECK(call.safety.at({V_gene_seq, D_gene_seq}) == true);
         }
     }
 
@@ -666,13 +666,13 @@ TEST_CASE("Deletion: overlap verdicts (G2/G3)", "[deletion][iterate]")
         // nothing discarded.
         {
             D5Del fixture(/*v_three=*/10, /*d_five=*/5, /*d_three=*/9, /*min_del=*/0, /*max_del=*/5);
-            fixture.state.preset_safety(Event_safety::VD_safe, true);
+            fixture.state.preset_safety(V_gene_seq, D_gene_seq, true);
             const auto next = call_iterate_recording(fixture.deletion, fixture.state);
             CHECK(next->call_count() == 5);
         }
         {
             D3Del fixture(/*d_five=*/10, /*d_three=*/24, /*j_five=*/20, /*min_del=*/0, /*max_del=*/5);
-            fixture.state.preset_safety(Event_safety::DJ_safe, true);
+            fixture.state.preset_safety(D_gene_seq, J_gene_seq, true);
             const auto next = call_iterate_recording(fixture.deletion, fixture.state);
             CHECK(next->call_count() == 6);
         }
@@ -681,7 +681,7 @@ TEST_CASE("Deletion: overlap verdicts (G2/G3)", "[deletion][iterate]")
             // this fold can represent, so the junction guard discards them whatever the
             // safety flag says. Three survive with the check on, four with it short-circuited.
             JDel fixture(/*d_three=*/24, /*j_five=*/18, /*min_del=*/0, /*max_del=*/5);
-            fixture.state.preset_safety(Event_safety::DJ_safe, true);
+            fixture.state.preset_safety(D_gene_seq, J_gene_seq, true);
             const auto next = call_iterate_recording(fixture.deletion, fixture.state);
             CHECK(next->call_count() == 4);
         }
@@ -692,7 +692,7 @@ TEST_CASE("Deletion: overlap verdicts (G2/G3)", "[deletion][iterate]")
         // The mirror of the V section below: J compares against D on one side and V on the
         // other, and reads two safety flags rather than one.
         JDel fixture;
-        fixture.state.preset_safety(Event_safety::VJ_safe, false);
+        fixture.state.preset_safety(V_gene_seq, J_gene_seq, false);
         auto v_stub = make_gene_choice(V_gene, {{"V1", "ACGTACG"}}, /*id=*/7);
         fixture.state.add_event(v_stub);
         fixture.state.mark_chosen(v_stub);
@@ -702,8 +702,8 @@ TEST_CASE("Deletion: overlap verdicts (G2/G3)", "[deletion][iterate]")
         const auto next = call_iterate_recording(fixture.deletion, fixture.state);
         REQUIRE(next->call_count() == 5);
         for (const ScenarioSnapshot &call : next->calls) {
-            CHECK(call.safety.at(Event_safety::DJ_safe) == true);
-            CHECK(call.safety.at(Event_safety::VJ_safe) == true);
+            CHECK(call.safety.at({D_gene_seq, J_gene_seq}) == true);
+            CHECK(call.safety.at({V_gene_seq, J_gene_seq}) == true);
         }
     }
 
@@ -712,7 +712,7 @@ TEST_CASE("Deletion: overlap verdicts (G2/G3)", "[deletion][iterate]")
         // One value changed from the section above: V reaches far enough right that J's 5' end
         // sits inside the interval its deletions can still cover.
         JDel fixture(/*d_three=*/14, /*j_five=*/18, /*min_del=*/0, /*max_del=*/5);
-        fixture.state.preset_safety(Event_safety::VJ_safe, false);
+        fixture.state.preset_safety(V_gene_seq, J_gene_seq, false);
         auto v_stub = make_gene_choice(V_gene, {{"V1", "ACGTACG"}}, /*id=*/7);
         fixture.state.add_event(v_stub);
         fixture.state.mark_chosen(v_stub);
@@ -724,10 +724,10 @@ TEST_CASE("Deletion: overlap verdicts (G2/G3)", "[deletion][iterate]")
 
         // The widest deletion clears V's interval; the four narrower ones sit inside it.
         CHECK(next->calls[0].five_prime(J_gene_seq) == 23);
-        CHECK(next->calls[0].safety.at(Event_safety::VJ_safe) == true);
+        CHECK(next->calls[0].safety.at({V_gene_seq, J_gene_seq}) == true);
         for (std::size_t i = 1; i != 5; ++i) {
             INFO("hand-off " << i);
-            CHECK(next->calls[i].safety.at(Event_safety::VJ_safe) == false);
+            CHECK(next->calls[i].safety.at({V_gene_seq, J_gene_seq}) == false);
         }
     }
 
@@ -736,7 +736,7 @@ TEST_CASE("Deletion: overlap verdicts (G2/G3)", "[deletion][iterate]")
         // D on the 3' side and J on the 5' side of the same V end. The VD comparison clears,
         // the VJ one does not, and it is the VJ verdict that decides.
         VDel fixture(/*v_three=*/14, /*d_five=*/16);
-        fixture.state.preset_safety(Event_safety::VJ_safe, false);
+        fixture.state.preset_safety(V_gene_seq, J_gene_seq, false);
         auto j_stub = make_gene_choice(J_gene, {{"J1", "ACGTAC"}}, /*id=*/7);
         fixture.state.add_event(j_stub);
         fixture.state.mark_chosen(j_stub);
@@ -747,8 +747,8 @@ TEST_CASE("Deletion: overlap verdicts (G2/G3)", "[deletion][iterate]")
 
         REQUIRE(next->call_count() == 2);
         for (const ScenarioSnapshot &call : next->calls) {
-            CHECK(call.safety.at(Event_safety::VD_safe) == true);
-            CHECK(call.safety.at(Event_safety::VJ_safe) == false);
+            CHECK(call.safety.at({V_gene_seq, D_gene_seq}) == true);
+            CHECK(call.safety.at({V_gene_seq, J_gene_seq}) == false);
         }
     }
 
@@ -758,7 +758,7 @@ TEST_CASE("Deletion: overlap verdicts (G2/G3)", "[deletion][iterate]")
         // the one on their D flank. One value changed from the two sections above.
         {
             VDel fixture(/*v_three=*/14, /*d_five=*/16);
-            fixture.state.preset_safety(Event_safety::VJ_safe, true);
+            fixture.state.preset_safety(V_gene_seq, J_gene_seq, true);
             auto j_stub = make_gene_choice(J_gene, {{"J1", "ACGTAC"}}, /*id=*/7);
             fixture.state.add_event(j_stub);
             fixture.state.mark_chosen(j_stub);
@@ -768,12 +768,12 @@ TEST_CASE("Deletion: overlap verdicts (G2/G3)", "[deletion][iterate]")
             const auto next = call_iterate_recording(fixture.deletion, fixture.state);
             REQUIRE(next->call_count() == 5); // nothing discarded: the flank is not compared
             for (const ScenarioSnapshot &call : next->calls) {
-                CHECK(call.safety.at(Event_safety::VJ_safe) == true);
+                CHECK(call.safety.at({V_gene_seq, J_gene_seq}) == true);
             }
         }
         {
             JDel fixture(/*d_three=*/14, /*j_five=*/18, /*min_del=*/0, /*max_del=*/5);
-            fixture.state.preset_safety(Event_safety::VJ_safe, true);
+            fixture.state.preset_safety(V_gene_seq, J_gene_seq, true);
             auto v_stub = make_gene_choice(V_gene, {{"V1", "ACGTACG"}}, /*id=*/7);
             fixture.state.add_event(v_stub);
             fixture.state.mark_chosen(v_stub);
@@ -783,7 +783,7 @@ TEST_CASE("Deletion: overlap verdicts (G2/G3)", "[deletion][iterate]")
             const auto next = call_iterate_recording(fixture.deletion, fixture.state);
             REQUIRE(next->call_count() == 6); // the one V discarded above is back
             for (const ScenarioSnapshot &call : next->calls) {
-                CHECK(call.safety.at(Event_safety::VJ_safe) == true);
+                CHECK(call.safety.at({V_gene_seq, J_gene_seq}) == true);
             }
         }
     }
@@ -816,7 +816,7 @@ TEST_CASE("Deletion: neighbour dependence (G5)", "[deletion][iterate]")
 
         REQUIRE(next->call_count() == 5);
         for (const ScenarioSnapshot &call : next->calls) {
-            CHECK(call.safety.count(Event_safety::VD_safe) == 1);
+            CHECK(call.safety.count({V_gene_seq, D_gene_seq}) == 1);
             CHECK(call.downstream_bounds.at(VD_ins_seq) < 1.0);
         }
     }
@@ -834,7 +834,7 @@ TEST_CASE("Deletion: neighbour dependence (G5)", "[deletion][iterate]")
             const int deletions = 4 - static_cast<int>(i);
             INFO("hand-off " << i);
             CHECK(next->calls[i].three_prime(V_gene_seq) == 10 - deletions);
-            CHECK(next->calls[i].safety.at(Event_safety::VJ_safe) == true);
+            CHECK(next->calls[i].safety.at({V_gene_seq, J_gene_seq}) == true);
             CHECK(next->calls[i].downstream_bounds.at(VJ_ins_seq)
                   == Approx(junction_bound_at(3 + deletions, VJDel::kContributors)));
             CHECK(next->calls[i].downstream_bounds.at(VD_ins_seq) == Approx(1.0));
@@ -1231,7 +1231,7 @@ TEST_CASE("Deletion: what the junction fold composes", "[deletion][iterate][junc
     const auto vd_bound_with = [](bool with_insertion) {
         IterateTestState state = create_iterate_state(kRead);
         auto deletion = make_deletion(V_gene_seq, Three_prime, 0, 0, /*id=*/0);
-        state.preset_safety(Event_safety::VD_safe, false);
+        state.preset_safety(V_gene_seq, D_gene_seq, false);
         state.preset_segment(V_gene_seq, 0, 13, read_run(0, 13));
         auto d_stub = make_gene_choice(D_gene, {{"D1", "ACGTA"}}, /*id=*/1);
         state.add_event(d_stub);
