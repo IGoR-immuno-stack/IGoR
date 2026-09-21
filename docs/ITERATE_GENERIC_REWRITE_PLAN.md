@@ -1641,6 +1641,7 @@ already flagged as the milestone-1 blocker and because `Gene_choice` is the only
 | **R7** | **§7.16** — the `no_d_align` probability compounds across placements. Its two `[!shouldfail]` tags come off, and `scripts/tests/data/reference/no_d_align_output/` moves with it. Held out of 5b so the collapse there stays bitwise | full ladder + the `no_d_align` regression, regenerated | **no** — the golden data for that path moves |
 | **R8** | **§7.19** — an `Insertion`'s bound counts its own realization twice and falls below the truth, so insertion nodes prune harder than the threshold asks. Needs a decision first: fix the consumer, or stop folding the consuming event into its own junction (which is also 6.14's mirror finding on `Deletion`). Re-measure with 5a's instrument afterwards | full ladder + the bound instrument | **no** — every output moves |
 | **R6** | Within-clique joint max in the span fold (§6.9); optional cross-clique parent indexing | full ladder, **convergence weighted heavily** | **no** — a tighter bound prunes more |
+| **R9** | **§7.20** — `make_transversions`'s `is_int_seq` arm and its multi-character `'14'` deleted. The only R row that is **bitwise-neutral by construction**: nothing calls it. Queued for tidiness, not blocked | full ladder | **yes** |
 
 **The split is an ordering requirement, not bookkeeping.** The *a* commit lands before the *b*
 commit and is mutation-verified there, where mutation-verification means something: a
@@ -2218,6 +2219,7 @@ Decided behaviour changes, none of which had a row in §6 before this re-assessm
 | R4 | `dinuc_proba_matrix` construction moves into `initialize_event()` | Sep 7 | `Dinucl_markov` | none — `GenModel` already calls the out-of-band builder |
 | R5 | §7.1 and §7.8 off-by-one corrections (decision O4) | Sep 1 | `Gene_choice` | **golden data moves**; the credited core length changes |
 | R6 | Within-clique **joint** max in the span fold, using S4b's group hook; optionally cross-clique parent indexing after it | Sep 10 | the span fold (all events) | **golden data may move** — a tighter bound prunes more, so fewer scenarios are summed. Needs the **convergence** gate, not just regression |
+| R9 | §7.20 — delete `make_transversions`'s `is_int_seq` arm, whose `'14'` is a multi-character constant and whose representation cannot hold the code it tests for. **Not blocked on 5b**: no caller reaches it, so the deletion is bitwise-neutral by construction and can land whenever it is convenient | Sep 21 | `Deletion.{h,cpp}` | none — dead code, zero call sites |
 
 R1–R4 are each expected to be bitwise-neutral despite being behaviour changes — they close paths
 the corpus does not reach. That expectation is the thing to *test*, not to assume: a surprise here
@@ -4011,6 +4013,39 @@ is bounded by the marginal, but it is not what the threshold means.
 Either way it moves every output, so it belongs in phase R with its own golden-data movement, and
 it wants a decision on which of the two readings is intended before code is written. Recorded as
 **R8**.
+
+### 7.20 — `make_transversions`'s int arm compares a `char` against a multi-character constant
+
+*(Noticed Sep 21 2026, from a `-Wmultichar` warning on a clean rebuild during S5. Present since the
+first commit, and reachable from nothing.)*
+
+There are two `make_transversions` in
+[Deletion.cpp](../src/igor/Core/Deletion.cpp): an `Int_Str &` overload, which is correct, and a
+`string &` one taking an `is_int_seq` flag. The flag's `true` arm compares characters against
+integer codes spelled as character literals:
+
+```cpp
+} else if ((*iter) == '14') {   // Deletion.cpp:1691 -- '14' is 0x3134, i.e. 12596
+    //Nothing to do
+} else {
+    throw runtime_error("Unknown int nucleotide " + …);
+}
+```
+
+`'14'` is a multi-character constant, so the comparison against a promoted `char` is never true and
+the branch is dead. It could not be repaired by writing `14` either: the arm iterates a `std::string`
+one `char` at a time, and the code it is trying to recognise does not fit in the alphabet the other
+branches use. The `Int_Str &` overload — `(*iter) == 14`, over a container of `int` — is the same
+function written against a representation that can hold the value, and it is right.
+
+**Nothing calls the broken arm.** All eight call sites are either the `Int_Str &` overload or
+`make_transversions(gen_tmp_str, false)`; no caller anywhere in `src/` or `tst/` passes `true`.
+
+**The repair is a deletion**, not a correction: drop the `is_int_seq` parameter and its `true` arm,
+leaving `make_transversions(string &)` for ACGT and `make_transversions(Int_Str &)` for codes.
+Bitwise-neutral by construction — no reachable path changes — so unlike the rest of phase R it does
+not need to wait for 5b and carries no golden-data movement. It is queued as **R9** only because it
+is unrelated to anything in flight, not because it is blocked.
 
 ## 8. Decisions taken
 
