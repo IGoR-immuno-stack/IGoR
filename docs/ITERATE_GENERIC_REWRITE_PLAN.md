@@ -310,6 +310,13 @@ still caught. Full ladder green, bitwise vacuously — nothing includes the head
 one flag per left-member `SeqTypeId`. That is wrong — see "Why one slot per row is not enough"
 below — and the design recorded here is the reviewed one.)*
 
+> ✅ **Delivered Sep 21 2026 as S5**, in `src/igor/Core/SafetyMatrix.h`. What follows is the
+> design as proposed; **§6.17 records the three places the implementation departs from it** —
+> where the 32-position limit is checked, that a write is read-modify-write (which this section
+> does not say, and which is what keeps `layer − 1` meaning what it did), and that a layer is
+> claimed once per *row* rather than once per check. §6.17 also measures the corollary's cost
+> (none) and explains why it is structurally inert in a VDJ ordering.
+
 **Where it is today**: `Event_safety`'s three values are the three unordered pairs of gene
 segments. `V_del` consults both `VD_safe` and `VJ_safe`; `J_del` consults both `VJ_safe` and
 `DJ_safe`. The enum enumerates all *n(n−1)/2* pairs, but each event only ever *computes* against
@@ -380,11 +387,16 @@ explicit in the key, which is the property that makes the flag readable at all.
   is one bitwise op, so propagation is **O(1), not O(n)**:
 
   ```cpp
-  // mark every column strictly right of k as safe, in row i
-  mask |=  ~((std::uint32_t{1} << (k + 1)) - 1);
-  // mark column k unsafe
+  // mark column k and every column right of it as safe, in row i
+  mask |=  ~((std::uint32_t{1} << k) - 1);
+  // mark column k unsafe -- which says nothing about anything further away
   mask &= ~(std::uint32_t{1} << k);
   ```
+
+  The first line marks *k itself* as well as its suffix: the pair that was checked and the
+  corollary that follows from it are one write, because recording either without the other
+  would be a state no argument covers. (The Sep 1 draft of this snippet started at `k + 1`
+  and left the checked column to a separate write.)
 
   It needs **no new container** — `LayeredArray` is already tested (`f6f0101`) — and it keeps the
   current per-event shape: one `request_layer` per row touched, at most two rows per event, so
@@ -396,8 +408,9 @@ explicit in the key, which is the property that makes the flag readable at all.
 
 **Amends the parent plan.** B8's *"What B8 does instead"* note says `Safety_bool_map` becomes
 `LayeredArray<bool>` with the `Event_safety` enum kept as an opaque dense key of size 3. That
-remains the correct B8 state; B5 replaces it with the row-bitmask form above, and `Event_safety`
-is deleted then.
+remains the correct B8 state; S5 replaced it with the row-bitmask form above, and `Event_safety`
+went with it. (The parent plan attributed this to B5; it landed in S5, one step earlier, so that
+B5 has the container to build on rather than having to move it — decision O9.)
 
 ### 2.4 — G4: Segment write triple
 
@@ -1475,7 +1488,7 @@ Five new pieces, in dependency order. Each is one commit with its own tests.
 | S2 | `PendingModifierBounds` | new `src/igor/Core/JunctionGeometry.h` | 8 scalars × 2 classes + 120 lines of lookup | S3, B5, B11 |
 | S3 | `reachable()` + `Overlap check()` | same | 8 comparison blocks | B5, B11 |
 | S4 | `SegmentSpan` + `affects_length_of` / `affects_proba_of` (S4a ✅), then the span-keyed map (S4c) | `Rec_Event.{h,cpp}`, `SegmentSpan.h` | 4 self-filters (✅) + 7 named maps | B5, B6, B11 |
-| S5 | Safety row-bitmask over `LayeredArray<uint32_t>`, indexed by ordering position (§2.3) | `ExplorationContext.h` | `Event_safety` enum | B5, B11 |
+| S5 | ✅ **done** — `SafetyMatrix`: row bitmask over `LayeredArray<uint32_t>`, indexed by ordering position (§2.3, §6.17) | new `src/igor/Core/SafetyMatrix.h` + `ExplorationContext.h` | `Event_safety` enum, `Safety_bool_map` | B5, B11 |
 
 `JunctionGeometry.h` is deliberately a **new header, not an addition to `Utils.h`** — `Utils.h`
 went 709 → 582 lines across B8 and should keep shrinking.
@@ -1619,7 +1632,7 @@ already flagged as the milestone-1 blocker and because `Gene_choice` is the only
 | **S4d** | Tensor-backed containers for the 3-D `no_d_align` structure — **gated on `feature/TensorLinalg` merging**, expected end of phase B, not merely on the API existing: that branch also reworks model topology and marginals, so anything written against today's handling would need backporting (§2.5). Optional, performance only | full ladder + benchmark | **yes** |
 | **3** | ✅ **done** — **B11a**, `Gene_choice::iterate`'s three-way switch and the twelve alignment-path branches gone; first production consumer of S2/S3. The V/J-versus-D asymmetry is read off the ordering (`left_neighbor`/`right_neighbor` == `kNoSeqType`), which settles O6's fallback switch as one boolean and gives a tandem D1/D2 pair the internal behaviour unnamed. §7.1's two arithmetics are one helper with both arms named, carried verbatim. 939 lines deleted, 628 added, fifteen members gone. *Original scope:* `Gene_choice` alignment path generic (G4, G2, G8, and G5 via S4a-c). Characterization already delivered by T0 | full ladder + benchmark | **yes**, except §7.1 |
 | **4a** | ✅ **done** — `tst/igor/Core/test_deletion_iterate.cpp`, **662 assertions in 18 `TEST_CASE`s**, against the unmodified event. `Deletion::iterate` went from **0 % to 98.7 % lines / 91.8 % blocks**; 55 mutations run, 49 caught, and the six survivors are **five provably dead or dominated branches**, each named in §6.14. Includes the zero-length junction T0 deferred, and found the unguarded J palindrome of §7.15. **Moved ahead of S5** (§6.8, F4) | unit + mutation | n/a — tests only |
-| **S5** | Safety row-bitmask; row-suffix propagation; `Event_safety` deleted | full ladder + the empty-segment transitivity test + 4a's sections unchanged | **yes** (§2.3 corollary) |
+| **S5** | ✅ **done** — `SafetyMatrix` in its own header; the pair is a `SafetyCell` (row, column) in **ordering positions, not seq_type ids** — the VJ model is where the two disagree; row-suffix propagation; `Event_safety` and `Safety_bool_map` deleted. Three departures from §2.3, all in §6.17: the 32-position limit lives in the container rather than in `freeze()`, a write is read-modify-write (which is what makes `layer - 1` still mean what it did), and a row is claimed **once per row, not once per check**. Propagation is measurably free and structurally inert in VDJ — the only cell it can reach there is (V, J), and that cell is rewritten before anyone reads it. 6 mutations, all caught; 4a's sections pass with their expectations unchanged | full ladder + the empty-segment transitivity test + 4a's sections unchanged | **yes** (§2.3 corollary) |
 | **4b** | **B5** — `Deletion::iterate` generic (all patterns). **First production consumer of S2** | full ladder + benchmark + convergence | **yes** |
 | **5a** | ✅ **done** — three parts. (i) The per-branch unit sections (Sep 16 2026): nine `TEST_CASE`s over both sub-branches, `Gene_choice::iterate` from **87.4 % to 96.3 % blocks**, every branch covered *except the two that do not terminate* (§7.17); §7.16, §7.17 and §7.18 fell out of writing them. (ii) The `bound / realized_proba` instrumentation (§6.16), which measured what §6.10 asked and found §7.19. (iii) The widened `span_proba_factor` cover (§6.16). The end-to-end half landed earlier: `scripts/tests/test_no_d_align.sh`, see §7.9 | unit + mutation | n/a — tests and an off-by-default instrument |
 | **5b** | **B11b** — `no_d_align` exhaustive path generic (G6), including `⊗ᵉⁿᵘᵐ` — the retained decomposition, always three components (§2.5). **Retires `Gene_choice::finalize_Len_proba_bound`** into `JunctionBound::Fold::Retain`, gated by `exhaustive_position_fallback_` (§2.6) | full ladder + a fixture that *forces* the path | **yes** |
@@ -3234,6 +3247,69 @@ Two sections in `test_deletion_iterate.cpp` now pin it, on a geometry with no In
 Writing them turned up something for S4b: **the `affects_proba_of` table and the `has()` guard are
 redundant with each other**, so the table's off-diagonal precision has no behavioural consequence.
 See the note in §6.12.
+
+### 6.17 — Delivered (S5): the safety row bitmask *(Sep 21 2026)*
+
+`Event_safety` is gone, and with it the last enum that could name only a single-D topology. The
+pair a check is about is now a `SafetyCell` — a row and a column, both positions in the model's
+5′→3′ ordering — resolved once in `initialize_event()` and read in the hot loop. The container is
+`SafetyMatrix` (new `src/igor/Core/SafetyMatrix.h`), one `std::uint32_t` per row over
+`LayeredArray`, exactly the shape §2.3 recommended.
+
+**Positions, not ids.** §2.3 says "indexed by ordering position" and the VJ model is why: there
+`J_gene_seq` is legacy id 4 and `VJ_ins_seq` id 5, so an id-keyed bitmask would put the junction's
+column to the *right* of J's and make "the rest of the row" the wrong set. A unit section pins it.
+
+**Three departures from §2.3, all recorded rather than silent.**
+
+1. **The 32-position limit is checked in `SafetyMatrix`'s constructor, not in
+   `SeqTypeRegistry::freeze()`.** The bound is on the *ordering*, which is a subset of what the
+   registry holds, and the number belongs to the bitmask rather than to the registry. A registry
+   with 33 ordered segments builds fine and the matrix over it throws `std::length_error`.
+2. **A write is read-modify-write, and that is load-bearing.** §2.3 describes the two bitwise ops
+   but not where the word they modify comes from. A write at layer *L* seeds from the row's own
+   word at *L* when it has already written there, and from *L−1* otherwise. The first half is what
+   lets two cells of one row be written at one depth without the second erasing the first; the
+   second is what keeps `layer − 1` — the read every consumer performs — meaning "what the previous
+   writer of *this pair* left", even when the previous writer of the *row* was touching another
+   cell. Both halves are mutation-covered.
+3. **One `request_layer` per row, not per check.** `Gene_choice` on V has two flank checks and both
+   name cells of row V; claiming twice would leave the second layer unwritten, and an unwritten
+   layer is unreadable by design (§7.9). `Deletion` on V is the same case — its
+   `memory_layer_safety_1` and `_2` now carry the same number, which is what §2.3 meant by "the two
+   scalars survive with unchanged semantics".
+
+**Row-suffix propagation changed nothing observable, as the corollary predicts.** The regression
+gate is bitwise green. Measured directly — same build, `word |= suffix_mask(...)` against
+`word |= column_mask(...)` — the inference step of the N=1000/T=4 pipeline is 6.93 s median with
+propagation and 6.98 s without, against 6.82 s for the pre-S5 tree: one run-to-run spread, no
+signal either way. It costs nothing in VDJ for a structural reason worth writing down: **the only
+cell propagation can reach in a VDJ ordering is (V, J)**, because reaching a column needs a write
+at a column to its left in the same row, and `(V, VD_ins)` and `(D, DJ_ins)` are written by nobody.
+`(V, J)` is then rewritten explicitly by the next event that checks it before any consumer reads
+it. So propagation is inert here and becomes load-bearing only once a row has two gene columns to
+the right of a checked one — which is exactly the tandem-D case it was designed for.
+
+**The soundness argument is now a test, not a comment.** §2.3 asks for the empty-segment case by
+name, because B10's degenerate convention `three_prime = five_prime − 1` is the one configuration
+where `B.5′ ≤ B.3′ + 1` is an equality. `test_safety_matrix.cpp` sweeps A.3′, B.3′ and C.5′ over the
+geometry predicate itself — not a restatement of the algebra — and asserts that wherever the
+propagated `(A, C)` verdict is wrong, `check_overlap` on `(B, C)` reports `Infeasible`. 595
+assertions, the empty-B case in its own section.
+
+**What S5 does not do.** It does not make an event check only its nearest neighbour: `Deletion`
+still performs both of its checks where the flags say to, because its body is 4b's. What changes
+is that the flags now say "already safe" more often, so the second check tends to be skipped —
+the O(1)-per-side behaviour §2.3 describes arrives by itself, and 4b removes the code for it.
+
+Six mutations run, all caught: propagation removed, propagation applied to the *unsafe* write,
+the seed forced fresh, the seed forced to the layer below, `cell()` not ordering its pair, and the
+32-position check disabled. 4a's `Deletion` sections pass with their expectations unchanged; only
+the spelling of the key moved, from `Event_safety::VD_safe` to `{V_gene_seq, D_gene_seq}`.
+
+One cleanup rode along: seventeen commented-out lines in `Deletion.cpp` calling into
+`unordered_set<Event_safety> safety_set`, the container two generations back. One of them named the
+wrong pair for the write it sat above.
 
 ---
 

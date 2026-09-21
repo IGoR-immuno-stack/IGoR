@@ -78,9 +78,16 @@ double scenario_proba;
 std::map<Seq_type, std::pair<Seq_Offset, Seq_Offset>> offsets;   // .five_prime(t) / .three_prime(t)
 std::map<Seq_type, std::string> sequences;                        // decoded to ACGT, 'N' for placeholders
 std::map<Seq_type, std::vector<std::size_t>> mismatches;
-std::map<Event_safety, bool> safety;
+std::map<std::pair<Seq_type, Seq_type>, bool> safety;             // .at({V_gene_seq, D_gene_seq})
 std::map<Seq_type, double> downstream_bounds;
 ```
+
+`safety` is the one map where "missing" means something coarser. Since S5 the overlap verdicts
+of a left segment share one word, so a pair appears as soon as *any* pair with the same left
+segment has been written; the value is then the verdict the enclosing depth left. Absent means
+nothing touched that left segment at all. Write it with `state.preset_safety(left, right, value)`
+— and note a `true` verdict propagates to every pair further 3′ of the same left segment
+(§2.3 of the rewrite plan).
 
 ---
 

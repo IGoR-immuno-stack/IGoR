@@ -1569,6 +1569,13 @@ to be. The `Event_safety` enum stays as an opaque dense key, the size stays 3, n
 is involved. This is the same treatment `Index_map` received: a type swap that changes no
 semantics, whose value is that it retires the last `Enum_fast_memory_map` consumer.
 
+> **Superseded (Sep 21 2026).** That was the right B8 state and it held until S5 of the
+> iterate plan, which replaced both the typedef and the enum with `SafetyMatrix` — one
+> `std::uint32_t` per row of the pairwise matrix, keyed by **ordering position**, with the
+> pair named by a `SafetyCell` resolved at `initialize_event()`. See §2.3 and §6.17 of
+> [ITERATE_GENERIC_REWRITE_PLAN.md](ITERATE_GENERIC_REWRITE_PLAN.md). `Safety_bool_map` and
+> `Event_safety` no longer exist.
+
 
 #### `Seq_offsets_map`: what is permanent and what is transitional
 
