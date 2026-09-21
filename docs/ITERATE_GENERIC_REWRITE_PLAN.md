@@ -1161,6 +1161,13 @@ interface variables are settled.
 
 ### 2.6 — G6: Position enumeration for an unanchored segment (`no_d_align`)
 
+> ✅ **Delivered Sep 21 2026 as 5b.** `⊗ᵉⁿᵘᵐ` is `SpanDecomposition` and
+> `JunctionBound::Fold::Retain`; `finalize_Len_proba_bound` and its adopting half are gone, and
+> the initialization sweep has no virtuals left. §6.19 records what the section did not say:
+> that the sliding branch needs the nearest *candidate* neighbour on each side while the
+> junction needs the nearest *placed* one, and that §7.16 is carried rather than repaired
+> because R7 owns it.
+
 **Where it is today**: [Genechoice.cpp:538-846](../src/igor/Core/Genechoice.cpp#L538-L846), two
 sub-branches (with and without both flanking genes chosen), driven by `vj_length_d_position_proba`
 built at [Genechoice.cpp:1436-1470](../src/igor/Core/Genechoice.cpp#L1436-L1470) as
@@ -1635,7 +1642,7 @@ already flagged as the milestone-1 blocker and because `Gene_choice` is the only
 | **S5** | ✅ **done** — `SafetyMatrix` in its own header; the pair is a `SafetyCell` (row, column) in **ordering positions, not seq_type ids** — the VJ model is where the two disagree; row-suffix propagation; `Event_safety` and `Safety_bool_map` deleted. Three departures from §2.3, all in §6.17: the 32-position limit lives in the container rather than in `freeze()`, a write is read-modify-write (which is what makes `layer - 1` still mean what it did), and a row is claimed **once per row, not once per check**. Propagation is measurably free and structurally inert in VDJ — the only cell it can reach there is (V, J), and that cell is rewritten before anyone reads it. 6 mutations, all caught; 4a's sections pass with their expectations unchanged | full ladder + the empty-segment transitivity test + 4a's sections unchanged | **yes** (§2.3 corollary) |
 | **4b** | ✅ **done** — **B5**, `Deletion::iterate` generic. The four-arm switch is gone: **981 → 246 lines**, 1266 deleted against 512 added, thirty-one members retired. Everything the arms differed in is read at init from `event_side` and from whether the segment is anchored on an end of the read — the same boolean B11a gave `Gene_choice` — plus one A0 query for "does anything still move my other end". First production consumer of **S3**; **S2 is R10's**, because `pending_` is *correct* and the four arms were not (§7.4, measured active). §7.21 found and fixed. §6.18 | full ladder + benchmark + convergence | **yes**, via §7.4's reproduction |
 | **5a** | ✅ **done** — three parts. (i) The per-branch unit sections (Sep 16 2026): nine `TEST_CASE`s over both sub-branches, `Gene_choice::iterate` from **87.4 % to 96.3 % blocks**, every branch covered *except the two that do not terminate* (§7.17); §7.16, §7.17 and §7.18 fell out of writing them. (ii) The `bound / realized_proba` instrumentation (§6.16), which measured what §6.10 asked and found §7.19. (iii) The widened `span_proba_factor` cover (§6.16). The end-to-end half landed earlier: `scripts/tests/test_no_d_align.sh`, see §7.9 | unit + mutation | n/a — tests and an off-by-default instrument |
-| **5b** | **B11b** — `no_d_align` exhaustive path generic (G6), including `⊗ᵉⁿᵘᵐ` — the retained decomposition, always three components (§2.5). **Retires `Gene_choice::finalize_Len_proba_bound`** into `JunctionBound::Fold::Retain`, gated by `exhaustive_position_fallback_` (§2.6) | full ladder + a fixture that *forces* the path | **yes** |
+| **5b** | ✅ **done** — **B11b**, the exhaustive position scan generic. `Gene_choice::iterate` has no gene literal left. `⊗ᵉⁿᵘᵐ` is `SpanDecomposition` + `JunctionBound::Fold::Retain`, executed by `Rec_Event::build_retained_decomposition()` and gated by `exhaustive_position_fallback_`; both `finalize_Len_proba_bound` and its adopting half are deleted, so **the initialization sweep has no virtuals left**. The retained tuple carries a realization index rather than a gene name (§2.5). §7.17 fixed structurally — the advance is in the loop header; §7.16 carried, as R7's row requires; §7.4 still reproduced, and R10 now swaps both consumers at once. §6.19 | full ladder + benchmark + convergence | **yes** |
 | **R1–R4** | **Repair phase** (§6.9) — the decided behaviour changes, held here so everything above is idempotent end to end: §7.13, §7.12, `Insertion`'s four `[!shouldfail]` defects, **R3b's `LayeredArray::set()` hardening (O10) directly after them**, `dinuc_proba_matrix` → `initialize_event()` | full ladder, per commit | **no** — golden data may move; each commit names which outputs and why |
 | **R5** | §7.1 and §7.8 off-by-one corrections, per decision O4; the four `[!shouldfail]` tags come off. **Also §7.18**: the credited length can come out negative and the error-rate accessor takes `size_t`, so correct the derivation and the signature together (latent on both corpora today, measured) | full ladder + the corrected-core unit tests | **no** — same |
 | **R7** | **§7.16** — the `no_d_align` probability compounds across placements. Its two `[!shouldfail]` tags come off, and `scripts/tests/data/reference/no_d_align_output/` moves with it. Held out of 5b so the collapse there stays bitwise | full ladder + the `no_d_align` regression, regenerated | **no** — the golden data for that path moves |
@@ -3390,6 +3397,76 @@ harness's resolution.
 gone. §7.3's surviving `//FIXME` is the one that does two jobs and stays, unsigned comparison and
 all.
 
+### 6.19 — Delivered (5b): the exhaustive position scan generic, and `Fold::Retain` *(Sep 21 2026)*
+
+`Gene_choice::iterate` has no gene literal left in it. The exhaustive scan reads its neighbours,
+its junctions and its own travel off what `initialize_event()` resolved, and the last virtual in
+the initialization sweep is gone.
+
+**`⊗ᵉⁿᵘᵐ` is a container and a fold mode, not a hook.** `SpanDecomposition` (in `SpanProfile.h`)
+is the retained variant of the composition operator: a dense array indexed by total distance,
+each bucket the placements reaching it, sorted by decreasing bound. `JunctionBound::Fold` gains
+**`Retain`** beside `Yes` and `No`, and `Rec_Event::build_retained_decomposition()` executes it
+from the two folded halves plus the event's own realizations. `finalize_Len_proba_bound` and
+`adopt_finalized_Len_proba_bound` are deleted; §2.6 predicted the body was "generic in disguise"
+and it was — the per-realization max is the fold's own `real_max_proba`, the template length is
+`length_delta()`, and which junction is involved is the mode the event declared.
+
+Gating is `exhaustive_position_fallback_`, as §2.6 asked: the enclosing junction resolves to
+`Retain` for a segment that will scan positions and `No` for one that will not. In a VDJ model
+that is the D gene choice and nothing else, which is what `event_class == D_gene` used to say.
+
+**The tuple carries a realization index, not a gene name.** §2.5 flagged the `std::string` handle
+as a hash lookup per candidate *inside* the enumeration; `realizations_by_index_` is the dense
+table that replaces it. The build still iterates `event_realizations` in its own order, because
+the sort's comparator looks only at the probability and ties keep their arrival order — changing
+the build order would reorder equal-probability placements and move `best_scenarios`.
+
+**Two sub-branches, and what separates them is stated.** With a placed neighbour on both sides
+there is a span to decompose and the placements come out of it; with fewer there is not, and the
+window slides against the read. The second needs a *candidate* on each side, placed or not —
+an unplaced one contributes the read's end, which the preamble already records — so
+`nearest_left_check_` / `nearest_right_check_` are resolved separately from the junction's
+endpoints, which are the nearest *placed* ones. The two coincide today and would not in a
+tandem-D model where D2 is chosen before D1.
+
+The mismatch scan and the error bound were written out twice, identically; they are one
+`score_placement_against_read()`, whose window is the part of the template neither end can
+retract past — the same surviving core the alignment path computes, measured from the
+placement's own ends because there is no alignment to read it off.
+
+**§7.17 is fixed structurally, as §2.6 asked.** The slide's advance moved into the loop header, so
+the two `continue`s that skipped it and hung are no longer expressible. It is bitwise on anything
+that terminates, which is everything the corpus reaches — 5a could not cover those two branches
+precisely because a test that reaches them does not return.
+
+**§7.16 is carried, deliberately.** Both scans still read the *live* `scenario.scenario_proba`,
+which the previous placement's hand-off has already multiplied, so the placements compound. The
+comment says so at both sites and names R7, which repairs it and moves the no_d_align golden data
+with it. §2.6 said 5b would get the repair for free; R7's row says the opposite, and R7 wins —
+mixing it in would have cost the bitwise gate on the one path the corpus barely exercises.
+
+**§7.4 again, and the same answer.** `Gene_choice`'s four `d_{5,3}_{min,max}_del` scalars — the
+last hand-written "the D deletion on side X" lookups in the file — become two
+`JunctionGeometry::legacy_offset_delta()` calls. Generic in form, still §7.4's short bound in
+value, and R10 swaps both events at once: 4b moved that function out of `Deletion` and into
+`JunctionGeometry.h` so that the repair is one deletion rather than two.
+
+**Dead weight removed**: `D_position_comparator` (the decomposition sorts itself), the six
+`{v,d,j}_chos{en,ce_exist}` booleans and `new_tmp_err_w_proba` — all written by
+`initialize_event()` or `iterate()` and read by nobody — `d_3_min_offset`, `d_3_max_offset` and
+`d_5_real_max_del`. The scan's scratch is renamed off the D it no longer means:
+`no_d_align` → `no_alignment_survived`, `d_5_off` → `placement_5_off`, `d_size` →
+`template_size`, and so on. The *path* keeps the historical name in the plan and in
+`scripts/tests/test_no_d_align.sh`.
+
+**Verification.** 263 unit — 5a's hidden `[.]` hang case came off the bench and runs with the
+rest — 5 integration, 5 regression **bitwise**, 2 convergence. The N=1000/T=4 inference step is
+6.86 s median against 7.06 s before, the dense decomposition replacing a `std::map`. Both
+sub-branches were confirmed to run rather than inferred to: a counter on each shows the
+regression corpus entering the decomposition branch (first hit on a 169-placement bucket) and
+5a's sections entering the slide.
+
 ---
 
 ## 7. Where a generic rewrite would silently change results
@@ -4015,6 +4092,11 @@ timeout 10 ./build/bin/igor_tests "[sliding_hang]"
 loop header rather than at the end of its body, which is what makes the bug unexpressible rather
 than fixed. The assertion the hidden case carries states the requirement — a placement that cannot
 be scored is skipped *and the window still advances*.
+
+**✅ Fixed in 5b, Sep 21 2026.** The advance is in the loop header. The `[.]` tag came off the
+case and it runs with the rest of the suite, tagged `[gene_choice][iterate][exhaustive]` — which
+it could not be while it hung, since Catch2 runs a hidden test whenever a filter names one of its
+tags.
 
 ### 7.18 — A negative credited length reads outside the error-rate matrix
 
