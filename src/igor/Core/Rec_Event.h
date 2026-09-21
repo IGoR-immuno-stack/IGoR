@@ -451,24 +451,6 @@ public:
                                     const Marginal_array_p &model_parameters_point, Index_map &base_index_map);
 
     /**
-     * \brief Hook for a consumer that needs more than the folded profiles.
-     *
-     * Gene_choice(D) alone: it splits the junction it sits inside, so it keeps the *retained*
-     * decomposition of that junction -- which D, at which VD and DJ distances -- rather than the
-     * max-folded profile. Called after every folded junction of this event is built.
-     *
-     * **Placeholder, not an extension point.** It is the only place left where a subclass runs
-     * arbitrary code inside the initialization sweep, and its body is generic in disguise: the
-     * per-realization max it computes duplicates the fold's own, `value_str.size()` is
-     * length_delta(), and the rest is left profile (x) right profile. It becomes a third
-     * JunctionBound::Fold mode -- `Retain` -- driven by the base class and gated by
-     * `exhaustive_position_fallback_`, in 5b and not before: the regression corpus never fires
-     * `no_d_align`, so generalising it ahead of 5a's characterization fixture would be unchecked.
-     * Section 2.6 of docs/ITERATE_GENERIC_REWRITE_PLAN.md.
-     */
-    virtual void finalize_Len_proba_bound(const Marginal_array_p &, Index_map &) {}
-
-    /**
      * \brief Take this iteration's folded bounds from \a source instead of folding them again.
      *
      * The bound is a function of the marginals alone, so every thread's copy of an event folds
@@ -488,13 +470,17 @@ public:
 
 protected:
     /**
-     * \brief Hook for a consumer that keeps more than the folded profiles -- the adopting half
-     * of finalize_Len_proba_bound(), and it expires with it in 5b.
+     * \brief Build the `Retain` junction's decomposition, once the two halves are folded.
      *
-     * Gene_choice(D) alone, for the same reason: its retained decomposition is not in any
-     * JunctionBound, so the base class cannot move it.
+     * The last thing in the initialization sweep that used to be a subclass hook. Its body was
+     * generic in disguise: the per-realization max it takes is the fold's own, the template
+     * length is `length_delta()`, and the rest is left profile (x) right profile. Everything
+     * that made it look `Gene_choice`-shaped -- which junction, whether to build it at all --
+     * is now the `JunctionBound::Fold` mode the event declared in initialize_event(), so the
+     * sweep has no virtuals left. Section 2.6.
      */
-    virtual void adopt_finalized_Len_proba_bound(const Rec_Event &) {}
+    void build_retained_decomposition(const Marginal_array_p &model_parameters_point,
+                                      Index_map &base_index_map);
 
     /**
      * \brief Which junction a JunctionBound slot holds, relative to this event's own segment.

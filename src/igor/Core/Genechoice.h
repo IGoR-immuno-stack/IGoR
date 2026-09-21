@@ -101,11 +101,6 @@ public:
 
     bool affects_length_of(SegmentSpan) const override;
     int length_delta(const Event_realization &) const override;
-    void finalize_Len_proba_bound(const Marginal_array_p &model_parameters_point,
-                                  Index_map &base_index_map) override;
-
-protected:
-    void adopt_finalized_Len_proba_bound(const Rec_Event &source) override;
 
 private:
     inline double iterate_common(
@@ -150,6 +145,27 @@ private:
         bool active = false;                  ///< per scenario: the partner is placed, so check
     };
 
+    /// Score one exhaustive placement against the read and write its error bound. Shared by
+    /// the two sub-branches of the position scan; see the definition.
+    void score_placement_against_read(const QuerySequenceContext &query,
+                                      AccumulationContext &accumulation,
+                                      ExplorationContext &exploration,
+                                      JunctionGeometry::OffsetInterval five_reach,
+                                      JunctionGeometry::OffsetInterval three_reach);
+
+    /// Where this segment's own ends can still travel from a given placement, under §7.4's
+    /// short bound. One line of R10 away from being `pending_.reachable()`.
+    JunctionGeometry::OffsetInterval own_five_prime_reach(Seq_Offset five_off) const
+    {
+        return {static_cast<Seq_Offset>(five_off + own_five_prime_travel_.min),
+                static_cast<Seq_Offset>(five_off + own_five_prime_travel_.max)};
+    }
+    JunctionGeometry::OffsetInterval own_three_prime_reach(Seq_Offset three_off) const
+    {
+        return {static_cast<Seq_Offset>(three_off + own_three_prime_travel_.min),
+                static_cast<Seq_Offset>(three_off + own_three_prime_travel_.max)};
+    }
+
     /// Section 7.1's two arithmetics. See credited_core_length().
     enum class EndogenousCore { Inflated, Truncated };
 
@@ -184,29 +200,28 @@ private:
     //Offsets checks
 
 
-    Seq_Offset d_5_off;
+    /// True until an alignment survives every check, which is what makes the exhaustive
+    /// position scan run at all. Was `no_d_align`; the regression script and the plan keep
+    /// that name for the *path*, which is the only D left in it.
+    bool no_alignment_survived;
 
-    Seq_Offset d_3_min_offset;
-    Seq_Offset d_3_max_offset;
-
-
-    //Suitable D align bool
-    bool no_d_align;
-    std::vector<size_t> no_d_mismatches;
-    size_t d_size;
-    Seq_Offset d_full_3_offset;
+    /// The placement the exhaustive scan is currently scoring: where it sits, how long it is,
+    /// and where it disagrees with the read.
+    Seq_Offset placement_5_off;
+    Seq_Offset placement_3_off;
+    std::size_t template_size;
+    std::vector<std::size_t> placement_mismatches;
 
     //Declare common variables
     mutable int base_index;
     double new_scenario_proba;
-    double new_tmp_err_w_proba;
     double proba_contribution;
     Int_Str gene_seq;
     int new_index;
     const int *alignment_offset_p;
-    /// Scratch for the no_d_align scan only; the alignment path counts its core inline.
-    std::vector<size_t>::const_iterator mism_iter;
-    size_t endogeneous_mismatches;
+    /// Scratch for the position scan only; the alignment path counts its core inline.
+    std::vector<std::size_t>::const_iterator placement_mism_iter;
+    std::size_t endogeneous_mismatches;
 
     //Constants
     //Memory Layers
@@ -216,23 +231,21 @@ private:
     int memory_layer_off_fivep;
     int memory_layer_proba_map_seq;
 
-    //Gene choices
-    bool v_chosen;
-    bool v_choice_exist;
-    bool d_chosen;
-    bool d_choice_exist;
-    bool j_chosen;
-    bool j_choice_exist;
+    /// How far this segment's own ends can still travel, for the exhaustive position scan.
+    /// §7.4's short answer rather than `pending_`'s, carried until R10 -- see
+    /// JunctionGeometry::legacy_offset_delta().
+    OffsetDelta own_five_prime_travel_{};
+    OffsetDelta own_three_prime_travel_{};
 
-    //Deletion ranges
-    int d_5_max_del;
-    int d_5_min_del;
-    int d_5_real_max_del;
-    int d_3_max_del;
-    int d_3_min_del;
+    /// This event's realizations by their index, so the retained decomposition can carry an
+    /// index rather than a gene name -- §2.5's per-candidate hash lookup, removed. Points into
+    /// event_realizations, which nothing mutates after initialize_event().
+    std::vector<const Event_realization *> realizations_by_index_;
 
-    //No D prunning proba bound map
-    std::map<int, std::vector<std::tuple<std::string, int, int, double>>> vj_length_d_position_proba;
-
-    D_position_comparator D_position_tuple;
+    /// The nearest *candidate* neighbour on each side -- placed or not -- as indices into
+    /// flank_checks_, or -1. Distinct from the junction's endpoints, which are the nearest
+    /// *placed* ones: the sliding window is bounded by a neighbour that has not been placed
+    /// just as much as by one that has, through the read end the preamble records for it.
+    int nearest_left_check_ = -1;
+    int nearest_right_check_ = -1;
 };

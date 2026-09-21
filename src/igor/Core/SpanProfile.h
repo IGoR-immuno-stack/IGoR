@@ -25,6 +25,7 @@
 #include <igor/Core/SegmentSpan.h>
 #include <igor/Core/SeqTypeRegistry.h>
 
+#include <algorithm>
 #include <cstddef>
 #include <iterator>
 #include <optional>
@@ -196,8 +197,8 @@ public:
     bool empty() const { return present_ == 0; }
 
     /// Ordered by distance, absent slots skipped. For the consumers that enumerate rather than
-    /// look up -- today only Gene_choice(D), building the retained decomposition of the span it
-    /// splits.
+    /// look up -- today only Rec_Event::build_retained_decomposition(), composing two folded
+    /// halves into the SpanDecomposition of the span between them.
     const_iterator begin() const { return const_iterator(this, 0); }
     const_iterator end() const { return const_iterator(this, slots_.size()); }
 
@@ -236,6 +237,117 @@ private:
 };
 
 /**
+ * \brief The *retained* decomposition of a span, for the event that splits it by enumerating
+ * its own placements inside it.
+ *
+ * `SpanProfile` is `⊗ᵐᵃˣ`: it keeps, per total distance, the best probability any composition
+ * reaches, and forgets which composition that was. This is `⊗ᵉⁿᵘᵐ`, the variant that keeps its
+ * arguments — section 2.5 of docs/ITERATE_GENERIC_REWRITE_PLAN.md. It cannot be rebuilt from two
+ * folded profiles after the fact, which is why it is built alongside them rather than derived
+ * on demand.
+ *
+ * ### Three components, whatever the topology
+ *
+ * An anchor `X` enumerating exhaustively between anchors `A` and `B` branches on exactly two
+ * things — which realization, and where its 5' end sits — and its 3' remainder is then
+ * arithmetic. Everything past the next anchor is already marginalised into `span(X,B)` by the
+ * max-fold, because the events out there enumerate for themselves when they run. So a placement
+ * is `(realization, len(span(A,X)), len(span(X,B)))` plus its bound, and stays that whether one
+ * anchor or four sit between `X` and `B`. Section 2.5 records the earlier reading — that a
+ * tandem D1 would need five components — and why it was a conflation of the fold that *builds*
+ * a span with the decomposition *retained* in it.
+ *
+ * ### Sorted by decreasing probability, and that is load-bearing
+ *
+ * The consumer walks one total distance's placements and `break`s on the first prune. That is
+ * exact only because the order is non-increasing in the bound, so 5a's sections pin it
+ * (§6.15) and nothing here may reorder without saying so.
+ *
+ * ### Storage
+ *
+ * A dense array indexed by total distance, for the same reason `SpanProfile` is one: the
+ * achievable totals are the sumset of contiguous realization ranges, so the key space is a
+ * short contiguous interval. The `std::map<int, std::vector<std::tuple<std::string,int,int,
+ * double>>>` this replaces paid a red-black descent per lookup and a string hash per candidate
+ * *inside* the enumeration; the realization is an index here, resolved against the event's own
+ * dense table.
+ */
+class SpanDecomposition
+{
+public:
+    /// One way the enumerating segment can sit inside the span.
+    struct Placement {
+        int realization_index;   ///< index into the event's realizations, not a name
+        int left_distance;       ///< len(span(A, X))
+        int right_distance;      ///< len(span(X, B))
+        double proba;            ///< the bound this composition reaches
+    };
+
+    /// Drop everything, for an owner about to rebuild at the next EM iteration.
+    void clear()
+    {
+        buckets_.clear();
+        min_total_ = 0;
+        empty_ = true;
+    }
+
+    /// Add one composition at `total`. Order of calls is preserved within a bucket, which is
+    /// what makes the sort below reproduce the one it replaces exactly: the comparator looks
+    /// only at the probability, so ties keep their arrival order up to std::sort's permutation.
+    void record(int total, Placement placement)
+    {
+        make_room_for(total);
+        buckets_[static_cast<std::size_t>(total - min_total_)].push_back(placement);
+        empty_ = false;
+    }
+
+    /// Order every bucket by decreasing probability. Called once, after the last record().
+    void sort_by_decreasing_proba()
+    {
+        for (std::vector<Placement> &bucket : buckets_) {
+            std::sort(bucket.begin(), bucket.end(),
+                      [](const Placement &l, const Placement &r) { return l.proba > r.proba; });
+        }
+    }
+
+    /// The placements reaching `total`, best first; empty when no composition reaches it.
+    const std::vector<Placement> &at(int total) const
+    {
+        static const std::vector<Placement> kNone;
+        const std::size_t index = static_cast<std::size_t>(total - min_total_);
+        return index < buckets_.size() ? buckets_[index] : kNone;
+    }
+
+    /// True while nothing has been recorded -- the event has no retained decomposition, either
+    /// because it does not enumerate or because one of its two halves is unreachable.
+    bool empty() const { return empty_; }
+
+private:
+    void make_room_for(int total)
+    {
+        if (buckets_.empty()) {
+            min_total_ = total;
+            buckets_.resize(1);
+            return;
+        }
+        if (total < min_total_) {
+            buckets_.insert(buckets_.begin(), static_cast<std::size_t>(min_total_ - total),
+                            std::vector<Placement>{});
+            min_total_ = total;
+            return;
+        }
+        const std::size_t index = static_cast<std::size_t>(total - min_total_);
+        if (index >= buckets_.size()) {
+            buckets_.resize(index + 1);
+        }
+    }
+
+    int min_total_ = 0;
+    bool empty_ = true;
+    std::vector<std::vector<Placement>> buckets_;
+};
+
+/**
  * \brief One junction an event reads a bound from: which span, where its value goes, and the
  * profile itself.
  *
@@ -257,11 +369,20 @@ private:
 class JunctionBound
 {
 public:
-    /// Whether initialize_Len_proba_bound() folds this junction's profile. A junction an event
-    /// *splits* rather than measures carries no profile of its own: Gene_choice(D) writes the
-    /// neutral 1.0 into the V->J slot and refines the two halves instead, which is the retained
-    /// decomposition 5b generalises.
-    enum class Fold { No, Yes };
+    /// What initialize_Len_proba_bound() builds for this junction.
+    ///
+    ///  - `Yes`    -- fold the max-product profile, the pruning bound every consumer reads;
+    ///  - `No`     -- nothing. The event measures this junction but does not bound it: it
+    ///                writes the neutral 1.0 into the slot and lets its halves carry the bound;
+    ///  - `Retain` -- the decomposition rather than the fold. For an event that *splits* this
+    ///                junction by enumerating its own placements inside it, which needs to know
+    ///                which composition reached each total and not only the best one. Built
+    ///                from the two halves plus this event's realizations; see
+    ///                SpanDecomposition and section 2.5.
+    ///
+    /// `Retain` also writes the neutral 1.0 into the slot at scenario time, exactly as `No`
+    /// does -- the two differ in what initialization builds, not in what iterate() writes.
+    enum class Fold { No, Yes, Retain };
 
     JunctionBound() = default;
 
@@ -277,6 +398,7 @@ public:
     /// and in a VJ model no event has a D-flanked one.
     bool resolved() const { return proba_key_ != kNoSeqType; }
     bool folded() const { return fold_ == Fold::Yes; }
+    bool retained() const { return fold_ == Fold::Retain; }
 
     SegmentSpan span() const { return span_; }
     SeqTypeId proba_key() const { return proba_key_; }
@@ -285,10 +407,15 @@ public:
     const SpanProfile &profile() const { return profile_; }
     SpanProfile &mutable_profile() { return profile_; }
 
+    /// Only meaningful for a `Retain` junction; empty for every other.
+    const SpanDecomposition &decomposition() const { return decomposition_; }
+    SpanDecomposition &mutable_decomposition() { return decomposition_; }
+
 private:
     SegmentSpan span_{};
     SeqTypeId proba_key_ = kNoSeqType;
     int memory_layer_ = -1;
     Fold fold_ = Fold::No;
     SpanProfile profile_{};
+    SpanDecomposition decomposition_{};
 };

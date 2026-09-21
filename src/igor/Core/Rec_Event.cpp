@@ -526,7 +526,71 @@ void Rec_Event::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &model_q
                                            model_parameters_point, base_index_map, lengths);
     }
 
-    this->finalize_Len_proba_bound(model_parameters_point, base_index_map);
+    this->build_retained_decomposition(model_parameters_point, base_index_map);
+}
+
+/*
+ * The `Retain` mode of the fold: not "how good can this span get at each length", but "which
+ * ways can this event sit inside it, at each length, best first". Section 2.5's composition
+ * operator in the variant that keeps its arguments -- which is why it is built here, next to the
+ * halves it composes, and not derived from them afterwards.
+ *
+ * `Retain` sits on the enclosing junction because that is the one this event splits: its two
+ * halves are the left and right slots, already folded above, and the third factor is this
+ * event's own realization set. Nothing here is a gene: the template's length is
+ * `length_delta()`, the per-realization bound is the same maxᵢ the fold takes, and which
+ * junctions are involved was settled in initialize_event().
+ */
+void Rec_Event::build_retained_decomposition(const Marginal_array_p &model_parameters_point,
+                                             Index_map &base_index_map)
+{
+    JunctionBound &enclosing = junction_bounds_[kEnclosingJunction];
+    if (not enclosing.resolved() or not enclosing.retained()) {
+        return;
+    }
+
+    SpanDecomposition &decomposition = enclosing.mutable_decomposition();
+    decomposition.clear();
+
+    const JunctionBound &left = junction_bounds_[kLeftJunction];
+    const JunctionBound &right = junction_bounds_[kRightJunction];
+    if (not left.resolved() or not right.resolved()) {
+        //Only one flank placed, so there is no enclosed span to decompose. The consumer falls
+        //back to scanning the read, which needs no decomposition.
+        return;
+    }
+
+    base_index_map.set_current_layer(this->event_index, 0);
+    const int span_base_index = base_index_map.get(this->event_index);
+
+    for (std::unordered_map<std::string, Event_realization>::const_iterator iter = this->event_realizations.begin();
+         iter != this->event_realizations.end(); ++iter) {
+        const Event_realization &realization = iter->second;
+
+        //The same maxᵢ over the conditioning parent's realizations that the fold takes, for the
+        //same reason: this event may be a child, and the bound has to hold whichever parent
+        //realization the scenario turns out to carry. R6 replaces both with a joint max.
+        double real_max_proba = 0;
+        for (std::size_t i = 0; i != this->event_marginal_size / this->size(); ++i) {
+            if (model_parameters_point[span_base_index + realization.index + i * this->size()] > real_max_proba) {
+                real_max_proba = model_parameters_point[span_base_index + realization.index + i * this->size()];
+            }
+        }
+
+        const int own_length = this->length_delta(realization);
+
+        for (const SpanProfile::Entry near : left.profile()) {
+            for (const SpanProfile::Entry far : right.profile()) {
+                decomposition.record(own_length + near.distance + far.distance,
+                                     SpanDecomposition::Placement{realization.index, near.distance,
+                                                                  far.distance,
+                                                                  real_max_proba * near.proba * far.proba});
+            }
+        }
+    }
+
+    //The consumer `break`s on the first prune, which is exact only in this order.
+    decomposition.sort_by_decreasing_proba();
 }
 
 void Rec_Event::adopt_Len_proba_bound(const Rec_Event &source)
@@ -539,5 +603,8 @@ void Rec_Event::adopt_Len_proba_bound(const Rec_Event &source)
         bound.mutable_profile() = source.junction_bounds_[slot].profile();
     }
 
-    this->adopt_finalized_Len_proba_bound(source);
+    JunctionBound &enclosing = junction_bounds_[kEnclosingJunction];
+    if (enclosing.resolved() and enclosing.retained()) {
+        enclosing.mutable_decomposition() = source.junction_bounds_[kEnclosingJunction].decomposition();
+    }
 }

@@ -1555,22 +1555,18 @@ TEST_CASE("DEFECT (plan 7.16): the sliding window compounds it too",
 }
 
 // ===========================================================================================
-// The non-terminating slide (plan 7.17).
+// The slide advances past a placement it cannot score (plan 7.17).
 //
-// Tagged [.] so it does NOT run by default, and deliberately *not* tagged [gene_choice] or
-// [exhaustive]: Catch2 runs a hidden test when a filter names one of its tags, so leaving
-// either on would make `igor_tests "[gene_choice]"` hang forever instead of failing. Select it
-// by [sliding_hang] alone, with a timeout:
+// Written by 5a as a hidden `[.]` case, because under the body it was written against both
+// `continue`s inside the slide's `while` skipped the four increments at the bottom of the loop
+// and the next pass recomputed the same placement from the same state: it did not fail, it
+// hung, which no `[!shouldfail]` expresses and CI cannot survive.
 //
-//     timeout 10 ./build/bin/igor_tests "[sliding_hang]"
-//
-// Both `continue`s inside the slide's `while` skip the four increments at the bottom of the
-// loop body, so the next pass recomputes the same placement from the same state and reaches
-// the same `continue`. The assertion states what 5b owes: a placement that cannot be scored is
-// skipped, and the window still advances.
+// 5b put the advance in the loop header, so the shape is no longer expressible, and the case
+// runs with the rest.
 // ===========================================================================================
-TEST_CASE("DEFECT (plan 7.17): a placement with no junction bound stops the slide advancing",
-          "[.][sliding_hang][defect]")
+TEST_CASE("Gene_choice: a placement with no junction bound does not stop the slide advancing",
+          "[gene_choice][iterate][exhaustive][sliding_hang]")
 {
     // J chosen, V not: the DJ junction is resolved, so `write_junction_bounds` has something
     // to look up -- and the first placement it tries leaves a gap wider than any completion

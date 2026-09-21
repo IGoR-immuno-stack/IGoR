@@ -642,59 +642,6 @@ void Deletion::write2txt_v2(ofstream &outfile)
     }
 }
 
-/**
- * \brief How far a segment end can still travel, through the *accumulated* bounds.
- *
- * This is `JunctionGeometry::PendingModifierBounds` with one substitution: it asks each pending
- * event for `get_len_min()` / `get_len_max()` rather than for `get_offset_delta_bounds()`. The
- * two disagree, and that is the whole reason this function exists.
- *
- * **§7.4, reproduced deliberately.** `len_min` / `len_max` are accumulated by an `if / else if`
- * over an unordered map, so a realization can fail to reach the second branch and leave one
- * bound short. It is not hypothetical: on the demo model the D 5' deletion's `len_max` comes out
- * **3** where its realization set says **4**, so the interval a V deletion compared D's 5' end
- * against was `[-3, 16]` instead of `[-4, 16]`. Only the *lower* bound moves, and the lower bound
- * decides `Safe` rather than `Infeasible` -- so the four arms marked pairs established-safe that
- * the downstream deletion should have re-checked, and scenarios survived that a correct interval
- * discards.
- *
- * `PendingModifierBounds` reads the realization set through `deletion_range()` and is right.
- * Switching the one call site to it is a one-line change that moves the `no_d_align` reference,
- * so it is a correction rather than a refactor: **R10**, which is also where `Deletion` gains
- * `pending_` and this function goes away.
- *
- * Deltas from several events sum, which the four scalars this replaces could not express -- so
- * even the bug-compatible form generalises to a topology with two deletions on one end. Only a
- * `Deletion` answers `OffsetRole::Modifies` today, which is what lets the sign convention be
- * applied from outside the event; that assumption dies with the function too.
- */
-OffsetDelta Deletion::legacy_offset_delta(SeqTypeId type_id, Seq_side side,
-                                          const Events_map &events_map,
-                                          const unordered_set<Rec_Event_name> &processed_events)
-{
-    OffsetDelta accumulated{};
-    for (const auto &[key, event] : events_map) {
-        (void)key;
-        if (not event or processed_events.count(event->get_name()) != 0) {
-            continue;
-        }
-        if (event->get_offset_role(type_id, side) != OffsetRole::Modifies) {
-            continue;
-        }
-        //A 3' end retreats as nucleotides are removed and a 5' end advances; a negative
-        //deletion moves it the other way. `len_min` / `len_max` are the *lengths*, hence
-        //negated deletion counts, hence the mirror-image pair below.
-        if (side == Three_prime) {
-            accumulated.min += event->get_len_min();
-            accumulated.max += event->get_len_max();
-        } else {
-            accumulated.min -= event->get_len_max();
-            accumulated.max -= event->get_len_min();
-        }
-    }
-    return accumulated;
-}
-
 void Deletion::initialize_event(
         unordered_set<Rec_Event_name> &processed_events,
         const Events_map &events_map,
@@ -805,8 +752,8 @@ void Deletion::initialize_event(
         check.safety_cell = safety_set.cell(this->seq_type_id, check.partner_id);
         check.partner_chosen =
                 EventUtils::check_gene_choice(partner_name, events_map, processed_events).chosen;
-        check.partner_delta = legacy_offset_delta(check.partner_id, check.partner_side, events_map,
-                                                  processed_events);
+        check.partner_delta = JunctionGeometry::legacy_offset_delta(
+                check.partner_id, check.partner_side, events_map, processed_events);
         flank_checks_.push_back(check);
     }
 

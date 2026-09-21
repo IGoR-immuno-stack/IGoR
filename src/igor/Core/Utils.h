@@ -587,15 +587,6 @@ typedef std::unordered_map<std::tuple<Event_type, Seq_type_String, Seq_side>,
                            std::shared_ptr<Rec_Event>>
         Events_map;
 
-struct D_position_comparator
-{
-    bool operator()(std::tuple<std::string, int, int, double> position_1,
-                    std::tuple<std::string, int, int, double> position_2)
-    {
-        return std::get<3>(position_1) > std::get<3>(position_2);
-    }
-};
-
 struct inverse_offset_comparator
 {
     bool operator()(const std::pair<std::shared_ptr<const Rec_Event>, int> &inv_offset_1,

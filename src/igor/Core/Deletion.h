@@ -137,8 +137,9 @@ private:
         int partner_offset_layer = -1;
         bool partner_chosen = false;          ///< the partner is placed before this event
 
-        /// How far the partner's facing end can still travel. See legacy_offset_delta(): this
-        /// is §7.4's short answer, not `PendingModifierBounds`', and R10 is the swap.
+        /// How far the partner's facing end can still travel. `JunctionGeometry::
+        /// legacy_offset_delta()`, which is §7.4's short answer rather than
+        /// `PendingModifierBounds`'; R10 is the swap.
         OffsetDelta partner_delta{};
 
         //Per scenario, filled by the preamble of iterate():
@@ -149,11 +150,6 @@ private:
 
     std::vector<FlankCheck> flank_checks_;
 
-    /// §7.4's accumulated offset bounds, summed over the pending events. See the definition
-    /// for why this is here instead of `JunctionGeometry::PendingModifierBounds`.
-    static OffsetDelta legacy_offset_delta(
-            SeqTypeId, Seq_side, const Events_map &,
-            const std::unordered_set<Rec_Event_name> &);
 
     /// Index into flank_checks_ of the neighbour bounding the junction this deletion widens --
     /// the nearest placed one on the trimmed side -- or -1 when there is none.
