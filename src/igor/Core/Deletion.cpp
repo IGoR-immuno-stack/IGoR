@@ -547,7 +547,7 @@ queue<int> Deletion::draw_random_realization(
                     string &v_gene_seq = constructed_sequences.at(V_gene_seq);
                     gen_tmp_str = v_gene_seq.substr(v_gene_seq.size() + (*iter).second.value_int, string::npos);
                     reverse(gen_tmp_str.begin(), gen_tmp_str.end());
-                    make_transversions(gen_tmp_str, false);
+                    make_transversions(gen_tmp_str);
                     v_gene_seq += gen_tmp_str;
                 }
 
@@ -563,7 +563,7 @@ queue<int> Deletion::draw_random_realization(
                         string &d_gene_seq = constructed_sequences.at(D_gene_seq);
                         gen_tmp_str = d_gene_seq.substr(0, -(*iter).second.value_int);
                         reverse(gen_tmp_str.begin(), gen_tmp_str.end());
-                        make_transversions(gen_tmp_str, false);
+                        make_transversions(gen_tmp_str);
                         gen_new_str = gen_tmp_str + d_gene_seq;
                         d_gene_seq = gen_new_str;
                     }
@@ -578,7 +578,7 @@ queue<int> Deletion::draw_random_realization(
                         string &d_gene_seq = constructed_sequences.at(D_gene_seq);
                         gen_tmp_str = d_gene_seq.substr(d_gene_seq.size() + (*iter).second.value_int, string::npos);
                         reverse(gen_tmp_str.begin(), gen_tmp_str.end());
-                        make_transversions(gen_tmp_str, false);
+                        make_transversions(gen_tmp_str);
                         d_gene_seq += gen_tmp_str;
                     }
 
@@ -595,7 +595,7 @@ queue<int> Deletion::draw_random_realization(
                     string &j_gene_seq = constructed_sequences.at(J_gene_seq);
                     gen_tmp_str = j_gene_seq.substr(0, -(*iter).second.value_int);
                     reverse(gen_tmp_str.begin(), gen_tmp_str.end());
-                    make_transversions(gen_tmp_str, false);
+                    make_transversions(gen_tmp_str);
                     gen_new_str = gen_tmp_str + j_gene_seq;
                     j_gene_seq = gen_new_str;
                 }
@@ -889,47 +889,20 @@ void Deletion::add_to_marginals(long double scenario_proba, Marginal_array_p &up
     }
 }
 
-string &make_transversions(string &init_sequence, bool is_int_seq)
+string &make_transversions(string &init_sequence)
 {
-    if (is_int_seq) {
-        for (string::iterator iter = init_sequence.begin(); iter != init_sequence.end(); ++iter) {
-            if ((*iter) == '0') {
-                (*iter) = '3';
-            } else if ((*iter) == '1') {
-                (*iter) = '2';
-            } else if ((*iter) == '2') {
-                (*iter) = '1';
-            } else if ((*iter) == '3') {
-                (*iter) = '0';
-            } else if ((*iter) == '4') {
-                (*iter) = '5';
-            } else if ((*iter) == '5') {
-                (*iter) = '4';
-            } else if ((*iter) == '8') {
-                //Nothing to do
-            } else if ((*iter) == '9') {
-                //Nothing to do
-            } else if ((*iter) == '14') {
-                //Nothing to do
-            } else {
-                throw runtime_error("Unknown int nucleotide " + to_string((*iter)) + " in seq " + init_sequence
-                                    + " in make_transversions()");
-            }
-        }
-    } else {
-        for (string::iterator iter = init_sequence.begin(); iter != init_sequence.end(); ++iter) {
-            if ((*iter) == 'A') {
-                (*iter) = 'T';
-            } else if ((*iter) == 'C') {
-                (*iter) = 'G';
-            } else if ((*iter) == 'G') {
-                (*iter) = 'C';
-            } else if ((*iter) == 'T') {
-                (*iter) = 'A';
-            } else {
-                throw runtime_error("Unknown int nucleotide " + to_string((*iter)) + " in seq " + init_sequence
-                                    + " in make_transversions()");
-            }
+    for (string::iterator iter = init_sequence.begin(); iter != init_sequence.end(); ++iter) {
+        if ((*iter) == 'A') {
+            (*iter) = 'T';
+        } else if ((*iter) == 'C') {
+            (*iter) = 'G';
+        } else if ((*iter) == 'G') {
+            (*iter) = 'C';
+        } else if ((*iter) == 'T') {
+            (*iter) = 'A';
+        } else {
+            throw runtime_error("Unknown int nucleotide " + to_string((*iter)) + " in seq " + init_sequence
+                                + " in make_transversions()");
         }
     }
     return init_sequence;
