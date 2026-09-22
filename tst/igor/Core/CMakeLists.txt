@@ -19,6 +19,7 @@ set(CORE_TEST_SOURCES
     test_insertion_iterate.cpp
     test_junction_geometry.cpp
     test_layered_array.cpp
+    test_matrix.cpp
     test_model_format_v2.cpp
     test_proba_bound_benchmark.cpp
     test_safety_matrix.cpp

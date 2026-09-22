@@ -355,21 +355,40 @@ public:
         return *this;
     }
 
+    /**
+     * \brief Whether (i, j) addresses a cell of this matrix.
+     *
+     * Exposed rather than left inside the assert so it can be tested without a debug build --
+     * the same reason first_unfilled_segment() is a predicate (plan section 7.14).
+     *
+     * **The lower bound is not redundant.** The indices are `int`, and a caller that derives one
+     * by subtraction can hand over a negative value. An upper-bound-only check accepts it, and
+     * `array_p[i + rows * j]` then reads from before the allocation -- silently, since every
+     * layer above fails to stop it too: an unsigned count wraps to a huge value, the growth
+     * check adds to it and wraps back, and the conversion to `int` here brings it out as -1.
+     * Plan section 7.18 measured that path returning two different answers for one arithmetic.
+     * R5a corrects the derivation that produces the negative index; this is what stops the read.
+     */
+    bool in_range(const int &i, const int &j) const
+    {
+        return (i >= 0) && (j >= 0) && (i <= rows - 1) && (j <= cols - 1);
+    }
+
     T &operator()(const int &i, const int &j)
     {
-        assert((i <= rows - 1) && (j <= cols - 1));
+        assert(in_range(i, j));
         return array_p[i + rows * j];
     }
 
     const T &operator()(const int &i, const int &j) const
     {
-        assert((i <= rows - 1) && (j <= cols - 1));
+        assert(in_range(i, j));
         return array_p[i + rows * j];
     }
 
     T get_field(const int &i, const int &j) const
     {
-        if ((i > rows - 1) || (j > cols - 1)) {
+        if (not in_range(i, j)) {
             throw std::length_error("Cannot access indices [" + std::to_string(i) + "," + std::to_string(j)
                                     + "] with matrix dimensions [" + std::to_string(rows) + "," + std::to_string(cols)
                                     + "]");
