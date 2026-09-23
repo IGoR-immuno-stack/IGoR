@@ -12,6 +12,8 @@ collapses onto that.
 
 ---
 
+[toc]
+
 ## 0. Executive summary
 
 The four `iterate()` bodies contain **13 hardcoded V/D/J or VD/DJ/VJ branches** across ~2 400
@@ -1446,6 +1448,32 @@ is currently computed in tier 2 and repeated once per scenario that reaches the 
 | endogenous-mismatch count and the credited core length | [Genechoice.cpp:336-348](../src/igor/Core/Genechoice.cpp#L336-L348) and 2 mirrors | (alignment, model deletion bounds) |
 | `no_d_mismatches` recomputed at every slid D position | [Genechoice.cpp:627-634](../src/igor/Core/Genechoice.cpp#L627-L634), [:735-742](../src/igor/Core/Genechoice.cpp#L735-L742) | (read, D template, offset) — a sliding-window profile, currently rebuilt in full at each step |
 | mismatch-list trimming under a deletion | 4 sites, §2.7 | (alignment, deletion value) — see below |
+| `dinuc_proba_matrix` rebuilt once per **generated sequence** | [GenModel.cpp:613](../src/igor/Core/GenModel.cpp#L613) → [:765](../src/igor/Core/GenModel.cpp#L765) | the marginals alone — tier 0, running at per-output cadence. The sibling overload at [:652](../src/igor/Core/GenModel.cpp#L652) already hoists it and passes `false`. **Legacy-path only, and not scheduled**: the sampling extraction deletes the caller (see below) |
+
+#### Tier 0 has three hooks, not one, and the three paths do not share them *(Sep 23 2026)*
+
+G10's table above names tier 0's hook as `initialize_event()` and the two bound initialisers. That
+is the **inference** story. Counting every caller in `src/` gives three different ones:
+
+| Path | Tier-0 hook | Builds the dinucleotide table how |
+|---|---|---|
+| inference / evaluate (`infer_model`) | `initialize_event()`, `initialize_crude_scenario_proba_bound()`, `initialize_Len_proba_bound()`, **and** `update_event_internal_probas()` | `Dinucl_markov::update_event_internal_probas()` |
+| **fast generation** (`generate_sequences_fast`) | **`FastGenerator::initialize(model_parms, model_marginals)`** — self-contained, once per run | builds its own `dinuc_probs` straight from the marginal array ([FastGenerator.cpp:234](../src/igor/Core/FastGenerator.cpp#L234)); never touches `dinuc_proba_matrix` |
+| **legacy generation** (`generate_sequences`, `generate_unique_sequence`) | `update_event_internal_probas()` **alone** | `Dinucl_markov::update_event_internal_probas()` |
+
+`initialize_event()` has **exactly one caller in `src/`** — `GenModel::infer_model`. The legacy
+generation path runs no tier-0 sweep at all, because it needs no bounds and builds no scenario
+state, so `initialize_event()`'s five scenario-state maps mean nothing to it.
+`update_event_internal_probas()` is therefore not an out-of-band call that escaped tier 0; **it is
+the only tier-0 hook that path has**, and the fixture at
+[test_dinucl_markov_iterate.cpp:401](../../tst/igor/Core/test_dinucl_markov_iterate.cpp#L401) is a
+fourth consumer that has to remember it.
+
+**`FastGenerator::initialize()` is what a generation-side tier 0 should look like**, and it already
+exists: one call per run, deriving what it needs from the model rather than reaching into an event's
+members. Fast mode is opt-in today and supports neither error generation nor CDR3 output
+([legacy_main.cpp:2227](../../app/igor/legacy_main.cpp#L2227)), so the legacy path is still the
+default and still load-bearing — slated for replacement, not dead.
 
 **The mismatch-list observation.** For a positive deletion the result is always a **contiguous
 subrange of the incoming list**: V and D-3′ keep a prefix, D-5′ and J keep a suffix. Composing D's
@@ -1643,7 +1671,7 @@ already flagged as the milestone-1 blocker and because `Gene_choice` is the only
 | **4b** | ✅ **done** — **B5**, `Deletion::iterate` generic. The four-arm switch is gone: **981 → 246 lines**, 1266 deleted against 512 added, thirty-one members retired. Everything the arms differed in is read at init from `event_side` and from whether the segment is anchored on an end of the read — the same boolean B11a gave `Gene_choice` — plus one A0 query for "does anything still move my other end". First production consumer of **S3**; **S2 is R10's**, because `pending_` is *correct* and the four arms were not (§7.4, measured active). §7.21 found and fixed. §6.18 | full ladder + benchmark + convergence | **yes**, via §7.4's reproduction |
 | **5a** | ✅ **done** — three parts. (i) The per-branch unit sections (Sep 16 2026): nine `TEST_CASE`s over both sub-branches, `Gene_choice::iterate` from **87.4 % to 96.3 % blocks**, every branch covered *except the two that do not terminate* (§7.17); §7.16, §7.17 and §7.18 fell out of writing them. (ii) The `bound / realized_proba` instrumentation (§6.16), which measured what §6.10 asked and found §7.19. (iii) The widened `span_proba_factor` cover (§6.16). The end-to-end half landed earlier: `scripts/tests/test_no_d_align.sh`, see §7.9 | unit + mutation | n/a — tests and an off-by-default instrument |
 | **5b** | ✅ **done** — **B11b**, the exhaustive position scan generic. `Gene_choice::iterate` has no gene literal left. `⊗ᵉⁿᵘᵐ` is `SpanDecomposition` + `JunctionBound::Fold::Retain`, executed by `Rec_Event::build_retained_decomposition()` and gated by `exhaustive_position_fallback_`; both `finalize_Len_proba_bound` and its adopting half are deleted, so **the initialization sweep has no virtuals left**. The retained tuple carries a realization index rather than a gene name (§2.5). §7.17 fixed structurally — the advance is in the loop header; §7.16 carried, as R7's row requires; §7.4 still reproduced, and R10 now swaps both consumers at once. §6.19 | full ladder + benchmark + convergence | **yes** |
-| **R0–R3b** | **Repair phase** (§6.9) — the decided behaviour changes, held here so everything above is idempotent end to end. **Sequenced Sep 22 2026**, because read as a running order the catalogue is wrong: R9 and §7.18's independent assert first (free), then R4, then §7.12's throw, then **R1 and R3 as one commit** (their dependencies point at each other), then R3b. §7.11's occupancy walk is *not* in R2 — it is deferred to B10 | full ladder, per commit | **yes** for this whole block — each row is expected bitwise and the expectation is what is tested |
+| **R0–R3b** | **Repair phase** (§6.9) — the decided behaviour changes, held here so everything above is idempotent end to end. **Sequenced Sep 22 2026**, because read as a running order the catalogue is wrong: R9 and §7.18's independent assert first (free), then §7.12's throw, then **R1 and R3 as one commit** (their dependencies point at each other), then R3b. **R4 left the order Sep 23** — gated on `feature/tk_refactoring`, like S4d is on `feature/TensorLinalg`. §7.11's occupancy walk is *not* in R2 — it is deferred to B10 | full ladder, per commit | **yes** for this whole block — each row is expected bitwise and the expectation is what is tested |
 | **R5a / R5b** | §7.1 and §7.8, per decision O4, **split Sep 22 2026** so each golden movement has one cause: **R5a** is §7.1 + §7.18 — the credited core length is derived wrongly in both arms, it can come out negative, and the error-rate accessor takes `size_t`, so the derivation and the signature are corrected together (latent on both corpora today, measured); three `[!shouldfail]` tags. **R5b** is §7.8's position-path convention; the fourth tag. R5a moves the inference corpus, R5b moves `no_d_align` | full ladder + the corrected-core unit tests | **no** — same |
 | **R7** | **§7.16** — the `no_d_align` probability compounds across placements. Its two `[!shouldfail]` tags come off, and `scripts/tests/data/reference/no_d_align_output/` moves with it. Held out of 5b so the collapse there stays bitwise | full ladder + the `no_d_align` regression, regenerated | **no** — the golden data for that path moves |
 | **R8** | **§7.19** — an `Insertion`'s bound counts its own realization twice and falls below the truth, so insertion nodes prune harder than the threshold asks. Needs a decision first: fix the consumer, or stop folding the consuming event into its own junction (which is also 6.14's mirror finding on `Deletion`). Re-measure with 5a's instrument afterwards | full ladder + the bound instrument | **no** — every output moves |
@@ -2052,8 +2080,9 @@ What the sections pin, beyond the matrix rows:
   in `initialize_event()`. It is a tier-0 computation in G10's terms — it depends only on the
   marginals — and leaving it to an out-of-band call means the matrix is whatever the last caller
   left, or zero. Any consumer that forgets it gets probability 0 for every ambiguous position, with
-  no diagnostic. Moving it is a behaviour-preserving change for `GenModel` and removes a way to hold
-  the event wrong.
+  no diagnostic. ~~Moving it is a behaviour-preserving change for `GenModel`~~ — **that last clause
+  is wrong, measured Sep 23 2026**; see R4's row, which is gated on `feature/tk_refactoring` as a
+  result. The tier classification stands.
 
 **Ten mutations run, all caught** after the first-position gap was closed: both window offsets, the
 final reversal, the seed source, both placeholder guards, the conditional index losing its
@@ -2225,7 +2254,7 @@ Decided behaviour changes, none of which had a row in §6 before this re-assessm
 | R2 | §7.12 — **throw** on an empty anchor. **Narrowed Sep 22 2026**: the `first_occupied_*` walk is *not* part of this row. §7.11 puts occupancy skipping behind B10's absence semantics, which §9 lists as milestone 2 and outside this plan, and the walk also needs R3's junction offsets — it lands on a junction segment as soon as a gene segment is skipped, and `LayeredArray::get()` throws on the unwritten key. The two differ on one reachable case: for `DJ_ins_seq` with a fully deleted D, throw rejects the scenario where the walk would seed from `VD_ins_seq`'s last nucleotide | Sep 8, narrowed Sep 22 | `Dinucl_markov` | none on the corpus (no model produces an empty anchor); removes the `[.]` tag from the reproducer |
 | R3 | *(lands as one commit with R1)* `Insertion` writes offsets (two `[!shouldfail]`), **its `get_offset_role` stops reporting `None`**, and the leaf invariant's offsets half becomes assertable (see below). **The mismatch-list defect is dissolved by R1's rescope, not fixed**: under O12's (a′) `Insertion` creates no sequence, so it needs no list for one — that `[!shouldfail]` case is deleted rather than made to pass. The layer-ownership item likewise follows the segment to `Dinucl_markov`. Deletes the ownership waiver in `call_iterate_recording()` | Sep 7, rescoped Sep 11 | `Insertion` | none expected — neither `Insertion::iterate` nor `Dinucl_markov::iterate` touches `seq_offsets` at all |
 | **R3b** | **O10** — `LayeredArray::set()` stops raising the claim implicitly and *requires* it: writing at an unrequested layer becomes an error rather than a silent claim. Lands **immediately after R3**, which removes the only violation known today | Sep 10 | `LayeredArray`, and whatever R3b surfaces | none expected on the corpus, but this is the row most likely to surface *new* violations — each one is a genuine finding and lands as its own R row after this one |
-| R4 | `dinuc_proba_matrix` construction moves into `initialize_event()` | Sep 7 | `Dinucl_markov` | none — `GenModel` already calls the out-of-band builder |
+| R4 | `dinuc_proba_matrix` construction moves into `initialize_event()`. **Gated on `feature/tk_refactoring` merging, Sep 23 2026** — not merely deferred: the row's premise, that the move is behaviour-preserving for `GenModel`, is false today. `initialize_event()` is inference-only, so moving the build there leaves the matrix unbuilt for legacy generation, whose `draw_random_common()` reads it; moving the *allocation* alone is worse, writing out of bounds in the builder (which R0 would now catch). The premise becomes true once sampling leaves `Rec_Event` for `SamplingEngine` / `SamplingHandler` and `draw_random_realization()` goes with it, at which point `iterate()` is the matrix's only consumer and `initialize_event()` its only reasonable home. Same shape as **S4d**: gated on a branch, not on an API. §2.10 | Sep 7, gated Sep 23 | `Dinucl_markov` | none — once it can land at all |
 | R5a | §7.1 + §7.18 — the credited core length is *derived* wrongly in both arms (sign inverted in V and J, inclusive count off by one in D), and because it can come out negative the error-rate accessor's `size_t` counts become `int`. Three `[!shouldfail]` tags come off (decision O4) | Sep 1, split Sep 22 | `Gene_choice`, `Error_rate` | **the inference corpus moves** — the V and J bounds stop over-pruning by `(1-r)^(2·max_del)` |
 | R5b | §7.8 — the `no_d_align` position path places D's 5' end one nucleotide too far 5', using the alignment path's `L` under the opposite convention. Fourth `[!shouldfail]` tag. Split from R5a Sep 22 so each golden movement has one cause; O4's *"fix at the very end"* still governs both | Sep 1, split Sep 22 | `Gene_choice` | **`no_d_align` moves** |
 | R6 | Within-clique **joint** max in the span fold, using S4b's group hook; optionally cross-clique parent indexing after it | Sep 10 | the span fold (all events) | **golden data may move** — a tighter bound prunes more, so fewer scenarios are summed. Needs the **convergence** gate, not just regression |
@@ -2234,7 +2263,7 @@ Decided behaviour changes, none of which had a row in §6 before this re-assessm
 | R7 | §7.16 — the `no_d_align` path compounds the D probability across placements, so placement *k* is handed off at `incoming × p^k` where every placement is the same realization and should carry `incoming × p`. Both exhaustive loops read the live `scenario.scenario_proba` where the alignment loop restarts from a value captured once. Two `[!shouldfail]` tags. Held out of 5b so that collapse stays bitwise; the repair must re-check §6.15's first-stage `break`, whose safety currently rests on the monotonicity the defect creates | Sep 16 | `Gene_choice` | **`no_d_align` moves** — the reference encodes the compounded values |
 | R8 | §7.19 — an `Insertion`'s bound multiplies in its own realization's marginal twice, once through `proba_contribution` and once inside the junction profile it reads, so the bound falls below the probability the scenario goes on to realize and insertion nodes prune harder than the threshold asks. **Needs a decision before it can be written**: fix the consumer (local, changes only the insertion's bound), or stop folding the consuming event into its own junction (§2.5's frame, which also sweeps in §6.14's mirror on `Deletion` — bitwise-invisible there because it *weakens* the bound — and overlaps R6's rework of the same fold, in which case the two merge) | Sep 17 | `Insertion`, and under the second shape the fold and `Deletion` | **every output moves** |
 
-R9, R0, R4, R2, R1+R3 and R3b are each expected to be bitwise-neutral despite being behaviour
+R9, R0, R2, R1+R3 and R3b are each expected to be bitwise-neutral despite being behaviour
 changes — they close paths the corpus does not reach. That expectation is the thing to *test*, not
 to assume: a surprise here is a finding about the corpus, not a reason to accept the diff. R5a,
 R5b, R7, R8, R10 and R6 are the rows expected to move numbers, and they come last for exactly that
@@ -2250,16 +2279,18 @@ first and attributability second:
 |---|---|---|---|
 | **0a** | **R9** — §7.20's dead arm deleted | full ladder | none, by construction |
 | **0b** | **R0** — `Matrix::operator()` gains its lower-bound assert (§7.18's independent half) | unit | none (debug-only) |
-| **1a** | **R4** — `dinuc_proba_matrix` construction into `initialize_event()` | full ladder | none |
-| **1b** | **R2** — throw on an empty anchor; the `[.]` comes off | full ladder | none |
-| **1c** | **R1+R3**, one commit — O12 (a′) | full ladder | none expected; **prove it** |
-| **1d** | **R3b** — `LayeredArray::set()` requires the claim | full ladder | none expected |
+| **1a** | **R2** — throw on an empty anchor; the `[.]` comes off | full ladder | none |
+| **1b** | **R1+R3**, one commit — O12 (a′) | full ladder | none expected; **prove it** |
+| **1c** | **R3b** — `LayeredArray::set()` requires the claim | full ladder | none expected |
 | **2a** | **R10** — §7.4's short bound deleted | full ladder + `no_d_align` regenerated | `no_d_align` only |
 | **2b** | **R7** — §7.16's compounding repaired | full ladder + `no_d_align` regenerated | `no_d_align` only |
 | **3a** | **R5a** — §7.1 + §7.18 | full ladder + the corrected-core unit tests | inference corpus |
 | **3b** | **R5b** — §7.8 | full ladder + `no_d_align` regenerated | `no_d_align` only |
 | **3c** | **R8** — §7.19 | full ladder + 5a's instrument | every output |
 | **3d** | **R6** — within-clique joint max | full ladder, **convergence weighted heavily** | every output |
+
+**R4 is not in the order**, and that is a gate rather than a deferral — see its row. The stages
+renumbered when it came out; nothing else moved.
 
 **The three edges that force it.** Everything else is sorted by blast radius: bitwise-expected rows
 first, because a bitwise gate is only evidence while it is green, and among the movers the narrow
