@@ -462,25 +462,26 @@ TEST_CASE("Dinucl_markov: the direction comes from the event, the anchor from th
 }
 
 // ===========================================================================================
-// The empty-anchor hazard (plan section 2.9, and now 7.12).
+// The empty-anchor hazard (plan section 2.9, then 7.12; repaired by R2).
 //
-// Tagged [.] so it does NOT run by default, and deliberately *not* tagged [dinucl] either:
-// Catch2 runs a hidden test when a filter names one of its tags, so leaving [dinucl] on it
-// would make `igor_tests "[dinucl]"` segfault mid-run. Select it by [empty_anchor] alone.
-//
-// This is not squeamishness: the defect is an
+// This was a [.]-hidden case for two weeks, and not out of squeamishness: the defect was an
 // unguarded `previous_seq.back()` on an empty Int_Str -- a std::vector<int> whose data() is
-// null -- so the failure mode is a segfault that takes the whole test binary down, which
-// [!shouldfail] cannot catch and CI cannot survive. Run it deliberately:
+// null -- so the failure mode was a segfault that took the whole test binary down, which
+// [!shouldfail] cannot express and CI cannot survive. It could not even carry [dinucl], since
+// Catch2 runs a hidden test whenever a filter names one of its tags.
 //
-//     ./build/bin/igor_tests "[dinucl][empty_anchor]"
+// R2 makes the anchor's emptiness a throw, so the case is now an ordinary one and runs with
+// the suite. What section 7.12 decided, and what these assert: throw, do not discard. A
+// scenario whose anchor was fully deleted is geometrically legitimate, so discarding it would
+// remove probability mass the model should account for and leave no trace; the user has to
+// see it. And an anchor carrying no nucleotide must be rejected or skipped, *never read* --
+// so a junction that needs no seed is not rejected at all.
 //
-// The assertion states what B7 owes: an anchor that carries no nucleotide must be rejected or
-// skipped, never read. Once the skip-empty walk lands this becomes an ordinary test and the
-// [.] tag comes off.
+// R2 is the throw half only. The occupancy-skipping walk that would seed from the next
+// non-empty segment instead is deferred to B10 (sections 7.11 and 9).
 // ===========================================================================================
-TEST_CASE("DEFECT (plan 7.12): a fully deleted anchor is read for a seed nucleotide",
-          "[.][empty_anchor][defect]")   // deliberately NOT tagged [dinucl]: see below
+TEST_CASE("Dinucl_markov: a fully deleted anchor is rejected, not read",
+          "[dinucl][iterate][empty_anchor]")
 {
     IterateTestState state = create_iterate_state(kRead);
     auto dinucl = make_dinucl_markov(VD_ins_seq, /*event_id=*/0);
@@ -497,6 +498,32 @@ TEST_CASE("DEFECT (plan 7.12): a fully deleted anchor is read for a seed nucleot
     }
 
     CHECK_THROWS(call_iterate(dinucl, state));
+}
+
+TEST_CASE("Dinucl_markov: an empty anchor is not read when the junction needs no seed",
+          "[dinucl][iterate][empty_anchor]")
+{
+    // The other half of "rejected or skipped, never read", and the reason the guard asks
+    // whether a seed is needed rather than whether the anchor is empty. A zero-length
+    // junction chooses no nucleotide, so it never touches the anchor and stays perfectly
+    // scoreable -- rejecting it would discard a legitimate scenario, which is the very thing
+    // the throw exists to avoid doing silently.
+    IterateTestState state = create_iterate_state(kRead);
+    auto dinucl = make_dinucl_markov(VD_ins_seq, /*event_id=*/0);
+    state.add_event(make_insertion(VD_ins_seq, 0, 6, /*event_id=*/1));
+
+    state.preset_segment(V_gene_seq, 0, -1, "");
+    state.preset_placeholders(VD_ins_seq, 0);
+    for (std::size_t i = 0; i != 32; ++i) {
+        state.set_marginal(i, 0.5L);
+    }
+
+    // Recording rather than CHECK_NOTHROW: not throwing is the weaker claim, and it would
+    // also hold if the event silently discarded the scenario. What R2 owes is that the
+    // scenario is handed on.
+    const auto next = call_iterate_recording(dinucl, state);
+    REQUIRE(next->call_count() == 1);
+    CHECK(next->calls.front().sequences.at(VD_ins_seq).empty());
 }
 
 TEST_CASE("DEFECT (plan 7.13): Dinucl_markov fills the Insertion's buffer instead of its own layer",

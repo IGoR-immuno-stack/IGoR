@@ -177,12 +177,45 @@ void Dinucl_markov::iterate(
         assert(realization_indices.capacity() >= target_seq.size()
                && "junction longer than its Insertion's longest realization");
 
+        //The chain is seeded from the anchor's nucleotide facing the junction, and Int_Str is a
+        //std::vector<int>, so front()/back() on a fully deleted anchor dereferences nullptr --
+        //a segfault, not a wrong answer (plan section 7.12). The state is reachable on the
+        //current corpus rather than only under tandem D: Deletion's V 3' branch has no size
+        //guard at all, and its D 5' branch guards with a strict >, so deleting exactly the
+        //whole segment is a legal realization and nothing downstream rejects the result.
+        //
+        //Throw, do not discard (decided Sep 8 2026). Such a scenario is geometrically
+        //legitimate, so dropping it silently would remove probability mass the model should
+        //account for and leave no trace that it happened; a scenario that cannot be scored is
+        //a modelling error, and the user has to see it.
+        //
+        //Only where a seed is actually needed. An empty junction chooses no nucleotide, so it
+        //never reads the anchor and stays perfectly scoreable -- which is what section 7.12
+        //asks for: an anchor carrying no nucleotide must be rejected or skipped, *never read*.
+        //
+        //This is the throw half of section 7.12 alone. Its other half, the occupancy-skipping
+        //walk that would seed from the next non-empty segment instead, is deferred to B10: per
+        //section 7.11 it needs absence to have a defined meaning, and it needs the junction
+        //offsets R3 writes, since skipping a gene segment lands the walk on a junction.
+        //
         //anchor_side is the anchor's end facing the junction, so it also says which way the
         //chain runs: from a 3' anchor the read window follows it, from a 5' anchor it precedes
         //it and both the window and the filled segment are handled back to front.
         const bool reverse_traversal = (spec.anchor_side == Five_prime);
 
-        if (reverse_traversal) {
+        if (target_seq.empty()) {
+            //Nothing to choose, so nothing to seed from, so the anchor is not read at all --
+            //which is what keeps an emptily-anchored scenario scoreable when its junction is
+            //also empty. Bitwise for every case that worked before: iterate_common() was
+            //already a no-op on an empty junction, and data_seq_substr is read nowhere else.
+        } else if (previous_seq.empty()) {
+            const SeqTypeRegistry &registry = scenario.constructed_sequences.registry();
+            throw runtime_error("Dinucl_markov " + this->name + ": the anchor segment "
+                                + registry.name(spec.anchor_id) + " carries no nucleotide to seed "
+                                "the Markov chain from. This scenario deleted it entirely -- a "
+                                "legal realization, but one that leaves " + registry.name(spec.target_id)
+                                + " unscoreable.");
+        } else if (reverse_traversal) {
             const size_t char_index =
                     scenario.seq_offsets.get(spec.anchor_id, spec.anchor_side) - target_seq.size();
             data_seq_substr = query.int_sequence.substr(char_index, target_seq.size());
