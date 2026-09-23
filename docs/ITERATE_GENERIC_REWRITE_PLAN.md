@@ -2251,7 +2251,7 @@ Decided behaviour changes, none of which had a row in §6 before this re-assessm
 |---|---|---|---|---|
 | R0 | §7.18's **independent half** — `Matrix::operator()` asserts only its upper bound, so the negative index §7.18 describes satisfies it and a debug build reads before the allocation. Give it a lower bound. Not R5a's repair of the *derivation*, and not blocked on it: cheap, self-contained, and it turns the trap into an abort for every row that follows | Sep 16, scheduled Sep 22 | `Matrix` | none — debug-only, and 0 negative indices measured across both corpora (2948 and 2774 credited lengths) |
 | R1 | *(lands as one commit with R3 — see the execution order)* §7.13 — **`Dinucl_markov` *creates* the insertion segment instead of filling it** (O12, decision (a′)); `Insertion` declares `SeqConstructionRole::None` for the sequence and keeps only length and offsets. Stronger than the original *"give it its own layer"*: no partially-constructed segment exists at all, so `int_undefined` leaves constructed sequences and *"no undetermined nucleotide at any hand-off"* becomes a **global** invariant. `SpanAccumulator` is **kept** but re-based on *offsets-without-sequence* and renamed (§6.10 finding 8) | Sep 7, rescoped Sep 11 | `Dinucl_markov`, `Insertion` | the write lands at a different layer and the segment is transiently absent between the two events; nothing runs in that window today |
-| R2 | §7.12 — **throw** on an empty anchor. **Narrowed Sep 22 2026**: the `first_occupied_*` walk is *not* part of this row. §7.11 puts occupancy skipping behind B10's absence semantics, which §9 lists as milestone 2 and outside this plan, and the walk also needs R3's junction offsets — it lands on a junction segment as soon as a gene segment is skipped, and `LayeredArray::get()` throws on the unwritten key. The two differ on one reachable case: for `DJ_ins_seq` with a fully deleted D, throw rejects the scenario where the walk would seed from `VD_ins_seq`'s last nucleotide | Sep 8, narrowed Sep 22 | `Dinucl_markov` | none on the corpus (no model produces an empty anchor); removes the `[.]` tag from the reproducer |
+| R2 | ✅ **done Sep 23 2026.** §7.12 — **throw** on an empty anchor, and skip it where no seed is needed. **Narrowed Sep 22 2026**: the `first_occupied_*` walk is *not* part of this row. §7.11 puts occupancy skipping behind B10's absence semantics, which §9 lists as milestone 2 and outside this plan, and the walk also needs R3's junction offsets — it lands on a junction segment as soon as a gene segment is skipped, and `LayeredArray::get()` throws on the unwritten key. The two differ on one reachable case: for `DJ_ins_seq` with a fully deleted D, throw rejects the scenario where the walk would seed from `VD_ins_seq`'s last nucleotide | Sep 8, narrowed Sep 22 | `Dinucl_markov` | none on the corpus (no model produces an empty anchor); removes the `[.]` tag from the reproducer |
 | R3 | *(lands as one commit with R1)* `Insertion` writes offsets (two `[!shouldfail]`), **its `get_offset_role` stops reporting `None`**, and the leaf invariant's offsets half becomes assertable (see below). **The mismatch-list defect is dissolved by R1's rescope, not fixed**: under O12's (a′) `Insertion` creates no sequence, so it needs no list for one — that `[!shouldfail]` case is deleted rather than made to pass. The layer-ownership item likewise follows the segment to `Dinucl_markov`. Deletes the ownership waiver in `call_iterate_recording()` | Sep 7, rescoped Sep 11 | `Insertion` | none expected — neither `Insertion::iterate` nor `Dinucl_markov::iterate` touches `seq_offsets` at all |
 | **R3b** | **O10** — `LayeredArray::set()` stops raising the claim implicitly and *requires* it: writing at an unrequested layer becomes an error rather than a silent claim. Lands **immediately after R3**, which removes the only violation known today | Sep 10 | `LayeredArray`, and whatever R3b surfaces | none expected on the corpus, but this is the row most likely to surface *new* violations — each one is a genuine finding and lands as its own R row after this one |
 | R4 | `dinuc_proba_matrix` construction moves into `initialize_event()`. **Gated on `feature/tk_refactoring` merging, Sep 23 2026** — not merely deferred: the row's premise, that the move is behaviour-preserving for `GenModel`, is false today. `initialize_event()` is inference-only, so moving the build there leaves the matrix unbuilt for legacy generation, whose `draw_random_common()` reads it; moving the *allocation* alone is worse, writing out of bounds in the builder (which R0 would now catch). The premise becomes true once sampling leaves `Rec_Event` for `SamplingEngine` / `SamplingHandler` and `draw_random_realization()` goes with it, at which point `iterate()` is the matrix's only consumer and `initialize_event()` its only reasonable home. Same shape as **S4d**: gated on a branch, not on an API. §2.10 | Sep 7, gated Sep 23 | `Dinucl_markov` | none — once it can land at all |
@@ -2279,7 +2279,7 @@ first and attributability second:
 |---|---|---|---|
 | **0a** | **R9** — §7.20's dead arm deleted | full ladder | none, by construction |
 | **0b** | **R0** — `Matrix::operator()` gains its lower-bound assert (§7.18's independent half) | unit | none (debug-only) |
-| **1a** | **R2** — throw on an empty anchor; the `[.]` comes off | full ladder | none |
+| **1a** | ✅ **R2** — throw on an empty anchor; the `[.]` is off and a second case covers the skip | full ladder | none — confirmed bitwise |
 | **1b** | **R1+R3**, one commit — O12 (a′) | full ladder | none expected; **prove it** |
 | **1c** | **R3b** — `LayeredArray::set()` requires the claim | full ladder | none expected |
 | **2a** | **R10** — §7.4's short bound deleted | full ladder + `no_d_align` regenerated | `no_d_align` only |
@@ -3975,9 +3975,29 @@ cannot survive. It asserts what the fix owes: an anchor carrying no nucleotide m
 never read. **Decided (Sep 8 2026): throw, do not discard.** A scenario whose anchor was fully
 deleted is geometrically legitimate, so dropping it silently removes probability mass the model
 should account for and leaves no trace that it happened; a scenario that cannot be scored is a
-modelling error, and the user has to see it. G9's `first_occupied_*` walk is the fix — but
-per §7.11 the walk is *also* a behaviour change, so B7 must land the two together and say which
-scenarios move. When it does, the `[.]` comes off.
+modelling error, and the user has to see it.
+
+**Repaired by R2 (Sep 23 2026), the throw half only.** The guard is in `Dinucl_markov::iterate`,
+and it asks *whether a seed is needed* rather than whether the anchor is empty — which is what
+makes the second half of this section's own requirement true. "Rejected or skipped, **never
+read**" has two cases, and only one of them is a rejection: a zero-length junction chooses no
+nucleotide, so it never touches the anchor and stays perfectly scoreable. Rejecting it would
+discard a legitimate scenario, which is the very thing the throw exists to avoid doing silently.
+So the traversal block is skipped entirely when the junction is empty, and the throw fires only
+where a nucleotide would have to be chosen and cannot be. Bitwise for everything that worked
+before: `iterate_common()` was already a no-op on an empty junction, and `data_seq_substr` is read
+nowhere else.
+
+The `[.]` is off and the case runs with the suite, joined by a second one for the skip. Both are
+`[empty_anchor]`, and the first could not even carry `[dinucl]` while it segfaulted, since Catch2
+runs a hidden test whenever a filter names one of its tags.
+
+**The walk is not here.** G9's `first_occupied_*` walk would seed from the next non-empty segment
+instead of rejecting, and it remains the better answer — but per §7.11 it needs absence to have a
+defined meaning, which is B10's decision and outside this plan (§9), and it needs the junction
+offsets R3 writes, since skipping a gene segment lands the walk on a junction and a junction with
+no offsets cannot answer. The two differ on one reachable case: for `DJ_ins_seq` with a fully
+deleted D, R2 rejects the scenario where the walk would seed from `VD_ins_seq`'s last nucleotide.
 
 ### 7.13 — `Dinucl_markov` writes through the `Insertion`'s pointer, claiming no layer of its own
 
