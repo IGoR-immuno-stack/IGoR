@@ -26,6 +26,7 @@
 #include <igor/Core/Dinuclmarkov.h>
 #include <igor/Core/EventUtils.h>
 
+#include <algorithm>
 #include <vector>
 
 #include <cassert>
@@ -166,10 +167,32 @@ void Dinucl_markov::iterate(
     {
         const DinuclTraversalSpec spec = get_junction();
         previous_seq = (*scenario.constructed_sequences.get(spec.anchor_id));
-        Int_Str &target_seq = *const_cast<Int_Str *>(scenario.constructed_sequences.get(spec.target_id));
-        //One entry per position actually filled, appended as the fill proceeds: a position
-        //that already held a nucleotide contributes no probability term and now records no
-        //index either, where the fixed-width array kept the previous scenario's value there.
+
+        //The junction is *created* here, not filled here (O12 decision (a'), plan section
+        //7.13). Its length comes from the offsets the Insertion placed, which is a property of
+        //the scenario state -- "offsets placed, sequence not yet created" -- and not a lookup
+        //from this event to that one. Which event established those offsets is exactly what
+        //A0 exists to stop anyone needing to know.
+        //
+        //What this buys beyond the layer: no partially-constructed segment exists at any
+        //hand-off, so `int_undefined` never leaves this event and the leaf invariant's
+        //content half becomes global rather than conditional on somebody declaring `Fills`.
+        //
+        //The offsets are Insertion's own, so a negative width would mean it handed on a
+        //realization its own realization map does not hold. It discards those instead
+        //(iterate_common returns 0), hence the assert rather than a branch.
+        const int junction_length = scenario.seq_offsets.get(spec.target_id, Three_prime)
+                                    - scenario.seq_offsets.get(spec.target_id, Five_prime) + 1;
+        assert(junction_length >= 0 && "junction offsets cross over");
+        junction_str.assign(static_cast<std::size_t>(std::max(junction_length, 0)), int_undefined);
+        Int_Str &target_seq = junction_str;
+        scenario.constructed_sequences.set(spec.target_id, &junction_str, memory_layer_seq);
+
+        //One entry per position filled, appended as the fill proceeds, where a fixed-width
+        //array would keep the previous scenario's value at any position this one skips. Since
+        //(a') there are none to skip -- every position of a freshly created junction is a
+        //placeholder -- but the append is what makes that a fact about the state rather than
+        //a coincidence the reader has to check for.
         realization_indices.clear();
         //Capacity comes from the paired Insertion's longest realization, so the push_backs
         //below never reallocate. Worth stating: a junction that outgrew it would still be
@@ -501,6 +524,13 @@ void Dinucl_markov::initialize_event(
     downstream_proba_map.request_layer(spec.target_id);
     memory_layer_junction = downstream_proba_map.claimed_layer(spec.target_id);
 
+    //The segment itself, now that this event creates it (O12 (a')). Nothing else writes an
+    //insertion's sequence, so the claimed layer is 0 and the write lands exactly where the
+    //Insertion's set_current() used to put it -- the ownership is what changes, not the
+    //storage.
+    constructed_sequences.request_layer(spec.target_id);
+    memory_layer_seq = constructed_sequences.claimed_layer(spec.target_id);
+
     //One index slot per position the junction can ever hold, taken from the Insertion that
     //allocates it, so the per-scenario push_backs never reallocate.
     const int longest = EventUtils::get_insertion_len_max(
@@ -584,15 +614,20 @@ OffsetDelta Dinucl_markov::get_offset_delta_bounds(SeqTypeId, Seq_side) const
 
 LengthContribution Dinucl_markov::get_length_contribution(SeqTypeId) const
 {
-    //Fills placeholders that Insertion already allocated, so it adds no nucleotides of its
-    //own. This is the subclass whose len_min / len_max were never set at all, and which
-    //therefore still carries their INT16 sentinels.
+    //Nothing, even though this event now creates the segment: its realizations are single
+    //nucleotides, and how many of them there are was decided by the offsets its Insertion
+    //placed. Creating a segment and contributing length to a span are separate statements,
+    //and this is the event that separates them. It is also the subclass whose len_min /
+    //len_max were never set at all, and which therefore still carries their INT16 sentinels.
     return {};
 }
 
 SeqConstructionRole Dinucl_markov::get_seq_construction_role(SeqTypeId type_id) const
 {
-    return type_id == this->seq_type_id ? SeqConstructionRole::Fills : SeqConstructionRole::None;
+    //Creates, not Fills (O12 (a')). The segment it writes is one it allocated itself, at a
+    //layer it claimed, sized from offsets that were already placed -- so a sibling scenario
+    //can no longer find its nucleotides where it expects placeholders (plan section 7.13).
+    return type_id == this->seq_type_id ? SeqConstructionRole::Creates : SeqConstructionRole::None;
 }
 
 OffsetRole Dinucl_markov::get_offset_role(SeqTypeId, Seq_side) const
@@ -637,10 +672,11 @@ int Dinucl_markov::length_delta(const Event_realization &) const
     return 0;
 }
 
-double Dinucl_markov::span_proba_factor(SegmentSpan, const SpanAccumulator &lengths) const
+double Dinucl_markov::span_proba_factor(SegmentSpan, const UnfilledSegmentLengths &lengths) const
 {
-    //p^L over the segment this model fills, whose length its creator (the Insertion) published.
-    //Absent means no creator ran on this path, and the contribution is 1.
+    //p^L over the segment this model creates, whose length was published by whoever placed its
+    //offsets -- the Insertion, which under O12 (a') creates the offsets and not the sequence.
+    //Absent means nobody placed them on this path, and the contribution is 1.
     const Seq_type ins_seq = dinucl_ins_seq_type_or_throw(this->seq_type, "span_proba_factor");
     const SeqTypeId filled = static_cast<SeqTypeId>(ins_seq);
     if (not lengths.has(filled)) {

@@ -149,7 +149,7 @@ public:
     bool affects_length_of(SegmentSpan) const override;
     bool affects_proba_of(SegmentSpan) const override;
     int length_delta(const Event_realization &) const override;
-    double span_proba_factor(SegmentSpan, const SpanAccumulator &) const override;
+    double span_proba_factor(SegmentSpan, const UnfilledSegmentLengths &) const override;
 
 private:
     double *updated_upper_bound_proba =
@@ -159,6 +159,10 @@ private:
     int total_nucl_count;
 
     Int_Str previous_seq; //&
+    /// The junction this event creates and fills, sized from the offsets its Insertion placed
+    /// (O12 (a'), R1). Owned here rather than borrowed through the pointer the Insertion used
+    /// to leave in the scenario's sequence map -- plan section 7.13.
+    Int_Str junction_str;
     size_t previous_seq_size;
     int previous_nt_str;
     Int_Str data_seq_substr;
@@ -177,6 +181,9 @@ private:
     std::vector<int> realization_indices;
     /// Layer claimed in the downstream-proba map for the junction this event fills.
     int memory_layer_junction = -1;
+    /// Layer claimed in the constructed-sequence map for that same junction, which this event
+    /// now creates rather than filling in place.
+    int memory_layer_seq = -1;
 
     //std::pair<Seq_type,Seq_side> v_5_pair = std::make_pair (V_gene_seq,Five_prime);
     //std::pair<Seq_type,Seq_side> j_5_pair = std::make_pair (J_gene_seq,Five_prime);

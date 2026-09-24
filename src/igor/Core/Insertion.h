@@ -115,7 +115,6 @@ private:
 
     std::map<int, Event_realization> ordered_realization_map;
 
-    mutable Int_Str inserted_str;
     mutable int base_index;
     double new_scenario_proba;
     double proba_contribution;
@@ -129,6 +128,10 @@ private:
     std::string insertions_str;
 
     double *dinuc_updated_bound;
+
+    /// Layers claimed for the two ends of the junction this event places (O12 (a'), R3).
+    int memory_layer_offset_fivep = -1;
+    int memory_layer_offset_threep = -1;
 
     Seq_type ins_seq_type;
 

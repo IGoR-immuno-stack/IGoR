@@ -204,17 +204,36 @@ void Rec_Event::iterate_wrap_up(
         // Leaf node - complete scenario and accumulate
 
 #ifndef NDEBUG
-        // Every position of every segment must be determined by now: int_undefined is a
-        // placeholder that e.g. Insertion leaves for its Dinucl_markov, never a value a consumer can
-        // interpret. Checked here because this is the one boundary where the invariant has to
-        // hold, and only under assertions -- the walk is linear in the scenario's length, and
-        // the default build defines NDEBUG, so release pays nothing.
+        // One invariant with two halves: by the time a scenario reaches a leaf, every seq_type
+        // in the model must have both a sequence and its offsets -- not necessarily written by
+        // the same event. Checked here because this is the one boundary where it has to hold,
+        // and only under assertions -- each walk is linear in the scenario's length, and the
+        // default build defines NDEBUG, so release pays nothing.
+        //
+        // Content. int_undefined is a placeholder inside one scenario, never a value a consumer
+        // can interpret. Since O12 (a') no event hands one on at all -- Dinucl_markov creates
+        // the junction it fills -- so this has gone from a leaf property to a global one, and
+        // the leaf is now the last place it could possibly fail rather than the only place it
+        // was ever true.
         if (const SeqTypeId unfilled = first_unfilled_segment(scenario.constructed_sequences);
             unfilled != kNoSeqType) {
             std::cerr << "Scenario leaf reached with unfilled nucleotides in "
                       << scenario.constructed_sequences.registry().name(unfilled)
                       << std::endl;
             assert(false && "unfilled nucleotide in a completed scenario");
+        }
+
+        // Placement, which became checkable with R3: until Insertion wrote its junction's
+        // offsets this fired on every scenario that has one. A segment nobody placed is one no
+        // consumer can locate on the read, and the only reason that did not bite is that every
+        // consumer today knows an insertion's span runs between its neighbours -- exactly the
+        // coupling the capability queries exist to remove.
+        if (const auto [unplaced, side] = first_unplaced_segment_end(scenario.seq_offsets);
+            unplaced != kNoSeqType) {
+            std::cerr << "Scenario leaf reached with no "
+                      << (side == Five_prime ? "5'" : "3'") << " offset for "
+                      << scenario.seq_offsets.five_prime.registry().name(unplaced) << std::endl;
+            assert(false && "unplaced segment end in a completed scenario");
         }
 #endif
 
@@ -389,7 +408,7 @@ void Rec_Event::compute_crude_upper_bound_scenario_proba(double &tmp_err_w_proba
 void Rec_Event::iterate_initialize_Len_proba(SegmentSpan span, SpanProfile &profile,
                                              const SpanParticipants &participants,
                                              double &scenario_proba, const Marginal_array_p &model_parameters_point,
-                                             Index_map &base_index_map, SpanAccumulator &lengths) const
+                                             Index_map &base_index_map, UnfilledSegmentLengths &lengths) const
 {
     int seq_len = 0;
     //This overload is the traversal's entry point, and `this` is not in `participants` -- that
@@ -414,7 +433,7 @@ void Rec_Event::iterate_initialize_Len_proba(SegmentSpan span, SpanProfile &prof
 void Rec_Event::iterate_initialize_Len_proba(SegmentSpan span, SpanProfile &profile,
                                              const SpanParticipants &participants, std::size_t cursor,
                                              double &scenario_proba, const Marginal_array_p &model_parameters_point,
-                                             Index_map &base_index_map, SpanAccumulator &lengths, int &seq_len) const
+                                             Index_map &base_index_map, UnfilledSegmentLengths &lengths, int &seq_len) const
 {
     //A local, not the subclasses' `mutable int base_index`: this body is shared, and each of the
     //four declares its own. Safe because every reader of that member sets it first in the same
@@ -431,10 +450,24 @@ void Rec_Event::iterate_initialize_Len_proba(SegmentSpan span, SpanProfile &prof
         return;
     }
 
-    //Only a segment's creator publishes its length, so each key has one writer per path and a
-    //published value is a real segment size. A Deletion contributes its negative delta to the
-    //span total without touching the accumulator.
-    const bool publishes_length =
+    //What the accumulator carries is *how many nucleotides a segment's offsets imply that
+    //nobody has chosen yet* -- how many are still to be chosen. So the publisher is whoever
+    //places the offsets, and the value is the length they imply only while no sequence exists
+    //for them yet (O12, plan section 6.10 finding 8).
+    //
+    //Three cases, and each key still has exactly one writer per path:
+    //  - Insertion  -- creates the offsets, not the sequence: publishes the whole length,
+    //                  which is what Dinucl_markov::span_proba_factor raises p to.
+    //  - Gene_choice -- creates both: publishes 0. Its nucleotides are fixed by the template,
+    //                  so none of them are still to be chosen. It used to publish the template
+    //                  length, which nothing reads, so this corrects a silent wrong answer
+    //                  rather than changing one anybody sees.
+    //  - Deletion   -- modifies an offset rather than creating one: publishes nothing, and
+    //                  contributes its negative delta to the span total instead.
+    const bool creates_offsets =
+            this->get_offset_role(this->seq_type_id, Five_prime) == OffsetRole::Creates
+            || this->get_offset_role(this->seq_type_id, Three_prime) == OffsetRole::Creates;
+    const bool creates_sequence =
             this->get_seq_construction_role(this->seq_type_id) == SeqConstructionRole::Creates;
 
     for (std::unordered_map<std::string, Event_realization>::const_iterator iter = this->event_realizations.begin();
@@ -451,8 +484,8 @@ void Rec_Event::iterate_initialize_Len_proba(SegmentSpan span, SpanProfile &prof
         }
 
         const int delta = this->length_delta(realization);
-        if (publishes_length) {
-            lengths.set(this->seq_type_id, delta);
+        if (creates_offsets) {
+            lengths.set(this->seq_type_id, creates_sequence ? 0 : delta);
         }
 
         this->iterate_initialize_Len_proba_wrap_up(span, profile, participants, cursor,
@@ -465,7 +498,7 @@ void Rec_Event::iterate_initialize_Len_proba_wrap_up(SegmentSpan span, SpanProfi
                                                      const SpanParticipants &participants, std::size_t cursor,
                                                      double scenario_proba,
                                                      const Marginal_array_p &model_parameters_point,
-                                                     Index_map &base_index_map, SpanAccumulator &lengths,
+                                                     Index_map &base_index_map, UnfilledSegmentLengths &lengths,
                                                      int seq_len) const
 {
     //The events that neither change this span's length nor contribute a probability factor to it
@@ -493,7 +526,7 @@ void Rec_Event::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &model_q
 {
     //Scoped to one fold and reset between junctions: an entry is a length published by the
     //segment's creator on the current path, and the paths of two junctions share nothing.
-    SpanAccumulator lengths(legacy_seq_type_registry().total_count());
+    UnfilledSegmentLengths lengths(legacy_seq_type_registry().total_count());
 
     //Flatten the queue of downstream events once, here, instead of copying it at every node of
     //every fold. `model_queue` is left as the caller gave it: the junction loop below reads the

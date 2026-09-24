@@ -319,18 +319,22 @@ public:
     }
 
     /**
-     * Write a junction segment exactly as an Insertion leaves it: `length` placeholder
-     * nucleotides (-1) at layer 0, and **no offsets**.
+     * Write a junction exactly as an Insertion leaves it under O12 (a'): **its two offsets,
+     * and no sequence at all**.
      *
-     * The missing offsets are deliberate, not an omission -- they are the defect pinned by
-     * test_insertion_iterate.cpp's [!shouldfail] cases, and a Dinucl_markov fixture that
-     * supplied them would be testing against a scenario the production code cannot produce.
-     * Dinucl_markov reads its *anchor's* offset, never the junction's.
+     * The absent sequence is the point, not an omission. The Insertion decides where the
+     * junction sits and how long it is; the Dinucl_markov that follows creates the segment
+     * from these offsets. A fixture that also supplied a placeholder segment would be
+     * handing the event a state the production code no longer produces -- which is the same
+     * reason this helper used to supply no offsets, read the other way round.
+     *
+     * An empty junction is `3' == 5' - 1`, which is what `length == 0` writes.
      */
-    void preset_placeholders(Seq_type seq_type, std::size_t length)
+    void preset_junction(Seq_type seq_type, Seq_Offset five_prime, std::size_t length)
     {
-        preset_sequences_.emplace_back(length, int_undefined);
-        scenario_storage.constructed_sequences.set(seq_type, &preset_sequences_.back(), 0);
+        scenario_storage.seq_offsets.set(seq_type, Five_prime, five_prime, 0);
+        scenario_storage.seq_offsets.set(seq_type, Three_prime,
+                                         five_prime + static_cast<Seq_Offset>(length) - 1, 0);
     }
 
     /// The probability the event under test inherits from upstream. Defaults to 1.

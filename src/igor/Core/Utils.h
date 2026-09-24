@@ -485,6 +485,36 @@ typedef DynamicSequenceMap<Int_Str_ptr> Seq_type_str_p_map;
  */
 CORE_EXPORT SeqTypeId first_unfilled_segment(const Seq_type_str_p_map &constructed_sequences);
 
+/**
+ * The first segment end with no offset written, or `{kNoSeqType, Undefined_side}` if every
+ * end is placed.
+ *
+ * The offsets counterpart of first_unfilled_segment(), and the other half of one invariant:
+ *
+ * > For every seq_type in the model, both a sequence **and** its offsets must have been
+ * > created by the time a scenario reaches a leaf -- not necessarily by the same event.
+ *
+ * It could not be written before R3. While `Insertion` recorded no offsets at all, this would
+ * have fired on every scenario that has a junction, which is every scenario; the check exists
+ * because that stopped being true (plan section 2.5).
+ *
+ * The key is per (`SeqTypeId`, `Seq_side`) rather than per `SeqTypeId`, because
+ * `get_offset_role` is side-taking and the two ends of a segment can in principle be created
+ * by different events.
+ *
+ * **Swept over `registry.ordering()`, not over every registered id.** The registry pins all six
+ * legacy names whatever the model is, so a VJ model carries `D_gene_seq` and both flanking
+ * junctions as ids that no event in it will ever place. The ordering is the model's actual
+ * segment layout, which is the set the invariant is about; unlike the content half this
+ * predicate cannot skip what is absent, since absence is the thing it looks for.
+ *
+ * Checked at the same boundary and under the same conditions as the content half -- the leaf
+ * branch of `Rec_Event::iterate_wrap_up`, assertions only. Exposed rather than hidden in that
+ * assert so it can be unit-tested without a debug build.
+ */
+CORE_EXPORT std::pair<SeqTypeId, Seq_side> first_unplaced_segment_end(
+        const Seq_offsets_map &seq_offsets);
+
 //Keyed by SeqTypeId. An empty mismatch vector means "zero mismatches", which is present,
 //not absent -- so the default SeqSegmentEmptiness (never empty) is the right one here.
 typedef DynamicSequenceMap<std::vector<size_t> *> Mismatch_vectors_map;

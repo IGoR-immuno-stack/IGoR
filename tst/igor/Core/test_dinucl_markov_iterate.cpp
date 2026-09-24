@@ -70,7 +70,9 @@ struct VdFill {
     {
         state.preset_segment(V_gene_seq, 0, v_three_prime,
                              v_segment.empty() ? segment_run(0, v_three_prime) : v_segment);
-        state.preset_placeholders(VD_ins_seq, junction_length);
+        //The junction starts one position past the anchor, which is where the Insertion's
+        //own derivation puts it. The segment itself is the event under test's to create.
+        state.preset_junction(VD_ins_seq, v_three_prime + 1, junction_length);
         state.add_event(insertion);
         //A flat dinucleotide marginal: every (previous, next) pair is equally probable, so a
         //probability that differs is the arithmetic and not the model.
@@ -94,7 +96,10 @@ struct DjFill {
     {
         state.preset_segment(J_gene_seq, j_five_prime, j_five_prime + 6,
                              j_segment.empty() ? segment_run(j_five_prime, j_five_prime + 6) : j_segment);
-        state.preset_placeholders(DJ_ins_seq, junction_length);
+        //Ends one position before the anchor: the mirror of VdFill, and the reason this
+        //fixture exists at all.
+        state.preset_junction(DJ_ins_seq, j_five_prime - static_cast<Seq_Offset>(junction_length),
+                              junction_length);
         state.add_event(insertion);
         for (std::size_t i = 0; i != 32; ++i) {
             state.set_marginal(i, 0.5L);
@@ -116,9 +121,12 @@ TEST_CASE("Dinucl_markov: baseline fill, forward traversal (G9)", "[dinucl][iter
     REQUIRE(call.sequences.count(VD_ins_seq) == 1);
     CHECK(call.sequences.at(VD_ins_seq) == "GTA");
 
-    // The anchor is handed on untouched, and the junction still has no offsets of its own.
+    // The anchor is handed on untouched, and so is the junction's placement: this event reads
+    // those offsets to size the segment and never writes one, which is what its
+    // OffsetRole::None declares.
     CHECK(call.three_prime(V_gene_seq) == 9);
-    CHECK(call.offsets.count(VD_ins_seq) == 0);
+    CHECK(call.five_prime(VD_ins_seq) == 10);
+    CHECK(call.three_prime(VD_ins_seq) == 12);
 }
 
 TEST_CASE("Dinucl_markov: reverse traversal fills in the read's own orientation", "[dinucl][iterate]")
@@ -250,62 +258,14 @@ TEST_CASE("Dinucl_markov: an empty junction is filled with nothing, not skipped"
     CHECK(next->calls.front().downstream_bounds.count(VD_ins_seq) == 1);
 }
 
-TEST_CASE("Dinucl_markov: only placeholder positions are written", "[dinucl][iterate]")
-{
-    // The fill is guarded by `ins_seq.at(i) == -1`. A position already carrying a nucleotide
-    // is left alone and contributes no probability term -- which is what makes the buffer
-    // reusable across the scenarios that share it.
-    VdFill fixture;
-    // Overwrite the middle placeholder with a T(3) before the event runs.
-    Int_Str *junction = const_cast<Int_Str *>(get_constructed_sequence(fixture.state, VD_ins_seq));
-    REQUIRE(junction != nullptr);
-    junction->at(1) = 3;
-
-    for (std::size_t i = 0; i != 32; ++i) {
-        fixture.state.set_marginal(i, 0.0L);
-    }
-    fixture.state.set_marginal(1 * 4 + 2, 0.5L);   // (anchor C, read G) -- position 0
-    fixture.state.set_marginal(2 * 4 + 3, 0.25L);  // (G, T) -- would be position 1, if written
-    fixture.state.set_marginal(3 * 4 + 0, 0.125L); // (T, A) -- position 2
-
-    const auto next = call_iterate_recording(fixture.dinucl, fixture.state);
-    REQUIRE(next->call_count() == 1);
-    // Position 1 keeps the T it already had, which here happens to equal the read.
-    CHECK(next->calls.front().sequences.at(VD_ins_seq) == "GTA");
-    // ...and its term is absent from the product.
-    CHECK(next->calls.front().scenario_proba == Approx(0.5 * 0.125));
-
-    SECTION("The first position is guarded separately, and must be guarded too")
-    {
-        // The first position has its own copy of the guard, because its `previous` nucleotide
-        // comes from the anchor rather than from the read. Overwriting position 1 above leaves
-        // that copy untouched -- a mutation deleting it survived the whole suite until this
-        // section existed.
-        //
-        // Position 0 is pre-set to A(0), which the read (G at position 10) disagrees with, so
-        // an unguarded write is visible in the sequence and not only in the probability.
-        VdFill first_filled;
-        Int_Str *seq = const_cast<Int_Str *>(get_constructed_sequence(first_filled.state, VD_ins_seq));
-        REQUIRE(seq != nullptr);
-        seq->at(0) = 0;
-
-        for (std::size_t i = 0; i != 32; ++i) {
-            first_filled.state.set_marginal(i, 0.0L);
-        }
-        first_filled.state.set_marginal(1 * 4 + 2, 0.5L);    // (anchor C, read G) -- skipped
-        first_filled.state.set_marginal(2 * 4 + 3, 0.25L);   // (G, T) -- position 1
-        first_filled.state.set_marginal(3 * 4 + 0, 0.125L);  // (T, A) -- position 2
-
-        const auto filled = call_iterate_recording(first_filled.dinucl, first_filled.state);
-        REQUIRE(filled->call_count() == 1);
-        CHECK(filled->calls.front().sequences.at(VD_ins_seq) == "ATA");
-        CHECK(filled->calls.front().scenario_proba == Approx(0.25 * 0.125));
-
-        // Later positions still take *both* nucleotides from the read, so the value sitting in
-        // position 0 does not feed position 1's term.
-        CHECK(filled->calls.front().scenario_proba != Approx(0.0));
-    }
-}
+// The case that used to stand here -- "only placeholder positions are written" -- pinned the
+// `ins_seq.at(i) == int_undefined` guard in iterate_common(), which let this event share one
+// buffer with the Insertion across sibling scenarios. O12 (a') removed the sharing: the buffer
+// is created here, per scenario, every position a placeholder by construction. The guard is
+// still in the code and is now unreachable through iterate(); setting up the state it tested
+// would mean reaching past the production path to build a scenario the code cannot produce,
+// which is exactly what this file declines to do elsewhere. Deleting the guard is its own
+// change, queued behind this one.
 
 TEST_CASE("Dinucl_markov: downstream bound and memory layering", "[dinucl][iterate]")
 {
@@ -358,7 +318,7 @@ TEST_CASE("Dinucl_markov: the VJ arm behaves as the other two", "[dinucl][iterat
     IterateTestState state = create_iterate_state(kRead, 1000, 32, vj_seq_type_registry());
     auto dinucl = make_dinucl_markov(VJ_ins_seq, /*event_id=*/0);
     state.preset_segment(V_gene_seq, 0, 9, segment_run(0, 9));
-    state.preset_placeholders(VJ_ins_seq, 3);
+    state.preset_junction(VJ_ins_seq, 10, 3);
     state.add_event(make_insertion(VJ_ins_seq, 0, 6, /*event_id=*/1));
     for (std::size_t i = 0; i != 32; ++i) {
         state.set_marginal(i, 0.5L);
@@ -384,7 +344,7 @@ TEST_CASE("Dinucl_markov: an ambiguous read position is averaged, not indexed", 
     IterateTestState state = create_iterate_state("ACGTACGTACNTACGTACGTACGT");
     auto dinucl = make_dinucl_markov(VD_ins_seq, /*event_id=*/0);
     state.preset_segment(V_gene_seq, 0, 9, segment_run(0, 9));
-    state.preset_placeholders(VD_ins_seq, 1);
+    state.preset_junction(VD_ins_seq, 10, 1);
     state.add_event(make_insertion(VD_ins_seq, 0, 6, /*event_id=*/1));
 
     // The anchor's last nucleotide is C(1); the read position under the junction is N. The
@@ -449,7 +409,7 @@ TEST_CASE("Dinucl_markov: the direction comes from the event, the anchor from th
     IterateTestState state = create_iterate_state(kRead);
     auto dinucl = make_dinucl_markov(VD_ins_seq, /*event_id=*/0, /*chain_side=*/Five_prime);
     state.preset_segment(D_gene_seq, 14, 18, segment_run(14, 18));
-    state.preset_placeholders(VD_ins_seq, 3);
+    state.preset_junction(VD_ins_seq, 11, 3);
     state.add_event(make_insertion(VD_ins_seq, 0, 6, /*event_id=*/1));
     for (std::size_t i = 0; i != 32; ++i) {
         state.set_marginal(i, 0.5L);
@@ -492,7 +452,7 @@ TEST_CASE("Dinucl_markov: a fully deleted anchor is rejected, not read",
     // legal realization -- this state is reachable on the current corpus, not only under
     // tandem D.
     state.preset_segment(V_gene_seq, 0, -1, "");
-    state.preset_placeholders(VD_ins_seq, 3);
+    state.preset_junction(VD_ins_seq, 0, 3);
     for (std::size_t i = 0; i != 32; ++i) {
         state.set_marginal(i, 0.5L);
     }
@@ -513,7 +473,7 @@ TEST_CASE("Dinucl_markov: an empty anchor is not read when the junction needs no
     state.add_event(make_insertion(VD_ins_seq, 0, 6, /*event_id=*/1));
 
     state.preset_segment(V_gene_seq, 0, -1, "");
-    state.preset_placeholders(VD_ins_seq, 0);
+    state.preset_junction(VD_ins_seq, 0, 0);
     for (std::size_t i = 0; i != 32; ++i) {
         state.set_marginal(i, 0.5L);
     }
@@ -526,33 +486,35 @@ TEST_CASE("Dinucl_markov: an empty anchor is not read when the junction needs no
     CHECK(next->calls.front().sequences.at(VD_ins_seq).empty());
 }
 
-TEST_CASE("DEFECT (plan 7.13): Dinucl_markov fills the Insertion's buffer instead of its own layer",
-          "[dinucl][iterate][defect][!shouldfail]")
+TEST_CASE("Dinucl_markov: the junction it writes is one it created, at a layer it claimed",
+          "[dinucl][iterate][layers]")
 {
-    // Every other event claims a memory layer for what it writes, so that a sibling scenario
-    // restores the previous value on backtracking. Dinucl_markov does not: it takes the
-    // pointer the Insertion stored in the constructed-sequence map and fills that buffer
-    // through it, claiming nothing and writing the map not at all.
+    // Plan section 7.13, repaired by R1 under O12's decision (a'). What stood here was a
+    // [!shouldfail] case asking for the weaker of the two available repairs: the filled
+    // junction at this event's own layer, the Insertion's placeholders still readable at the
+    // layer below. (a') is stronger -- there are no placeholders to read, because the
+    // partially-constructed segment never exists.
     //
-    // It works today only because the two events behave as one -- neither branches, so there
-    // is never a sibling to corrupt, and the Insertion re-assigns the buffer on its next call
-    // anyway. That is a property of the current pair, not of the contract: an Insertion that
-    // looped over lengths (an indel-aware error model) or a Dinucl_markov that branched over
-    // ambiguous nucleotides would have siblings sharing one buffer, and the second would read
-    // the first's nucleotides where it expects placeholders -- silently, since the
-    // placeholder guard treats an already-written position as "someone filled this".
-    //
-    // Intended: the filled junction stands at this event's own layer, and the layer below
-    // still holds the placeholders the Insertion wrote.
+    // The defect was that Dinucl_markov took the Int_Str * the Insertion had left in the
+    // sequence map and filled that buffer through it, claiming nothing and writing the map not
+    // at all. It worked only because the two events behave as one: neither branches, so there
+    // was never a sibling to corrupt, and the Insertion re-assigned the buffer on its next call
+    // anyway. That is a property of the current pair and not of the layer contract -- an
+    // Insertion looping over lengths, or a Dinucl_markov branching over an ambiguous read
+    // position, would give two siblings one buffer, and the second would read the first's
+    // nucleotides where it expects placeholders. Silently: the placeholder guard reads an
+    // already-written position as "someone filled this".
     VdFill fixture;
+    // Nothing stands here before the event runs. The Insertion wrote offsets, not a segment.
+    REQUIRE_FALSE(fixture.state.scenario.constructed_sequences.exists(VD_ins_seq));
+
     const auto next = call_iterate_recording(fixture.dinucl, fixture.state);
     REQUIRE(next->call_count() == 1);
 
-    const Int_Str *insertion_layer = get_constructed_sequence(fixture.state, VD_ins_seq, 0);
-    REQUIRE(insertion_layer != nullptr);
-    CHECK(int_str_to_nt(*insertion_layer) == "...");   // still unfilled, not 'N'
-
-    const Int_Str *own_layer = get_constructed_sequence(fixture.state, VD_ins_seq, 1);
+    // Written at the layer this event claimed, which is the ownership statement the harness
+    // checks for every other writer and had to waive for this pair.
+    const int claimed = fixture.state.scenario.constructed_sequences.claimed_layer(VD_ins_seq);
+    const Int_Str *own_layer = get_constructed_sequence(fixture.state, VD_ins_seq, claimed);
     REQUIRE(own_layer != nullptr);
     CHECK(int_str_to_nt(*own_layer) == "GTA");
 }
@@ -617,15 +579,92 @@ TEST_CASE("first_unfilled_segment: reports the placeholder, not the ambiguity co
 
 TEST_CASE("Dinucl_markov leaves no unfilled position behind", "[dinucl][invariant]")
 {
-    // The invariant as the production pair actually maintains it: the Insertion's placeholders
-    // are all gone once its Dinucl_markov has run.
+    // The invariant as the production pair actually maintains it. Under O12 (a') it is a
+    // stronger statement than it was: there is no window in which the junction exists and
+    // holds placeholders, so the event cannot hand one on even in principle. The precondition
+    // below is what changed -- it used to assert that the placeholders were there.
     VdFill fixture;
-    REQUIRE(first_unfilled_segment(fixture.state.scenario.constructed_sequences)
-            == static_cast<SeqTypeId>(VD_ins_seq));
+    REQUIRE_FALSE(fixture.state.scenario.constructed_sequences.exists(VD_ins_seq));
+    REQUIRE(first_unfilled_segment(fixture.state.scenario.constructed_sequences) == kNoSeqType);
 
     const auto next = call_iterate_recording(fixture.dinucl, fixture.state);
     REQUIRE(next->call_count() == 1);
     CHECK(first_unfilled_segment(fixture.state.scenario.constructed_sequences) == kNoSeqType);
+}
+
+TEST_CASE("first_unplaced_segment_end: the offsets half of the same invariant", "[dinucl][invariant]")
+{
+    // One invariant, two halves: by the time a scenario reaches a leaf every seq_type in the
+    // model must have both a sequence and its offsets, not necessarily written by the same
+    // event. This half could not be written before R3 -- while Insertion recorded no offsets
+    // it would have fired on every scenario that has a junction, which is every scenario.
+
+    SECTION("Nothing placed at all")
+    {
+        Seq_offsets_map offsets(vdj_seq_type_registry(), 4);
+        const auto [id, side] = first_unplaced_segment_end(offsets);
+        CHECK(id == static_cast<SeqTypeId>(V_gene_seq));
+        CHECK(side == Five_prime);
+    }
+
+    SECTION("A complete VDJ scenario")
+    {
+        Seq_offsets_map offsets(vdj_seq_type_registry(), 4);
+        for (const Seq_type type : {V_gene_seq, VD_ins_seq, D_gene_seq, DJ_ins_seq, J_gene_seq}) {
+            offsets.set(type, Five_prime, 0, 0);
+            offsets.set(type, Three_prime, 0, 0);
+        }
+        CHECK(first_unplaced_segment_end(offsets).first == kNoSeqType);
+    }
+
+    SECTION("One end placed and not the other")
+    {
+        // The key is per (SeqTypeId, Seq_side) and not per segment, because get_offset_role is
+        // side-taking: the two ends can in principle be created by different events.
+        Seq_offsets_map offsets(vdj_seq_type_registry(), 4);
+        for (const Seq_type type : {V_gene_seq, VD_ins_seq, D_gene_seq, DJ_ins_seq, J_gene_seq}) {
+            offsets.set(type, Five_prime, 0, 0);
+            offsets.set(type, Three_prime, 0, 0);
+        }
+        Seq_offsets_map missing_three_prime(vdj_seq_type_registry(), 4);
+        for (const Seq_type type : {V_gene_seq, VD_ins_seq, D_gene_seq, DJ_ins_seq, J_gene_seq}) {
+            missing_three_prime.set(type, Five_prime, 0, 0);
+            if (type != DJ_ins_seq) {
+                missing_three_prime.set(type, Three_prime, 0, 0);
+            }
+        }
+        const auto [id, side] = first_unplaced_segment_end(missing_three_prime);
+        CHECK(id == static_cast<SeqTypeId>(DJ_ins_seq));
+        CHECK(side == Three_prime);
+    }
+
+    SECTION("An empty junction is placed, not absent")
+    {
+        // `3' == 5' - 1` is the encoding, and the reason this predicate cannot be written as
+        // "no width" -- an insertion that inserted nothing has placed both its ends.
+        Seq_offsets_map offsets(vdj_seq_type_registry(), 4);
+        for (const Seq_type type : {V_gene_seq, D_gene_seq, DJ_ins_seq, J_gene_seq}) {
+            offsets.set(type, Five_prime, 0, 0);
+            offsets.set(type, Three_prime, 0, 0);
+        }
+        offsets.set(VD_ins_seq, Five_prime, 11, 0);
+        offsets.set(VD_ins_seq, Three_prime, 10, 0);
+        CHECK(first_unplaced_segment_end(offsets).first == kNoSeqType);
+    }
+
+    SECTION("A VJ model is not held to the segments it does not have")
+    {
+        // The registry pins all six legacy names whatever the model is, so a VJ model carries
+        // D_gene_seq and both flanking junctions as ids no event in it will ever place. The
+        // sweep is over registry.ordering(), which is the model's actual segment layout; over
+        // every registered id this would fire on every VJ scenario.
+        Seq_offsets_map offsets(vj_seq_type_registry(), 4);
+        for (const Seq_type type : {V_gene_seq, VJ_ins_seq, J_gene_seq}) {
+            offsets.set(type, Five_prime, 0, 0);
+            offsets.set(type, Three_prime, 0, 0);
+        }
+        CHECK(first_unplaced_segment_end(offsets).first == kNoSeqType);
+    }
 }
 
 TEST_CASE("Dinucl_markov: a junction no Seq_type enum names still resolves", "[dinucl][iterate]")

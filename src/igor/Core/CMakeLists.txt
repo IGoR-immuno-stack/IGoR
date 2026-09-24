@@ -103,7 +103,7 @@ target_sources(${PROJECT_NAME}
       SegmentSpan.h
       SeqOffsetsMap.h
       SeqTypeRegistry.h
-      SpanAccumulator.h
+      UnfilledSegmentLengths.h
       SpanProfile.h
       Singleerrorrate.h
       Utils.h

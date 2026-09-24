@@ -32,7 +32,7 @@
 #include <igor/Core/SegmentSpan.h>
 #include <igor/Core/SafetyMatrix.h>
 #include <igor/Core/SeqTypeRegistry.h>
-#include <igor/Core/SpanAccumulator.h>
+#include <igor/Core/UnfilledSegmentLengths.h>
 #include <igor/Core/SpanProfile.h>
 #include <igor/Core/Utils.h>
 #include <igorCoreExport.h>
@@ -399,7 +399,7 @@ public:
      * it fills, which the segment's creator published into \a lengths. Group-composable like
      * length_delta(): a clique's factor is the **product** of its members'.
      */
-    virtual double span_proba_factor(SegmentSpan, const SpanAccumulator &) const { return 1.0; }
+    virtual double span_proba_factor(SegmentSpan, const UnfilledSegmentLengths &) const { return 1.0; }
 
     /**
      * \brief The events after this one that contribute to the span being folded, in model order.
@@ -418,7 +418,7 @@ public:
                                               const SpanParticipants &participants, std::size_t cursor,
                                               double scenario_proba,
                                               const Marginal_array_p &model_parameters_point, Index_map &base_index_map,
-                                              SpanAccumulator &lengths, int seq_len) const;
+                                              UnfilledSegmentLengths &lengths, int seq_len) const;
 
     /**
      * One body for every event. What used to be four overrides differing only in `Δ(r)` -- see
@@ -428,12 +428,12 @@ public:
                                       const SpanParticipants &participants, std::size_t cursor,
                                       double &scenario_proba,
                                       const Marginal_array_p &model_parameters_point, Index_map &base_index_map,
-                                      SpanAccumulator &lengths, int &seq_len) const;
+                                      UnfilledSegmentLengths &lengths, int &seq_len) const;
 
     void iterate_initialize_Len_proba(SegmentSpan span, SpanProfile &profile,
                                       const SpanParticipants &participants, double &scenario_proba,
                                       const Marginal_array_p &model_parameters_point, Index_map &base_index_map,
-                                      SpanAccumulator &lengths) const;
+                                      UnfilledSegmentLengths &lengths) const;
 
     /**
      * \brief Fold the profile of every junction this event reads a bound from.

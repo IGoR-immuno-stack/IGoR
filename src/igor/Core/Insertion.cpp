@@ -185,13 +185,33 @@ void Insertion::iterate(
                                         model.offset_map, model.model_parameters);
 
     if (proba_contribution != 0) {
-        inserted_str.assign(insertions, int_undefined);
         //The VD and DJ arms used to re-derive this as
         //`event_realizations.at(to_string(insertions)).index` -- a string conversion and a hash
         //lookup in the hot loop, carrying its own FIXME. iterate_common() has already resolved
         //the same value; the two are pinned equal by test_insertion_iterate.cpp.
         new_index = base_index + realization_index;
-        scenario.constructed_sequences.set_current(seq_type_id, &inserted_str);
+
+        //Where the junction sits, and therefore how long it is. This event decides both and
+        //creates neither the sequence nor a placeholder for it: under O12's decision (a') the
+        //Dinucl_markov that follows creates the segment from exactly these two offsets. The
+        //partially-constructed state -- a segment of int_undefined waiting for its filler --
+        //stops existing anywhere in the program.
+        //
+        //Recording the offsets is the repair itself (R3, plan section 6.9). The old comment
+        //beside get_offset_delta_bounds() ran two claims together: *the span is derived from
+        //where the neighbours already sit* is true and is B6's whole point, *and therefore no
+        //offsets are recorded* was the defect. A consumer is supposed to ask the segment where
+        //it is rather than know which event produced it -- that is what A0 exists for.
+        //
+        //An empty junction is `3' == 5' - 1`, a pair of offsets rather than their absence,
+        //which is the encoding B10 needs and the one the length below reads straight back.
+        const Seq_Offset junction_five_prime =
+                scenario.seq_offsets.get(get_left_adjacent_id(), Three_prime) + 1;
+        scenario.seq_offsets.set(seq_type_id, Five_prime, junction_five_prime,
+                                 memory_layer_offset_fivep);
+        scenario.seq_offsets.set(seq_type_id, Three_prime, junction_five_prime + insertions - 1,
+                                 memory_layer_offset_threep);
+
         const JunctionBound &junction = junction_bound(kEnclosingJunction);
         //One descent, where the other 18 consumption sites in Gene_choice and Deletion took two
         //(§6.10 finding 6). Unlike them this one has never had a guard, so an unreachable
@@ -338,6 +358,15 @@ void Insertion::initialize_event(
 
     downstream_proba_map.request_layer(this->seq_type_id);
 
+    //Both ends of the junction, because this event places both (O12 (a'), R3). Nothing stands
+    //beneath them today -- no other event writes an insertion's offsets -- so the claimed
+    //layer is 0 and the write lands where a set_current() would have. Requesting it anyway is
+    //what makes the layer *owned*, which is the rule the harness holds every other event to.
+    seq_offsets.request_layer(this->seq_type_id, Five_prime);
+    this->memory_layer_offset_fivep = seq_offsets.claimed_layer(this->seq_type_id, Five_prime);
+    seq_offsets.request_layer(this->seq_type_id, Three_prime);
+    this->memory_layer_offset_threep = seq_offsets.claimed_layer(this->seq_type_id, Three_prime);
+
     //The neighbours come from Model_Parms::finalize(), which is the one place that reads the
     //ordering. A tandem-D D1D2_ins is told about D1 and D2 by the same pass that tells this
     //event about V and D.
@@ -436,8 +465,11 @@ void Insertion::initialize_crude_scenario_proba_bound(
 
 OffsetDelta Insertion::get_offset_delta_bounds(SeqTypeId, Seq_side) const
 {
-    //An insertion writes no offsets at all: its span is *derived* from where its neighbours
-    //already sit, which is exactly what makes the generic B6 rule possible.
+    //Nothing, and for a reason that is *not* "this event has no offsets" -- it writes both of
+    //them (R3). This query asks how far an end can still be *shifted* from where it already
+    //stands, and an insertion never shifts one: its span is derived from where its neighbours
+    //already sit, which is what makes the generic B6 rule possible, and the realization set's
+    //effect on the 3' end is get_length_contribution()'s answer rather than this one's.
     return {};
 }
 
@@ -456,15 +488,20 @@ LengthContribution Insertion::get_length_contribution(SeqTypeId type_id) const
     return {fewest, most};
 }
 
-SeqConstructionRole Insertion::get_seq_construction_role(SeqTypeId type_id) const
+SeqConstructionRole Insertion::get_seq_construction_role(SeqTypeId) const
 {
-    //Creates the segment, but as placeholders: Dinucl_markov supplies the nucleotides.
-    return type_id == this->seq_type_id ? SeqConstructionRole::Creates : SeqConstructionRole::None;
+    //None, for any seq_type including its own. O12 (a'): this event decides the junction's
+    //length and position, and the Dinucl_markov that follows creates the segment. Saying
+    //`Creates` here while leaving every position undetermined was the placeholder regime.
+    return SeqConstructionRole::None;
 }
 
-OffsetRole Insertion::get_offset_role(SeqTypeId, Seq_side) const
+OffsetRole Insertion::get_offset_role(SeqTypeId type_id, Seq_side) const
 {
-    return OffsetRole::None;
+    //Both ends, since iterate() derives and writes both. Plain `Creates`: the Anchors/Derives
+    //split first proposed for this is the wrong answer, because whether a span is zero-width
+    //is a *consumer* question and not a property of the segment (plan section 2.5).
+    return type_id == this->seq_type_id ? OffsetRole::Creates : OffsetRole::None;
 }
 
 bool Insertion::affects_length_of(SegmentSpan span) const

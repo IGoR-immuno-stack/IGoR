@@ -743,3 +743,16 @@ SeqTypeId first_unfilled_segment(const Seq_type_str_p_map &constructed_sequences
     }
     return kNoSeqType;
 }
+
+std::pair<SeqTypeId, Seq_side> first_unplaced_segment_end(const Seq_offsets_map &seq_offsets)
+{
+    const SeqTypeRegistry &registry = seq_offsets.five_prime.registry();
+    for (const SeqTypeId type_id : registry.ordering()) {
+        for (const Seq_side side : {Five_prime, Three_prime}) {
+            if (!seq_offsets.exists(type_id, side)) {
+                return {type_id, side};
+            }
+        }
+    }
+    return {kNoSeqType, Undefined_side};
+}

@@ -371,10 +371,17 @@ void RecordingEvent::iterate(QuerySequenceContext &, const ModelContext &, Scena
                 }
                 break;
             case SeqConstructionRole::Fills:
-                //Deliberately no layer clause: Dinucl_markov writes through the pointer
-                //Insertion stored and claims nothing (section 7.13, repaired in R1).
+                //The layer clause is here now. It used to be left out because Dinucl_markov
+                //wrote through the pointer Insertion stored and claimed nothing (section
+                //7.13); under O12 (a') it creates the segment instead, so nothing declares
+                //Fills any more and the exemption has no subject. Stated for whatever
+                //declares it next: a filler owns its write like every other writer.
                 if (!exists) {
                     note("constructed_sequences", seq_type, "Fills", "no segment was written");
+                } else if (!touched("constructed_sequences", key, seq_layers)) {
+                    note("constructed_sequences", seq_type, "Fills",
+                         "the segment was already standing where it stands now -- this event "
+                         "did not write it");
                 } else if (const Int_Str *segment = scenario.get_sequence_segment(seq_type);
                            segment != nullptr
                            && std::find(segment->begin(), segment->end(), int_undefined)
@@ -476,25 +483,15 @@ std::shared_ptr<RecordingEvent> call_iterate_recording(const std::shared_ptr<Rec
     }
     CHECK(recorder->capability_violations.empty());
 
-    //Layer ownership, minus one standing defect. Insertion writes the segment it creates
-    //without ever requesting a layer for it -- the same under-declaration as its missing
-    //offsets, and repaired with them in R3. Waived by name rather than by disabling the check,
-    //so every other event is held to the rule and an Insertion violation anywhere else still
-    //fails. Delete this waiver with R3; the [!shouldfail] defect case asserting
-    //ownership_violations.empty() is what turns red if it outlives the defect.
-    std::vector<OwnershipViolation> unwaived;
+    //...and layer ownership, with no exemption left. This carried one: Insertion wrote the
+    //segment it created without ever requesting a layer for it. R1 moved that write to
+    //Dinucl_markov, which claims the layer, so the rule now applies to all four events
+    //unconditionally.
     for (const OwnershipViolation &violation : recorder->ownership_violations) {
-        const bool waived = event->get_type() == Event_type::Insertion_t
-                            && violation.map_name == "constructed_sequences";
-        if (!waived) {
-            unwaived.push_back(violation);
-        }
-    }
-    for (const OwnershipViolation &violation : unwaived) {
         UNSCOPED_INFO("layer ownership violated at hand-off " << violation.call_index << ": "
                                                               << violation.describe());
     }
-    CHECK(unwaived.empty());
+    CHECK(recorder->ownership_violations.empty());
 
     return recorder;
 }

@@ -204,7 +204,7 @@ public:
 
 private:
     /// Distinguishable from any bound, which is a probability and so >= 0. The same convention
-    /// SpanAccumulator uses for an unpublished length, and for the same reason: zero is a
+    /// UnfilledSegmentLengths uses for an unpublished length, and for the same reason: zero is a
     /// legitimate value here. A scenario whose bound is 0.0 is pruned on probability, where an
     /// absent one is discarded outright -- and in Deletion::iterate those take different exits,
     /// `break` against `continue`, so conflating them would not be bitwise.

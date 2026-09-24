@@ -126,16 +126,19 @@ TEST_CASE("Insertion: baseline write (G4)", "[insertion][iterate]")
     REQUIRE(next->call_count() == 1);
     const auto &call = next->calls.front();
 
-    // Three *unfilled* positions, one per read position between the two neighbours. They
-    // decode to '.', not to 'N': Insertion allocates the segment and Dinucl_markov fills it,
-    // so at this point the content is undetermined rather than ambiguous. See int_undefined
-    // in Utils.h -- the two states are distinct and the notation keeps them so.
-    REQUIRE(call.sequences.count(VD_ins_seq) == 1);
-    CHECK(call.sequences.at(VD_ins_seq) == "...");
+    // Where the junction sits: the three read positions strictly between the two neighbours.
+    // The *segment* is not here, and its absence is the point -- under O12 (a') this event
+    // decides the geometry and the Dinucl_markov that follows creates the sequence from it,
+    // so no partially-constructed segment is ever handed on. What used to be asserted here
+    // was three undetermined positions decoding to "...".
+    REQUIRE(call.offsets.count(VD_ins_seq) == 1);
+    CHECK(call.five_prime(VD_ins_seq) == 11);
+    CHECK(call.three_prime(VD_ins_seq) == 13);
+    CHECK_FALSE(has_constructed_sequence(fixture.state, VD_ins_seq));
 
-    // It writes neither offsets nor a mismatch list for the segment it just created. Both are
-    // defects, pinned by the [!shouldfail] cases at the end of this file rather than asserted
-    // here.
+    // It still writes no mismatch list, and no longer owes one: a list belongs to a segment
+    // compared against the read, and this event constructs no segment (plan section 6.9, where
+    // that defect is recorded as dissolved by the rescope rather than repaired).
 
     // The neighbours are handed on untouched.
     CHECK(call.three_prime(V_gene_seq) == 10);
@@ -151,19 +154,23 @@ TEST_CASE("Insertion: the length is derived from the neighbours (G9)", "[inserti
         VdJunction fixture(/*v_three_prime=*/10, /*d_five_prime=*/16);
         const auto next = call_iterate_recording(fixture.insertion, fixture.state);
         REQUIRE(next->call_count() == 1);
-        CHECK(next->calls.front().sequences.at(VD_ins_seq) == ".....");
+        // Five positions now: 11..15.
+        CHECK(next->calls.front().five_prime(VD_ins_seq) == 11);
+        CHECK(next->calls.front().three_prime(VD_ins_seq) == 15);
     }
 
-    SECTION("Adjacent neighbours give a written-but-empty segment")
+    SECTION("Adjacent neighbours give a placed-but-empty junction")
     {
         // Row 8 of the matrix, and the case B10's absent-segment semantics has to keep
-        // distinct: the junction exists and is empty, which is not the same as never written.
+        // distinct: the junction is placed and empty, which is not the same as never placed.
+        // Emptiness is `3' == 5' - 1` -- a pair of offsets, not their absence, which is the
+        // encoding that makes the distinction expressible at all.
         VdJunction fixture(/*v_three_prime=*/13, /*d_five_prime=*/14);
         const auto next = call_iterate_recording(fixture.insertion, fixture.state);
         REQUIRE(next->call_count() == 1);
-        REQUIRE(next->calls.front().sequences.count(VD_ins_seq) == 1);
-        CHECK(next->calls.front().sequences.at(VD_ins_seq).empty());
-        CHECK(has_constructed_sequence(fixture.state, VD_ins_seq));
+        REQUIRE(next->calls.front().offsets.count(VD_ins_seq) == 1);
+        CHECK(next->calls.front().five_prime(VD_ins_seq) == 14);
+        CHECK(next->calls.front().three_prime(VD_ins_seq) == 13);
     }
 
     SECTION("A neighbour that was never placed is an error, not an empty junction")
@@ -357,7 +364,8 @@ TEST_CASE("Insertion: the three junction branches are one body", "[insertion][it
         DjJunction fixture;
         const auto next = call_iterate_recording(fixture.insertion, fixture.state);
         REQUIRE(next->call_count() == 1);
-        CHECK(next->calls.front().sequences.at(DJ_ins_seq) == "...");
+        CHECK(next->calls.front().five_prime(DJ_ins_seq) == 11);
+        CHECK(next->calls.front().three_prime(DJ_ins_seq) == 13);
         CHECK(next->calls.front().downstream_bounds.count(DJ_ins_seq) == 1);
     }
 
@@ -366,7 +374,8 @@ TEST_CASE("Insertion: the three junction branches are one body", "[insertion][it
         VjJunction fixture;
         const auto next = call_iterate_recording(fixture.insertion, fixture.state);
         REQUIRE(next->call_count() == 1);
-        CHECK(next->calls.front().sequences.at(VJ_ins_seq) == "...");
+        CHECK(next->calls.front().five_prime(VJ_ins_seq) == 11);
+        CHECK(next->calls.front().three_prime(VJ_ins_seq) == 13);
         CHECK(next->calls.front().downstream_bounds.count(VJ_ins_seq) == 1);
     }
 
@@ -470,99 +479,33 @@ TEST_CASE("Insertion: the seq_type name and its registry id must agree", "[inser
 
 
 // ===========================================================================================
-// Confirmed defects. Each states the behaviour the code *should* have and carries
-// [!shouldfail], so ctest stays green while the defect stands and turns red the moment it is
-// fixed and the tag is not removed. Section-free, because [!shouldfail] is evaluated per
-// test-case run and Catch2 re-runs a case once per leaf section.
+// What used to be this file's [!shouldfail] block. Four confirmed defects stood here; R1+R3
+// closed three of them and O12's rescope dissolved the fourth.
+//
+//   - no offsets for the junction, and none for an empty one -- repaired, and asserted by the
+//     cases above rather than pinned separately: writing the offsets is not a property the
+//     event has on the side, it is what the event now does.
+//   - the segment written on an unrequested layer -- the write moved to Dinucl_markov, which
+//     claims its layer, so the waiver in call_iterate_recording() is gone and every event is
+//     now held to the ownership rule. The case below is what would notice it coming back.
+//   - no mismatch list for the segment it creates -- **deleted rather than made to pass**.
+//     Under (a') this event creates no sequence, so it needs no list for one. The reasoning
+//     that made it a defect (a constructed segment implies a comparison against the read, and
+//     "empty" is a different statement from "absent") now applies to Dinucl_markov, and is
+//     recorded against it rather than reproduced here.
 // ===========================================================================================
 
-TEST_CASE("DEFECT: Insertion creates a segment but assigns it no offsets",
-          "[insertion][iterate][defect][!shouldfail]")
+TEST_CASE("Insertion: everything it writes lands on a layer it owns", "[insertion][iterate][layers]")
 {
-    // The event allocates the junction sequence and hands it on, but writes neither end's
-    // offset, so the only way to know where that sequence sits on the read is to already know
-    // that an insertion's span runs between its neighbours. That is precisely the coupling
-    // this refactor exists to remove: a downstream consumer should be able to ask the segment
-    // where it is, not infer it from the event class that produced it.
+    // The complement of the layer contract: a written layer must have been requested.
+    // Requesting is what makes a layer *owned* -- a write with no request leaves claimed and
+    // current out of step, so a downstream reader of `layer - 1` is trusting storage nobody
+    // promised, and the contract itself is silent on that key because it only inspects keys
+    // whose claimed mark the event raised.
     //
-    // The span is derived rather than chosen -- a shortcut that holds only while the error
-    // model forbids indels -- but a derived offset is still an offset. Nothing in Core reads
-    // or writes seq_offsets for an insertion seq_type today, so writing them is inert for
-    // every existing consumer; B6 is the natural place to fix it.
-    VdJunction fixture(/*v_three_prime=*/10, /*d_five_prime=*/14);
-    const auto next = call_iterate_recording(fixture.insertion, fixture.state);
-    REQUIRE(next->call_count() == 1);
-    const auto &call = next->calls.front();
-
-    // The junction occupies the read positions strictly between its neighbours: 11..13.
-    REQUIRE(call.offsets.count(VD_ins_seq) == 1);
-    CHECK(call.five_prime(VD_ins_seq) == 11);
-    CHECK(call.three_prime(VD_ins_seq) == 13);
-}
-
-TEST_CASE("DEFECT: an empty junction gets no offsets either",
-          "[insertion][iterate][defect][!shouldfail]")
-{
-    // The degenerate case, and the one that matters most for B10: an empty segment is
-    // supposed to be expressed by `off(3') == off(5') - 1`, which is a pair of offsets, not
-    // their absence. While Insertion writes none, an empty junction and an unconstructed one
-    // are indistinguishable by offset -- exactly the three-state problem B10 has to solve.
-    VdJunction fixture(/*v_three_prime=*/13, /*d_five_prime=*/14);
-    const auto next = call_iterate_recording(fixture.insertion, fixture.state);
-    REQUIRE(next->call_count() == 1);
-    const auto &call = next->calls.front();
-
-    REQUIRE(call.offsets.count(VD_ins_seq) == 1);
-    CHECK(call.five_prime(VD_ins_seq) == 14);
-    CHECK(call.three_prime(VD_ins_seq) == 13);
-}
-
-TEST_CASE("DEFECT: Insertion creates a segment but no mismatch list for it",
-          "[insertion][iterate][defect][!shouldfail]")
-{
-    // A constructed sequence implies a comparison against the read, so every constructed
-    // segment should carry a mismatch list -- empty here, because at this point the junction
-    // holds placeholders and nothing has been decided yet. Absence is not the same statement:
-    // it forces every consumer to know that insertion segments are exempt, the same coupling
-    // as the missing offsets above.
-    //
-    // The distinction is load-bearing rather than tidy. Under amino-acid Pgen a placeholder
-    // position is scored differently by ceiling and floor mismatch semantics -- an undecided
-    // nucleotide either can or cannot be made to agree with the read -- and either choice
-    // needs a list to write into. An absent list cannot express "no mismatches yet" as
-    // distinct from "this segment is not compared", which is the same three-state problem
-    // B10 has for sequences.
-    //
-    // Empty-but-present is what row 8 of the test matrix calls for, and what
-    // Gene_choice already does for a template with no mismatches.
-    VdJunction fixture;
-    const auto next = call_iterate_recording(fixture.insertion, fixture.state);
-    REQUIRE(next->call_count() == 1);
-    const auto &call = next->calls.front();
-
-    REQUIRE(call.mismatches.count(VD_ins_seq) == 1);
-    CHECK(call.mismatches.at(VD_ins_seq).empty());
-}
-
-TEST_CASE("DEFECT: Insertion writes the segment it creates on an unrequested layer",
-          "[insertion][iterate][defect][!shouldfail]")
-{
-    // The same under-declaration as the missing offsets above, one level down: the event
-    // writes constructed_sequences for its own seq_type without ever calling
-    // request_layer() for it. Every other event in the model requests the layer it writes --
-    // Gene_choice does so for all three genes, Deletion for the segments it trims, and
-    // Insertion itself does so for its downstream_proba_map entry -- so this is an omission,
-    // not a convention.
-    //
-    // It matters because requesting is what makes the layer *owned*. A write with no request
-    // leaves claimed and current out of step, so a downstream reader of `layer - 1` is
-    // trusting storage nobody promised, and the layer contract -- which only inspects keys
-    // whose claimed mark the event raised -- is silent on exactly this key. The rule the rest
-    // of the suite is held to is the complement of that contract: a written layer must have
-    // been requested.
-    //
-    // Waived by name in call_iterate_recording() so the rule can be enforced everywhere
-    // else. Fix with R3, alongside the offsets, and delete the waiver.
+    // This event was the one standing exception, waived by name in call_iterate_recording()
+    // so that the rule could be enforced everywhere else. The waiver is gone; this case is
+    // what turns red if the exception returns.
     VdJunction fixture;
     const auto next = call_iterate_recording(fixture.insertion, fixture.state);
     REQUIRE(next->call_count() == 1);

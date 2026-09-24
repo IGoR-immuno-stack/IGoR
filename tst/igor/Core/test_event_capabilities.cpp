@@ -191,13 +191,24 @@ TEST_CASE("Insertion capability queries", "[capabilities][insertion]")
     ins->set_seq_type("VD_ins_seq");
     ins->set_seq_type_id(legacy_seq_type_registry().id("VD_ins_seq"));
 
-    SECTION("Creates a placeholder segment and writes no offsets")
+    SECTION("Places the junction and constructs nothing")
     {
-        CHECK(ins->get_seq_construction_role(id_of(VD_ins_seq)) == SeqConstructionRole::Creates);
-        // The span is derived from where the neighbours already sit -- which is exactly what
-        // makes the generic B6 rule possible.
-        CHECK(ins->get_offset_role(id_of(VD_ins_seq), Five_prime) == OffsetRole::None);
-        CHECK(ins->get_offset_role(id_of(VD_ins_seq), Three_prime) == OffsetRole::None);
+        // O12 (a'): this event decides where the junction sits and how long it is, and the
+        // Dinucl_markov that follows creates the segment. `None` for *any* seq_type, not only
+        // for someone else's -- declaring Creates while leaving every position undetermined
+        // was the placeholder regime this replaced.
+        CHECK(ins->get_seq_construction_role(id_of(VD_ins_seq)) == SeqConstructionRole::None);
+
+        // Both ends, since iterate() derives and writes both. Plain Creates: the
+        // Anchors/Derives split once proposed here is the wrong answer, because whether a
+        // span is zero-width is a consumer question and not a property of the segment.
+        CHECK(ins->get_offset_role(id_of(VD_ins_seq), Five_prime) == OffsetRole::Creates);
+        CHECK(ins->get_offset_role(id_of(VD_ins_seq), Three_prime) == OffsetRole::Creates);
+        CHECK(ins->get_offset_role(kOtherId, Five_prime) == OffsetRole::None);
+
+        // Still nothing here, and for a reason that is not "it has no offsets": this asks how
+        // far an end can still be *shifted*, and the span is derived from where the neighbours
+        // already sit -- which is what makes the generic B6 rule possible.
         CHECK(ins->get_offset_delta_bounds(id_of(VD_ins_seq), Five_prime) == OffsetDelta{});
     }
 
@@ -214,9 +225,15 @@ TEST_CASE("Dinucl_markov capability queries", "[capabilities][dinuclmarkov]")
     dinuc->set_seq_type("VD_ins_seq");
     dinuc->set_seq_type_id(legacy_seq_type_registry().id("VD_ins_seq"));
 
-    SECTION("Fills an existing segment: no length, no offsets")
+    SECTION("Creates the segment it fills, at a length it did not choose")
     {
-        CHECK(dinuc->get_seq_construction_role(id_of(VD_ins_seq)) == SeqConstructionRole::Fills);
+        // Creates, not Fills (O12 (a')). The two queries that stay empty are the interesting
+        // ones: this event creates a segment while contributing no length to any span and
+        // placing no offset, because how many nucleotides it will choose was settled by the
+        // offsets its Insertion placed. Creating a segment and deciding its extent are
+        // separate statements, and this is the event that separates them.
+        CHECK(dinuc->get_seq_construction_role(id_of(VD_ins_seq)) == SeqConstructionRole::Creates);
+        CHECK(dinuc->get_seq_construction_role(kOtherId) == SeqConstructionRole::None);
         CHECK(dinuc->get_length_contribution(id_of(VD_ins_seq)) == LengthContribution{});
         CHECK(dinuc->get_offset_role(id_of(VD_ins_seq), Five_prime) == OffsetRole::None);
         CHECK(dinuc->get_offset_delta_bounds(id_of(VD_ins_seq), Three_prime) == OffsetDelta{});
