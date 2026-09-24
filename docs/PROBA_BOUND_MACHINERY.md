@@ -243,10 +243,12 @@ One non-virtual body on `Rec_Event`, behind two hooks:
 | | |
 |---|---|
 | `length_delta(const Event_realization&)` | the scalar the four bodies differed by |
-| `span_proba_factor(SegmentSpan, const SpanAccumulator&)` | the factor, defaulted to 1 |
+| `span_proba_factor(SegmentSpan, const UnfilledSegmentLengths&)` | the factor, defaulted to 1 |
 
-`SpanAccumulator` carries per-segment lengths, replacing the side channel. Only a segment's
-**creator** publishes (`SeqConstructionRole::Creates`), so each key has exactly one writer per path.
+`UnfilledSegmentLengths` carries, per segment, **how many nucleotides its offsets imply that nobody
+has chosen yet**, replacing the side channel. The publisher is whoever **creates the offsets but not
+the sequence**, so each key has exactly one writer per path. It was called `SpanAccumulator` and
+published *the length*, by *the sequence creator*, until R1+R3 (§7).
 
 ---
 
@@ -295,16 +297,17 @@ and deserved to go; it was not the bottleneck. **The measured costs are `GeneCho
 | **S4d** (deferred here) | — | `⊗ᵐᵃˣ`, the max-convolution of two profiles. **Dropped from S4c**: it has no production consumer — every current query is gap-bounded and `Gene_choice(D)` keeps the *retained* decomposition, not a max-folded one — and §2.5's own recommendation is not to add query semantics before a consumer exists. Lands with `⊗ᵉⁿᵘᵐ` in 5b | — | — |
 | **S4d** | — | — | Tensor-backed containers for the 3-D structure. **Gated** on the Tensor API, itself blocked on the C++23 bump | — |
 | **5b** | — | `⊗ᵉⁿᵘᵐ` — the retained decomposition for the `no_d_align` enumeration, always three components whatever the topology | — | — |
-| **R1** | — | — | — | **`Dinucl_markov` creates the insertion segment** (O12 (a′)) — no partially-constructed segment, `int_undefined` leaves constructed sequences, §7.13 dissolves, `SpanAccumulator` deleted |
-| **R3** | — | — | — | `Insertion` writes its offsets and **requests the layer it writes**; its mismatch-list defect is *dissolved* by R1's rescope rather than fixed |
+| **R1** ✅ | — | — | — | **`Dinucl_markov` creates the insertion segment** (O12 (a′)) — no partially-constructed segment, `int_undefined` leaves constructed sequences, §7.13 dissolves. `SpanAccumulator` **kept and reinterpreted**, not deleted, and renamed `UnfilledSegmentLengths`: the line this row used to carry was written before that reversal |
+| **R3** ✅ | — | — | — | `Insertion` writes its offsets and **requests the layers it writes**; its mismatch-list defect is *dissolved* by R1's rescope rather than fixed. The leaf invariant's offsets half lands with it |
 | **R3b** | — | — | — | `LayeredArray::set()` requires a prior claim instead of raising it silently |
 | **R6** | — | — | — | tighter bound via a within-clique **joint** max. **Changes which scenarios survive pruning**, so it is gated on convergence rather than bitwise regression |
 
 ---
 
-## 7. Decided: `Dinucl_markov` will create the segment
+## 7. Done: `Dinucl_markov` creates the segment
 
-*(Quentin, Sep 11 2026 — decision O12. Analysis kept because the *why* outlives the decision.)*
+*(Quentin, Sep 11 2026 — decision O12. Landed Sep 24 2026 as R1+R3, one commit, bitwise on all five
+regression tracks. Analysis kept because the *why* outlives the decision.)*
 
 `SpanAccumulator` narrows the `Insertion` ↔ `Dinucl_markov` handshake from a shared pointer into a
 sequence map down to a declared publish/read of one integer. But they remain **the only two users**,
@@ -393,14 +396,30 @@ length would be in scope within one group iteration. That remains available, and
 genuine functional clique, so R6's group mechanism would get a second consumer. But it is an
 optimisation of the mechanism, not a reason to drop the concept.
 
-### What changes, and when
+### What changed
 
-| | today | after R1 / R3 |
+| | before R1 / R3 | now |
 |---|---|---|
 | **publisher** | the segment's *sequence* creator, publishing its length | an event that **creates the offsets but not the sequence**, publishing the length they imply |
-| **derivable from** | `get_seq_construction_role` | `get_offset_role` **and** `get_seq_construction_role` — both already exist, so **no new capability is needed** |
+| **derivable from** | `get_seq_construction_role` | `get_offset_role` **and** `get_seq_construction_role` — both already existed, so **no new capability was needed** |
 | **`Gene_choice` publishes** | its template length — semantically wrong under the new reading, harmless because nothing reads it | **0** |
-| **name** | `SpanAccumulator` — names the context, not the content | something content-shaped: `UnfilledSegmentLengths` reads well at the call site (`unfilled.length_of(id)`) |
+| **name** | `SpanAccumulator` — names the context, not the content | `UnfilledSegmentLengths`, which reads at the call site as `unfilled.length_of(id)` |
+
+Two of the three *against* arguments for (a′) did not materialize, and it is worth saying which.
+
+**"Not obviously bitwise"** — it is, on all five tracks including `generate`, which exercises the
+legacy `draw_random_realization` path that R1 did not touch. The layer move was the part expected to
+show, and it could not: nobody else claims an insertion's sequence layer, so the claimed layer is 0
+and the write lands exactly where `set_current()` put it. **Ownership changed, storage did not.**
+
+**"The segment is transiently absent between the two events"** — still true, still unobservable, and
+now for a stated reason rather than a hoped-for one. No consumer enumerates an insertion's keys;
+every consumer that reads a junction reads it by name, at the leaf, after the `Dinucl_markov` has
+run. B10 will still want absence to be an explicit written value, and this window is the case that
+motivates it, but it is not a defect today.
+
+The third — **"it breaks the accumulator's publisher rule"** — was real, and is exactly why the two
+repairs are one commit.
 
 One thing this exposes that A0 has no vocabulary for: `Dinucl_markov`'s *"offsets placed, sequence
 absent"* is a **precondition**, and every A0 query so far states what an event **provides**. The
