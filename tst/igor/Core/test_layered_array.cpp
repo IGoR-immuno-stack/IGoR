@@ -28,6 +28,7 @@ TEST_CASE("LayeredArray: unwritten keys are distinct from written-but-empty", "[
 
     // A key written with a "empty" sentinel value still exists -- this is the
     // distinction the ordered traversal depends on (actively absent vs not yet processed).
+    a.request_layer(2);
     a.set(2, 0, 0);
     CHECK(a.exists(2));
     CHECK(a.get(2) == 0);
@@ -37,6 +38,9 @@ TEST_CASE("LayeredArray: unwritten keys are distinct from written-but-empty", "[
 TEST_CASE("LayeredArray: layers are tracked per key independently", "[layered_array]")
 {
     LayeredArray<int> a(3);
+    for (std::size_t k = 0; k != 3; ++k) {
+        a.request_layer(k);
+    }
     a.set(0, 10, 0);
     a.set(1, 20, 0);
     a.set(2, 30, 0);
@@ -62,6 +66,7 @@ TEST_CASE("LayeredArray: layers are tracked per key independently", "[layered_ar
 TEST_CASE("LayeredArray: a pushed layer does not disturb the one below", "[layered_array]")
 {
     LayeredArray<int> a(1);
+    a.request_layer(0);
     a.set(0, 7, 0);
     a.request_layer(0);
     // The pushed layer's content is unspecified until written -- callers always set()
@@ -75,6 +80,7 @@ TEST_CASE("LayeredArray: a pushed layer does not disturb the one below", "[layer
 TEST_CASE("LayeredArray: popping layer 0 returns a key to unwritten", "[layered_array]")
 {
     LayeredArray<int> a(1);
+    a.request_layer(0);
     a.set(0, 5, 0);
     REQUIRE(a.exists(0));
     a.restore_layer(0);
@@ -84,14 +90,19 @@ TEST_CASE("LayeredArray: popping layer 0 returns a key to unwritten", "[layered_
 }
 
 // The bug fixed on the AA-Pgen branch (Enum_fast_memory_map::set_value writing past the
-// end of the buffer) reproduced against the new container: a map driven purely by set()
-// walking 0,1,2,... must grow rather than corrupt the heap.
-TEST_CASE("LayeredArray: set() beyond the allocated layers grows the storage", "[layered_array][growth]")
+// end of the buffer) reproduced against the new container: a map walking layers 0,1,2,...
+// must grow rather than corrupt the heap. Since R3b the walk is request-then-write rather
+// than write-alone, which is the shape a descent down the scenario tree actually has --
+// each level claims its layer in initialize_event() and writes it in iterate().
+TEST_CASE("LayeredArray: walking up the layers grows the storage", "[layered_array][growth]")
 {
     LayeredArray<int> a(3, 1);   // one layer allocated up front
     REQUIRE(a.layer_capacity() == 1);
 
     for (std::size_t layer = 0; layer != 64; ++layer) {
+        for (std::size_t key = 0; key != 3; ++key) {
+            a.request_layer(key);
+        }
         a.set(0, static_cast<int>(100 + layer), layer);
         a.set(1, static_cast<int>(200 + layer), layer);
         a.set(2, static_cast<int>(300 + layer), layer);
@@ -109,6 +120,7 @@ TEST_CASE("LayeredArray: set() beyond the allocated layers grows the storage", "
 TEST_CASE("LayeredArray: request_layer beyond the allocated layers grows the storage", "[layered_array][growth]")
 {
     LayeredArray<int> a(2, 1);
+    a.request_layer(0);
     a.set(0, 1, 0);
     for (int i = 0; i != 40; ++i) {
         a.request_layer(0);
@@ -120,20 +132,63 @@ TEST_CASE("LayeredArray: request_layer beyond the allocated layers grows the sto
     CHECK_FALSE(a.exists(1));      // untouched key unaffected by the reallocations
 }
 
-TEST_CASE("LayeredArray: layers must be filled bottom-up", "[layered_array]")
+// The runtime half of *a written layer must have been requested* (decision O10, landed as
+// R3b). Before it, set() raised the claimed mark on the way past, so an event writing at a
+// neighbour's layer numbering -- or through a pointer it was handed -- took ownership of a
+// layer silently and overwrote the real owner's value with no diagnostic.
+TEST_CASE("LayeredArray: a write lands only on a layer the key has claimed", "[layered_array]")
 {
     LayeredArray<int> a(2);
-    // Key 0 is unwritten (-1), so only layer 0 is legal.
+    // Key 0 has claimed nothing (-1), so no layer is legal -- not even layer 0. Layer 0 is
+    // not a free base layer; it is what the first request_layer() grants.
+    CHECK_THROWS_AS(a.set(0, 1, 0), std::out_of_range);
     CHECK_THROWS_AS(a.set(0, 1, 1), std::out_of_range);
-    a.set(0, 1, 0);
+    CHECK_FALSE(a.exists(0));           // the rejected write left nothing behind
+    CHECK(a.claimed_layer(0) == -1);    // and claimed nothing either
+
+    a.request_layer(0);
+    CHECK_NOTHROW(a.set(0, 1, 0));
+    // One above the claim is still a claim the key does not hold.
+    CHECK_THROWS_AS(a.set(0, 2, 1), std::out_of_range);
+    a.request_layer(0);
     CHECK_NOTHROW(a.set(0, 2, 1));
     CHECK_THROWS_AS(a.set(0, 3, 3), std::out_of_range);
+
+    // Releasing the claim takes the layer back: what was writable a moment ago is not.
+    a.restore_layer(0);
+    CHECK_THROWS_AS(a.set(0, 4, 1), std::out_of_range);
+    CHECK_NOTHROW(a.set(0, 4, 0));
+}
+
+TEST_CASE("LayeredArray: set_current() is a write too, and does not claim", "[layered_array]")
+{
+    LayeredArray<int> a(1);
+    // It used to take layer 0 lazily on a virgin key -- the assignment form of
+    // Enum_fast_memory_map::operator[]. What it saves the caller is naming the layer, not
+    // asking for it.
+    CHECK_THROWS_AS(a.set_current(0, 1), std::out_of_range);
+    CHECK_FALSE(a.exists(0));
+
+    a.request_layer(0);
+    CHECK_NOTHROW(a.set_current(0, 1));
+    CHECK(a.get(0) == 1);
+    CHECK(a.claimed_layer(0) == 0);
+
+    // A claimed-but-unwritten layer is where set_current() writes next, because the claim
+    // moved and the data mark did not.
+    a.request_layer(0);
+    a.set_current(0, 2);
+    CHECK(a.current_layer(0) == 0);   // still the layer the data stands at
+    CHECK(a.get(0) == 2);
+    CHECK(a.claimed_layer(0) == 1);
 }
 
 TEST_CASE("LayeredArray: get(key, layer) does not rewind", "[layered_array]")
 {
     LayeredArray<int> a(1);
+    a.request_layer(0);
     a.set(0, 1, 0);
+    a.request_layer(0);
     a.set(0, 2, 1);
     REQUIRE(a.claimed_layer(0) == 1);
 
@@ -158,6 +213,7 @@ TEST_CASE("LayeredArray: requesting a layer is not writing it", "[layered_array]
     // depended on whether some other key's write had pulled that counter down first.
     // See docs/ITERATE_GENERIC_REWRITE_PLAN.md section 7.9.
     LayeredArray<int> a(2);
+    a.request_layer(0);
     a.set(0, 7, 0);
     REQUIRE(a.claimed_layer(0) == 0);
     REQUIRE(a.current_layer(0) == 0);
@@ -197,6 +253,7 @@ TEST_CASE("LayeredArray: exists() means written, not requested", "[layered_array
 TEST_CASE("LayeredArray: restore_layer releases a claim", "[layered_array]")
 {
     LayeredArray<int> a(1);
+    a.request_layer(0);
     a.set(0, 1, 0);
     a.request_layer(0);
     a.set(0, 2, 1);
@@ -242,8 +299,9 @@ TEST_CASE("LayeredArray: copying is value semantics", "[layered_array]")
 {
     // Enum_fast_memory_map owned raw new[] with no copy constructor: copying double-freed.
     LayeredArray<int> a(2);
+    a.request_layer(0);
     a.set(0, 1, 0);
-    LayeredArray<int> b(a);
+    LayeredArray<int> b(a);   // the copy inherits the claim along with the value
     b.set(0, 2, 0);
     CHECK(a.get(0) == 1);
     CHECK(b.get(0) == 2);

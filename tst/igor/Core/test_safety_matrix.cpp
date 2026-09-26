@@ -25,6 +25,8 @@
 #include <igor/Core/JunctionGeometry.h>
 #include <igor/Core/SafetyMatrix.h>
 
+#include "LayerClaim.h"
+
 #include <catch2/catch_test_macros.hpp>
 
 #include <string>
@@ -135,6 +137,9 @@ TEST_CASE("SafetyMatrix: a row word is the whole state of that row", "[safety_ma
         // The case that decides whether the two cells can share a layer, which is what lets a
         // Gene_choice with two neighbours on the same side claim once. A plain write would
         // make the second erase the first.
+        // Both cells sit on row V, so one claim covers them -- which is the sharing the
+        // section is about.
+        claim_layer_zero(matrix, vd);
         matrix.set(vd, false, 0);
         matrix.set(vj, true, 0);
         CHECK(matrix.get(vd, 0) == false);
@@ -143,6 +148,7 @@ TEST_CASE("SafetyMatrix: a row word is the whole state of that row", "[safety_ma
 
     SECTION("A cell nobody writes at this depth keeps what the depth below left")
     {
+        claim_layer_zero(matrix, vd);
         matrix.set(vd, true, 0);
         matrix.request_layer(vd);
         matrix.set(vj, false, 1);
@@ -154,6 +160,7 @@ TEST_CASE("SafetyMatrix: a row word is the whole state of that row", "[safety_ma
 
     SECTION("Rows are independent")
     {
+        claim_layer_zero(matrix, vd);
         matrix.set(vd, true, 0);
         CHECK_FALSE(matrix.exists(dj));
     }
@@ -163,6 +170,7 @@ TEST_CASE("SafetyMatrix: a row word is the whole state of that row", "[safety_ma
         // The same discipline the per-slot container enforced (section 7.9): requesting is a
         // promise to write, and a reader of `layer` must not be served a default because the
         // event that owns it handed off without writing.
+        claim_layer_zero(matrix, vd);
         matrix.set(vd, true, 0);
         matrix.request_layer(vd);
         CHECK_THROWS_AS(matrix.get(vd, 1), std::out_of_range);
@@ -182,12 +190,14 @@ TEST_CASE("SafetyMatrix: establishing a near pair marks the rest of the row",
     {
         // Section 2.3's corollary, and the reason the work per event is O(1) per side rather
         // than one comparison against every segment further along.
+        claim_layer_zero(matrix, vd);
         matrix.set(vd, true, 0);
         CHECK(matrix.get(vj, 0) == true);
     }
 
     SECTION("It does not propagate 5', nor into another row")
     {
+        claim_layer_zero(matrix, dj);
         matrix.set(dj, true, 0);
         CHECK_FALSE(matrix.exists(vd));
         CHECK_FALSE(matrix.exists(vj));
@@ -197,6 +207,7 @@ TEST_CASE("SafetyMatrix: establishing a near pair marks the rest of the row",
     {
         // "The deciding event must look" says nothing about pairs further away, so clearing
         // one column must not clear the corollary another check established.
+        claim_layer_zero(matrix, vd);
         matrix.set(vd, true, 0);
         matrix.set(vd, false, 0);
         CHECK(matrix.get(vd, 0) == false);
@@ -236,6 +247,7 @@ TEST_CASE("SafetyMatrix: propagation moves where a bad scenario dies, not whethe
 
         for (Seq_Offset a_three = 0; a_three != b_five; ++a_three) {
             REQUIRE(separated(a_three, b_five)); // (A, B) is established safe
+            claim_layer_zero(matrix, vd);
             matrix.set(vd, true, 0);
             REQUIRE(matrix.get(vj, 0) == true);  // ...so (A, C) reads safe by propagation
 

@@ -59,6 +59,16 @@ namespace layered_array_detail {
                             + " is not usable for key " + std::to_string(key));
 }
 
+[[noreturn]] IGOR_LA_COLD inline void unclaimed_layer(const char *what, std::size_t key,
+                                                      std::size_t layer, int claimed)
+{
+    throw std::out_of_range(std::string(what) + ": key " + std::to_string(key)
+                            + " written at layer " + std::to_string(layer)
+                            + ", which it has not claimed (claimed up to "
+                            + std::to_string(claimed)
+                            + "). request_layer() is what grants the layer a write lands on.");
+}
+
 } // namespace layered_array_detail
 
 /**
@@ -107,8 +117,25 @@ namespace layered_array_detail {
  *      not-yet-processed key that some event had requested was indistinguishable from an
  *      actively-absent one, because both read back as a written default.
  *
- * Invariant: `current_layer_[key] <= claimed_layer_[key]`. Writing at a layer claims it,
- * so `set()` raises the requested mark when it has to.
+ * ### A write does not claim
+ *
+ * Invariant: `current_layer_[key] <= claimed_layer_[key]`, and the only things that raise the
+ * claim are `request_layer()` and `init_first_layer()`. A write does not: `set()` on a layer
+ * the key has not claimed throws rather than granting it, and `set_current()` on a key that
+ * has claimed nothing throws rather than lazily taking layer 0.
+ *
+ * This is the runtime half of *a written layer must have been requested*
+ * (docs/ITERATE_GENERIC_REWRITE_PLAN.md, decision O10); the test harness enforces the same
+ * rule per event under test. It matters because the failure it catches is silent: an event
+ * writing through a pointer, or at a neighbour's layer numbering, used to claim the layer on
+ * the way past and leave the real owner's value overwritten with no diagnostic. The claim is
+ * what says *this layer is mine until I release it*, and a promise nobody makes is a promise
+ * nobody keeps -- so the write asks for it up front, in `initialize_event()`, where the
+ * ownership is decided rather than in the middle of the traversal.
+ *
+ * The practical consequence for callers: every key you intend to write needs a
+ * `request_layer()` at initialization, including the first write at layer 0. Layer 0 is not
+ * a free-for-all base layer -- it is simply the layer the first requester is granted.
  *
  * ### Storage layout and invariants
  *
@@ -182,25 +209,24 @@ public:
         return storage_[index(key, layer)];
     }
 
-    /// Write a value at an explicit layer and make it the key's current layer.
-    /// Grows the storage when the layer lies beyond what is allocated.
-    /// \throws std::out_of_range if the layer would leave a gap below it.
+    /// Write a value at a layer this key has already claimed, and make it the key's current
+    /// layer.
+    /// \throws std::out_of_range if the layer was never claimed -- see "A write does not
+    ///         claim" above.
     void set(std::size_t key, const V &value, std::size_t layer)
     {
         check_key(key);
-        // Layers are filled bottom-up: a key may be written at any layer it owns, or at one
-        // above (which claims that layer). Writing higher means the caller is using another
-        // map's layer numbering. Validated against the *requested* mark, since an event
-        // writes at the layer it was granted however many writes happened below it.
-        if (static_cast<int>(layer) > claimed_layer_[key] + 1) {
-            layered_array_detail::bad_layer("LayeredArray::set()", key, layer);
+        // A write lands on a layer its caller owns. Validated against the *claimed* mark
+        // rather than the current one, since an event writes at the layer it was granted
+        // however many writes happened below it in the meantime.
+        if (static_cast<int>(layer) > claimed_layer_[key]) {
+            layered_array_detail::unclaimed_layer("LayeredArray::set()", key, layer,
+                                                  claimed_layer_[key]);
         }
-        ensure_layer(layer);
+        //request_layer() allocated every layer it granted, so a claimed layer is addressable.
+        assert(layer < layer_capacity_ && "claimed layer outside the allocated storage");
         storage_[index(key, layer)] = value;
         current_layer_[key] = static_cast<int>(layer);
-        if (static_cast<int>(layer) > claimed_layer_[key]) {
-            claimed_layer_[key] = static_cast<int>(layer);
-        }
     }
 
     /**
@@ -209,17 +235,21 @@ public:
      * This is the assignment form of Enum_fast_memory_map::operator[], which returned a
      * reference and lazily marked an unwritten key as written at layer 0. Spelled out as a
      * named write so the layer being targeted is visible at the call site.
+     *
+     * \throws std::out_of_range if the key has claimed no layer at all. Like set(), this is
+     *         a write and does not claim; what it saves the caller is naming the layer, not
+     *         asking for it.
      */
     void set_current(std::size_t key, const V &value)
     {
         check_key(key);
+        if (claimed_layer_[key] < 0) {
+            layered_array_detail::unclaimed_layer("LayeredArray::set_current()", key, 0,
+                                                  claimed_layer_[key]);
+        }
         const int layer = current_layer_[key] < 0 ? 0 : current_layer_[key];
-        ensure_layer(static_cast<std::size_t>(layer));
         storage_[index(key, static_cast<std::size_t>(layer))] = value;
         current_layer_[key] = layer;
-        if (layer > claimed_layer_[key]) {
-            claimed_layer_[key] = layer;
-        }
     }
 
     /// Claim the next layer for this key. The layer's content is **unspecified until

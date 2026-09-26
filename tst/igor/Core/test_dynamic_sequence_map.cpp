@@ -10,6 +10,8 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include "LayerClaim.h"
+
 #include <igor/Core/DynamicSequenceMap.h>
 #include <igor/Core/IntStr.h>
 #include <igor/Core/SeqTypeRegistry.h>
@@ -76,9 +78,13 @@ TEST_CASE("DynamicSequenceMap: occupied() separates the three states", "[dynamic
     const SeqTypeId vd = r.id("VD_ins_seq");
     const SeqTypeId d = r.id("D_gene_seq");
 
+    // Layer 0 is claimed, not assumed: see claim_layer_zero().
+    claim_layer_zero(m, v);
+    claim_layer_zero(m, vd);
     m.set(v, &present, 0);
     m.set(vd, &absent, 0);
-    // d is left untouched
+    // d is left untouched. Note that no claim is made for it either -- a claimed-but-
+    // unwritten key is still "not yet processed", which is the point of the split.
 
     // not yet processed
     CHECK_FALSE(m.exists(d));
@@ -91,6 +97,7 @@ TEST_CASE("DynamicSequenceMap: occupied() separates the three states", "[dynamic
     CHECK(m.occupied(v));
 
     // A null pointer counts as absent too.
+    claim_layer_zero(m, d);
     m.set(d, nullptr, 0);
     CHECK(m.exists(d));
     CHECK_FALSE(m.occupied(d));
@@ -106,6 +113,7 @@ TEST_CASE("DynamicSequenceMap: non-segment values are occupied once written",
     const SeqTypeId v = r.id("V_gene_seq");
 
     CHECK_FALSE(m.occupied(v));
+    claim_layer_zero(m, v);
     m.set(v, 0, 0);            // zero is a perfectly good offset
     CHECK(m.occupied(v));
 }
@@ -118,6 +126,7 @@ TEST_CASE("DynamicSequenceMap: traversal over a fully populated ordering",
 
     Int_Str seg = {0};
     for (SeqTypeId id : r.ordering()) {
+        claim_layer_zero(m, id);
         m.set(id, &seg, 0);
     }
 
@@ -139,6 +148,9 @@ TEST_CASE("DynamicSequenceMap: traversal skips unwritten and absent segments ali
     Int_Str present = {0};
     Int_Str absent;
 
+    for (const char *name : {"V_gene_seq", "VD_ins_seq", "J_gene_seq"}) {
+        claim_layer_zero(m, r.id(name));
+    }
     m.set(r.id("V_gene_seq"), &present, 0);
     m.set(r.id("VD_ins_seq"), &absent, 0);      // written but empty
     // D_gene_seq deliberately left unwritten
@@ -161,6 +173,10 @@ TEST_CASE("DynamicSequenceMap: tandem-D falls back to D1 when D2 is absent",
     Int_Str d1_seq = {2, 2};
     Int_Str empty;
 
+    for (const char *name : {"V_gene_seq", "VD1_ins_seq", "D1_gene_seq", "D1D2_ins_seq",
+                             "D2_gene_seq"}) {
+        claim_layer_zero(m, r.id(name));
+    }
     m.set(r.id("V_gene_seq"), &v_seq, 0);
     m.set(r.id("VD1_ins_seq"), &empty, 0);
     m.set(r.id("D1_gene_seq"), &d1_seq, 0);
@@ -188,6 +204,8 @@ TEST_CASE("DynamicSequenceMap: traversal follows the layer stack", "[dynamic_seq
     Int_Str present = {0};
     Int_Str absent;
 
+    claim_layer_zero(m, r.id("V_gene_seq"));
+    claim_layer_zero(m, r.id("D_gene_seq"));
     m.set(r.id("V_gene_seq"), &present, 0);
     m.set(r.id("D_gene_seq"), &present, 0);
 
@@ -214,8 +232,10 @@ TEST_CASE("DynamicSequenceMap: a type outside the ordering has no neighbours",
     DynamicSequenceMap<Int_Str *> m(r);
     Int_Str seg = {0};
     for (SeqTypeId id : r.ordering()) {
+        claim_layer_zero(m, id);
         m.set(id, &seg, 0);
     }
+    claim_layer_zero(m, orphan);
     m.set(orphan, &seg, 0);
 
     // Registered but unordered: reachable by id, invisible to the traversal.

@@ -1121,6 +1121,7 @@ TEST_CASE("Seq_offsets_map accepts non-standard seq_types",
 
     CHECK_FALSE(offsets.exists(d1, Five_prime));
 
+    offsets.request_layer(d1, Five_prime);
     offsets.set(d1, Five_prime, 42, 0);
     CHECK(offsets.exists(d1, Five_prime));
     CHECK(offsets.get(d1, Five_prime) == 42);

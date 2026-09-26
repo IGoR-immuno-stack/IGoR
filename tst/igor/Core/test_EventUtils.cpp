@@ -104,6 +104,10 @@ TEST_CASE("EventUtils BuildScenarioSequence", "[EventUtils]") {
   Int_Str dj_ins = {0};      // A
   Int_Str vj_ins = {1};      // C
 
+  for (const Seq_type type : {V_gene_seq, D_gene_seq, J_gene_seq, VD_ins_seq, DJ_ins_seq,
+                              VJ_ins_seq}) {
+    claim_layer_zero(constructed_sequences, type);
+  }
   constructed_sequences.set(V_gene_seq, &v_seq, 0);
   constructed_sequences.set(D_gene_seq, &d_seq, 0);
   constructed_sequences.set(J_gene_seq, &j_seq, 0);
@@ -138,6 +142,9 @@ TEST_CASE("step9: build_scenario_sequence VJ produces V+VJ_ins+J",
     Int_Str v_seq = {0, 1};   // A C
     Int_Str j_seq = {2, 3};   // G T
     Int_Str vj_ins = {0};     // A
+    for (const Seq_type type : {V_gene_seq, J_gene_seq, VJ_ins_seq}) {
+        claim_layer_zero(constructed_sequences, type);
+    }
     constructed_sequences.set(V_gene_seq,  &v_seq,  0);
     constructed_sequences.set(J_gene_seq,  &j_seq,  0);
     constructed_sequences.set(VJ_ins_seq,  &vj_ins, 0);
@@ -155,6 +162,9 @@ TEST_CASE("step9: build_scenario_sequence VDJ order is V+VD+D+DJ+J",
     Int_Str v_seq  = {0};   Int_Str vd_ins = {1};
     Int_Str d_seq  = {2};   Int_Str dj_ins = {3};
     Int_Str j_seq  = {0};
+    for (const Seq_type type : {V_gene_seq, VD_ins_seq, D_gene_seq, DJ_ins_seq, J_gene_seq}) {
+        claim_layer_zero(constructed_sequences, type);
+    }
     constructed_sequences.set(V_gene_seq,  &v_seq,  0);
     constructed_sequences.set(VD_ins_seq,  &vd_ins, 0);
     constructed_sequences.set(D_gene_seq,  &d_seq,  0);

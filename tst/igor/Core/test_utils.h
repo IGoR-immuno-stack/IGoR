@@ -25,6 +25,8 @@
 
 #pragma once
 
+#include "LayerClaim.h"
+
 #include <igor/Core/AccumulationContext.h>
 #include <igor/Core/Deletion.h>
 #include <igor/Core/Dinuclmarkov.h>
@@ -310,6 +312,10 @@ public:
                         const std::string &segment = "",
                         const std::vector<std::size_t> &mismatches = {})
     {
+        claim_layer_zero(scenario_storage.seq_offsets, seq_type, Five_prime);
+        claim_layer_zero(scenario_storage.seq_offsets, seq_type, Three_prime);
+        claim_layer_zero(scenario_storage.constructed_sequences, seq_type);
+        claim_layer_zero(scenario_storage.mismatches_lists, seq_type);
         scenario_storage.seq_offsets.set(seq_type, Five_prime, five_prime, 0);
         scenario_storage.seq_offsets.set(seq_type, Three_prime, three_prime, 0);
         preset_sequences_.push_back(nt2int(segment));
@@ -332,6 +338,8 @@ public:
      */
     void preset_junction(Seq_type seq_type, Seq_Offset five_prime, std::size_t length)
     {
+        claim_layer_zero(scenario_storage.seq_offsets, seq_type, Five_prime);
+        claim_layer_zero(scenario_storage.seq_offsets, seq_type, Three_prime);
         scenario_storage.seq_offsets.set(seq_type, Five_prime, five_prime, 0);
         scenario_storage.seq_offsets.set(seq_type, Three_prime,
                                          five_prime + static_cast<Seq_Offset>(length) - 1, 0);
@@ -388,6 +396,7 @@ public:
     {
         const SafetyCell cell = exploration_storage.safety_set.cell(
                 static_cast<SeqTypeId>(left), static_cast<SeqTypeId>(right));
+        claim_layer_zero(exploration_storage.safety_set, cell);
         exploration_storage.safety_set.set(cell, value, 0);
     }
 

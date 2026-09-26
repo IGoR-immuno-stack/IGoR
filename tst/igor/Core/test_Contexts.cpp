@@ -160,6 +160,7 @@ TEST_CASE("ScenarioContext construction and mutability", "[Context][ScenarioCont
         ScenarioContext scenario(proba, constructed_sequences, seq_offsets, mismatches);
 
         auto v_seq = make_shared<Int_Str>(nt2int("ACGT"));
+        claim_layer_zero(scenario.constructed_sequences, V_gene_seq);
         scenario.constructed_sequences.set(V_gene_seq, v_seq.get(), 0);
 
         REQUIRE(scenario.constructed_sequences.get(V_gene_seq, 0) == v_seq.get());
@@ -173,8 +174,10 @@ TEST_CASE("ScenarioContext construction and mutability", "[Context][ScenarioCont
         scenario.scenario_proba *= 0.8;
 
         auto j_seq = make_shared<Int_Str>(nt2int("GC"));
+        claim_layer_zero(scenario.constructed_sequences, J_gene_seq);
         scenario.constructed_sequences.set(J_gene_seq, j_seq.get(), 0);
 
+        claim_layer_zero(scenario.seq_offsets, J_gene_seq, Five_prime);
         scenario.seq_offsets.set(J_gene_seq, Five_prime, 60, 0);
 
         // All modifications visible
@@ -258,6 +261,8 @@ TEST_CASE("ExplorationContext construction and pruning", "[Context][ExplorationC
         ExplorationContext exploration(proba_map, max_prob, threshold, index_map, next_event_ptr, safety_set, pruning_floor);
 
         // Track parent realizations
+        claim_layer_zero(exploration.index_map, 0);
+        claim_layer_zero(exploration.index_map, 1);
         exploration.index_map.set(0, 5, 0);  // Event 0, realization 5, layer 0
         exploration.index_map.set(1, 3, 0);  // Event 1, realization 3, layer 0
 

@@ -544,6 +544,8 @@ TEST_CASE("first_unfilled_segment: reports the placeholder, not the ambiguity co
         // was moved to 15 to prevent.
         Int_Str gene = nt2int("ACGT");
         Int_Str ambiguous = nt2int("ANNT");
+        claim_layer_zero(sequences, V_gene_seq);
+        claim_layer_zero(sequences, D_gene_seq);
         sequences.set(V_gene_seq, &gene, 0);
         sequences.set(D_gene_seq, &ambiguous, 0);
         CHECK(first_unfilled_segment(sequences) == kNoSeqType);
@@ -553,6 +555,8 @@ TEST_CASE("first_unfilled_segment: reports the placeholder, not the ambiguity co
     {
         Int_Str gene = nt2int("ACGT");
         Int_Str junction(3, int_undefined);
+        claim_layer_zero(sequences, V_gene_seq);
+        claim_layer_zero(sequences, VD_ins_seq);
         sequences.set(V_gene_seq, &gene, 0);
         sequences.set(VD_ins_seq, &junction, 0);
         CHECK(first_unfilled_segment(sequences) == static_cast<SeqTypeId>(VD_ins_seq));
@@ -562,6 +566,7 @@ TEST_CASE("first_unfilled_segment: reports the placeholder, not the ambiguity co
     {
         Int_Str partly = nt2int("ACGT");
         partly.at(2) = int_undefined;
+        claim_layer_zero(sequences, DJ_ins_seq);
         sequences.set(DJ_ins_seq, &partly, 0);
         CHECK(first_unfilled_segment(sequences) == static_cast<SeqTypeId>(DJ_ins_seq));
     }
@@ -571,6 +576,8 @@ TEST_CASE("first_unfilled_segment: reports the placeholder, not the ambiguity co
         // Both are legitimate states -- actively absent, and never written -- and neither
         // holds a placeholder.
         Int_Str empty;
+        claim_layer_zero(sequences, VD_ins_seq);
+        claim_layer_zero(sequences, DJ_ins_seq);
         sequences.set(VD_ins_seq, &empty, 0);
         sequences.set(DJ_ins_seq, nullptr, 0);
         CHECK(first_unfilled_segment(sequences) == kNoSeqType);
@@ -611,6 +618,8 @@ TEST_CASE("first_unplaced_segment_end: the offsets half of the same invariant", 
     {
         Seq_offsets_map offsets(vdj_seq_type_registry(), 4);
         for (const Seq_type type : {V_gene_seq, VD_ins_seq, D_gene_seq, DJ_ins_seq, J_gene_seq}) {
+            claim_layer_zero(offsets, type, Five_prime);
+            claim_layer_zero(offsets, type, Three_prime);
             offsets.set(type, Five_prime, 0, 0);
             offsets.set(type, Three_prime, 0, 0);
         }
@@ -623,13 +632,17 @@ TEST_CASE("first_unplaced_segment_end: the offsets half of the same invariant", 
         // side-taking: the two ends can in principle be created by different events.
         Seq_offsets_map offsets(vdj_seq_type_registry(), 4);
         for (const Seq_type type : {V_gene_seq, VD_ins_seq, D_gene_seq, DJ_ins_seq, J_gene_seq}) {
+            claim_layer_zero(offsets, type, Five_prime);
+            claim_layer_zero(offsets, type, Three_prime);
             offsets.set(type, Five_prime, 0, 0);
             offsets.set(type, Three_prime, 0, 0);
         }
         Seq_offsets_map missing_three_prime(vdj_seq_type_registry(), 4);
         for (const Seq_type type : {V_gene_seq, VD_ins_seq, D_gene_seq, DJ_ins_seq, J_gene_seq}) {
+            claim_layer_zero(missing_three_prime, type, Five_prime);
             missing_three_prime.set(type, Five_prime, 0, 0);
             if (type != DJ_ins_seq) {
+                claim_layer_zero(missing_three_prime, type, Three_prime);
                 missing_three_prime.set(type, Three_prime, 0, 0);
             }
         }
@@ -644,9 +657,13 @@ TEST_CASE("first_unplaced_segment_end: the offsets half of the same invariant", 
         // "no width" -- an insertion that inserted nothing has placed both its ends.
         Seq_offsets_map offsets(vdj_seq_type_registry(), 4);
         for (const Seq_type type : {V_gene_seq, D_gene_seq, DJ_ins_seq, J_gene_seq}) {
+            claim_layer_zero(offsets, type, Five_prime);
+            claim_layer_zero(offsets, type, Three_prime);
             offsets.set(type, Five_prime, 0, 0);
             offsets.set(type, Three_prime, 0, 0);
         }
+        claim_layer_zero(offsets, VD_ins_seq, Five_prime);
+        claim_layer_zero(offsets, VD_ins_seq, Three_prime);
         offsets.set(VD_ins_seq, Five_prime, 11, 0);
         offsets.set(VD_ins_seq, Three_prime, 10, 0);
         CHECK(first_unplaced_segment_end(offsets).first == kNoSeqType);
@@ -660,6 +677,8 @@ TEST_CASE("first_unplaced_segment_end: the offsets half of the same invariant", 
         // every registered id this would fire on every VJ scenario.
         Seq_offsets_map offsets(vj_seq_type_registry(), 4);
         for (const Seq_type type : {V_gene_seq, VJ_ins_seq, J_gene_seq}) {
+            claim_layer_zero(offsets, type, Five_prime);
+            claim_layer_zero(offsets, type, Three_prime);
             offsets.set(type, Five_prime, 0, 0);
             offsets.set(type, Three_prime, 0, 0);
         }
