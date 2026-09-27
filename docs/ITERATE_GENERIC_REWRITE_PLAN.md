@@ -1542,7 +1542,7 @@ Five new pieces, in dependency order. Each is one commit with its own tests.
 | # | Component | Home | Replaces | Consumers |
 |---|---|---|---|---|
 | S1 | `OffsetDelta` / `LengthRange` + the two Phase A virtuals | `Rec_Event.h` | three conflicting meanings of `len_min`/`len_max` | S2 |
-| S2 | ✅ **built** — `PendingModifierBounds` | new `src/igor/Core/JunctionGeometry.h` | 8 scalars × 2 classes + 120 lines of lookup | S3, B11 (✅ B11a); **B5 is R10's**, because S2 is right and B5's four arms were not (§7.4) |
+| S2 | ✅ **built** — `PendingModifierBounds` | new `src/igor/Core/JunctionGeometry.h` | 8 scalars × 2 classes + 120 lines of lookup | S3, B11 (✅ B11a); **B5 was R10's**, because S2 is right and B5's four arms were not (§7.4, landed Sep 26 2026) |
 | S3 | ✅ **built and consumed** — `reachable()` + `Overlap check_overlap()` | same | 8 comparison blocks | B5 (✅ 4b), B11 (✅ B11a) |
 | S4 | `SegmentSpan` + `affects_length_of` / `affects_proba_of` (S4a ✅), then the span-keyed map (S4c) | `Rec_Event.{h,cpp}`, `SegmentSpan.h` | 4 self-filters (✅) + 7 named maps | B5, B6, B11 |
 | S5 | ✅ **done** — `SafetyMatrix`: row bitmask over `LayeredArray<uint32_t>`, indexed by ordering position (§2.3, §6.17) | new `src/igor/Core/SafetyMatrix.h` + `ExplorationContext.h` | `Event_safety` enum, `Safety_bool_map` | B5, B11 |
@@ -1690,16 +1690,16 @@ already flagged as the milestone-1 blocker and because `Gene_choice` is the only
 | **3** | ✅ **done** — **B11a**, `Gene_choice::iterate`'s three-way switch and the twelve alignment-path branches gone; first production consumer of S2/S3. The V/J-versus-D asymmetry is read off the ordering (`left_neighbor`/`right_neighbor` == `kNoSeqType`), which settles O6's fallback switch as one boolean and gives a tandem D1/D2 pair the internal behaviour unnamed. §7.1's two arithmetics are one helper with both arms named, carried verbatim. 939 lines deleted, 628 added, fifteen members gone. *Original scope:* `Gene_choice` alignment path generic (G4, G2, G8, and G5 via S4a-c). Characterization already delivered by T0 | full ladder + benchmark | **yes**, except §7.1 |
 | **4a** | ✅ **done** — `tst/igor/Core/test_deletion_iterate.cpp`, **662 assertions in 18 `TEST_CASE`s**, against the unmodified event. `Deletion::iterate` went from **0 % to 98.7 % lines / 91.8 % blocks**; 55 mutations run, 49 caught, and the six survivors are **five provably dead or dominated branches**, each named in §6.14. Includes the zero-length junction T0 deferred, and found the unguarded J palindrome of §7.15. **Moved ahead of S5** (§6.8, F4) | unit + mutation | n/a — tests only |
 | **S5** | ✅ **done** — `SafetyMatrix` in its own header; the pair is a `SafetyCell` (row, column) in **ordering positions, not seq_type ids** — the VJ model is where the two disagree; row-suffix propagation; `Event_safety` and `Safety_bool_map` deleted. Three departures from §2.3, all in §6.17: the 32-position limit lives in the container rather than in `freeze()`, a write is read-modify-write (which is what makes `layer - 1` still mean what it did), and a row is claimed **once per row, not once per check**. Propagation is measurably free and structurally inert in VDJ — the only cell it can reach there is (V, J), and that cell is rewritten before anyone reads it. 6 mutations, all caught; 4a's sections pass with their expectations unchanged | full ladder + the empty-segment transitivity test + 4a's sections unchanged | **yes** (§2.3 corollary) |
-| **4b** | ✅ **done** — **B5**, `Deletion::iterate` generic. The four-arm switch is gone: **981 → 246 lines**, 1266 deleted against 512 added, thirty-one members retired. Everything the arms differed in is read at init from `event_side` and from whether the segment is anchored on an end of the read — the same boolean B11a gave `Gene_choice` — plus one A0 query for "does anything still move my other end". First production consumer of **S3**; **S2 is R10's**, because `pending_` is *correct* and the four arms were not (§7.4, measured active). §7.21 found and fixed. §6.18 | full ladder + benchmark + convergence | **yes**, via §7.4's reproduction |
+| **4b** | ✅ **done** — **B5**, `Deletion::iterate` generic. The four-arm switch is gone: **981 → 246 lines**, 1266 deleted against 512 added, thirty-one members retired. Everything the arms differed in is read at init from `event_side` and from whether the segment is anchored on an end of the read — the same boolean B11a gave `Gene_choice` — plus one A0 query for "does anything still move my other end". First production consumer of **S3**; **S2 was R10's**, because `pending_` is *correct* and the four arms were not (§7.4, measured active; R10 landed Sep 26 2026). §7.21 found and fixed. §6.18 | full ladder + benchmark + convergence | **yes**, via §7.4's reproduction |
 | **5a** | ✅ **done** — three parts. (i) The per-branch unit sections (Sep 16 2026): nine `TEST_CASE`s over both sub-branches, `Gene_choice::iterate` from **87.4 % to 96.3 % blocks**, every branch covered *except the two that do not terminate* (§7.17); §7.16, §7.17 and §7.18 fell out of writing them. (ii) The `bound / realized_proba` instrumentation (§6.16), which measured what §6.10 asked and found §7.19. (iii) The widened `span_proba_factor` cover (§6.16). The end-to-end half landed earlier: `scripts/tests/test_no_d_align.sh`, see §7.9 | unit + mutation | n/a — tests and an off-by-default instrument |
-| **5b** | ✅ **done** — **B11b**, the exhaustive position scan generic. `Gene_choice::iterate` has no gene literal left. `⊗ᵉⁿᵘᵐ` is `SpanDecomposition` + `JunctionBound::Fold::Retain`, executed by `Rec_Event::build_retained_decomposition()` and gated by `exhaustive_position_fallback_`; both `finalize_Len_proba_bound` and its adopting half are deleted, so **the initialization sweep has no virtuals left**. The retained tuple carries a realization index rather than a gene name (§2.5). §7.17 fixed structurally — the advance is in the loop header; §7.16 carried, as R7's row requires; §7.4 still reproduced, and R10 now swaps both consumers at once. §6.19 | full ladder + benchmark + convergence | **yes** |
+| **5b** | ✅ **done** — **B11b**, the exhaustive position scan generic. `Gene_choice::iterate` has no gene literal left. `⊗ᵉⁿᵘᵐ` is `SpanDecomposition` + `JunctionBound::Fold::Retain`, executed by `Rec_Event::build_retained_decomposition()` and gated by `exhaustive_position_fallback_`; both `finalize_Len_proba_bound` and its adopting half are deleted, so **the initialization sweep has no virtuals left**. The retained tuple carries a realization index rather than a gene name (§2.5). §7.17 fixed structurally — the advance is in the loop header; §7.16 carried, as R7's row requires; §7.4 still reproduced here, and **R10 swapped both consumers at once on Sep 26 2026** — of which only the `Deletion` one moved anything. §6.19 | full ladder + benchmark + convergence | **yes** |
 | **R0–R3b** *(R9, R0, R2, R1+R3, R3b ✅)* | **Repair phase** (§6.9) — the decided behaviour changes, held here so everything above is idempotent end to end. **Sequenced Sep 22 2026**, because read as a running order the catalogue is wrong: R9 and §7.18's independent assert first (free), then §7.12's throw, then **R1 and R3 as one commit** (their dependencies point at each other), then R3b. **R4 left the order Sep 23** — gated on `feature/tk_refactoring`, like S4d is on `feature/TensorLinalg`. §7.11's occupancy walk is *not* in R2 — it is deferred to B10 | full ladder, per commit | **yes** for this whole block — each row is expected bitwise and the expectation is what is tested |
 | **R5a / R5b** | §7.1 and §7.8, per decision O4, **split Sep 22 2026** so each golden movement has one cause: **R5a** is §7.1 + §7.18 — the credited core length is derived wrongly in both arms, it can come out negative, and the error-rate accessor takes `size_t`, so the derivation and the signature are corrected together (latent on both corpora today, measured); three `[!shouldfail]` tags. **R5b** is §7.8's position-path convention; the fourth tag. R5a moves the inference corpus, R5b moves `no_d_align` | full ladder + the corrected-core unit tests | **no** — same |
 | **R7** | **§7.16** — the `no_d_align` probability compounds across placements. Its two `[!shouldfail]` tags come off, and `scripts/tests/data/reference/no_d_align_output/` moves with it. Held out of 5b so the collapse there stays bitwise | full ladder + the `no_d_align` regression, regenerated | **no** — the golden data for that path moves |
 | **R8** | **§7.19** — an `Insertion`'s bound counts its own realization twice and falls below the truth, so insertion nodes prune harder than the threshold asks. Needs a decision first: fix the consumer, or stop folding the consuming event into its own junction (which is also 6.14's mirror finding on `Deletion`). Re-measure with 5a's instrument afterwards | full ladder + the bound instrument | **no** — every output moves |
 | **R6** | Within-clique joint max in the span fold (§6.9); optional cross-clique parent indexing | full ladder, **convergence weighted heavily** | **no** — a tighter bound prunes more |
 | **R9** | **§7.20** — `make_transversions`'s `is_int_seq` arm and its multi-character `'14'` deleted. The only R row that is **bitwise-neutral by construction**: nothing calls it. Queued for tidiness, not blocked | full ladder | **yes** |
-| **R10** | **§7.4** — `Deletion::legacy_offset_delta()` deleted, the partner interval read from `PendingModifierBounds`. 4b carries the short bound so that the collapse itself is bitwise; this is where it stops. Also the last hardcoded per-partner lookup in the body | full ladder + the no_d_align reference, regenerated | **no** — the no_d_align golden data moves |
+| **R10** | ✅ **done** — **§7.4**. `JunctionGeometry::legacy_offset_delta()` deleted, the partner interval read from `PendingModifierBounds`, and the by-hand translation in the body replaced by `reachable()`. 4b carried the short bound so that the collapse itself was bitwise; this is where it stopped | full ladder + the no_d_align reference, regenerated | **no** — the no_d_align golden data moved, on 4 of 300 sequences |
 
 **The split is an ordering requirement, not bookkeeping.** The *a* commit lands before the *b*
 commit and is mutation-verified there, where mutation-verification means something: a
@@ -2281,7 +2281,7 @@ Decided behaviour changes, none of which had a row in §6 before this re-assessm
 | R5b | §7.8 — the `no_d_align` position path places D's 5' end one nucleotide too far 5', using the alignment path's `L` under the opposite convention. Fourth `[!shouldfail]` tag. Split from R5a Sep 22 so each golden movement has one cause; O4's *"fix at the very end"* still governs both | Sep 1, split Sep 22 | `Gene_choice` | **`no_d_align` moves** |
 | R6 | Within-clique **joint** max in the span fold, using S4b's group hook; optionally cross-clique parent indexing after it | Sep 10 | the span fold (all events) | **golden data may move** — a tighter bound prunes more, so fewer scenarios are summed. Needs the **convergence** gate, not just regression |
 | R9 | §7.20 — delete `make_transversions`'s `is_int_seq` arm, whose `'14'` is a multi-character constant and whose representation cannot hold the code it tests for. **Not blocked on 5b**: no caller reaches it, so the deletion is bitwise-neutral by construction and can land whenever it is convenient | Sep 21 | `Deletion.{h,cpp}` | none — dead code, zero call sites |
-| R10 | §7.4 — `Deletion` stops reproducing the short `len_min` / `len_max` bound. Delete `Deletion::legacy_offset_delta()`, give the event a `JunctionGeometry::PendingModifierBounds` and read the partner interval from it. **One line of behaviour, and it is the line 4b could not take**: `Gene_choice` has been on the correct interval since B11a, so this is also what makes the two agree again | Sep 21 | `Deletion` | **the no_d_align golden data moves** — pairs stop being marked established-safe when they are not, so a downstream deletion performs a check it used to skip. Measured: `Pgen` and both coverage tracks move in the 4th significant digit |
+| **R10** | ✅ **done Sep 26 2026.** §7.4 — `Deletion` stops reproducing the short `len_min` / `len_max` bound. `JunctionGeometry::legacy_offset_delta()` is deleted, both events carry a `PendingModifierBounds`, and `Deletion::iterate` reads its partner intervals from `pending_.reachable()` rather than translating a cached delta by hand. **One line of behaviour, and it is the line 4b could not take**: `Gene_choice` has been on the correct interval since B11a, so this is also what makes the two agree again | Sep 21, done Sep 26 | `Deletion`, `Gene_choice` | **`no_d_align` moves, and nothing else does.** Exactly one interval differs on the demo model, and the `Gene_choice` half measured **bitwise on its own**: see below |
 | R7 | §7.16 — the `no_d_align` path compounds the D probability across placements, so placement *k* is handed off at `incoming × p^k` where every placement is the same realization and should carry `incoming × p`. Both exhaustive loops read the live `scenario.scenario_proba` where the alignment loop restarts from a value captured once. Two `[!shouldfail]` tags. Held out of 5b so that collapse stays bitwise; the repair must re-check §6.15's first-stage `break`, whose safety currently rests on the monotonicity the defect creates | Sep 16 | `Gene_choice` | **`no_d_align` moves** — the reference encodes the compounded values |
 | R11 | **Delete the placeholder guard in `Dinucl_markov::iterate_common()`.** `ins_seq.at(i) == int_undefined` existed for the regime R1 removed: one buffer shared with the `Insertion` across sibling scenarios, where an already-written position had to read as *someone filled this*. The buffer is now created per scenario with every position a placeholder, so the guard is unreachable through `iterate()` and the unit case that pinned it was deleted rather than rewritten. Dead code with a live trap in it — the same shape as R9, and the reason it is a row rather than a tidy-up is that it is the last residue of the shared-buffer design | Sep 24 | `Dinucl_markov` | none — unreachable by construction after R1 |
 | R8 | §7.19 — an `Insertion`'s bound multiplies in its own realization's marginal twice, once through `proba_contribution` and once inside the junction profile it reads, so the bound falls below the probability the scenario goes on to realize and insertion nodes prune harder than the threshold asks. **Needs a decision before it can be written**: fix the consumer (local, changes only the insertion's bound), or stop folding the consuming event into its own junction (§2.5's frame, which also sweeps in §6.14's mirror on `Deletion` — bitwise-invisible there because it *weakens* the bound — and overlaps R6's rework of the same fold, in which case the two merge) | Sep 17 | `Insertion`, and under the second shape the fold and `Deletion` | **every output moves** |
@@ -2291,7 +2291,8 @@ changes — they close paths the corpus does not reach — and **all five measur
 expectation is the thing to *test*, not to assume: a surprise here is a finding about the corpus,
 not a reason to accept the diff. R5a,
 R5b, R7, R8, R10 and R6 are the rows expected to move numbers, and they come last for exactly that
-reason.
+reason. **R10 landed Sep 26 2026** and is the first of them: it moved `no_d_align` and left the
+other four tracks bitwise, which is the narrowness the ordering was arranged to get.
 
 #### The execution order *(Quentin, Sep 22 2026)*
 
@@ -2306,7 +2307,7 @@ first and attributability second:
 | **1a** | ✅ **R2** — throw on an empty anchor; the `[.]` is off and a second case covers the skip | full ladder | none — confirmed bitwise |
 | **1b** | ✅ **R1+R3**, one commit — O12 (a′) | full ladder | none — confirmed bitwise on all five tracks |
 | **1c** | ✅ **R3b** — `LayeredArray::set()` requires the claim | full ladder | none — confirmed bitwise |
-| **2a** | **R10** — §7.4's short bound deleted | full ladder + `no_d_align` regenerated | `no_d_align` only |
+| **2a** | ✅ **R10** — §7.4's short bound deleted | full ladder + `no_d_align` regenerated | `no_d_align` only — confirmed, the other four tracks bitwise |
 | **2b** | **R7** — §7.16's compounding repaired | full ladder + `no_d_align` regenerated | `no_d_align` only |
 | **3a** | **R5a** — §7.1 + §7.18 | full ladder + the corrected-core unit tests | inference corpus |
 | **3b** | **R5b** — §7.8 | full ladder + `no_d_align` regenerated | `no_d_align` only |
@@ -2420,6 +2421,92 @@ Three things make that result stronger than it first looks, not weaker:
 
 So **no R row queues behind R3b**, and the "each new violation becomes its own row" clause above is
 discharged with an empty list rather than left open.
+
+**R10 in more detail, and what it actually moved** *(Sep 26 2026)*.
+
+`JunctionGeometry::legacy_offset_delta()` is gone. `Deletion` gained a `pending_`, so
+`FlankCheck::partner_delta` and the by-hand `{offset + delta.min, offset + delta.max}` in the
+preamble are replaced by the one `pending_.reachable(partner_id, partner_side, offset)` call
+`Gene_choice` was already making — which is the last per-partner arithmetic the body carried.
+`Gene_choice`'s two `own_*_travel_` members went the same way: `own_five_prime_reach()` and
+`own_three_prime_reach()` now *are* `pending_.reachable()`, and the scan's two remaining scalar
+reads are `pending_.offset_delta()`, hoisted out of the per-realization loop they sit in because
+what they replace were member reads. Neither event can now hold an interval the other does not.
+
+**Exactly one interval differs on the demo model, and it is the one §7.4 named.** Instrumenting
+`Deletion::initialize_event()` to print both readings for every partner query gives six queries
+across the four deletion events, of which five agree to the bit:
+
+| event | partner end | legacy | `pending_` |
+|---|---|---|---|
+| V 3′ deletion | D 5′ | `[-3, 16]` | **`[-4, 16]`** |
+| V 3′ deletion | J 5′ | `[-4, 18]` | `[-4, 18]` |
+| D 5′ deletion | V 3′ | `[0, 0]` | `[0, 0]` |
+| D 3′ deletion | J 5′ | `[-4, 18]` | `[-4, 18]` |
+| J 5′ deletion | V 3′ | `[0, 0]` | `[0, 0]` |
+| J 5′ deletion | D 3′ | `[0, 0]` | `[0, 0]` |
+
+**The two halves were landed together and measured apart.** Building `Gene_choice` on `pending_`
+with `Deletion` left on the legacy delta is **bitwise on `no_d_align`**; the converse — `Deletion`
+on `pending_`, `Gene_choice` left on the legacy delta — reproduces the full move, value for value.
+So §7.4 never reached the output through `Gene_choice` at all: the exhaustive scan's window is
+clipped by the template length and by the neighbour's reach before the travel range binds, and
+`d_5_max_del` being 3 rather than 4 makes no difference to where it starts. Everything §7.4 costs,
+it cost through `Deletion`.
+
+**The predicted mechanism is confirmed, with counts.** Widening D's 5′ reach by one moves only the
+lower bound, and the lower bound is what decides `Safe`, so the V 3′ deletion marks the (V, D) pair
+established-safe less often and the D 5′ deletion, which reads that mark, stops skipping. Over the
+300-sequence `no_d_align` pass, at the D 5′ deletion:
+
+| | before | after |
+|---|---|---|
+| pair found already safe, check skipped | 17 265 | **14 477** |
+| check actually run | 17 785 | **20 852** |
+| realizations discarded as `Infeasible` | 95 050 | **98 221** |
+
+The V 3′ deletion's own discard count is unchanged at 5, which is the other half of the prediction:
+widening the *lower* bound cannot make the best case fail, so nothing is newly rejected where the
+interval is read — only downstream, where the skipped check now runs.
+
+**What moved in the reference.** Four files, no row added or removed: 4 of 300 `Pgen` rows, 40 of
+3 000 scenario rows, 4 of 89 V-coverage rows (104 values, worst relative move **0.0017 %**) and 3 of
+15 J-coverage rows (9 values, worst **0.59 %**). The `Pgen` moves are sequences 10 (+0.092 %),
+24 (+0.120 %), 179 (+0.080 %) and 92 (+7.935 %). Every moved sequence reports the **same ten
+scenario tuples in the same order** as before; for 10, 24 and 179 their *absolute* probabilities are
+unchanged to six significant figures and only the `Pgen` denominator moves, and for 92 three of the
+ten rise by 25.4 % while the other seven stay put.
+
+**The direction is the opposite of what §7.4 predicted, and that is the finding.** §7.4 said the
+reference encodes scenarios a correct interval discards, which reads as *the repair removes mass*.
+The discards are real and measured above — 3 171 more of them — and yet every `Pgen` that moved
+moved **up**. The reason is that this is a *dynamically pruned* search: `GenModel` seeds
+`seq_max_prob_scenario` from `likelihood_threshold / probability_ratio_threshold` and then raises it
+as better scenarios are found, and each event admits a branch only against `best_so_far × ratio`. A
+verdict that changes *when* a scenario is discarded changes which branches a later part of the
+descent is still allowed to reach, and the net is not signed by the local rule.
+
+**No performance claim is attached to this row, and the reason is worth recording.** The
+convergence gate passed on every build tried, but its inference case timed 1658 s, 1055 s, 450 s and
+306 s across four R10 builds, against pre-R10 baselines of 276 s and 562 s — the second of those
+taken an hour after the first, on the same machine, with nothing else running. The box's throughput
+moved by about 4× over one evening, so the only defensible reading of these numbers is *pass*. The
+apparent 6× regression that the first pair suggested, and the cached-delta variant written to chase
+it, were both artefacts: `FlankCheck::partner_delta` came back and went away again, and the body
+keeps the `reachable()` call. **What the mechanism predicts is a speed-up** — the D 5′ deletion
+discards earlier, so the subtree below it is smaller — and the back-to-back pair that is least
+unreliable (562 s against 450 s) points that way. Neither figure should be quoted without a quiet
+machine behind it.
+
+**Measured, because it is worth not guessing about**: on the *pre-R10* build, sequence 92 alone
+gives `Pgen` = 9.17101e-20, 6.56963e-20 and 6.33271e-20 at `probability_ratio_threshold` 1e-4, 1e-6
+and 1e-8 — so on this path the estimate **falls as the prune is loosened**, which is backwards for a
+sum over an enumerated set and is true with or without R10. That is a property of the `no_d_align`
+path, not of this repair, and it is why "more checks run, more realizations discarded" cannot be
+turned into "smaller `Pgen`" by argument. **It is also a new observation and not yet owned by a row**
+— §7.16 (R7) is the next thing to touch how these placements are weighted, and its re-measurement
+should be the occasion to decide whether this is a separate defect or the same one seen from the
+other end.
 
 **R6 in more detail** *(Quentin, Sep 10 2026)*. §6.10 shows the span fold accumulates
 `∏ₑ maxᵢ Pₑ(rₑ|i)`, a product of per-event maxima, and that taking the max **jointly** over a
@@ -3545,8 +3632,8 @@ Switching the one call to `pending_.reachable()` makes the no_d_align reference 
 Rather than mix that with the collapse, 4b reproduces the short bound in one named function,
 `Deletion::legacy_offset_delta()`, whose whole job is to be deleted. It is still generic — it sums
 over the pending events instead of looking one up by `(Deletion_t, seq_type, side)`, so even the
-bug-compatible form handles two deletions on one end. **R10** deletes it, gives the event a
-`pending_`, and moves the golden data. That was the choice put to the maintainer and taken
+bug-compatible form handles two deletions on one end. **R10** deleted it on Sep 26 2026, gave the
+event a `pending_`, and moved the golden data. That was the choice put to the maintainer and taken
 deliberately; O7's rule that the refactoring block stays idempotent end to end is what decided it.
 
 *Measured, and the reason it is worth saying twice*: shimming the legacy interval back in makes
@@ -3632,8 +3719,11 @@ mixing it in would have cost the bitwise gate on the one path the corpus barely 
 **§7.4 again, and the same answer.** `Gene_choice`'s four `d_{5,3}_{min,max}_del` scalars — the
 last hand-written "the D deletion on side X" lookups in the file — become two
 `JunctionGeometry::legacy_offset_delta()` calls. Generic in form, still §7.4's short bound in
-value, and R10 swaps both events at once: 4b moved that function out of `Deletion` and into
-`JunctionGeometry.h` so that the repair is one deletion rather than two.
+value, and R10 swapped both events at once: 4b moved that function out of `Deletion` and into
+`JunctionGeometry.h` so that the repair was one deletion rather than two. *(R10, Sep 26 2026:
+swapping this half alone measured **bitwise** — the scan's window is bounded by the template and by
+the neighbour's reach before the travel range binds, so the short bound never reached the output
+through `Gene_choice`. The whole of §7.4's effect came through `Deletion`.)*
 
 **Dead weight removed**: `D_position_comparator` (the decomposition sorts itself), the six
 `{v,d,j}_chos{en,ce_exist}` booleans and `new_tmp_err_w_proba` — all written by
@@ -3751,7 +3841,7 @@ bound, and 4a pins both outcomes in both D arms (inverting the branch is caught)
 bound rather than a wrong one, so it is pinned as observed, not as intended — the `//TODO` names a
 computation nobody has decided on.
 
-### 7.4 — `len_min` / `len_max` accumulation is order-dependent (**active**, not latent)
+### 7.4 — `len_min` / `len_max` accumulation is order-dependent (**fixed by R10, Sep 26 2026**)
 
 Both file-loading constructors — `Deletion(seq_type, side, realizations)`
 ([Deletion.cpp:175-189](../src/igor/Core/Deletion.cpp#L175-L189)) and
@@ -3787,14 +3877,22 @@ reference encodes those extra scenarios.
 
 `JunctionGeometry::PendingModifierBounds` reads the realization set through `deletion_range()`
 and is right, which is why `Gene_choice` has been on the correct interval since B11a and
-`Deletion` was not: the two disagreed with each other from B11a until 4b, and still do until
-**R10**. 4b reproduces the short bound in one named function, `Deletion::legacy_offset_delta()`,
-so that the collapse itself stays bitwise; R10 deletes that function and reads
-`pending_.offset_delta()` instead, and the no_d_align golden data moves there.
+`Deletion` was not: the two disagreed with each other from B11a until 4b, and did so under one
+named function — `JunctionGeometry::legacy_offset_delta()` — from 4b until **R10**, which deleted
+it on Sep 26 2026.
+
+**The prediction above was right about the interval and wrong about the direction.** The interval
+is exactly as measured: on the demo model the one partner interval that differs is the V 3′
+deletion's view of D's 5′ end, `[-3, 16]` where the truth is `[-4, 16]`, and every other partner
+interval in the model is identical under both readings. The mechanism is confirmed too — widening
+the lower bound makes `Safe` harder to reach, so the D 5′ deletion stops being told the pair is
+already separated and runs the check itself. What does *not* follow is the sentence above it: *"the
+no_d_align reference encodes those extra scenarios"* implies the reference is too generous and that
+the repair removes mass. It does not. See **R10 in more detail**, below the execution order.
 
 The accumulation itself is still worth repairing at the source — `else if` → two `if`s — but it
-is read by `Insertion` and by `Gene_choice`'s surviving `no_d_align` scalars too, so fixing it
-there moves more than one baseline at once. R10 does the narrow thing.
+is read by `Insertion` too, so fixing it there moves more than one baseline at once. R10 did the
+narrow thing, and after it the only readers of the short bound left are `Insertion`'s.
 
 ### 7.6 — In `Gene_choice`, the overlap early-out is subsumed by the junction-length guard
 
