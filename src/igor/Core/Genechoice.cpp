@@ -453,6 +453,10 @@ void Gene_choice::iterate(
             //unplaced one contributes the read's end, which the preamble already recorded.
             const SeqTypeId left_id = flank_checks_[nearest_left_check_].partner_id;
             const SeqTypeId right_id = flank_checks_[nearest_right_check_].partner_id;
+            //Loop-invariant, and hoisted out of the scan because the two scalars this replaces
+            //were member reads: how far this segment's own ends can still be trimmed.
+            const int five_prime_max_travel = pending_.offset_delta(this->seq_type_id, Five_prime).max;
+            const int three_prime_min_travel = pending_.offset_delta(this->seq_type_id, Three_prime).min;
 
             for (unordered_map<string, Event_realization>::const_iterator gene_iter =
                          this->event_realizations.begin();
@@ -465,9 +469,9 @@ void Gene_choice::iterate(
                 //it is kept: a template shorter than the deletion range cannot be trimmed past
                 //its own start.
                 const int five_prime_travel =
-                        static_cast<std::size_t>(own_five_prime_travel_.max) > template_size
+                        static_cast<std::size_t>(five_prime_max_travel) > template_size
                                 ? -static_cast<int>(template_size)
-                                : -own_five_prime_travel_.max;
+                                : -five_prime_max_travel;
 
                 //Start one nucleotide after the left neighbour's furthest reach, given maximum
                 //deletions on this segment's 5' end.
@@ -483,8 +487,8 @@ void Gene_choice::iterate(
                 placement_3_off = placement_5_off + template_size - 1;
                 //Likewise on the 3' side: where the window's trailing edge starts from.
                 Seq_Offset three_prime_floor =
-                        std::abs(own_three_prime_travel_.min) < static_cast<int>(template_size)
-                                ? placement_3_off + own_three_prime_travel_.min
+                        std::abs(three_prime_min_travel) < static_cast<int>(template_size)
+                                ? placement_3_off + three_prime_min_travel
                                 : placement_5_off;
 
                 //Always the same sequence for the given template
@@ -900,18 +904,6 @@ void Gene_choice::initialize_event(
 
     //downstream_proba_map.get_all_current_memory_layer(current_downstream_proba_memory_layers);
 
-
-    //How far this segment's own two ends can still be trimmed, for the exhaustive scan below --
-    //the only consumer left of a travel range on *this* event's segment; the alignment path
-    //asks `pending_`. The two hand-written lookups of "the D deletion on side X" are gone, so a
-    //tandem D1/D2 pair needs no new code here either.
-    //
-    //It is still `legacy_offset_delta` and not `pending_`: §7.4, the same short bound 4b had to
-    //reproduce, and the same one-line swap in R10.
-    own_five_prime_travel_ = JunctionGeometry::legacy_offset_delta(this->seq_type_id, Five_prime,
-                                                                   events_map, processed_events);
-    own_three_prime_travel_ = JunctionGeometry::legacy_offset_delta(this->seq_type_id, Three_prime,
-                                                                    events_map, processed_events);
 
     this->Rec_Event::initialize_event(processed_events, events_map, offset_map, downstream_proba_map,
                                       constructed_sequences, safety_set, error_rate_p, mismatches_list, seq_offsets,

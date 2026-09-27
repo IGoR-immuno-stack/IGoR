@@ -137,11 +137,6 @@ private:
         int partner_offset_layer = -1;
         bool partner_chosen = false;          ///< the partner is placed before this event
 
-        /// How far the partner's facing end can still travel. `JunctionGeometry::
-        /// legacy_offset_delta()`, which is §7.4's short answer rather than
-        /// `PendingModifierBounds`'; R10 is the swap.
-        OffsetDelta partner_delta{};
-
         //Per scenario, filled by the preamble of iterate():
         Seq_Offset offset = 0;                            ///< where the partner's facing end is
         JunctionGeometry::OffsetInterval reach{};         ///< ...and where it can still go
@@ -150,6 +145,11 @@ private:
 
     std::vector<FlankCheck> flank_checks_;
 
+    /// How far every end can still travel once the undecided events have played out. Read in
+    /// the preamble of iterate() for each checked partner's facing end, and the same object
+    /// `Gene_choice` reads -- which is what makes the two events agree on an interval again
+    /// (§7.4, R10).
+    JunctionGeometry::PendingModifierBounds pending_;
 
     /// Index into flank_checks_ of the neighbour bounding the junction this deletion widens --
     /// the nearest placed one on the trimmed side -- or -1 when there is none.

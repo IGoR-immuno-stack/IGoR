@@ -153,17 +153,15 @@ private:
                                       JunctionGeometry::OffsetInterval five_reach,
                                       JunctionGeometry::OffsetInterval three_reach);
 
-    /// Where this segment's own ends can still travel from a given placement, under §7.4's
-    /// short bound. One line of R10 away from being `pending_.reachable()`.
+    /// Where this segment's own ends can still travel from a given placement. The same
+    /// `pending_` the alignment path reads, so the two paths cannot drift apart (R10).
     JunctionGeometry::OffsetInterval own_five_prime_reach(Seq_Offset five_off) const
     {
-        return {static_cast<Seq_Offset>(five_off + own_five_prime_travel_.min),
-                static_cast<Seq_Offset>(five_off + own_five_prime_travel_.max)};
+        return pending_.reachable(this->seq_type_id, Five_prime, five_off);
     }
     JunctionGeometry::OffsetInterval own_three_prime_reach(Seq_Offset three_off) const
     {
-        return {static_cast<Seq_Offset>(three_off + own_three_prime_travel_.min),
-                static_cast<Seq_Offset>(three_off + own_three_prime_travel_.max)};
+        return pending_.reachable(this->seq_type_id, Three_prime, three_off);
     }
 
     /// Section 7.1's two arithmetics. See credited_core_length().
@@ -230,12 +228,6 @@ private:
     int memory_layer_off_threep;
     int memory_layer_off_fivep;
     int memory_layer_proba_map_seq;
-
-    /// How far this segment's own ends can still travel, for the exhaustive position scan.
-    /// §7.4's short answer rather than `pending_`'s, carried until R10 -- see
-    /// JunctionGeometry::legacy_offset_delta().
-    OffsetDelta own_five_prime_travel_{};
-    OffsetDelta own_three_prime_travel_{};
 
     /// This event's realizations by their index, so the retained decomposition can carry an
     /// index rather than a gene name -- §2.5's per-candidate hash lookup, removed. Points into

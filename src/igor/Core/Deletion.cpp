@@ -242,8 +242,7 @@ void Deletion::iterate(
         if (exploration.is_overlap_safe(check.safety_cell, check.safety_layer - 1)) {
             exploration.set_overlap_safety(check.safety_cell, true, check.safety_layer);
         } else {
-            check.reach = {static_cast<Seq_Offset>(check.offset + check.partner_delta.min),
-                           static_cast<Seq_Offset>(check.offset + check.partner_delta.max)};
+            check.reach = pending_.reachable(check.partner_id, check.partner_side, check.offset);
             check.active = true;
         }
     }
@@ -681,10 +680,13 @@ void Deletion::initialize_event(
     }
 
     //The eight `*_min_del` / `*_max_del` scalars and the sixty lines that filled them by
-    //looking up the V 3', D 5', D 3' and J 5' deletion events by hand collapse to one query per
-    //checked partner (§2.1); a topology with more than one deletion per end needs no new code
-    //for it, because the deltas sum.
+    //looking up the V 3', D 5', D 3' and J 5' deletion events by hand collapse to this one
+    //object (§2.1); a topology with more than one deletion per end needs no new code for it,
+    //because the deltas sum. It reads each pending event's realization set rather than its
+    //accumulated `len_min` / `len_max`, which is the whole of §7.4 and the reason R10 moves
+    //the no_d_align reference.
     const SeqTypeRegistry &registry = constructed_sequences.registry();
+    pending_.rebuild(registry, events_map, processed_events);
 
     trims_three_prime_ = (this->event_side == Three_prime);
 
@@ -752,8 +754,6 @@ void Deletion::initialize_event(
         check.safety_cell = safety_set.cell(this->seq_type_id, check.partner_id);
         check.partner_chosen =
                 EventUtils::check_gene_choice(partner_name, events_map, processed_events).chosen;
-        check.partner_delta = JunctionGeometry::legacy_offset_delta(
-                check.partner_id, check.partner_side, events_map, processed_events);
         flank_checks_.push_back(check);
     }
 
