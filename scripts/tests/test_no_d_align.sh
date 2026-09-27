@@ -27,11 +27,10 @@ set -euo pipefail
 # data is therefore this branch's, from the first commit at which the path has
 # defined behaviour.
 #
-# best_scenarios_counts.csv will need regenerating when fix/scenario_tie lands:
-# that branch makes degenerate-likelihood ties explicit, which changes which
-# members of a tied group are reported. Nothing else here moves with it -- the
-# same comparison with the D alignments left intact is bitwise across the two
-# branches for Pgen and both coverage counters.
+# The golden files are stored in the order assert_regression sorts them into
+# before comparing, so that a regeneration diffs row against row: run
+# `pixi run test_regression -k no_d_align` and copy the *.cur.sorted files from
+# the kept output's demo_output/sorted/ directory (kept only on a mismatch).
 # ------------------------------------------------------------------
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
@@ -76,8 +75,8 @@ resolve_sort_columns() {
     esac
 }
 
-# Drop the scenario rank, as test_inference.sh does: equal likelihoods can be
-# ranked either way round and the rank is not what this test is about.
+# Drop the scenario rank, as test_inference.sh does: the golden data is stored
+# without it, since rows are compared sorted rather than in rank order.
 tmp="$(mktemp)"
 cut -d';' -f 1,3- "$OUTDIR/demo_output/best_scenarios_counts.csv" >"$tmp"
 mv "$tmp" "$OUTDIR/demo_output/best_scenarios_counts.csv"

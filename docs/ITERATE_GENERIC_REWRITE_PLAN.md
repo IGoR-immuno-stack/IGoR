@@ -1735,7 +1735,7 @@ on an event that is freshly migrated and fully covered — would require regener
 partway through, and from that point on a "regression" is no longer a single unambiguous signal:
 every later step's verdict has to be read against which baseline it was taken on. The cost of
 deferring is re-establishing context on `Insertion` and `Dinucl_markov` later; the cost of not
-deferring is the gate itself, which §6.2 already shows is the fragile part. R is where golden data
+deferring is the gate itself: a verdict is only worth what its baseline is. R is where golden data
 is allowed to move, once, deliberately, with each commit naming the outputs it changes.
 
 ### 6.1 — T0: build a focused `iterate()` characterization suite
@@ -2549,6 +2549,11 @@ reweights:
 | `vd_ins` (combined) | `D_KL(R‖C)` | **120.02** | 0.44 | — |
 | `dj_ins` (combined) | `D_KL(R‖C)` | **204.56** | 0.17 | — |
 
+*(Re-run after the `develop` merge, Sep 27 2026: still 13 of 13, with `d_gene` 0.9368, `d_5_del`
+3.7936, `d_3_del` 3.6123, `vd_ins` 0.04 and `dj_ins` 0.33. The corpus is drawn from a timer seed
+(§6.2), so these figures move from run to run; what the table records is the before/after contrast,
+which does not.)*
+
 A `d_gene` entropy of zero is the D gene choice collapsed onto a point mass: the exhaustive path's
 placements were damped by `p^{k-1}` with `p ≈ 1/3`, so everything past the first few placements
 weighed nothing and EM re-estimated a model in which one D gene explains everything. The tag stays
@@ -3287,53 +3292,36 @@ gap so far: a whole capability with no unit cover at all.
 other side — the accumulator is the path that feeds it, so breaking either end fails the same
 place. **5a widens both.**
 
-### 6.2 — The regression gate has a flaky output
+### 6.2 — The regression gate is deterministic *(resolved by #68, merged Sep 27 2026)*
 
-*(Observed Sep 2 2026 during A0.)*
+`pixi run test_regression` is designated the bitwise gate for every step of this plan, and it
+passes or fails in a single run at any thread count. That was not always so: until `develop`'s
+#68 (fix/scenario_tie) was merged in after `e8fe59a`, the EM reduction summed per-sequence
+contributions in an order set by the thread schedule, and the resulting last-bit differences
+decided which member of an exactly degenerate group of scenarios made the `output.scenarios`
+cut-off. #68 removes both halves: sequences are reduced in fixed chunks merged in chunk order, so
+the marginals no longer depend on the thread count or the schedule, and `Best_scenarios_counter`
+breaks ties canonically and, with `output.scenario_keep_ties` (default on), reports a tied group
+that straddles the cut-off in full. A mismatch is therefore a regression, never something to
+re-run.
 
-`pixi run test_regression` is designated the bitwise gate for every step of this plan. One of
-its outputs is **not deterministic**: `best_scenarios_counts.csv` mismatched once on an A0 build
-that adds only uncalled virtuals, then matched on the next three runs (two `test_inference`, one
-full `test_regression`), while the pre-A0 baseline matched on its single run.
+The merge regenerated `no_d_align_output/best_scenarios_counts.csv` (five tied rows added,
+sequences 44, 143, 199 and 262; nothing else moved), and every golden file under
+`no_d_align_output/` is now stored in the order `assert_regression` sorts it into before comparing,
+so a regeneration diffs row against row. Regenerate by running `pixi run test_regression -k` and
+copying the `<file>.cur.sorted` files from the kept output's `sorted/` directory, which
+`assert_regression` keeps only when the comparison fails.
 
-**Mechanism (diagnosed properly since; the row-ordering explanation this section used to give was
-wrong — the comparator sorts by sequence index before comparing).** The marginals themselves are
-non-deterministic: `#pragma omp for schedule(dynamic) nowait` over query sequences, per-thread
-`single_thread_marginals +=`, merged under `#pragma omp critical`. Floating-point addition is not
-associative, so the sums differ by a few ULP between runs — invisible in the six-digit
-`iteration_N.txt` dumps, which is why only this one output moves.
-
-Those ULP differences decide a strict `>` in `Best_scenarios_counter` between realizations that are
-*exactly* degenerate: TRBV3-1\*01, TRBV3-2\*01 and TRBV3-2\*02 have identical
-`P(V=g) · P(v_3_del=d | V=g)` for d ≤ 7 under a uniform initialization with indistinguishable
-alignments. It only surfaces when that degenerate group straddles the `output.scenarios` cutoff of
-10; with 15 scenarios all three are kept and the comparison passes.
-
-**Discriminating a flake from a regression**: re-run with `OMP_NUM_THREADS=1`. One thread is
-deterministic, so a single-threaded pass plus a multi-threaded failure confined to
-`best_scenarios_counts.csv` is the flake. This is what 2b's first regression run turned out to be.
-
-**This matters more than its size suggests.** A gate that fails intermittently trains its readers
-to re-run rather than investigate, which is exactly how a real regression gets waved through
-during a multi-step refactor. Every "bitwise" claim in §6 depends on this gate meaning what it
-says.
-
-Fix shape: either make the reduction deterministic (fixed chunks accumulated in index order) or
-give the counter a canonical tie-break (relative epsilon, then realization-vector ordering).
-Pinning the thread count alone is not enough with `schedule(dynamic)`. Sorting rows in the
-comparator — this section's original suggestion — would **not** help, since the rows differ in
-content, not order.
-
-**The convergence gate has the same problem in a different form** *(Sep 14 2026)*.
+**The convergence gate is not reproducible, for a different reason** *(Sep 14 2026)*.
 `convergence::Inference recovers ground truth model` builds its corpus with
 `GenModel::generate_sequences`, which seeds `mt19937_64` from
-`draw_random_64bits_seed()` — the timer ([GenModel.cpp:592-601](../src/igor/Core/GenModel.cpp#L592)).
+`draw_random_64bits_seed()` — the timer ([GenModel.cpp:690-705](../src/igor/Core/GenModel.cpp#L690)).
 So every run infers on a **different corpus**. Observed wall times across three runs of unchanged
 code: **524 s, 50 s, 113 s** — a 10× spread, because the sampled sequences decide how much the
 bound prunes. The gate still means something (a real convergence failure would fail it), but it is
 not reproducible, its cost is unpredictable, and a rare corpus-dependent break would show up as a
 one-off that re-running "fixes". `generate_sequences` already takes an optional `seed` on its other
-overload ([:627](../src/igor/Core/GenModel.cpp#L627)); passing a fixed one from the test is the
+overload ([:729](../src/igor/Core/GenModel.cpp#L729)); passing a fixed one from the test is the
 whole fix.
 
 ### 6.13 — Where inference time actually goes *(Sep 14 2026, `perf`)*
