@@ -74,6 +74,7 @@ public:
     Error_rate *add_checked(Error_rate *) override;
     const double &get_err_rate_upper_bound(size_t, size_t) override;
     void build_upper_bound_matrix(size_t, size_t) override;
+    void clear_accumulators() override;
     int get_number_non_zero_likelihood_seqs() const override { return number_seq; };
     std::queue<int> generate_errors(std::string &, std::mt19937_64 &) const override;
 
