@@ -295,7 +295,7 @@ void Hypermutation_full_Nmer_errorrate::clear_accumulators()
     }
 }
 
-const double &Hypermutation_full_Nmer_errorrate::get_err_rate_upper_bound(size_t n_errors, size_t n_error_free)
+const double &Hypermutation_full_Nmer_errorrate::upper_bound_entry(size_t n_errors, size_t n_error_free)
 {
 
     if (n_errors > this->max_err || n_error_free > this->max_noerr) {

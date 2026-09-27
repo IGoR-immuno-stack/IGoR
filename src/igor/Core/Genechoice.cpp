@@ -151,7 +151,6 @@ void Gene_choice::set_genomic_templates(const vector<pair<string, string>> &geno
  *   - which neighbouring ends the placement is checked against -- flank_checks_;
  *   - whether the template may overhang the read, and at which end;
  *   - which junctions the placement bounds -- junction_bounds_, resolved in S4c;
- *   - how the surviving error-free core is credited -- section 7.1's defect, carried verbatim.
  *
  * None of those is a gene class, which is why a tandem D needs no fourth case here. `event_class`
  * stays, and stays the alignment-strategy key: query.gene_alignments is keyed by Gene_class, and
@@ -277,23 +276,10 @@ void Gene_choice::iterate(
         const Seq_Offset core_5 = pending_.reachable(this->seq_type_id, Five_prime, my_5_off).hi;
         const Seq_Offset core_3 = pending_.reachable(this->seq_type_id, Three_prime, my_3_off).lo;
 
-        endogeneous_mismatches = 0;
-        if (endogenous_core_ == EndogenousCore::Truncated and core_5 >= core_3) {
-            //Nothing of this template is guaranteed to survive, so it constrains nothing.
-            exploration.downstream_proba_map.set(this->seq_type_id, 1.0, memory_layer_proba_map_seq);
-        } else {
-            for (const size_t mismatch_position : alignment.mismatches) {
-                const Seq_Offset position = static_cast<Seq_Offset>(mismatch_position);
-                if (position >= core_5 and position <= core_3) {
-                    ++endogeneous_mismatches;
-                }
-            }
-            exploration.downstream_proba_map.set(
-                    this->seq_type_id,
-                    accumulation.error_rate->get_err_rate_upper_bound(endogeneous_mismatches,
-                                                                      credited_core_length(core_5, core_3)),
-                    memory_layer_proba_map_seq);
-        }
+        exploration.downstream_proba_map.set(
+                this->seq_type_id,
+                surviving_core_bound(*accumulation.error_rate, alignment.mismatches, core_5, core_3),
+                memory_layer_proba_map_seq);
 
         //Multiply all downstream probas
         scenario_upper_bound_proba = exploration.compute_upper_bound(
@@ -437,9 +423,9 @@ void Gene_choice::iterate(
                 score_placement_against_read(query, accumulation, exploration, my_five_reach,
                                              my_three_reach);
 
-                if (my_five_reach.hi < my_three_reach.lo) {
-                    //Something of this template is guaranteed to survive, so the error bound it
-                    //carries is worth re-testing against.
+                if (my_five_reach.hi <= my_three_reach.lo) {
+                    //Something of this template is guaranteed to survive -- one position when the
+                    //two reaches meet -- so the error bound it carries is worth re-testing against.
                     scenario_upper_bound_proba = exploration.compute_upper_bound(
                         new_scenario_proba,
                         current_downstream_proba_memory_layers
@@ -572,9 +558,8 @@ void Gene_choice::iterate(
  * alignment path computes, measured here from the placement's own ends because there is no
  * alignment to read it off.
  *
- * When the two reaches cross, nothing of the template is guaranteed to survive and it constrains
- * nothing: the slot goes neutral. The alignment path spells the same case `EndogenousCore::
- * Truncated and core_5 >= core_3`.
+ * Both paths hand the window to surviving_core_bound(), so they cannot disagree on what it
+ * credits.
  */
 void Gene_choice::score_placement_against_read(const QuerySequenceContext &query,
                                                AccumulationContext &accumulation,
@@ -592,26 +577,11 @@ void Gene_choice::score_placement_against_read(const QuerySequenceContext &query
         }
     }
 
-    //Count the number of mismatches that will not go away even with maximum deletions
-    endogeneous_mismatches = 0;
-    if (five_reach.hi < three_reach.lo) {
-        for (placement_mism_iter = placement_mismatches.begin(); placement_mism_iter != placement_mismatches.end(); ++placement_mism_iter) {
-            if (static_cast<Seq_Offset>(*placement_mism_iter) >= five_reach.hi
-                and static_cast<Seq_Offset>(*placement_mism_iter) <= three_reach.lo) {
-                //Count one mismatch
-                ++endogeneous_mismatches;
-            }
-        }
-        exploration.downstream_proba_map.set(
-                static_cast<Seq_type>(this->seq_type_id),
-                accumulation.error_rate->get_err_rate_upper_bound(
-                        endogeneous_mismatches,
-                        three_reach.lo - five_reach.hi - endogeneous_mismatches),
-                memory_layer_proba_map_seq);
-    } else {
-        exploration.downstream_proba_map.set(static_cast<Seq_type>(this->seq_type_id), 1.0,
-                                             memory_layer_proba_map_seq);
-    }
+    exploration.downstream_proba_map.set(
+            static_cast<Seq_type>(this->seq_type_id),
+            surviving_core_bound(*accumulation.error_rate, placement_mismatches, five_reach.hi,
+                                 three_reach.lo),
+            memory_layer_proba_map_seq);
 }
 
 /*
@@ -659,19 +629,25 @@ bool Gene_choice::write_junction_bounds(Downstream_scenario_proba_bound_map &pro
     return true;
 }
 
-int Gene_choice::credited_core_length(Seq_Offset core_5, Seq_Offset core_3) const
+double Gene_choice::surviving_core_bound(Error_rate &error_rate, const std::vector<std::size_t> &mismatches,
+                                         Seq_Offset core_5, Seq_Offset core_3)
 {
-    if (endogenous_core_ == EndogenousCore::Truncated) {
-        //The core between the two movable ends. Right in shape, one short of the inclusive
-        //count -- section 7.1's off-by-one, which R5 fixes together with the other arm.
-        return static_cast<int>(core_3 - core_5) - static_cast<int>(endogeneous_mismatches);
+    if (core_5 > core_3) {
+        //The pending modifiers can retract the two ends past each other, so no position of the
+        //template is guaranteed to survive and it constrains nothing.
+        return 1.0;
     }
-    //Section 7.1's sign inversion, reproduced rather than derived (decision O4). `travel` is how
-    //far the one movable end can retract; the surviving core is `size - travel`, and this credits
-    //`size + travel`, so the bound comes out too small and prunes harder than the model justifies.
-    const int travel = pending_.offset_delta(this->seq_type_id, Five_prime).max
-                     - pending_.offset_delta(this->seq_type_id, Three_prime).min;
-    return static_cast<int>(gene_seq.size()) + travel - static_cast<int>(endogeneous_mismatches);
+    int endogenous = 0;
+    for (const std::size_t mismatch_position : mismatches) {
+        const Seq_Offset position = static_cast<Seq_Offset>(mismatch_position);
+        if (position >= core_5 and position <= core_3) {
+            ++endogenous;
+        }
+    }
+    //Inclusive: a core whose two ends meet still holds the one position they meet on. Never
+    //negative, since every mismatch counted is a distinct position of the core.
+    const int core_length = static_cast<int>(core_3 - core_5) + 1;
+    return error_rate.get_err_rate_upper_bound(endogenous, core_length - endogenous);
 }
 /*
  *This short method performs the iterate operations common to all Rec_event (modify index map and fetch realization probability)
@@ -767,18 +743,16 @@ void Gene_choice::initialize_event(
 
     //A gene at an end of the constructed sequence is anchored by the read rather than by a
     //neighbour, and that single fact is the whole V/J-versus-D asymmetry: its template can
-    //overhang the read on that side, it has no position range to scan when the aligner finds
-    //nothing (decision O6), and it is the arm that credits its error-free core the wrong way
-    //round (section 7.1). Read off the ordering, so a tandem D1/D2 pair gets the internal
-    //behaviour without either of them being named anywhere.
+    //overhang the read on that side, and it has no position range to scan when the aligner
+    //finds nothing (decision O6). Read off the ordering, so a tandem D1/D2 pair gets the
+    //internal behaviour without either of them being named anywhere. (It also used to pick the
+    //arm of section 7.1's credited length; R5a gave every gene the one derivation.)
     const bool at_left_end = registry.left_neighbor(this->seq_type_id) == kNoSeqType;
     const bool at_right_end = registry.right_neighbor(this->seq_type_id) == kNoSeqType;
     clip_template_before_read_ = at_left_end;
     clip_template_after_read_ = at_right_end;
     exhaustive_position_fallback_ = not at_left_end and not at_right_end;
     publishes_alignment_state_ = at_left_end or at_right_end;
-    endogenous_core_ = (at_left_end or at_right_end) ? EndogenousCore::Inflated
-                                                     : EndogenousCore::Truncated;
 
     //The neighbours this placement is checked against: the other gene segments, 5' to 3', which
     //is the order the two claimed safety layers were in. The candidate list is still the legacy

@@ -115,16 +115,17 @@ private:
                                Seq_Offset three_off) const;
 
     /**
-     * \brief The error-free length credited to this placement, in nucleotides.
+     * \brief The error bound a placement earns from the part of it that must survive.
      *
-     * **Section 7.1's defect, carried verbatim.** A segment with a movable end at each side
-     * credits the core between them -- right in shape, one short of the inclusive count. A
-     * segment anchored on a read end credits `size + travel` where at most `size - travel` can
-     * survive, so its bound comes out too small and prunes harder than the model justifies.
-     * Decision O4: step 3 reproduces both arithmetics rather than deriving one, and R5 replaces
-     * them with `core_3 - core_5 + 1`.
+     * `[core_5, core_3]` is the core no pending modifier can retract either end past, inclusive.
+     * Every mismatch inside it is unavoidable and every other position of it is error-free, so
+     * the bound is the error rate's for those two counts; an empty core (the ends can cross)
+     * constrains nothing and gives 1.0. One derivation for every gene, whichever end anchors it
+     * and whichever path placed it (R5a: section 7.1 credited `size + travel` in V and J, one
+     * position short in D, and could come out negative -- section 7.18).
      */
-    int credited_core_length(Seq_Offset core_5, Seq_Offset core_3) const;
+    static double surviving_core_bound(Error_rate &error_rate, const std::vector<std::size_t> &mismatches,
+                                       Seq_Offset core_5, Seq_Offset core_3);
 
     /**
      * \brief One neighbouring segment end this gene's placement is checked against.
@@ -164,9 +165,6 @@ private:
         return pending_.reachable(this->seq_type_id, Three_prime, three_off);
     }
 
-    /// Section 7.1's two arithmetics. See credited_core_length().
-    enum class EndogenousCore { Inflated, Truncated };
-
     std::vector<FlankCheck> flank_checks_;
 
     /// What each checked neighbour's facing end can still reach, and where it sits. Indexed by
@@ -180,13 +178,12 @@ private:
 
     /// Resolved from the ordering, not from event_class: a gene at an end of the constructed
     /// sequence is anchored by the read rather than by a neighbour, which is what makes its
-    /// template able to overhang, its error-free core credited the other way, and its position
-    /// not something to scan for when the aligner finds nothing.
+    /// template able to overhang and its position not something to scan for when the aligner
+    /// finds nothing.
     bool clip_template_before_read_ = false;
     bool clip_template_after_read_ = false;
     bool exhaustive_position_fallback_ = false;
     bool publishes_alignment_state_ = true;
-    EndogenousCore endogenous_core_ = EndogenousCore::Inflated;
 
     /// This placement's own two ends, for the scenario being explored.
     Seq_Offset my_5_off = 0;
@@ -217,9 +214,6 @@ private:
     Int_Str gene_seq;
     int new_index;
     const int *alignment_offset_p;
-    /// Scratch for the position scan only; the alignment path counts its core inline.
-    std::vector<std::size_t>::const_iterator placement_mism_iter;
-    std::size_t endogeneous_mismatches;
 
     //Constants
     //Memory Layers

@@ -665,8 +665,8 @@ TEST_CASE("Gene_choice::iterate endogenous-mismatch counting (G8)",
 {
     // Mismatches that survive the maximum remaining deletion cannot be explained away, so
     // they set a floor on the error probability. This TEST_CASE covers the *counting* --
-    // which mismatches fall inside the surviving core. The credited length is wrong in all
-    // three branches and is covered by the [!shouldfail] cases below.
+    // which mismatches fall inside the surviving core. The credited length, per branch, is the
+    // cases that follow.
     const double kRate = 0.1;
     const std::string v_gene = "ACGTACGTACGT"; // 12 nt, 3' end at 11
 
@@ -689,7 +689,7 @@ TEST_CASE("Gene_choice::iterate endogenous-mismatch counting (G8)",
     SECTION("A mismatch inside the core costs an error factor; one outside costs nothing")
     {
         // Asserting the *ratio* rather than either bound keeps this independent of the
-        // credited-length defect: the two differ by exactly one endogenous mismatch, so
+        // credited length: the two differ by exactly one endogenous mismatch, so
         // swapping an error-free position for an errored one multiplies by (r/3)/(1-r)
         // whatever the credited length happens to be.
         const double inside = bound_with_mismatch_at(2);
@@ -700,32 +700,16 @@ TEST_CASE("Gene_choice::iterate endogenous-mismatch counting (G8)",
     }
 }
 
-// ============================================================================
-// Known defects
-//
-// Each of the following asserts the behaviour the code *should* have, and is tagged
-// [!shouldfail] because it does not have it yet. Catch2 reports an expected failure as a
-// pass, so the suite stays green -- and the moment the defect is fixed the case starts
-// passing, which [!shouldfail] turns into a failure. That is the point: the tag has to be
-// removed deliberately, so a fix cannot land unnoticed.
-//
-// Each case is section-free on purpose. [!shouldfail] is evaluated per test-case run, and
-// Catch2 re-runs a case once per leaf section, so a case mixing passing and failing
-// sections would report the passing ones as unexpected passes.
-// ============================================================================
-
-TEST_CASE("DEFECT (plan 7.1): V credits an error-free length larger than its surviving core",
-          "[gene_choice][iterate][endogenous][defect][!shouldfail]")
+TEST_CASE("Gene_choice::iterate V credits the error-free length of its surviving core",
+          "[gene_choice][iterate][endogenous]")
 {
     // The core that survives the maximum 3' deletion is [v_5_off, v_3_off + v_3_max_del]
-    // = [0, 7], so at most 8 positions exist and, with one of them mismatched, at most 7
-    // can be error-free. The code passes gene_seq.size() - v_3_max_del - endo, and
-    // v_3_max_del is Deletion::len_min (negative), so this evaluates to 12 + 4 - 1 = 15.
-    // The sign is inverted: it should be `+ v_3_max_del`.
+    // = [0, 7]: 8 positions, one of them mismatched, so 7 are error-free.
     //
-    // Consequence: the bound is too small by (1-r)^8, so the branch is pruned more
-    // aggressively than the model justifies and scenarios that should contribute can be
-    // discarded.
+    // Until R5a this credited gene_seq.size() - v_3_max_del - endo, with v_3_max_del being
+    // Deletion::len_min (negative): 12 + 4 - 1 = 15, the sign inverted (plan 7.1). The bound
+    // came out too small by (1-r)^8, so the branch was pruned harder than the model justified
+    // and scenarios that should have contributed could be discarded.
     const double kRate = 0.1;
     const std::string v_gene = "ACGTACGTACGT";
 
@@ -745,11 +729,11 @@ TEST_CASE("DEFECT (plan 7.1): V credits an error-free length larger than its sur
                Catch::Matchers::WithinRel(correct, 1e-9));
 }
 
-TEST_CASE("DEFECT (plan 7.1): J credits an error-free length larger than its surviving core",
-          "[gene_choice][iterate][endogenous][defect][!shouldfail]")
+TEST_CASE("Gene_choice::iterate J credits the error-free length of its surviving core",
+          "[gene_choice][iterate][endogenous]")
 {
     // Mirror of the V case. Core is [j_5_off - j_5_max_del, j_3_off] = [16, 19], 4
-    // positions, one of them mismatched, so at most 3 can be error-free. The code credits
+    // positions, one of them mismatched, so 3 are error-free. Until R5a:
     // gene_seq.size() - j_5_max_del - endo = 8 + 4 - 1 = 11.
     const double kRate = 0.1;
     const std::string j_gene = "GGGGCCCC"; // 8 nt, aligned at 12 in a 20 nt read
@@ -770,16 +754,16 @@ TEST_CASE("DEFECT (plan 7.1): J credits an error-free length larger than its sur
                Catch::Matchers::WithinRel(correct, 1e-9));
 }
 
-TEST_CASE("DEFECT (plan 7.1): D credits one position fewer than its surviving core spans",
-          "[gene_choice][iterate][endogenous][defect][!shouldfail]")
+TEST_CASE("Gene_choice::iterate D credits every position of its surviving core",
+          "[gene_choice][iterate][endogenous]")
 {
     // D is the only branch with deletions pending on both sides, so its core is a genuine
-    // intersection: [d_5_off - d_5_max_del, d_3_off + d_3_max_del] = [10, 13] here. The
-    // sign is right; what is wrong is that the credited length is the *difference* of the
-    // two bounds, 13 - 10 = 3, for a span of 4 inclusive positions.
+    // intersection: [d_5_off - d_5_max_del, d_3_off + d_3_max_del] = [10, 13] here, four
+    // inclusive positions.
     //
-    // A different defect from V and J, and the opposite direction: the bound comes out too
-    // large, so it under-prunes. Harmless for correctness, but it is still an off-by-one.
+    // Until R5a it credited the *difference* of the two bounds, 13 - 10 = 3: the sign right,
+    // one position short. A different defect from V and J and the opposite direction -- the
+    // bound came out too large, so it under-pruned.
     const double kRate = 0.1;
     const std::string d_gene = "TTTTTTTT"; // 8 nt, aligned at 8 => [8, 15]
 
@@ -799,6 +783,45 @@ TEST_CASE("DEFECT (plan 7.1): D credits one position fewer than its surviving co
     CHECK_THAT(rec->calls.at(0).downstream_bounds.at(D_gene_seq),
                Catch::Matchers::WithinRel(correct, 1e-9));
 }
+
+TEST_CASE("Gene_choice::iterate a V the pending deletion can erase from the read is not charged",
+          "[gene_choice][iterate][endogenous]")
+{
+    // The empty-core rule D always had, which V and J did not: their arm credited a length
+    // without asking whether anything survives. Aligned at -9, this V keeps three nucleotides
+    // in the read, and up to four 3' deletions are still to come, so none of it is guaranteed
+    // to stay and its mismatch is not unavoidable. Until R5a it credited 3 + 4 - 0 = 7
+    // error-free positions -- more than it has in the read at all -- and returned 0.9^7.
+    const std::string v_gene = "ACGTACGTACGT"; // 12 nt; its last three, "CGT", land on [0, 2]
+
+    auto state = create_iterate_state("CATTTTTTTTTTTTTTTTTT");
+    state.set_error_rate(0.1);
+    auto v_event = make_gene_choice(V_gene, {{"V1", v_gene}}, 0, /*fixed=*/false);
+    state.add_downstream_event(make_deletion(V_gene_seq, Three_prime, 0, 4, 2));
+    state.set_alignments(V_gene,
+                         {create_alignment_with_mismatches("V1", -9, v_gene.size(), {1})});
+    state.set_marginal(0, 1.0L);
+
+    auto rec = call_iterate_recording(v_event, state);
+    REQUIRE(rec->call_count() == 1);
+    REQUIRE(rec->calls.at(0).three_prime(V_gene_seq) == 2);
+
+    CHECK(rec->calls.at(0).downstream_bounds.at(V_gene_seq) == 1.0);
+}
+
+// ============================================================================
+// Known defects
+//
+// Each of the following asserts the behaviour the code *should* have, and is tagged
+// [!shouldfail] because it does not have it yet. Catch2 reports an expected failure as a
+// pass, so the suite stays green -- and the moment the defect is fixed the case starts
+// passing, which [!shouldfail] turns into a failure. That is the point: the tag has to be
+// removed deliberately, so a fix cannot land unnoticed.
+//
+// Each case is section-free on purpose. [!shouldfail] is evaluated per test-case run, and
+// Catch2 re-runs a case once per leaf section, so a case mixing passing and failing
+// sections would report the passing ones as unexpected passes.
+// ============================================================================
 
 TEST_CASE("DEFECT: the no_d_align position map places D one nucleotide too far 5'",
           "[gene_choice][iterate][exhaustive][defect][!shouldfail]")
@@ -1278,11 +1301,10 @@ TEST_CASE("Gene_choice::iterate position map: the endogenous-mismatch count",
         const auto rec = call_iterate_recording(fixture.d_event, fixture.state);
         REQUIRE(rec->call_count() == 5);
 
-        // "TTTT" against an ACGT-periodic read: three mismatches wherever it lands, and the
-        // credited error-free length is (d_3 - d_5) - 3 == 0 -- one position fewer than the
-        // four the template spans. That is the same off-by-one the alignment path has, pinned
-        // for D by the [!shouldfail] case above; here it is the *premise*, not the claim.
-        const double expected = std::pow(0.1 / 3.0, 3);
+        // "TTTT" against an ACGT-periodic read: three mismatches wherever it lands, and the one
+        // matching position is credited error-free. Until R5a this path had the alignment
+        // path's off-by-one too, crediting (d_3 - d_5) - 3 == 0 of the four positions.
+        const double expected = std::pow(0.1 / 3.0, 3) * 0.9;
         for (const ScenarioSnapshot &snapshot : rec->calls) {
             CHECK_THAT(snapshot.downstream_bounds.at(D_gene_seq),
                        Catch::Matchers::WithinRel(expected, 1e-9));
@@ -1392,15 +1414,15 @@ TEST_CASE("Gene_choice::iterate position map: the endogenous window is the maxim
 
     // The window spans six of the template's eight positions. "TTTTTTTT" against an
     // ACGT-periodic read leaves one or two matches inside it depending on the phase, so the
-    // credited error-free length alternates between one and zero as the placement slides.
-    const double five_errors = std::pow(0.1 / 3.0, 5);
-    const double four_errors_one_free = std::pow(0.1 / 3.0, 4) * 0.9;
+    // credited error-free length alternates between two and one as the placement slides.
+    const double five_errors_one_free = std::pow(0.1 / 3.0, 5) * 0.9;
+    const double four_errors_two_free = std::pow(0.1 / 3.0, 4) * 0.81;
     CHECK_THAT(rec->calls.at(0).downstream_bounds.at(D_gene_seq),
-               Catch::Matchers::WithinRel(four_errors_one_free, 1e-9));
+               Catch::Matchers::WithinRel(four_errors_two_free, 1e-9));
     CHECK_THAT(rec->calls.at(1).downstream_bounds.at(D_gene_seq),
-               Catch::Matchers::WithinRel(five_errors, 1e-9));
+               Catch::Matchers::WithinRel(five_errors_one_free, 1e-9));
     CHECK_THAT(rec->calls.at(3).downstream_bounds.at(D_gene_seq),
-               Catch::Matchers::WithinRel(four_errors_one_free, 1e-9));
+               Catch::Matchers::WithinRel(four_errors_two_free, 1e-9));
 }
 
 TEST_CASE("Gene_choice::iterate position map: two prune stages",
@@ -1448,19 +1470,19 @@ TEST_CASE("Gene_choice::iterate position map: two prune stages",
         // separated only by the probability compounding across placements (§7.16), which is
         // what this section used to be reading. Five nucleotides make the score depend on
         // phase: the core catches a second T at 5' offset 7 and nowhere else, so that
-        // placement is worth 0.9 * (0.1/3)^3 and the other three (0.1/3)^4, twenty-seven
-        // times less.
-        const double four_errors = std::pow(0.1 / 3.0, 4);
-        const double three_errors_one_free = std::pow(0.1 / 3.0, 3) * 0.9;
+        // placement is worth 0.9^2 * (0.1/3)^3 and the other three 0.9 * (0.1/3)^4,
+        // twenty-seven times less.
+        const double four_errors_one_free = std::pow(0.1 / 3.0, 4) * 0.9;
+        const double three_errors_two_free = std::pow(0.1 / 3.0, 3) * 0.81;
 
         PositionMapFixture unpruned(/*d5_max=*/-1, /*d3_max=*/-1, "TTTTT");
         unpruned.state.set_error_rate(0.1);
         const auto all = call_iterate_recording(unpruned.d_event, unpruned.state);
         REQUIRE(five_prime_order(all, D_gene_seq) == std::vector<Seq_Offset>{6, 7, 8, 9});
         CHECK_THAT(all->calls.at(0).downstream_bounds.at(D_gene_seq),
-                   Catch::Matchers::WithinRel(four_errors, 1e-9));
+                   Catch::Matchers::WithinRel(four_errors_one_free, 1e-9));
         CHECK_THAT(all->calls.at(1).downstream_bounds.at(D_gene_seq),
-                   Catch::Matchers::WithinRel(three_errors_one_free, 1e-9));
+                   Catch::Matchers::WithinRel(three_errors_two_free, 1e-9));
 
         PositionMapFixture fixture(/*d5_max=*/-1, /*d3_max=*/-1, "TTTTT");
         fixture.state.set_error_rate(0.1);
@@ -1514,7 +1536,7 @@ TEST_CASE("Gene_choice::iterate a D whose surviving core is empty is not charged
     // body and it is the same question the position map's `else` arm asks: when the two
     // deletion budgets overlap, no position of the template is unavoidable.
     //
-    // One knob across the three cases: the budget on each side.
+    // One knob across the cases: the budget on each side.
     // The template is five nucleotides, not four, so that a budget of two makes the two ends
     // land on the *same* position rather than crossing it -- which is the boundary between
     // `core_5 >= core_3` and `core_5 > core_3`, and the only value that separates them.
@@ -1534,16 +1556,20 @@ TEST_CASE("Gene_choice::iterate a D whose surviving core is empty is not charged
         return rec->calls.front().downstream_bounds.at(D_gene_seq);
     };
 
-    // Budget 0: the core is [8, 12], credited as 12 - 8 == 4 error-free positions.
-    CHECK_THAT(bound_with_budget(0), Catch::Matchers::WithinRel(std::pow(0.9, 4), 1e-9));
-    // Budget 1: the core shrinks to [9, 11], two credited positions.
-    CHECK_THAT(bound_with_budget(1), Catch::Matchers::WithinRel(std::pow(0.9, 2), 1e-9));
-    // Budget 2: the two ends meet on position 10. A single surviving position is still no
-    // *span*, so nothing is charged -- the test is `>=`, not `>`.
-    CHECK(bound_with_budget(2) == 1.0);
-    // And that it is `>=` rather than `>` shows only when the meeting position carries a
-    // mismatch: counting it would charge an error over a credited length of zero.
-    CHECK(bound_with_budget(2, {10}) == 1.0);
+    // Budget 0: the core is [8, 12], five error-free positions.
+    CHECK_THAT(bound_with_budget(0), Catch::Matchers::WithinRel(std::pow(0.9, 5), 1e-9));
+    // Budget 1: the core shrinks to [9, 11], three.
+    CHECK_THAT(bound_with_budget(1), Catch::Matchers::WithinRel(std::pow(0.9, 3), 1e-9));
+    // Budget 2: the two ends meet on position 10, and that one position survives every
+    // deletion, so it is charged -- error-free, or an error when it carries a mismatch. The
+    // test is `>`, not `>=`. Until R5a it was `>=`, the off-by-one of plan 7.1 in its other
+    // guise: a single surviving position counted as no core at all.
+    CHECK_THAT(bound_with_budget(2), Catch::Matchers::WithinRel(0.9, 1e-9));
+    CHECK_THAT(bound_with_budget(2, {10}), Catch::Matchers::WithinRel(0.1 / 3.0, 1e-9));
+    // Budget 3: the ends can cross, nothing is unavoidable, and even a mismatch on the middle
+    // position is not charged.
+    CHECK(bound_with_budget(3) == 1.0);
+    CHECK(bound_with_budget(3, {10}) == 1.0);
 }
 
 TEST_CASE("The position map hands every placement the probability this event inherited",

@@ -74,7 +74,7 @@ void Single_error_rate::clear_accumulators()
     this->model_log_likelihood = 0;
 }
 
-const double &Single_error_rate::get_err_rate_upper_bound(size_t n_errors, size_t n_error_free)
+const double &Single_error_rate::upper_bound_entry(size_t n_errors, size_t n_error_free)
 {
     if (n_errors > this->max_err || n_error_free > this->max_noerr) {
         //Need to increase the matrix size (anyway the matrix is at very most read_len^2

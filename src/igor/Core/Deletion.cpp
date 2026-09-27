@@ -406,7 +406,8 @@ void Deletion::iterate(
             exploration.downstream_proba_map.set(
                     my_seq_type,
                     accumulation.error_rate->get_err_rate_upper_bound(
-                            mismatches_vector.size(), new_str.size() - mismatches_vector.size()),
+                            static_cast<int>(mismatches_vector.size()),
+                            static_cast<int>(new_str.size() - mismatches_vector.size())),
                     memory_layer_proba_map_seq);
         }
 
