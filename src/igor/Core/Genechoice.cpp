@@ -344,8 +344,14 @@ void Gene_choice::iterate(
             for (const SpanDecomposition::Placement &placement : enclosing.decomposition().at(span_len)) {
                 const Event_realization &realization = *realizations_by_index_[placement.realization_index];
 
-                //The 5' end sits one junction-length past the left neighbour's 3' end.
-                placement_5_off = neighbour_offset_[left_id] + placement.left_distance;
+                //The 5' end sits immediately after a junction of `left_distance` nucleotides, so
+                //one past the left neighbour's 3' end plus that length: the convention the
+                //alignment path's write_junction_bounds() reads the same profile under, and the
+                //one the decomposition's own key `left + template + right == span_len` assumes.
+                //Without the `+ 1` a zero-length junction put this 5' end *on* the neighbour's
+                //last nucleotide, and the right-hand gap the placement left was one longer than
+                //the `right_distance` whose bound it was charged (§7.8, R5b).
+                placement_5_off = neighbour_offset_[left_id] + placement.left_distance + 1;
                 template_size = realization.value_str.size();
                 placement_3_off = placement_5_off + template_size - 1;
 
