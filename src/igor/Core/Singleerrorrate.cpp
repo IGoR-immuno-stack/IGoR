@@ -67,6 +67,13 @@ Error_rate *Single_error_rate::add_checked(Error_rate *err_r)
     return &(this->operator+=(*(dynamic_cast<Single_error_rate *>(err_r))));
 }
 
+void Single_error_rate::clear_accumulators()
+{
+    this->normalized_counter = 0;
+    this->number_seq = 0;
+    this->model_log_likelihood = 0;
+}
+
 const double &Single_error_rate::get_err_rate_upper_bound(size_t n_errors, size_t n_error_free)
 {
     if (n_errors > this->max_err || n_error_free > this->max_noerr) {

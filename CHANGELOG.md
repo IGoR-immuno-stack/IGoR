@@ -17,6 +17,11 @@ brevity.  Much more detail can be found in the git revision history:
   - CLI
     - Route the POSIX-style command interface through CLI11 for consistent help, version, and option validation
     - Add full configured pipeline replay and richer reproducibility manifests with runtime and compiler metadata
+    - New output.scenario_tie_digits and output.scenario_keep_ties options, controlling
+      the precision best scenario probabilities are compared on and whether scenarios
+      tied with the last recorded one are all reported. Both are recorded in the run
+      manifest. Sequences whose N-th best scenario is degenerate now get more than
+      output.scenarios rows instead of an arbitrary member of the degenerate group
   - Sequence sampler:
     - Add fast parallel sequence generator (FastGenerator) with 100x+ speedup
       using precomputed CDFs, binary search/alias method sampling, and OpenMP
@@ -59,6 +64,15 @@ brevity.  Much more detail can be found in the git revision history:
     - fix best_only logic: reports the best alignment inside the offset bounds, instead of no alignment is the overall best alignment was outside the bounds.
     - Fix J gene alignment preset from local to semi-global
     - Fix offset computation bugs in reversed alignment  
+  - Inference:
+    - Make the EM reduction independent of the thread count and of the schedule timing,
+      by accumulating into fixed per chunk slots merged in chunk order. Repeated runs of
+      the same command no longer differ in the last bits of the inferred parameters,
+      which used to make the recorded best scenarios flip between runs
+    - Order scenarios that are degenerate under the model on their realization indices
+      instead of on rounding noise
+  - Counters: fix out of bounds reads in the best scenarios and errors counters
+    insertion loops, and when dumping a scenario without mismatch
 
   Tests:
   - Add unit tests for all sampling primitives (16 test cases)

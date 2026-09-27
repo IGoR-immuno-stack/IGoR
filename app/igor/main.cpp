@@ -168,6 +168,9 @@ struct OutputOptions
 {
     bool pgen = false;
     int scenarios = 0;
+    // Keep the defaults in sync with Best_scenarios_counter::default_tie_digits
+    int scenario_tie_digits = 12;
+    bool scenario_keep_ties = true;
     std::string coverage;
 };
 
@@ -254,6 +257,10 @@ const std::vector<ConfigKey> &config_schema()
             { "generate.threads", "uint", "0", "Generation thread count; 0 means auto." },
             { "output.Pgen", "bool", "false", "Enable Pgen counter output." },
             { "output.scenarios", "uint", "0", "Number of best scenarios to record; 0 disables it." },
+            { "output.scenario_tie_digits", "uint", "12",
+              "Significant digits best scenario probabilities are compared on; 0 compares them exactly." },
+            { "output.scenario_keep_ties", "bool", "true",
+              "Record every scenario tied with the last one, even beyond output.scenarios." },
             { "output.coverage", "string", "", "Coverage counter target such as VJ_gene." },
             { "pipeline.steps", "csv", "import-seqs,align,infer", "Comma-separated steps for `igor run`." },
         };
@@ -444,6 +451,8 @@ ResolvedOptions resolve_config(const Config &config)
     options.output = OutputOptions{
         config.get_bool("output.Pgen"),
         config_int(config, "output.scenarios"),
+        config_int(config, "output.scenario_tie_digits"),
+        config.get_bool("output.scenario_keep_ties"),
         config.get("output.coverage"),
     };
     options.pipeline = PipelineOptions{ split_csv(config.get("pipeline.steps")) };
@@ -757,7 +766,10 @@ std::vector<std::string> base_legacy_args(const GlobalOptions &global, const Res
         args.insert(args.end(), { "-output", "--Pgen" });
     }
     if (options.output.scenarios > 0) {
-        args.insert(args.end(), { "-output", "--scenarios", std::to_string(options.output.scenarios) });
+        args.insert(args.end(),
+                    { "-output", "--scenarios", std::to_string(options.output.scenarios),
+                      "--scenario-tie-digits", std::to_string(options.output.scenario_tie_digits),
+                      "--scenario-keep-ties", options.output.scenario_keep_ties ? "true" : "false" });
     }
     if (!options.output.coverage.empty()) {
         args.insert(args.end(), { "-output", "--coverage", options.output.coverage });
@@ -1053,6 +1065,10 @@ fs::path write_manifest(const std::string &command, const std::vector<std::strin
     out << "batch = " << toml_quote(global.batch) << "\n";
     out << "threads = " << static_cast<int64_t>(global.threads ? *global.threads : options.generate.threads) << "\n";
     out << "seed = " << toml_quote(std::to_string(options.generate.seed)) << "\n";
+    // Recorded because they take part in deciding which scenarios a run writes out
+    out << "scenarios = " << static_cast<int64_t>(options.output.scenarios) << "\n";
+    out << "scenario_tie_digits = " << static_cast<int64_t>(options.output.scenario_tie_digits) << "\n";
+    out << "scenario_keep_ties = " << (options.output.scenario_keep_ties ? "true" : "false") << "\n";
     out << "argv = " << toml_quote(joined_argv(argv)) << "\n";
     if (!positional.empty()) {
         out << "arg0 = " << toml_quote(positional[0]) << "\n";
