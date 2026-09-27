@@ -389,12 +389,12 @@ void Gene_choice::iterate(
                         iterate_common(proba_contribution, current_realizations_index_vec[0], base_index,
                                        exploration.index_map, model.offset_map, model.model_parameters);
 
-                //§7.16, carried: this reads the *live* scenario probability, which the hand-off
-                //below has already multiplied for the previous placement, so the placements
-                //compound. Every one of them is the same realization of the same event and they
-                //should all carry the value this event inherited. R7 repairs it, and moves the
-                //no_alignment_survived golden data with it.
-                new_scenario_proba = scenario.scenario_proba * proba_contribution;
+                //The value this event *inherited*, not the live field -- which the hand-off at
+                //the bottom has already overwritten for the previous placement. Every placement
+                //here is the same realization of the same event, so every one of them carries
+                //the same probability, exactly as the alignment loop above does from the same
+                //`base_scenario_proba` (§7.16, R7).
+                new_scenario_proba = base_scenario_proba * proba_contribution;
 
                 //The two distances come out of the retained decomposition, so they are entries
                 //of the profiles by construction and need no guard.
@@ -414,11 +414,24 @@ void Gene_choice::iterate(
                     current_downstream_proba_memory_layers
                 );
 
-                //If even without taking the weight of errors into account not good, then any
-                //lower one not good -- exact only because the decomposition is sorted by
-                //decreasing bound, which is the property 5a pinned (§6.15).
+                //Not good even before the weight of errors is taken into account. This used to
+                //`break`, on the grounds that the decomposition is sorted by decreasing bound
+                //(§6.15) -- but the sort key is `realization max over the conditioning parent x
+                //near x far`, and the quantity tested here carries the parent the scenario
+                //actually holds. The two orders coincide only for an unconditioned event, and
+                //the D gene choice is conditioned on J in every model shipped here. What made
+                //the `break` look exact was §7.16's compounding, which damped every successive
+                //placement by a further factor of p; removing that removes the licence, so this
+                //is a `continue`.
+                //
+                //It stays worth testing: its bound is the second stage's with this segment's
+                //layer still at 1.0, so it can only fire where the second fires too (§6.14's
+                //dominated check, §6.15) and what it saves is the mismatch scan below -- 56467
+                //of them on the no_d_align corpus. An exact short-circuit is still available,
+                //by testing `placement.proba` (which dominates every parent) rather than this
+                //bound; that is an optimisation, and R6's business rather than R7's.
                 if (exploration.should_prune(scenario_upper_bound_proba)) {
-                    break;
+                    continue;
                 }
 
                 score_placement_against_read(query, accumulation, exploration, my_five_reach,
@@ -514,8 +527,9 @@ void Gene_choice::iterate(
                     const JunctionGeometry::OffsetInterval my_three_reach =
                             own_three_prime_reach(placement_3_off);
 
-                    //§7.16 again: the live read, and the same compounding. See above.
-                    new_scenario_proba = scenario.scenario_proba * proba_contribution;
+                    //The inherited value again, for the same reason as the branch above: every
+                    //position this template slides through is the same realization (§7.16, R7).
+                    new_scenario_proba = base_scenario_proba * proba_contribution;
 
                     //Assume that the whole template is in the sequence and record where it sits
                     scenario.set_offset(my_seq_type, Five_prime, placement_5_off, memory_layer_off_fivep);

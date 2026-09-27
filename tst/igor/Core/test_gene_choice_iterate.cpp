@@ -1137,9 +1137,11 @@ TEST_CASE("Gene_choice::iterate exhaustive position fallback (G6)",
 // left anchor when one neighbour is chosen, and the degenerate core of the alignment path.
 // Those are the sections below.
 //
-// Two defects fall out of writing them and are recorded rather than repaired -- plan sections
+// Two defects fell out of writing them and were recorded rather than repaired -- plan sections
 // 7.16 (the probability compounds across positions) and 7.17 (the slide loop does not
-// terminate when a placement is discarded).
+// terminate when a placement is discarded). Both are now fixed: 7.17 structurally by 5b, and
+// 7.16 by R7, which took the `[!shouldfail]` tags off the two cases at the bottom of this
+// block.
 // ===========================================================================================
 
 namespace {
@@ -1157,11 +1159,15 @@ const std::string kExhaustiveRead = "ACGTACGTACGTACGTACGT";
  */
 struct PositionMapFixture {
     IterateTestState state = create_iterate_state(kExhaustiveRead);
-    std::shared_ptr<Gene_choice> d_event =
-            make_gene_choice(D_gene, {{"D1", "TTTT"}}, 0, /*fixed=*/false);
+    std::shared_ptr<Gene_choice> d_event;
 
-    PositionMapFixture(int d5_max = -1, int d3_max = -1)
+    /// `tmpl` is a knob for one section only. A template whose length is a multiple of four
+    /// scores the same against the ACGT-periodic read wherever it lands, which is what makes
+    /// the default fixture's five placements interchangeable; a five-nucleotide one does not,
+    /// and that is what the prune-stage section needs to tell the two stages apart.
+    PositionMapFixture(int d5_max = -1, int d3_max = -1, const std::string &tmpl = "TTTT")
     {
+        d_event = make_gene_choice(D_gene, {{"D1", tmpl}}, 0, /*fixed=*/false);
         state.set_alignments(D_gene, {});
         auto v_stub = make_gene_choice(V_gene, {{"V1", "A"}}, 1);
         state.add_event(v_stub);
@@ -1400,14 +1406,20 @@ TEST_CASE("Gene_choice::iterate position map: the endogenous window is the maxim
 TEST_CASE("Gene_choice::iterate position map: two prune stages",
           "[gene_choice][iterate][exhaustive][pruning]")
 {
-    // The first stage runs before the segment's error bound is known and `break`s; the second
-    // runs after it and `continue`s. The two measure different things -- disabling the second
-    // changes what is handed off -- but the *first* is not separately observable, exactly as in
-    // Deletion (plan 6.14): its bound is the second's with the segment's layer still holding
-    // 1.0, so it can only fire where the second fires too, and both are monotone along the
-    // enumeration order. Neither disabling it nor turning its `break` into a `continue` changes
-    // any assertion below. It is an optimisation -- it skips building the mismatch list -- and
-    // 5b should treat it as one.
+    // The first stage runs before the segment's error bound is known; the second runs after it.
+    // The two measure different things -- disabling the second changes what is handed off --
+    // but the *first* is not separately observable, exactly as in Deletion (plan 6.14): its
+    // bound is the second's with the segment's layer still holding 1.0, so it can only fire
+    // where the second fires too. Disabling it changes no assertion below. It is an
+    // optimisation -- it skips building the mismatch list -- and 5b treated it as one.
+    //
+    // 5a wrote that it was also indifferent to whether the first stage `break`s or `continue`s.
+    // That held only while §7.16's compounding damped every successive placement, and R7
+    // removed it; the first stage is a `continue` since, because the decomposition is sorted by
+    // a max over the conditioning parent while the bound tested here carries the parent the
+    // scenario actually holds. No case here pins that, and none can: it needs a Gene_choice
+    // with a conditioning edge, which this file's harness does not build. The evidence is a
+    // corpus measurement, recorded under R7 in the plan.
 
     SECTION("No threshold: every placement is handed off")
     {
@@ -1424,15 +1436,40 @@ TEST_CASE("Gene_choice::iterate position map: two prune stages",
         CHECK(call_iterate_recording(fixture.d_event, fixture.state)->call_count() == 0);
     }
 
-    SECTION("A threshold only the error bound crosses drops the later placements")
+    SECTION("A threshold only the error bound crosses drops the placements that score worst")
     {
         // Between the two stages: every placement passes the first check and reaches the
-        // mismatch count, and the three weakest are dropped by the second.
-        PositionMapFixture fixture;
+        // mismatch count, and the ones whose surviving core scores worst are dropped by the
+        // second -- which a `break` could not do, since the survivor is not the first.
+        //
+        // It takes a five-nucleotide template to show this at all. The default fixture's
+        // "TTTT" is a whole period of the ACGT-periodic read, so all five of its placements
+        // carry the same core score and no threshold separates them; before R7 they were
+        // separated only by the probability compounding across placements (§7.16), which is
+        // what this section used to be reading. Five nucleotides make the score depend on
+        // phase: the core catches a second T at 5' offset 7 and nowhere else, so that
+        // placement is worth 0.9 * (0.1/3)^3 and the other three (0.1/3)^4, twenty-seven
+        // times less.
+        const double four_errors = std::pow(0.1 / 3.0, 4);
+        const double three_errors_one_free = std::pow(0.1 / 3.0, 3) * 0.9;
+
+        PositionMapFixture unpruned(/*d5_max=*/-1, /*d3_max=*/-1, "TTTTT");
+        unpruned.state.set_error_rate(0.1);
+        const auto all = call_iterate_recording(unpruned.d_event, unpruned.state);
+        REQUIRE(five_prime_order(all, D_gene_seq) == std::vector<Seq_Offset>{6, 7, 8, 9});
+        CHECK_THAT(all->calls.at(0).downstream_bounds.at(D_gene_seq),
+                   Catch::Matchers::WithinRel(four_errors, 1e-9));
+        CHECK_THAT(all->calls.at(1).downstream_bounds.at(D_gene_seq),
+                   Catch::Matchers::WithinRel(three_errors_one_free, 1e-9));
+
+        PositionMapFixture fixture(/*d5_max=*/-1, /*d3_max=*/-1, "TTTTT");
         fixture.state.set_error_rate(0.1);
         fixture.state.set_pruning_threshold(1e-7);
         const auto rec = call_iterate_recording(fixture.d_event, fixture.state);
-        CHECK(five_prime_order(rec, D_gene_seq) == std::vector<Seq_Offset>{6, 7});
+        // Only the placement the second stage keeps, and it is the *second* one enumerated:
+        // the first was dropped and the scan carried on to it, so the first stage's `break`
+        // demonstrably did not fire here.
+        CHECK(five_prime_order(rec, D_gene_seq) == std::vector<Seq_Offset>{7});
     }
 }
 
@@ -1509,14 +1546,15 @@ TEST_CASE("Gene_choice::iterate a D whose surviving core is empty is not charged
     CHECK(bound_with_budget(2, {10}) == 1.0);
 }
 
-TEST_CASE("DEFECT (plan 7.16): the position map compounds the D probability across placements",
-          "[gene_choice][iterate][exhaustive][defect][!shouldfail]")
+TEST_CASE("The position map hands every placement the probability this event inherited",
+          "[gene_choice][iterate][exhaustive]")
 {
-    // Every placement is the *same* realization of the same event, so every hand-off should
-    // carry the same probability: the incoming one times that realization's marginal. The
-    // alignment path restarts from `base_scenario_proba` at each realization and does exactly
-    // that. This path reads `scenario.scenario_proba` instead, which the previous placement
-    // has already overwritten, so placement k comes out at `incoming * p^k`.
+    // Every placement is the *same* realization of the same event, so every hand-off carries
+    // the same probability: the incoming one times that realization's marginal. The alignment
+    // loop restarts from `base_scenario_proba` at each realization, and since R7 this path
+    // does too. It used to read the live `scenario.scenario_proba`, which the previous
+    // placement had already overwritten, so placement k came out at `incoming * p^k`
+    // (§7.16, written as `[!shouldfail]` by 5a and un-tagged by R7).
     //
     // Nothing else in the file catches it: T0's sections on this path assert offsets and
     // sequences, never probabilities.
@@ -1529,9 +1567,11 @@ TEST_CASE("DEFECT (plan 7.16): the position map compounds the D probability acro
     }
 }
 
-TEST_CASE("DEFECT (plan 7.16): the sliding window compounds it too",
-          "[gene_choice][iterate][exhaustive][defect][!shouldfail]")
+TEST_CASE("The sliding window hands every position the same inherited probability",
+          "[gene_choice][iterate][exhaustive]")
 {
+    // The other half of §7.16, and the same claim: eleven positions of one template, all
+    // eleven at 0.5.
     IterateTestState state = create_iterate_state(kExhaustiveRead);
     auto d_event = make_gene_choice(D_gene, {{"D1", "TTTT"}}, 0, /*fixed=*/false);
     state.set_alignments(D_gene, {});
