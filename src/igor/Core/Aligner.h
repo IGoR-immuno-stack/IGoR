@@ -428,7 +428,9 @@ struct SwAlignmentMode
  * Fields
  * ------
  * score_threshold  Minimum score an alignment must reach to be returned.
- * best_only        Retain only the alignment(s) reaching the best score for this call.
+ * best_only        Retain only the alignment(s) reaching the best score for this call. If several
+ *                   candidates tie for that best score, all of them are returned -- best_only
+ *                   guarantees the top score, not a single alignment.
  * min_offset       Lower bound on the offset (genomic-vs-query position).
  * max_offset       Upper bound on the offset.
  * alignment_mode    Boundary and orientation policy for the DP run.

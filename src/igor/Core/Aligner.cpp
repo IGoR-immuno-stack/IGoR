@@ -30,6 +30,7 @@
 #include <cctype>
 #include <unordered_set>
 #include <cmath>
+#include <cstdlib>
 
 using namespace std;
 
@@ -345,7 +346,8 @@ forward_list<Alignment_data> Aligner::align_seq(string nt_seq, double score_thre
  *
  * \param [in] nt_seq the nucleotide sequence to study
  * \param [in] score_threshold The SW alignment score threshold to record an alignment
- * \param [in] best_align_only Only retain the best alignment for each genomic template.
+ * \param [in] best_align_only Only retain the best alignment for each genomic template. If several
+ * alignments tie for that best score, all of them are retained.
  * \param [in] best_gene_only Only retain the best gene/allele candidate (or best candidates if several have the same highest score).
  * \param [in] genomic_offset_bounds A hash map containing offsets lower and upper bounds for each genomic template. Keys of the map are the genomic templates names.
  * \param [in] restricted_genomic_list A set containing the names of the genes that should be aligned to the sequence.
@@ -572,7 +574,8 @@ void Aligner::align_seqs(string filename, vector<pair<const int, const string>> 
  * \param [in] sequence_list A forward list containing pairs of nt sequence and the corresponding index
  * \param [in] nt_seq the nucleotide sequence to study
  * \param [in] score_threshold The SW alignment score threshold to record an alignment
- * \param [in] best_align_only Only retain the best alignment for each genomic template.
+ * \param [in] best_align_only Only retain the best alignment for each genomic template. If several
+ * alignments tie for that best score, all of them are retained.
  * \param [in] best_gene_only Only retain the best gene/allele candidate (or best candidates if several have the same highest score).
  * \param [in] genomic_offset_bounds A hash map containing offsets lower and upper bounds for each genomic template. Keys of the map are the genomic templates names.
  * \param [in] rev_offset_frame Are offsets bounds given reversed? (offset defined based on the last sequence nt instead of the first). Default is false.
@@ -2068,6 +2071,282 @@ void initialize_sw_matrices(SwDPState &dp, const SwDPConfig &config)
     }
 }
 
+namespace band_bounds_detail {
+
+// long long throughout: min_offset/max_offset can be INT32_MIN/INT32_MAX (SwDPConfig's
+// "unconstrained" defaults), and j + min_offset (etc.) would overflow in 32-bit arithmetic.
+inline long long clamp_ll(long long v, long long lo, long long hi)
+{
+    return std::max(lo, std::min(hi, v));
+}
+
+// Best-case score of a path from the earliest possible seed on diagonal d0 (the row-0/col-0
+// boundary point on that diagonal) to interior cell (i,j), front-loading all diagonal (match)
+// moves before paying gap cost for the rest. Sound upper bound regardless of where the true seed
+// sits on diagonal d0: any other seed on that diagonal has strictly less remaining budget in both
+// directions. i,j are 1-based interior matrix coordinates (>=1).
+inline double seed_reach_score(long long i, long long j, long long d0, double m, long long g)
+{
+    const long long a = i - std::max<long long>(0, d0);
+    const long long b = j - std::max<long long>(0, -d0);
+    if (a < 0 || b < 0) {
+        // d0's own boundary point (max(0,d0), max(0,-d0)) doesn't fit in the matrix at all: this
+        // can only happen when [min_offset,max_offset] (via the caller's clamp) is so far outside
+        // the matrix's own feasible diagonal span that even the closest admissible diagonal has no
+        // valid seed -- not "a bad score", a genuinely impossible geometry. -infinity here (rather
+        // than a merely very negative finite value) is why fill_column_range's criterion also
+        // requires std::isfinite: a finite sentinel would still satisfy ">= -infinity" whenever
+        // score_threshold is itself left at its (default) -infinity, silently readmitting it.
+        return -std::numeric_limits<double>::infinity();
+    }
+    const long long gap_moves = std::llabs((i - j) - d0);
+    return m * static_cast<double>(std::min(a, b)) - static_cast<double>(g) * static_cast<double>(gap_moves);
+}
+
+// Best-case score of a path from interior cell (i,j) to the farthest reachable cell on diagonal
+// d1 (the row-(n_rows-1)/col-(n_cols-1) boundary point on that diagonal), front-loading all
+// diagonal moves. Mirror image of seed_reach_score for the "suffix cone" (flip_seqs==true) case:
+// here it is the *far* corner on diagonal d1, not the near one, that maximizes remaining budget.
+inline double target_reach_score(long long i, long long j, long long d1, double m, long long g, long long n_rows,
+                                 long long n_cols)
+{
+    const long long k = i - j;
+    const long long delta = d1 - k;
+    const long long a = (n_rows - 1 - i) - std::max<long long>(0, delta);
+    const long long b = (n_cols - 1 - j) - std::max<long long>(0, -delta);
+    if (a < 0 || b < 0) {
+        // Mirror image of seed_reach_score's feasibility guard: d1's own far-corner boundary point
+        // doesn't fit in the matrix from (i,j) onward at all.
+        return -std::numeric_limits<double>::infinity();
+    }
+    return m * static_cast<double>(std::min(a, b)) - static_cast<double>(g) * static_cast<double>(std::llabs(delta));
+}
+
+// Best-case additional score achievable continuing from (i,j) onward, extending (i,j)'s own
+// diagonal (zero further gap moves -- the cheapest possible continuation) all the way to the
+// matrix's far corner. Used as the "backward" half of the reachability bound: even a cell whose
+// best-case score AT (i,j) is unremarkable (or negative) may still be a necessary ancestor of a
+// later cell that clears score_threshold, since nothing in semi-global (non-reset) alignment mode
+// prevents a candidate's tracked score from dipping negative and recovering later.
+inline double remaining_extent_score(long long i, long long j, long long n_rows, long long n_cols, double m)
+{
+    return m * static_cast<double>(std::min(n_rows - 1 - i, n_cols - 1 - j));
+}
+
+// Finds a peak (index where extending further doesn't increase the value) of a weakly-unimodal
+// (non-decreasing then non-increasing, possibly with a flat plateau) integer-domain function over
+// [lo,hi], via the standard "find peak element" binary search. Used instead of a hand-derived
+// closed-form peak location because sweep_prefix/sweep_suffix's Combined criterion is a *sum* of
+// two concave pieces whose individual peaks don't align, making the combined peak's location
+// error-prone to derive by hand (see git history for a worked example of exactly that mistake).
+template <typename F>
+int find_peak(int lo, int hi, const F &f)
+{
+    while (lo < hi) {
+        const int mid = lo + (hi - lo) / 2;
+        if (f(mid) < f(mid + 1)) {
+            lo = mid + 1;
+        } else {
+            hi = mid;
+        }
+    }
+    return lo;
+}
+
+// Binary-searches the row range within [row_lo,row_hi] where a unimodal-in-i reach function
+// reaches score_threshold, given a row known to lie on or at its single peak/plateau within that
+// range. Shared by sweep_prefix and sweep_suffix, which differ only in which combined reach
+// function they evaluate -- see each caller's doc comment for the derivation and unimodality
+// argument. [row_lo,row_hi] is the already-feasible sub-range computed by the caller (see
+// feasible_row_range_prefix/suffix) -- restricting the search to it, rather than searching the
+// full [1,n_rows-1] and relying on seed_reach_score/target_reach_score's -infinity sentinel to
+// reject the rest, is what keeps find_peak's binary search correct: an extended plateau of tied
+// -infinity values elsewhere in [1,n_rows-1] would otherwise make it stop before ever reaching the
+// real (finite) peak.
+template <typename ReachAtRow>
+void fill_column_range(int row_lo, int row_hi, int i_peak, const ReachAtRow &reach_at_row, double score_threshold,
+                       int &lo_out, int &hi_out)
+{
+    if (row_lo > row_hi) {
+        return; // no feasible row at all in this column
+    }
+    const auto admissible = [&](int i) { return std::isfinite(reach_at_row(i)) && reach_at_row(i) >= score_threshold; };
+    if (!admissible(i_peak)) {
+        return; // whole column stays empty (lo_out > hi_out, the caller's default)
+    }
+    // Left boundary: non-decreasing on [row_lo, i_peak].
+    int lo = row_lo;
+    int hi = i_peak;
+    while (lo < hi) {
+        const int mid = lo + (hi - lo) / 2;
+        if (admissible(mid)) {
+            hi = mid;
+        } else {
+            lo = mid + 1;
+        }
+    }
+    lo_out = lo;
+    // Right boundary: non-increasing on [i_peak, row_hi].
+    lo = i_peak;
+    hi = row_hi;
+    while (lo < hi) {
+        const int mid = lo + (hi - lo + 1) / 2;
+        if (admissible(mid)) {
+            lo = mid;
+        } else {
+            hi = mid - 1;
+        }
+    }
+    hi_out = lo;
+}
+
+// Feasible row range for sweep_prefix's column j: the sub-range of [1,n_rows-1] where
+// seed_reach_score(i, j, clamp(i-j,d_lo,d_hi), ...) is finite (i.e. the clamped seed diagonal's
+// own boundary point actually fits in the matrix). Derived from the three-regime decomposition
+// (see sweep_prefix's doc comment): the middle "plateau" region i in [j+d_lo, j+d_hi] is always
+// feasible; the two flanking regions use a FIXED clamped diagonal (d_lo to the left, d_hi to the
+// right), so their feasibility reduces to a single column-level check each (not i-dependent) once
+// combined with the region's own a>=0 threshold on i.
+std::pair<int, int> feasible_row_range_prefix(int j, int n_rows, long long d_lo, long long d_hi)
+{
+    const long long i1 = static_cast<long long>(j) + d_lo;
+    const long long i2 = static_cast<long long>(j) + d_hi;
+    // Left region (i < i1): a = i - max(0,d_lo) (i-dependent threshold), b = j - max(0,-d_lo)
+    // (constant there) -- if b < 0 the whole left region is infeasible regardless of i.
+    long long lo = (j - std::max<long long>(0, -d_lo) < 0) ? i1 : std::max<long long>(1, std::max<long long>(0, d_lo));
+    // Right region (i > i2): a = i - max(0,d_hi) is always >= 0 there (i grows without bound),
+    // b = j - max(0,-d_hi) (constant there) -- if b < 0 the whole right region is infeasible.
+    long long hi = (j - std::max<long long>(0, -d_hi) < 0) ? i2 : static_cast<long long>(n_rows - 1);
+    lo = clamp_ll(lo, 1, n_rows - 1);
+    hi = clamp_ll(hi, 1, n_rows - 1);
+    return { static_cast<int>(lo), static_cast<int>(hi) };
+}
+
+// Feasible row range for sweep_suffix's column j: mirror of feasible_row_range_prefix for
+// target_reach_score's regions (see sweep_suffix's doc comment for why the shape differs -- here
+// the LEFT region's feasibility is i-independent, and the RIGHT region's has an i-dependent
+// upper threshold, the opposite asymmetry from the prefix case).
+std::pair<int, int> feasible_row_range_suffix(int j, int n_rows, int n_cols, long long d_lo, long long d_hi)
+{
+    const long long i1 = static_cast<long long>(j) + d_lo;
+    const long long i2 = static_cast<long long>(j) + d_hi;
+    // Left region (i < i1): a = n_rows-1-d_lo-j and b = n_cols-1-j are BOTH constant there;
+    // b >= 0 always holds for an interior column, so only the a-condition can exclude it.
+    long long lo = (static_cast<long long>(n_rows - 1) - d_lo - j < 0) ? i1 : 1;
+    // Right region (i > i2): a = n_rows-1-i is always >= 0 there; b = n_cols-1+d_hi-i imposes an
+    // upper bound i <= n_cols-1+d_hi.
+    long long hi = std::min<long long>(n_rows - 1, std::max<long long>(i2, static_cast<long long>(n_cols - 1) + d_hi));
+    lo = clamp_ll(lo, 1, n_rows - 1);
+    hi = clamp_ll(hi, 1, n_rows - 1);
+    return { static_cast<int>(lo), static_cast<int>(hi) };
+}
+
+// Per-column row range [lo(j), hi(j)] = {i in [1, n_rows-1] : Combined(i,j) >= score_threshold},
+// where
+//   Combined(i,j) = seed_reach_score(i, j, clamp(i-j,d_lo,d_hi), m, g)      -- forward: best case
+//                                                                              arriving at (i,j)
+//                                                                              from an admissible
+//                                                                              seed diagonal
+//                 + remaining_extent_score(i, j, n_rows, n_cols, m)         -- backward: best case
+//                                                                              continuing from
+//                                                                              (i,j) to the far
+//                                                                              corner
+// is a sound upper bound on the total score of *any* real path (through any real sequence
+// content) that passes through (i,j) after seeding on an admissible diagonal. If Combined(i,j) is
+// below score_threshold, no such path could ever have (i,j) contribute to a candidate whose
+// eventual peak reaches threshold -- regardless of what happens before or after (i,j) along the
+// real, data-dependent path -- so (i,j) is safe to skip. Comparing against the real
+// score_threshold (not a hardcoded 0) is what makes this sound for semi-global (non-reset)
+// alignment modes, where a candidate's actual tracked score can legitimately dip negative and
+// later recover; -infinity (SwDPConfig's default) degrades this to "reachable at all" (no
+// score-based exclusion), which is correct since nothing is excluded by an unset threshold.
+//
+// Both terms are concave (unimodal) in i for fixed j (seed_reach_score: see its own three-regime
+// argument; remaining_extent_score: min of a decreasing and a constant term), so their sum is too
+// -- find_peak() locates a point on the combined peak/plateau, then fill_column_range finds the
+// >=score_threshold boundary on each side.
+SwBandBounds sweep_prefix(int n_rows, int n_cols, long long d_lo, long long d_hi, double m, int gap_penalty,
+                          double score_threshold)
+{
+    SwBandBounds result;
+    result.lo.assign(n_cols, 1);
+    result.hi.assign(n_cols, 0);
+    if (d_lo > d_hi) {
+        return result;
+    }
+
+    for (int j = 1; j != n_cols; ++j) {
+        const auto [row_lo, row_hi] = feasible_row_range_prefix(j, n_rows, d_lo, d_hi);
+        if (row_lo > row_hi) {
+            continue; // no seed diagonal in [d_lo,d_hi] has a geometrically valid boundary point
+        }
+        const auto combined = [&](int i) {
+            return seed_reach_score(i, j, clamp_ll(i - j, d_lo, d_hi), m, gap_penalty)
+                 + remaining_extent_score(i, j, n_rows, n_cols, m);
+        };
+        const int i_peak = find_peak(row_lo, row_hi, combined);
+        fill_column_range(row_lo, row_hi, i_peak, combined, score_threshold, result.lo[j], result.hi[j]);
+    }
+    return result;
+}
+
+// Mirror image of sweep_prefix for the "suffix cone" (flip_seqs==true): offset restricts the
+// diagonal of the *target* (running-max) cell, not the seed, so Combined(i,j) instead sums
+//   remaining_extent_score-style PREFIX credit: m * min(i,j)   -- best case arriving at (i,j) from
+//                                                                  ANY (unrestricted) seed
+//                 + target_reach_score(i, j, clamp(i-j,d_lo,d_hi), m, g, n_rows, n_cols)
+//                                                              -- best case continuing from (i,j)
+//                                                                 to an admissible target diagonal
+// Same unimodality argument as sweep_prefix applies (m*min(i,j) is concave in i for fixed j by the
+// same "min of increasing-then-flat" shape as seed_reach_score's own plateau term).
+SwBandBounds sweep_suffix(int n_rows, int n_cols, long long d_lo, long long d_hi, double m, int gap_penalty,
+                          double score_threshold)
+{
+    SwBandBounds result;
+    result.lo.assign(n_cols, 1);
+    result.hi.assign(n_cols, 0);
+    if (d_lo > d_hi) {
+        return result;
+    }
+
+    for (int j = 1; j != n_cols; ++j) {
+        const auto [row_lo, row_hi] = feasible_row_range_suffix(j, n_rows, n_cols, d_lo, d_hi);
+        if (row_lo > row_hi) {
+            continue; // no target diagonal in [d_lo,d_hi] has a geometrically valid far-corner point
+        }
+        const auto combined = [&](int i) {
+            return m * static_cast<double>(std::min(i, j))
+                 + target_reach_score(i, j, clamp_ll(i - j, d_lo, d_hi), m, gap_penalty, n_rows, n_cols);
+        };
+        const int i_peak = find_peak(row_lo, row_hi, combined);
+        fill_column_range(row_lo, row_hi, i_peak, combined, score_threshold, result.lo[j], result.hi[j]);
+    }
+    return result;
+}
+
+} // namespace band_bounds_detail
+
+SwBandBounds compute_band_bounds(int n_rows, int n_cols, int min_offset, int max_offset, double max_match_score,
+                                 int gap_penalty, double score_threshold, bool flip_seqs, size_t data_seq_size,
+                                 size_t genomic_seq_size)
+{
+    using namespace band_bounds_detail;
+
+    if (!flip_seqs) {
+        // offset == i - j at the seed (traceback_sw_alignments' non-flip branch), so min_offset/
+        // max_offset bound the seed diagonal directly.
+        return sweep_prefix(n_rows, n_cols, min_offset, max_offset, max_match_score, gap_penalty, score_threshold);
+    }
+
+    // flip_seqs == true: offset = (j_end - i_end) + C, C = data_seq_size - genomic_seq_size
+    // (traceback_sw_alignments' flip branch, using the running-max cell i_end,j_end) =>
+    // i_end - j_end = C - offset, for offset in [min_offset, max_offset].
+    const long long C = static_cast<long long>(data_seq_size) - static_cast<long long>(genomic_seq_size);
+    const long long suffix_d_lo = C - static_cast<long long>(max_offset);
+    const long long suffix_d_hi = C - static_cast<long long>(min_offset);
+    return sweep_suffix(n_rows, n_cols, suffix_d_lo, suffix_d_hi, max_match_score, gap_penalty, score_threshold);
+}
+
 /**
  * Extend alignment mismatches to the 5' (left) side assuming no indels in the extended region.
  * This function extends from the start of the core alignment (i, j) towards lower indices
@@ -2540,6 +2819,31 @@ IGOR_ALWAYS_INLINE void fill_sw_matrix_cell(int i, int j, int n_rows, double *sc
  * \param int_genomic_sequence  Prepared (possibly flipped) reference sequence, 0-based.
  * \param dp  DP workspace whose matrices were already initialized by initialize_sw_matrices.
  */
+namespace {
+// Deeply uncompetitive score written to DP cells that fall outside the computed band (see
+// SwDPState::lo/hi, swalign::compute_band_bounds), so a neighboring in-band cell's idx_up/
+// idx_left/idx_diag read (fill_sw_matrix_cell) finds a well-defined value instead of the garbage
+// Matrix<T>'s constructor leaves behind (no zero-initialization -- see Utils.h). Comfortably below
+// any achievable real DP score (bounded by roughly max_match_score or gap_penalty times
+// n_rows+n_cols for realistic alignment sizes) while staying far from int32 overflow after
+// fill_sw_matrix_cell's static_cast<int> arithmetic on a single -gap_penalty hop off of it.
+constexpr double SW_BAND_SENTINEL_SCORE = -1.0e8;
+} // namespace
+
+// Writes the sentinel to cell (i,j) across all four DP matrices sharing SwDPState's linear index
+// convention (idx = i + n_rows*j, see fill_sw_matrix_cell) -- not just score_matrix, because the
+// local-alignment reset branch in fill_sw_matrix_cell unconditionally reads numb_trk[idx_diag]
+// regardless of which move wins the argmax, so a sentinel cell's tracker must also be well-defined
+// (-1, the same "untracked" convention initialize_sw_matrices uses for the true boundary).
+void seed_band_sentinel_cell(int i, int j, int n_rows, double *score, int *row_mem, int *col_mem, int *numb_trk)
+{
+    const int idx = i + n_rows * j;
+    score[idx] = SW_BAND_SENTINEL_SCORE;
+    row_mem[idx] = 0;
+    col_mem[idx] = 0;
+    numb_trk[idx] = -1;
+}
+
 void fill_sw_score_matrix(const Int_Str &int_data_sequence, const Int_Str &int_genomic_sequence, SwDPState &dp,
                           const SwDPConfig &config)
 {
@@ -2557,25 +2861,110 @@ void fill_sw_score_matrix(const Int_Str &int_data_sequence, const Int_Str &int_g
 #define IGOR_SW_BAND_WIDTH 8
     constexpr int BAND_WIDTH = IGOR_SW_BAND_WIDTH;
 
+    // Column 0 (the init boundary) is fully valid for every row already, so seeding the "previous
+    // column range" bookkeeping with it means the first stripe/tail column needs no special case
+    // in the fringe logic below.
+    int prev_lo = 0;
+    int prev_hi = n_rows - 1;
+
     // Always start at index 1 since first column and first row are initialization values
     int j = 1;
     for (; j + BAND_WIDTH <= dp.n_cols; j += BAND_WIDTH) {
-        for (int i = 1; i != dp.n_rows; ++i) {
+        // Restrict the row loop to the UNION of this stripe's 8 individual column ranges (dp.lo/
+        // dp.hi), not each column's own tight range: the inner unrolled loop below fires for all 8
+        // columns unconditionally (that uniformity is what gives it the ILP the routine's own
+        // traversal-order comment describes), so a per-column conditional inside it would undo
+        // that. The union costs a little slack at a stripe's edges -- at most BAND_WIDTH-1 extra
+        // columns' worth per stripe boundary -- in exchange for leaving that loop untouched.
+        int lo_stripe = n_rows;
+        int hi_stripe = 0;
+        for (int b = 0; b != BAND_WIDTH; ++b) {
+            if (dp.lo[j + b] <= dp.hi[j + b]) {
+                lo_stripe = std::min(lo_stripe, dp.lo[j + b]);
+                hi_stripe = std::max(hi_stripe, dp.hi[j + b]);
+            }
+        }
+        lo_stripe = std::max(lo_stripe, 1);
+        hi_stripe = std::min(hi_stripe, n_rows - 1);
+
+        if (lo_stripe > hi_stripe) {
+            // Whole stripe is empty: none of its 8 columns get computed, so the "previous column"
+            // bookkeeping for whatever comes next must reflect that (fully uninitialized), not
+            // silently keep referring to the stripe before this one.
+            prev_lo = 1;
+            prev_hi = 0;
+            continue;
+        }
+
+        // Left fringe: sentinel newly-exposed rows of the previous column (j-1) -- read via
+        // idx_left by this stripe's leftmost column (b=0) at every row in [lo_stripe,hi_stripe],
+        // and via idx_diag by that same column's first row, hence starting one row earlier.
+        for (int row = std::max(1, lo_stripe - 1); row <= hi_stripe; ++row) {
+            if (row < prev_lo || row > prev_hi) {
+                seed_band_sentinel_cell(row, j - 1, n_rows, score, row_mem, col_mem, numb_trk);
+            }
+        }
+        // Top fringe: sentinel row (lo_stripe-1) across this whole stripe's own columns -- read via
+        // idx_up (and, for b>=1, idx_diag) by the stripe's first processed row.
+        if (lo_stripe > 1) {
+            for (int b = 0; b != BAND_WIDTH; ++b) {
+                seed_band_sentinel_cell(lo_stripe - 1, j + b, n_rows, score, row_mem, col_mem, numb_trk);
+            }
+        }
+
+        for (int i = lo_stripe; i <= hi_stripe; ++i) {
             IGOR_UNROLL(IGOR_SW_BAND_WIDTH)
             for (int b = 0; b != BAND_WIDTH; ++b) {
                 fill_sw_matrix_cell(i, j + b, n_rows, score, row_mem, col_mem, numb_trk, dp.candidates,
                                     reset_negative_scores, config, int_data_sequence, int_genomic_sequence);
             }
         }
+
+        prev_lo = lo_stripe;
+        prev_hi = hi_stripe;
     }
-    // Remaining columns too few to fill a whole band.
+    // Remaining columns too few to fill a whole band: banded per-column, same fringe scheme as
+    // above but without the stripe-wide union (nothing to keep uniform for an unrolled loop here).
     for (; j != dp.n_cols; ++j) {
-        for (int i = 1; i != dp.n_rows; ++i) {
+        const int col_lo = std::max(dp.lo[j], 1);
+        const int col_hi = std::min(dp.hi[j], n_rows - 1);
+        if (dp.lo[j] > dp.hi[j] || col_lo > col_hi) {
+            prev_lo = 1;
+            prev_hi = 0;
+            continue;
+        }
+
+        for (int row = std::max(1, col_lo - 1); row <= col_hi; ++row) {
+            if (row < prev_lo || row > prev_hi) {
+                seed_band_sentinel_cell(row, j - 1, n_rows, score, row_mem, col_mem, numb_trk);
+            }
+        }
+        if (col_lo > 1) {
+            seed_band_sentinel_cell(col_lo - 1, j, n_rows, score, row_mem, col_mem, numb_trk);
+        }
+
+        for (int i = col_lo; i <= col_hi; ++i) {
             fill_sw_matrix_cell(i, j, n_rows, score, row_mem, col_mem, numb_trk, dp.candidates, reset_negative_scores,
                                 config, int_data_sequence, int_genomic_sequence);
         }
+
+        prev_lo = col_lo;
+        prev_hi = col_hi;
     }
 #undef IGOR_SW_BAND_WIDTH
+}
+
+// Best (highest) entry of a substitution matrix: the maximum score a single diagonal move could
+// ever achieve, used as the upper bound "m" in compute_band_bounds's reachability math.
+double max_substitution_score(const Matrix<double> &substitution_matrix)
+{
+    double max_score = substitution_matrix(0, 0);
+    for (int i = 0; i != substitution_matrix.get_n_rows(); ++i) {
+        for (int j = 0; j != substitution_matrix.get_n_cols(); ++j) {
+            max_score = std::max(max_score, substitution_matrix(i, j));
+        }
+    }
+    return max_score;
 }
 
 } // namespace swalign
@@ -2603,7 +2992,12 @@ list<pair<int, Alignment_data>> sw_align(const Int_Str &int_data_sequence, const
     const int n_rows = static_cast<int>(prepared_inputs.data_sequence.size()) + 1;
     const int n_cols = static_cast<int>(prepared_inputs.genomic_sequence.size()) + 1;
 
-    SwDPState dp(n_rows, n_cols);
+    SwBandBounds band = compute_band_bounds(n_rows, n_cols, config.min_offset, config.max_offset,
+                                            max_substitution_score(config.substitution_matrix), config.gap_penalty,
+                                            config.score_threshold, config.alignment_mode.reverse_sequences,
+                                            int_data_sequence.size(), int_genomic_sequence.size());
+
+    SwDPState dp(n_rows, n_cols, std::move(band));
     initialize_sw_matrices(dp, config);
     fill_sw_score_matrix(prepared_inputs.data_sequence, prepared_inputs.genomic_sequence, dp, config);
 

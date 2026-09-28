@@ -10,6 +10,7 @@ set(CORE_TEST_SOURCES
     test_generation.cpp
     test_inference.cpp
     test_sanity.cpp
+    test_sw_band_bounds.cpp
     test_utils.cpp
     AlignerTestUtils.cpp
 )
