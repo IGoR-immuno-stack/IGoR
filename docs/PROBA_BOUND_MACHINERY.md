@@ -552,8 +552,10 @@ Three readings.
   parent in each case is the `Insertion` whose bound counts its own realization twice. The
   instrument finds it without being told where to look. *(Gone since R8's stage 3c-i, Sep 30
   2026: both steps now read 10^0.00, and `Insertion_DJ` has no unsound node left. What remains
-  unsound is `Deletion`'s mirror of the same defect, which stage 3c-ii removes — see the iterate
-  plan, "R8 in more detail".)*
+  unsound was `Deletion`'s mirror of the same defect, and stage 3c-ii removed it the same day:
+  **no node at any depth is unsound**, and the walk visits 22.2 M nodes for 3.77 M scenarios —
+  fewer nodes than before R8, for four times the scenarios. The table in this section is the
+  pre-R8 baseline; R6 should be sized against the one in the iterate plan, "R8 in more detail".)*
 - **Barren is a probability story, not a geometry one.** Of 18 723 690 barren nodes, 0.22 % were
   starved and 66.88 % pruned (the rest hollow, i.e. their cause is recorded one level down).
   Among the 12 564 150 *frontier* barren nodes — those that are one or the other — **99.67 % died
