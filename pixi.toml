@@ -19,6 +19,7 @@ sparrow-devel = "*"
 arrow-cpp = "*"
 cli11 = ">=2.6.2,<3"
 tomlplusplus = ">=3.3.0,<4"
+nlohmann_json = ">=3.11,<4"
 
 [target.osx.dependencies]
 clang-tools = ">=19.1.7,<22"
@@ -108,6 +109,7 @@ mdspan = "*"  # Kokkos reference implementation
 sparrow-devel = "*"
 arrow-cpp = "*"
 tomlplusplus = ">=3.3.0,<4"
+nlohmann_json = ">=3.11,<4"
 
 [package.run-dependencies]
 gsl = "*"
@@ -115,3 +117,4 @@ sparrow-devel = "*"
 arrow-cpp = "*"
 tomlplusplus = ">=3.3.0,<4"
 mdspan = "*"  # Kokkos reference implementation, needed by the installed igor/Math headers
+nlohmann_json = ">=3.11,<4"  # named by the installed Rec_Event.h / ModelJson.h signatures

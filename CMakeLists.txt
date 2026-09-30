@@ -127,6 +127,7 @@ find_package(Parquet REQUIRED)
 find_package(sparrow REQUIRED)
 find_package(CLI11 REQUIRED)
 find_package(tomlplusplus REQUIRED)
+find_package(nlohmann_json REQUIRED)
 
 find_package(Arrow REQUIRED)
 find_package(Parquet REQUIRED)

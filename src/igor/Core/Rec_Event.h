@@ -38,6 +38,9 @@
 #include <igor/Core/Typedef.h>
 #include <igorCoreExport.h>
 
+// Only the forward declaration here: json.hpp is 25k lines and belongs in the .cpp files.
+#include <nlohmann/json_fwd.hpp>
+
 // Context objects for refactored iterate()
 #include <igor/Core/QuerySequenceContext.h>
 #include <igor/Core/ModelContext.h>
@@ -303,6 +306,19 @@ public:
     virtual void write2txt(std::ofstream &) = 0;
     virtual void write2txt_legacy(std::ofstream &) = 0;
     virtual void write2txt_v2(std::ofstream &) = 0;
+
+    /**
+     * \brief Serialized form of this event: its header fields plus its realizations.
+     *
+     * Non-pure on purpose. The body in Rec_Event.cpp is generic over the four subclasses,
+     * because everything it writes is already on the base: type, gene class, seq_type, side,
+     * priority, nickname, and the realization map. A subclass only needs to override it if it
+     * grows state that is not a realization.
+     *
+     * Realizations come out sorted by index, since event_realizations is an unordered_map and
+     * an unsorted dump would not be reproducible.
+     */
+    virtual nlohmann::json to_json() const;
     virtual void ind_normalize(Marginal_array_p &, size_t) const;
     virtual void initialize_event(
             std::unordered_set<Rec_Event_name> &,

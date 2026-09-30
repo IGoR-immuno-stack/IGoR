@@ -31,6 +31,9 @@
 #include <igor/Core/Scenario.h>  // For Scenario view construction
 #include <igor/Core/BoundTightness.h>
 
+#include <nlohmann/json.hpp>
+
+#include <algorithm>
 #include <cassert>
 #include <iostream>
 
@@ -107,6 +110,38 @@ void Rec_Event::update_event_name()
 {
     this->name = string() + this->type + string("_") + this->event_class + string("_") + this->event_side
             + string("_prio") + to_string(priority) + string("_size") + to_string(this->size());
+}
+
+nlohmann::json Rec_Event::to_json() const
+{
+    nlohmann::json out;
+    out["type"] = string() + this->type;   // "GeneChoice", "Deletion", "Insertion", "DinucMarkov"
+    out["gene_class"] = to_string(this->event_class);
+    out["seq_type"] = this->seq_type;
+    out["side"] = to_string(this->event_side);
+    out["priority"] = this->priority;
+    out["nickname"] = this->nickname;
+
+    nlohmann::json realizations = nlohmann::json::array();
+    for (const auto &entry : this->event_realizations) {
+        const Event_realization &real = entry.second;
+        nlohmann::json r;
+        r["index"] = real.index;
+        r["name"] = real.name;
+        // INT16_MAX is the "no integer value" sentinel the gene-choice events carry, and an
+        // empty value_str is the "no sequence" one. Emitting either would not round-trip.
+        if (real.value_int != INT16_MAX)
+            r["value_int"] = real.value_int;
+        if (!real.value_str.empty())
+            r["value_str"] = real.value_str;
+        realizations.push_back(std::move(r));
+    }
+    std::sort(realizations.begin(), realizations.end(),
+              [](const nlohmann::json &a, const nlohmann::json &b) {
+                  return a.at("index").get<int>() < b.at("index").get<int>();
+              });
+    out["realizations"] = std::move(realizations);
+    return out;
 }
 
 Rec_Event_name Rec_Event::get_v2_name() const
