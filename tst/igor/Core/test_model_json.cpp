@@ -190,13 +190,15 @@ TEST_CASE("model json: round trip on a shipped model", "[Core][json][integration
     }
 }
 
-TEST_CASE("model json: a rebuilt DinucMarkov keeps Core's stale name", "[Core][json]")
+TEST_CASE("model json: a rebuilt DinucMarkov gets the same name as the text reader's",
+          "[Core][json]")
 {
-    // Pinning a quirk, not endorsing it. set_priority() refreshes the generated name and
-    // set_event_side() does not, and the text reader sets the side last, so a DinucMarkov
-    // event carries a name saying Undefined_side while its side is Three_prime. That name is
-    // the key of Model_marginals::get_index_map() and appears in six golden files, so the JSON
-    // constructor reproduces it. If Core ever fixes the name, this test fails and says where.
+    // A DinucMarkov's generated name carries Undefined_side whatever its side, by decision:
+    // the seq_type identifies the junction and the side is a direction only. Model_Parms
+    // already keys it that way in get_events_map(), and write2txt_legacy() writes it that way
+    // in the event line. This is what makes the name independent of the order of the setters,
+    // and the name is a key — of Model_marginals::get_index_map(), of Model_Parms::edges, and
+    // of the scenario and generation output columns.
     Model_Parms parms;
     REQUIRE_NOTHROW(parms.read_model_parms(TEST_DATA_DIR + "test_legacy_vdj_model_parms_v2.txt"));
     const nlohmann::json doc = igor::model_parms_to_json(parms);
@@ -209,6 +211,41 @@ TEST_CASE("model json: a rebuilt DinucMarkov keeps Core's stale name", "[Core][j
     REQUIRE(rebuilt->get_name().find("Undefined_side") != std::string::npos);
     REQUIRE(rebuilt->get_name()
             == parms.get_event_pointer("vd_dinucl", true)->get_name());
+
+    SECTION("the three name accessors agree on the side token") {
+        // Only on the side. They disagree on the class token for a DinucMarkov, and that is a
+        // separate matter: Dinucl_markov::update_event_name() derives it from ins_seq_type
+        // ("VD_genes") while the two accessors read event_class, which the reader leaves
+        // Undefined_gene. Worth fixing, not here.
+        for (const auto &name : { rebuilt->get_name(), rebuilt->get_legacy_name(),
+                                  rebuilt->get_v2_name() }) {
+            INFO("name: " << name);
+            REQUIRE(name.find("Undefined_side") != std::string::npos);
+            REQUIRE(name.find("Three_prime") == std::string::npos);
+        }
+    }
+
+    SECTION("the name no longer depends on the order of the setters") {
+        const auto name = rebuilt->get_name();
+
+        rebuilt->set_event_side(Five_prime);        // refreshes the name, as any setter does
+        REQUIRE(rebuilt->get_side() == Five_prime);
+        REQUIRE(rebuilt->get_name() == name);
+
+        rebuilt->update_event_name();               // and calling it again changes nothing
+        REQUIRE(rebuilt->get_name() == name);
+    }
+
+    SECTION("an event whose side IS its identity still carries it") {
+        // The rule is specific to DinucMarkov. A deletion is identified by its side, so its
+        // name must keep it, and set_event_side() must move it.
+        const auto deletion = event_from_json(event_by_nickname(doc, "v_3_del"));
+        REQUIRE(deletion->get_name().find("Three_prime") != std::string::npos);
+
+        deletion->set_event_side(Five_prime);
+        REQUIRE(deletion->get_name().find("Five_prime") != std::string::npos);
+        REQUIRE(deletion->get_name().find("Three_prime") == std::string::npos);
+    }
 }
 
 TEST_CASE("model json: a malformed event node is rejected", "[Core][json]")

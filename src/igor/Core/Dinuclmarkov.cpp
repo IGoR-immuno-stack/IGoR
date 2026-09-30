@@ -81,17 +81,11 @@ Dinucl_markov::Dinucl_markov(const nlohmann::json &node)
     this->set_priority(require(node, "priority").get<int>());
     this->set_nickname(require(node, "nickname").get<string>());
 
-    // Call order matters here, and it reproduces a quirk of the text reader on purpose.
-    // set_priority() refreshes the generated name, set_event_side() does not, and
-    // Model_Parms::read_model_parms() sets the side AFTER the priority. A DinucMarkov event
-    // therefore keeps a name saying Undefined_side while its side is Three_prime or
-    // Five_prime. That stale name is what Model_marginals::get_index_map() keys on, and it is
-    // written into six golden files under scripts/tests/data/reference, so producing the
-    // truthful name here would silently break the marginal array. Hence: side last, and no
-    // update_event_name() at the end. Fixing the name is a Core decision with golden data
-    // attached, not something this constructor should decide.
-    // The side itself is load-bearing beyond the name: it is the traversal anchor, so
-    // Three_prime means the chain is seeded from the segment on its left.
+    // The call order used to matter here, and it no longer does: name_side() in Rec_Event.cpp
+    // keeps a DinucMarkov's generated name on Undefined_side whatever its side, so the name
+    // this constructor produces is the text reader's. The side itself is load-bearing beyond
+    // the name — it is the traversal anchor, so Three_prime means the chain is seeded from the
+    // segment on its left.
     this->set_event_side(str2SeqSide(require(node, "side").get<string>()));
 
     // The four nucleotides are self-initialized above, so the document's realizations are
@@ -744,6 +738,10 @@ void Dinucl_markov::update_event_name()
     case VJ_ins_seq: seq_type_str = "VJ_gene"; break;
     default: seq_type_str = to_string(this->event_class); break;
     }
-    this->name = string() + this->type + "_" + seq_type_str + "_" + to_string(this->event_side)
+    // name_side() is what keeps this name on Undefined_side: the junction is already named by
+    // seq_type_str just above, so the side would add a direction, not an identity. This override
+    // exists for that class token, and it has to apply the base class's side rule.
+    this->name = string() + this->type + "_" + seq_type_str + "_"
+                 + to_string(name_side(this->type, this->event_side))
                  + "_prio" + to_string(priority) + "_size" + to_string(this->size());
 }

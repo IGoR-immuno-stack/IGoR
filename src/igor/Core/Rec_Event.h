@@ -295,9 +295,23 @@ public:
     /// everywhere inside the scenario traversal, so the registry stays out of the hot path.
     SeqTypeId get_seq_type_id() const { return seq_type_id; }
     void set_seq_type_id(SeqTypeId id) { seq_type_id = id; }
-    void set_event_side(Seq_side s) { event_side = s; }
+    /// Refreshes the generated name, like set_priority() and add_realization() do. It used not
+    /// to, which made the name depend on the order of the setters; see name_side() in
+    /// Rec_Event.cpp. A DinucMarkov's name is unaffected by the side, by design.
+    void set_event_side(Seq_side s)
+    {
+        event_side = s;
+        update_event_name();
+    }
 
     bool operator==(const Rec_Event &) const;
+
+    /// The side token a generated name carries: the event's own side, except for DinucMarkov,
+    /// whose name always says Undefined_side because its side is a direction, not an identity.
+    /// See the definition in Rec_Event.cpp. It sits next to update_event_name(), which is public
+    /// too, because the subclasses that override it have to apply the same rule.
+    static Seq_side name_side(Event_type type, Seq_side side);
+
     virtual void update_event_name();
     virtual std::queue<int> draw_random_realization(
             const Marginal_array_p &, std::unordered_map<Rec_Event_name, int> &,
