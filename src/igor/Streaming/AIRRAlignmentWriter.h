@@ -66,6 +66,7 @@
 #include <igor/Streaming/SequenceBatchHelpers.h>
 #include <igor/Streaming/AIRRCommon.h>
 
+#include <exception>
 #include <sparrow/record_batch.hpp>
 
 #include <string>

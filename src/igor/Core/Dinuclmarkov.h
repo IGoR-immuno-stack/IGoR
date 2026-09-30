@@ -105,6 +105,8 @@ public:
      */
     DinuclTraversalSpec get_junction() const;
     int size() const override;
+    /// {from, to}: a transition matrix, not a flat list. See Rec_Event::inherent_shape().
+    std::vector<std::size_t> inherent_shape() const override;
 
     // Context-based iterate() interface
     inline void

@@ -35,6 +35,7 @@
 #include <igor/Core/UnfilledSegmentLengths.h>
 #include <igor/Core/SpanProfile.h>
 #include <igor/Core/Utils.h>
+#include <igor/Core/Typedef.h>
 #include <igorCoreExport.h>
 
 // Context objects for refactored iterate()
@@ -171,6 +172,24 @@ public:
     virtual ~Rec_Event();
     virtual std::shared_ptr<Rec_Event> copy() = 0; //TODO make it const somehow
     virtual int size() const;
+
+    /// \name Hooks for the igor::Model layer
+    /// The Model layer keys its parallel vectors (one tensor, one handler per event) by this
+    /// index, assigned by igor::model::Topology::addEvent(). Core never reads it.
+    /// @{
+    igor::index_type uid() const { return m_uid; }
+    void setUid(igor::index_type uid) { m_uid = uid; }
+
+    /// Shape of this event's own axes in a probability tensor, i.e. what the event
+    /// contributes on top of its parents' axes. The default is the realization count, which
+    /// is right for every categorical event; Dinucl_markov overrides it with {4, 4} because
+    /// its size() counts the 16 transitions rather than the 4 states.
+    virtual std::vector<std::size_t> inherent_shape() const
+    {
+        return { static_cast<std::size_t>(this->size()) };
+    }
+    /// @}
+
     //TODO get rid of deletion map and chosen gene map
     /**
      * @brief Context-based iterate() interface
@@ -501,6 +520,9 @@ protected:
 
     /// Resolved in initialize_event(); never consulted by span in iterate(). See JunctionBound.
     std::array<JunctionBound, kJunctionSlotCount> junction_bounds_{};
+
+    /// Index assigned by igor::model::Topology; -1 until setUid() is called. Model layer only.
+    igor::index_type m_uid = -1;
 
     std::unordered_map<std::string, Event_realization> event_realizations;
     int priority;

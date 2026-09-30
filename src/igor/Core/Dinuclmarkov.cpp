@@ -140,6 +140,11 @@ int Dinucl_markov::size() const
     return event_realizations.size() * event_realizations.size();
 }
 
+std::vector<std::size_t> Dinucl_markov::inherent_shape() const
+{
+    return { event_realizations.size(), event_realizations.size() };
+}
+
 /**
  * @brief Context-based iterate() implementation
  *

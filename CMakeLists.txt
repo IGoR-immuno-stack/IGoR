@@ -87,9 +87,19 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS "ON")
 ## Build setup
 ## #################################################################
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
+
+if(WIN32)
+  # Prevent Windows.h min/max macros from breaking std::numeric_limits
+  add_compile_definitions(NOMINMAX)
+endif()
+
+if(MSVC)
+  # Ensure __cplusplus macro reports the correct C++ version instead of 199711L
+  add_compile_options(/Zc:__cplusplus)
+endif()
 
 ## ###################################################################
 ## Test setup
