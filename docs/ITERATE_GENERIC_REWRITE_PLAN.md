@@ -1698,7 +1698,7 @@ already flagged as the milestone-1 blocker and because `Gene_choice` is the only
 | **R5a** | ✅ **done Sep 27 2026.** **§7.1 + §7.18** — one derivation of the surviving core for every gene and both paths, `(core_3 − core_5 + 1) − endogenous`, neutral only when the ends can *cross*; `Error_rate::get_err_rate_upper_bound()` takes `int` and refuses a negative count. Three `[!shouldfail]` tags off, and a Debug build completes the unit suite. **Predicted to move the inference corpus; it moved nothing** — all five tracks bitwise, and a probe says why: see §6.9 | full ladder + the corrected-core unit tests + a Debug unit run | **yes, as measured** — bitwise on the corpus, not by construction |
 | **R5b** | ✅ **done Sep 27 2026.** **§7.8** — the position scan's both-flanks branch places D's 5' end at `v_3_off + L + 1`, the convention the alignment path and the decomposition's own key already used. One line. The last `[!shouldfail]` tag off, so **the suite has none left**. `no_d_align` moved as predicted, and less than R7 did: `Pgen` by at most ±1.2 %, every best scenario unchanged — see §6.9 | full ladder + `no_d_align` regenerated | **no** — the golden data for that path moves |
 | **R7** | ✅ **done Sep 27 2026.** **§7.16** — the `no_d_align` probability compounded across placements. Both exhaustive scans now start from `base_scenario_proba`, the value the event inherited, exactly as the alignment loop does. The two `[!shouldfail]` tags are off and `scripts/tests/data/reference/no_d_align_output/` moved with it — **every one of the 300 `Pgen` rows, all upwards, median ×823**. The first prune stage's `break` became a `continue`: see below | full ladder + the `no_d_align` regression, regenerated | **no** — the golden data for that path moves |
-| **R8** | **§7.19** — an `Insertion`'s bound counts its own realization twice and falls below the truth, so insertion nodes prune harder than the threshold asks. Needs a decision first: fix the consumer, or stop folding the consuming event into its own junction (which is also 6.14's mirror finding on `Deletion`). Re-measure with 5a's instrument afterwards | full ladder + the bound instrument | **no** — every output moves |
+| **R8** | **§7.19** — an `Insertion`'s bound counts its own realization twice and falls below the truth, so insertion nodes prune harder than the threshold asks. **Decided Sep 30 2026: shape 2**, as a rule — an event's bound is built only from events not yet realized when it reads, so the reader is out of its own table; `Deletion` leaves it entirely, `Insertion` stays in for its length with probability 1. `Deletion`'s mirror *tightens* too, not weakens as §6.14 recorded — **confirmed by 3c-0** (✅ Sep 30). Staged 3c-0 / 3c-i / 3c-ii. Re-measure with 5a's instrument after each | full ladder + the bound instrument | **no** — every output moves |
 | **R6** | Within-clique joint max in the span fold (§6.9); optional cross-clique parent indexing | full ladder, **convergence weighted heavily** | **no** — a tighter bound prunes more |
 | **R9** | **§7.20** — `make_transversions`'s `is_int_seq` arm and its multi-character `'14'` deleted. The only R row that is **bitwise-neutral by construction**: nothing calls it. Queued for tidiness, not blocked | full ladder | **yes** |
 | **R10** | ✅ **done** — **§7.4**. `JunctionGeometry::legacy_offset_delta()` deleted, the partner interval read from `PendingModifierBounds`, and the by-hand translation in the body replaced by `reachable()`. 4b carried the short bound so that the collapse itself was bitwise; this is where it stopped | full ladder + the no_d_align reference, regenerated | **no** — the no_d_align golden data moved, on 4 of 300 sequences |
@@ -2286,7 +2286,8 @@ Decided behaviour changes, none of which had a row in §6 before this re-assessm
 | **R10** | ✅ **done Sep 26 2026.** §7.4 — `Deletion` stops reproducing the short `len_min` / `len_max` bound. `JunctionGeometry::legacy_offset_delta()` is deleted, both events carry a `PendingModifierBounds`, and `Deletion::iterate` reads its partner intervals from `pending_.reachable()` rather than translating a cached delta by hand. **One line of behaviour, and it is the line 4b could not take**: `Gene_choice` has been on the correct interval since B11a, so this is also what makes the two agree again | Sep 21, done Sep 26 | `Deletion`, `Gene_choice` | **`no_d_align` moves, and nothing else does.** Exactly one interval differs on the demo model, and the `Gene_choice` half measured **bitwise on its own**: see below |
 | **R7** | ✅ **done Sep 27 2026.** §7.16 — the `no_d_align` path compounded the D probability across placements, so placement *k* was handed off at `incoming × p^k` where every placement is the same realization and carries `incoming × p`. Both exhaustive loops read the live `scenario.scenario_proba` where the alignment loop restarts from a value captured once; both now read that same captured value. Two `[!shouldfail]` tags off. The re-check of §6.15's first-stage `break` came back **negative** — its licence was the monotonicity the defect created, not the sort order — so it is a `continue`, measured bitwise | Sep 16, done Sep 27 | `Gene_choice` | **`no_d_align` moves** — the reference encoded the compounded values. **And one `[!mayfail]` convergence section starts passing**: see below |
 | R11 | **Delete the placeholder guard in `Dinucl_markov::iterate_common()`.** `ins_seq.at(i) == int_undefined` existed for the regime R1 removed: one buffer shared with the `Insertion` across sibling scenarios, where an already-written position had to read as *someone filled this*. The buffer is now created per scenario with every position a placeholder, so the guard is unreachable through `iterate()` and the unit case that pinned it was deleted rather than rewritten. Dead code with a live trap in it — the same shape as R9, and the reason it is a row rather than a tidy-up is that it is the last residue of the shared-buffer design | Sep 24 | `Dinucl_markov` | none — unreachable by construction after R1 |
-| R8 | §7.19 — an `Insertion`'s bound multiplies in its own realization's marginal twice, once through `proba_contribution` and once inside the junction profile it reads, so the bound falls below the probability the scenario goes on to realize and insertion nodes prune harder than the threshold asks. **Needs a decision before it can be written**: fix the consumer (local, changes only the insertion's bound), or stop folding the consuming event into its own junction (§2.5's frame, which also sweeps in §6.14's mirror on `Deletion` — bitwise-invisible there because it *weakens* the bound — and overlaps R6's rework of the same fold, in which case the two merge) | Sep 17 | `Insertion`, and under the second shape the fold and `Deletion` | **every output moves** |
+| R12 | **Generalise `affects_length_of` off the enum.** `Gene_choice`'s switch pins V leftmost and J rightmost and barely reads the `SegmentSpan` it is passed; the rule it stands for is *a segment adds length to a span when it sits strictly between the span's two ends in the 5′→3′ ordering*, which S5's `SafetyCell` already reads positions from. `Insertion`'s and `Deletion`'s overrides are the same kind of enum table — the latter already names its generic form. The comment deferring this to S4b is stale: S4b landed without it. Together with R8's rule it makes V's and J's absence from the junction tables follow from a rule instead of from ordering, and it is what a span between flanking sequences needs (§7.19's decision) | Sep 30 | `Gene_choice`, `Insertion`, `Deletion` | none — bitwise by construction: no shipped model has a span with a gene inside it other than D within V→J |
+| R8 | §7.19 — an `Insertion`'s bound multiplies in its own realization's marginal twice, once through `proba_contribution` and once inside the junction profile it reads, so the bound falls below the probability the scenario goes on to realize and insertion nodes prune harder than the threshold asks. **Decided Sep 30 2026 (Quentin): shape 2, as a rule** — an event's bound is built only from the events not yet realized when it reads the table, so the reader is out of its own table by definition. `Deletion` modifies an anchor and leaves its own table entirely; `Insertion` creates the length the key counts and stays in for its length with probability 1. **`Deletion`'s mirror is derived to tighten the bound as well** — by one deletion marginal under uniform marginals — not to weaken it as §6.14 recorded; **confirmed by stage 3c-0, Sep 30 2026**, exactly one marginal short in every arm. Does **not** merge with R6: R8 changes which events enter a table, R6 what each contributes. See §7.19's decision | Sep 17, decided Sep 30 | the fold's entry point in `Rec_Event.cpp`; `Insertion` and `Deletion` consumers unchanged | **every inference output moves**, upward: bounds only rise, so less is pruned. Staged so each movement has one cause |
 
 R9, R0, R2, R1+R3 and R3b were each expected to be bitwise-neutral despite being behaviour
 changes — they close paths the corpus does not reach — and **all five measured that way**. That
@@ -2319,8 +2320,12 @@ first and attributability second:
 | **2b** | ✅ **R7** — §7.16's compounding repaired | full ladder + `no_d_align` regenerated | `no_d_align` only — confirmed, the other four tracks bitwise |
 | **3a** | ✅ **R5a** — §7.1 + §7.18 | full ladder + the corrected-core unit tests + a Debug unit run | predicted the inference corpus; **none moved** — bitwise on all five tracks, probed |
 | **3b** | ✅ **R5b** — §7.8 | full ladder + `no_d_align` regenerated | `no_d_align` only — confirmed, the other four tracks bitwise |
-| **3c** | **R8** — §7.19 | full ladder + 5a's instrument | every output |
+| **3c-0** | ✅ **R8**, test first — `test_deletion_iterate.cpp` asserts every arm's bound covers the best completion, tagged `[!shouldfail]` until 3c-ii, plus an untagged control. **It fails as derived**: 25 of 25 checks, each exactly one marginal short | unit | none — tests only |
+| **3c-i** | **R8**, `Insertion` — its own probability set to 1 in its own table | full ladder + 5a's instrument: the unsound nodes at the insertion depths go to zero | every inference output |
+| **3c-ii** | **R8**, `Deletion` — out of its own table | full ladder + 5a's instrument (the deletion depths go to zero) + the benchmark, since this removes the most pruning | every inference output |
 | **3d** | **R6** — within-clique joint max | full ladder, **convergence weighted heavily** | every output |
+
+**R12 joined the catalogue on Sep 30 2026**, with R8's decision, and is not placed either: bitwise by construction, so it lands wherever convenient, and before any flanking-sequence work at the latest.
 
 **R11 joined the catalogue on Sep 24 2026** and is not placed in the order above. It is free —
 unreachable code, no dependencies either way — so it lands wherever it is convenient, in the way R9
@@ -2400,6 +2405,11 @@ reports exactly four `[!shouldfail]` cases. **R5a spent its three the same day**
 one, and the binary reports exactly one. **R5b spent it the same day too**, and the binary reports
 **none**: the ledger is closed. The *Known defects* banner in `test_gene_choice_iterate.cpp` went
 with its last case.
+
+**R8 reopened it on Sep 30 2026, on purpose and with an owner.** Stage 3c-0 added one
+`[!shouldfail]` case, *"Deletion: the junction bound covers the best completion"*, which stage
+3c-ii spends. The binary reports exactly one. Stage 3c-i will add `Insertion`'s own case first
+and spend it in the same stage, so that each half of R8 has a test that fails before its fix.
 
 **R3b in more detail** *(Quentin, Sep 10 2026)*. The harness rule landed in S4a —
 [*a written layer must have been requested*](#layer-ownership-a-written-layer-must-have-been-requested)
@@ -2823,6 +2833,30 @@ reach *more* scenarios, so every decrease should be a pruning difference. The di
 both builds with `probability_ratio_threshold 0`. It was started and abandoned: with no ratio
 threshold, this path did not finish a third of the 300 sequences in ten minutes. A per-call probe
 like R5a's would settle it if the question ever matters.
+
+**R8 in more detail** *(decided Sep 30 2026)*. The decision and its derivation are in §7.19;
+this is the record of the stages as they land.
+
+*3c-0 (✅ Sep 30 2026).* One `[!shouldfail]` case and one control in `test_deletion_iterate.cpp`,
+on the five fixtures 4a already had, with no new geometry. Each fixture leaves a gap of
+`3 + deletions` and carries flat 0.5 marginals, so the best completion after a deletion is the
+fold over the events *after* it: `0.5^(distance + events after)`. What the arm writes today is
+`0.5^(distance + events after + 1)`: the extra factor is its own marginal.
+
+| arm | junction | checks | shortfall |
+|---|---|---:|---|
+| V 3′ | VD | 5 of 5 | × 0.5 |
+| D 5′ | VD | 5 of 5 | × 0.5 |
+| D 3′ | DJ | 5 of 5 | × 0.5 |
+| J 5′ | DJ | 5 of 5 | × 0.5 |
+| V 3′, no D | VJ | 5 of 5 | × 0.5 |
+
+The control sets the event's own marginal block to 1 in two arms, one per side, and reads the best
+completion exactly. It passes on both sides of R8: before, the 1.0 cancels the double count;
+after, the event is not in the table. §6.14's *weakening* half does not show here, and cannot: it
+widens the range a max is taken over, and over a profile that decreases with the gap a wider range
+adds nothing. The case is section-free, per §7.1's rule, and its hand-off count is a `CHECK` rather
+than a `REQUIRE` so that one broken fixture cannot satisfy the tag for the other four.
 
 **R6 in more detail** *(Quentin, Sep 10 2026)*. §6.10 shows the span fold accumulates
 `∏ₑ maxᵢ Pₑ(rₑ|i)`, a product of per-event maxima, and that taking the max **jointly** over a
@@ -3631,7 +3665,7 @@ own copy of the pattern. What the sections pin beyond the matrix:
   `-value_int`, so a widening deletion moves the profile's index **down** while the consumer looks
   the gap up as `partner_offset - my_new_offset - 1`, which moves **up**. The event is in its own
   fold, so its own deletion is counted twice, in opposite directions. This is carried verbatim from
-  the legacy map and is a *weakening* of the bound, so it is bitwise-invisible (§1) — recorded here
+  the legacy map and is a *weakening* of the bound, so it is bitwise-invisible (§1) *(questioned Sep 30 2026: that is the length half only, and the event's own marginal also sits in the table, which tightens — see §7.19's decision; confirmed by stage 3c-0)* — recorded here
   because it is the single most confusing thing about writing a fixture for this body, and because
   B5 will have to decide whether to keep it. **`Insertion` has the same structure with the opposite
   sign and it is not invisible**: §7.19, found by 5a's instrument.
@@ -4848,6 +4882,57 @@ is bounded by the marginal, but it is not what the threshold means.
 Either way it moves every output, so it belongs in phase R with its own golden-data movement, and
 it wants a decision on which of the two readings is intended before code is written. Recorded as
 **R8**.
+
+> **Decided (Quentin, Sep 30 2026): shape 2, stated as a rule rather than as a fix to two events.**
+> An event's bound is built from the events **not yet realized when it reads the table** — strictly
+> after it in processing order, and among those only the ones inside the span — and the place it
+> reads the table reflects everything already realized, itself included. The reader is excluded by
+> definition. `Insertion` and `Deletion` are the only events in their own table today, and the only
+> two that break the rule. The `no_d_align` position scan already obeys it: it sets its enclosing
+> slot to 1.0 and reads left and right tables that do not contain D, and D's own maxᵢ appears only
+> in `placement.proba`, which orders the scan and never enters the bound
+> ([Genechoice.cpp:392](../src/igor/Core/Genechoice.cpp#L392)).
+>
+> **Two treatments**, on the line the fold already draws between creating an offset and modifying
+> one:
+>
+> - **`Deletion` modifies an anchor, so it leaves its own table entirely.** It reads at the gap
+>   after its own deletion, which already accounts for its choice; with itself out of the table,
+>   that read is exactly the bound.
+> - **`Insertion` creates the offsets and the length the key counts**, and `Dinucl_markov`'s `p^L`
+>   needs that length. So it stays in its own table **for its length, with probability 1** — which
+>   is numerically shape 1.
+>
+> **The `Deletion` half is not what §6.14 recorded.** Take the V 3′ deletion with `d` chosen and a
+> pre-deletion gap `G`. It reads its table at `G + d`. The truth is `C(G + d)`, the best the D 5′
+> deletion and the insertion can still do at that gap. The table, which contains the V 3′ deletion
+> itself, holds `maxʷ p(w) · C(G + d + w)` there. Under uniform marginals `C` decreases with the gap,
+> so the max sits at `w = 0` and the read is `p(0) · C(G + d)`: **below the truth by one deletion
+> marginal**, the same arithmetic as the insertion's `1/31`. §6.14 read the length half —
+> "counted twice in opposite directions", which widens — and not the probability half, which
+> tightens. It is consistent with 5a's table, whose *unsound* column is non-zero at the deletion
+> depths too (1 494, 2 683, 45 010, 158 885 at depths 3–6) and grows as the other slots' slack
+> shrinks toward the leaves, which is how a factor of ~20 would surface. The 131 at depth 2 are
+> explained by neither event. **Confirmed by stage 3c-0 the same day**, before any code changed:
+> in all five arms (V 3′ and D 5′ on VD, D 3′ and J 5′ on DJ, V 3′ on VJ) and at every hand-off,
+> the bound a deletion writes is **exactly half** the best completion it admits — 25 of 25 checks,
+> and 0.5 is the fixtures' flat marginal. A control with the deletion's own marginal set to 1 reads
+> the best completion exactly, so the shortfall is that marginal and no other factor. See
+> *R8 in more detail* below the catalogue.
+>
+> **Why V and J never showed this, and why that is not a principle.** Two accidents. No span
+> anything reads has V or J inside it — hardcoded, in `Gene_choice::affects_length_of`'s switch,
+> which is R12. And a table covers only its reader and its suffix, so V, processed first, is in
+> nobody's. J is second and is kept out of V's tables by the first accident alone: a span between
+> a left and a right flanking sequence would put both inside, and whether J's probability then
+> entered V's table would depend on order. The rule above is what makes that case correct rather
+> than lucky.
+>
+> **R6 does not merge with it**, revising the catalogue's earlier reading: R8 changes *which events
+> enter* a table, R6 *what each one contributes*. They land in sequence.
+>
+> **Staged in three**, so each golden-data movement has one cause (as R5 was split): 3c-0 the
+> `Deletion` claim as a unit case, 3c-i `Insertion`, 3c-ii `Deletion`. See the execution order.
 
 ### 7.20 — `make_transversions`'s int arm compares a `char` against a multi-character constant
 
