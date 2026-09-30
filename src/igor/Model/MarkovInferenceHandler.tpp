@@ -45,7 +45,10 @@ math::Tensor<T>& MarkovInferenceHandler<T>::accumulator(void)
 template <typename T>
 std::size_t MarkovInferenceHandler<T>::stateCount(void) const
 {
-    return m_weights.shape()[0];
+    // Shape is [parent1, ..., from_state, to_state]: the two state axes are the last two,
+    // and they are square, so the from axis answers the question. Same expression as
+    // MarkovSamplingHandler. The ndim() < 2 guard is for the degenerate tensor only.
+    return m_weights.shape()[m_weights.ndim() >= 2 ? m_weights.ndim() - 2 : 0];
 }
 
 template <typename T>

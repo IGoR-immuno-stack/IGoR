@@ -130,7 +130,8 @@ TEMPLATE_TEST_CASE("CategoricalInferenceHandler resetAccumulator zeros out",
 
 TEMPLATE_TEST_CASE("CategoricalInferenceHandler 2D construction",
                    "[model][handler]", double, long double) {
-    // Shape: [3 realizations, 2 parent values]
+    // Shape: [3 parent values, 2 own realizations]. Parents first, own dimensions last, which
+    // is what RecombinationModel builds and what maximizeLikelihood() normalises over.
     auto weights = uniform_2d<TestType>(3, 2);
     CategoricalInferenceHandler<TestType> handler("v_3_del", 3, weights);
 
@@ -140,9 +141,33 @@ TEMPLATE_TEST_CASE("CategoricalInferenceHandler 2D construction",
         REQUIRE(s[0] == 3);
         REQUIRE(s[1] == 2);
     }
-    SECTION("realizationCount is first dim") {
-        REQUIRE(handler.realizationCount() == 3);
+    SECTION("realizationCount is the last dim, not the first parent's") {
+        REQUIRE(handler.realizationCount() == 2);
     }
+}
+
+TEMPLATE_TEST_CASE("CategoricalInferenceHandler 2D maximizeLikelihood normalises the last axis",
+                   "[model][handler]", double, long double) {
+    // [2 parent values, 3 own realizations]. Each parent row is normalised on its own, so the
+    // accessor and the M-step agree on which axis carries the realizations.
+    auto weights = uniform_2d<TestType>(2, 3);
+    CategoricalInferenceHandler<TestType> handler("v_3_del", 3, weights);
+
+    REQUIRE(handler.realizationCount() == 3);
+
+    // Parent 0 accumulates [1, 1, 2], parent 1 accumulates [3, 0, 1].
+    const TestType counts[6] = { TestType(1), TestType(1), TestType(2),
+                                 TestType(3), TestType(0), TestType(1) };
+    std::copy(counts, counts + 6, handler.accumulator().data());
+
+    handler.maximizeLikelihood();
+
+    REQUIRE_THAT(double(weights.data()[0]), WithinAbs(0.25, 1e-10));
+    REQUIRE_THAT(double(weights.data()[1]), WithinAbs(0.25, 1e-10));
+    REQUIRE_THAT(double(weights.data()[2]), WithinAbs(0.50, 1e-10));
+    REQUIRE_THAT(double(weights.data()[3]), WithinAbs(0.75, 1e-10));
+    REQUIRE_THAT(double(weights.data()[4]), WithinAbs(0.00, 1e-10));
+    REQUIRE_THAT(double(weights.data()[5]), WithinAbs(0.25, 1e-10));
 }
 
 // ─── MarkovInferenceHandler Tests ─────────────────────────────────────
@@ -158,7 +183,7 @@ TEMPLATE_TEST_CASE("MarkovInferenceHandler construction",
     SECTION("uid is set") {
         REQUIRE(handler.uid() == 5);
     }
-    SECTION("stateCount matches shape[0]") {
+    SECTION("stateCount is the from-state axis") {
         REQUIRE(handler.stateCount() == 4);
     }
     SECTION("weights() returns the borrowed tensor") {
@@ -192,6 +217,35 @@ TEMPLATE_TEST_CASE("MarkovInferenceHandler maximizeLikelihood normalises rows",
     REQUIRE_THAT(double(handler.weights().data()[1]), WithinAbs(0.75, 1e-10));
     REQUIRE_THAT(double(handler.weights().data()[2]), WithinAbs(0.50, 1e-10));
     REQUIRE_THAT(double(handler.weights().data()[3]), WithinAbs(0.50, 1e-10));
+}
+
+TEMPLATE_TEST_CASE("MarkovInferenceHandler conditioned on a parent",
+                   "[model][handler]", double, long double) {
+    // Shape [2 parent values, 2 from-states, 2 to-states]: the shape a Dinucl_markov event gets
+    // as soon as it has a parent, which is the case the accessor used to get wrong.
+    igor::math::Tensor<TestType> weights({2, 2, 2});
+    std::fill(weights.begin(), weights.end(), TestType(0.5));
+    MarkovInferenceHandler<TestType> handler("vd_dinucl", 5, weights);
+
+    REQUIRE(handler.stateCount() == 2);
+
+    // Four rows of two "to" counts, one pair of rows per parent value.
+    const TestType counts[8] = { TestType(1), TestType(3),   // parent 0, from 0
+                                 TestType(2), TestType(2),   // parent 0, from 1
+                                 TestType(4), TestType(0),   // parent 1, from 0
+                                 TestType(1), TestType(4) }; // parent 1, from 1
+    std::copy(counts, counts + 8, handler.accumulator().data());
+
+    handler.maximizeLikelihood();
+
+    REQUIRE_THAT(double(weights.data()[0]), WithinAbs(0.25, 1e-10));
+    REQUIRE_THAT(double(weights.data()[1]), WithinAbs(0.75, 1e-10));
+    REQUIRE_THAT(double(weights.data()[2]), WithinAbs(0.50, 1e-10));
+    REQUIRE_THAT(double(weights.data()[3]), WithinAbs(0.50, 1e-10));
+    REQUIRE_THAT(double(weights.data()[4]), WithinAbs(1.00, 1e-10));
+    REQUIRE_THAT(double(weights.data()[5]), WithinAbs(0.00, 1e-10));
+    REQUIRE_THAT(double(weights.data()[6]), WithinAbs(0.20, 1e-10));
+    REQUIRE_THAT(double(weights.data()[7]), WithinAbs(0.80, 1e-10));
 }
 
 TEMPLATE_TEST_CASE("MarkovInferenceHandler M-step writes back into original tensor",

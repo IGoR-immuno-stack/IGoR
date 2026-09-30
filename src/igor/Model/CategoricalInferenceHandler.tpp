@@ -47,7 +47,10 @@ math::Tensor<T>& CategoricalInferenceHandler<T>::accumulator(void)
 template <typename T>
 std::size_t CategoricalInferenceHandler<T>::realizationCount(void) const
 {
-    return m_weights.shape()[0];
+    // Shape is [parent1, parent2, ..., child], so the own realizations are the last axis,
+    // the one maximizeLikelihood() normalises. Same convention as
+    // CategoricalSamplingHandler, which reads shape().back() too.
+    return m_weights.shape().back();
 }
 
 template <typename T>
