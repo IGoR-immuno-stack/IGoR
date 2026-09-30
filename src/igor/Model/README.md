@@ -239,24 +239,29 @@ No handler is created manually. Both engines delegate construction to factory
 functions that inspect the `Topology` and each event's type and shape.
 
 The factory inspects each node in the topology, computes the correct tensor
-shape (`[own_dims, parent1_dims, parent2_dims, ...]`), looks up the
-registered creator for that event type, and constructs the appropriate handler:
+shape (`[parent1_dims, parent2_dims, ..., own_dims]` — parents first, own
+dimensions last), looks up the registered creator for that event type, and
+constructs the appropriate handler:
 
 ```
 RecombinationModel<T>
         │
         ├─► inference_handler_factory::build(model)
         │       for each topology node:
-        │           shape = event.inherent_shape() + parent_shapes
+        │           shape = parent_shapes + event.inherent_shape()
         │           handler = create<T>(event_type, event, weight_ref)
         │       → vector<unique_ptr<InferenceHandler<T>>>
         │
         └─► sampling_handler_factory::build(model)
                 for each topology node:
-                    shape = event.inherent_shape() + parent_shapes
+                    shape = parent_shapes + event.inherent_shape()
                     handler = create<T>(event_type, event, const_weight_ref)
                 → vector<unique_ptr<SamplingHandler<T>>>
 ```
+
+The order matters and is not cosmetic: the own dimensions being last is what
+makes one parent combination a **contiguous row** of the tensor, which is what
+the CDF precomputation and the M-step's normalisation both walk.
 
 Each concrete handler type registers itself at static-initialisation time via
 a `Registrar` object — no central switch statement:
@@ -284,8 +289,28 @@ Adding a new event type requires only a new handler class and a static
 `Registrar` — no existing code is modified (open/closed principle).
 
 `EventFactory` follows the same self-registering pattern for `Rec_Event`
-subclasses (`Gene_choice`, `Deletion`, `Insertion`, `Dinucl_markov`), used
-by `read_topology()` when parsing model parameter files.
+subclasses (`Gene_choice`, `Deletion`, `Insertion`, `Dinucl_markov`), used by
+`topology_from_json()` to build one node per event of the model document. Its
+creators take the event's json descriptor, so the event is complete as soon as
+it exists — there is no default construction followed by a run of setters:
+
+```cpp
+using EventCreator = std::function<EventPtr(const nlohmann::json &)>;
+
+// EventFactory.cpp — one line per concrete type
+const Registrar<Gene_choice>   gene_choice_registrar{ "GeneChoice" };
+const Registrar<Deletion>      deletion_registrar{ "Deletion" };
+const Registrar<Insertion>     insertion_registrar{ "Insertion" };
+const Registrar<Dinucl_markov> dinucl_markov_registrar{ "DinucMarkov" };
+
+// Any caller — create() dispatches on node["type"]
+auto event = event_factory::create(node);
+```
+
+Registration is keyed by the type **name** the document carries, not by
+`Event_type`: the string is what the file has and what `create()` dispatches
+on, while the enum stays what runtime code switches on. Adding an event type
+means adding a class with a json constructor and one `Registrar` line.
 
 ### 6. Navigator — Generic Index-Based View
 
@@ -336,7 +361,7 @@ for (const auto& handler_ptr : orderedHandlers()) {
 **Example — walking the Topology graph:**
 
 ```cpp
-auto topology = read_topology("model_parms.txt");
+auto topology = topology_from_json(igor::model_parms_to_json(parms));
 
 // Children of event 0
 for (const auto& child : topology->children(0)) {
@@ -417,31 +442,40 @@ auto& chain = scenario.events[dinucl_uid].indices;
 
 Used for `Gene_choice`, `Deletion`, and `Insertion` events.
 
-**Tensor shape:** `[n_realizations, parent1_dim, parent2_dim, ...]`
+**Tensor shape:** `[parent1_dim, parent2_dim, ..., n_realizations]`
 
 | Aspect | Inference | Sampling |
 |---|---|---|
 | **Weight ref** | mutable `Tensor<T>&` | const `Tensor<T>&` |
 | **Owned state** | `m_accumulator` (same shape) | `m_cdfs` (precomputed CDF table) |
-| **M-step** | Normalise axis 0: each column of own realizations sums to 1 per parent combination | N/A |
+| **M-step** | Normalise the last axis: own realizations sum to 1 per parent combination (a 1-D tensor, i.e. no parents, takes a whole-tensor fast path) | N/A |
 | **Sampling** | N/A | Binary search on CDF row for the selected parent slice |
 | **Key method** | `maximizeLikelihood()` | `sample(rng, parent_indices)` |
-| **Accessor** | `realizationCount()` | — |
+| **Accessor** | `realizationCount()` — reads `shape()[0]`, so it is the first *parent* dimension for a conditional event; only tests call it (see the note below) | `realizationCount()` — reads `shape().back()`, correct in every case |
 
 ### Markov Handlers
 
 Used for `Dinucl_markov` events (dinucleotide transition matrices).
 
-**Tensor shape:** `[n_states, n_states, parent1_dim, ...]` — `(from, to, parents)`
+**Tensor shape:** `[parent1_dim, ..., n_states, n_states]` — `(parents, from, to)`
 
 | Aspect | Inference | Sampling |
 |---|---|---|
 | **Weight ref** | mutable `Tensor<T>&` | const `Tensor<T>&` |
 | **Owned state** | `m_accumulator` (same shape) | `m_row_cdfs` + `m_first_cdf` (stationary marginal) |
-| **M-step** | Normalise axis 1: each row of "to" states sums to 1 per "from" state and parent combination | N/A |
+| **M-step** | Normalise the last axis: each row of "to" states sums to 1 per "from" state and parent combination (a 2-D tensor, i.e. no parents, takes a row-wise fast path) | N/A |
 | **Sampling** | N/A | Two modes: (1) empty parents → sample first nucleotide from marginal; (2) `parent_indices[0]` = from_state → sample next state from row CDF |
 | **Key methods** | `maximizeLikelihood()` | `sample()`, `sampleSequence(rng, first_state, n_steps, ...)` |
-| **Accessor** | `stateCount()` | — |
+| **Accessor** | `stateCount()` — same caveat as `realizationCount()` above | `stateCount()` |
+
+> **Known inconsistency.** `CategoricalInferenceHandler::realizationCount()` and
+> `MarkovInferenceHandler::stateCount()` return `m_weights.shape()[0]`. That was
+> right when the own dimensions came first; with the current parents-first shape
+> it is the first parent's dimension as soon as the event has a parent. Their
+> `maximizeLikelihood()` is not affected — it normalises `ndim() - 1` — and no
+> production code reads either accessor, only `tst/igor/Model/test_InferenceHandlers.cpp`,
+> whose sections are named after the old semantics ("realizationCount matches
+> tensor dim 0"). Fixing it means `shape().back()` plus rewriting those sections.
 
 ---
 
@@ -449,12 +483,12 @@ Used for `Dinucl_markov` events (dinucleotide transition matrices).
 
 | File | Role |
 |---|---|
-| `Topology.h / .cpp` | DAG of `Rec_Event` nodes; Kahn's topological sort; edge operations; `read_topology()` file parser |
+| `Topology.h / .cpp` | DAG of `Rec_Event` nodes; Kahn's topological sort; edge operations; segment order; `topology_from_json()` document reader |
 | `Navigator.h` | Generic index-based view with full random-access iterator |
-| `RecombinationModel.h / .tpp` | Pairs a `Topology` (unique ownership) with one `Tensor<T>` per node; `orderedWeights()` Navigator; `read_parameters()` and `recombination_model_from_files()` |
+| `RecombinationModel.h / .tpp` | Pairs a `Topology` (unique ownership) with one `Tensor<T>` per node; `orderedWeights()` Navigator; `recombination_model_from_files()` |
 | `InferenceHandler.h` | Abstract base for inference handlers (mutable weight ref + accumulator) |
-| `CategoricalInferenceHandler.h / .tpp` | Categorical distribution handler (inference): axis-0 normalisation |
-| `MarkovInferenceHandler.h / .tpp` | Markov transition matrix handler (inference): axis-1 normalisation |
+| `CategoricalInferenceHandler.h / .tpp` | Categorical distribution handler (inference): last-axis normalisation |
+| `MarkovInferenceHandler.h / .tpp` | Markov transition matrix handler (inference): last-axis normalisation |
 | `InferenceEngine.h / .tpp` | Owns `InferenceHandler<T>` vector; drives EM loop; Navigator-based iteration |
 | `InferenceHandlerFactory.h / .tpp / .cpp` | Self-registering abstract factory for inference handlers |
 | `SamplingHandler.h / .tpp` | Abstract base for generation handlers (const weight ref + CDF tables) |
@@ -462,9 +496,9 @@ Used for `Dinucl_markov` events (dinucleotide transition matrices).
 | `MarkovSamplingHandler.h / .tpp` | Row-CDF Markov chain sampler; `sampleSequence()` for chains |
 | `SamplingEngine.h / .tpp` | Owns `SamplingHandler<T>` vector; `run()` generates a `SampledScenario`; Navigator-based iteration |
 | `SamplingHandlerFactory.h / .tpp / .cpp` | Self-registering abstract factory for sampling handlers |
-| `EventFactory.h / .cpp` | Self-registering abstract factory for `Rec_Event` subclasses |
+| `EventFactory.h / .cpp` | Self-registering factory for `Rec_Event` subclasses; `create(node)` builds one event from its json descriptor |
 | `Scenario.h` | `SampledEvent` and `SampledScenario` value types |
-| `LegacyBridge.h / .tpp` | Adapter: `Topology ⇄ Model_Parms`, `Model_marginals → RecombinationModel` |
+| `LegacyBridge.h / .tpp` | Adapter: `Topology ⇄ Model_Parms` (carrying the segment order), `Model_marginals → RecombinationModel` |
 
 ---
 
@@ -473,11 +507,19 @@ Used for `Dinucl_markov` events (dinucleotide transition matrices).
 ### Inference Path
 
 ```
-model_parms.txt ──► read_topology() ──► Topology
+model_parms.txt ──► Model_Parms::read_model_parms()      (igor::Core)
+                              │
+                    model_parms_to_json()                (igor::Core)
+                              │
+                    topology_from_json() ──► Topology
+                    (event_factory::create per node)
                                             │
                                      RecombinationModel<T>
                                             │
-model_marginals.txt ──► read_parameters() ──┘
+model_marginals.txt ──► Model_marginals::txt2marginals()  (igor::Core)
+                              │
+                    import_from_legacy(model, marginals) ─┘
+                              (LegacyBridge)
                                             │
                                     InferenceEngine<T>
                                      (handlers borrow mutable refs)
@@ -504,11 +546,19 @@ model_marginals.txt ──► read_parameters() ──┘
 ### Generation Path
 
 ```
-model_parms.txt ──► read_topology() ──► Topology
+model_parms.txt ──► Model_Parms::read_model_parms()      (igor::Core)
+                              │
+                    model_parms_to_json()                (igor::Core)
+                              │
+                    topology_from_json() ──► Topology
+                    (event_factory::create per node)
                                            │
                                     RecombinationModel<T>
                                            │
-model_marginals.txt ──► read_parameters() ──┘
+model_marginals.txt ──► Model_marginals::txt2marginals()  (igor::Core)
+                              │
+                    import_from_legacy(model, marginals) ─┘
+                              (LegacyBridge)
                                            │
                                     SamplingEngine<T>
                                      (handlers borrow const refs,
@@ -537,7 +587,9 @@ model_marginals.txt ──► read_parameters() ──┘
 ### One-Step Model Loading
 
 ```cpp
-// Convenience function that combines read_topology + read_parameters
+// Convenience function: Core reads both files, LegacyBridge builds the Topology
+// and fills the tensors. There is deliberately no second reader of the text
+// format in this module — see "Reading a model" below.
 auto model = recombination_model_from_files<double>(
     "model_parms.txt", "model_marginals.txt");
 
@@ -545,6 +597,38 @@ auto model = recombination_model_from_files<double>(
 auto shared = std::make_shared<RecombinationModel<double>>(std::move(model));
 InferenceEngine<double> inference(shared);
 ```
+
+### Reading a model
+
+This module has **no parser of the text format**. `igor::Core` owns the only
+tokenizer, and the Model layer reads a json document produced from it. Two
+consequences worth knowing about:
+
+* The v2 sections (`@Version`, `@Seq_type_order`, the six-field event lines)
+  come for free, and `@Seq_type_order` travels with the document into
+  `Topology::seqTypeOrder()`, so an exported model keeps its segment order.
+* Edges are carried per event as a list of parent nicknames, not as an
+  `@Edges` section keyed by the generated event names. That is deliberate:
+  the legacy and v2 naming schemes disagree, and the generated names of `D1`
+  and `D2` collide.
+
+```cpp
+#include <igor/Core/ModelJson.h>
+#include <igor/Model/Topology.h>
+
+Model_Parms parms;
+parms.read_model_parms("model_parms.txt");        // Core tokenizes
+
+nlohmann::json doc = igor::model_parms_to_json(parms);
+auto topology = igor::model::topology_from_json(doc);
+```
+
+Marginals are read by `Model_marginals::txt2marginals()` and only by it. It
+renormalises after parsing, on purpose, "to deal with the problem of float
+precision output from the text file", and those are the values inference uses.
+A second reader that copied the rounded text as it stood used to live here; it
+produced `0.0440805` where Core has `0.04408051162843897` on mouse TCR beta,
+and it is gone.
 
 ---
 
