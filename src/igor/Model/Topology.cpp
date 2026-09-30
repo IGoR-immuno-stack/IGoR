@@ -1,13 +1,15 @@
 #include <igor/Model/Topology.h>
 
+#include <igor/Model/EventFactory.h>
+
+#include <nlohmann/json.hpp>
+
 #include <algorithm>
 #include <cassert>
 #include <queue>
 #include <stdexcept>
-#include <fstream>
-#include <iostream>
-#include <igor/Core/Utils.h>
-#include <igor/Model/EventFactory.h>
+#include <string>
+#include <vector>
 
 namespace igor::model {
 
@@ -182,133 +184,46 @@ std::vector<index_type> Topology::topologicalOrder() const
     return order;
 }
 
-std::shared_ptr<Topology> read_topology(const std::string& filename)
+std::shared_ptr<Topology> topology_from_json(const nlohmann::json& doc)
 {
-    std::ifstream infile(filename);
-    if (!infile) {
-        throw std::runtime_error("File not found: \"" + filename + "\"");
-    }
+    const auto events = doc.find("events");
+    if (events == doc.end() || !events->is_array())
+        throw std::runtime_error("topology_from_json: the document has no \"events\" array");
 
     auto topo = std::make_shared<Topology>();
 
-    // Map from full event name -> topology id, needed for edge resolution
-    std::unordered_map<std::string, index_type> name_to_id;
+    const auto order = doc.find("seq_type_order");
+    if (order != doc.end())
+        topo->setSeqTypeOrder(order->get<std::vector<Seq_type_String>>());
 
-    std::string line;
-    std::getline(infile, line);
+    // Phase 1: every node, built complete by the factory. No dispatch here, and no concrete
+    // event class named: adding an event type touches the factory's registrars, not this loop.
+    for (const auto& node : *events)
+        topo->addEvent(event_factory::create(node));
 
-    if (line != "@Event_list") {
-        throw std::runtime_error("Unknown format for model_parms file: " + filename);
+    // Phase 2: the edges, which is why this needs two phases at all. A parent may be named
+    // before it is defined, so the wiring waits until every node exists.
+    for (const auto& node : *events) {
+        const auto child_nickname = node.at("nickname").get<std::string>();
+        const index_type child_id = topo->eventId(child_nickname);
+        if (child_id < 0)
+            throw std::runtime_error("topology_from_json: event \"" + child_nickname
+                                     + "\" was not registered by its own nickname");
+
+        const auto parents = node.find("parents");
+        if (parents == node.end())
+            continue;
+        for (const auto& parent : *parents) {
+            const auto parent_nickname = parent.get<std::string>();
+            const index_type parent_id = topo->eventId(parent_nickname);
+            if (parent_id < 0)
+                throw std::runtime_error("topology_from_json: event \"" + child_nickname
+                                         + "\" names an unknown parent \"" + parent_nickname
+                                         + "\"");
+            if (!topo->hasEdge(parent_id, child_id))
+                topo->addEdge(parent_id, child_id);
+        }
     }
-
-    // ── Parse @Event_list section ──────────────────────────────────────
-    std::getline(infile, line);
-    while (line.size() > 0 && line[0] == '#') {
-        // Parse header: #EventType;GeneClass;SeqSide;Priority[;Nickname]
-        std::size_t sc1 = line.find(';', 0);
-        std::string event_type_str = line.substr(1, sc1 - 1);
-
-        std::size_t sc2 = line.find(';', sc1 + 1);
-        std::string gene_class_str = line.substr(sc1 + 1, sc2 - sc1 - 1);
-        Gene_class gene_class = str2GeneClass(gene_class_str);
-
-        std::size_t sc3 = line.find(';', sc2 + 1);
-        std::string seq_side_str = line.substr(sc2 + 1, sc3 - sc2 - 1);
-        Seq_side seq_side = str2SeqSide(seq_side_str);
-
-        std::size_t sc4 = line.find(';', sc3 + 1);
-        int priority;
-        std::string nickname;
-        Event_type event_type;
-        if (sc4 == std::string::npos) {
-            priority = std::stoi(line.substr(sc3 + 1));
-        } else {
-            priority = std::stoi(line.substr(sc3 + 1, sc4 - sc3 - 1));
-            nickname = line.substr(sc4 + 1);
-        }
-
-        if (event_type_str == "Insertion") {
-            event_type = Insertion_t;
-        } else if (event_type_str == "Deletion") {
-            event_type = Deletion_t;
-        } else if (event_type_str == "GeneChoice") {
-            event_type = GeneChoice_t;
-        } else if (event_type_str == "DinucMarkov") {
-            event_type = Dinuclmarkov_t;
-        } else {
-            throw std::runtime_error(event_type_str + " event is not implemented (thrown by read_topology)");
-        }
-
-        // Phase 1: create via factory
-        auto ev = event_factory::create(event_type);
-
-        // Phase 2: configure
-        ev->set_event_class(gene_class);
-        ev->set_event_side(seq_side);
-        ev->set_priority(priority);
-        ev->set_nickname(nickname);
-
-        // Parse realizations
-        std::getline(infile, line);
-        if (event_type == GeneChoice_t) {
-            while (line.size() > 0 && line[0] == '%') {
-                std::size_t si1 = line.find(';', 0);
-                std::string name = line.substr(1, si1 - 1);
-                std::size_t si2 = line.find(';', si1 + 1);
-                std::string value_str = line.substr(si1 + 1, si2 - si1 - 1);
-                int index = std::stoi(line.substr(si2 + 1));
-                ev->add_realization(
-                    Event_realization(name, INT16_MAX, value_str, nt2int(value_str), index));
-                std::getline(infile, line);
-            }
-        } else if (event_type == Insertion_t || event_type == Deletion_t) {
-            while (line.size() > 0 && line[0] == '%') {
-                std::size_t si = line.find(';', 0);
-                int value_int = std::stoi(line.substr(1, si));
-                int index = std::stoi(line.substr(si + 1));
-                ev->add_realization(
-                    Event_realization(std::to_string(value_int), value_int, "", Int_Str(), index));
-                std::getline(infile, line);
-            }
-        } else {
-            // DinucMarkov: realizations are self-initialized, skip lines
-            while (line.size() > 0 && line[0] == '%') {
-                std::getline(infile, line);
-            }
-        }
-
-        index_type id = topo->addEvent(ev);
-        name_to_id[ev->get_name()] = id;
-    }
-
-    // ── Parse @Edges section ───────────────────────────────────────────
-    if (line != "@Edges") {
-        throw std::runtime_error("Unknown format for model file: " + filename);
-    }
-
-    std::getline(infile, line);
-    while (line.size() > 0 && line[0] == '%') {
-        std::size_t si = line.find(';', 0);
-        std::string parent_name = line.substr(1, si - 1);
-        std::string child_name = line.substr(si + 1);
-
-        auto pit = name_to_id.find(parent_name);
-        auto cit = name_to_id.find(child_name);
-        if (pit == name_to_id.end()) {
-            throw std::runtime_error("read_topology: Unknown parent event \"" + parent_name + "\"");
-        }
-        if (cit == name_to_id.end()) {
-            throw std::runtime_error("read_topology: Unknown child event \"" + child_name + "\"");
-        }
-
-        if (!topo->hasEdge(pit->second, cit->second)) {
-            topo->addEdge(pit->second, cit->second);
-        }
-
-        std::getline(infile, line);
-    }
-
-    // @ErrorRate section is ignored
 
     return topo;
 }

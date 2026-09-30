@@ -3,6 +3,9 @@
 #pragma once
 
 #include <igor/Model/RecombinationModel.h>
+// Included after RecombinationModel.h on purpose: LegacyBridge's template body needs the
+// complete class, and this .tpp is itself included at the end of that header.
+#include <igor/Model/LegacyBridge.h>
 
 #include <fstream>
 #include <stdexcept>
@@ -85,88 +88,13 @@ const math::Tensor<T>& RecombinationModel<T>::weight(const std::string& name) co
     return weight(m_topology->eventId(name));
 }
 
-// ─── read_parameters ─────────────────────────────────────────────────────────
-//
-// File format (model_marginals text):
-//   @nickname        – start of an event block
-//   $Dim[d1,d2,...]  – ignored (dimension annotation)
-//   #[parent,idx]    – ignored (conditioning context header)
-//   %v1,v2,v3,...    – probability values
-//
-// All %-lines for a given event, concatenated in file order, form the exact
-// flat memory layout of the tensor:
-//   [slice_0_probs..., slice_1_probs..., ...]
-
-template <typename T>
-bool read_parameters(const std::string& filename, RecombinationModel<T>& model)
-{
-    std::ifstream infile(filename);
-    if (!infile) return false;
-
-    // ── Pass 1: collect flat value vectors per event nickname ─────────────
-    std::unordered_map<std::string, std::vector<T>> values_by_event;
-    std::string current_event;
-    std::string line;
-
-    while (std::getline(infile, line)) {
-        if (line.empty()) continue;
-
-        switch (line[0]) {
-        case '@':
-            current_event = line.substr(1);
-            values_by_event.emplace(current_event, std::vector<T>{});
-            break;
-
-        case '%': {
-            if (current_event.empty()) break;
-            auto& vec = values_by_event[current_event];
-            std::size_t pos = 1;
-            while (pos < line.size()) {
-                std::size_t comma = line.find(',', pos);
-                std::string token = (comma == std::string::npos)
-                    ? line.substr(pos)
-                    : line.substr(pos, comma - pos);
-                if (!token.empty())
-                    vec.push_back(static_cast<T>(std::stod(token)));
-                if (comma == std::string::npos) break;
-                pos = comma + 1;
-            }
-            break;
-        }
-
-        default: break;
-        }
-    }
-
-    // ── Pass 2: fill tensors ─────────────────────────────────────────────
-    const auto& topo = model.topology();
-
-    for (igor::index_type uid = 0;
-         uid < static_cast<igor::index_type>(topo.size()); ++uid)
-    {
-        const std::string& nickname = topo.event(uid)->get_nickname();
-        auto& tensor = model.weight(uid);
-
-        auto it = values_by_event.find(nickname);
-        if (it == values_by_event.end()) {
-            throw std::runtime_error(
-                "read_parameters: event '" + nickname +
-                "' not found in file '" + filename + "'");
-        }
-
-        const auto& vals = it->second;
-        if (vals.size() != tensor.size()) {
-            throw std::runtime_error(
-                "read_parameters: size mismatch for '" + nickname +
-                "': file has " + std::to_string(vals.size()) +
-                " values, model expects " + std::to_string(tensor.size()));
-        }
-
-        std::copy(vals.begin(), vals.end(), tensor.data());
-    }
-
-    return true;
-}
+// read_parameters() lived here: a second reader of model_marginals, kept until step 3 of the
+// JSON migration. It is gone because it disagreed with Core's, and a test caught it. Core's
+// txt2marginals() renormalizes after reading, on purpose, "to deal with the problem of float
+// precision output from the text file" (Model_marginals.cpp), so its values are the ones
+// inference actually uses. This reader copied the rounded text as-is: on mouse TCR beta, one
+// v_choice entry came out 0.0440805 where Core has 0.04408051162843897. Reading marginals is
+// Core's job; the tensors are filled from its flat array by LegacyBridge.
 
 // ─── recombination_model_from_files ───────────────────────────────────────────
 
@@ -175,24 +103,21 @@ RecombinationModel<T> recombination_model_from_files(
     const std::string& file_model_parms,
     const std::string& file_model_marginals)
 {
-    // 1. Build topology from model_parms
-    auto topology = read_topology(file_model_parms);
-    if (!topology) {
-        throw std::runtime_error(
-            "recombination_model_from_files: failed to read topology from '"
-            + file_model_parms + "'");
-    }
+    // 1. Core reads. It is the only tokenizer of the text format, so the v2 sections come for
+    //    free: @Version, @Seq_type_order, and the six-field event lines that carry the
+    //    seq_type. Both calls throw std::runtime_error when a file is missing or malformed.
+    Model_Parms parms;
+    parms.read_model_parms(file_model_parms);
 
-    // 2. Construct model (move shared_ptr content into unique_ptr)
-    RecombinationModel<T> model(
-        std::make_unique<Topology>(std::move(*topology)));
+    Model_marginals marginals(parms);
+    marginals.txt2marginals(file_model_marginals, parms);
 
-    // 3. Load marginals
-    if (!read_parameters(file_model_marginals, model)) {
-        throw std::runtime_error(
-            "recombination_model_from_files: failed to read parameters from '"
-            + file_model_marginals + "'");
-    }
+    // 2. The bridge builds: events cloned, edges translated by nickname, segment order carried.
+    auto topology = import_from_legacy(parms);
+
+    // 3. Tensors are shaped from the topology, then filled from the flat array.
+    RecombinationModel<T> model(std::make_unique<Topology>(std::move(*topology)));
+    import_from_legacy(model, marginals);
 
     return model;
 }

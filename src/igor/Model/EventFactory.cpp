@@ -1,11 +1,16 @@
 // EventFactory.cpp ---
 
 #include <igor/Model/EventFactory.h>
-#include <igor/Core/Genechoice.h>
+
 #include <igor/Core/Deletion.h>
-#include <igor/Core/Insertion.h>
 #include <igor/Core/Dinuclmarkov.h>
-#include <unordered_map>
+#include <igor/Core/Genechoice.h>
+#include <igor/Core/Insertion.h>
+
+#include <nlohmann/json.hpp>
+
+#include <algorithm>
+#include <map>
 #include <stdexcept>
 #include <string>
 
@@ -13,62 +18,76 @@ namespace igor::model::event_factory {
 
 namespace detail {
 
-// Registry mapping Event_type to event creator functions
-std::unordered_map<Event_type, EventCreator>& get_creators() {
-    static std::unordered_map<Event_type, EventCreator> creators;
+/// Function-local static rather than a namespace-scope object: the registrars below run
+/// during static initialization, and this makes their order irrelevant.
+std::map<std::string, EventCreator> &get_creators()
+{
+    static std::map<std::string, EventCreator> creators;
     return creators;
 }
 
-// Helper to get event type name for error messages
-std::string event_type_name(Event_type type) {
-    switch (type) {
-        case GeneChoice_t: return "GeneChoice";
-        case Deletion_t: return "Deletion";
-        case Insertion_t: return "Insertion";
-        case Dinuclmarkov_t: return "Dinuclmarkov";
-        default: return "Unknown(" + std::to_string(static_cast<int>(type)) + ")";
-    }
-}
-
-}
-
-void register_creator(Event_type type, EventCreator func)
+std::string known_type_names()
 {
-    if (!func) {
+    std::string out;
+    for (const auto &entry : get_creators())
+        out += (out.empty() ? "" : ", ") + entry.first;
+    return out;
+}
+
+}  // namespace detail
+
+void register_creator(const std::string &type_name, EventCreator func)
+{
+    if (!func)
         throw std::invalid_argument(
-            "EventFactory::register_creator: Cannot register null creator for " +
-            detail::event_type_name(type));
-    }
-    detail::get_creators()[type] = func;
+                "EventFactory::register_creator: null creator for \"" + type_name + "\"");
+    if (type_name.empty())
+        throw std::invalid_argument("EventFactory::register_creator: empty type name");
+    detail::get_creators()[type_name] = std::move(func);
 }
 
-EventPtr create(Event_type type)
+EventPtr create(const nlohmann::json &node)
 {
-    auto it = detail::get_creators().find(type);
-    if (it == detail::get_creators().end()) {
-        throw std::runtime_error(
-            "EventFactory: No creator registered for type: " +
-            detail::event_type_name(type));
-    }
+    const auto type = node.find("type");
+    if (type == node.end())
+        throw std::runtime_error("EventFactory: event node has no \"type\"");
+    if (!type->is_string())
+        throw std::runtime_error("EventFactory: event node \"type\" is not a string");
 
-    return it->second();
+    const auto type_name = type->get<std::string>();
+    const auto creator = detail::get_creators().find(type_name);
+    if (creator == detail::get_creators().end())
+        throw std::runtime_error("EventFactory: no creator registered for \"" + type_name
+                                 + "\"; known types are " + detail::known_type_names());
+
+    return creator->second(node);
 }
 
-bool is_registered(Event_type type)
+bool is_registered(const std::string &type_name)
 {
-    return detail::get_creators().find(type) != detail::get_creators().end();
+    return detail::get_creators().find(type_name) != detail::get_creators().end();
 }
 
-// Register Core events within this translation unit to handle dependency cycle
-// (This creates a Model->Core dependency in this file, but avoids Core->Model headers in Core files)
+std::vector<std::string> registered_type_names()
+{
+    std::vector<std::string> out;
+    out.reserve(detail::get_creators().size());
+    for (const auto &entry : detail::get_creators())
+        out.push_back(entry.first);
+    return out;
+}
+
+// Registered here, in the one translation unit that may know the concrete Core classes: Core
+// must not name Model. The strings are the ones the model file carries, which is why the last
+// one is "DinucMarkov" and not "Dinuclmarkov".
 namespace {
-static Registrar<GeneChoice_t, Gene_choice> gene_choice_registrar;
-static Registrar<Deletion_t, Deletion> deletion_registrar;
-static Registrar<Insertion_t, Insertion> insertion_registrar;
-static Registrar<Dinuclmarkov_t, Dinucl_markov> dinucl_markov_registrar;
-}
+const Registrar<Gene_choice> gene_choice_registrar{ "GeneChoice" };
+const Registrar<Deletion> deletion_registrar{ "Deletion" };
+const Registrar<Insertion> insertion_registrar{ "Insertion" };
+const Registrar<Dinucl_markov> dinucl_markov_registrar{ "DinucMarkov" };
+}  // namespace
 
-} // namespace igor::model::event_factory
+}  // namespace igor::model::event_factory
 
 //
 // EventFactory.cpp ends here

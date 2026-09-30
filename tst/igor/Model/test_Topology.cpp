@@ -7,6 +7,10 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <igor/Model/Topology.h>
+#include <igor/Core/ModelJson.h>
+
+#include <nlohmann/json.hpp>
+#include <igor/Core/Model_Parms.h>
 #include <igor/Core/Rec_Event.h>
 #include <igor/Core/Genechoice.h>
 
@@ -142,12 +146,22 @@ TEST_CASE("Topology Algorithms", "[Model][Topology]") {
     }
 }
 
-TEST_CASE("Topology read_topology", "[Model][Topology]") {
+TEST_CASE("Topology from a model document", "[Model][Topology]") {
+    // Core reads the file, the document carries the schema, the factory builds the nodes.
     std::string model_path = std::string(IGOR_MODELS_DIR) + "/mouse/tcr_beta/models/model_parms.txt";
-    auto topo = igor::model::read_topology(model_path);
+    Model_Parms parms;
+    try { parms.read_model_parms(model_path); }
+    catch (...) { SKIP("Mouse TCR beta model_parms not found at: " + model_path); }
+
+    auto topo = igor::model::topology_from_json(igor::model_parms_to_json(parms));
     REQUIRE(topo != nullptr);
     REQUIRE(topo->size() > 0);
-    
+
+    // The segment order is model data, so it travels with the document.
+    REQUIRE(topo->seqTypeOrder()
+            == std::vector<Seq_type_String>{ "V_gene_seq", "VD_ins_seq", "D_gene_seq",
+                                             "DJ_ins_seq", "J_gene_seq" });
+
     REQUIRE(topo->hasEvent("v_choice"));
     REQUIRE(topo->hasEvent("vd_ins"));
     REQUIRE(topo->hasEvent("d_gene"));

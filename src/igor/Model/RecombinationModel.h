@@ -75,14 +75,10 @@ private:
 
 // ─── Free functions ──────────────────────────────────────────────────────────
 
-/// Load probability tensors from a model_marginals text file.
-/// Returns false if the file cannot be opened.
-template <typename T>
-bool read_parameters(const std::string& filename, RecombinationModel<T>& model);
-
 /// Build a fully-loaded RecombinationModel in one step from files.
-/// Reads the topology from model_parms, constructs the model, then
-/// loads the probability tensors from model_marginals.
+/// Core reads both files, LegacyBridge builds the Topology and fills the tensors from the
+/// flat marginal array. There is deliberately no second reader of model_marginals here:
+/// Core's renormalizes after parsing, and its values are the ones inference uses.
 template <typename T = double>
 RecombinationModel<T> recombination_model_from_files(
     const std::string& file_model_parms,

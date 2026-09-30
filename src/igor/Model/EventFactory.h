@@ -4,68 +4,69 @@
 
 #include <igor/Model/Export.h>
 #include <igor/Core/Rec_Event.h>
-#include <igor/Model/SamplingHandler.h>
-#include <igor/Core/Utils.h>
 
-#include <memory>
+#include <nlohmann/json_fwd.hpp>
+
 #include <functional>
+#include <memory>
+#include <string>
+#include <vector>
 
 namespace igor::model::event_factory {
 
 using EventPtr = std::shared_ptr<Rec_Event>;
-using EventCreator = std::function<EventPtr()>;
+
+/// Builds one event from its serialized node. The creator receives the descriptor, so the
+/// event is complete as soon as it exists: no default construction, no window during which
+/// the object answers its capability queries with values nobody chose.
+using EventCreator = std::function<EventPtr(const nlohmann::json &)>;
 
 /**
- * @brief Register a creator function for an event type
- * @param type The Event_type enum value
- * @param func Function that creates a default-constructed event
+ * @brief Register a creator under the type name the document carries.
  *
- * The factory uses two-phase initialization:
- * 1. Factory creates default-constructed event
- * 2. Caller populates event using setters/add_realization methods
+ * Keyed by the string, not by Event_type, because the string is what the file has and what
+ * create() dispatches on. The enum stays what runtime code switches on; it is not the
+ * serialization identity.
  */
-MODEL_EXPORT void register_creator(Event_type type, EventCreator func);
+MODEL_EXPORT void register_creator(const std::string &type_name, EventCreator func);
 
 /**
- * @brief Create a default-constructed event of the specified type
- * @param type The Event_type to create
- * @return Shared pointer to default-constructed Rec_Event
- * @throws std::runtime_error if type not registered
+ * @brief Build the event described by one node of the model document.
  *
- * After creation, use event-specific methods to populate:
- * - Gene_choice: set_genomic_templates(), add_realization(name, seq)
- * - Deletion: add_realization(int)
- * - Insertion: add_realization(int)
- * - Dinucl_markov: Uses default initialization with Gene_class
+ * Reads node["type"], looks the name up and hands the whole node to the creator, so the
+ * caller has no dispatch of its own to write.
+ *
+ * @throws std::runtime_error if the node has no type, or the type is not registered. What
+ *         the node's own fields have to satisfy is the concrete constructor's business.
  */
-MODEL_EXPORT EventPtr create(Event_type type);
+MODEL_EXPORT EventPtr create(const nlohmann::json &node);
+
+/// Whether a creator is registered for that type name.
+MODEL_EXPORT bool is_registered(const std::string &type_name);
+
+/// Every registered type name, for diagnostics and tests.
+MODEL_EXPORT std::vector<std::string> registered_type_names();
 
 /**
- * @brief Check if an event type has a registered creator
- * @param type The Event_type to check
- * @return true if registered, false otherwise
- */
-MODEL_EXPORT bool is_registered(Event_type type);
-
-/**
- * @brief Template for automatic event registration using static initialization
- * @tparam Type The Event_type enum value
- * @tparam EventClass The concrete event class (e.g., Gene_choice, Deletion)
+ * @brief Static registration of one concrete event class.
  *
- * Usage:
- *   static Registrar<GeneChoice_t, Gene_choice> gene_choice_registrar;
+ * Usage, in the translation unit that knows the class:
+ *   static Registrar<Deletion> deletion_registrar{"Deletion"};
  *
- * This will automatically register the creator function when the static
- * object is constructed during program initialization.
+ * The class only has to offer a constructor taking a json node. Adding an event type means
+ * adding a class and one line here, and no existing code changes.
  */
-template<Event_type Type, typename EventClass>
+template <typename EventClass>
 struct Registrar {
-    Registrar() {
-        register_creator(Type, []() { return std::make_shared<EventClass>(); });
+    explicit Registrar(const std::string &type_name)
+    {
+        register_creator(type_name, [](const nlohmann::json &node) -> EventPtr {
+            return std::make_shared<EventClass>(node);
+        });
     }
 };
 
-}
+}  // namespace igor::model::event_factory
 
 //
 // EventFactory.h ends here

@@ -13,6 +13,9 @@
 #include <igor/Model/Topology.h>
 #include <igor/Model/LegacyBridge.h>
 #include <igor/Core/Genechoice.h>
+#include <igor/Core/ModelJson.h>
+
+#include <nlohmann/json.hpp>
 #include <igor/Core/Model_Parms.h>
 #include <igor/Core/Model_marginals.h>
 
@@ -102,7 +105,7 @@ TEST_CASE("RecombinationModel construction from Topology",
 
 // ─── Read parameters ─────────────────────────────────────────────────────────
 
-TEST_CASE("RecombinationModel read_parameters from file",
+TEST_CASE("RecombinationModel tensors filled from the legacy marginals",
           "[Model][RecombinationModel]")
 {
     // Build the same topology that the Mouse TCR beta model uses
@@ -121,8 +124,10 @@ TEST_CASE("RecombinationModel read_parameters from file",
     RecombinationModel<double> model(
         std::make_unique<Topology>(std::move(*topology)));
 
-    SECTION("read_parameters fills tensors correctly") {
-        REQUIRE(read_parameters(marginals_path, model));
+    SECTION("import_from_legacy fills tensors correctly") {
+        Model_marginals marginals(parms);
+        REQUIRE_NOTHROW(marginals.txt2marginals(marginals_path, parms));
+        import_from_legacy(model, marginals);
 
         // Every tensor should have at least one non-zero value
         for (index_type uid = 0;
@@ -140,8 +145,10 @@ TEST_CASE("RecombinationModel read_parameters from file",
         }
     }
 
-    SECTION("read_parameters file not found returns false") {
-        REQUIRE_FALSE(read_parameters("/no/such/path.txt", model));
+    SECTION("a missing marginals file throws") {
+        Model_marginals marginals(parms);
+        REQUIRE_THROWS_AS(marginals.txt2marginals("/no/such/path.txt", parms),
+                          std::runtime_error);
     }
 }
 
@@ -348,12 +355,18 @@ TEST_CASE("recombination_model_from_files loads a model in one step",
     }
 
     SECTION("matches manual two-step construction") {
-        // Build independently via the two-step approach
-        auto topology2 = read_topology(parms_path);
+        // Build independently, and through the OTHER door: the document and the factory here,
+        // where the one-step loader goes through the bridge. Bitwise equality then says the two
+        // doors agree on uid order, tensor shapes and the flat-block copy.
+        Model_Parms parms2;
+        parms2.read_model_parms(parms_path);
+        auto topology2 = topology_from_json(igor::model_parms_to_json(parms2));
         REQUIRE(topology2);
         RecombinationModel<double> model2(
             std::make_unique<Topology>(std::move(*topology2)));
-        REQUIRE(read_parameters(marginals_path, model2));
+        Model_marginals marginals2(parms2);
+        REQUIRE_NOTHROW(marginals2.txt2marginals(marginals_path, parms2));
+        import_from_legacy(model2, marginals2);
 
         REQUIRE(model.size() == model2.size());
         for (index_type uid = 0;

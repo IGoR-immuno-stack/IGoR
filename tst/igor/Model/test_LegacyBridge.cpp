@@ -14,6 +14,9 @@
 #include <igor/Model/LegacyBridge.h>
 #include <igor/Model/Topology.h>
 #include <igor/Model/RecombinationModel.h>
+#include <igor/Core/ModelJson.h>
+
+#include <nlohmann/json.hpp>
 #include <igor/Core/Model_marginals.h>
 #include <igor/Core/Model_Parms.h>
 
@@ -28,8 +31,6 @@ using Catch::Matchers::WithinAbs;
 
 TEST_CASE("Topology <-> Model_Parms conversion", "[core][bridge][topology]") {
     std::string model_path = std::string(IGOR_MODELS_DIR) + "/mouse/tcr_beta/models/model_parms.txt";
-    auto topo1 = igor::model::read_topology(model_path);
-    REQUIRE(topo1 != nullptr);
 
     Model_Parms parms;
     try {
@@ -37,6 +38,11 @@ TEST_CASE("Topology <-> Model_Parms conversion", "[core][bridge][topology]") {
     } catch (...) {
         SKIP("Mouse TCR beta model files not found");
     }
+
+    // Two ways in: through the JSON document and the event factory, or through the bridge,
+    // which clones the events Core already built. They must agree on the graph.
+    auto topo1 = igor::model::topology_from_json(igor::model_parms_to_json(parms));
+    REQUIRE(topo1 != nullptr);
 
     auto topo2 = igor::model::import_from_legacy(parms);
     REQUIRE(topo2 != nullptr);
@@ -103,7 +109,10 @@ TEST_CASE("read_parameters matches import_from_legacy for Mouse TCR beta",
     try { marginals.txt2marginals(marginals_path, parms); }
     catch (...) { SKIP("Mouse TCR beta marginals not found at: " + marginals_path); }
 
-    auto topology_legacy = igor::model::read_topology(parms_path);
+    // Built through the JSON document rather than the bridge, so this also checks that the
+    // factory path yields the same uid order, and therefore the same tensor shapes, as the
+    // path recombination_model_from_files uses.
+    auto topology_legacy = igor::model::topology_from_json(igor::model_parms_to_json(parms));
     REQUIRE(topology_legacy);
 
     igor::model::RecombinationModel<double> model_legacy(

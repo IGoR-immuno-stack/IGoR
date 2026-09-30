@@ -16,6 +16,11 @@ namespace igor::model {
 inline std::shared_ptr<Topology> import_from_legacy(const Model_Parms& legacy_model) {
     auto topo = std::make_shared<Topology>();
 
+    // The segment order is model data and cannot be recovered from the graph, so it is carried
+    // over here. Without it an exported model gets the standard VDJ order inferred back by
+    // Model_Parms::finalize(), which is silently wrong for a tandem-D model.
+    topo->setSeqTypeOrder(legacy_model.get_seq_type_registry().get_ordered_types());
+
     // Copy events into new Topology
     auto events = legacy_model.get_event_list();
     for (const auto& ev : events) {

@@ -260,9 +260,11 @@ create_v_mock_alignment(const std::string& sequence,
     int v_len = static_cast<int>(v_template.length());
     int v_del = scenario.v_3p_del;
 
-    std::vector<int> mismatches;
+    // size_t since PR #66: Alignment_data's mismatch, insertion and deletion lists are
+    // std::vector<size_t> and no longer forward_list<int> / vector<int>.
+    std::vector<size_t> mismatches;
     for (int i = v_len - v_del; i < v_len && i < static_cast<int>(sequence.length()); ++i)
-        if (v_template[i] != sequence[i]) mismatches.push_back(i);
+        if (v_template[i] != sequence[i]) mismatches.push_back(static_cast<size_t>(i));
 
     Alignment_data v_align(scenario.v_gene_name, 0);
     v_align.five_p_offset  = 0;
@@ -285,11 +287,12 @@ create_j_mock_alignment(const std::string& sequence,
     int j_del    = scenario.j_5p_del;
     int j_offset = static_cast<int>(sequence.length()) - j_len;
 
-    std::vector<int> mismatches;
+    std::vector<size_t> mismatches;
     for (int i = 0; i < j_del; ++i) {
         int seq_pos = j_offset + i;
         if (seq_pos >= 0 && seq_pos < static_cast<int>(sequence.length()))
-            if (j_template[i] != sequence[seq_pos]) mismatches.push_back(seq_pos);
+            if (j_template[i] != sequence[seq_pos])
+                mismatches.push_back(static_cast<size_t>(seq_pos));
     }
 
     Alignment_data j_align(scenario.j_gene_name, j_offset);

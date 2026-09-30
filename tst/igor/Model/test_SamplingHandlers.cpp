@@ -251,10 +251,12 @@ TEST_CASE("SamplingHandlerFactory: build from RecombinationModel", "[Model][Samp
     std::unordered_map<std::string, Event_realization> child_realizations;
     child_realizations.emplace("D1", Event_realization("D1", 1, "", Int_Str(), 0));
     child_realizations.emplace("D2", Event_realization("D2", 2, "", Int_Str(), 1));
-    auto child = std::make_shared<Deletion>(Undefined_gene, Undefined_side, child_realizations);
+    // A deletion and a dinucleotide chain are identified by their target segment now, not by a
+    // gene class, and neither can be default-constructed: the segment goes in the constructor.
+    auto child = std::make_shared<Deletion>(V_gene_seq, Three_prime, child_realizations);
     child->set_nickname("Child");
 
-    auto grandchild = std::make_shared<Dinucl_markov>();
+    auto grandchild = std::make_shared<Dinucl_markov>(VD_ins_seq);
     grandchild->set_nickname("GrandChild");
 
     igor::index_type root1_id = topology->addEvent(root1);
