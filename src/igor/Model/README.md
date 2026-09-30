@@ -451,7 +451,7 @@ Used for `Gene_choice`, `Deletion`, and `Insertion` events.
 | **M-step** | Normalise the last axis: own realizations sum to 1 per parent combination (a 1-D tensor, i.e. no parents, takes a whole-tensor fast path) | N/A |
 | **Sampling** | N/A | Binary search on CDF row for the selected parent slice |
 | **Key method** | `maximizeLikelihood()` | `sample(rng, parent_indices)` |
-| **Accessor** | `realizationCount()` — reads `shape()[0]`, so it is the first *parent* dimension for a conditional event; only tests call it (see the note below) | `realizationCount()` — reads `shape().back()`, correct in every case |
+| **Accessor** | `realizationCount()` — `shape().back()` | `realizationCount()` — `shape().back()` |
 
 ### Markov Handlers
 
@@ -466,16 +466,13 @@ Used for `Dinucl_markov` events (dinucleotide transition matrices).
 | **M-step** | Normalise the last axis: each row of "to" states sums to 1 per "from" state and parent combination (a 2-D tensor, i.e. no parents, takes a row-wise fast path) | N/A |
 | **Sampling** | N/A | Two modes: (1) empty parents → sample first nucleotide from marginal; (2) `parent_indices[0]` = from_state → sample next state from row CDF |
 | **Key methods** | `maximizeLikelihood()` | `sample()`, `sampleSequence(rng, first_state, n_steps, ...)` |
-| **Accessor** | `stateCount()` — same caveat as `realizationCount()` above | `stateCount()` |
+| **Accessor** | `stateCount()` — `shape()[ndim() - 2]` | `stateCount()` — `shape()[ndim() - 2]` |
 
-> **Known inconsistency.** `CategoricalInferenceHandler::realizationCount()` and
-> `MarkovInferenceHandler::stateCount()` return `m_weights.shape()[0]`. That was
-> right when the own dimensions came first; with the current parents-first shape
-> it is the first parent's dimension as soon as the event has a parent. Their
-> `maximizeLikelihood()` is not affected — it normalises `ndim() - 1` — and no
-> production code reads either accessor, only `tst/igor/Model/test_InferenceHandlers.cpp`,
-> whose sections are named after the old semantics ("realizationCount matches
-> tensor dim 0"). Fixing it means `shape().back()` plus rewriting those sections.
+Both accessors read the axis their own dimensions live on, never `shape()[0]`,
+which under the parents-first convention is the first parent's dimension. The
+inference pair used to get this wrong; it only showed up for an event with a
+parent, so the two conditional cases in `test_InferenceHandlers.cpp` exist to
+keep it from coming back.
 
 ---
 
