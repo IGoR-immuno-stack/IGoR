@@ -1266,6 +1266,131 @@ TEST_CASE("Deletion: what the junction fold composes", "[deletion][iterate][junc
     }
 }
 
+namespace {
+
+/**
+ * Runs one arm and checks, at every hand-off, that the junction bound it wrote is at least what
+ * the best completion of that junction can still realize.
+ *
+ * Every fixture above leaves a gap of `3 + deletions` and hands off in decreasing deletion
+ * count. The best completion is the fold over the events *after* the one under test: the
+ * shortest insertion that fills the gap, with every later deletion at zero. That is
+ * `junction_bound_at(distance, kContributors - 1)` -- the same arithmetic with the event under
+ * test left out of the count, which is exactly the question.
+ */
+template <typename Fixture>
+void check_bound_covers_best_completion(Fixture &fixture, Seq_type junction)
+{
+    const auto next = call_iterate_recording(fixture.deletion, fixture.state);
+    //Not a REQUIRE: the caller is a `[!shouldfail]` case, which a REQUIRE would abort -- and
+    //satisfy -- before the other arms ran. The hand-off count is pinned by the untagged
+    //junction-length cases above.
+    CHECK(next->call_count() == 5);
+    if (next->call_count() != 5) {
+        return;
+    }
+    for (std::size_t i = 0; i != 5; ++i) {
+        const int distance = 3 + (4 - static_cast<int>(i));
+        const double best = junction_bound_at(distance, Fixture::kContributors - 1);
+        const double bound = next->calls[i].downstream_bounds.at(junction);
+        INFO("hand-off " << i << ", distance " << distance << ": bound " << bound
+                         << ", best completion " << best);
+        CHECK(bound >= best * (1.0 - 1e-12));
+    }
+}
+
+} // namespace
+
+TEST_CASE("Deletion: the junction bound covers the best completion (§7.19, R8)",
+          "[deletion][iterate][junction][!shouldfail]")
+{
+    // A deletion reads its junction at the gap its own choice leaves, so that gap already
+    // accounts for the choice -- and the table it reads is folded over *this event and its
+    // suffix*, so its own marginal is in there as well as in the scenario probability it has
+    // just multiplied. With flat marginals the best completion only gets worse as the gap
+    // grows, so the table's max lands on "this event deletes nothing more", and the value read
+    // is the best completion times one marginal of this event: 0.5 here. The bound falls below
+    // what the scenario can go on to realize, which is §7.19's arithmetic on the other event
+    // that reads its own table.
+    //
+    // §6.14 recorded this as a *weakening*: the length half, "counted twice in opposite
+    // directions", widens the range the max is taken over. That half cannot show in these
+    // fixtures, because a wider range over a decreasing profile adds nothing; the probability
+    // half is what does, and it tightens.
+    //
+    // R8 (plan stage 3c-ii) takes a deletion out of its own table, and this tag comes off then.
+    //
+    // Section-free, as every `[!shouldfail]` case is (plan §7.1): the tag is evaluated per run of
+    // the case, and Catch2 re-runs a case once per leaf section.
+    {
+        VDel v3;
+        check_bound_covers_best_completion(v3, VD_ins_seq);
+    }
+    {
+        D5Del d5;
+        check_bound_covers_best_completion(d5, VD_ins_seq);
+    }
+    {
+        D3Del d3;
+        check_bound_covers_best_completion(d3, DJ_ins_seq);
+    }
+    {
+        JDel j5;
+        check_bound_covers_best_completion(j5, DJ_ins_seq);
+    }
+    {
+        // The V->J junction, in a model with no D.
+        VJDel vj;
+        check_bound_covers_best_completion(vj, VJ_ins_seq);
+    }
+}
+
+TEST_CASE("Deletion: the junction bound's shortfall is its own marginal and nothing else",
+          "[deletion][iterate][junction]")
+{
+    // The control for the case above, and it passes on both sides of R8: give the event under
+    // test its own marginal block, set it to 1, and the value it reads is the best completion
+    // exactly. So the whole shortfall is this event's own marginal -- no other factor of the
+    // fold is out of place. Before R8 the 1.0 cancels the double count; after it the event is
+    // not in the table to count.
+    //
+    // One arm per side, since the two sides read their gap with opposite signs.
+    const auto own_marginal_at_one = [](IterateTestState &state) {
+        state.set_base_index(0, 40);
+        for (std::size_t i = 0; i != 5; ++i) {
+            state.set_marginal(40 + i, 1.0L);
+        }
+    };
+
+    SECTION("V 3'")
+    {
+        VDel fixture;
+        own_marginal_at_one(fixture.state);
+        const auto next = call_iterate_recording(fixture.deletion, fixture.state);
+        REQUIRE(next->call_count() == 5);
+        for (std::size_t i = 0; i != 5; ++i) {
+            const int distance = 3 + (4 - static_cast<int>(i));
+            INFO("hand-off " << i);
+            CHECK(next->calls[i].downstream_bounds.at(VD_ins_seq)
+                  == Approx(junction_bound_at(distance, VDel::kContributors - 1)));
+        }
+    }
+
+    SECTION("J 5'")
+    {
+        JDel fixture;
+        own_marginal_at_one(fixture.state);
+        const auto next = call_iterate_recording(fixture.deletion, fixture.state);
+        REQUIRE(next->call_count() == 5);
+        for (std::size_t i = 0; i != 5; ++i) {
+            const int distance = 3 + (4 - static_cast<int>(i));
+            INFO("hand-off " << i);
+            CHECK(next->calls[i].downstream_bounds.at(DJ_ins_seq)
+                  == Approx(junction_bound_at(distance, JDel::kContributors - 1)));
+        }
+    }
+}
+
 TEST_CASE("Deletion: the segment's own error bound", "[deletion][iterate]")
 {
     SECTION("V publishes the bound for what survives the deletion")
