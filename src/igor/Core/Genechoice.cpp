@@ -25,6 +25,7 @@
 
 #include <igor/Core/EventUtils.h>
 #include <igor/Core/Genechoice.h>
+#include <igor/Core/JsonDetail.h>
 #include <igor/Core/gene_to_seqtype_migr.h>
 
 using namespace std;
@@ -91,6 +92,25 @@ Gene_choice::Gene_choice(Gene_class gene, vector<pair<string, string>> genomic_s
         }
         this->add_realization((*seq_it).first, (*seq_it).second);
     }
+    this->update_event_name();
+}
+
+Gene_choice::Gene_choice(const nlohmann::json &node)
+    : Gene_choice(str2GeneClassNew(igor::json_detail::require(node, "gene_class").get<string>()))
+{
+    using namespace igor::json_detail;
+    reject_unknown_keys(node, kEventKeys);
+    expect_type(node, "GeneChoice");
+
+    this->set_seq_type(require(node, "seq_type").get<Seq_type_String>());
+    this->set_event_side(str2SeqSide(require(node, "side").get<string>()));
+    this->set_priority(require(node, "priority").get<int>());
+    this->set_nickname(require(node, "nickname").get<string>());
+
+    for (const nlohmann::json *realization : realizations_in_index_order(node))
+        this->add_realization(require(*realization, "name").get<string>(),
+                              require(*realization, "value_str").get<string>());
+
     this->update_event_name();
 }
 

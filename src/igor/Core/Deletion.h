@@ -65,6 +65,8 @@ public:
         Deletion(Seq_type, Seq_side, std::pair<int, int>);
         Deletion(Seq_type, Seq_side);
         Deletion(Seq_type, Seq_side, std::unordered_map<std::string, Event_realization> &);
+        /// From one event node of the JSON model schema. See ModelJson.h.
+        explicit Deletion(const nlohmann::json &);
         ~Deletion() override;
 
     //Virtual methods

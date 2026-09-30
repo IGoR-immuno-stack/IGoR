@@ -86,6 +86,8 @@ public:
 
     //Constructors
     Dinucl_markov(Seq_type); //TODO should be scalable on one side easily (mono di tri quadri nucl)
+    /// From one event node of the JSON model schema. See ModelJson.h.
+    explicit Dinucl_markov(const nlohmann::json &);
     //Destructor
     ~Dinucl_markov() override;
 

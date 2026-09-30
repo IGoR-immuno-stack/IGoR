@@ -9,12 +9,17 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <igor/Core/Deletion.h>
+#include <igor/Core/Dinuclmarkov.h>
+#include <igor/Core/Genechoice.h>
+#include <igor/Core/Insertion.h>
 #include <igor/Core/ModelJson.h>
 #include <igor/Core/Model_Parms.h>
 
 #include <nlohmann/json.hpp>
 
 #include <fstream>
+#include <memory>
 #include <string>
 
 static const std::string TEST_DATA_DIR = std::string(IGOR_SOURCE_DIR) + "/tst/test_data/format_v2/";
@@ -36,6 +41,29 @@ const nlohmann::json &event_by_nickname(const nlohmann::json &doc, const std::st
         if (node.at("nickname").get<std::string>() == nickname)
             return node;
     throw std::runtime_error("no event with nickname \"" + nickname + "\" in the document");
+}
+
+/// Local dispatch, replaced by the event factory in the next step. Kept here so the
+/// constructors can be tested before the factory exists.
+std::shared_ptr<Rec_Event> event_from_json(const nlohmann::json &node)
+{
+    const auto type = node.at("type").get<std::string>();
+    if (type == "GeneChoice")
+        return std::make_shared<Gene_choice>(node);
+    if (type == "Deletion")
+        return std::make_shared<Deletion>(node);
+    if (type == "Insertion")
+        return std::make_shared<Insertion>(node);
+    if (type == "DinucMarkov")
+        return std::make_shared<Dinucl_markov>(node);
+    throw std::runtime_error("unknown event type \"" + type + "\"");
+}
+
+/// An event does not know its parents: that edge list is model-level.
+nlohmann::json without_parents(nlohmann::json node)
+{
+    node.erase("parents");
+    return node;
 }
 
 }  // namespace
@@ -126,4 +154,96 @@ TEST_CASE("model json: realizations come out sorted by index", "[Core][json][int
     // Parents are carried per event, so d_gene names both of its conditioning events.
     const auto &d_gene = event_by_nickname(doc, "d_gene");
     REQUIRE(d_gene.at("parents").size() == 2);
+}
+
+TEST_CASE("model json: json to object to json is the identity", "[Core][json]")
+{
+    Model_Parms parms;
+    REQUIRE_NOTHROW(parms.read_model_parms(TEST_DATA_DIR + "test_legacy_vdj_model_parms_v2.txt"));
+    const nlohmann::json doc = igor::model_parms_to_json(parms);
+
+    for (const auto &node : doc.at("events")) {
+        const auto rebuilt = event_from_json(node);
+        REQUIRE(rebuilt->to_json() == without_parents(node));
+    }
+}
+
+TEST_CASE("model json: round trip on a shipped model", "[Core][json][integration]")
+{
+    const std::string shipped = MODELS_DIR + "human/tcr_beta/models/model_parms.txt";
+    if (!std::ifstream(shipped).good())
+        SKIP("models submodule not checked out: " + shipped);
+
+    Model_Parms parms;
+    REQUIRE_NOTHROW(parms.read_model_parms(shipped));
+    const nlohmann::json doc = igor::model_parms_to_json(parms);
+
+    REQUIRE(doc.at("events").size() == 11);
+    for (const auto &node : doc.at("events")) {
+        const auto rebuilt = event_from_json(node);
+        REQUIRE(rebuilt->to_json() == without_parents(node));
+        // The generated name is what Model_marginals keys its index map by, so it has to
+        // survive the round trip as well, not only the fields it is built from.
+        REQUIRE(rebuilt->get_name() == parms.get_event_pointer(node.at("nickname")
+                                                                       .get<std::string>(), true)
+                                               ->get_name());
+    }
+}
+
+TEST_CASE("model json: a rebuilt DinucMarkov keeps Core's stale name", "[Core][json]")
+{
+    // Pinning a quirk, not endorsing it. set_priority() refreshes the generated name and
+    // set_event_side() does not, and the text reader sets the side last, so a DinucMarkov
+    // event carries a name saying Undefined_side while its side is Three_prime. That name is
+    // the key of Model_marginals::get_index_map() and appears in six golden files, so the JSON
+    // constructor reproduces it. If Core ever fixes the name, this test fails and says where.
+    Model_Parms parms;
+    REQUIRE_NOTHROW(parms.read_model_parms(TEST_DATA_DIR + "test_legacy_vdj_model_parms_v2.txt"));
+    const nlohmann::json doc = igor::model_parms_to_json(parms);
+
+    const nlohmann::json &node = event_by_nickname(doc, "vd_dinucl");
+    REQUIRE(node.at("side").get<std::string>() == "Three_prime");
+
+    const auto rebuilt = event_from_json(node);
+    REQUIRE(rebuilt->get_side() == Three_prime);
+    REQUIRE(rebuilt->get_name().find("Undefined_side") != std::string::npos);
+    REQUIRE(rebuilt->get_name()
+            == parms.get_event_pointer("vd_dinucl", true)->get_name());
+}
+
+TEST_CASE("model json: a malformed event node is rejected", "[Core][json]")
+{
+    Model_Parms parms;
+    REQUIRE_NOTHROW(parms.read_model_parms(TEST_DATA_DIR + "test_legacy_vdj_model_parms_v2.txt"));
+    const nlohmann::json doc = igor::model_parms_to_json(parms);
+
+    SECTION("an unknown key, a typo for instance") {
+        nlohmann::json node = event_by_nickname(doc, "v_3_del");
+        node["nickmame"] = "v_3_del";
+        REQUIRE_THROWS_AS(event_from_json(node), std::runtime_error);
+    }
+
+    SECTION("a missing key") {
+        nlohmann::json node = event_by_nickname(doc, "v_3_del");
+        node.erase("priority");
+        REQUIRE_THROWS_AS(event_from_json(node), std::runtime_error);
+    }
+
+    SECTION("a type that does not match the constructor") {
+        nlohmann::json node = event_by_nickname(doc, "v_3_del");
+        node["type"] = "Insertion";
+        REQUIRE_THROWS_AS(std::make_shared<Deletion>(node), std::runtime_error);
+    }
+
+    SECTION("a gap in the realization indices") {
+        nlohmann::json node = event_by_nickname(doc, "v_3_del");
+        node["realizations"].at(0)["index"] = 7;
+        REQUIRE_THROWS_AS(event_from_json(node), std::runtime_error);
+    }
+
+    SECTION("a gene class the seq_type contradicts") {
+        nlohmann::json node = event_by_nickname(doc, "v_3_del");
+        node["gene_class"] = "J_gene";
+        REQUIRE_THROWS_AS(event_from_json(node), std::runtime_error);
+    }
 }

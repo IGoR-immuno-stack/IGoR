@@ -25,6 +25,7 @@
 
 #include <igor/Core/Deletion.h>
 #include <igor/Core/EventUtils.h>
+#include <igor/Core/JsonDetail.h>
 #include <igor/Core/gene_to_seqtype_migr.h>
 
 #include <algorithm>
@@ -149,6 +150,34 @@ Deletion::Deletion(Seq_type target_seq, Seq_side side, unordered_map<string, Eve
             this->len_max = -(*iter).second.value_int;
         }
     }
+    this->update_event_name();
+}
+
+Deletion::Deletion(const nlohmann::json &node)
+    : Deletion(str2SeqType(igor::json_detail::require(node, "seq_type").get<Seq_type_String>()),
+               str2SeqSide(igor::json_detail::require(node, "side").get<string>()))
+{
+    using namespace igor::json_detail;
+    reject_unknown_keys(node, kEventKeys);
+    expect_type(node, "Deletion");
+
+    // The base class' gene_class is derived from the seq_type by get_deletion_gene_class(), so
+    // the document's own value is checked rather than applied. A mismatch means a hand-edited
+    // or stale document, and taking the derived value silently would hide it.
+    const auto declared_gene_class = require(node, "gene_class").get<string>();
+    if (declared_gene_class != to_string(this->get_class()))
+        throw std::runtime_error("event json: deletion on \""
+                                 + require(node, "seq_type").get<string>()
+                                 + "\" implies gene class " + to_string(this->get_class())
+                                 + ", document says " + declared_gene_class);
+
+    this->set_seq_type(require(node, "seq_type").get<Seq_type_String>());
+    this->set_priority(require(node, "priority").get<int>());
+    this->set_nickname(require(node, "nickname").get<string>());
+
+    for (const nlohmann::json *realization : realizations_in_index_order(node))
+        this->add_realization(require(*realization, "value_int").get<int>());
+
     this->update_event_name();
 }
 

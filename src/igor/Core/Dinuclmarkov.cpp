@@ -25,6 +25,7 @@
 
 #include <igor/Core/Dinuclmarkov.h>
 #include <igor/Core/EventUtils.h>
+#include <igor/Core/JsonDetail.h>
 
 #include <algorithm>
 #include <vector>
@@ -67,6 +68,50 @@ Dinucl_markov::Dinucl_markov(Seq_type seq_type) : Rec_Event(), total_nucl_count(
 
     dinuc_proba_matrix = Matrix<double>(kIntNtCount, kIntNtCount);
     this->update_event_name();
+}
+
+Dinucl_markov::Dinucl_markov(const nlohmann::json &node)
+    : Dinucl_markov(str2SeqType(igor::json_detail::require(node, "seq_type").get<Seq_type_String>()))
+{
+    using namespace igor::json_detail;
+    reject_unknown_keys(node, kEventKeys);
+    expect_type(node, "DinucMarkov");
+
+    this->set_seq_type(require(node, "seq_type").get<Seq_type_String>());
+    this->set_priority(require(node, "priority").get<int>());
+    this->set_nickname(require(node, "nickname").get<string>());
+
+    // Call order matters here, and it reproduces a quirk of the text reader on purpose.
+    // set_priority() refreshes the generated name, set_event_side() does not, and
+    // Model_Parms::read_model_parms() sets the side AFTER the priority. A DinucMarkov event
+    // therefore keeps a name saying Undefined_side while its side is Three_prime or
+    // Five_prime. That stale name is what Model_marginals::get_index_map() keys on, and it is
+    // written into six golden files under scripts/tests/data/reference, so producing the
+    // truthful name here would silently break the marginal array. Hence: side last, and no
+    // update_event_name() at the end. Fixing the name is a Core decision with golden data
+    // attached, not something this constructor should decide.
+    // The side itself is load-bearing beyond the name: it is the traversal anchor, so
+    // Three_prime means the chain is seeded from the segment on its left.
+    this->set_event_side(str2SeqSide(require(node, "side").get<string>()));
+
+    // The four nucleotides are self-initialized above, so the document's realizations are
+    // verified rather than applied. Anything else means the document was not written by this
+    // schema, and building a chain over a different alphabet would need more than a loop here.
+    const auto realizations = realizations_in_index_order(node);
+    if (realizations.size() != this->event_realizations.size())
+        throw std::runtime_error("event json: a dinucleotide Markov chain has "
+                                 + std::to_string(this->event_realizations.size())
+                                 + " realizations, document has "
+                                 + std::to_string(realizations.size()));
+    for (const nlohmann::json *realization : realizations) {
+        const auto name = require(*realization, "name").get<string>();
+        const auto found = this->event_realizations.find(name);
+        if (found == this->event_realizations.end()
+            || found->second.index != require(*realization, "index").get<int>())
+            throw std::runtime_error("event json: unexpected dinucleotide realization \"" + name
+                                     + "\" at index "
+                                     + std::to_string(require(*realization, "index").get<int>()));
+    }
 }
 
 Dinucl_markov::~Dinucl_markov()
