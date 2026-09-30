@@ -45,6 +45,7 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
+#include <cmath>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -295,25 +296,28 @@ TEST_CASE("Insertion: downstream bound and memory layering", "[insertion][iterat
 {
     SECTION("The junction's bound is the best probability achievable at that length")
     {
-        // junction_length_best_proba_map is built by the reverse pass walking what remains of
-        // the queue -- here the Dinucl_markov. With a flat 0.5 marginal the best a junction of
-        // n nucleotides can reach is 0.5 for the insertion itself times 0.5 per filled
-        // position, so a 3-nucleotide junction is 0.5^4.
+        // The table is folded over what remains of the queue once the insertion has chosen --
+        // here the Dinucl_markov -- with the insertion enumerated for its length only. With a
+        // flat 0.5 marginal the best a junction of n nucleotides can still reach is 0.5 per
+        // filled position, so a 3-nucleotide junction is 0.5^3. It was 0.5^4 until R8: the
+        // insertion's own marginal was in the table as well as in the scenario (§7.19).
         VdJunction fixture;
         const auto next = call_iterate_recording(fixture.insertion, fixture.state);
         REQUIRE(next->call_count() == 1);
         REQUIRE(next->calls.front().downstream_bounds.count(VD_ins_seq) == 1);
-        CHECK(next->calls.front().downstream_bounds.at(VD_ins_seq) == Approx(0.0625));
+        CHECK(next->calls.front().downstream_bounds.at(VD_ins_seq) == Approx(0.125));
     }
 
-    SECTION("An empty junction is bounded by the insertion probability alone")
+    SECTION("An empty junction leaves nothing to bound")
     {
-        // Nothing to fill, so the dinucleotide factor drops out entirely. This is the row the
-        // bound would silently lose if a rewrite folded the two factors together.
+        // Nothing to fill, so the dinucleotide factor drops out entirely, and the insertion's
+        // own probability is in the scenario rather than the bound: 1. Until R8 this read 0.5,
+        // the insertion's marginal counted a second time (§7.19). It is the row that shows the
+        // p^L factor is keyed by the length and not folded into a constant.
         VdJunction fixture(/*v_three_prime=*/13, /*d_five_prime=*/14);
         const auto next = call_iterate_recording(fixture.insertion, fixture.state);
         REQUIRE(next->call_count() == 1);
-        CHECK(next->calls.front().downstream_bounds.at(VD_ins_seq) == Approx(0.5));
+        CHECK(next->calls.front().downstream_bounds.at(VD_ins_seq) == Approx(1.0));
     }
 
     SECTION("The write lands at the requested layer, leaving the layer below intact")
@@ -330,6 +334,48 @@ TEST_CASE("Insertion: downstream bound and memory layering", "[insertion][iterat
         CHECK(get_downstream_bound(fixture.state, VD_ins_seq, 0) == Approx(0.125));
         CHECK(get_downstream_bound(fixture.state, VD_ins_seq, 1)
               == Approx(next->calls.front().downstream_bounds.at(VD_ins_seq)));
+    }
+}
+
+TEST_CASE("Insertion: the junction bound covers the best completion (§7.19, R8)",
+          "[insertion][iterate]")
+{
+    // Once the insertion has chosen its length L, all that is left of the junction is the
+    // Dinucl_markov filling it: with a flat 0.5 marginal the best it can realize is 0.5^L, and
+    // the bound the insertion writes has to be at least that. Until R8 it was half that -- the
+    // table was folded over the insertion *and* its suffix, so the insertion's own marginal was
+    // in the bound as well as in the scenario probability it had just multiplied (§7.19). This
+    // case failed all four checks under `[!shouldfail]` before stage 3c-i, and the tag came off
+    // with the fix. Section-free, as it was written to be.
+    const auto check_covers = [](IterateTestState &state, const std::shared_ptr<Insertion> &insertion,
+                                 Seq_type junction, int length) {
+        const auto next = call_iterate_recording(insertion, state);
+        //Not a REQUIRE, which would abort -- and satisfy -- the tag before the other arms ran.
+        CHECK(next->call_count() == 1);
+        if (next->call_count() != 1) {
+            return;
+        }
+        const double best = std::pow(0.5, length);
+        const double bound = next->calls.front().downstream_bounds.at(junction);
+        INFO("length " << length << ": bound " << bound << ", best completion " << best);
+        CHECK(bound >= best * (1.0 - 1e-12));
+    };
+
+    {
+        VdJunction vd;
+        check_covers(vd.state, vd.insertion, VD_ins_seq, 3);
+    }
+    {
+        VdJunction empty(/*v_three_prime=*/13, /*d_five_prime=*/14);
+        check_covers(empty.state, empty.insertion, VD_ins_seq, 0);
+    }
+    {
+        DjJunction dj;
+        check_covers(dj.state, dj.insertion, DJ_ins_seq, 3);
+    }
+    {
+        VjJunction vj;
+        check_covers(vj.state, vj.insertion, VJ_ins_seq, 3);
     }
 }
 

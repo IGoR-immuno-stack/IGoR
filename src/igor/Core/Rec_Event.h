@@ -423,12 +423,16 @@ public:
     /**
      * One body for every event. What used to be four overrides differing only in `Δ(r)` -- see
      * length_delta() -- plus Dinucl_markov, which differs in kind: it does not enumerate at all.
+     *
+     * `is_reader` is true only when this event is the one whose table is being folded. A bound
+     * is built from what is *not yet realized* when its reader reads it, and the reader's own
+     * realization is realized by then (§7.19, R8).
      */
     void iterate_initialize_Len_proba(SegmentSpan span, SpanProfile &profile,
                                       const SpanParticipants &participants, std::size_t cursor,
                                       double &scenario_proba,
                                       const Marginal_array_p &model_parameters_point, Index_map &base_index_map,
-                                      UnfilledSegmentLengths &lengths, int &seq_len) const;
+                                      UnfilledSegmentLengths &lengths, int &seq_len, bool is_reader) const;
 
     void iterate_initialize_Len_proba(SegmentSpan span, SpanProfile &profile,
                                       const SpanParticipants &participants, double &scenario_proba,

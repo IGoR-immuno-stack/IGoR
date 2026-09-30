@@ -415,9 +415,14 @@ void Rec_Event::iterate_initialize_Len_proba(SegmentSpan span, SpanProfile &prof
     //list holds the events *after* this one -- so it has to apply the same test to itself that
     //built the list. It is not vacuous: Gene_choice(V) opens the VD span traversal but
     //contributes nothing to it.
+    //
+    //When it does participate, `this` is the table's reader, and what it reads is a bound on
+    //what is still to be realized once it has chosen -- so its own choice is not part of it
+    //(§7.19, R8). The body applies that; see `is_reader` there.
     if (this->participates_in_span(span)) {
         this->iterate_initialize_Len_proba(span, profile, participants, 0, scenario_proba,
-                                           model_parameters_point, base_index_map, lengths, seq_len);
+                                           model_parameters_point, base_index_map, lengths, seq_len,
+                                           /*is_reader=*/true);
     } else {
         this->iterate_initialize_Len_proba_wrap_up(span, profile, participants, 0, scenario_proba,
                                                    model_parameters_point, base_index_map, lengths, seq_len);
@@ -433,7 +438,8 @@ void Rec_Event::iterate_initialize_Len_proba(SegmentSpan span, SpanProfile &prof
 void Rec_Event::iterate_initialize_Len_proba(SegmentSpan span, SpanProfile &profile,
                                              const SpanParticipants &participants, std::size_t cursor,
                                              double &scenario_proba, const Marginal_array_p &model_parameters_point,
-                                             Index_map &base_index_map, UnfilledSegmentLengths &lengths, int &seq_len) const
+                                             Index_map &base_index_map, UnfilledSegmentLengths &lengths, int &seq_len,
+                                             bool is_reader) const
 {
     //A local, not the subclasses' `mutable int base_index`: this body is shared, and each of the
     //four declares its own. Safe because every reader of that member sets it first in the same
@@ -470,6 +476,14 @@ void Rec_Event::iterate_initialize_Len_proba(SegmentSpan span, SpanProfile &prof
     const bool creates_sequence =
             this->get_seq_construction_role(this->seq_type_id) == SeqConstructionRole::Creates;
 
+    //The reader's own probability is already in the scenario it multiplies the bound into, so
+    //counting it here as well put the bound below what the scenario goes on to realize (§7.19).
+    //An event that *creates* the offsets still has to enumerate: the length it creates is the
+    //key it reads at, and the p^L factor downstream reads it too. So it contributes its length
+    //and a weight of 1. An event that only modifies an offset is still folded with its marginal
+    //-- §7.19's mirror on Deletion, which is R8's second stage (3c-ii).
+    const bool own_realization_is_known = is_reader and creates_offsets;
+
     for (std::unordered_map<std::string, Event_realization>::const_iterator iter = this->event_realizations.begin();
          iter != this->event_realizations.end(); ++iter) {
         const Event_realization &realization = iter->second;
@@ -489,8 +503,10 @@ void Rec_Event::iterate_initialize_Len_proba(SegmentSpan span, SpanProfile &prof
         }
 
         this->iterate_initialize_Len_proba_wrap_up(span, profile, participants, cursor,
-                                                   scenario_proba * real_max_proba, model_parameters_point,
-                                                   base_index_map, lengths, seq_len + delta);
+                                                   own_realization_is_known ? scenario_proba
+                                                                            : scenario_proba * real_max_proba,
+                                                   model_parameters_point, base_index_map, lengths,
+                                                   seq_len + delta);
     }
 }
 
@@ -508,7 +524,8 @@ void Rec_Event::iterate_initialize_Len_proba_wrap_up(SegmentSpan span, SpanProfi
     if (cursor < participants.size()) {
         // Explore realizations of this event
         participants[cursor]->iterate_initialize_Len_proba(span, profile, participants, cursor + 1, scenario_proba,
-                                                           model_parameters_point, base_index_map, lengths, seq_len);
+                                                           model_parameters_point, base_index_map, lengths, seq_len,
+                                                           /*is_reader=*/false);
     } else {
         // Every event contributing to this span has chosen, so this path reaches `seq_len` with
         // `scenario_proba`. SpanProfile::record() keeps the better of that and what is already
