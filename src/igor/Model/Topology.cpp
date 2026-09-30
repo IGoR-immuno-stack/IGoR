@@ -152,24 +152,29 @@ std::vector<index_type> Topology::topologicalOrder() const
     for (index_type i = 0; i < static_cast<index_type>(n); ++i)
         in_degree[i] = m_parents[i].size();
 
-    // Min-heap: (priority, index) — lowest priority value = highest priority event first,
-    // matching Model_Parms::get_model_queue() which uses Event_comparator (sort by priority).
-    using Entry = std::pair<int, index_type>;
+    // Tie-break among ready nodes must match Core: Event_comparator orders by DESCENDING
+    // priority ("event_p1->get_priority() > event_p2->get_priority()", Rec_Event.h), and
+    // Model_Parms::get_model_queue() relies on that order both for iteration and for the
+    // layout of the marginal array. The heap below is a min-heap, so the key holds the
+    // NEGATED priority: the highest priority event pops first. On equal priorities the
+    // smaller uid pops first, matching the stable sort Core applies to its event list.
+    using Entry = std::pair<int, index_type>;   // { -priority, uid }
     std::priority_queue<Entry, std::vector<Entry>, std::greater<Entry>> ready;
 
     for (index_type i = 0; i < static_cast<index_type>(n); ++i)
         if (in_degree[i] == 0)
-            ready.push({ m_events[i]->get_priority(), i });
+            ready.push({ -m_events[i]->get_priority(), i });
 
     std::vector<index_type> order;
     order.reserve(n);
 
     while (!ready.empty()) {
-        auto [prio, node] = ready.top(); ready.pop();
+        const index_type node = ready.top().second;
+        ready.pop();
         order.push_back(node);
         for (index_type child : m_children[node]) {
             if (--in_degree[child] == 0)
-                ready.push({ m_events[child]->get_priority(), child });
+                ready.push({ -m_events[child]->get_priority(), child });
         }
     }
 

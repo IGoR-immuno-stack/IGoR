@@ -267,11 +267,13 @@ TEST_CASE("SamplingHandlerFactory: build from RecombinationModel", "[Model][Samp
     topology->addEdge(child_id, grandchild_id);
     topology->addEdge(root1_id, grandchild_id);
 
-    // 2. Test topological ordering based on priority
+    // 2. Test topological ordering based on priority.
+    //    Core's Event_comparator orders by DESCENDING priority, so Root1 (priority 10)
+    //    must be visited before Root2 (priority 5).
     std::vector<igor::index_type> order = topology->topologicalOrder();
     REQUIRE(order.size() == 4);
-    REQUIRE(order[0] == root2_id);
-    REQUIRE(order[1] == root1_id);
+    REQUIRE(order[0] == root1_id);
+    REQUIRE(order[1] == root2_id);
     REQUIRE(order[2] == child_id);
     REQUIRE(order[3] == grandchild_id);
 
