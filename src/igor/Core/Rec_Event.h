@@ -426,13 +426,18 @@ public:
      *
      * `is_reader` is true only when this event is the one whose table is being folded. A bound
      * is built from what is *not yet realized* when its reader reads it, and the reader's own
-     * realization is realized by then (§7.19, R8).
+     * realization is realized by then (§7.19, R8). Only a reader that creates its segment's
+     * offsets reaches this body; see the entry-point overload for the other kind.
      */
     void iterate_initialize_Len_proba(SegmentSpan span, SpanProfile &profile,
                                       const SpanParticipants &participants, std::size_t cursor,
                                       double &scenario_proba,
                                       const Marginal_array_p &model_parameters_point, Index_map &base_index_map,
                                       UnfilledSegmentLengths &lengths, int &seq_len, bool is_reader) const;
+
+    /// Whether this event places its own segment's offsets rather than moving an existing end.
+    /// The fold's publisher test and its reader test are the same question.
+    bool creates_own_offsets() const;
 
     void iterate_initialize_Len_proba(SegmentSpan span, SpanProfile &profile,
                                       const SpanParticipants &participants, double &scenario_proba,

@@ -418,8 +418,15 @@ void Rec_Event::iterate_initialize_Len_proba(SegmentSpan span, SpanProfile &prof
     //
     //When it does participate, `this` is the table's reader, and what it reads is a bound on
     //what is still to be realized once it has chosen -- so its own choice is not part of it
-    //(§7.19, R8). The body applies that; see `is_reader` there.
-    if (this->participates_in_span(span)) {
+    //(§7.19, R8). Two cases, on the line the body below already draws:
+    //  - it *creates* the junction's offsets (Insertion): the length it creates is the key it
+    //    reads at, and Dinucl_markov's p^L reads the same length, so it still enumerates -- for
+    //    its length only, at weight 1. The body applies that; see `is_reader` there.
+    //  - it only *moves* an end of the span (Deletion): the gap it reads at is measured after
+    //    its own choice, so that choice is already accounted for, and it leaves its own table
+    //    entirely. Enumerating it at weight 1 would still be sound, but the table would then
+    //    hold a max over the other deletions it did not choose.
+    if (this->participates_in_span(span) and this->creates_own_offsets()) {
         this->iterate_initialize_Len_proba(span, profile, participants, 0, scenario_proba,
                                            model_parameters_point, base_index_map, lengths, seq_len,
                                            /*is_reader=*/true);
@@ -470,19 +477,14 @@ void Rec_Event::iterate_initialize_Len_proba(SegmentSpan span, SpanProfile &prof
     //                  rather than changing one anybody sees.
     //  - Deletion   -- modifies an offset rather than creating one: publishes nothing, and
     //                  contributes its negative delta to the span total instead.
-    const bool creates_offsets =
-            this->get_offset_role(this->seq_type_id, Five_prime) == OffsetRole::Creates
-            || this->get_offset_role(this->seq_type_id, Three_prime) == OffsetRole::Creates;
+    const bool creates_offsets = this->creates_own_offsets();
     const bool creates_sequence =
             this->get_seq_construction_role(this->seq_type_id) == SeqConstructionRole::Creates;
 
     //The reader's own probability is already in the scenario it multiplies the bound into, so
     //counting it here as well put the bound below what the scenario goes on to realize (§7.19).
-    //An event that *creates* the offsets still has to enumerate: the length it creates is the
-    //key it reads at, and the p^L factor downstream reads it too. So it contributes its length
-    //and a weight of 1. An event that only modifies an offset is still folded with its marginal
-    //-- §7.19's mirror on Deletion, which is R8's second stage (3c-ii).
-    const bool own_realization_is_known = is_reader and creates_offsets;
+    //Only a reader that creates the offsets gets this far -- the entry point folds any other
+    //reader from its suffix alone -- and it contributes its length at a weight of 1.
 
     for (std::unordered_map<std::string, Event_realization>::const_iterator iter = this->event_realizations.begin();
          iter != this->event_realizations.end(); ++iter) {
@@ -503,11 +505,16 @@ void Rec_Event::iterate_initialize_Len_proba(SegmentSpan span, SpanProfile &prof
         }
 
         this->iterate_initialize_Len_proba_wrap_up(span, profile, participants, cursor,
-                                                   own_realization_is_known ? scenario_proba
-                                                                            : scenario_proba * real_max_proba,
+                                                   is_reader ? scenario_proba : scenario_proba * real_max_proba,
                                                    model_parameters_point, base_index_map, lengths,
                                                    seq_len + delta);
     }
+}
+
+bool Rec_Event::creates_own_offsets() const
+{
+    return this->get_offset_role(this->seq_type_id, Five_prime) == OffsetRole::Creates
+           || this->get_offset_role(this->seq_type_id, Three_prime) == OffsetRole::Creates;
 }
 
 void Rec_Event::iterate_initialize_Len_proba_wrap_up(SegmentSpan span, SpanProfile &profile,
