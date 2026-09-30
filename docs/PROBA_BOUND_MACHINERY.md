@@ -550,7 +550,10 @@ Three readings.
 - **The negative steps are §7.19, localised.** `DinucMarkov_VD` and `DinucMarkov_DJ` both show the
   bound *growing* by 10^1.25 on the event's own realization, which an upper bound may not do. The
   parent in each case is the `Insertion` whose bound counts its own realization twice. The
-  instrument finds it without being told where to look.
+  instrument finds it without being told where to look. *(Gone since R8's stage 3c-i, Sep 30
+  2026: both steps now read 10^0.00, and `Insertion_DJ` has no unsound node left. What remains
+  unsound is `Deletion`'s mirror of the same defect, which stage 3c-ii removes — see the iterate
+  plan, "R8 in more detail".)*
 - **Barren is a probability story, not a geometry one.** Of 18 723 690 barren nodes, 0.22 % were
   starved and 66.88 % pruned (the rest hollow, i.e. their cause is recorded one level down).
   Among the 12 564 150 *frontier* barren nodes — those that are one or the other — **99.67 % died

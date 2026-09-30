@@ -1698,7 +1698,7 @@ already flagged as the milestone-1 blocker and because `Gene_choice` is the only
 | **R5a** | ✅ **done Sep 27 2026.** **§7.1 + §7.18** — one derivation of the surviving core for every gene and both paths, `(core_3 − core_5 + 1) − endogenous`, neutral only when the ends can *cross*; `Error_rate::get_err_rate_upper_bound()` takes `int` and refuses a negative count. Three `[!shouldfail]` tags off, and a Debug build completes the unit suite. **Predicted to move the inference corpus; it moved nothing** — all five tracks bitwise, and a probe says why: see §6.9 | full ladder + the corrected-core unit tests + a Debug unit run | **yes, as measured** — bitwise on the corpus, not by construction |
 | **R5b** | ✅ **done Sep 27 2026.** **§7.8** — the position scan's both-flanks branch places D's 5' end at `v_3_off + L + 1`, the convention the alignment path and the decomposition's own key already used. One line. The last `[!shouldfail]` tag off, so **the suite has none left**. `no_d_align` moved as predicted, and less than R7 did: `Pgen` by at most ±1.2 %, every best scenario unchanged — see §6.9 | full ladder + `no_d_align` regenerated | **no** — the golden data for that path moves |
 | **R7** | ✅ **done Sep 27 2026.** **§7.16** — the `no_d_align` probability compounded across placements. Both exhaustive scans now start from `base_scenario_proba`, the value the event inherited, exactly as the alignment loop does. The two `[!shouldfail]` tags are off and `scripts/tests/data/reference/no_d_align_output/` moved with it — **every one of the 300 `Pgen` rows, all upwards, median ×823**. The first prune stage's `break` became a `continue`: see below | full ladder + the `no_d_align` regression, regenerated | **no** — the golden data for that path moves |
-| **R8** | **§7.19** — an `Insertion`'s bound counts its own realization twice and falls below the truth, so insertion nodes prune harder than the threshold asks. **Decided Sep 30 2026: shape 2**, as a rule — an event's bound is built only from events not yet realized when it reads, so the reader is out of its own table; `Deletion` leaves it entirely, `Insertion` stays in for its length with probability 1. `Deletion`'s mirror *tightens* too, not weakens as §6.14 recorded — **confirmed by 3c-0** (✅ Sep 30). Staged 3c-0 / 3c-i / 3c-ii. Re-measure with 5a's instrument after each | full ladder + the bound instrument | **no** — every output moves |
+| **R8** | **§7.19** — an `Insertion`'s bound counts its own realization twice and falls below the truth, so insertion nodes prune harder than the threshold asks. **Decided Sep 30 2026: shape 2**, as a rule — an event's bound is built only from events not yet realized when it reads, so the reader is out of its own table; `Deletion` leaves it entirely, `Insertion` stays in for its length with probability 1. `Deletion`'s mirror *tightens* too, not weakens as §6.14 recorded — **confirmed by 3c-0** (✅ Sep 30). Staged 3c-0 / 3c-i (✅ Sep 30) / 3c-ii. Re-measure with 5a's instrument after each | full ladder + the bound instrument | **no** — every output moves |
 | **R6** | Within-clique joint max in the span fold (§6.9); optional cross-clique parent indexing | full ladder, **convergence weighted heavily** | **no** — a tighter bound prunes more |
 | **R9** | **§7.20** — `make_transversions`'s `is_int_seq` arm and its multi-character `'14'` deleted. The only R row that is **bitwise-neutral by construction**: nothing calls it. Queued for tidiness, not blocked | full ladder | **yes** |
 | **R10** | ✅ **done** — **§7.4**. `JunctionGeometry::legacy_offset_delta()` deleted, the partner interval read from `PendingModifierBounds`, and the by-hand translation in the body replaced by `reachable()`. 4b carried the short bound so that the collapse itself was bitwise; this is where it stopped | full ladder + the no_d_align reference, regenerated | **no** — the no_d_align golden data moved, on 4 of 300 sequences |
@@ -2287,7 +2287,7 @@ Decided behaviour changes, none of which had a row in §6 before this re-assessm
 | **R7** | ✅ **done Sep 27 2026.** §7.16 — the `no_d_align` path compounded the D probability across placements, so placement *k* was handed off at `incoming × p^k` where every placement is the same realization and carries `incoming × p`. Both exhaustive loops read the live `scenario.scenario_proba` where the alignment loop restarts from a value captured once; both now read that same captured value. Two `[!shouldfail]` tags off. The re-check of §6.15's first-stage `break` came back **negative** — its licence was the monotonicity the defect created, not the sort order — so it is a `continue`, measured bitwise | Sep 16, done Sep 27 | `Gene_choice` | **`no_d_align` moves** — the reference encoded the compounded values. **And one `[!mayfail]` convergence section starts passing**: see below |
 | R11 | **Delete the placeholder guard in `Dinucl_markov::iterate_common()`.** `ins_seq.at(i) == int_undefined` existed for the regime R1 removed: one buffer shared with the `Insertion` across sibling scenarios, where an already-written position had to read as *someone filled this*. The buffer is now created per scenario with every position a placeholder, so the guard is unreachable through `iterate()` and the unit case that pinned it was deleted rather than rewritten. Dead code with a live trap in it — the same shape as R9, and the reason it is a row rather than a tidy-up is that it is the last residue of the shared-buffer design | Sep 24 | `Dinucl_markov` | none — unreachable by construction after R1 |
 | R12 | **Generalise `affects_length_of` off the enum.** `Gene_choice`'s switch pins V leftmost and J rightmost and barely reads the `SegmentSpan` it is passed; the rule it stands for is *a segment adds length to a span when it sits strictly between the span's two ends in the 5′→3′ ordering*, which S5's `SafetyCell` already reads positions from. `Insertion`'s and `Deletion`'s overrides are the same kind of enum table — the latter already names its generic form. The comment deferring this to S4b is stale: S4b landed without it. Together with R8's rule it makes V's and J's absence from the junction tables follow from a rule instead of from ordering, and it is what a span between flanking sequences needs (§7.19's decision) | Sep 30 | `Gene_choice`, `Insertion`, `Deletion` | none — bitwise by construction: no shipped model has a span with a gene inside it other than D within V→J |
-| R8 | §7.19 — an `Insertion`'s bound multiplies in its own realization's marginal twice, once through `proba_contribution` and once inside the junction profile it reads, so the bound falls below the probability the scenario goes on to realize and insertion nodes prune harder than the threshold asks. **Decided Sep 30 2026 (Quentin): shape 2, as a rule** — an event's bound is built only from the events not yet realized when it reads the table, so the reader is out of its own table by definition. `Deletion` modifies an anchor and leaves its own table entirely; `Insertion` creates the length the key counts and stays in for its length with probability 1. **`Deletion`'s mirror is derived to tighten the bound as well** — by one deletion marginal under uniform marginals — not to weaken it as §6.14 recorded; **confirmed by stage 3c-0, Sep 30 2026**, exactly one marginal short in every arm. Does **not** merge with R6: R8 changes which events enter a table, R6 what each contributes. See §7.19's decision | Sep 17, decided Sep 30 | the fold's entry point in `Rec_Event.cpp`; `Insertion` and `Deletion` consumers unchanged | **every inference output moves**, upward: bounds only rise, so less is pruned. Staged so each movement has one cause |
+| R8 | §7.19 — an `Insertion`'s bound multiplies in its own realization's marginal twice, once through `proba_contribution` and once inside the junction profile it reads, so the bound falls below the probability the scenario goes on to realize and insertion nodes prune harder than the threshold asks. **Decided Sep 30 2026 (Quentin): shape 2, as a rule** — an event's bound is built only from the events not yet realized when it reads the table, so the reader is out of its own table by definition. `Deletion` modifies an anchor and leaves its own table entirely; `Insertion` creates the length the key counts and stays in for its length with probability 1. **`Deletion`'s mirror is derived to tighten the bound as well** — by one deletion marginal under uniform marginals — not to weaken it as §6.14 recorded; **confirmed by stage 3c-0, Sep 30 2026**, exactly one marginal short in every arm. Does **not** merge with R6: R8 changes which events enter a table, R6 what each contributes. See §7.19's decision. **3c-i (`Insertion`) landed Sep 30 2026** — see *R8 in more detail* | Sep 17, decided Sep 30 | the fold's entry point in `Rec_Event.cpp`; `Insertion` and `Deletion` consumers unchanged | **every inference output moves**, upward: bounds only rise, so less is pruned. Staged so each movement has one cause |
 
 R9, R0, R2, R1+R3 and R3b were each expected to be bitwise-neutral despite being behaviour
 changes — they close paths the corpus does not reach — and **all five measured that way**. That
@@ -2301,7 +2301,10 @@ that one much further than R10 did, and unlike R10 it moved it in the predicted 
 **R5a landed Sep 27 2026 and moved nothing**, which is the surprise the paragraph above says to
 test rather than accept: it was probed, and the explanation is about the corpus, not the repair
 (*R5a in more detail*, below). **R5b landed the same day** and moved `no_d_align` only, as
-predicted, by much less than R7 did (*R5b in more detail*).
+predicted, by much less than R7 did (*R5b in more detail*). **R8's first code stage, 3c-i, landed
+Sep 30 2026** and is the first row to move the inference track, as the catalogue said every R8
+stage would; it also moved `generate` and `no_d_align`, **not because either changed but because
+both read `demo_inference/final_*` as their input model** (*R8 in more detail*).
 
 #### The execution order *(Quentin, Sep 22 2026)*
 
@@ -2321,7 +2324,7 @@ first and attributability second:
 | **3a** | ✅ **R5a** — §7.1 + §7.18 | full ladder + the corrected-core unit tests + a Debug unit run | predicted the inference corpus; **none moved** — bitwise on all five tracks, probed |
 | **3b** | ✅ **R5b** — §7.8 | full ladder + `no_d_align` regenerated | `no_d_align` only — confirmed, the other four tracks bitwise |
 | **3c-0** | ✅ **R8**, test first — `test_deletion_iterate.cpp` asserts every arm's bound covers the best completion, tagged `[!shouldfail]` until 3c-ii, plus an untagged control. **It fails as derived**: 25 of 25 checks, each exactly one marginal short | unit | none — tests only |
-| **3c-i** | **R8**, `Insertion` — its own probability set to 1 in its own table | full ladder + 5a's instrument: the unsound nodes at the insertion depths go to zero | every inference output |
+| **3c-i** | ✅ **R8**, `Insertion` — its own probability set to 1 in its own table. **Done Sep 30 2026**: `Insertion_DJ`'s unsound nodes 922 755 → 0, iteration-1 likelihood up for every sequence with no best scenario replaced, ~4× the scenarios summed, +13–20 % inference wall time | full ladder + 5a's instrument | every inference output, **and `generate` and `no_d_align` through the golden model they read** |
 | **3c-ii** | **R8**, `Deletion` — out of its own table | full ladder + 5a's instrument (the deletion depths go to zero) + the benchmark, since this removes the most pruning | every inference output |
 | **3d** | **R6** — within-clique joint max | full ladder, **convergence weighted heavily** | every output |
 
@@ -2408,8 +2411,10 @@ with its last case.
 
 **R8 reopened it on Sep 30 2026, on purpose and with an owner.** Stage 3c-0 added one
 `[!shouldfail]` case, *"Deletion: the junction bound covers the best completion"*, which stage
-3c-ii spends. The binary reports exactly one. Stage 3c-i will add `Insertion`'s own case first
-and spend it in the same stage, so that each half of R8 has a test that fails before its fix.
+3c-ii spends. The binary reports exactly one. Stage 3c-i added `Insertion`'s own case first — it failed four
+checks of four under the tag, each one insertion marginal short — and spent it in the same stage
+with the fix, so each half of R8 has a test that failed before its fix. The binary still reports
+exactly one: 3c-ii's.
 
 **R3b in more detail** *(Quentin, Sep 10 2026)*. The harness rule landed in S4a —
 [*a written layer must have been requested*](#layer-ownership-a-written-layer-must-have-been-requested)
@@ -2857,6 +2862,93 @@ after, the event is not in the table. §6.14's *weakening* half does not show he
 widens the range a max is taken over, and over a profile that decreases with the gap a wider range
 adds nothing. The case is section-free, per §7.1's rule, and its hand-off count is a `CHECK` rather
 than a `REQUIRE` so that one broken fixture cannot satisfy the tag for the other four.
+
+*3c-i (✅ Sep 30 2026).* **The fix** is in the fold, not in `Insertion`: the body takes an
+`is_reader` flag, true only for the event whose own table is being folded, and an event that is
+the reader *and* creates the junction's offsets enumerates its realizations with weight 1 rather
+than its `maxᵢ` ([Rec_Event.cpp](../src/igor/Core/Rec_Event.cpp), `own_realization_is_known`). It
+still has to enumerate — the length it creates is the key it reads at, and `Dinucl_markov`'s `p^L`
+reads the same length — so the table keeps the insertion's lengths and drops its probability.
+`Deletion` is the reader of its tables too but does not create offsets, so it is untouched until
+3c-ii. `Gene_choice` creates offsets, but never reads a folded table it takes part in: D's
+enclosing table is `Retain`, which the driver skips.
+
+**The unit ledger.** A new `[!shouldfail]` case in `test_insertion_iterate.cpp`, *"the junction
+bound covers the best completion"*, on the three arms and the empty junction, failed 4 of 4 before
+the fix — `0.0625` against `0.125` at length 3, `0.5` against `1` at length 0 — and the tag came off
+with it. Two existing sections had pinned the double count as intended and were re-derived: the
+3-nucleotide junction's bound `0.5^4 → 0.5^3`, and the empty junction's `0.5 → 1`, now titled
+*"An empty junction leaves nothing to bound"*. Nothing else in the unit suite moved: `Deletion`'s
+tables contain the insertion as a later event, which is correct and unchanged.
+
+**The instrument**, same command on both sides — the TRB corpus, `default` batch, one EM
+iteration, uniform marginals — with a pre-fix instrumented binary built from the parent commit:
+
+| depth | event | nodes before | unsound before | worst before | nodes after | unsound after | worst after |
+|---:|---|---:|---:|---:|---:|---:|---:|
+| 3 | `Deletion_V_3'` | 232 865 | 611 | 0.04795 | 232 865 | 839 | 0.04795 |
+| 4 | `Deletion_D_5'` | 2 655 592 | 986 | 0.04795 | 2 655 592 | 1 489 | 0.04795 |
+| 5 | `Deletion_D_3'` | 5 261 598 | 27 257 | 0.002279 | 5 261 598 | 97 135 | 0.002279 |
+| 6 | `Deletion_J_5'` | 9 743 284 | 73 681 | 0.002070 | 9 743 284 | 235 393 | 0.002070 |
+| 7 | `Insertion_VD` | 2 087 039 | **922 755** | **0.0014025** | 6 498 985 | 503 566 | 0.043478 |
+| 8 | `DinucMarkov_VD` | 2 087 039 | 136 537 | 0.043478 | 6 498 985 | 503 566 | 0.043478 |
+| 9 | `Insertion_DJ` | 922 755 | **922 755** | **0.032258** | 3 548 445 | **0** | — |
+
+Every worst ratio is a product of uniform marginals, and every one that is left belongs to
+`Deletion`. `1/31 = 0.032258` is the insertion's own; `0.0014025 = 1/31 × 1/23` is the VD insertion's
+own times the J 5′ deletion's, which is the last writer of the DJ slot until the DJ insertion
+overwrites it; `1/23 = 0.043478` is that J 5′ deletion alone; `0.002279 ≈ 1/21²` and
+`0.002070 = 1/(21 × 23)` are the two deletion slots live at the D 3′ and J 5′ nodes. After 3c-i the
+insertion factors are gone from every row and the deletion factors remain unchanged, which is the
+3c-0 finding measured on the corpus. Depths 0–6 visit exactly the same nodes before and after, as
+they must: only the insertion's own bound moved. Their unsound *counts* rise because more leaves
+now exist below them to be beaten by.
+
+Per event, the insertion steps fall from 10^2.50 to 10^1.00, and **both `DinucMarkov` steps go from
+10^-1.25 to 10^0.00** — the negative steps the instrument found blind are gone. The walk visits
+34.5 M nodes rather than 23.0 M and ends at 3.55 M leaves rather than 0.92 M: 9.7 nodes per
+scenario rather than 24.9.
+
+**The regression gate.** `cli` and `align` bitwise. `inference` moved in every file but the two
+initial-model ones, and at the only iteration where both runs share a model — the first — the
+change is unambiguous:
+
+| batch | seq likelihood ratio, iteration 1 | sequences up | best scenario unchanged | scenarios summed |
+|---|---|---:|---:|---|
+| `demo` (1e-35, 1e-4) | ×1.008 – ×1.969, median ×1.167 | 300 / 300 | 300 / 300 | 712 059 → 2 983 216 (×4.19) |
+| `default` (1e-60, 1e-5) | ×1.002 – ×1.129, median ×1.033 | 300 / 300 | 300 / 300 | 922 755 → 3 548 445 (×3.85) |
+
+Mean log-likelihood at iteration 1 rises (`demo` −16.379 → −16.308, `default` −16.519 → −16.503);
+from iteration 2 on the two runs fit different models and the final means are marginally lower
+(−13.2134 → −13.2149, −13.2429 → −13.2442), which says nothing about the fix by itself: the old
+likelihoods summed less mass. The scenario count stays ×1.15–×1.55 above the old one through
+iteration 4.
+
+**Three tracks read the golden model, and that is a cascade, not a second cause.** `cli`,
+`no_d_align` and `generate` all take `demo_inference/final_{parms,marginals}.txt` as their input
+model, so regenerating `demo_inference` moves them. `cli` compares nothing model-dependent and
+stayed bitwise. `generate` moved in all three batches (97, 100 and 33 rows of 100) purely because
+its model did. `no_d_align` moved twice over, and the two are separable: **under the old model**,
+i.e. the bound change alone, `Pgen` rose for 281 of 300 sequences, by at most 4.1 %, two fell by
+under 10⁻⁵, and every best scenario held; **under the new model** it moves ×0.885–×1.268, and 282
+of 300 keep their best scenario. The golden data stores the second. The first regeneration of
+`no_d_align`, from the old-model run, was therefore wrong and was redone after `demo_inference`'s —
+**the golden model must be regenerated before anything that reads it**, which is worth knowing
+before 3c-ii and R6.
+
+**Wall time**, the regression's two inference workloads (4 EM iterations each), old and new
+binaries alternated three times: `demo` 9.3 s → 11.2 s (+20 %), `default` 4.4 s → 5.0 s (+13 %).
+Noisy but consistent in every pair, and well below both the ×3.8 in scenarios and the ×1.5 in
+nodes visited that the instrument measured; the run also pays for reading, initialization and the
+error model, which did not change. Not profiled. The benchmark proper is 3c-ii's gate.
+
+| gate | result |
+|---|---|
+| unit + integration | 326 / 326 |
+| unit, **Debug** | 270 cases; the only non-passes the five `[tandem_d][!mayfail]` and 3c-ii's `[!shouldfail]` |
+| regression | `cli`, `align` bitwise; `inference`, `generate`, `no_d_align` regenerated from the sorted copies (`demo_inference` first), then all five pass, twice |
+| convergence | 2 / 2; VDJ `d_gene` 0.9412, `d_5_del` 3.7967, `d_3_del` 3.6447 against truths 0.9525, 3.7537, 3.6197 (timer-seeded corpus, so not comparable run to run) |
+| instrument | above |
 
 **R6 in more detail** *(Quentin, Sep 10 2026)*. §6.10 shows the span fold accumulates
 `∏ₑ maxᵢ Pₑ(rₑ|i)`, a product of per-event maxima, and that taking the max **jointly** over a
