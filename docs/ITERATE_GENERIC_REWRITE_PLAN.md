@@ -2288,7 +2288,7 @@ Decided behaviour changes, none of which had a row in §6 before this re-assessm
 | R11 | **Delete the placeholder guard in `Dinucl_markov::iterate_common()`.** `ins_seq.at(i) == int_undefined` existed for the regime R1 removed: one buffer shared with the `Insertion` across sibling scenarios, where an already-written position had to read as *someone filled this*. The buffer is now created per scenario with every position a placeholder, so the guard is unreachable through `iterate()` and the unit case that pinned it was deleted rather than rewritten. Dead code with a live trap in it — the same shape as R9, and the reason it is a row rather than a tidy-up is that it is the last residue of the shared-buffer design | Sep 24 | `Dinucl_markov` | none — unreachable by construction after R1 |
 | R12 | **Generalise `affects_length_of` off the enum.** `Gene_choice`'s switch pins V leftmost and J rightmost and barely reads the `SegmentSpan` it is passed; the rule it stands for is *a segment adds length to a span when it sits strictly between the span's two ends in the 5′→3′ ordering*, which S5's `SafetyCell` already reads positions from. `Insertion`'s and `Deletion`'s overrides are the same kind of enum table — the latter already names its generic form. The comment deferring this to S4b is stale: S4b landed without it. Together with R8's rule it makes V's and J's absence from the junction tables follow from a rule instead of from ordering, and it is what a span between flanking sequences needs (§7.19's decision) | Sep 30 | `Gene_choice`, `Insertion`, `Deletion` | none — bitwise by construction: no shipped model has a span with a gene inside it other than D within V→J |
 | R13 | ✅ **done Oct 1 2026.** **Junction tables conditioned on their reader's realization** *(decided Oct 1 2026, Quentin)*. R8 enforced *a table never contains its reader* with two per-role branches — `Insertion` in at weight 1, `Deletion` out — and the diagnosis afterwards is that neither branch was the point: what was wrong was that the table **merged across the reader's own realizations**, harmless for the insertion because its key identifies its realization, lossy for the deletion. The rule becomes two parts with no role in them: the reader's probability is never in its table, and a reader that changes its span's length gets **one profile per realization**, folded from that realization at weight 1 with its length published like any participant's. The key is always the plain sum of `length_delta` over every enumerated event, so each reader reads *its realization's* profile at the gap as it stood **before its own choice**. Makes no assumption about what follows the reader — R8's 3c-i and the first proposal after it both leaned on "only a `Dinucl_markov` follows an insertion", which the base class has no business knowing — and needs no subclass knowledge: `participates_in_span`, `affects_length_of`, `length_delta` and the existing publisher step. `is_reader`, `creates_own_offsets()`'s use as a reader test, and the entry-point overload go | Oct 1 | the fold's driver, `JunctionBound`, the `Insertion` and `Deletion` consumers | **none — expected bitwise against 3c-ii**: every value is a max over the same completions, each path multiplying the same factors in the same order |
-| R14 | **Delete the crude bound path's runtime half.** `compute_crude_upper_bound_scenario_proba()` has no caller, so `updated_proba_bounds_list`, `scenario_downstream_upper_bound_proba`, `Dinucl_markov::get_updated_ptr()` with its heap-allocated `updated_upper_bound_proba`, and `Insertion`'s `*dinuc_updated_bound = …` — a dead store in the hot loop — are unreachable at scenario time. The init half stays: `event_upper_bound_proba` feeds `Dinucl_markov::span_proba_factor` | Oct 1 | `Rec_Event`, `Insertion`, `Dinucl_markov`, `GenModel`'s init loop | none — bitwise by construction |
+| R14 | ✅ **done Oct 1 2026.** **Delete the crude bound path's runtime half.** `compute_crude_upper_bound_scenario_proba()` has no caller, so `updated_proba_bounds_list`, `scenario_downstream_upper_bound_proba`, `Dinucl_markov::get_updated_ptr()` with its heap-allocated `updated_upper_bound_proba`, and `Insertion`'s `*dinuc_updated_bound = …` — a dead store in the hot loop — are unreachable at scenario time. The init half stays: `event_upper_bound_proba` feeds `Dinucl_markov::span_proba_factor` | Oct 1 | `Rec_Event`, `Insertion`, `Dinucl_markov`, `GenModel`'s init loop | none — bitwise by construction, **confirmed**: see *R14 in more detail* |
 | R15 | **The fold's state as one object.** The recursion passes nine or ten arguments per call; `double &scenario_proba` and `int &seq_len` are never written through; the `const` fold mutates `base_index_map` via `set_current_layer(…, 0)` to read a base index; and the `maxᵢ` over conditioning parents is written twice, in the fold body and in `build_retained_decomposition()`, which R6 would otherwise have to replace in two places. A small `SpanFold` (span, profile, participants, lengths, parameters, base indices) with one `fold_from(cursor, proba, length)`, and one `realization_bound()` helper | Oct 1 | the fold | none — bitwise |
 | **R8** | ✅ **done Sep 30 2026, in three stages.** §7.19 — an `Insertion`'s bound multiplies in its own realization's marginal twice, once through `proba_contribution` and once inside the junction profile it reads, so the bound falls below the probability the scenario goes on to realize and insertion nodes prune harder than the threshold asks. **Decided Sep 30 2026 (Quentin): shape 2, as a rule** — an event's bound is built only from the events not yet realized when it reads the table, so the reader is out of its own table by definition. `Deletion` modifies an anchor and leaves its own table entirely; `Insertion` creates the length the key counts and stays in for its length with probability 1. **`Deletion`'s mirror is derived to tighten the bound as well** — by one deletion marginal under uniform marginals — not to weaken it as §6.14 recorded; **confirmed by stage 3c-0, Sep 30 2026**, exactly one marginal short in every arm. Does **not** merge with R6: R8 changes which events enter a table, R6 what each contributes. See §7.19's decision. **3c-i (`Insertion`) and 3c-ii (`Deletion`) both landed Sep 30 2026** — see *R8 in more detail* | Sep 17, decided Sep 30 | the fold's entry point in `Rec_Event.cpp`; `Insertion` and `Deletion` consumers unchanged | **every inference output moves**, upward: bounds only rise, so less is pruned. Staged so each movement has one cause |
 
@@ -2334,7 +2334,8 @@ first and attributability second:
 | **3d** | **R6** — within-clique joint max | full ladder, **convergence weighted heavily** | every output |
 
 **R14 and R15 joined on Oct 1 2026** with R13, and are unplaced for the same reason: both are
-bitwise by construction. R15 is worth landing before R6, which rewrites the same `maxᵢ`.
+bitwise by construction. R15 is worth landing before R6, which rewrites the same `maxᵢ`. **R14
+landed the same day**, bitwise.
 
 **R12 joined the catalogue on Sep 30 2026**, with R8's decision, and is not placed either: bitwise by construction, so it lands wherever convenient, and before any flanking-sequence work at the latest.
 
@@ -3094,6 +3095,40 @@ checks; it is not the regression worth guarding.)
 | regression | all five tracks bitwise against 3c-ii, twice, nothing regenerated |
 | convergence | 2 / 2; VDJ `d_gene` 0.9547, `d_5_del` 3.7760, `d_3_del` 3.6474 against truths 0.9525, 3.7537, 3.6197 (timer-seeded corpus) |
 | instrument | identical to 3c-ii's report |
+
+**R14 in more detail** *(Oct 1 2026)*. The crude bound was the pre-S4 pruning scheme: each event
+stored the product of its downstream events' maxima, `scenario_downstream_upper_bound_proba`,
+and a `forward_list<double *>` of bounds that updated events — `Dinucl_markov` — rewrote while
+iterating, through a pointer the `Insertion` held. `compute_crude_upper_bound_scenario_proba()`,
+the only reader of either, had **no caller**: the walk prunes on `ExplorationContext`'s
+`compute_upper_bound()`, which reads the downstream proba map alone. So the whole
+`initialize_crude_scenario_proba_bound()` chain fed values nothing read, and `Insertion::iterate`
+did a dead store per hand-off into `Dinucl_markov`'s heap-allocated `updated_upper_bound_proba`.
+
+**Deleted**, 188 lines against 32 added across 11 files:
+`initialize_crude_scenario_proba_bound()` and its two overrides, `compute_crude_upper_bound_scenario_proba()`,
+`get_updated_ptr()` and its override, `scenario_downstream_upper_bound_proba`,
+`updated_proba_bounds_list`, the `updated` flag and `is_updated()` (read only by the deleted
+chain), `Insertion`'s `upper_bound_per_ins`, `dinuc_updated_bound` and its
+`set_crude_upper_bound_proba()` override (both fed only the chain), and `Dinucl_markov`'s owning
+raw pointer, which also removes a latent double-free: the class had no copy constructor of its
+own, so only `copy()`, which builds a fresh object, kept it safe.
+
+**Kept**: the base `set_crude_upper_bound_proba()`, because `event_upper_bound_proba` is
+`Dinucl_markov`'s `q` in `span_proba_factor`. **Moved**, because they were live code sharing a
+function with dead code: `Insertion`'s `ordered_realization_map`, which `iterate_common()` reads,
+and the check that a `Dinucl_markov` fills the insertion's junction — now
+`Insertion::require_dinucl_markov()`, both called from `initialize_event()`. `GenModel`'s init loop,
+the test harness and the bound benchmark lose their crude calls; `test_EventUtils`'s Insertion
+case tests the check directly instead of through the list it no longer manipulates.
+
+| gate | result |
+|---|---|
+| unit + integration | 327 / 327 |
+| unit, **Debug** | 271 cases, the five `[tandem_d][!mayfail]` the only non-passes |
+| regression | all five tracks bitwise, twice, nothing regenerated |
+| convergence | 2 / 2; VDJ `d_gene` 0.9519, `d_5_del` 3.7588, `d_3_del` 3.6620 against truths 0.9525, 3.7537, 3.6197 (timer-seeded corpus) |
+| instrument | identical to R13's report |
 
 **R6 in more detail** *(Quentin, Sep 10 2026)*. §6.10 shows the span fold accumulates
 `∏ₑ maxᵢ Pₑ(rₑ|i)`, a product of per-event maxima, and that taking the max **jointly** over a
