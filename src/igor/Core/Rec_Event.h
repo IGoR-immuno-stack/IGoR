@@ -299,9 +299,6 @@ private:
             Downstream_scenario_proba_bound_map &, Index_map &);
 
 public:
-    virtual void initialize_crude_scenario_proba_bound(
-            double &, std::forward_list<double *> &,
-            const Events_map &);
     virtual void add_to_marginals(long double, Marginal_array_p &) const = 0;
     virtual void set_crude_upper_bound_proba(size_t, size_t, Marginal_array_p &);
     double iterate_common(int realization_index, int base_index,
@@ -338,12 +335,9 @@ public:
     void set_event_identifier(size_t);
     int get_event_identifier() const;
     void set_event_marginal_size(size_t ev_size) { this->event_marginal_size = ev_size; };
-    bool is_updated() const { return updated; };
     void fix(bool fix_status) { fixed = fix_status; }
     bool is_fixed() const { return fixed; }
     void set_viterbi_run(bool viterbi_like) { viterbi_run = viterbi_like; }
-    virtual double *get_updated_ptr();
-    void compute_crude_upper_bound_scenario_proba(double &);
     const std::vector<int> &get_current_realizations_index_vec() const { return current_realizations_index_vec; };
 
     //Proba bound related computation methods
@@ -519,15 +513,12 @@ protected:
     Event_type type;
     int event_index;
     std::forward_list<std::tuple<int, int, int>> memory_and_offsets; //0: event identifier , 1: memory layer , 2: offset
-    bool updated;
     bool viterbi_run;
     bool initialized;
     size_t event_marginal_size;
     bool fixed;
     double event_upper_bound_proba;
-    double scenario_downstream_upper_bound_proba;
     double scenario_upper_bound_proba; // Used at runtime to store the upper bound probability of the whole scenario
-    std::forward_list<double *> updated_proba_bounds_list;
     std::vector<int> current_realizations_index_vec;
     const int *current_realization_index;
     //Snapshot of the downstream proba map's per-key layers, taken at initialize_event().

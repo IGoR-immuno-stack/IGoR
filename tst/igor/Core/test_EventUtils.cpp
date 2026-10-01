@@ -407,11 +407,7 @@ TEST_CASE("EventUtils TryEventKeyToSeqKey", "[EventUtils]") {
 
 class MockDinucEvent : public MockEvent {
 public:
-  double updated_flag = 0.0;
-  MockDinucEvent(string name) : MockEvent(name) { 
-    this->set_upper_bound_proba(1.0); // Required to prevent 0-multiplication
-  }
-  double* get_updated_ptr() override { return &updated_flag; }
+  MockDinucEvent(string name) : MockEvent(name) {}
 };
 
 TEST_CASE("Insertion Bridge Integration", "[Insertion]") {
@@ -422,13 +418,7 @@ TEST_CASE("Insertion Bridge Integration", "[Insertion]") {
     auto vd_shared = make_shared<MockDinucEvent>("VD_dinuc");
     events_map[make_tuple(Dinuclmarkov_t, string("VD_ins_seq"), Undefined_side)] = vd_shared;
 
-    double downstream_bound = 1.0;
-    forward_list<double*> updated_list = { vd_shared->get_updated_ptr() };
-
-    REQUIRE_NOTHROW(ins_vd.initialize_crude_scenario_proba_bound(downstream_bound, updated_list, events_map));
-
-    // initialize_crude_scenario_proba_bound removes the dinuc updated ptr from the list
-    REQUIRE(distance(updated_list.begin(), updated_list.end()) == 0);
+    REQUIRE_NOTHROW(ins_vd.require_dinucl_markov(events_map));
   }
 
   SECTION("Throws if no compatible dinuc event found") {
@@ -436,11 +426,8 @@ TEST_CASE("Insertion Bridge Integration", "[Insertion]") {
     // Add a J dinuc — not compatible with VD insertion
     events_map[make_tuple(Dinuclmarkov_t, string("J_gene_seq"), Undefined_side)] = make_shared<MockDinucEvent>("J_dinuc");
 
-    double downstream_bound = 1.0;
-    forward_list<double*> updated_list;
-
     // VD_genes Insertion shouldn't find anything and will throw
-    REQUIRE_THROWS_AS(ins_vd.initialize_crude_scenario_proba_bound(downstream_bound, updated_list, events_map), runtime_error);
+    REQUIRE_THROWS_AS(ins_vd.require_dinucl_markov(events_map), runtime_error);
   }
 }
 

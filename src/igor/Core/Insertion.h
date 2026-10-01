@@ -52,8 +52,6 @@
 class CORE_EXPORT Insertion : public Rec_Event
 {
 public:
-        using Rec_Event::initialize_crude_scenario_proba_bound;
-
     //Constructors
     Insertion();
     Insertion(Seq_type, std::pair<int, int>);
@@ -92,10 +90,10 @@ public:
             Downstream_scenario_proba_bound_map &, Seq_type_str_p_map &, SafetyMatrix &, std::shared_ptr<Error_rate>,
             Mismatch_vectors_map &, Seq_offsets_map &, Index_map &) override;
     void add_to_marginals(long double, Marginal_array_p &) const override;
-    void set_crude_upper_bound_proba(size_t, size_t, Marginal_array_p &) override;
-    void initialize_crude_scenario_proba_bound(
-            double &, std::forward_list<double *> &,
-            const Events_map &events_map) override;
+
+    /// Throws unless `events_map` holds the Dinucl_markov that fills this event's junction.
+    /// Called by initialize_event(); public so the check can be tested without the rest of it.
+    void require_dinucl_markov(const Events_map &events_map) const;
 
     //Proba bound related computation methods
     //Capability queries (task A0)
@@ -120,14 +118,11 @@ private:
     double proba_contribution;
     int insertions;
     int new_index;
-    std::map<int, double> upper_bound_per_ins; //Contains the probability upper bound for each number of insertions
     int previous_index;
 
     //Iterate common
     int realization_index;
     std::string insertions_str;
-
-    double *dinuc_updated_bound;
 
     /// Layers claimed for the two ends of the junction this event places (O12 (a'), R3).
     int memory_layer_offset_fivep = -1;

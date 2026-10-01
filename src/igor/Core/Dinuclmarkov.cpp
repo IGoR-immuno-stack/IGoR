@@ -62,9 +62,6 @@ Dinucl_markov::Dinucl_markov(Seq_type seq_type) : Rec_Event(), total_nucl_count(
     event_realizations.emplace("G", Event_realization("G", INT16_MAX, "G", Int_Str(), 2));
     event_realizations.emplace("T", Event_realization("T", INT16_MAX, "T", Int_Str(), 3));
 
-    updated = true;
-    updated_upper_bound_proba = new double;
-
     dinuc_proba_matrix = Matrix<double>(kIntNtCount, kIntNtCount);
     this->update_event_name();
 }
@@ -72,8 +69,6 @@ Dinucl_markov::Dinucl_markov(Seq_type seq_type) : Rec_Event(), total_nucl_count(
 Dinucl_markov::~Dinucl_markov()
 {
     // TODO delete realization indices
-    if (updated_upper_bound_proba)
-        delete updated_upper_bound_proba;
 }
 
 /**
@@ -591,20 +586,6 @@ void Dinucl_markov::update_event_internal_probas(const Marginal_array_p &margina
             this->dinuc_proba_matrix(i, j) /= (double)(previous_list.size() * next_list.size());
         }
     }
-}
-
-double *Dinucl_markov::get_updated_ptr()
-{
-    return updated_upper_bound_proba;
-}
-
-void Dinucl_markov::initialize_crude_scenario_proba_bound(
-        double &downstream_proba_bound, forward_list<double *> &updated_proba_list,
-        const Events_map &events_map)
-{
-    this->scenario_downstream_upper_bound_proba = downstream_proba_bound;
-    this->updated_proba_bounds_list = updated_proba_list;
-    updated_proba_list.push_front(this->updated_upper_bound_proba);
 }
 
 OffsetDelta Dinucl_markov::get_offset_delta_bounds(SeqTypeId, Seq_side) const

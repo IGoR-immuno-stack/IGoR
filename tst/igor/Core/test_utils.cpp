@@ -597,8 +597,6 @@ void call_iterate(const std::shared_ptr<Rec_Event> &event, IterateTestState &sta
 
     //Step 5: probability bounds, reverse queue order.
     {
-        double downstream_proba_bound = 1.0;
-        std::forward_list<double *> updated_proba_list;
         while (!init_stack.empty()) {
             std::shared_ptr<Rec_Event> ev = init_stack.top();
             init_stack.pop();
@@ -611,8 +609,6 @@ void call_iterate(const std::shared_ptr<Rec_Event> &event, IterateTestState &sta
                 remaining.pop();
             }
 
-            ev->initialize_crude_scenario_proba_bound(downstream_proba_bound, updated_proba_list,
-                                                      events_map);
             ev->initialize_Len_proba_bound(remaining,
                                            const_cast<Marginal_array_p &>(state.model.model_parameters),
                                            state.exploration.index_map);

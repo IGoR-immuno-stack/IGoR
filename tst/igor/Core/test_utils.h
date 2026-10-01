@@ -693,8 +693,8 @@ std::shared_ptr<Insertion> make_insertion(Seq_type target, int min_ins, int max_
 
 /**
  * Build the Dinucl_markov event that fills `target`. An Insertion cannot be initialized
- * without one: initialize_crude_scenario_proba_bound() looks it up in events_map and throws
- * if it is missing. Always fixed.
+ * without one: initialize_event() looks it up in events_map and throws if it is missing.
+ * Always fixed.
  *
  * `chain_side` is the anchor's end facing the junction, i.e. the direction the Markov chain
  * runs from. It defaults to what Model_Parms derives for a legacy model file -- VD and VJ seed

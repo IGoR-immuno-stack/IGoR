@@ -87,8 +87,7 @@ Insertion::Insertion(Seq_type seq_type)
       new_scenario_proba(-1),
       base_index(-1),
       new_index(-1),
-      realization_index(-1),
-      dinuc_updated_bound(NULL)
+      realization_index(-1)
 {
     this->type = Event_type::Insertion_t;
     //Keep the name and the enum in step from construction. An Insertion built directly from a
@@ -231,8 +230,6 @@ void Insertion::iterate(
                                              junction.memory_layer());
 
         scenario.scenario_proba *= proba_contribution;
-        //tmp_err_w_proba*=proba_contribution;
-        (*dinuc_updated_bound) = upper_bound_per_ins.at(insertions);
 
         //Compute scenario downstream proba bound
         scenario_upper_bound_proba = exploration.compute_upper_bound(
@@ -388,6 +385,17 @@ void Insertion::initialize_event(
             .resolve(SegmentSpan::gap(get_left_adjacent_id(), get_right_adjacent_id()), this->seq_type_id,
                      downstream_proba_map.claimed_layer(this->seq_type_id), JunctionBound::Fold::Yes);
 
+    require_dinucl_markov(events_map);
+
+    //iterate_common() finds a realization by its length. Built here rather than in the crude
+    //bound initialization it used to share a function with, which R14 deleted: the map has
+    //nothing to do with a bound. TODO the realization map itself could be keyed by length.
+    ordered_realization_map.clear();
+    for (unordered_map<string, Event_realization>::const_iterator iter = this->event_realizations.begin();
+         iter != this->event_realizations.end(); ++iter) {
+        ordered_realization_map.emplace(iter->second.value_int, iter->second);
+    }
+
     this->Rec_Event::initialize_event(processed_events, events_map, offset_map, downstream_proba_map,
                                       constructed_sequences, safety_set, error_rate_p, mismatches_list, seq_offsets,
                                       index_map);
@@ -402,70 +410,14 @@ void Insertion::add_to_marginals(long double scenario_proba, Marginal_array_p &u
     }
 }
 
-void Insertion::set_crude_upper_bound_proba(size_t base_index, size_t event_size, Marginal_array_p &marginal_array_p)
+void Insertion::require_dinucl_markov(const Events_map &events_map) const
 {
-
-    size_t numb_realizations = this->size();
-    upper_bound_per_ins.clear();
-    for (unordered_map<string, Event_realization>::const_iterator iter = this->event_realizations.begin();
-         iter != this->event_realizations.end(); ++iter) {
-        //Get the max proba for each number of insertions
-        size_t real_index = (*iter).second.index;
-        size_t j = 0;
-        double max_proba = 0;
-
-        while ((j * numb_realizations + real_index) < event_size) {
-            if (marginal_array_p[base_index + ((j * numb_realizations + real_index))] > max_proba) {
-                max_proba = marginal_array_p[base_index + ((j * numb_realizations + real_index))];
-            }
-            ++j;
-        }
-        upper_bound_per_ins[(*iter).second.value_int] = max_proba;
+    //Dinucl_markov events are keyed with Undefined_side: the seq_type alone identifies which
+    //junction they fill. Since O12 (a') it is the Dinucl_markov that creates the segment this
+    //event only places, so an Insertion without one leaves a junction nobody fills.
+    if (events_map.find(make_tuple(Dinuclmarkov_t, this->seq_type, Undefined_side)) == events_map.end()) {
+        throw runtime_error("Insertion " + this->name + ": no Dinucl_markov event fills " + this->seq_type);
     }
-}
-
-void Insertion::initialize_crude_scenario_proba_bound(
-        double &downstream_proba_bound, forward_list<double *> &updated_proba_list,
-        const Events_map &events_map)
-{
-    this->scenario_downstream_upper_bound_proba = downstream_proba_bound;
-    this->updated_proba_bounds_list = updated_proba_list;
-    this->event_upper_bound_proba = 0;
-    shared_ptr<Rec_Event> dinuc_event_p;
-
-    //TODO remove this and correct the way ordered realization map works
-    ordered_realization_map.clear();
-    for (unordered_map<string, Event_realization>::const_iterator iter = (*this).event_realizations.begin();
-         iter != (*this).event_realizations.end(); ++iter) {
-        ordered_realization_map.emplace((*iter).second.value_int, (*iter).second);
-    }
-
-    //The switch this replaces converted ins_seq_type back into the very string the map is
-    //keyed by. Dinucl_markov events are keyed with Undefined_side: the seq_type alone
-    //identifies which junction they fill.
-    const auto dinuc_entry = events_map.find(make_tuple(Dinuclmarkov_t, this->seq_type, Undefined_side));
-    if (dinuc_entry != events_map.end()) {
-        dinuc_event_p = dinuc_entry->second;
-    }
-    if (!dinuc_event_p) {
-        throw runtime_error("Could not find associated Dinuclmarkov event for Insertion bounds");
-    }
-    double dinuc_upper_bound_proba = dinuc_event_p->get_upper_bound_proba();
-    for (map<int, double>::iterator iter = upper_bound_per_ins.begin(); iter != upper_bound_per_ins.end(); ++iter) {
-        //Compute joint upper bound of dinuc and insertion and store it as insertion upper bound
-        (*iter).second *= pow(dinuc_upper_bound_proba, (*iter).first);
-        if ((*iter).second > this->event_upper_bound_proba) {
-            this->event_upper_bound_proba = (*iter).second;
-        }
-        //Only keep information about the dinucleotide probability to update the dinuc upperbound
-        (*iter).second = pow(dinuc_upper_bound_proba, (*iter).first);
-    }
-    this->dinuc_updated_bound = dinuc_event_p->get_updated_ptr();
-    //Remove the pointer from the list (otherwise dinuc upperbound is accounted for twice for events before insertion)
-    updated_proba_list.remove(dinuc_updated_bound);
-
-    //Apply the computed upper bound
-    downstream_proba_bound *= event_upper_bound_proba;
 }
 
 OffsetDelta Insertion::get_offset_delta_bounds(SeqTypeId, Seq_side) const

@@ -46,10 +46,8 @@ Rec_Event::Rec_Event(Gene_class gene, Seq_side side)
       len_max(INT16_MIN),
       type(Undefined_t),
       event_index(INT16_MIN),
-      updated(false),
       fixed(false),
       current_realizations_index_vec(vector<int>()),
-      scenario_downstream_upper_bound_proba(-1),
       event_upper_bound_proba(-1),
       scenario_upper_bound_proba(-1),
       current_realization_index(nullptr)
@@ -365,44 +363,6 @@ void Rec_Event::update_event_internal_probas(const Marginal_array_p &marginal_ar
                                              const unordered_map<Rec_Event_name, int> &index_map)
 {
     //Do nothing
-}
-
-/*
- * This method initialize the scenario probability upper bound for each event
- * The point is to compute the upper bound probability (given the model) of the scenario for each event
- * This allows to discard scenarios with too low probability at early stages
- */
-void Rec_Event::initialize_crude_scenario_proba_bound(
-        double &downstream_proba_bound, forward_list<double *> &updated_proba_list,
-        const Events_map &events_map)
-{
-    this->scenario_downstream_upper_bound_proba = downstream_proba_bound;
-    this->updated_proba_bounds_list = updated_proba_list;
-    if (!this->is_updated()) {
-        downstream_proba_bound *= this->event_upper_bound_proba;
-    } else {
-        throw logic_error("Updated events should overload Rec_event::initialize_scenario_proba_bound()");
-    }
-}
-
-/*
- * Description??
- */
-double *Rec_Event::get_updated_ptr()
-{
-    throw logic_error("Updated events should overload Rec_event::get_updated_ptr()");
-}
-
-/*
- * Updates the value of scenario_upper_bound_proba according to the error weighted scenario and the upper bound of downstream scenarios
- */
-void Rec_Event::compute_crude_upper_bound_scenario_proba(double &tmp_err_w_proba)
-{
-    scenario_upper_bound_proba = tmp_err_w_proba * scenario_downstream_upper_bound_proba;
-    for (forward_list<double *>::const_iterator iter = updated_proba_bounds_list.begin();
-         iter != updated_proba_bounds_list.end(); ++iter) {
-        scenario_upper_bound_proba *= (*(*iter));
-    }
 }
 
 namespace {
