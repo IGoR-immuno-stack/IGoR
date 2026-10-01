@@ -36,7 +36,7 @@ So the machinery has two halves, with very different cost profiles:
 
 | half | when | cost |
 |---|---|---|
-| **build** | once per thread per EM iteration, before the per-sequence loop | **model-only**, so it amortises over a batch — but is paid in full by a one-sequence query. Measured below |
+| **build** | once per EM iteration, before the per-sequence loop — one thread folds and the others copy the result (S4e) | **model-only**, so it amortises over a batch — but is paid in full by a one-sequence query. Measured below |
 | **consume** | at every scenario node | the hottest loop in IGoR |
 
 Both halves are addressed, but they are not equally worth optimising, and the plan is explicit about
@@ -140,11 +140,18 @@ Two consequences that the legacy code embodies without stating:
 
 - **A boundary is a slot, not a constant.** `Gene_choice` creates an offset; `Deletion` moves it. So
   the same span has a different profile depending on where in the priority ordering it is read.
-- **The profiles are a suffix family.** `GenModel` pops the initialization stack in *reverse*
-  priority order and hands each event the queue *after* itself, so every event's profile folds
-  itself plus its suffix. Upstream contributors are excluded because the scenario has already
-  committed to them — which is exactly what keeps the observed distance and the profile in the same
-  frame, with no bookkeeping.
+- **The profiles are a suffix family, and a table never contains its reader.** `GenModel` pops the
+  initialization stack in *reverse* priority order and hands each event the queue *after* itself,
+  and the event folds its tables over that queue. Upstream contributors are excluded because the
+  scenario has already committed to them — which is what keeps the observed distance and the
+  profile in the same frame, with no bookkeeping. The reader is excluded for the same reason: by
+  the time it reads its table it has chosen, and its probability is already in the scenario the
+  bound multiplies. What remains of it is its *realization*, which the table is conditioned on
+  when that realization changes the span's length — see §5, *Reading a table*.
+
+  Until R8 the reader was in its own table at its marginal. That counted the marginal twice and
+  put the bound **below** what the scenario went on to realize, for every `Insertion` and every
+  `Deletion` (iterate plan §7.19).
 
 That second point means the six per-event maps are **not** six copies of three things. They are
 different objects, keyed by different quantities. See §6.10 finding 4.
@@ -238,17 +245,52 @@ that factor from every bound.
 
 ### The fold
 
-One non-virtual body on `Rec_Event`, behind two hooks:
+For one junction table, the fold computes the best probability the participating events can reach
+together at each total length. It is a depth-first enumeration in model order: each participant
+tries each of its realizations and passes the extended path to the next; when the last has chosen,
+the path's probability is recorded at its total length and the profile keeps the best per length.
 
-| | |
+| piece | role |
 |---|---|
-| `length_delta(const Event_realization&)` | the scalar the four bodies differed by |
+| `Rec_Event::SpanFold` | what is fixed during one fold — span, participants, marginals, base indices, the `lengths` accumulator, the profile being filled — with one `from(cursor, proba, length)` (R15) |
+| `fold_step()` | one participant's part: per realization, multiply by `realization_bound()`, add `length_delta()`, pass on. An event with a factor but no length (`Dinucl_markov`) multiplies in `span_proba_factor()` once instead |
+| `realization_bound()` | the realization's best probability over its conditioning parents' realizations — the one place R6's joint max replaces |
+| `length_delta(const Event_realization&)` | the scalar the four legacy bodies differed by |
 | `span_proba_factor(SegmentSpan, const UnfilledSegmentLengths&)` | the factor, defaulted to 1 |
 
 `UnfilledSegmentLengths` carries, per segment, **how many nucleotides its offsets imply that nobody
 has chosen yet**, replacing the side channel. The publisher is whoever **creates the offsets but not
 the sequence**, so each key has exactly one writer per path. It was called `SpanAccumulator` and
 published *the length*, by *the sequence creator*, until R1+R3 (§7).
+
+### Reading a table
+
+*(R8, then R13, Sep 30 – Oct 1 2026.)* `initialize_Len_proba_bound()` folds each of the reader's
+tables from the events after it. The reader's own probability never enters. Whether its
+*realization* does depends on one question — does it change the span's length
+(`affects_length_of`)?
+
+- **No** — a gene choice, which the span is measured from. One profile, read at the gap as it
+  stands: `JunctionBound::profile()`.
+- **Yes** — an `Insertion` filling the span, a `Deletion` moving one of its ends. The table is
+  **conditioned** on the realization: one profile per realization, each folded from that
+  realization at weight 1, with its length in the key and published into `lengths` exactly as a
+  participant's would be. Read with `JunctionBound::profile_for(realization)`.
+
+Every key is the summed `length_delta` of everything the fold enumerated, so a conditioned reader
+reads at the gap as it stood **before** its own choice:
+
+| reader | profile | read at |
+|---|---|---|
+| `Gene_choice` | `profile()` | the gap between its end and the neighbour's |
+| `Deletion` | `profile_for(its realization)` | the gap before the deletion — the same for every realization, so measured once per scenario |
+| `Insertion` | `profile_for(its realization)` | the gap between its neighbours, which an insertion fills without moving |
+
+Conditioning is what R8's first two branches lacked. Folding the reader in at its marginal counted
+the marginal twice; folding it at weight 1 into one shared profile would still have **merged across
+its realizations**, offering each the best of its siblings — harmless for an insertion, whose key
+identifies its realization, loose for a deletion. Nothing here depends on which kind of event the
+reader is, or on what follows it.
 
 ---
 
@@ -264,12 +306,17 @@ published *the length*, by *the sequence creator*, until R1+R3 (§7).
 | **O11** boundary-addressed spans (`9af1367`) | — | boundaries can name a **segment's own extent**, not only the gap between two segments — which a per-`Seq_type` Phase D decomposition needs and the segment-pair form could not express at all | — | preventive: `cut_position()` states the ±1 convention once, in the area §7.1 and §7.8 are both off-by-one bugs in |
 | **S4b** the collapse (`ce3e4b0`) | four bodies → one; the side channel and its `Seq_type_str_p_map` parameter gone — problems 4, 5 | the fold takes a `SegmentSpan` and keys the accumulator by `SeqTypeId`; `Dinucl_markov` no longer reads a length out of a map `Insertion` wrote, so that **event-to-event linkage is broken** | problem 6 removed — but **worth ~0 ms**, see below | — (bitwise) |
 | **S4c** the re-keying | six enum-named members plus three `memory_layer_proba_map_junction*` scalars → `std::array<JunctionBound,3>` on `Rec_Event`; four `initialize_Len_proba_bound` overrides → one non-virtual driver plus a `finalize` hook only `Gene_choice(D)` uses — problem 10 | **the tandem-D enum ceiling is gone — problem 1**: nothing in the bound machinery enumerates VD / DJ / VJ, and an event holds at most a left, a right and an enclosing junction whatever the topology | value-or-absent accessor replaces `count`+`at` at all 19 consumption sites (problem 7); `record()` is one descent where the fold took up to three; problem 9's dead fold deleted — **29 % of the sweep on both TRB models**, 7 % on BCR-heavy | deletes problem 9's dead code; problem 8's guarded / unguarded asymmetry is gone as a class — (bitwise) |
-| **S4e** the fold runs once | the init loop splits along a line that was already there: the crude bound is per-thread because its `forward_list<double*>` points into per-thread members, the junction-length bound is not | `adopt_Len_proba_bound()` names the invariant — the bound is a function of the marginals, so one thread's answer is every thread's answer | the sweep runs **once per EM iteration, not once per thread**: 132 → 48 ms mean per thread on 22 threads, and the 209 ms contention tail gone. Shared by **value copy**, not `shared_ptr`, so nothing is added in front of `best_for()` | — (bitwise at 1 and 4 threads, plus a cross-thread profile-equality probe) |
+| **S4e** the fold runs once | the init loop splits along a line that was already there: the crude bound is per-thread because its `forward_list<double*>` points into per-thread members, the junction-length bound is not *(the crude bound turned out to be read by nothing; R14 deleted it)* | `adopt_Len_proba_bound()` names the invariant — the bound is a function of the marginals, so one thread's answer is every thread's answer | the sweep runs **once per EM iteration, not once per thread**: 132 → 48 ms mean per thread on 22 threads, and the 209 ms contention tail gone. Shared by **value copy**, not `shared_ptr`, so nothing is added in front of `best_for()` | — (bitwise at 1 and 4 threads, plus a cross-thread profile-equality probe) |
 | **O14** the flat participant array | the fold's three signatures stop naming a `std::queue` at all; `SpanParticipants` is a plain `vector<const Rec_Event *>` | the participant list is **immutable and shareable**, which the by-value queue was not — the precondition S4e needs to hand one fold's work to every thread | the queue copy (a deque allocation and a `shared_ptr` refcount pair, per event, per node) and the per-node participation filter both collapse to once per junction: **3–4× on the whole sweep**, every model | — (bitwise, plus a 17-digit profile-equality probe) |
 | **S4c** the dense profile | — | — | `SpanProfile` becomes a `std::vector<double>` indexed by distance, replacing the `std::map` S4c kept: **`best_for` falls from 8 % to 2 % of `iterate()`**, inference 20.2 → 18.3 s on the N=1000 pipeline, and the init sweep 9.74 → 8.33 s on BCR-heavy. The key space is the sumset of the contributors' realization ranges, so it is contiguous and at most 2 kB — problem 7, finished | — (bitwise) |
+| **R8** a table never contains its reader (`975fb34`, `eca972f`) | — | — | the walk visits **22.2 M nodes for 3.77 M scenarios**, against 23.0 M for 0.92 M before: fewer nodes for four times the scenarios. Wall time +13–20 % on the uniform-start regression workloads, all of it from the insertion half; the deletion half added nothing measurable, and the pipeline benchmark from an inferred model shows no change | **the bound is a bound again.** `Insertion` and `Deletion` each counted their own marginal twice, so their bounds sat *below* what the scenario realized and pruned harder than the threshold asked. Unsound nodes 2 084 582 → **0**. **Not bitwise**: every inference output moves, upward at iteration 1 |
+| **R13** conditioned tables (`67fb43c`) | R8's two per-role branches and `is_reader` gone; the reader is enumerated by the driver | the fold makes **no assumption about what follows the reader**, and the base class needs no subclass knowledge | — | — (bitwise, plus a test that fails if the conditioning is lost) |
+| **R14** the crude bound's runtime half (`19c8f40`) | 188 lines deleted: the crude chain, `get_updated_ptr()`, the `updated` flag, a dead store per insertion hand-off | — | — | removes a latent double-free in `Dinucl_markov` — (bitwise) |
+| **R15** the fold as one object (`46e3291`) | `SpanFold`; one recursion step instead of two functions with ten arguments; `realization_bound()` written once; the fold no longer writes to the index map | — | — | — (bitwise) |
 
-**Nothing delivered so far is a correctness fix**, and that is by design — every step above is
-bitwise on the regression corpus. What the S4a test infrastructure *did* do is **surface** a defect:
+**Until R8, nothing delivered was a correctness fix**, by design — every step before it is
+bitwise on the regression corpus, and so are R13–R15 after it. R8 is the one row that moved results,
+and it was found by measuring (§9). What the S4a test infrastructure *did* do is **surface** a defect:
 `Insertion` writes the segment it creates without ever requesting a layer for it, the only violation
 of "a written layer must have been requested" among 49 measured writes. It is repaired in **R3**, and
 **R3b** then hardens `LayeredArray::set()` so the rule holds at runtime rather than only under test.
@@ -293,14 +340,14 @@ and deserved to go; it was not the bottleneck. **The measured costs are `GeneCho
 
 | step | REFACTOR | GENERALIZE | PERF | CORRECT |
 |---|---|---|---|---|
-| **S4e** | — | — | hoists the sweep **out of the OpenMP region**: model-only and thread-invariant, so 22 threads currently build 22 copies of one answer. S4c left the profiles owned **by the event**, not by the model, so what S4e owes is making them shareable across `Rec_Event::copy()` — a `shared_ptr<const SpanProfile>` in `JunctionBound`, or a model-side arena. The crude-bound pass stays per-thread because its `updated_proba_bounds_list` points into per-event mutable state | — |
 | **S4d** (deferred here) | — | `⊗ᵐᵃˣ`, the max-convolution of two profiles. **Dropped from S4c**: it has no production consumer — every current query is gap-bounded and `Gene_choice(D)` keeps the *retained* decomposition, not a max-folded one — and §2.5's own recommendation is not to add query semantics before a consumer exists. Lands with `⊗ᵉⁿᵘᵐ` in 5b | — | — |
 | **S4d** | — | — | Tensor-backed containers for the 3-D structure. **Gated** on the Tensor API, itself blocked on the C++23 bump | — |
 | **5b** | — | `⊗ᵉⁿᵘᵐ` — the retained decomposition for the `no_d_align` enumeration, always three components whatever the topology | — | — |
 | **R1** ✅ | — | — | — | **`Dinucl_markov` creates the insertion segment** (O12 (a′)) — no partially-constructed segment, `int_undefined` leaves constructed sequences, §7.13 dissolves. `SpanAccumulator` **kept and reinterpreted**, not deleted, and renamed `UnfilledSegmentLengths`: the line this row used to carry was written before that reversal |
 | **R3** ✅ | — | — | — | `Insertion` writes its offsets and **requests the layers it writes**; its mismatch-list defect is *dissolved* by R1's rescope rather than fixed. The leaf invariant's offsets half lands with it |
-| **R3b** | — | — | — | `LayeredArray::set()` requires a prior claim instead of raising it silently |
-| **R6** | — | — | — | tighter bound via a within-clique **joint** max. **Changes which scenarios survive pruning**, so it is gated on convergence rather than bitwise regression |
+| **R3b** ✅ | — | — | — | `LayeredArray::set()` requires a prior claim instead of raising it silently |
+| **R12** | — | `affects_length_of`'s enum switches become a rule — *a segment adds length to a span when it sits strictly between its two ends* — so V and J would take part in a span between flanking sequences without a new case | — | — (bitwise by construction) |
+| **R6** | — | — | — | tighter bound via a within-clique **joint** max, replacing `realization_bound()`. **Changes which scenarios survive pruning**, so it is gated on convergence rather than bitwise regression. Size it against §9's post-R8 table |
 
 ---
 
@@ -437,13 +484,14 @@ Worth stating so the scope is not over-read:
   independently, which is looser than maximising jointly over a conditioned clique. R6 tightens it;
   until then the slack is real and §6.10 quantifies where.
 - **The bound is still query-independent.** It is built from the model alone and knows nothing about
-  the read, which is what lets it be built once per thread rather than per sequence.
-- **The maps are still built per consumer**, and redundantly. The cache-and-invalidate scheme that
-  would remove that is recorded in the iterate plan §2.5 as a deferred optimisation, deliberately not
-  scheduled — it is the *smaller* of the two redundancies. The larger one, every thread rebuilding
-  the identical answer, **is** scheduled, as S4e.
-- **`initialize_Len_proba_bound` is still virtual** and still selects its map by enum. S4c is what
-  changes that; **S4b did not remove the enum ceiling**, and a tandem-D model still throws today.
+  the read, which is what lets it be built once per EM iteration rather than per sequence.
+- **The tables are still built per consumer**, and redundantly: two events reading the same span
+  each fold it. The cache-and-invalidate scheme that would remove that is recorded in the iterate
+  plan §2.5 as a deferred optimisation, deliberately not scheduled — it is the *smaller* of the two
+  redundancies. The larger one, every thread rebuilding the identical answer, was removed by S4e.
+- **Which events take part in a span is still decided by enum**, in `affects_length_of`'s switches
+  for `Gene_choice`, `Insertion` and `Deletion`. That is R12; nothing in the fold itself enumerates
+  VD / DJ / VJ any more.
 
 ---
 
@@ -554,13 +602,47 @@ Three readings.
   2026: both steps now read 10^0.00, and `Insertion_DJ` has no unsound node left. What remains
   unsound was `Deletion`'s mirror of the same defect, and stage 3c-ii removed it the same day:
   **no node at any depth is unsound**, and the walk visits 22.2 M nodes for 3.77 M scenarios —
-  fewer nodes than before R8, for four times the scenarios. The table in this section is the
-  pre-R8 baseline; R6 should be sized against the one in the iterate plan, "R8 in more detail".)*
+  fewer nodes than before R8, for four times the scenarios. The table above is the pre-R8
+  baseline; R6 should be sized against the one below.)*
 - **Barren is a probability story, not a geometry one.** Of 18 723 690 barren nodes, 0.22 % were
   starved and 66.88 % pruned (the rest hollow, i.e. their cause is recorded one level down).
   Among the 12 564 150 *frontier* barren nodes — those that are one or the other — **99.67 % died
   on probability**. So the waste is in reach of a tighter bound, and a feasibility pre-check is
   not the lever. This is the measurement that says R6 is worth doing.
+
+### The baseline after R8
+
+Same corpus, batch, iteration and thresholds, measured Sep 30 2026 after R8 and re-measured
+unchanged after R13, R14 and R15 (Oct 1). 3 767 312 scenarios from 22 236 809 expanded nodes — **5.9 nodes per
+scenario**, 23.6 % of nodes barren, and **no node at any depth whose bound sat below the best leaf
+under it**.
+
+| depth | event | nodes | barren | unsound | median over-estimate | step resolved here |
+|---:|---|---:|---:|---:|---:|---:|
+| 0 | `GeneChoice_V_gene` | 501 | 0 | 0 | 10^15.25 | — |
+| 1 | `GeneChoice_J_gene` | 577 | 3 | 0 | 10^8.00 | **10^7.25** |
+| 2 | `GeneChoice_D_gene` | 15 872 | 1 453 | 0 | 10^6.50 | 10^2.50 |
+| 3 | `Deletion_V_3'` | 229 752 | 139 146 | 0 | 10^6.50 | 10^0.00 |
+| 4 | `Deletion_D_5'` | 2 376 483 | 1 787 896 | 0 | 10^3.50 | 10^3.00 |
+| 5 | `Deletion_D_3'` | 4 544 376 | 3 309 271 | 0 | 10^3.00 | 10^0.00 |
+| 6 | `Deletion_J_5'` | 3 767 312 | 0 | 0 | 10^0.00 | 10^3.00 |
+| 7 | `Insertion_VD` | 3 767 312 | 0 | 0 | 10^0.00 | 10^0.00 |
+| 8 | `DinucMarkov_VD` | 3 767 312 | 0 | 0 | 10^0.00 | 10^0.00 |
+| 9 | `Insertion_DJ` | 3 767 312 | 0 | 0 | 10^0.00 | 10^0.00 |
+| 10 | `DinucMarkov_DJ` | — | — | — | — | 10^0.00 |
+
+Three readings.
+
+- **From the J 5′ deletion down, the bound is exact.** Every node at depths 6–9 leads to exactly
+  one leaf, and the steps are 10^0.00: once the last deletion has chosen, nothing about the
+  junctions is still open but the insertions' lengths, which the geometry fixes, and their
+  nucleotides, which the bound prices exactly.
+- **The waste has moved to one depth and is all probability.** 99.94 % of the barren `Deletion_D_3'`
+  nodes died because every feasible child fell below the cutoff — the J 5′ deletion is where the
+  walk now stops, not the insertions.
+- **R6's target is unchanged**: the J gene choice still carries 7.25 decades at the root and the D
+  choice 2.50, exactly as before R8. With the insertion steps exact, the remaining per-event slack
+  sits on the gene choices and on two of the deletions (`D_5'` and `J_5'`, 10^3.00 each).
 
 **The caveat.** This was run on `TRB_uniform_model_marginals.txt` at EM iteration 1. Under a
 uniform model every realization of an event is equiprobable, so `bound / realized` is close to the
@@ -593,3 +675,4 @@ per-sequence best. Not built.
 | the repair queue and its gates | §6.9 |
 | decisions O8 (S4 scope), O10 (layer ownership), O11 (boundary spans) | §8 |
 | the bound's measured looseness, and the instrument | §9 above, and §6.16 of the iterate plan |
+| why a table never contains its reader, and why it is conditioned | §7.19 of the iterate plan, and its *R8 in more detail* and *R13 in more detail* |

@@ -418,14 +418,15 @@ public:
      * the identical answer -- section 2.5's finding 7. One thread folds, the rest adopt.
      *
      * It copies the profiles rather than sharing a pointer to them, which is the cheaper of the
-     * two: a profile is a contiguous run of at most ~300 doubles, so the copy is far below the
-     * fold that produced it, while a `shared_ptr` would put an indirection in front of
-     * best_for() -- called at every one of the 10^8-10^10 scenario nodes, and the thing the dense
-     * rewrite was for. It also keeps the threads' profiles genuinely independent, so nothing has
-     * to reason about whether iterate() might write through one.
+     * two. A table is one profile, or one per reader realization when it is conditioned (R13) --
+     * a few dozen at most -- and each is a contiguous run of at most ~300 doubles, so the copy is
+     * far below the fold that produced it. A `shared_ptr` would instead put an indirection in
+     * front of best_for(), which is called at every one of the 10^8-10^10 scenario nodes and is
+     * what the dense rewrite was for. Copying also keeps the threads' profiles independent, so
+     * nothing has to reason about whether iterate() might write through one.
      *
-     *  source must be the same event of another thread's model copy: its junctions are resolved
-     * by the same initialize_event(), so only the profiles move.
+     * \a source must be the same event in another thread's copy of the model: its junctions were
+     * resolved by the same initialize_event(), so only the profiles need to move.
      */
     void adopt_Len_proba_bound(const Rec_Event &source);
 
@@ -457,16 +458,31 @@ protected:
     using SpanParticipants = std::vector<const Rec_Event *>;
 
     /**
-     * \brief One fold of one junction table, from one starting point (R15).
+     * \brief One run of the junction-length fold, filling one profile.
      *
-     * Everything that stays fixed while the fold descends, bundled so the recursion carries only
-     * what changes: where it is in `participants`, the probability so far, and the summed length.
-     * initialize_Len_proba_bound() builds one per profile it fills -- one for an unconditioned
-     * table, one per reader realization for a conditioned one (R13).
+     * The fold computes, for every total length the span can take, the best probability the
+     * events in `participants` can reach together at that length, and writes it to `profile`.
+     * It does so by depth-first enumeration: each participant tries each of its realizations in
+     * turn and passes the extended path on to the next participant (see fold_step()). When the
+     * last participant has chosen, the path's probability is recorded at its total length, and
+     * the profile keeps the best value seen for each length.
      *
-     * `lengths` is the published-length accumulator: written by the participant that places a
-     * segment's offsets, read by the factor that fills it, reset by the driver between roots.
-     * A nested type so that from() can reach fold_step() on every participant.
+     * This struct holds what is the same at every step of that recursion. What changes from step
+     * to step is passed to from() instead: which participant is next, the probability of the path
+     * so far, and its length so far.
+     *
+     * initialize_Len_proba_bound() creates one SpanFold for each profile it fills. A table whose
+     * reader does not change the span's length has one profile, so one fold. A table whose reader
+     * does has one profile per reader realization, and one fold for each, starting from that
+     * realization's length (R13).
+     *
+     * `lengths` is the only state the participants share during a fold. An event that places a
+     * segment's offsets without choosing its nucleotides -- an Insertion -- writes that segment's
+     * length there; a later event whose factor depends on it -- the Dinucl_markov that fills the
+     * segment -- reads it. The driver clears it before each fold.
+     *
+     * The struct is nested in Rec_Event only so that from() can call each participant's
+     * protected fold_step().
      */
     struct SpanFold {
         SegmentSpan span;
@@ -476,27 +492,38 @@ protected:
         UnfilledSegmentLengths &lengths;
         SpanProfile &profile;
 
-        /// Continue from participant `cursor`: hand over to it, or -- once every participant has
-        /// chosen -- record `proba` at `length`.
+        /// Pass the path to participant `cursor`. If every participant has already chosen,
+        /// record `proba` at `length` in `profile` instead.
         void from(std::size_t cursor, double proba, int length) const;
     };
 
     /**
-     * One participant's step of a fold: what used to be four overrides differing only in
-     * `Δ(r)` -- see length_delta() -- plus Dinucl_markov, which differs in kind: it does not
-     * enumerate, it contributes one factor. Only ever called for an event *after* the table's
-     * reader; the reader is enumerated by initialize_Len_proba_bound() itself, at weight 1.
+     * \brief This event's part of a fold: extend the path once per realization.
+     *
+     * For each realization, multiply the path's probability by realization_bound(), add the
+     * realization's length_delta() to its length, and pass it on to the next participant. An
+     * event that contributes a probability factor but no length -- Dinucl_markov -- does not
+     * enumerate: it multiplies in span_proba_factor() once and passes the path on.
+     *
+     * Never called for the event whose table is being folded: initialize_Len_proba_bound()
+     * handles that event itself, without its probability.
      */
     void fold_step(const SpanFold &fold, std::size_t cursor, double proba, int length) const;
 
-    /// The best probability `realization` has under any realization of this event's
-    /// conditioning parents -- the `maxᵢ` the fold and the retained decomposition both take, and
-    /// what R6 replaces with a max taken jointly over a conditioned clique. One place for it.
+    /**
+     * \brief The highest probability `realization` can have, whatever its conditioning parents.
+     *
+     * An event's marginals hold one probability per realization for each realization of its
+     * parents. A bound must hold whichever parent realization the scenario ends up with, so this
+     * takes the maximum over them. Used by both the fold and build_retained_decomposition(); R6
+     * replaces it with a maximum taken jointly over a group of conditioned events.
+     */
     double realization_bound(const Event_realization &realization, const Marginal_array_p &model_parameters,
                              int base_index) const;
 
-    /// Whether this event places its own segment's offsets rather than moving an existing end:
-    /// the test for whether it publishes a length into the fold's accumulator.
+    /// True for an event that positions its own segment -- an Insertion, a gene choice -- and
+    /// false for one that only moves an end of a segment already placed -- a Deletion. Only the
+    /// first kind writes a length into a fold's `lengths`.
     bool creates_own_offsets() const;
 
     /**
