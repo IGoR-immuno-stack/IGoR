@@ -396,41 +396,6 @@ public:
     virtual double span_proba_factor(SegmentSpan, const UnfilledSegmentLengths &) const { return 1.0; }
 
     /**
-     * \brief The events after this one that contribute to the span being folded, in model order.
-     *
-     * Built once per junction and walked by index, replacing the std::queue the fold used to
-     * copy -- deque allocation, and a shared_ptr refcount per entry -- at every node. It is also
-     * **pre-filtered**: an event that neither changes the span's length nor contributes a factor
-     * to it is dropped once here, rather than skipped again below every node.
-     *
-     * Raw pointers, and const: the events outlive the fold (the model queue owns them for the
-     * whole EM iteration) and the fold only reads them.
-     */
-    using SpanParticipants = std::vector<const Rec_Event *>;
-
-    void iterate_initialize_Len_proba_wrap_up(SegmentSpan span, SpanProfile &profile,
-                                              const SpanParticipants &participants, std::size_t cursor,
-                                              double scenario_proba,
-                                              const Marginal_array_p &model_parameters_point, Index_map &base_index_map,
-                                              UnfilledSegmentLengths &lengths, int seq_len) const;
-
-    /**
-     * One body for every event. What used to be four overrides differing only in `Δ(r)` -- see
-     * length_delta() -- plus Dinucl_markov, which differs in kind: it does not enumerate at all.
-     * Only ever called for an event *after* the table's reader: the reader is enumerated by
-     * initialize_Len_proba_bound() itself, at weight 1 (R13).
-     */
-    void iterate_initialize_Len_proba(SegmentSpan span, SpanProfile &profile,
-                                      const SpanParticipants &participants, std::size_t cursor,
-                                      double &scenario_proba,
-                                      const Marginal_array_p &model_parameters_point, Index_map &base_index_map,
-                                      UnfilledSegmentLengths &lengths, int &seq_len) const;
-
-    /// Whether this event places its own segment's offsets rather than moving an existing end:
-    /// the test for whether it publishes a length into the fold's accumulator.
-    bool creates_own_offsets() const;
-
-    /**
      * \brief Fold the profile of every junction this event reads a bound from.
      *
      * No longer virtual, and no longer topology-aware: *which* junctions those are was decided
@@ -443,7 +408,8 @@ public:
      * queue of events that follow this one.
      */
     void initialize_Len_proba_bound(std::queue<std::shared_ptr<Rec_Event>> &model_queue,
-                                    const Marginal_array_p &model_parameters_point, Index_map &base_index_map);
+                                    const Marginal_array_p &model_parameters_point,
+                                    const Index_map &base_index_map);
 
     /**
      * \brief Take this iteration's folded bounds from \a source instead of folding them again.
@@ -475,7 +441,63 @@ protected:
      * sweep has no virtuals left. Section 2.6.
      */
     void build_retained_decomposition(const Marginal_array_p &model_parameters_point,
-                                      Index_map &base_index_map);
+                                      const Index_map &base_index_map);
+
+    /**
+     * \brief The events after this one that contribute to the span being folded, in model order.
+     *
+     * Built once per junction and walked by index, replacing the std::queue the fold used to
+     * copy -- deque allocation, and a shared_ptr refcount per entry -- at every node. It is also
+     * **pre-filtered**: an event that neither changes the span's length nor contributes a factor
+     * to it is dropped once here, rather than skipped again below every node.
+     *
+     * Raw pointers, and const: the events outlive the fold (the model queue owns them for the
+     * whole EM iteration) and the fold only reads them.
+     */
+    using SpanParticipants = std::vector<const Rec_Event *>;
+
+    /**
+     * \brief One fold of one junction table, from one starting point (R15).
+     *
+     * Everything that stays fixed while the fold descends, bundled so the recursion carries only
+     * what changes: where it is in `participants`, the probability so far, and the summed length.
+     * initialize_Len_proba_bound() builds one per profile it fills -- one for an unconditioned
+     * table, one per reader realization for a conditioned one (R13).
+     *
+     * `lengths` is the published-length accumulator: written by the participant that places a
+     * segment's offsets, read by the factor that fills it, reset by the driver between roots.
+     * A nested type so that from() can reach fold_step() on every participant.
+     */
+    struct SpanFold {
+        SegmentSpan span;
+        const SpanParticipants &participants;
+        const Marginal_array_p &model_parameters;
+        const Index_map &base_index_map;
+        UnfilledSegmentLengths &lengths;
+        SpanProfile &profile;
+
+        /// Continue from participant `cursor`: hand over to it, or -- once every participant has
+        /// chosen -- record `proba` at `length`.
+        void from(std::size_t cursor, double proba, int length) const;
+    };
+
+    /**
+     * One participant's step of a fold: what used to be four overrides differing only in
+     * `Δ(r)` -- see length_delta() -- plus Dinucl_markov, which differs in kind: it does not
+     * enumerate, it contributes one factor. Only ever called for an event *after* the table's
+     * reader; the reader is enumerated by initialize_Len_proba_bound() itself, at weight 1.
+     */
+    void fold_step(const SpanFold &fold, std::size_t cursor, double proba, int length) const;
+
+    /// The best probability `realization` has under any realization of this event's
+    /// conditioning parents -- the `maxᵢ` the fold and the retained decomposition both take, and
+    /// what R6 replaces with a max taken jointly over a conditioned clique. One place for it.
+    double realization_bound(const Event_realization &realization, const Marginal_array_p &model_parameters,
+                             int base_index) const;
+
+    /// Whether this event places its own segment's offsets rather than moving an existing end:
+    /// the test for whether it publishes a length into the fold's accumulator.
+    bool creates_own_offsets() const;
 
     /**
      * \brief Which junction a JunctionBound slot holds, relative to this event's own segment.

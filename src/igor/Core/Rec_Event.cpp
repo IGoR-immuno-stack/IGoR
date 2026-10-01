@@ -381,29 +381,33 @@ void publish_unfilled_length(SeqTypeId seq_type_id, int delta, bool creates_offs
 
 } // namespace
 
+void Rec_Event::SpanFold::from(std::size_t cursor, double proba, int length) const
+{
+    //The events that neither change this span's length nor contribute a probability factor to it
+    //were dropped when `participants` was built, so descending is one index step: the depth stays
+    //proportional to the number of contributing events rather than to the model size, and nothing
+    //is copied on the way down.
+    if (cursor < participants.size()) {
+        participants[cursor]->fold_step(*this, cursor, proba, length);
+    } else {
+        //Every event contributing to this span has chosen, so this path reaches `length` with
+        //`proba`. SpanProfile::record() keeps the better of that and what is already stored.
+        profile.record(length, proba);
+    }
+}
+
 /*
- * One body for all four event kinds. Called only for an event the filter has already found to
- * participate in `span`, so the two branches below are "enumerates its realizations" and
+ * One step for all four event kinds. Called only for an event the filter has already found to
+ * participate in the span, so the two branches below are "enumerates its realizations" and
  * "contributes a probability factor without enumerating" -- which is exactly the
  * affects_length_of / affects_proba_of split.
  */
-void Rec_Event::iterate_initialize_Len_proba(SegmentSpan span, SpanProfile &profile,
-                                             const SpanParticipants &participants, std::size_t cursor,
-                                             double &scenario_proba, const Marginal_array_p &model_parameters_point,
-                                             Index_map &base_index_map, UnfilledSegmentLengths &lengths, int &seq_len) const
+void Rec_Event::fold_step(const SpanFold &fold, std::size_t cursor, double proba, int length) const
 {
-    //A local, not the subclasses' `mutable int base_index`: this body is shared, and each of the
-    //four declares its own. Safe because every reader of that member sets it first in the same
-    //call chain -- iterate() and initialize_event() both do -- so the fold never had to publish it.
-    base_index_map.set_current_layer(this->event_index, 0);
-    const int span_base_index = base_index_map.get(this->event_index);
-
-    if (not this->affects_length_of(span)) {
+    if (not this->affects_length_of(fold.span)) {
         //Dinucl_markov: no realization of its own contributes length, and its p^L factor reads a
-        //length some upstream creator already published. One factor, one recursive call.
-        double contributed_proba = scenario_proba * this->span_proba_factor(span, lengths);
-        this->iterate_initialize_Len_proba_wrap_up(span, profile, participants, cursor, contributed_proba,
-                                                   model_parameters_point, base_index_map, lengths, seq_len);
+        //length some upstream creator already published. One factor, one step down.
+        fold.from(cursor + 1, proba * this->span_proba_factor(fold.span, fold.lengths), length);
         return;
     }
 
@@ -425,26 +429,34 @@ void Rec_Event::iterate_initialize_Len_proba(SegmentSpan span, SpanProfile &prof
     const bool creates_sequence =
             this->get_seq_construction_role(this->seq_type_id) == SeqConstructionRole::Creates;
 
+    //Read at layer 0, where every event's base index sits before the walk writes any other: a
+    //pure read, where the fold used to rewind the key's current layer to 0 first -- a write
+    //from a const traversal, and a no-op at initialization, when nothing stands above layer 0.
+    const int base_index = fold.base_index_map.get(this->event_index, 0);
+
     for (std::unordered_map<std::string, Event_realization>::const_iterator iter = this->event_realizations.begin();
          iter != this->event_realizations.end(); ++iter) {
         const Event_realization &realization = iter->second;
-
-        //Get the max proba for this realization (in case the event is child of another).
-        //This maxᵢ is what R6 replaces with a max taken jointly over a conditioned clique.
-        double real_max_proba = 0;
-        for (size_t i = 0; i != this->event_marginal_size / this->size(); ++i) {
-            if (model_parameters_point[span_base_index + realization.index + i * this->size()] > real_max_proba) {
-                real_max_proba = model_parameters_point[span_base_index + realization.index + i * this->size()];
-            }
-        }
-
         const int delta = this->length_delta(realization);
-        publish_unfilled_length(this->seq_type_id, delta, creates_offsets, creates_sequence, lengths);
-
-        this->iterate_initialize_Len_proba_wrap_up(span, profile, participants, cursor,
-                                                   scenario_proba * real_max_proba, model_parameters_point,
-                                                   base_index_map, lengths, seq_len + delta);
+        publish_unfilled_length(this->seq_type_id, delta, creates_offsets, creates_sequence, fold.lengths);
+        fold.from(cursor + 1, proba * this->realization_bound(realization, fold.model_parameters, base_index),
+                  length + delta);
     }
+}
+
+double Rec_Event::realization_bound(const Event_realization &realization, const Marginal_array_p &model_parameters,
+                                    int base_index) const
+{
+    //The realization's marginal is stored once per realization of the conditioning parents, at a
+    //stride of this event's size, and the bound has to hold whichever of them the scenario turns
+    //out to carry.
+    double best = 0;
+    for (std::size_t i = 0; i != this->event_marginal_size / this->size(); ++i) {
+        if (model_parameters[base_index + realization.index + i * this->size()] > best) {
+            best = model_parameters[base_index + realization.index + i * this->size()];
+        }
+    }
+    return best;
 }
 
 bool Rec_Event::creates_own_offsets() const
@@ -453,35 +465,13 @@ bool Rec_Event::creates_own_offsets() const
            || this->get_offset_role(this->seq_type_id, Three_prime) == OffsetRole::Creates;
 }
 
-void Rec_Event::iterate_initialize_Len_proba_wrap_up(SegmentSpan span, SpanProfile &profile,
-                                                     const SpanParticipants &participants, std::size_t cursor,
-                                                     double scenario_proba,
-                                                     const Marginal_array_p &model_parameters_point,
-                                                     Index_map &base_index_map, UnfilledSegmentLengths &lengths,
-                                                     int seq_len) const
-{
-    //The events that neither change this span's length nor contribute a probability factor to it
-    //were dropped when `participants` was built, so descending is one index step: the depth stays
-    //proportional to the number of contributing events rather than to the model size, and nothing
-    //is copied on the way down.
-    if (cursor < participants.size()) {
-        // Explore realizations of this event
-        participants[cursor]->iterate_initialize_Len_proba(span, profile, participants, cursor + 1, scenario_proba,
-                                                           model_parameters_point, base_index_map, lengths, seq_len);
-    } else {
-        // Every event contributing to this span has chosen, so this path reaches `seq_len` with
-        // `scenario_proba`. SpanProfile::record() keeps the better of that and what is already
-        // stored, in one descent rather than the count/at/operator[] trio this replaced.
-        profile.record(seq_len, scenario_proba);
-    }
-}
-
 /*
  * The four per-subclass overrides, minus their enum-to-member switches. Everything topological
  * was settled in initialize_event(), so all that is left is "fold each junction I read".
  */
 void Rec_Event::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &model_queue,
-                                           const Marginal_array_p &model_parameters_point, Index_map &base_index_map)
+                                           const Marginal_array_p &model_parameters_point,
+                                           const Index_map &base_index_map)
 {
     //Scoped to one fold and reset between junctions: an entry is a length published by the
     //segment's creator on the current path, and the paths of two junctions share nothing.
@@ -532,8 +522,8 @@ void Rec_Event::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &model_q
 
         if (not conditioned) {
             lengths.reset();
-            this->iterate_initialize_Len_proba_wrap_up(span, bound.mutable_profile(), participants, 0, 1.0,
-                                                       model_parameters_point, base_index_map, lengths, 0);
+            SpanFold{span, participants, model_parameters_point, base_index_map, lengths, bound.mutable_profile()}
+                    .from(0, 1.0, 0);
             continue;
         }
 
@@ -546,9 +536,9 @@ void Rec_Event::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &model_q
             const int delta = this->length_delta(realization);
             lengths.reset();
             publish_unfilled_length(this->seq_type_id, delta, creates_offsets, creates_sequence, lengths);
-            this->iterate_initialize_Len_proba_wrap_up(span, bound.mutable_profile_for(realization.index),
-                                                       participants, 0, 1.0, model_parameters_point,
-                                                       base_index_map, lengths, delta);
+            SpanFold{span, participants, model_parameters_point, base_index_map, lengths,
+                     bound.mutable_profile_for(realization.index)}
+                    .from(0, 1.0, delta);
         }
     }
 
@@ -568,7 +558,7 @@ void Rec_Event::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &model_q
  * junctions are involved was settled in initialize_event().
  */
 void Rec_Event::build_retained_decomposition(const Marginal_array_p &model_parameters_point,
-                                             Index_map &base_index_map)
+                                             const Index_map &base_index_map)
 {
     JunctionBound &enclosing = junction_bounds_[kEnclosingJunction];
     if (not enclosing.resolved() or not enclosing.retained()) {
@@ -586,22 +576,15 @@ void Rec_Event::build_retained_decomposition(const Marginal_array_p &model_param
         return;
     }
 
-    base_index_map.set_current_layer(this->event_index, 0);
-    const int span_base_index = base_index_map.get(this->event_index);
+    const int base_index = base_index_map.get(this->event_index, 0);
 
     for (std::unordered_map<std::string, Event_realization>::const_iterator iter = this->event_realizations.begin();
          iter != this->event_realizations.end(); ++iter) {
         const Event_realization &realization = iter->second;
 
-        //The same maxᵢ over the conditioning parent's realizations that the fold takes, for the
-        //same reason: this event may be a child, and the bound has to hold whichever parent
-        //realization the scenario turns out to carry. R6 replaces both with a joint max.
-        double real_max_proba = 0;
-        for (std::size_t i = 0; i != this->event_marginal_size / this->size(); ++i) {
-            if (model_parameters_point[span_base_index + realization.index + i * this->size()] > real_max_proba) {
-                real_max_proba = model_parameters_point[span_base_index + realization.index + i * this->size()];
-            }
-        }
+        //The same bound the fold takes, for the same reason: this event may be a child, and the
+        //bound has to hold whichever parent realization the scenario turns out to carry.
+        const double real_max_proba = this->realization_bound(realization, model_parameters_point, base_index);
 
         const int own_length = this->length_delta(realization);
 
