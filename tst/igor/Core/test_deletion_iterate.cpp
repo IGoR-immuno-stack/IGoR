@@ -90,11 +90,12 @@ std::string read_run(Seq_Offset five, Seq_Offset three)
  * whenever the distance is zero or negative (the deletions can always make up the difference).
  *
  * `contributors` is the number of realization-enumerating events the fold walks: every
- * length-affecting event *after* the one under test in the queue. The event under test is not
- * among them: it reads the table after it has chosen, so its own realization is not part of the
- * bound (§7.19, R8 stage 3c-ii). Until then it was, and every value below carried one extra
- * factor of 0.5. It is a parameter because it could differ per fixture; since 3c-ii every
- * fixture has two.
+ * length-affecting event *after* the one under test in the queue. The event under test reads
+ * the table after it has chosen, so its probability is not part of the bound (§7.19, R8 stage
+ * 3c-ii); until then it was, and every value below carried one extra factor of 0.5. Since R13
+ * the table is conditioned on its realization instead, read at the gap before the choice --
+ * which gives the same value as `distance`, the gap the choice leaves, measured here. It is a
+ * parameter because it could differ per fixture; since 3c-ii every fixture has two.
  */
 double junction_bound_at(int distance, int contributors)
 {
@@ -1155,7 +1156,9 @@ TEST_CASE("Deletion: the junction-length bound (G5/S4)", "[deletion][iterate]")
 
         for (std::size_t i = 0; i != 5; ++i) {
             const int deletions = 4 - static_cast<int>(i);
-            // The distance the arm looks up: the gap left between the two facing offsets.
+            // The gap this realization leaves between the two facing offsets. The arm reads its
+            // realization's profile at the gap *before* the deletion (R13), whose key counts the
+            // deletion too, so the value is the best completion of this gap either way.
             const int distance = 14 - (10 - deletions) - 1;
             INFO("hand-off " << i << ", distance " << distance);
             CHECK(next->calls[i].downstream_bounds.at(VD_ins_seq)
@@ -1418,6 +1421,48 @@ TEST_CASE("Deletion: the junction bound's shortfall is its own marginal and noth
             CHECK(next->calls[i].downstream_bounds.at(DJ_ins_seq)
                   == Approx(junction_bound_at(distance, JDel::kContributors)));
         }
+    }
+}
+
+TEST_CASE("Deletion: the junction bound is conditioned on the realization chosen (R13)",
+          "[deletion][iterate][junction]")
+{
+    // An insertion marginal that makes a *longer* junction the better one: p(7) = 0.9, every other
+    // length 0.01, and nothing after this deletion that changes the junction's length but the
+    // insertion. So the best completion of a gap m is p(m) * 0.5^m, which a flat model cannot tell
+    // apart from a decreasing one: the gap of 7 -- the widest deletion -- is worth 0.9 * 0.5^7,
+    // every narrower gap 0.01 * 0.5^m.
+    //
+    // A table that merged across this deletion's own realizations would hand every realization the
+    // best of its siblings -- the gap of 7 -- and be loose at the other four. Conditioned on the
+    // realization chosen (R13), each reads exactly its own completion. The sections above use flat
+    // marginals, under which the merged table happens to give the same numbers.
+    IterateTestState state = create_iterate_state(kRead);
+    auto deletion = make_deletion(V_gene_seq, Three_prime, 0, 4, /*id=*/0);
+    state.preset_safety(V_gene_seq, D_gene_seq, false);
+    state.preset_segment(V_gene_seq, 0, 10, read_run(0, 10));
+    auto d_stub = make_gene_choice(D_gene, {{"D1", "ACGTA"}}, /*id=*/1);
+    state.add_event(d_stub);
+    state.mark_chosen(d_stub);
+    state.preset_segment(D_gene_seq, 14, 18, read_run(14, 18));
+    state.add_downstream_event(make_insertion(VD_ins_seq, 0, 20, /*id=*/3));
+    state.add_downstream_event(make_dinucl_markov(VD_ins_seq, /*id=*/4));
+    for (std::size_t i = 0; i != 64; ++i) {
+        state.set_marginal(i, 0.5L);
+    }
+    state.set_base_index(/*event_id=*/3, /*base_index=*/100);
+    for (std::size_t length = 0; length != 21; ++length) {
+        state.set_marginal(100 + length, length == 7 ? 0.9L : 0.01L);
+    }
+
+    const auto next = call_iterate_recording(deletion, state);
+    REQUIRE(next->call_count() == 5);
+    for (std::size_t i = 0; i != 5; ++i) {
+        const int deletions = 4 - static_cast<int>(i);
+        const int gap = 14 - (10 - deletions) - 1; // 3 + deletions
+        const double best = (gap == 7 ? 0.9 : 0.01) * std::pow(0.5, gap);
+        INFO("hand-off " << i << ", gap " << gap);
+        CHECK(next->calls[i].downstream_bounds.at(VD_ins_seq) == Approx(best));
     }
 }
 

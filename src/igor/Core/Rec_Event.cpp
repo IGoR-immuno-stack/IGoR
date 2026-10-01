@@ -405,36 +405,21 @@ void Rec_Event::compute_crude_upper_bound_scenario_proba(double &tmp_err_w_proba
     }
 }
 
-void Rec_Event::iterate_initialize_Len_proba(SegmentSpan span, SpanProfile &profile,
-                                             const SpanParticipants &participants,
-                                             double &scenario_proba, const Marginal_array_p &model_parameters_point,
-                                             Index_map &base_index_map, UnfilledSegmentLengths &lengths) const
+namespace {
+
+//What an event leaves in the accumulator for one realization: how many nucleotides of its
+//segment its offsets imply that nobody has chosen yet (see the body below for the three cases).
+//Shared by the body, for a participant, and by initialize_Len_proba_bound(), for the reader: the
+//reader publishes exactly as any participant would -- it is only its probability that stays out.
+void publish_unfilled_length(SeqTypeId seq_type_id, int delta, bool creates_offsets, bool creates_sequence,
+                             UnfilledSegmentLengths &lengths)
 {
-    int seq_len = 0;
-    //This overload is the traversal's entry point, and `this` is not in `participants` -- that
-    //list holds the events *after* this one -- so it has to apply the same test to itself that
-    //built the list. It is not vacuous: Gene_choice(V) opens the VD span traversal but
-    //contributes nothing to it.
-    //
-    //When it does participate, `this` is the table's reader, and what it reads is a bound on
-    //what is still to be realized once it has chosen -- so its own choice is not part of it
-    //(§7.19, R8). Two cases, on the line the body below already draws:
-    //  - it *creates* the junction's offsets (Insertion): the length it creates is the key it
-    //    reads at, and Dinucl_markov's p^L reads the same length, so it still enumerates -- for
-    //    its length only, at weight 1. The body applies that; see `is_reader` there.
-    //  - it only *moves* an end of the span (Deletion): the gap it reads at is measured after
-    //    its own choice, so that choice is already accounted for, and it leaves its own table
-    //    entirely. Enumerating it at weight 1 would still be sound, but the table would then
-    //    hold a max over the other deletions it did not choose.
-    if (this->participates_in_span(span) and this->creates_own_offsets()) {
-        this->iterate_initialize_Len_proba(span, profile, participants, 0, scenario_proba,
-                                           model_parameters_point, base_index_map, lengths, seq_len,
-                                           /*is_reader=*/true);
-    } else {
-        this->iterate_initialize_Len_proba_wrap_up(span, profile, participants, 0, scenario_proba,
-                                                   model_parameters_point, base_index_map, lengths, seq_len);
+    if (creates_offsets) {
+        lengths.set(seq_type_id, creates_sequence ? 0 : delta);
     }
 }
+
+} // namespace
 
 /*
  * One body for all four event kinds. Called only for an event the filter has already found to
@@ -445,8 +430,7 @@ void Rec_Event::iterate_initialize_Len_proba(SegmentSpan span, SpanProfile &prof
 void Rec_Event::iterate_initialize_Len_proba(SegmentSpan span, SpanProfile &profile,
                                              const SpanParticipants &participants, std::size_t cursor,
                                              double &scenario_proba, const Marginal_array_p &model_parameters_point,
-                                             Index_map &base_index_map, UnfilledSegmentLengths &lengths, int &seq_len,
-                                             bool is_reader) const
+                                             Index_map &base_index_map, UnfilledSegmentLengths &lengths, int &seq_len) const
 {
     //A local, not the subclasses' `mutable int base_index`: this body is shared, and each of the
     //four declares its own. Safe because every reader of that member sets it first in the same
@@ -481,11 +465,6 @@ void Rec_Event::iterate_initialize_Len_proba(SegmentSpan span, SpanProfile &prof
     const bool creates_sequence =
             this->get_seq_construction_role(this->seq_type_id) == SeqConstructionRole::Creates;
 
-    //The reader's own probability is already in the scenario it multiplies the bound into, so
-    //counting it here as well put the bound below what the scenario goes on to realize (§7.19).
-    //Only a reader that creates the offsets gets this far -- the entry point folds any other
-    //reader from its suffix alone -- and it contributes its length at a weight of 1.
-
     for (std::unordered_map<std::string, Event_realization>::const_iterator iter = this->event_realizations.begin();
          iter != this->event_realizations.end(); ++iter) {
         const Event_realization &realization = iter->second;
@@ -500,14 +479,11 @@ void Rec_Event::iterate_initialize_Len_proba(SegmentSpan span, SpanProfile &prof
         }
 
         const int delta = this->length_delta(realization);
-        if (creates_offsets) {
-            lengths.set(this->seq_type_id, creates_sequence ? 0 : delta);
-        }
+        publish_unfilled_length(this->seq_type_id, delta, creates_offsets, creates_sequence, lengths);
 
         this->iterate_initialize_Len_proba_wrap_up(span, profile, participants, cursor,
-                                                   is_reader ? scenario_proba : scenario_proba * real_max_proba,
-                                                   model_parameters_point, base_index_map, lengths,
-                                                   seq_len + delta);
+                                                   scenario_proba * real_max_proba, model_parameters_point,
+                                                   base_index_map, lengths, seq_len + delta);
     }
 }
 
@@ -531,8 +507,7 @@ void Rec_Event::iterate_initialize_Len_proba_wrap_up(SegmentSpan span, SpanProfi
     if (cursor < participants.size()) {
         // Explore realizations of this event
         participants[cursor]->iterate_initialize_Len_proba(span, profile, participants, cursor + 1, scenario_proba,
-                                                           model_parameters_point, base_index_map, lengths, seq_len,
-                                                           /*is_reader=*/false);
+                                                           model_parameters_point, base_index_map, lengths, seq_len);
     } else {
         // Every event contributing to this span has chosen, so this path reaches `seq_len` with
         // `scenario_proba`. SpanProfile::record() keeps the better of that and what is already
@@ -576,11 +551,45 @@ void Rec_Event::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &model_q
             }
         }
 
-        bound.mutable_profile().clear();
-        lengths.reset();
-        double init_proba = 1.0;
-        this->iterate_initialize_Len_proba(bound.span(), bound.mutable_profile(), participants, init_proba,
-                                           model_parameters_point, base_index_map, lengths);
+        //A table never contains its reader: what the reader reads is a bound on what is still to
+        //be realized once it has chosen, and its own choice is realized by then (§7.19, R8). Its
+        //probability therefore stays out -- it is already in the scenario the bound multiplies.
+        //
+        //Its realization must not be maxed over either, and that is the half R8 first got wrong
+        //by role: if the reader changes this span's length, the table is **conditioned** on its
+        //realization -- one profile each, folded from that realization at weight 1, with its
+        //length counted in the key and published into the accumulator exactly as a
+        //participant's would be. So the key is always the summed `length_delta` of everything
+        //enumerated, and a reader looks up its own realization's profile at the gap as it
+        //stood before its choice. Nothing here depends on what kind of event the reader is or
+        //on what follows it (R13).
+        //
+        //A reader that does not change the span's length -- the gene choice the span is
+        //measured from -- has nothing to condition on: one profile, from the events after it.
+        const SegmentSpan span = bound.span();
+        const bool conditioned = this->affects_length_of(span);
+        bound.reset_profiles(conditioned, this->size());
+
+        if (not conditioned) {
+            lengths.reset();
+            this->iterate_initialize_Len_proba_wrap_up(span, bound.mutable_profile(), participants, 0, 1.0,
+                                                       model_parameters_point, base_index_map, lengths, 0);
+            continue;
+        }
+
+        const bool creates_offsets = this->creates_own_offsets();
+        const bool creates_sequence =
+                this->get_seq_construction_role(this->seq_type_id) == SeqConstructionRole::Creates;
+        for (std::unordered_map<std::string, Event_realization>::const_iterator iter = this->event_realizations.begin();
+             iter != this->event_realizations.end(); ++iter) {
+            const Event_realization &realization = iter->second;
+            const int delta = this->length_delta(realization);
+            lengths.reset();
+            publish_unfilled_length(this->seq_type_id, delta, creates_offsets, creates_sequence, lengths);
+            this->iterate_initialize_Len_proba_wrap_up(span, bound.mutable_profile_for(realization.index),
+                                                       participants, 0, 1.0, model_parameters_point,
+                                                       base_index_map, lengths, delta);
+        }
     }
 
     this->build_retained_decomposition(model_parameters_point, base_index_map);
@@ -657,7 +666,7 @@ void Rec_Event::adopt_Len_proba_bound(const Rec_Event &source)
         if (not bound.resolved() or not bound.folded()) {
             continue;
         }
-        bound.mutable_profile() = source.junction_bounds_[slot].profile();
+        bound.adopt_profiles(source.junction_bounds_[slot]);
     }
 
     JunctionBound &enclosing = junction_bounds_[kEnclosingJunction];

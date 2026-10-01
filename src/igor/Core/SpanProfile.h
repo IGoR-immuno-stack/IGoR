@@ -26,6 +26,7 @@
 #include <igor/Core/SeqTypeRegistry.h>
 
 #include <algorithm>
+#include <cassert>
 #include <cstddef>
 #include <iterator>
 #include <optional>
@@ -404,8 +405,44 @@ public:
     SeqTypeId proba_key() const { return proba_key_; }
     int memory_layer() const { return memory_layer_; }
 
-    const SpanProfile &profile() const { return profile_; }
-    SpanProfile &mutable_profile() { return profile_; }
+    /// The table, for a reader whose realization does not change this span's length -- a gene
+    /// the span is measured from, say. One profile, read at the gap as it stands.
+    const SpanProfile &profile() const
+    {
+        assert(not conditioned_ and "a conditioned junction is read with profile_for()");
+        return profiles_.front();
+    }
+
+    /// The table for one realization of a reader that changes this span's length. A table never
+    /// contains its reader's probability, and must not merge across its reader's realizations
+    /// either: the realization is known when the table is read, so each has its own profile,
+    /// keyed -- like every profile -- by the summed length of everything it enumerates, the
+    /// reader included. So it is read at the gap as it stood *before* the reader's own choice
+    /// (§7.19, R8; R13).
+    const SpanProfile &profile_for(std::size_t reader_realization) const
+    {
+        assert(conditioned_ and "an unconditioned junction is read with profile()");
+        return profiles_.at(reader_realization);
+    }
+
+    bool conditioned() const { return conditioned_; }
+
+    /// Empties the table and sets its shape: one profile, or one per reader realization.
+    void reset_profiles(bool conditioned, std::size_t reader_realizations)
+    {
+        conditioned_ = conditioned;
+        profiles_.assign(conditioned ? reader_realizations : 1, SpanProfile{});
+    }
+
+    SpanProfile &mutable_profile() { return mutable_profile_for(0); }
+    SpanProfile &mutable_profile_for(std::size_t reader_realization) { return profiles_.at(reader_realization); }
+
+    /// Takes the table another thread's copy of this event folded (S4e): its shape and its values.
+    void adopt_profiles(const JunctionBound &source)
+    {
+        conditioned_ = source.conditioned_;
+        profiles_ = source.profiles_;
+    }
 
     /// Only meaningful for a `Retain` junction; empty for every other.
     const SpanDecomposition &decomposition() const { return decomposition_; }
@@ -416,6 +453,7 @@ private:
     SeqTypeId proba_key_ = kNoSeqType;
     int memory_layer_ = -1;
     Fold fold_ = Fold::No;
-    SpanProfile profile_{};
+    bool conditioned_ = false;
+    std::vector<SpanProfile> profiles_ = std::vector<SpanProfile>(1);
     SpanDecomposition decomposition_{};
 };

@@ -256,6 +256,17 @@ void Deletion::iterate(
     //distance.
     const JunctionBound &junction = junction_bound(trims_three_prime_ ? kRightJunction : kLeftJunction);
 
+    //Read at the gap as it stood *before* this deletion, in the profile of the realization
+    //chosen: the table is conditioned on this event's realization and counts its length in the
+    //key, like every other length it enumerates (R13). So the gap is the same for every
+    //realization, and is measured once.
+    int junction_length_before = 0;
+    if (junction.resolved()) {
+        const Seq_Offset partner_offset = flank_checks_[junction_partner_].offset;
+        junction_length_before = trims_three_prime_ ? partner_offset - my_offset - 1
+                                                    : my_offset - partner_offset - 1;
+    }
+
     for (forward_list<Event_realization>::const_iterator iter = int_value_and_index.begin();
          iter != int_value_and_index.end(); ++iter) {
         const int deletions = iter->value_int;
@@ -383,10 +394,7 @@ void Deletion::iterate(
         //Get the junction upper bound proba for the span this deletion widens.
         std::optional<double> junction_bound_proba;
         if (junction.resolved()) {
-            const Seq_Offset partner_offset = flank_checks_[junction_partner_].offset;
-            const int junction_length = trims_three_prime_ ? partner_offset - my_new_offset - 1
-                                                           : my_new_offset - partner_offset - 1;
-            junction_bound_proba = junction.profile().best_for(junction_length);
+            junction_bound_proba = junction.profile_for(iter->index).best_for(junction_length_before);
             if (not junction_bound_proba) {
                 continue; //This means no scenario can lead to a correct solution, would need to be changed for Error models with in/dels
             }

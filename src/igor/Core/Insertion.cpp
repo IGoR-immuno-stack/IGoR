@@ -217,7 +217,12 @@ void Insertion::iterate(
         //(§6.10 finding 6). Unlike them this one has never had a guard, so an unreachable
         //distance throws rather than discarding the branch; turning that into a discard is a
         //behaviour change and belongs with the other Insertion defects in phase R.
-        const std::optional<double> junction_bound_proba = junction.profile().best_for(insertions);
+        //
+        //The table is conditioned on this event's realization (R13): read its profile for the
+        //length chosen, at the gap between the neighbours -- which is where it stood before the
+        //insertion, since an insertion fills the gap rather than moving its ends.
+        const std::optional<double> junction_bound_proba =
+                junction.profile_for(realization_index).best_for(insertions);
         if (not junction_bound_proba) {
             throw out_of_range("Insertion " + this->name + ": no junction bound for "
                                + to_string(insertions) + " insertions");

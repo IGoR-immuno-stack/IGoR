@@ -423,26 +423,18 @@ public:
     /**
      * One body for every event. What used to be four overrides differing only in `Δ(r)` -- see
      * length_delta() -- plus Dinucl_markov, which differs in kind: it does not enumerate at all.
-     *
-     * `is_reader` is true only when this event is the one whose table is being folded. A bound
-     * is built from what is *not yet realized* when its reader reads it, and the reader's own
-     * realization is realized by then (§7.19, R8). Only a reader that creates its segment's
-     * offsets reaches this body; see the entry-point overload for the other kind.
+     * Only ever called for an event *after* the table's reader: the reader is enumerated by
+     * initialize_Len_proba_bound() itself, at weight 1 (R13).
      */
     void iterate_initialize_Len_proba(SegmentSpan span, SpanProfile &profile,
                                       const SpanParticipants &participants, std::size_t cursor,
                                       double &scenario_proba,
                                       const Marginal_array_p &model_parameters_point, Index_map &base_index_map,
-                                      UnfilledSegmentLengths &lengths, int &seq_len, bool is_reader) const;
+                                      UnfilledSegmentLengths &lengths, int &seq_len) const;
 
-    /// Whether this event places its own segment's offsets rather than moving an existing end.
-    /// The fold's publisher test and its reader test are the same question.
+    /// Whether this event places its own segment's offsets rather than moving an existing end:
+    /// the test for whether it publishes a length into the fold's accumulator.
     bool creates_own_offsets() const;
-
-    void iterate_initialize_Len_proba(SegmentSpan span, SpanProfile &profile,
-                                      const SpanParticipants &participants, double &scenario_proba,
-                                      const Marginal_array_p &model_parameters_point, Index_map &base_index_map,
-                                      UnfilledSegmentLengths &lengths) const;
 
     /**
      * \brief Fold the profile of every junction this event reads a bound from.
