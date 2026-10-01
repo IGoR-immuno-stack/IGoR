@@ -2287,6 +2287,9 @@ Decided behaviour changes, none of which had a row in §6 before this re-assessm
 | **R7** | ✅ **done Sep 27 2026.** §7.16 — the `no_d_align` path compounded the D probability across placements, so placement *k* was handed off at `incoming × p^k` where every placement is the same realization and carries `incoming × p`. Both exhaustive loops read the live `scenario.scenario_proba` where the alignment loop restarts from a value captured once; both now read that same captured value. Two `[!shouldfail]` tags off. The re-check of §6.15's first-stage `break` came back **negative** — its licence was the monotonicity the defect created, not the sort order — so it is a `continue`, measured bitwise | Sep 16, done Sep 27 | `Gene_choice` | **`no_d_align` moves** — the reference encoded the compounded values. **And one `[!mayfail]` convergence section starts passing**: see below |
 | R11 | **Delete the placeholder guard in `Dinucl_markov::iterate_common()`.** `ins_seq.at(i) == int_undefined` existed for the regime R1 removed: one buffer shared with the `Insertion` across sibling scenarios, where an already-written position had to read as *someone filled this*. The buffer is now created per scenario with every position a placeholder, so the guard is unreachable through `iterate()` and the unit case that pinned it was deleted rather than rewritten. Dead code with a live trap in it — the same shape as R9, and the reason it is a row rather than a tidy-up is that it is the last residue of the shared-buffer design | Sep 24 | `Dinucl_markov` | none — unreachable by construction after R1 |
 | R12 | **Generalise `affects_length_of` off the enum.** `Gene_choice`'s switch pins V leftmost and J rightmost and barely reads the `SegmentSpan` it is passed; the rule it stands for is *a segment adds length to a span when it sits strictly between the span's two ends in the 5′→3′ ordering*, which S5's `SafetyCell` already reads positions from. `Insertion`'s and `Deletion`'s overrides are the same kind of enum table — the latter already names its generic form. The comment deferring this to S4b is stale: S4b landed without it. Together with R8's rule it makes V's and J's absence from the junction tables follow from a rule instead of from ordering, and it is what a span between flanking sequences needs (§7.19's decision) | Sep 30 | `Gene_choice`, `Insertion`, `Deletion` | none — bitwise by construction: no shipped model has a span with a gene inside it other than D within V→J |
+| R13 | ✅ **done Oct 1 2026.** **Junction tables conditioned on their reader's realization** *(decided Oct 1 2026, Quentin)*. R8 enforced *a table never contains its reader* with two per-role branches — `Insertion` in at weight 1, `Deletion` out — and the diagnosis afterwards is that neither branch was the point: what was wrong was that the table **merged across the reader's own realizations**, harmless for the insertion because its key identifies its realization, lossy for the deletion. The rule becomes two parts with no role in them: the reader's probability is never in its table, and a reader that changes its span's length gets **one profile per realization**, folded from that realization at weight 1 with its length published like any participant's. The key is always the plain sum of `length_delta` over every enumerated event, so each reader reads *its realization's* profile at the gap as it stood **before its own choice**. Makes no assumption about what follows the reader — R8's 3c-i and the first proposal after it both leaned on "only a `Dinucl_markov` follows an insertion", which the base class has no business knowing — and needs no subclass knowledge: `participates_in_span`, `affects_length_of`, `length_delta` and the existing publisher step. `is_reader`, `creates_own_offsets()`'s use as a reader test, and the entry-point overload go | Oct 1 | the fold's driver, `JunctionBound`, the `Insertion` and `Deletion` consumers | **none — expected bitwise against 3c-ii**: every value is a max over the same completions, each path multiplying the same factors in the same order |
+| R14 | **Delete the crude bound path's runtime half.** `compute_crude_upper_bound_scenario_proba()` has no caller, so `updated_proba_bounds_list`, `scenario_downstream_upper_bound_proba`, `Dinucl_markov::get_updated_ptr()` with its heap-allocated `updated_upper_bound_proba`, and `Insertion`'s `*dinuc_updated_bound = …` — a dead store in the hot loop — are unreachable at scenario time. The init half stays: `event_upper_bound_proba` feeds `Dinucl_markov::span_proba_factor` | Oct 1 | `Rec_Event`, `Insertion`, `Dinucl_markov`, `GenModel`'s init loop | none — bitwise by construction |
+| R15 | **The fold's state as one object.** The recursion passes nine or ten arguments per call; `double &scenario_proba` and `int &seq_len` are never written through; the `const` fold mutates `base_index_map` via `set_current_layer(…, 0)` to read a base index; and the `maxᵢ` over conditioning parents is written twice, in the fold body and in `build_retained_decomposition()`, which R6 would otherwise have to replace in two places. A small `SpanFold` (span, profile, participants, lengths, parameters, base indices) with one `fold_from(cursor, proba, length)`, and one `realization_bound()` helper | Oct 1 | the fold | none — bitwise |
 | **R8** | ✅ **done Sep 30 2026, in three stages.** §7.19 — an `Insertion`'s bound multiplies in its own realization's marginal twice, once through `proba_contribution` and once inside the junction profile it reads, so the bound falls below the probability the scenario goes on to realize and insertion nodes prune harder than the threshold asks. **Decided Sep 30 2026 (Quentin): shape 2, as a rule** — an event's bound is built only from the events not yet realized when it reads the table, so the reader is out of its own table by definition. `Deletion` modifies an anchor and leaves its own table entirely; `Insertion` creates the length the key counts and stays in for its length with probability 1. **`Deletion`'s mirror is derived to tighten the bound as well** — by one deletion marginal under uniform marginals — not to weaken it as §6.14 recorded; **confirmed by stage 3c-0, Sep 30 2026**, exactly one marginal short in every arm. Does **not** merge with R6: R8 changes which events enter a table, R6 what each contributes. See §7.19's decision. **3c-i (`Insertion`) and 3c-ii (`Deletion`) both landed Sep 30 2026** — see *R8 in more detail* | Sep 17, decided Sep 30 | the fold's entry point in `Rec_Event.cpp`; `Insertion` and `Deletion` consumers unchanged | **every inference output moves**, upward: bounds only rise, so less is pruned. Staged so each movement has one cause |
 
 R9, R0, R2, R1+R3 and R3b were each expected to be bitwise-neutral despite being behaviour
@@ -2327,7 +2330,11 @@ first and attributability second:
 | **3c-0** | ✅ **R8**, test first — `test_deletion_iterate.cpp` asserts every arm's bound covers the best completion, tagged `[!shouldfail]` until 3c-ii, plus an untagged control. **It fails as derived**: 25 of 25 checks, each exactly one marginal short | unit | none — tests only |
 | **3c-i** | ✅ **R8**, `Insertion` — its own probability set to 1 in its own table. **Done Sep 30 2026**: `Insertion_DJ`'s unsound nodes 922 755 → 0, iteration-1 likelihood up for every sequence with no best scenario replaced, ~4× the scenarios summed, +13–20 % inference wall time | full ladder + 5a's instrument | every inference output, **and `generate` and `no_d_align` through the golden model they read** |
 | **3c-ii** | ✅ **R8**, `Deletion` — out of its own table. **Done Sep 30 2026**: unsound nodes 0 at every depth; the walk visits 22.2 M nodes for 3.77 M scenarios, fewer nodes than before R8 for 4× the scenarios; no measurable wall-time cost | full ladder + 5a's instrument + the benchmark | every inference output, and `generate` and `no_d_align` through the golden model |
+| **3c-iii** | ✅ **R13** — junction tables conditioned on their reader's realization. **Done Oct 1 2026**: all five tracks bitwise against 3c-ii with nothing regenerated, and the instrument's report identical line for line | full ladder + 5a's instrument | **none** — confirmed bitwise |
 | **3d** | **R6** — within-clique joint max | full ladder, **convergence weighted heavily** | every output |
+
+**R14 and R15 joined on Oct 1 2026** with R13, and are unplaced for the same reason: both are
+bitwise by construction. R15 is worth landing before R6, which rewrites the same `maxᵢ`.
 
 **R12 joined the catalogue on Sep 30 2026**, with R8's decision, and is not placed either: bitwise by construction, so it lands wherever convenient, and before any flanking-sequence work at the latest.
 
@@ -3032,6 +3039,61 @@ more scenarios, but a third fewer nodes visited — though it was not profiled.
 | convergence | 2 / 2; VDJ `d_gene` 0.9381, `d_5_del` 3.7972, `d_3_del` 3.6505 against truths 0.9525, 3.7537, 3.6197 (timer-seeded corpus) |
 | benchmark | above: no measurable change |
 | instrument | above: 0 unsound nodes |
+
+**R13 in more detail** *(Oct 1 2026)*. R8 enforced *a table never contains its reader* with two
+branches keyed on the reader's role — `Insertion` kept in at weight 1, `Deletion` left out — and a
+first proposal to remove them leaned on "only a `Dinucl_markov` follows an insertion", which the
+base class has no business knowing and which nothing guarantees. The diagnosis that replaced both:
+**the table merged across its reader's own realizations.** For the insertion that was harmless,
+because its key identifies its realization; for the deletion it was the looseness 3c-ii removed
+by exclusion. The published-length side channel was not wrong either: it assumed every publisher
+is a participant of the fold, which held until R8 took the reader out, and R8's weight-1 trick
+was the reader getting back in to publish.
+
+**The change.** `initialize_Len_proba_bound()` enumerates the reader itself when it changes its
+span's length (`affects_length_of`): one profile per realization, each folded from that
+realization at weight 1, its length in the key and published into the accumulator by the same
+helper the body uses for a participant. A reader that does not change the length gets one
+profile, from the events after it. The body loses `is_reader`, and the entry-point overload is
+gone: the driver calls the suffix fold directly. `JunctionBound` holds a vector of profiles with
+`profile()` for an unconditioned table and `profile_for(realization)` for a conditioned one, each
+asserting which it is, and `adopt_profiles()` for S4e's copy. The consumers:
+
+- `Deletion` reads its realization's profile at the gap **before** its deletion, which no longer
+  depends on the realization and is measured once per scenario, outside the loop;
+- `Insertion` reads its realization's profile at the gap between its neighbours — where the gap
+  stood before it, since an insertion fills the gap without moving its ends;
+- the gene choices, which never change their span's length, read `profile()` as before.
+
+Nothing in the fold depends on which kind of event reads a table or on what follows it.
+
+**Why it is bitwise.** For the deletion, the profile for `d` holds the key `−d + (ins − d5)`,
+and a completion is valid when `ins − d5` is the gap after the deletion, so the key is the gap
+before it: the set of completions at that key is 3c-ii's at the post-deletion gap, each path
+multiplying the same factors in the same order behind a leading `1.0 ×`. For the insertion the
+profile for `L` is 3c-i's entry at `L`. **Measured**: the unit and integration suite unchanged; the regression gate bitwise on
+all five tracks, twice, with no golden file touched; 5a's instrument identical line for line;
+a Debug build's unit suite green and a Debug inference pass over the corpus — every conditioned
+read through its assert — ending on the release build's marginals exactly.
+
+**A test for the property itself.** Every existing case uses flat marginals, under which a
+merged table gives the same numbers, so none of them could fail if the conditioning were lost. A
+new case, *"the junction bound is conditioned on the realization chosen"*, gives the insertion a
+marginal under which a longer junction is better (`p(7) = 0.9`, every other length 0.01) and
+checks each hand-off's bound is exactly its own completion. **Mutation-checked** by reverting to the shape R13 replaces — one merged table, read at the gap
+after the choice: the new case fails 4 hand-offs of 5, every narrower gap offered the gap-7 value
+`0.9 × 0.5^7`, and elsewhere only two overlap sections fail, through feasibility rather than
+value — the merged table offers a bound at gaps nothing can fill. No case that pins a bound value
+caught it before this one. (A merge read at the gap *before* the choice is caught everywhere, 36
+checks; it is not the regression worth guarding.)
+
+| gate | result |
+|---|---|
+| unit + integration | 327 / 327, the new case included |
+| unit, **Debug** | 270 cases, the five `[tandem_d][!mayfail]` the only non-passes; a Debug inference pass over the `default` batch through every new assert |
+| regression | all five tracks bitwise against 3c-ii, twice, nothing regenerated |
+| convergence | 2 / 2; VDJ `d_gene` 0.9547, `d_5_del` 3.7760, `d_3_del` 3.6474 against truths 0.9525, 3.7537, 3.6197 (timer-seeded corpus) |
+| instrument | identical to 3c-ii's report |
 
 **R6 in more detail** *(Quentin, Sep 10 2026)*. §6.10 shows the span fold accumulates
 `∏ₑ maxᵢ Pₑ(rₑ|i)`, a product of per-event maxima, and that taking the max **jointly** over a
@@ -5108,6 +5170,13 @@ it wants a decision on which of the two readings is intended before code is writ
 >
 > **Staged in three**, so each golden-data movement has one cause (as R5 was split): 3c-0 the
 > `Deletion` claim as a unit case, 3c-i `Insertion`, 3c-ii `Deletion`. See the execution order.
+>
+> **Refined by R13 (Oct 1 2026).** The two treatments above were per-role patches for one
+> missing property. A table that contains its reader's *length* is fine; one that **merges across
+> the reader's realizations** is not — harmless for the insertion, whose key identifies its
+> realization, lossy for the deletion. R13 conditions the table on the reader's realization
+> instead: one profile per realization, the reader at weight 1, read at the gap before its own
+> choice. Same values, no role test, and no assumption about which events follow the reader.
 
 ### 7.20 — `make_transversions`'s int arm compares a `char` against a multi-character constant
 
