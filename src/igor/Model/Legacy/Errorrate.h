@@ -209,4 +209,4 @@ protected:
     size_t max_noerr;
 };
 
-void add_to_err_rate(Error_rate *, Error_rate *);
+MODEL_EXPORT void add_to_err_rate(Error_rate *, Error_rate *);

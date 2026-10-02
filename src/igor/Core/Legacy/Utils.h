@@ -613,11 +613,11 @@ struct inverse_offset_comparator
     }
 };
 
-std::vector<std::string> extract_string_fields(const std::string &, const std::string &);
+CORE_EXPORT std::vector<std::string> extract_string_fields(const std::string &, const std::string &);
 
-void show_progress_bar(std::ostream &, double, const std::string &prefix_message = "", size_t progress_bar_size = 70);
-void close_progress_bar(std::ostream &, const std::string &prefix_message = "", size_t progress_bar_size = 70);
-uint64_t draw_random_64bits_seed();
+CORE_EXPORT void show_progress_bar(std::ostream &, double, const std::string &prefix_message = "", size_t progress_bar_size = 70);
+CORE_EXPORT void close_progress_bar(std::ostream &, const std::string &prefix_message = "", size_t progress_bar_size = 70);
+CORE_EXPORT uint64_t draw_random_64bits_seed();
 
 
-std::string translate(const std::string &seq);
+CORE_EXPORT std::string translate(const std::string &seq);

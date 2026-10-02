@@ -200,7 +200,7 @@ private:
     int memory_layer_proba_map_seq;
 };
 
-std::string &make_transversions(std::string &);
-Int_Str &make_transversions(Int_Str &);
+MODEL_EXPORT std::string &make_transversions(std::string &);
+MODEL_EXPORT Int_Str &make_transversions(Int_Str &);
 
-bool del_numb_compare(const Event_realization &, const Event_realization &);
+MODEL_EXPORT bool del_numb_compare(const Event_realization &, const Event_realization &);

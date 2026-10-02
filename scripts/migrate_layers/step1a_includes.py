@@ -150,8 +150,41 @@ def relocate_testing_export():
                 handle.write(text.replace(anchor, wanted, 1))
 
 
+# Rule 7: free functions that used to be called inside the Core DLL and are now called across a
+# DLL boundary. On Linux and macOS everything is visible; on Windows an unexported function is
+# LNK2019 in the consumer. Keyed by header, the names whose declaration line gets the macro.
+CROSS_DLL_FUNCTIONS = {
+    "src/igor/Core/Legacy/Utils.h": ("CORE_EXPORT", [
+        "extract_string_fields", "show_progress_bar", "close_progress_bar",
+        "draw_random_64bits_seed", "translate"]),
+    "src/igor/Model/Legacy/Deletion.h": ("MODEL_EXPORT", ["make_transversions", "del_numb_compare"]),
+    "src/igor/Model/Legacy/Errorrate.h": ("MODEL_EXPORT", ["add_to_err_rate"]),
+}
+
+
+def export_cross_dll_functions():
+    for path, (macro, names) in CROSS_DLL_FUNCTIONS.items():
+        if not os.path.exists(path):
+            continue
+        with open(path, encoding="utf-8") as handle:
+            lines = handle.read().split("\n")
+        changed = False
+        for i, line in enumerate(lines):
+            if "_EXPORT" in line or line.startswith((" ", "\t", "//", "/*", "*")):
+                continue
+            for name in names:
+                if re.match(r"[A-Za-z_][\w:<>,\* &]*\b" + re.escape(name) + r"\s*\(", line):
+                    lines[i] = f"{macro} {line}"
+                    changed = True
+                    break
+        if changed:
+            with open(path, "w", encoding="utf-8") as handle:
+                handle.write("\n".join(lines))
+
+
 def main():
     relocate_testing_export()
+    export_cross_dll_functions()
     changed = 0
     for top in ("src", "app", "tst"):
         for dirpath, _, files in os.walk(top):
