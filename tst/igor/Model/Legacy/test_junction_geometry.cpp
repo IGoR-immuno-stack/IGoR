@@ -716,7 +716,6 @@ public:
     }
     void add_to_marginals(long double, Marginal_array_p &) const override {}
     std::shared_ptr<Rec_Event> copy() override { return nullptr; }
-    bool affects_length_of(SegmentSpan) const override { return false; }
     int length_delta(const Event_realization &) const override { return 0; }
 
 private:

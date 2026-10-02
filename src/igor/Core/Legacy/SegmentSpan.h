@@ -141,6 +141,30 @@ struct SegmentSpan {
 };
 
 /**
+ * \brief Does segment \a id sit strictly between the two segments \a span is measured from?
+ *
+ * Read off the model's 5'->3' ordering, so it holds for any topology the registry describes --
+ * D inside V->J, or both of a tandem pair's genes inside the span their flanks bound. A segment
+ * the ordering does not place is inside nothing.
+ */
+inline bool lies_strictly_inside(const SeqTypeRegistry &registry, SeqTypeId id, SegmentSpan span)
+{
+    const std::vector<SeqTypeId> &ordering = registry.ordering();
+    const auto position = [&ordering](SeqTypeId segment) -> long {
+        for (std::size_t pos = 0; pos != ordering.size(); ++pos) {
+            if (ordering[pos] == segment) {
+                return static_cast<long>(pos);
+            }
+        }
+        return -1;
+    };
+    const long here = position(id);
+    const long left = position(span.left.id);
+    const long right = position(span.right.id);
+    return here >= 0 and left >= 0 and right >= 0 and left < here and here < right;
+}
+
+/**
  * \brief The span a legacy junction seq_type names.
  *
  * The Len_proba machinery addresses junctions by the Seq_type enum, where one value carries
@@ -150,9 +174,9 @@ struct SegmentSpan {
  * is hardcoded.
  *
  * S4c was expected to remove it and did not, though it did narrow it: **its only caller is now
- * legacy_junction_of() below**, which the four affects_length_of() predicates use to keep their
- * enum-written tables. The bound structure itself is span-addressed, and no span is constructed
- * inside `iterate()` at all. What remains enum-bound is *which* junction an event resolves in
+ * legacy_junction_of() below**. The bound structure itself is span-addressed, which events take
+ * part in a span is a rule over the ordering (Rec_Event::affects_length_of(), R12), and no span is
+ * constructed inside `iterate()` at all. What remains enum-bound is *which* junction an event resolves in
  * `initialize_event()` -- decided by `v_chosen` / `d_chosen` / `j_chosen`, name lookups against the
  * legacy seq_types, and B11a's to generalise once an event can ask the registry for its next
  * segment instead of naming D and J.
@@ -175,12 +199,12 @@ inline SegmentSpan legacy_span_of(Seq_type junction)
 }
 
 /**
- * \brief Inverse of legacy_span_of(), for predicates whose tables are still enum-keyed.
+ * \brief Inverse of legacy_span_of(): the legacy junction seq_type a span names.
  *
- * Every current affects_length_of() override reduces to its pre-S4a has_effect_on() table,
- * which is written over the enum. Rather than generalise those tables -- a semantic change,
- * and S4b's job once the traversal carries the registry ordering -- S4a maps back here so the
- * answers are unchanged by construction.
+ * It was written for the four affects_length_of() overrides, which kept their pre-S4a
+ * has_effect_on() tables over the enum; R12 replaced them with one rule over the ordering. What
+ * is left is the downstream-bound key `Gene_choice` and `Deletion` resolve for a junction in
+ * initialize_event(), which is still a legacy seq_type.
  *
  * \throws std::invalid_argument for a span no legacy junction names.
  */

@@ -660,6 +660,63 @@ TEST_CASE("Gene_choice::iterate junction-length bound (G5)", "[gene_choice][iter
     }
 }
 
+TEST_CASE("Gene_choice::iterate J's V->J bound counts what D's deletions trim (R16)",
+          "[gene_choice][iterate][junction]")
+{
+    // J is chosen before D in every VDJ model shipped, so it reads the V->J table, which holds D
+    // with its whole template. Here V's 3' end and J's 5' end leave a 4-nt gap and D's template
+    // is 8 nt, so no completion fills the gap unless D is trimmed by at least 4.
+    //
+    // Until R16 D's deletions were not in that table: it reached no gap below D's template
+    // length, and J discarded this scenario outright although it has completions, each one
+    // trimming D (plan section 7.22). With the deletions in, J hands off, and the bound is the
+    // best completion: D, 4 nucleotides trimmed, no insertion.
+    const std::string v_gene = "ACGTACGTACGT"; // 12 nt, 3' end at 11
+    const std::string j_gene = "GGGGCCCC";     // 8 nt, 5' end at 16
+    const std::string d_gene = "ACGTACGT";     // 8 nt
+    auto state = create_iterate_state(v_gene + "AAAA" + j_gene);
+
+    auto j_event = make_gene_choice(J_gene, {{"J1", j_gene}}, 0, /*fixed=*/false);
+    auto v_stub = make_gene_choice(V_gene, {{"V1", v_gene}}, 1);
+    state.add_event(v_stub);
+    state.mark_chosen(v_stub);
+    state.preset_segment(V_gene_seq, 0, 11, v_gene);
+    state.add_downstream_event(make_gene_choice(D_gene, {{"D1", d_gene}}, 2));
+    state.add_downstream_event(make_deletion(D_gene_seq, Five_prime, 0, 4, 3));
+    state.add_downstream_event(make_deletion(D_gene_seq, Three_prime, 0, 4, 4));
+    state.add_downstream_event(make_insertion(VD_ins_seq, 0, 10, 5));
+    state.add_downstream_event(make_dinucl_markov(VD_ins_seq, 6));
+    state.add_downstream_event(make_insertion(DJ_ins_seq, 0, 10, 7));
+    state.add_downstream_event(make_dinucl_markov(DJ_ins_seq, 8));
+    state.set_alignments(J_gene, {create_perfect_alignment("J1", 16, j_gene.size())});
+    for (std::size_t i = 0; i != 64; ++i) {
+        state.set_marginal(i, 0.5L);
+    }
+
+    // Every factor is 0.5: D's choice, each deletion, each insertion length, and each inserted
+    // nucleotide. A path trimming d5 + d3 from D and inserting l1 + l2 fills the gap when
+    // 8 - d5 - d3 + l1 + l2 == 4.
+    double best = 0.0;
+    for (int d5 = 0; d5 <= 4; ++d5) {
+        for (int d3 = 0; d3 <= 4; ++d3) {
+            for (int l1 = 0; l1 <= 10; ++l1) {
+                for (int l2 = 0; l2 <= 10; ++l2) {
+                    if (8 - d5 - d3 + l1 + l2 == 4) {
+                        best = std::max(best, std::pow(0.5, 5 + l1 + l2));
+                    }
+                }
+            }
+        }
+    }
+    REQUIRE(best == 1.0 / 32);
+
+    auto rec = call_iterate_recording(j_event, state);
+    dump(rec, "J over a gap only a trimmed D fills");
+    REQUIRE(rec->call_count() == 1);
+    REQUIRE(rec->calls.at(0).downstream_bounds.count(VJ_ins_seq) == 1);
+    CHECK_THAT(rec->calls.at(0).downstream_bounds.at(VJ_ins_seq), Catch::Matchers::WithinRel(best, 1e-12));
+}
+
 TEST_CASE("Gene_choice::iterate endogenous-mismatch counting (G8)",
           "[gene_choice][iterate][endogenous]")
 {

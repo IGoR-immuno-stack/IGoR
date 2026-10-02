@@ -477,10 +477,31 @@ void Rec_Event::SpanFold::run(FoldState start) const
  * "contributes a probability factor without enumerating" -- which is exactly the
  * affects_length_of / affects_proba_of split.
  */
+bool Rec_Event::affects_length_of(SegmentSpan span, const SeqTypeRegistry &registry) const
+{
+    //The span's own two ends: moving one changes the length, creating one is where the span is
+    //measured from.
+    if (this->get_offset_role(span.left.id, span.left.side) == OffsetRole::Modifies
+        or this->get_offset_role(span.right.id, span.right.side) == OffsetRole::Modifies) {
+        return true;
+    }
+    //Every end of every segment strictly inside: creating it adds the segment, moving it trims it.
+    for (const SeqTypeId inner : registry.ordering()) {
+        if (not lies_strictly_inside(registry, inner, span)) {
+            continue;
+        }
+        if (this->get_offset_role(inner, Five_prime) != OffsetRole::None
+            or this->get_offset_role(inner, Three_prime) != OffsetRole::None) {
+            return true;
+        }
+    }
+    return false;
+}
+
 void Rec_Event::fold_step(const SpanFold &fold, std::size_t cursor, const FoldState &state, double proba,
                           FoldFrontier &next) const
 {
-    if (not this->affects_length_of(fold.span)) {
+    if (not fold.conditioning.changes_length[cursor]) {
         //Dinucl_markov: no realization of its own contributes length, and its p^L factor reads a
         //length some upstream creator already published. One factor, one state on.
         FoldState successor = state;
@@ -574,6 +595,7 @@ std::vector<int> Rec_Event::parent_offsets_free_of(const std::vector<std::pair<i
 }
 
 Rec_Event::SpanConditioning Rec_Event::conditioning_within(const SpanParticipants &participants, SegmentSpan span,
+                                                           const SeqTypeRegistry &registry,
                                                            bool reader_conditioned) const
 {
     //Who indexes whom, read off the parents' side: an event's memory_and_offsets lists its
@@ -582,6 +604,10 @@ Rec_Event::SpanConditioning Rec_Event::conditioning_within(const SpanParticipant
     //reader of a table conditioned on its own -- so only those fix anything.
     SpanConditioning conditioning;
     conditioning.participants.resize(participants.size());
+    conditioning.changes_length.resize(participants.size());
+    for (std::size_t cursor = 0; cursor != participants.size(); ++cursor) {
+        conditioning.changes_length[cursor] = participants[cursor]->affects_length_of(span, registry);
+    }
     std::vector<std::vector<std::pair<int, int>>> fixed(participants.size());
 
     const auto link_children = [&](const Rec_Event &parent, std::size_t first_cursor,
@@ -600,7 +626,7 @@ Rec_Event::SpanConditioning Rec_Event::conditioning_within(const SpanParticipant
         link_children(*this, 0, conditioning.reader_children);
     }
     for (std::size_t cursor = 0; cursor != participants.size(); ++cursor) {
-        if (participants[cursor]->affects_length_of(span)) {
+        if (conditioning.changes_length[cursor]) {
             link_children(*participants[cursor], cursor + 1, conditioning.participants[cursor].children);
         }
     }
@@ -622,11 +648,13 @@ bool Rec_Event::creates_own_offsets() const
  */
 void Rec_Event::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &model_queue,
                                            const Marginal_array_p &model_parameters_point,
-                                           const Index_map &base_index_map)
+                                           const Index_map &base_index_map, const SeqTypeRegistry &registry)
 {
     //Every fold starts from a state of its own, with no length published: an entry is a length
     //published by the segment's creator on one path, and the paths of two folds share nothing.
-    const std::size_t seq_type_count = legacy_seq_type_registry().total_count();
+    //Sized by the model's registry, not the legacy one: a tandem-D junction's id lies past the
+    //six legacy ids.
+    const std::size_t seq_type_count = registry.total_count();
 
     //Flatten the queue of downstream events once, here, instead of copying it at every node of
     //every fold. `model_queue` is left as the caller gave it: the junction loop below reads the
@@ -647,7 +675,7 @@ void Rec_Event::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &model_q
         SpanParticipants participants;
         participants.reserve(downstream.size());
         for (const Rec_Event *const downstream_event : downstream) {
-            if (downstream_event->participates_in_span(bound.span())) {
+            if (downstream_event->participates_in_span(bound.span(), registry)) {
                 participants.push_back(downstream_event);
             }
         }
@@ -672,9 +700,9 @@ void Rec_Event::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &model_q
         //the current path -- an earlier participant, or the reader when the table is conditioned
         //on it -- reads its marginals at that realization rather than at the best of them (R6).
         const SegmentSpan span = bound.span();
-        const bool conditioned = this->affects_length_of(span);
+        const bool conditioned = this->affects_length_of(span, registry);
         bound.reset_profiles(conditioned, this->size());
-        const SpanConditioning conditioning = this->conditioning_within(participants, span, conditioned);
+        const SpanConditioning conditioning = this->conditioning_within(participants, span, registry, conditioned);
 
         if (not conditioned) {
             SpanFold{span, participants, conditioning, model_parameters_point, base_index_map,

@@ -617,7 +617,8 @@ void call_iterate(const std::shared_ptr<Rec_Event> &event, IterateTestState &sta
 
             ev->initialize_Len_proba_bound(remaining,
                                            const_cast<Marginal_array_p &>(state.model.model_parameters),
-                                           state.exploration.index_map);
+                                           state.exploration.index_map,
+                                           state.scenario.constructed_sequences.registry());
         }
     }
 

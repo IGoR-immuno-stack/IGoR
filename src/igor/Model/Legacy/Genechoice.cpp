@@ -996,27 +996,6 @@ OffsetRole Gene_choice::get_offset_role(SeqTypeId type_id, Seq_side) const
 }
 
 
-bool Gene_choice::affects_length_of(SegmentSpan span) const
-{
-    //A gene's template contributes length to a span only when the gene sits strictly *inside*
-    //it: at either end it is the anchor the span is measured from, so its own length is outside
-    //the frame. Over the legacy junctions that leaves exactly one case, D within V->J.
-    //S4b generalises this off the enum, once the traversal carries the registry ordering.
-    switch (this->event_class) {
-    case V_gene:
-        return false;
-
-    case D_gene:
-        return legacy_junction_of(span) == VJ_ins_seq;
-
-    case J_gene:
-        return false;
-
-    default:
-        return false;
-    }
-}
-
 int Gene_choice::length_delta(const Event_realization &realization) const
 {
     //The chosen template's length, before any deletion trims it: the gene creates the segment.

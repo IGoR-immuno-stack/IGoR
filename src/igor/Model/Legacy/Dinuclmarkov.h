@@ -149,8 +149,7 @@ public:
     SeqConstructionRole get_seq_construction_role(SeqTypeId) const override;
     OffsetRole get_offset_role(SeqTypeId, Seq_side) const override;
 
-    bool affects_length_of(SegmentSpan) const override;
-    bool affects_proba_of(SegmentSpan) const override;
+    bool affects_proba_of(SegmentSpan, const SeqTypeRegistry &) const override;
     int length_delta(const Event_realization &) const override;
     double span_proba_factor(SegmentSpan, const UnfilledSegmentLengths &) const override;
 

@@ -48,14 +48,6 @@ namespace {
  * replaces the `correct_class` flag that used to do the same job inline in
  * Dinucl_markov::iterate_initialize_Len_proba().
  */
-Seq_type dinucl_ins_seq_type_or_throw(const Seq_type_String &seq_type_str, const char *where)
-{
-    if (seq_type_str == "VD_ins_seq") { return VD_ins_seq; }
-    if (seq_type_str == "DJ_ins_seq") { return DJ_ins_seq; }
-    if (seq_type_str == "VJ_ins_seq") { return VJ_ins_seq; }
-    throw invalid_argument(std::string("Unknown seq_type for DinuclMarkov model: ") + seq_type_str
-                           + " in " + where);
-}
 } // namespace
 
 Dinucl_markov::Dinucl_markov(Seq_type seq_type) : Rec_Event(), total_nucl_count(0), ins_seq_type(seq_type)
@@ -665,33 +657,17 @@ OffsetRole Dinucl_markov::get_offset_role(SeqTypeId, Seq_side) const
     return OffsetRole::None;
 }
 
-bool Dinucl_markov::affects_length_of(SegmentSpan) const
-{
-    //Never. The dinucleotide model fills nucleotides the Insertion already counted; it adds no
-    //length of its own to any span. Its whole contribution to the bound is the p^L factor below.
-    return false;
-}
-
-bool Dinucl_markov::affects_proba_of(SegmentSpan span) const
+bool Dinucl_markov::affects_proba_of(SegmentSpan span, const SeqTypeRegistry &registry) const
 {
     //True exactly where the segment this model fills lies inside the span: the p^L factor scales
-    //with that segment's length, so it belongs to every span containing it.
+    //with that segment's length, so it belongs to every span containing it. The same ordering
+    //question affects_length_of() asks, on the segment this event creates the sequence of.
     //
-    //This also carries the seq_type validation that used to sit in iterate_initialize_Len_proba()
-    //as the `correct_class` check. It fires at the same moment -- when the traversal considers
-    //this event -- because the traversal now consults the predicate before entering the body.
-    const Seq_type ins_seq = dinucl_ins_seq_type_or_throw(this->seq_type, "affects_proba_of");
-    const Seq_type junction = legacy_junction_of(span);
-    switch (ins_seq) {
-    case VD_ins_seq:
-        return (junction == VJ_ins_seq || junction == VD_ins_seq);
-    case DJ_ins_seq:
-        return (junction == VJ_ins_seq || junction == DJ_ins_seq);
-    case VJ_ins_seq:
-        return (junction == VJ_ins_seq);
-    default:
-        return false;
-    }
+    //It used to validate the seq_type name as well, throwing on anything but the three legacy
+    //insertions. That check belonged to the enum it resolved to; a model's seq_types are
+    //validated where they are resolved, and initialize_event() refuses a Dinucl_markov with no
+    //junction to fill.
+    return lies_strictly_inside(registry, this->seq_type_id, span);
 }
 
 int Dinucl_markov::length_delta(const Event_realization &) const
@@ -707,8 +683,7 @@ double Dinucl_markov::span_proba_factor(SegmentSpan, const UnfilledSegmentLength
     //p^L over the segment this model creates, whose length was published by whoever placed its
     //offsets -- the Insertion, which under O12 (a') creates the offsets and not the sequence.
     //Absent means nobody placed them on this path, and the contribution is 1.
-    const Seq_type ins_seq = dinucl_ins_seq_type_or_throw(this->seq_type, "span_proba_factor");
-    const SeqTypeId filled = static_cast<SeqTypeId>(ins_seq);
+    const SeqTypeId filled = this->seq_type_id;
     if (not lengths.has(filled)) {
         return 1.0;
     }

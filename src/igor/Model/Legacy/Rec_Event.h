@@ -404,8 +404,21 @@ public:
      * **Length only** -- not offsets, not content, not probability. An event that contributes
      * a probability factor to a span while contributing no length answers affects_proba_of()
      * instead; conflating the two is what made the predecessor has_effect_on() misleading.
+     *
+     * One rule for every event, read off the offset roles it already declares and the model's
+     * ordering (R12): a realization changes the span's length when the event **creates or
+     * modifies an end of a segment strictly inside the span**, or **modifies one of the span's
+     * two ends**. Creating one of the two ends does not count -- that is anchoring, and the span
+     * is measured from it. So a gene inside the span adds its template, an insertion inside it
+     * adds its length, a deletion adds its trim whether it moves an end of the span or an end of
+     * a segment inside it, and V and J at the ends of every junction add nothing. Nothing here
+     * names an event kind, so a tandem pair or a flanking sequence needs no new case.
+     *
+     * The rule replaced four enum-written tables. They agreed with it everywhere but in one cell,
+     * D's deletions on V->J, which the tables left out and which made J's V->J table no bound
+     * (plan section 7.22, R16).
      */
-    virtual bool affects_length_of(SegmentSpan span) const = 0;
+    bool affects_length_of(SegmentSpan span, const SeqTypeRegistry &registry) const;
 
     /**
      * \brief Does this event contribute a probability factor to \a span?
@@ -414,16 +427,16 @@ public:
      * adding to it. Default false, so an event whose whole contribution is length need not
      * say anything.
      */
-    virtual bool affects_proba_of(SegmentSpan) const { return false; }
+    virtual bool affects_proba_of(SegmentSpan, const SeqTypeRegistry &) const { return false; }
 
     /**
      * \brief Whether the Len_proba traversal must visit this event for \a span at all.
      *
      * The filter the traversal applies, at the queue rather than inside each override.
      */
-    bool participates_in_span(SegmentSpan span) const
+    bool participates_in_span(SegmentSpan span, const SeqTypeRegistry &registry) const
     {
-        return this->affects_length_of(span) or this->affects_proba_of(span);
+        return this->affects_length_of(span, registry) or this->affects_proba_of(span, registry);
     }
 
     /**
@@ -465,7 +478,7 @@ public:
      */
     void initialize_Len_proba_bound(std::queue<std::shared_ptr<Rec_Event>> &model_queue,
                                     const Marginal_array_p &model_parameters_point,
-                                    const Index_map &base_index_map);
+                                    const Index_map &base_index_map, const SeqTypeRegistry &registry);
 
     /**
      * \brief Take this iteration's folded bounds from \a source instead of folding them again.
@@ -539,6 +552,9 @@ protected:
             std::vector<int> free_parent_offsets;
         };
         std::vector<Participant> participants;
+        /// Per participant, whether it changes the span's length -- and so enumerates its
+        /// realizations -- or only contributes a factor. Asked once per table, not per state.
+        std::vector<bool> changes_length;
         /// The participants the reader's own realization indexes. Empty unless the table is
         /// conditioned on that realization: otherwise the reader is one of the free parents.
         std::vector<std::pair<std::size_t, int>> reader_children;
@@ -617,7 +633,7 @@ protected:
     /// Which parents of each participant in `participants` the fold over `span` chooses itself.
     /// `reader_conditioned` says whether the table is conditioned on this event's realization.
     SpanConditioning conditioning_within(const SpanParticipants &participants, SegmentSpan span,
-                                         bool reader_conditioned) const;
+                                         const SeqTypeRegistry &registry, bool reader_conditioned) const;
 
     /// True for an event that positions its own segment -- an Insertion, a gene choice -- and
     /// false for one that only moves an end of a segment already placed -- a Deletion. Only the

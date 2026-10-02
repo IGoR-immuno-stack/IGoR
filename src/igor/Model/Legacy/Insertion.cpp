@@ -485,24 +485,6 @@ OffsetRole Insertion::get_offset_role(SeqTypeId type_id, Seq_side) const
     return type_id == this->seq_type_id ? OffsetRole::Creates : OffsetRole::None;
 }
 
-bool Insertion::affects_length_of(SegmentSpan span) const
-{
-    //An insertion segment lies strictly inside every span that brackets it, and adds its
-    //realization's length to each. S4b generalises this off the enum, once the traversal
-    //carries the registry ordering.
-    const Seq_type junction = legacy_junction_of(span);
-    const string &heo_st = this->seq_type;
-    if (heo_st == "VD_ins_seq") {
-        return (junction == VJ_ins_seq || junction == VD_ins_seq);
-    } else if (heo_st == "VJ_ins_seq") {
-        return (junction == VJ_ins_seq);
-    } else if (heo_st == "DJ_ins_seq") {
-        return (junction == VJ_ins_seq || junction == DJ_ins_seq);
-    } else {
-        return false;
-    }
-}
-
 int Insertion::length_delta(const Event_realization &realization) const
 {
     //The number of nucleotides inserted: the insertion creates the junction segment.
