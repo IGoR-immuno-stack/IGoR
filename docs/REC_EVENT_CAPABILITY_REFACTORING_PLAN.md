@@ -35,12 +35,15 @@ This section replaces the *Execution plan* below for everything still to do. The
 [TK_REFACTORING_MERGE_ANALYSIS.md](TK_REFACTORING_MERGE_ANALYSIS.md) ("the merge analysis"). The
 merge analysis was written before the synthesis; where they disagree, the synthesis holds.
 
-### Where the work happens: the integration branch
+### Where the work happens
 
-**Decision (Quentin, Oct 2 2026):** if the merge with `feature/tk_refactoring` is mechanical, both
-features are finished on one merged branch.
+**Decision (Quentin, Oct 2 2026):** the work that concerns tandem D only, T3, T4 and T6 below, lands
+on `feature/tandemD` first. Then `integration/model-on-tandemD` is merged into `feature/tandemD`
+(T0), and T1 and T2 are done on the merged branch. Both change the event constructors and the event
+identity, which the integration branch's JSON constructors and factory also touch; doing them
+before the merge would mean resolving them twice.
 
-That branch already exists on origin: `integration/model-on-tandemD`, by T. Kloczko.
+The integration branch already exists on origin, by T. Kloczko:
 - It is cut from `feature/tandemD` at `499b257` and merges `feature/tk_refactoring` at `89a5d68`
   (`b2473ee`). Conflicts were resolved toward tandemD, which owns Core.
 - It caught up with `feature/tandemD` at `7acca10` (`1680eb8`). R11, R6 and their docs
@@ -54,13 +57,14 @@ That branch already exists on origin: `integration/model-on-tandemD`, by T. Kloc
 - One Core fix: a `DinucMarkov`'s generated name no longer depends on the order its setters run
   in (`731fe95`). No name changes.
 
-**Whether the merge is mechanical is not settled yet.** The branch reports a clean build and
+**Whether that merge is mechanical is not settled yet.** The branch reports a clean build and
 passing unit suites, measured on macOS arm64. Two things are still open on Linux, where the
 goldens were made:
 - Its lock resolves **GCC 15.3** on linux-64. `feature/tandemD` gets 14.3 from its lock only:
   both `pixi.toml`s say `cxx-compiler = "*"`. The merge analysis (§4.8) found that GCC 15's
-  libstdc++ rejects Core. The branch also builds as C++23 where `feature/tandemD` builds C++20.
-  Both changes sit under the bitwise gate.
+  libstdc++ rejects Core; the error is in `gene_to_seqtype_migr.cpp`, in a function nothing calls
+  (T6). The branch also builds as C++23 where `feature/tandemD` builds C++20. Both changes sit
+  under the bitwise gate.
 - It reports `scripts/tests/test_generate.sh` failing on the data rows of `seed42_generated`, from
   before its own Core change.
 
@@ -68,7 +72,8 @@ The merge counts as mechanical once all five regression tracks are bitwise on Li
 
 ### Commit tags
 
-From now on, every commit on the integration branch says which plan it serves, in a trailer:
+From now on, every commit says which plan it serves, in a trailer, on `feature/tandemD` and on
+the merged branch alike:
 
 | Trailer | For |
 |---|---|
@@ -108,12 +113,13 @@ constructors call `str2SeqType()` too.
 
 | # | Blocker | Evidence | Plan item |
 |---|---|---|---|
-| **T0** | **The merge is not yet shown to be mechanical on Linux** (see above) | GCC 15.3 in the integration lock; the `test_generate.sh` data rows | merge |
+| **T0** | **Merging `integration/model-on-tandemD` into `feature/tandemD`**, and showing on Linux that the merge is mechanical (see above) | GCC 15.3 in the integration lock, which rejects `gene_to_seqtype_migr`; the `test_generate.sh` data rows | merge |
 | **T1** | **A tandem-D model does not load.** `Deletion::target_seq_type`, `Insertion::ins_seq_type` and `Dinucl_markov::ins_seq_type` are typed `Seq_type`, so the text reader ([Model_Parms.cpp:904](../src/igor/Core/Model_Parms.cpp#L904), 923, 953) and the JSON constructors go through `str2SeqType()` | 5 of the 7 `[tandem_d]` cases fail, all with `Unknown Seq_type string in str2SeqType: D1_gene_seq` | **B0**, unfinished |
 | **T2** | **Generated names collide.** The name is type + gene class + side + priority + size ([Rec_Event.cpp:104](../src/igor/Core/Rec_Event.cpp#L104)), and it keys `Model_Parms::edges`, `Index_map`, `processed_events` and `offset_map` | In the fixture, `d1_choice` and `d2_choice` are both D, priority 6, size 1; `d1_5_del` and `d2_5_del` collide the same way | synthesis step 2 |
 | **T3** | **V, D and J are still named in the span and safety set-up.** `affects_length_of` on `Gene_choice`, `Insertion` and `Deletion`, and `Dinucl_markov`'s `affects_proba_of` and `span_proba_factor`, go through `legacy_junction_of()` or a VD/DJ/VJ switch; the flank checks list the gene segments in `kGeneSegments` ([Deletion.cpp:746](../src/igor/Core/Deletion.cpp#L746), [Genechoice.cpp:785](../src/igor/Core/Genechoice.cpp#L785)) | `legacy_junction_of()` throws on any span other than VD, DJ and VJ ([SegmentSpan.h:184](../src/igor/Core/SegmentSpan.h#L184)), and so does `Dinucl_markov` on any other insertion ([Dinuclmarkov.cpp:634](../src/igor/Core/Dinuclmarkov.cpp#L634), 661). On V→J the `Insertion` table leaves out `VD1_ins` and `D1D2_ins`. D1 and D2 are never checked against each other for overlap. The junction slots of the downstream bound map are addressed by an insertion's seq type id, with `VJ_ins_seq` standing in for V→J ([Genechoice.cpp:884](../src/igor/Core/Genechoice.cpp#L884), [Deletion.cpp:817](../src/igor/Core/Deletion.cpp#L817)), so a span such as D1→J has no slot | **R12**, and the literal B9 step 3 was to replace |
-| **T4** | **Tandem-D sequences cannot be generated** for the round-trip test. `draw_random_realization()` writes an `unordered_map<Seq_type, string>`, `Dinucl_markov` throws "see B9", `FastGenerator` names `D_gene_seq` | read from the code | **B9 step 5**, or synthesis step 1 |
+| **T4** | **Tandem-D sequences cannot be generated** for the round-trip test. `draw_random_realization()` writes an `unordered_map<Seq_type, string>`, `Dinucl_markov` throws "see B9", `FastGenerator` names `D_gene_seq` | read from the code | **B9 step 5**: option (a), decided; see *T4* below |
 | **T5** | **Milestone 1 itself:** the dummy tandem-D model, a generate-then-infer round trip, the cost ratio against a matched VDJ model, `[!mayfail]` off the `[tandem_d]` cases | — | Step 1 of the execution plan below |
+| **T6** | **`gene_to_seqtype_migr` is still built**, a temporary bridge from #59 | GCC 15 rejects it, and most of it has no caller | B1's leftovers; see *T6* below |
 
 **R12's shape decides §7.22 (R16) for tandem D.** The junction fold enumerates every path, and in a
 tandem model J's V→J table holds both D blocks. Rough path counts, with TRB's library sizes and
@@ -128,6 +134,119 @@ both D slots drawing from its 3 D genes:
 So R12 either carries the unsound exclusion of §7.22 over to both D blocks, or the fold has to
 become polynomial first (§7.22, option A). Recorded for R12; not decided.
 
+### Order of work
+
+| Step | Item | Branch | Bitwise |
+|---|---|---|---|
+| 1 | **T6a**: delete the dead half of `gene_to_seqtype_migr`, which is the code GCC 15 rejects | `feature/tandemD` | yes, nothing calls it |
+| 2 | **T3**: ordering positions instead of V/D/J names | `feature/tandemD` | yes on shipped models, if R12 keeps the legacy deletion rule; R16 moves every output |
+| 3 | **T4**: generation keyed by `SeqTypeId`, legacy generator first, then `FastGenerator`; **T6b** deletes the rest of the module | `feature/tandemD` | the legacy generator yes; `FastGenerator` no (see T4) |
+| 4 | **T0**: merge `integration/model-on-tandemD` into `feature/tandemD`; the Linux gate | `feature/tandemD` | the gate itself |
+| 5 | **T1**, then **T2** | the merged branch | yes |
+| 6 | **T5**: milestone 1 | the merged branch | new tests |
+
+**Testing tandem layouts before T1.** Until T1, no tandem `Deletion`, `Insertion` or
+`Dinucl_markov` can be built. Unit tests build one the way `test_dinucl_markov_iterate.cpp` already
+does: a registry with a tandem ordering, an event made through its legacy constructor, then
+re-pointed with `set_seq_type()`, `set_seq_type_id()` and `set_adjacent_segments()`. That only tests
+code that reads the base class's `seq_type_id` and never the subclass's `Seq_type` member, which is
+the rule T3 and T4 follow anyway. Loading a tandem model file, and so the round trip, waits for T1.
+
+**T3 and T4 shrink T1.** After them, the three enum-typed members are read only by the
+constructors, `copy()` and the generated names.
+
+### T3: ordering positions instead of V/D/J names (R12)
+
+1. **One length rule.** A segment adds length to a span when it lies strictly between the span's
+   two ends in `registry.ordering()`; S5's `SafetyCell` already reads those positions. The rule
+   replaces `Gene_choice::affects_length_of`'s switch, `Insertion::affects_length_of`'s string
+   table, and the VD/DJ/VJ switch behind `Dinucl_markov::affects_proba_of` and
+   `span_proba_factor` (with `dinucl_ins_seq_type_or_throw()`). `Deletion::affects_length_of` is
+   R12's open choice: "the deleted end is an end of the span, facing inward" reproduces the legacy
+   table and stays bitwise; a rule that puts D's deletions into V→J is R16 (path counts above).
+2. **A junction slot per span.** The downstream bound map's junction slots are addressed by an
+   insertion's seq type id, with `VJ_ins_seq` standing in for V→J
+   ([Genechoice.cpp:884](../src/igor/Core/Genechoice.cpp#L884),
+   [Deletion.cpp:817](../src/igor/Core/Deletion.cpp#L817)). Allocate one slot per pair of gene
+   segments when the model is finalised, and resolve each `JunctionBound` to its slot as today.
+   `legacy_span_of()`, `legacy_junction_of()` and `get_deletion_effective_junctions()` then have
+   no caller and go.
+3. **Flank checks from the ordering.** `kGeneSegments`
+   ([Deletion.cpp:746](../src/igor/Core/Deletion.cpp#L746),
+   [Genechoice.cpp:785](../src/igor/Core/Genechoice.cpp#L785)) becomes the gene segments of
+   `registry.ordering()`, the segments a templated event creates. Membership is tested against the
+   ordering, not with `registry.contains()`: `register_legacy_seq_types()` registers the six legacy
+   names in every model, so a tandem registry "contains" `D_gene_seq` although no event creates it.
+
+Gate: the five regression tracks; unit cases on a V-D1-D2-J layout for each of the three; the
+fold's build time on that layout.
+
+### T4: generation keyed by `SeqTypeId` (option (a))
+
+**Decision (Quentin, Oct 2 2026):** option (a). The legacy generator comes off the `Seq_type` enum,
+as B9 step 5 says, rather than being replaced by tk's `SamplingEngine` now. Generation stays on
+`Rec_Event` until synthesis step 1 retires `draw_random_realization()`.
+
+**The legacy generator**, `GenModel::generate_unique_sequence()` and the four
+`draw_random_realization()` overrides. Bitwise.
+
+| Where | Today | Becomes |
+|---|---|---|
+| The scenario's sequences | `unordered_map<Seq_type, string>` | a container indexed by `SeqTypeId` and sized from the frozen registry. It must still tell "not drawn" from "empty", so that trimming a gene nobody drew throws, as `.at()` does today |
+| `Gene_choice` | `switch (event_class)`, three arms | writes at `seq_type_id` |
+| `Deletion` | `switch (target_seq_type)`, four arms | one body on `event_side`. The V arm is the D 3′ arm and the J arm the D 5′ arm, line for line; they differ only for a V 5′ or a J 3′ deletion, since the V and J arms ignore the side, and no shipped model has one |
+| `Insertion` | `insertion_seq_type_str_to_enum()`; a name it does not know writes nothing | writes its `'I'` placeholders at `seq_type_id` |
+| `Dinucl_markov` | throws unless `get_junction().legacy_enums_valid` | reads target and anchor at the ids `get_junction()` already resolves. `legacy_enums_valid`, the spec's two `Seq_type` fields and `kLegacySeqTypeCount` retire, as B9's scope note says |
+| Assembly | `V + VJ + VD + D + DJ + J`, by name | concatenation in `registry.ordering()`. Same string for every VDJ and VJ model: a segment outside the ordering is never written |
+
+Unchanged on purpose: the CDF walks `event_realizations` in `unordered_map` order, so a seed draws
+what it drew before. Walking by index is synthesis step 1's golden-moving commit, not this one.
+
+**`FastGenerator`**, the `generate.fast` path:
+- `apply_gene_choice()` and `apply_deletion()` find their segment through `gene_class` and
+  `gene_to_seqtype_migr`; the Dinucl branch compares `"VD_ins_seq"`-style strings;
+  `assemble_sequence()` names the segments; `FastGenerator.cpp:70` names `D_gene_seq`. All of it
+  becomes `SeqTypeId`-driven, as above.
+- **A defect, read from the code and not run.** Its insertion branch calls
+  `try_insertion_gene_class_to_seq_type()` with a `Gene_class`. That overload has returned false
+  since #59 slimmed `Gene_class`, so the branch returns before writing the placeholder, and
+  sequences from `generate.fast` carry no N nucleotides. No regression covers the path:
+  `test_generate.sh` sets `generate.fast false`. The fix moves `FastGenerator`'s output, so it is
+  a commit of its own.
+
+Gate: the `generate` track bitwise after the legacy half; unit cases that generate on a V-D1-D2-J
+layout. The round trip itself is T5.
+
+### T6: deleting `gene_to_seqtype_migr`
+
+**Decision (Quentin, Oct 2 2026):** the module was a temporary bridge from #59, and it is deleted
+by the end of this plan. What it holds, and who uses it:
+
+| Symbol | Used by | Goes in |
+|---|---|---|
+| `build_legacy_events_map()` | nobody; it is not even declared in the header. **This is what GCC 15 rejects**: its parameter is an `unordered_map` keyed by `tuple<Event_type, Seq_type, Seq_side>`, for which no `std::hash` exists | T6a |
+| `LegacyEventsMap`, `empty_legacy_events_map()` | nobody | T6a |
+| `try_insertion_seq_type_to_gene_class()` | `build_legacy_events_map()` only | T6a |
+| `try_event_key_to_seq_key()` | `test_EventUtils.cpp` only | T6a, with its test |
+| `GeneChoiceStatus` | `EventUtils::check_gene_choice()`, `Genechoice.cpp:796` | T6a: moves to `EventUtils.h`. It has nothing to do with migration |
+| `try_gene_class_to_gene_seq_type()`, both overloads | `FastGenerator.cpp:286` and `305`; the test helper `make_gene_choice()` (`test_utils.cpp:708`); `test_EventUtils.cpp` | T6b, after T4's `FastGenerator` half |
+| `try_insertion_gene_class_to_seq_type()`, both overloads | `FastGenerator.cpp:367`, through the overload that always returns false; `test_EventUtils.cpp` | T6b |
+
+T6a also deletes:
+- `Model_Parms::get_events_map_seq_type()`, both overloads: declared, never defined, never called,
+  with the same unhashable key;
+- the header's include in `Rec_Event.cpp` and `Deletion.cpp`, which use nothing from it;
+- the `std::hash` specialisations for `tuple<Event_type, Gene_class_legacy, Seq_side>` and
+  `pair<Gene_class_legacy, Seq_side>` in `Utils.h`, whose only user is `LegacyEventsMap`.
+
+T6b deletes the two files and their entries in `src/igor/Core/CMakeLists.txt`, once nothing calls
+the two `try_*` families; `make_gene_choice()` takes its seq type from a table of its own.
+
+**Where `Gene_class_legacy` ends up.** The merge analysis (§5.3) took this module to be the legacy
+translator and the enum's only home. The reader never used it: the v1 reader translates with
+`legacy_gene_class_to_seq_type()` in `Model_Parms.cpp`. With the module gone, the end state is
+`Gene_class_legacy` in the v1 reader and writer only. Its other residents move as §5.3's table says.
+
 ### Not on the milestone-1 path
 
 - **B10** (optional D2, milestone 2). The synthesis sets the direction: a layout DAG with
@@ -136,10 +255,12 @@ become polynomial first (§7.22, option A). Recorded for R12; not decided.
 - **B3** (flanks): unchanged.
 - **B9 step 3's `VDJ_genes` split** becomes a shared handler: one parameter entry for two nodes
   (synthesis §4). **Step 4** is superseded by S5's `SafetyMatrix`.
-- **R4** still waits for generation to leave `Rec_Event`; T4's route decides when. **S4d** is
-  unblocked by the merge, and stays optional.
+- **R4** stays gated: under T4's option (a), `draw_random_common()` keeps reading
+  `dinuc_proba_matrix` from `Rec_Event` until synthesis step 1 retires `draw_random_realization()`.
+  **S4d** is unblocked by the merge, and stays optional.
 - **R16**: undecided; see T3.
-- **`Gene_class_legacy`** outside the legacy translator (merge analysis §5.3).
+- **`Gene_class_legacy`** outside the v1 reader and writer (merge analysis §5.3, as corrected by
+  T6).
 
 ### Merge analysis §8, read against the synthesis and the integration branch
 
