@@ -51,8 +51,8 @@ public:
     CORE_EXPORT Int_Str &append(const int &);
 
     CORE_EXPORT Int_Str operator+(const Int_Str &) const;
-    Int_Str operator+(const int &) const;
-    Int_Str operator+(int) const;
+    // Int_Str operator+(const int &) const; // Dead code
+    // Int_Str operator+(int) const; // Dead code
 
     bool operator==(const Int_Str &other) const {
         return static_cast<const std::vector<int> &>(*this) ==
