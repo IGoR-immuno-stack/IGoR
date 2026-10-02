@@ -30,6 +30,9 @@
 #include <igor/Core/Scenario.h>  // For Scenario view construction
 #include <igor/Core/BoundTightness.h>
 
+#include <nlohmann/json.hpp>
+
+#include <algorithm>
 #include <cassert>
 #include <iostream>
 
@@ -100,10 +103,69 @@ bool Rec_Event::operator==(const Rec_Event &other) const
     return 1;
 }
 
+/**
+ * The side token a generated name carries. Shared, because Insertion and Dinucl_markov override
+ * update_event_name() to derive the class token from their ins_seq_type.
+ *
+ * It is the event's own side, except for DinucMarkov, where it is always Undefined_side. Two
+ * reasons, one of substance and one of robustness.
+ *
+ * Substance: the side does not identify a DinucMarkov event. Its seq_type already says which
+ * junction it belongs to, and event_side only carries a direction. Model_Parms is already
+ * explicit about this — get_events_map() keys DinucMarkov with Undefined_side, and
+ * write2txt_legacy() writes Undefined_side in the event line whatever the in-memory side is.
+ * Names now follow the same rule instead of contradicting it.
+ *
+ * Robustness: the name used to depend on the ORDER of the setters. set_priority() refreshes
+ * the name, and read_model_parms() sets the side after the priority, so a DinucMarkov kept a
+ * name saying Undefined_side while its side was Three_prime — the truth by accident. Anything
+ * that called update_event_name() once more produced a different name for the same event, and
+ * that name is the key of Model_marginals::get_index_map(), of Model_Parms::edges, and a
+ * column header of the scenario and generation outputs. Making the rule explicit here is what
+ * lets set_event_side() refresh the name like every other setter.
+ */
+Seq_side Rec_Event::name_side(Event_type type, Seq_side side)
+{
+    return (type == Event_type::Dinuclmarkov_t) ? Undefined_side : side;
+}
+
 void Rec_Event::update_event_name()
 {
-    this->name = string() + this->type + string("_") + this->event_class + string("_") + this->event_side
+    this->name = string() + this->type + string("_") + this->event_class + string("_")
+            + name_side(this->type, this->event_side)
             + string("_prio") + to_string(priority) + string("_size") + to_string(this->size());
+}
+
+nlohmann::json Rec_Event::to_json() const
+{
+    nlohmann::json out;
+    out["type"] = string() + this->type;   // "GeneChoice", "Deletion", "Insertion", "DinucMarkov"
+    out["gene_class"] = to_string(this->event_class);
+    out["seq_type"] = this->seq_type;
+    out["side"] = to_string(this->event_side);
+    out["priority"] = this->priority;
+    out["nickname"] = this->nickname;
+
+    nlohmann::json realizations = nlohmann::json::array();
+    for (const auto &entry : this->event_realizations) {
+        const Event_realization &real = entry.second;
+        nlohmann::json r;
+        r["index"] = real.index;
+        r["name"] = real.name;
+        // INT16_MAX is the "no integer value" sentinel the gene-choice events carry, and an
+        // empty value_str is the "no sequence" one. Emitting either would not round-trip.
+        if (real.value_int != INT16_MAX)
+            r["value_int"] = real.value_int;
+        if (!real.value_str.empty())
+            r["value_str"] = real.value_str;
+        realizations.push_back(std::move(r));
+    }
+    std::sort(realizations.begin(), realizations.end(),
+              [](const nlohmann::json &a, const nlohmann::json &b) {
+                  return a.at("index").get<int>() < b.at("index").get<int>();
+              });
+    out["realizations"] = std::move(realizations);
+    return out;
 }
 
 Rec_Event_name Rec_Event::get_v2_name() const
@@ -111,13 +173,14 @@ Rec_Event_name Rec_Event::get_v2_name() const
     if (seq_type.empty())
         return name;
     return string() + this->type + string("_") + this->event_class + string("_") + seq_type
-           + string("_") + this->event_side
+           + string("_") + name_side(this->type, this->event_side)
            + string("_prio") + to_string(priority) + string("_size") + to_string(this->size());
 }
 
 Rec_Event_name Rec_Event::get_legacy_name() const
 {
-    return string() + this->type + string("_") + this->event_class + string("_") + this->event_side
+    return string() + this->type + string("_") + this->event_class + string("_")
+           + name_side(this->type, this->event_side)
            + string("_prio") + to_string(priority) + string("_size") + to_string(this->size());
 }
 
@@ -671,12 +734,12 @@ void Rec_Event::build_retained_decomposition(const Marginal_array_p &model_param
 
         const int own_length = this->length_delta(realization);
 
-        for (const SpanProfile::Entry near : left.profile()) {
-            for (const SpanProfile::Entry far : right.profile()) {
-                decomposition.record(own_length + near.distance + far.distance,
-                                     SpanDecomposition::Placement{realization.index, near.distance,
-                                                                  far.distance,
-                                                                  real_max_proba * near.proba * far.proba});
+        for (const SpanProfile::Entry near_ : left.profile()) {
+            for (const SpanProfile::Entry far_ : right.profile()) {
+                decomposition.record(own_length + near_.distance + far_.distance,
+                                     SpanDecomposition::Placement{realization.index, near_.distance,
+                                                                  far_.distance,
+                                                                  real_max_proba * near_.proba * far_.proba});
             }
         }
     }

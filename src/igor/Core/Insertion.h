@@ -58,6 +58,8 @@ public:
     Insertion(Seq_type, std::forward_list<int>);
     Insertion(Seq_type);
     Insertion(Seq_type, std::unordered_map<std::string, Event_realization> &);
+    /// From one event node of the JSON model schema. See ModelJson.h.
+    explicit Insertion(const nlohmann::json &);
 
     //Destructor
     ~Insertion() override;

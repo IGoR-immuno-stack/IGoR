@@ -51,6 +51,7 @@ target_sources(${PROJECT_NAME}
     Insertion.cpp
     IntStr.cpp
     JournaledQuery.cpp
+    ModelJson.cpp
     Model_Parms.cpp
     Model_marginals.cpp
     Pgencounter.cpp
@@ -89,6 +90,7 @@ target_sources(${PROJECT_NAME}
       JournaledQuery.h
       JunctionGeometry.h
       ModelContext.h
+      ModelJson.h
       Model_Parms.h
       Model_marginals.h
       Pgencounter.h
@@ -125,6 +127,9 @@ target_include_directories(${PROJECT_NAME} PUBLIC
 )
 
 target_link_libraries(${PROJECT_NAME} PUBLIC GSL::gsl)
+# PUBLIC because Rec_Event.h names nlohmann::json in to_json()'s signature. Headers only
+# include <nlohmann/json_fwd.hpp>; the full json.hpp stays in the .cpp files.
+target_link_libraries(${PROJECT_NAME} PUBLIC nlohmann_json::nlohmann_json)
 target_link_libraries(${PROJECT_NAME} PRIVATE OpenMP::OpenMP_CXX)
 
 if(WIN32)

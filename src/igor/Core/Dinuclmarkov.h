@@ -85,6 +85,8 @@ public:
 
     //Constructors
     Dinucl_markov(Seq_type); //TODO should be scalable on one side easily (mono di tri quadri nucl)
+    /// From one event node of the JSON model schema. See ModelJson.h.
+    explicit Dinucl_markov(const nlohmann::json &);
     //Destructor
     ~Dinucl_markov() override;
 
@@ -104,6 +106,8 @@ public:
      */
     DinuclTraversalSpec get_junction() const;
     int size() const override;
+    /// {from, to}: a transition matrix, not a flat list. See Rec_Event::inherent_shape().
+    std::vector<std::size_t> inherent_shape() const override;
 
     // Context-based iterate() interface
     inline void

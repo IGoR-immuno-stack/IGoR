@@ -31,7 +31,11 @@
 
 #include <igorCoreExport.h>
 
-class CORE_EXPORT Int_Str : public std::vector<int>
+// Not a dllexport class on purpose: exporting a class that derives from an STL template makes
+// MSVC export the std::vector<int> instantiation from the DLL, and every consumer that
+// instantiates std::vector<int> on its own then fails to link (LNK2005). Only the members
+// defined in IntStr.cpp are exported.
+class Int_Str : public std::vector<int>
 {
 
 public:
@@ -39,27 +43,27 @@ public:
 
     static const std::size_t npos = -1;
 
-    Int_Str &operator+=(const Int_Str &);
-    Int_Str &operator+=(const int &);
-    Int_Str &operator+=(int &&);
+    CORE_EXPORT Int_Str &operator+=(const Int_Str &);
+    CORE_EXPORT Int_Str &operator+=(const int &);
+    CORE_EXPORT Int_Str &operator+=(int &&);
     //Int_Str& operator+=(int);
-    Int_Str &append(const Int_Str &);
-    Int_Str &append(const int &);
+    CORE_EXPORT Int_Str &append(const Int_Str &);
+    CORE_EXPORT Int_Str &append(const int &);
 
-    Int_Str operator+(const Int_Str &) const;
-    Int_Str operator+(const int &) const;
-    Int_Str operator+(int) const;
+    CORE_EXPORT Int_Str operator+(const Int_Str &) const;
+    // Int_Str operator+(const int &) const; // Dead code
+    // Int_Str operator+(int) const; // Dead code
 
     bool operator==(const Int_Str &other) const {
         return static_cast<const std::vector<int> &>(*this) ==
                static_cast<const std::vector<int> &>(other);
     }
 
-    Int_Str substr(std::size_t pos = 0, std::size_t len = npos) const; //TODO correct this with aproper value
-    void substr(Int_Str &, std::size_t pos = 0, std::size_t len = npos) const; //TODO correct this with aproper value
+    CORE_EXPORT Int_Str substr(std::size_t pos = 0, std::size_t len = npos) const; //TODO correct this with aproper value
+    CORE_EXPORT void substr(Int_Str &, std::size_t pos = 0, std::size_t len = npos) const; //TODO correct this with aproper value
 
     using std::vector<int>::erase;
-    Int_Str &erase(std::size_t pos, std::size_t len);
+    CORE_EXPORT Int_Str &erase(std::size_t pos, std::size_t len);
 
     /*	Int_Str();
 	//Int_Str (const std::string& str);//cannot be unambiguously identified

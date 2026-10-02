@@ -71,6 +71,9 @@ public:
     void write2txt(std::ofstream &) override;
     std::shared_ptr<Error_rate> copy() const override;
     std::string type() const override { return "SingleErrorRate"; }
+    /// The single per-nucleotide error probability this model carries. Read by the JSON
+    /// serializer; write2txt() only takes an ofstream, so it cannot be reused for that.
+    double get_model_rate() const { return model_rate; }
     Error_rate *add_checked(Error_rate *) override;
     void build_upper_bound_matrix(size_t, size_t) override;
     void clear_accumulators() override;

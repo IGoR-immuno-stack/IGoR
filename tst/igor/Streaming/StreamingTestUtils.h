@@ -13,6 +13,7 @@
 #include <igor/Core/Utils.h>
 #include <igor/Core/Aligner.h>
 
+#include <exception>
 #include <sparrow/record_batch.hpp>
 #include <sparrow/array.hpp>
 #include <sparrow/builder.hpp>

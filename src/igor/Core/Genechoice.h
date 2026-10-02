@@ -62,6 +62,8 @@ public:
     Gene_choice(Gene_class);
     Gene_choice(Gene_class, std::unordered_map<std::string, Event_realization> &);
     Gene_choice(Gene_class, std::vector<std::pair<std::string, std::string>>);
+    /// From one event node of the JSON model schema. See ModelJson.h.
+    explicit Gene_choice(const nlohmann::json &);
     //Destructor
     ~Gene_choice() override;
     //Virtual methods overload

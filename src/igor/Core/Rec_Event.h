@@ -35,7 +35,11 @@
 #include <igor/Core/UnfilledSegmentLengths.h>
 #include <igor/Core/SpanProfile.h>
 #include <igor/Core/Utils.h>
+#include <igor/Core/Typedef.h>
 #include <igorCoreExport.h>
+
+// Only the forward declaration here: json.hpp is 25k lines and belongs in the .cpp files.
+#include <nlohmann/json_fwd.hpp>
 
 // Context objects for refactored iterate()
 #include <igor/Core/QuerySequenceContext.h>
@@ -171,6 +175,24 @@ public:
     virtual ~Rec_Event();
     virtual std::shared_ptr<Rec_Event> copy() = 0; //TODO make it const somehow
     virtual int size() const;
+
+    /// \name Hooks for the igor::Model layer
+    /// The Model layer keys its parallel vectors (one tensor, one handler per event) by this
+    /// index, assigned by igor::model::Topology::addEvent(). Core never reads it.
+    /// @{
+    igor::index_type uid() const { return m_uid; }
+    void setUid(igor::index_type uid) { m_uid = uid; }
+
+    /// Shape of this event's own axes in a probability tensor, i.e. what the event
+    /// contributes on top of its parents' axes. The default is the realization count, which
+    /// is right for every categorical event; Dinucl_markov overrides it with {4, 4} because
+    /// its size() counts the 16 transitions rather than the 4 states.
+    virtual std::vector<std::size_t> inherent_shape() const
+    {
+        return { static_cast<std::size_t>(this->size()) };
+    }
+    /// @}
+
     //TODO get rid of deletion map and chosen gene map
     /**
      * @brief Context-based iterate() interface
@@ -273,9 +295,23 @@ public:
     /// everywhere inside the scenario traversal, so the registry stays out of the hot path.
     SeqTypeId get_seq_type_id() const { return seq_type_id; }
     void set_seq_type_id(SeqTypeId id) { seq_type_id = id; }
-    void set_event_side(Seq_side s) { event_side = s; }
+    /// Refreshes the generated name, like set_priority() and add_realization() do. It used not
+    /// to, which made the name depend on the order of the setters; see name_side() in
+    /// Rec_Event.cpp. A DinucMarkov's name is unaffected by the side, by design.
+    void set_event_side(Seq_side s)
+    {
+        event_side = s;
+        update_event_name();
+    }
 
     bool operator==(const Rec_Event &) const;
+
+    /// The side token a generated name carries: the event's own side, except for DinucMarkov,
+    /// whose name always says Undefined_side because its side is a direction, not an identity.
+    /// See the definition in Rec_Event.cpp. It sits next to update_event_name(), which is public
+    /// too, because the subclasses that override it have to apply the same rule.
+    static Seq_side name_side(Event_type type, Seq_side side);
+
     virtual void update_event_name();
     virtual std::queue<int> draw_random_realization(
             const Marginal_array_p &, std::unordered_map<Rec_Event_name, int> &,
@@ -284,6 +320,19 @@ public:
     virtual void write2txt(std::ofstream &) = 0;
     virtual void write2txt_legacy(std::ofstream &) = 0;
     virtual void write2txt_v2(std::ofstream &) = 0;
+
+    /**
+     * \brief Serialized form of this event: its header fields plus its realizations.
+     *
+     * Non-pure on purpose. The body in Rec_Event.cpp is generic over the four subclasses,
+     * because everything it writes is already on the base: type, gene class, seq_type, side,
+     * priority, nickname, and the realization map. A subclass only needs to override it if it
+     * grows state that is not a realization.
+     *
+     * Realizations come out sorted by index, since event_realizations is an unordered_map and
+     * an unsorted dump would not be reproducible.
+     */
+    virtual nlohmann::json to_json() const;
     virtual void ind_normalize(Marginal_array_p &, size_t) const;
     virtual void initialize_event(
             std::unordered_set<Rec_Event_name> &,
@@ -593,6 +642,9 @@ protected:
 
     /// Resolved in initialize_event(); never consulted by span in iterate(). See JunctionBound.
     std::array<JunctionBound, kJunctionSlotCount> junction_bounds_{};
+
+    /// Index assigned by igor::model::Topology; -1 until setUid() is called. Model layer only.
+    igor::index_type m_uid = -1;
 
     std::unordered_map<std::string, Event_realization> event_realizations;
     int priority;

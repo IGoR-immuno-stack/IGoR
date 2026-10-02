@@ -62,6 +62,7 @@
 #include <igor/Streaming/AIRRCommon.h>
 #include <igor/Streaming/AIRRRearrangementReader.h>
 
+#include <exception>
 #include <sparrow/record_batch.hpp>
 
 #include <string>

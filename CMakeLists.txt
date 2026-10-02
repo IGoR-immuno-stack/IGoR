@@ -87,9 +87,19 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS "ON")
 ## Build setup
 ## #################################################################
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
+
+if(WIN32)
+  # Prevent Windows.h min/max macros from breaking std::numeric_limits
+  add_compile_definitions(NOMINMAX)
+endif()
+
+if(MSVC)
+  # Ensure __cplusplus macro reports the correct C++ version instead of 199711L
+  add_compile_options(/Zc:__cplusplus)
+endif()
 
 ## ###################################################################
 ## Test setup
@@ -117,6 +127,19 @@ find_package(Parquet REQUIRED)
 find_package(sparrow REQUIRED)
 find_package(CLI11 REQUIRED)
 find_package(tomlplusplus REQUIRED)
+find_package(nlohmann_json REQUIRED)
+
+# OpenSSL (app/igor and tst/utils) must come from the pixi environment, like every other
+# dependency. Without this hint FindOpenSSL searches /usr before the environment and links
+# the system libcrypto, which on the Linux runner is built against a newer glibc than the
+# conda toolchain's sysroot. On Windows the conda-forge layout puts libraries under Library/.
+if(DEFINED ENV{CONDA_PREFIX} AND NOT DEFINED OPENSSL_ROOT_DIR)
+  if(WIN32)
+    set(OPENSSL_ROOT_DIR "$ENV{CONDA_PREFIX}/Library")
+  else()
+    set(OPENSSL_ROOT_DIR "$ENV{CONDA_PREFIX}")
+  endif()
+endif()
 
 find_package(Arrow REQUIRED)
 find_package(Parquet REQUIRED)

@@ -26,6 +26,7 @@
 
 #include <igor/Core/Insertion.h>
 #include <igor/Core/EventUtils.h>
+#include <igor/Core/JsonDetail.h>
 #include <igor/Core/gene_to_seqtype_migr.h>
 
 #include <algorithm>
@@ -119,6 +120,24 @@ Insertion::Insertion(Seq_type seq_type, unordered_map<string, Event_realization>
             this->len_min = (*iter).second.value_int;
         }
     }
+    this->update_event_name();
+}
+
+Insertion::Insertion(const nlohmann::json &node)
+    : Insertion(str2SeqType(igor::json_detail::require(node, "seq_type").get<Seq_type_String>()))
+{
+    using namespace igor::json_detail;
+    reject_unknown_keys(node, kEventKeys);
+    expect_type(node, "Insertion");
+
+    this->set_seq_type(require(node, "seq_type").get<Seq_type_String>());
+    this->set_event_side(str2SeqSide(require(node, "side").get<string>()));
+    this->set_priority(require(node, "priority").get<int>());
+    this->set_nickname(require(node, "nickname").get<string>());
+
+    for (const nlohmann::json *realization : realizations_in_index_order(node))
+        this->add_realization(require(*realization, "value_int").get<int>());
+
     this->update_event_name();
 }
 
