@@ -192,6 +192,54 @@ TEST_CASE("MarkovSamplingHandler: transition row sampling", "[Model][Sampling][M
     }
 }
 
+TEST_CASE("MarkovSamplingHandler: conditioned on a parent", "[Model][Sampling][Markov]") {
+    // Shape [2 parent values, 4 from-states, 4 to-states]: the shape a Dinucl_markov event gets
+    // as soon as it has a parent. Every (parent, from) row is a one-hot on one to-state, so a
+    // draw is deterministic and names the row that was actually read.
+    //
+    // The table is chosen so that the two rows a swapped index would confuse never share a
+    // value: precomputeCDF() stores row ps * 4 + from, and the reader used to look up row
+    // from * 2 + ps, which maps (0,1)->(0,2), (0,2)->(1,0), (0,3)->(1,2), (1,0)->(0,1),
+    // (1,1)->(0,3), (1,2)->(1,1). Each of those pairs differs below.
+    const std::size_t expected_to[2][4] = { { 0, 3, 2, 1 },     // parent 0
+                                            { 1, 0, 3, 2 } };   // parent 1
+
+    Tensor<double> weights({2, 4, 4});
+    std::fill(weights.begin(), weights.end(), 0.0);
+    for (std::size_t ps = 0; ps < 2; ++ps)
+        for (std::size_t from = 0; from < 4; ++from)
+            weights.data()[ps * 16 + from * 4 + expected_to[ps][from]] = 1.0;
+
+    MarkovSamplingHandler<double> sh("cond_markov", -1, weights);
+    REQUIRE(sh.stateCount() == 4);
+    REQUIRE(sh.parentSliceCount() == 2);
+    sh.precomputeCDF();
+
+    std::mt19937_64 rng(7);
+
+    SECTION("sample() reads the row of its (parent, from) pair") {
+        for (std::size_t ps = 0; ps < 2; ++ps) {
+            for (std::size_t from = 0; from < 4; ++from) {
+                INFO("parent " << ps << ", from " << from);
+                // The from-state comes first, the parents after it: the order sampleSequence() builds.
+                REQUIRE(sh.sample(rng, { from, ps }) == expected_to[ps][from]);
+            }
+        }
+    }
+
+    SECTION("sampleSequence() carries the parent through the chain") {
+        // Under parent 1 the table alternates 0 -> 1 -> 0 -> 1; under parent 0 it stays on 0.
+        REQUIRE(sh.sampleSequence(rng, /*first_state=*/0, /*n_steps=*/3, { 1 })
+                == std::vector<std::size_t>{ 0, 1, 0, 1 });
+        REQUIRE(sh.sampleSequence(rng, /*first_state=*/0, /*n_steps=*/3, { 0 })
+                == std::vector<std::size_t>{ 0, 0, 0, 0 });
+    }
+
+    SECTION("a missing parent index is refused") {
+        REQUIRE_THROWS_AS(sh.sample(rng, { 0 }), std::invalid_argument);
+    }
+}
+
 TEST_CASE("MarkovSamplingHandler: sample_sequence", "[Model][Sampling][Markov]") {
     // 2-state Markov: deterministic alternating
     // Row 0 → always go to 1: [0.0, 1.0]

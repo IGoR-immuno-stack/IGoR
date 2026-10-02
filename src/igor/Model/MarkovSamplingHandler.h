@@ -11,7 +11,7 @@ namespace igor::model {
 // ─── MarkovSamplingHandler<T> ─────────────────────────────────────────────────
 //
 // Handler for Markov transition matrices (Dinucl_markov).
-// Tensor shape: [n_states, n_states, parent1_size, ...]  (from, to, parents...)
+// Tensor shape: [parent1_size, ..., n_states, n_states]  (parents..., from, to)
 //
 // The handler borrows a const reference to the transition tensor stored in
 // RecombinationModel. It only owns the precomputed CDF tables.
@@ -52,7 +52,7 @@ private:
     std::size_t m_state_count = 0;
     std::size_t m_parent_slice_count = 1; // product of parent dimensions
 
-    // row_cdfs_[from * n_parent_slices_ + parent_slice][to] = CDF over to-states
+    // m_row_cdfs[parent_slice * n_states + from][to] = CDF over to-states, the tensor's own row order
     math::Tensor<T> m_row_cdfs;
 
     // first_cdf_[s] = CDF for first nucleotide (marginal over from_states)

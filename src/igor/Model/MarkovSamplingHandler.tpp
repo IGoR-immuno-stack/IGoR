@@ -55,15 +55,23 @@ std::size_t MarkovSamplingHandler<T>::parentSliceOffset(const std::vector<std::s
 
     // For shape [parent1, parent2, ..., from_state, to_state]
     // Parent dimensions are [0, ..., ndim-3]
-    std::size_t n_parent_dims = sh.size() - 2;
-    
-    // Row-major offset for parent dimensions only
+    const std::size_t n_parent_dims = sh.size() - 2;
+
+    // The caller's vector carries the from-state first and the parents after it, so the parent
+    // coordinate of dimension d is parent_indices[start_dim + d]. Reading parent_indices[d]
+    // instead, as this used to, took the from-state for the first parent's realization.
+    if (parent_indices.size() != start_dim + n_parent_dims) {
+        throw std::invalid_argument(
+            "MarkovSamplingHandler \"" + this->m_name + "\": expected "
+            + std::to_string(n_parent_dims) + " parent indices after the from-state, got "
+            + std::to_string(parent_indices.size() - std::min(parent_indices.size(), start_dim)));
+    }
+
+    // Row-major offset over the parent dimensions only
     std::size_t stride = 1;
     std::size_t offset = 0;
     for (int d = static_cast<int>(n_parent_dims) - 1; d >= 0; --d) {
-        if (static_cast<std::size_t>(d) < parent_indices.size()) {
-            offset += parent_indices[d] * stride;
-        }
+        offset += parent_indices[start_dim + static_cast<std::size_t>(d)] * stride;
         stride *= sh[d];
     }
     return offset;
@@ -147,8 +155,12 @@ std::size_t MarkovSamplingHandler<T>::sample(std::mt19937_64& gen, const std::ve
             "MarkovSamplingHandler \"" + this->m_name + "\": from_state "
             + std::to_string(from_state) + " >= n_states " + std::to_string(m_state_count));
 
+    // Same row convention as precomputeCDF(): the parent slice is the outer index, the
+    // from-state the inner one, as in the tensor layout [parents..., from, to]. The two used to
+    // disagree (ca97599 moved the writer to parents-first and left this reader on the old
+    // from-first order), which only showed with at least one parent.
     const std::size_t ps      = parentSliceOffset(parent_indices, 1);
-    const std::size_t row_idx = from_state * m_parent_slice_count + ps;
+    const std::size_t row_idx = ps * m_state_count + from_state;
     const T* cdf_row = m_row_cdfs.data() + row_idx * m_state_count;
     return sampleFromCDF(gen, cdf_row, m_state_count);
 }
