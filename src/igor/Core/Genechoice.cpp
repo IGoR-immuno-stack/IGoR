@@ -341,7 +341,26 @@ void Gene_choice::iterate(
             const SeqTypeId right_id = enclosing.span().right.id;
             const int span_len = neighbour_offset_[right_id] - neighbour_offset_[left_id] - 1;
 
+            //What every placement's first-stage bound shares: the probability this event
+            //inherited, and every slot of the bound map but the four the loop sets per placement
+            //-- held at 1.0 here, and overwritten before anything reads them. Multiplied by
+            //`placement.proba`, it is at least that first-stage bound whichever parent the
+            //scenario holds, since the decomposition's key takes the maximum over them; and the
+            //bucket is sorted by that key, so the product only decreases along it. The first
+            //placement it rejects therefore ends the scan: §6.15's `break`, on the key that
+            //licenses it, which the realized bound below does not (R6, finishing R7's re-check).
+            exploration.downstream_proba_map.set(enclosing.proba_key(), 1.0, enclosing.memory_layer());
+            exploration.downstream_proba_map.set(left.proba_key(), 1.0, left.memory_layer());
+            exploration.downstream_proba_map.set(right.proba_key(), 1.0, right.memory_layer());
+            exploration.downstream_proba_map.set(my_seq_type, 1.0, memory_layer_proba_map_seq);
+            const double bound_before_placement =
+                    exploration.compute_upper_bound(base_scenario_proba, current_downstream_proba_memory_layers);
+
             for (const SpanDecomposition::Placement &placement : enclosing.decomposition().at(span_len)) {
+                if (exploration.should_prune(bound_before_placement * placement.proba)) {
+                    break;
+                }
+
                 const Event_realization &realization = *realizations_by_index_[placement.realization_index];
 
                 //The 5' end sits immediately after a junction of `left_distance` nucleotides, so
@@ -414,14 +433,12 @@ void Gene_choice::iterate(
                 //the D gene choice is conditioned on J in every model shipped here. What made
                 //the `break` look exact was §7.16's compounding, which damped every successive
                 //placement by a further factor of p; removing that removes the licence, so this
-                //is a `continue`.
+                //is a `continue`, and the `break` moved to the top of the loop, onto the key.
                 //
                 //It stays worth testing: its bound is the second stage's with this segment's
                 //layer still at 1.0, so it can only fire where the second fires too (§6.14's
                 //dominated check, §6.15) and what it saves is the mismatch scan below -- 56467
-                //of them on the no_d_align corpus. An exact short-circuit is still available,
-                //by testing `placement.proba` (which dominates every parent) rather than this
-                //bound; that is an optimisation, and R6's business rather than R7's.
+                //of them on the no_d_align corpus, before the `break` above took its share.
                 if (exploration.should_prune(scenario_upper_bound_proba)) {
                     continue;
                 }

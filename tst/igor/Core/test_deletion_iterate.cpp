@@ -53,7 +53,9 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
 #include <cmath>
+#include <functional>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -1463,6 +1465,144 @@ TEST_CASE("Deletion: the junction bound is conditioned on the realization chosen
         const double best = (gap == 7 ? 0.9 : 0.01) * std::pow(0.5, gap);
         INFO("hand-off " << i << ", gap " << gap);
         CHECK(next->calls[i].downstream_bounds.at(VD_ins_seq) == Approx(best));
+    }
+}
+
+TEST_CASE("Deletion: a conditioned participant reads its parent at the realization the fold chose (R6)",
+          "[deletion][iterate][junction]")
+{
+    // The VD insertion is conditioned on another event, and its marginals say a long insertion is
+    // likely only for one realization of that parent: p(L | parent) = 0.9 for L >= 9 when the
+    // parent is at its favoured realization, 0.01 everywhere else. Everything else is flat at 0.5,
+    // and the fold reaches a gap g by an insertion of g + d, d the D 5' deletion.
+    //
+    // A bound built from per-event maxima credits every path with the insertion's best parent,
+    // so at the wider gaps it finds 0.9 on a path whose parent is somewhere else. Where the fold
+    // chooses the parent itself -- an earlier participant, or the reader of a table conditioned
+    // on it -- it knows which realization the path holds and reads that one: the joint maximum
+    // (R6). Where it does not, the per-event maximum is still the only sound value.
+    const auto favouring = [](int favoured) {
+        return [favoured](int length, int parent) { return parent == favoured && length >= 9 ? 0.9 : 0.01; };
+    };
+    const auto insertion_proba = favouring(0);
+
+    // The best completion of gap g, by brute force over the D 5' deletion d and, for the per-event
+    // maximum, over every parent realization the insertion could be credited with.
+    const auto best_completion = [](int gap, bool joint, auto parent_of, auto proba) {
+        double best = 0;
+        for (int d = 0; d != 5; ++d) {
+            const int length = gap + d;
+            double insertion = 0;
+            for (int parent = 0; parent != 5; ++parent) {
+                if (joint && parent != parent_of(d)) {
+                    continue;
+                }
+                insertion = std::max(insertion, proba(length, parent));
+            }
+            best = std::max(best, 0.5 * insertion * std::pow(0.5, length));
+        }
+        return best;
+    };
+
+    // The R13 fixture's geometry: a gap of 3 + v after a V 3' deletion of v.
+    struct Fixture {
+        IterateTestState state = create_iterate_state(kRead);
+        std::shared_ptr<Deletion> deletion = make_deletion(V_gene_seq, Three_prime, 0, 4, /*id=*/0);
+        std::shared_ptr<Gene_choice> d_stub =
+                make_gene_choice(D_gene, {{"D1", "ACGTA"}, {"D2", "ACGTA"}}, /*id=*/1);
+        std::shared_ptr<Deletion> d5 = make_deletion(D_gene_seq, Five_prime, 0, 4, /*id=*/2);
+        std::shared_ptr<Insertion> insertion = make_insertion(VD_ins_seq, 0, 20, /*id=*/3);
+
+        Fixture()
+        {
+            state.preset_safety(V_gene_seq, D_gene_seq, false);
+            state.preset_segment(V_gene_seq, 0, 10, read_run(0, 10));
+            state.add_event(d_stub);
+            state.mark_chosen(d_stub);
+            state.preset_segment(D_gene_seq, 14, 18, read_run(14, 18));
+            state.add_downstream_event(d5);
+            state.add_downstream_event(insertion);
+            state.add_downstream_event(make_dinucl_markov(VD_ins_seq, /*id=*/4));
+            for (std::size_t i = 0; i != 64; ++i) {
+                state.set_marginal(i, 0.5L);
+            }
+            state.set_base_index(/*event_id=*/3, /*base_index=*/100);
+        }
+
+        void condition_insertion_on(const std::shared_ptr<Rec_Event> &parent,
+                                    const std::function<double(int, int)> &proba)
+        {
+            state.condition_on(insertion, parent);
+            for (int r = 0; r != parent->size(); ++r) {
+                for (int length = 0; length != 21; ++length) {
+                    state.set_marginal(100 + 21 * r + length, proba(length, r));
+                }
+            }
+        }
+
+        std::vector<double> bounds()
+        {
+            const auto next = call_iterate_recording(deletion, state);
+            REQUIRE(next->call_count() == 5);
+            std::vector<double> read;
+            for (std::size_t i = 0; i != 5; ++i) {
+                read.push_back(next->calls[i].downstream_bounds.at(VD_ins_seq));
+            }
+            return read;
+        }
+    };
+    // Hand-off i is a V deletion of 4 - i, so it reads the gap 7 - i.
+    const auto gap_of = [](std::size_t i) { return 7 - static_cast<int>(i); };
+
+    SECTION("A parent earlier in the fold: the D 5' deletion")
+    {
+        Fixture fixture;
+        fixture.condition_insertion_on(fixture.d5, insertion_proba);
+        const std::vector<double> bounds = fixture.bounds();
+        const auto parent_is_d = [](int d) { return d; };
+        for (std::size_t i = 0; i != 5; ++i) {
+            INFO("hand-off " << i << ", gap " << gap_of(i));
+            CHECK(bounds[i] == Approx(best_completion(gap_of(i), /*joint=*/true, parent_is_d, insertion_proba)));
+        }
+        // The case discriminates: at the widest gap the per-event maximum is 0.9 * 0.5^9 against
+        // the joint 0.01 * 0.5^7, on a path whose D deletion is 2.
+        CHECK(best_completion(7, /*joint=*/false, parent_is_d, insertion_proba)
+              > 10 * best_completion(7, /*joint=*/true, parent_is_d, insertion_proba));
+    }
+
+    SECTION("The reader, when the table is conditioned on its realization")
+    {
+        // The parent is the V deletion under test. Its table is conditioned on its realization
+        // (R13), so the profile each realization reads is folded with that realization fixed.
+        Fixture fixture;
+        fixture.condition_insertion_on(fixture.deletion, insertion_proba);
+        const std::vector<double> bounds = fixture.bounds();
+        for (std::size_t i = 0; i != 5; ++i) {
+            const int v = 4 - static_cast<int>(i);
+            const auto parent_is_v = [v](int) { return v; };
+            INFO("hand-off " << i << ", V deletion " << v);
+            CHECK(bounds[i] == Approx(best_completion(gap_of(i), /*joint=*/true, parent_is_v, insertion_proba)));
+        }
+        const auto parent_is_four = [](int) { return 4; };
+        CHECK(best_completion(7, /*joint=*/false, parent_is_four, insertion_proba)
+              > 10 * best_completion(7, /*joint=*/true, parent_is_four, insertion_proba));
+    }
+
+    SECTION("Control -- a parent the fold does not choose is still maxed over")
+    {
+        // The D gene choice is upstream of the reader: chosen by the time the table is read, but
+        // not when it is built, so the bound has to hold for either gene. The insertion's long
+        // lengths belong to D2, its second realization, so a table read at the first -- where a
+        // parent's digit sits when nothing moved it -- would miss them and be unsound.
+        Fixture fixture;
+        const auto favours_d2 = favouring(1);
+        fixture.condition_insertion_on(fixture.d_stub, favours_d2);
+        const std::vector<double> bounds = fixture.bounds();
+        const auto unused = [](int) { return 0; };
+        for (std::size_t i = 0; i != 5; ++i) {
+            INFO("hand-off " << i << ", gap " << gap_of(i));
+            CHECK(bounds[i] == Approx(best_completion(gap_of(i), /*joint=*/false, unused, favours_d2)));
+        }
     }
 }
 

@@ -519,7 +519,9 @@ void call_iterate(const std::shared_ptr<Rec_Event> &event, IterateTestState &sta
 
     //Step 1: every event gets a base index of 0 at layer 0, plus a marginal size, a crude
     //upper bound, and the neighbours the ordering gives it. iterate_common() and
-    //add_to_marginals() read the first two; anything generic reads the third.
+    //add_to_marginals() read the first two; anything generic reads the third. The marginal
+    //size is one block per configuration of the parents condition_on() gave the event, and
+    //one block for an event with none.
     //
     //The adjacency pass is this harness standing in for Model_Parms::finalize(), which is
     //where production resolves it. These fixtures build an events_map directly and never
@@ -537,7 +539,7 @@ void call_iterate(const std::shared_ptr<Rec_Event> &event, IterateTestState &sta
         const int event_index = ev->get_event_identifier();
         state.exploration.index_map.request_layer(event_index);
         state.exploration.index_map.set(event_index, state.base_index_for(event_index), 0);
-        ev->set_event_marginal_size(ev->size());
+        ev->set_event_marginal_size(ev->size() * state.parent_configurations_for(event_index));
         ev->set_crude_upper_bound_proba(0, ev->size(),
                                         const_cast<Marginal_array_p &>(state.model.model_parameters));
         ev->set_viterbi_run(false);
