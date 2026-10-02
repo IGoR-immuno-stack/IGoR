@@ -20,6 +20,7 @@ arrow-cpp = "*"
 cli11 = ">=2.6.2,<3"
 tomlplusplus = ">=3.3.0,<4"
 nlohmann_json = ">=3.11,<4"
+openssl = "*"
 
 [target.osx.dependencies]
 clang-tools = ">=19.1.7,<22"
@@ -110,6 +111,7 @@ sparrow-devel = "*"
 arrow-cpp = "*"
 tomlplusplus = ">=3.3.0,<4"
 nlohmann_json = ">=3.11,<4"
+openssl = "*"
 
 [package.run-dependencies]
 gsl = "*"
