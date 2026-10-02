@@ -25,6 +25,7 @@
 #include <igor/Core/Legacy/SeqTypeRegistry.h>
 
 #include <cstddef>
+#include <functional>
 #include <vector>
 
 /**
@@ -101,6 +102,19 @@ public:
 
     /// Forget every published count, for a fold that starts over.
     void reset() { lengths_.assign(lengths_.size(), kAbsent); }
+
+    /// Two paths that published the same lengths are interchangeable for every participant that
+    /// reads them, which is what the fold's state comparison needs (FoldFrontier.h).
+    bool operator==(const UnfilledSegmentLengths &) const = default;
+
+    std::size_t hash() const
+    {
+        std::size_t seed = lengths_.size();
+        for (const int length : lengths_) {
+            seed ^= std::hash<int>{}(length) + 0x9e3779b97f4a7c15ULL + (seed << 6) + (seed >> 2);
+        }
+        return seed;
+    }
 
 private:
     /// Distinguishable from any real published length, which is a segment size and so >= 0.

@@ -92,6 +92,7 @@ target_sources(${PROJECT_NAME}
       ${LAYER_DIR}/Legacy/Singleerrorrate.h
       ${LAYER_DIR}/Legacy/SpanProfile.h
       ${LAYER_DIR}/Legacy/UnfilledSegmentLengths.h
+      ${LAYER_DIR}/Legacy/FoldFrontier.h
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC

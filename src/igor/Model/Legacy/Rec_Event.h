@@ -33,6 +33,7 @@
 #include <igor/Model/Legacy/SafetyMatrix.h>
 #include <igor/Core/Legacy/SeqTypeRegistry.h>
 #include <igor/Model/Legacy/UnfilledSegmentLengths.h>
+#include <igor/Model/Legacy/FoldFrontier.h>
 #include <igor/Model/Legacy/SpanProfile.h>
 #include <igor/Core/Legacy/Utils.h>
 #include <igor/Model/Legacy/EventTypedefs.h>
@@ -548,29 +549,25 @@ protected:
      *
      * The fold computes, for every total length the span can take, the best probability the
      * events in `participants` can reach together at that length, and writes it to `profile`.
-     * It does so by depth-first enumeration: each participant tries each of its realizations in
-     * turn and passes the extended path on to the next participant (see fold_step()). When the
-     * last participant has chosen, the path's probability is recorded at its total length, and
-     * the profile keeps the best value seen for each length.
+     * A path is one realization of each participant, its probability the product of their
+     * factors in queue order, and its length the sum of their `length_delta()`.
      *
-     * This struct holds what is the same at every step of that recursion. What changes from step
-     * to step is passed to from() instead: which participant is next, the probability of the path
-     * so far, and its length so far.
+     * It does not enumerate the paths. It takes the participants one at a time, and keeps the
+     * partial paths that have reached the current one in a FoldFrontier: one best probability per
+     * FoldState, the part of a path a later participant can read. Each participant extends every
+     * state once per realization (see fold_step()). Paths that end up in the same state are
+     * interchangeable for everything after them, so only the better is kept -- which is where
+     * the saving is, since two deletions that leave the same gap leave the same state once
+     * nothing still needs their realizations. When every participant has chosen, each state's
+     * probability is recorded at its length, and the profile keeps the best per length. The
+     * result is the walk over every path's, bit for bit (see FoldFrontier).
      *
      * initialize_Len_proba_bound() creates one SpanFold for each profile it fills. A table whose
      * reader does not change the span's length has one profile, so one fold. A table whose reader
      * does has one profile per reader realization, and one fold for each, starting from that
-     * realization's length (R13).
+     * realization's state (R13).
      *
-     * `lengths` and `parent_offsets` are the state the participants share during a fold. An
-     * event that places a segment's offsets without choosing its nucleotides -- an Insertion --
-     * writes that segment's length into `lengths`; a later event whose factor depends on it --
-     * the Dinucl_markov that fills the segment -- reads it. An event that conditions a later
-     * participant adds its realization's stride to that participant's entry of
-     * `parent_offsets`, which is where in its marginals the later one reads (see
-     * SpanConditioning). The driver resets both before each fold.
-     *
-     * The struct is nested in Rec_Event only so that from() can call each participant's
+     * The struct is nested in Rec_Event only so that run() can call each participant's
      * protected fold_step().
      */
     struct SpanFold {
@@ -579,28 +576,26 @@ protected:
         const SpanConditioning &conditioning;
         const Marginal_array_p &model_parameters;
         const Index_map &base_index_map;
-        UnfilledSegmentLengths &lengths;
-        std::vector<int> &parent_offsets;
         SpanProfile &profile;
 
-        /// Pass the path to participant `cursor`. If every participant has already chosen,
-        /// record `proba` at `length` in `profile` instead.
-        void from(std::size_t cursor, double proba, int length) const;
+        /// Fold every participant, from `start`, and record the result in `profile`.
+        void run(FoldState start) const;
     };
 
     /**
-     * \brief This event's part of a fold: extend the path once per realization.
+     * \brief This event's part of a fold: extend one state once per realization.
      *
-     * For each realization, multiply the path's probability by realization_bound(), add the
-     * realization's length_delta() to its length, move the marginals of the participants it
-     * conditions to that realization, and pass the path on to the next participant. An
-     * event that contributes a probability factor but no length -- Dinucl_markov -- does not
-     * enumerate: it multiplies in span_proba_factor() once and passes the path on.
+     * For each realization, multiply `proba` by realization_bound(), add the realization's
+     * length_delta() to the state's length, publish into its `lengths`, move the marginals of the
+     * participants it conditions to that realization, and offer the result to `next`. An event
+     * that contributes a probability factor but no length -- Dinucl_markov -- does not enumerate:
+     * it multiplies in span_proba_factor() once and offers the state on.
      *
      * Never called for the event whose table is being folded: initialize_Len_proba_bound()
      * handles that event itself, without its probability.
      */
-    void fold_step(const SpanFold &fold, std::size_t cursor, double proba, int length) const;
+    void fold_step(const SpanFold &fold, std::size_t cursor, const FoldState &state, double proba,
+                   FoldFrontier &next) const;
 
     /**
      * \brief The highest probability `realization` can have, whatever the parents not yet known.

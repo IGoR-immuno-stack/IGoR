@@ -448,18 +448,26 @@ void publish_unfilled_length(SeqTypeId seq_type_id, int delta, bool creates_offs
 
 } // namespace
 
-void Rec_Event::SpanFold::from(std::size_t cursor, double proba, int length) const
+void Rec_Event::SpanFold::run(FoldState start) const
 {
     //The events that neither change this span's length nor contribute a probability factor to it
-    //were dropped when `participants` was built, so descending is one index step: the depth stays
-    //proportional to the number of contributing events rather than to the model size, and nothing
-    //is copied on the way down.
-    if (cursor < participants.size()) {
-        participants[cursor]->fold_step(*this, cursor, proba, length);
-    } else {
-        //Every event contributing to this span has chosen, so this path reaches `length` with
-        //`proba`. SpanProfile::record() keeps the better of that and what is already stored.
-        profile.record(length, proba);
+    //were dropped when `participants` was built, so there is one step per contributing event
+    //rather than per event in the model.
+    FoldFrontier frontier;
+    frontier.offer(std::move(start), 1.0);
+    for (std::size_t cursor = 0; cursor != participants.size(); ++cursor) {
+        FoldFrontier next;
+        for (const auto &[state, proba] : frontier) {
+            participants[cursor]->fold_step(*this, cursor, state, proba, next);
+        }
+        frontier = std::move(next);
+    }
+
+    //Every event contributing to this span has chosen. Several states can share a length --
+    //they differ in what a participant that has now run would have read -- and
+    //SpanProfile::record() keeps the best of them.
+    for (const auto &[state, proba] : frontier) {
+        profile.record(state.length, proba);
     }
 }
 
@@ -469,12 +477,15 @@ void Rec_Event::SpanFold::from(std::size_t cursor, double proba, int length) con
  * "contributes a probability factor without enumerating" -- which is exactly the
  * affects_length_of / affects_proba_of split.
  */
-void Rec_Event::fold_step(const SpanFold &fold, std::size_t cursor, double proba, int length) const
+void Rec_Event::fold_step(const SpanFold &fold, std::size_t cursor, const FoldState &state, double proba,
+                          FoldFrontier &next) const
 {
     if (not this->affects_length_of(fold.span)) {
         //Dinucl_markov: no realization of its own contributes length, and its p^L factor reads a
-        //length some upstream creator already published. One factor, one step down.
-        fold.from(cursor + 1, proba * this->span_proba_factor(fold.span, fold.lengths), length);
+        //length some upstream creator already published. One factor, one state on.
+        FoldState successor = state;
+        successor.parent_offsets[cursor] = 0;
+        next.offer(std::move(successor), proba * this->span_proba_factor(fold.span, state.lengths));
         return;
     }
 
@@ -501,23 +512,26 @@ void Rec_Event::fold_step(const SpanFold &fold, std::size_t cursor, double proba
     //from a const traversal, and a no-op at initialization, when nothing stands above layer 0.
     //What the path has already chosen of this event's parents is added on top, exactly as the
     //walk's update_parent_tracking() would have added it (R6).
-    const int base_index = fold.base_index_map.get(this->event_index, 0) + fold.parent_offsets[cursor];
+    const int base_index = fold.base_index_map.get(this->event_index, 0) + state.parent_offsets[cursor];
     const SpanConditioning::Participant &conditioning = fold.conditioning.participants[cursor];
 
     for (std::unordered_map<std::string, Event_realization>::const_iterator iter = this->event_realizations.begin();
          iter != this->event_realizations.end(); ++iter) {
         const Event_realization &realization = iter->second;
         const int delta = this->length_delta(realization);
-        publish_unfilled_length(this->seq_type_id, delta, creates_offsets, creates_sequence, fold.lengths);
         const double bound = this->realization_bound(realization, fold.model_parameters, base_index,
                                                      conditioning.free_parent_offsets);
+
+        FoldState successor = state;
+        successor.length += delta;
+        //Read above, and by nobody after: clearing it is what lets two paths that reached this
+        //participant from different parents merge from here on.
+        successor.parent_offsets[cursor] = 0;
+        publish_unfilled_length(this->seq_type_id, delta, creates_offsets, creates_sequence, successor.lengths);
         for (const auto &[child, stride] : conditioning.children) {
-            fold.parent_offsets[child] += realization.index * stride;
+            successor.parent_offsets[child] += realization.index * stride;
         }
-        fold.from(cursor + 1, proba * bound, length + delta);
-        for (const auto &[child, stride] : conditioning.children) {
-            fold.parent_offsets[child] -= realization.index * stride;
-        }
+        next.offer(std::move(successor), proba * bound);
     }
 }
 
@@ -610,9 +624,9 @@ void Rec_Event::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &model_q
                                            const Marginal_array_p &model_parameters_point,
                                            const Index_map &base_index_map)
 {
-    //Scoped to one fold and reset between junctions: an entry is a length published by the
-    //segment's creator on the current path, and the paths of two junctions share nothing.
-    UnfilledSegmentLengths lengths(legacy_seq_type_registry().total_count());
+    //Every fold starts from a state of its own, with no length published: an entry is a length
+    //published by the segment's creator on one path, and the paths of two folds share nothing.
+    const std::size_t seq_type_count = legacy_seq_type_registry().total_count();
 
     //Flatten the queue of downstream events once, here, instead of copying it at every node of
     //every fold. `model_queue` is left as the caller gave it: the junction loop below reads the
@@ -661,13 +675,12 @@ void Rec_Event::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &model_q
         const bool conditioned = this->affects_length_of(span);
         bound.reset_profiles(conditioned, this->size());
         const SpanConditioning conditioning = this->conditioning_within(participants, span, conditioned);
-        std::vector<int> parent_offsets(participants.size(), 0);
 
         if (not conditioned) {
-            lengths.reset();
-            SpanFold{span, participants, conditioning, model_parameters_point, base_index_map, lengths,
-                     parent_offsets, bound.mutable_profile()}
-                    .from(0, 1.0, 0);
+            SpanFold{span, participants, conditioning, model_parameters_point, base_index_map,
+                     bound.mutable_profile()}
+                    .run(FoldState{0, std::vector<int>(participants.size(), 0),
+                                   UnfilledSegmentLengths(seq_type_count)});
             continue;
         }
 
@@ -678,15 +691,14 @@ void Rec_Event::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &model_q
              iter != this->event_realizations.end(); ++iter) {
             const Event_realization &realization = iter->second;
             const int delta = this->length_delta(realization);
-            lengths.reset();
-            publish_unfilled_length(this->seq_type_id, delta, creates_offsets, creates_sequence, lengths);
-            parent_offsets.assign(participants.size(), 0);
+            FoldState start{delta, std::vector<int>(participants.size(), 0), UnfilledSegmentLengths(seq_type_count)};
+            publish_unfilled_length(this->seq_type_id, delta, creates_offsets, creates_sequence, start.lengths);
             for (const auto &[child, stride] : conditioning.reader_children) {
-                parent_offsets[child] += realization.index * stride;
+                start.parent_offsets[child] += realization.index * stride;
             }
-            SpanFold{span, participants, conditioning, model_parameters_point, base_index_map, lengths,
-                     parent_offsets, bound.mutable_profile_for(realization.index)}
-                    .from(0, 1.0, delta);
+            SpanFold{span, participants, conditioning, model_parameters_point, base_index_map,
+                     bound.mutable_profile_for(realization.index)}
+                    .run(std::move(start));
         }
     }
 
