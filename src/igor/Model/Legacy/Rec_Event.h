@@ -465,6 +465,15 @@ public:
     virtual double span_proba_factor(SegmentSpan, const UnfilledSegmentLengths &) const { return 1.0; }
 
     /**
+     * \brief Precompute, from this iteration's marginals, what span_proba_factor() reads.
+     *
+     * Called by initialize_Len_proba_bound() before it folds anything. The sweep runs in reverse
+     * queue order, so an event is prepared before any table it takes part in is folded. Default:
+     * nothing to prepare.
+     */
+    virtual void prepare_span_proba_factor(const Marginal_array_p &, const Index_map &) {}
+
+    /**
      * \brief Fold the profile of every junction this event reads a bound from.
      *
      * No longer virtual, and no longer topology-aware: *which* junctions those are was decided

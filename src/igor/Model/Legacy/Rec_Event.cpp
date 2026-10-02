@@ -650,6 +650,10 @@ void Rec_Event::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &model_q
                                            const Marginal_array_p &model_parameters_point,
                                            const Index_map &base_index_map, const SeqTypeRegistry &registry)
 {
+    //Before any reader folds a table this event takes part in: the sweep runs in reverse queue
+    //order, so every participant of a table has been here before the table's reader is.
+    this->prepare_span_proba_factor(model_parameters_point, base_index_map);
+
     //Every fold starts from a state of its own, with no length published: an entry is a length
     //published by the segment's creator on one path, and the paths of two folds share nothing.
     //Sized by the model's registry, not the legacy one: a tandem-D junction's id lies past the

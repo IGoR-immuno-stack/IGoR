@@ -152,6 +152,7 @@ public:
     bool affects_proba_of(SegmentSpan, const SeqTypeRegistry &) const override;
     int length_delta(const Event_realization &) const override;
     double span_proba_factor(SegmentSpan, const UnfilledSegmentLengths &) const override;
+    void prepare_span_proba_factor(const Marginal_array_p &, const Index_map &) override;
 
 private:
     Matrix<double> dinuc_proba_matrix;
@@ -179,6 +180,11 @@ private:
     /// and refilled per scenario; its capacity is reserved once at initialize_event() from the
     /// paired Insertion's longest realization, so the hot loop never allocates.
     std::vector<int> realization_indices;
+    /// The longest junction this event can be asked to fill: its Insertion's longest realization.
+    int longest_junction_ = 0;
+    /// Per junction length L, the best probability the chain gives L nucleotides it has not seen
+    /// (prepare_span_proba_factor()). Index 0 holds 1.
+    std::vector<double> chain_bound_;
     /// Layer claimed in the downstream-proba map for the junction this event fills.
     int memory_layer_junction = -1;
     /// Layer claimed in the constructed-sequence map for that same junction, which this event
