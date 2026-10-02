@@ -4,6 +4,7 @@
 #include <igor/Model/Legacy/Rec_Event.h>
 #include <igor/Core/Legacy/SeqTypeRegistry.h>
 #include <igor/Core/Legacy/Utils.h>
+#include <igor/Model/Legacy/EventTypedefs.h>
 #include <memory>
 #include <string>
 #include <tuple>

@@ -26,6 +26,7 @@
 #pragma once
 
 #include <igor/Core/Legacy/Utils.h>
+#include <igor/Model/Legacy/EventTypedefs.h>
 #include <igor/Core/Legacy/IntStr.h>
 #include <unordered_map>
 #include <utility>

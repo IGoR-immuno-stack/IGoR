@@ -157,8 +157,6 @@ inline int popcountll(uint64_t x)
 #include <stdio.h>
 #include <unordered_map>
 
-class Rec_Event;
-
 /// Slim gene class: only the three fundamental gene types plus Undefined.
 /// Use this everywhere in runtime code. Junction/compound values (VD, DJ, VJ, VDJ)
 /// belong to Gene_class_legacy and are only used at legacy file I/O boundaries.
@@ -251,10 +249,6 @@ CORE_EXPORT std::string operator+(const std::string &, Seq_side);
 CORE_EXPORT std::string operator+(const std::string &, Event_type);
 
 typedef Int_Str *Int_Str_ptr;
-
-//Typedef used for getting the next event ptr
-//typedef std::shared_ptr<Rec_Event> Next_event_ptr; //Does not work for some reason
-typedef Rec_Event *Next_event_ptr;
 
 /**
  * \brief Declare a null_delete function
@@ -532,29 +526,6 @@ typedef DynamicSequenceMap<double> Downstream_scenario_proba_bound_map;
  * Hash functions for the enums and tuples used as unordered_map keys
  */
 namespace std {
-/*
- 	 template<>
-	 struct hash<Rec_Event>{
-		inline std::size_t operator()(const Rec_Event& event) const{ //TODO inline?
-			return  (((hash<int>()(event.get_class())
-					^(hash<int>()(event.get_side())<<1 )) >>1)
-					^(hash<int>()(event.get_priority())<<1)>>1)
-					^(hash<int>()(event.get_realizations_map().size())<<1);
-			//Note : only consider the size of the realization map and not what it contains for speed purposes
-			//this should be enough to ensure no collisions
-		}
-	 };
-	 */
-
-/*
-	 template<>
-	 struct hash<Rec_Event*>{
-		 std::size_t operator()(const Rec_Event*& event_point) const{
-			 return hash<Rec_Event>()(*event_point);
-		 }
-	 };
-	 */
-
 template <>
 struct hash<Seq_type>
 {
@@ -597,21 +568,6 @@ struct hash<std::pair<Seq_type, Seq_side>>
 };
 } // namespace std
 
-// v2.0 events map: keyed by (Event_type, seq_type string, Seq_side) so that
-// multiple events of the same type and side but different seq_types (e.g. two
-// D-gene deletions on D1 vs D2 in a tandem-D model) can coexist unambiguously.
-typedef std::unordered_map<std::tuple<Event_type, Seq_type_String, Seq_side>,
-                           std::shared_ptr<Rec_Event>>
-        Events_map;
-
-struct inverse_offset_comparator
-{
-    bool operator()(const std::pair<std::shared_ptr<const Rec_Event>, int> &inv_offset_1,
-                    const std::pair<std::shared_ptr<const Rec_Event>, int> &inv_offset_2)
-    {
-        return inv_offset_1.second < inv_offset_2.second;
-    }
-};
 
 CORE_EXPORT std::vector<std::string> extract_string_fields(const std::string &, const std::string &);
 

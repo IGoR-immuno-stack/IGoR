@@ -3,6 +3,7 @@
 #include <igor/Model/Legacy/SafetyMatrix.h>
 #include <igor/Model/Legacy/BoundTightness.h>
 #include <igor/Core/Legacy/Utils.h>
+#include <igor/Model/Legacy/EventTypedefs.h>
 #include <span>
 
 /**

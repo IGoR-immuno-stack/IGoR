@@ -35,6 +35,7 @@
 #include <igor/Model/Legacy/UnfilledSegmentLengths.h>
 #include <igor/Model/Legacy/SpanProfile.h>
 #include <igor/Core/Legacy/Utils.h>
+#include <igor/Model/Legacy/EventTypedefs.h>
 #include <igor/Core/Legacy/Typedef.h>
 #include <igor/Model/Export.h>
 

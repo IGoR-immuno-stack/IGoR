@@ -1,6 +1,7 @@
 #pragma once
 
 #include <igor/Core/Legacy/Utils.h>
+#include <igor/Model/Legacy/EventTypedefs.h>
 #include <memory>
 #include <unordered_map>
 #include <vector>

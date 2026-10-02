@@ -70,6 +70,7 @@ target_sources(${PROJECT_NAME}
       ${LAYER_DIR}/Legacy/Dinuclmarkov.h
       ${LAYER_DIR}/Legacy/Errorrate.h
       ${LAYER_DIR}/Legacy/EventUtils.h
+      ${LAYER_DIR}/Legacy/EventTypedefs.h
       ${LAYER_DIR}/Legacy/ExplorationContext.h
       ${LAYER_DIR}/Legacy/Genechoice.h
       ${LAYER_DIR}/Legacy/gene_to_seqtype_migr.h
