@@ -62,9 +62,9 @@ passing unit suites, measured on macOS arm64. Two things are still open on Linux
 goldens were made:
 - Its lock resolves **GCC 15.3** on linux-64. `feature/tandemD` gets 14.3 from its lock only:
   both `pixi.toml`s say `cxx-compiler = "*"`. The merge analysis (§4.8) found that GCC 15's
-  libstdc++ rejects Core; the error is in `gene_to_seqtype_migr.cpp`, in a function nothing calls
-  (T6). The branch also builds as C++23 where `feature/tandemD` builds C++20. Both changes sit
-  under the bitwise gate.
+  libstdc++ rejects Core. The only error was in `gene_to_seqtype_migr.cpp`, in a function nothing
+  called, and T6a deleted it. The branch also builds as C++23 where `feature/tandemD` builds C++20.
+  Both changes sit under the bitwise gate.
 - It reports `scripts/tests/test_generate.sh` failing on the data rows of `seed42_generated`, from
   before its own Core change.
 
@@ -113,13 +113,13 @@ constructors call `str2SeqType()` too.
 
 | # | Blocker | Evidence | Plan item |
 |---|---|---|---|
-| **T0** | **Merging `integration/model-on-tandemD` into `feature/tandemD`**, and showing on Linux that the merge is mechanical (see above) | GCC 15.3 in the integration lock, which rejects `gene_to_seqtype_migr`; the `test_generate.sh` data rows | merge |
+| **T0** | **Merging `integration/model-on-tandemD` into `feature/tandemD`**, and showing on Linux that the merge is mechanical (see above) | GCC 15.3 and C++23 in the integration branch's build; the `test_generate.sh` data rows | merge |
 | **T1** | **A tandem-D model does not load.** `Deletion::target_seq_type`, `Insertion::ins_seq_type` and `Dinucl_markov::ins_seq_type` are typed `Seq_type`, so the text reader ([Model_Parms.cpp:904](../src/igor/Core/Model_Parms.cpp#L904), 923, 953) and the JSON constructors go through `str2SeqType()` | 5 of the 7 `[tandem_d]` cases fail, all with `Unknown Seq_type string in str2SeqType: D1_gene_seq` | **B0**, unfinished |
 | **T2** | **Generated names collide.** The name is type + gene class + side + priority + size ([Rec_Event.cpp:104](../src/igor/Core/Rec_Event.cpp#L104)), and it keys `Model_Parms::edges`, `Index_map`, `processed_events` and `offset_map` | In the fixture, `d1_choice` and `d2_choice` are both D, priority 6, size 1; `d1_5_del` and `d2_5_del` collide the same way | synthesis step 2 |
 | **T3** | **V, D and J are still named in the span and safety set-up.** `affects_length_of` on `Gene_choice`, `Insertion` and `Deletion`, and `Dinucl_markov`'s `affects_proba_of` and `span_proba_factor`, go through `legacy_junction_of()` or a VD/DJ/VJ switch; the flank checks list the gene segments in `kGeneSegments` ([Deletion.cpp:746](../src/igor/Core/Deletion.cpp#L746), [Genechoice.cpp:785](../src/igor/Core/Genechoice.cpp#L785)) | `legacy_junction_of()` throws on any span other than VD, DJ and VJ ([SegmentSpan.h:184](../src/igor/Core/SegmentSpan.h#L184)), and so does `Dinucl_markov` on any other insertion ([Dinuclmarkov.cpp:634](../src/igor/Core/Dinuclmarkov.cpp#L634), 661). On V→J the `Insertion` table leaves out `VD1_ins` and `D1D2_ins`. D1 and D2 are never checked against each other for overlap. The junction slots of the downstream bound map are addressed by an insertion's seq type id, with `VJ_ins_seq` standing in for V→J ([Genechoice.cpp:884](../src/igor/Core/Genechoice.cpp#L884), [Deletion.cpp:817](../src/igor/Core/Deletion.cpp#L817)), so a span such as D1→J has no slot | **R12**, and the literal B9 step 3 was to replace |
 | **T4** | **Tandem-D sequences cannot be generated** for the round-trip test. `draw_random_realization()` writes an `unordered_map<Seq_type, string>`, `Dinucl_markov` throws "see B9", `FastGenerator` names `D_gene_seq` | read from the code | **B9 step 5**: option (a), decided; see *T4* below |
 | **T5** | **Milestone 1 itself:** the dummy tandem-D model, a generate-then-infer round trip, the cost ratio against a matched VDJ model, `[!mayfail]` off the `[tandem_d]` cases | — | Step 1 of the execution plan below |
-| **T6** | **`gene_to_seqtype_migr` is still built**, a temporary bridge from #59 | GCC 15 rejects it, and most of it has no caller | B1's leftovers; see *T6* below |
+| **T6** | **`gene_to_seqtype_migr` is still built**, a temporary bridge from #59 | GCC 15 rejected it until T6a, and most of it had no caller | B1's leftovers; see *T6* below |
 
 **R12's shape decides §7.22 (R16) for tandem D.** The junction fold enumerates every path, and in a
 tandem model J's V→J table holds both D blocks. Rough path counts, with TRB's library sizes and
@@ -138,7 +138,7 @@ become polynomial first (§7.22, option A). Recorded for R12; not decided.
 
 | Step | Item | Branch | Bitwise |
 |---|---|---|---|
-| 1 | **T6a**: delete the dead half of `gene_to_seqtype_migr`, which is the code GCC 15 rejects | `feature/tandemD` | yes, nothing calls it |
+| 1 | ✅ **T6a** (Oct 2 2026): delete the dead half of `gene_to_seqtype_migr`, which was the code GCC 15 rejects | `feature/tandemD` | yes, measured |
 | 2 | **T3**: ordering positions instead of V/D/J names | `feature/tandemD` | yes on shipped models, if R12 keeps the legacy deletion rule; R16 moves every output |
 | 3 | **T4**: generation keyed by `SeqTypeId`, legacy generator first, then `FastGenerator`; **T6b** deletes the rest of the module | `feature/tandemD` | the legacy generator yes; `FastGenerator` no (see T4) |
 | 4 | **T0**: merge `integration/model-on-tandemD` into `feature/tandemD`; the Linux gate | `feature/tandemD` | the gate itself |
@@ -241,6 +241,17 @@ T6a also deletes:
 
 T6b deletes the two files and their entries in `src/igor/Core/CMakeLists.txt`, once nothing calls
 the two `try_*` families; `make_gene_choice()` takes its seq type from a table of its own.
+
+**T6a, delivered Oct 2 2026.** Everything in the "T6a" rows above is gone; `GeneChoiceStatus` is
+`EventUtils::GeneChoiceStatus`, and the module's header now includes `Utils.h` only.
+- Gates: 327 of 327 ctest cases, one fewer than before because `TryEventKeyToSeqKey` was deleted
+  with its function; all five regression tracks bitwise.
+- GCC 15.3, `-fsyntax-only` over the build's compile commands (C++20, as this branch builds): at
+  `e91dcd2`, one Core file fails, `gene_to_seqtype_migr.cpp`, with libstdc++'s *hash function must
+  be copy constructible*; after T6a, none of the 75 translation units fails. The merge analysis
+  also named `Model_Parms::get_events_map_seq_type()`, but as declarations only it never failed;
+  T6a deleted it anyway. This checks compilation only: whether GCC 15 keeps the gate bitwise is
+  still T0's question, and so is C++23.
 
 **Where `Gene_class_legacy` ends up.** The merge analysis (§5.3) took this module to be the legacy
 translator and the enum's only home. The reader never used it: the v1 reader translates with
