@@ -48,7 +48,7 @@
 #include <random>
 #include <chrono>
 #include <sys/types.h>
-#include <igorCoreExport.h>
+#include <igor/Core/Export.h>
 #if defined(_WIN32)
 
 #  ifndef WIN32_LEAN_AND_MEAN

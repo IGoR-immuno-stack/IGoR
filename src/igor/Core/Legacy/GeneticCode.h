@@ -25,7 +25,7 @@
 
 #include <igor/Core/Legacy/IntStr.h>
 #include <igor/Core/Legacy/Utils.h>
-#include <igorCoreExport.h>
+#include <igor/Core/Export.h>
 
 namespace EventUtils {
 

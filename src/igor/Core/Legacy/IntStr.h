@@ -29,7 +29,7 @@
 #include <vector>
 #include <ostream>
 
-#include <igorCoreExport.h>
+#include <igor/Core/Export.h>
 
 // Not a dllexport class on purpose: exporting a class that derives from an STL template makes
 // MSVC export the std::vector<int> instantiation from the DLL, and every consumer that
