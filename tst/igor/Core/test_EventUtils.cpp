@@ -380,31 +380,6 @@ TEST_CASE("EventUtils InsertionPriorityBridge - missing key returns false", "[Ev
 }
 
 
-TEST_CASE("EventUtils TryEventKeyToSeqKey", "[EventUtils]") {
-  tuple<Event_type, Seq_type, Seq_side> seq_key;
-
-  SECTION("GeneChoice and Deletion mapping") {
-    REQUIRE(igor::migration::try_event_key_to_seq_key(GeneChoice_t, V_gene_legacy, Undefined_side, seq_key));
-    REQUIRE(seq_key == make_tuple(GeneChoice_t, V_gene_seq, Undefined_side));
-
-    REQUIRE(igor::migration::try_event_key_to_seq_key(Deletion_t, J_gene_legacy, Five_prime, seq_key));
-    REQUIRE(seq_key == make_tuple(Deletion_t, J_gene_seq, Five_prime));
-  }
-
-  SECTION("Insertion and Dinuclmarkov mapping") {
-    REQUIRE(igor::migration::try_event_key_to_seq_key(Insertion_t, VD_genes, Undefined_side, seq_key));
-    REQUIRE(seq_key == make_tuple(Insertion_t, VD_ins_seq, Undefined_side));
-
-    REQUIRE(igor::migration::try_event_key_to_seq_key(Dinuclmarkov_t, DJ_genes, Undefined_side, seq_key));
-    REQUIRE(seq_key == make_tuple(Dinuclmarkov_t, DJ_ins_seq, Undefined_side));
-  }
-
-  SECTION("Invalid alias (VDJ_genes) mapping") {
-    REQUIRE_FALSE(igor::migration::try_event_key_to_seq_key(Insertion_t, VDJ_genes, Undefined_side, seq_key));
-    REQUIRE_FALSE(igor::migration::try_event_key_to_seq_key(Dinuclmarkov_t, VDJ_genes, Undefined_side, seq_key));
-  }
-}
-
 class MockDinucEvent : public MockEvent {
 public:
   MockDinucEvent(string name) : MockEvent(name) {}

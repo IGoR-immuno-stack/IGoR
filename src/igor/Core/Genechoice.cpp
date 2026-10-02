@@ -25,7 +25,6 @@
 
 #include <igor/Core/EventUtils.h>
 #include <igor/Core/Genechoice.h>
-#include <igor/Core/gene_to_seqtype_migr.h>
 
 using namespace std;
 
@@ -793,7 +792,7 @@ void Gene_choice::initialize_event(
             continue;
         }
         const Seq_type_String &partner_name = kGeneSegments[position];
-        const igor::migration::GeneChoiceStatus status =
+        const EventUtils::GeneChoiceStatus status =
                 EventUtils::check_gene_choice(partner_name, events_map, processed_events);
         FlankCheck check;
         check.partner_id = registry.id(partner_name);

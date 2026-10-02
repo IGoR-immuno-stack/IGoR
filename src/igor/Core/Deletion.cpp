@@ -25,7 +25,6 @@
 
 #include <igor/Core/Deletion.h>
 #include <igor/Core/EventUtils.h>
-#include <igor/Core/gene_to_seqtype_migr.h>
 
 #include <algorithm>
 #include <limits>

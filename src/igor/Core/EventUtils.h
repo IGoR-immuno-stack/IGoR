@@ -4,7 +4,6 @@
 #include <igor/Core/Rec_Event.h>
 #include <igor/Core/SeqTypeRegistry.h>
 #include <igor/Core/Utils.h>
-#include <igor/Core/gene_to_seqtype_migr.h>
 #include <memory>
 #include <string>
 #include <tuple>
@@ -31,8 +30,15 @@ CORE_EXPORT bool try_get_event(
 /// Convert a Seq_type enum value to its canonical string name used in Events_map keys.
 CORE_EXPORT Seq_type_String seq_type_to_string(Seq_type seq_type);
 
+/// Whether a model has a GeneChoice on a segment, and whether it has been realized yet.
+struct GeneChoiceStatus {
+  bool exists;
+  bool chosen;
+  std::shared_ptr<const Rec_Event> event_ptr;
+};
+
 // gene_seq_type: seq_type of the GeneChoice event to look up (e.g. "V_gene_seq")
-CORE_EXPORT igor::migration::GeneChoiceStatus check_gene_choice(
+CORE_EXPORT GeneChoiceStatus check_gene_choice(
     const Seq_type_String &gene_seq_type,
     const Events_map &events_map,
     const std::unordered_set<Rec_Event_name> &processed_events);

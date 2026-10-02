@@ -25,7 +25,6 @@
  */
 
 #include <igor/Core/Rec_Event.h>
-#include <igor/Core/gene_to_seqtype_migr.h>
 #include <igor/Core/Counter.h>
 #include <igor/Core/EventUtils.h>
 #include <igor/Core/Scenario.h>  // For Scenario view construction

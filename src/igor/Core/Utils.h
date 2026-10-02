@@ -539,7 +539,7 @@ typedef DynamicSequenceMap<double> Downstream_scenario_proba_bound_map;
 
 
 /*
- * Defining a hash functions for Rec_Event, Gene_class_legacy and pair<Gene_class_legacy,Seq_side>
+ * Hash functions for the enums and tuples used as unordered_map keys
  */
 namespace std {
 /*
@@ -581,28 +581,6 @@ template <>
 struct hash<Gene_class_legacy>
 {
     std::size_t operator()(const Gene_class_legacy &gene) const { return hash<int>()(gene); }
-};
-
-template <>
-struct hash<std::pair<Gene_class_legacy, Seq_side>>
-{
-    std::size_t operator()(const pair<Gene_class_legacy, Seq_side> &gene_pair) const
-    {
-        return (hash<Gene_class_legacy>()(gene_pair.first) ^ (hash<int>()(gene_pair.second) << 1)) >> 1;
-    }
-};
-
-template <>
-struct hash<std::tuple<Event_type, Gene_class_legacy, Seq_side>>
-{
-    std::size_t operator()(const std::tuple<Event_type, Gene_class_legacy, Seq_side> &event_triplet) const
-    {
-        Event_type ev_type;
-        Gene_class_legacy g_class;
-        Seq_side s_side;
-        std::tie(ev_type, g_class, s_side) = event_triplet;
-        return ((hash<int>()(ev_type) ^ (hash<int>()(g_class) << 1) >> 1) ^ (hash<int>()(s_side) << 1));
-    }
 };
 
 template <>
