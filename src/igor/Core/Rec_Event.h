@@ -507,6 +507,37 @@ protected:
     using SpanParticipants = std::vector<const Rec_Event *>;
 
     /**
+     * \brief Which of a participant's conditioning parents the fold chooses itself (R6).
+     *
+     * An event's marginals hold one probability per realization for each realization of its
+     * parents. Some of those parents are participants that come earlier in the same fold, or are
+     * the reader of a table conditioned on its realization: on any one path of the fold, their
+     * realization is known. Indexing by it, instead of taking the maximum over it, is the joint
+     * maximum over the group -- the D gene and its two deletions, in every VDJ model shipped --
+     * where the product of per-event maxima was looser.
+     *
+     * Built once per table from the strides each parent already applies to its children during
+     * the walk (`memory_and_offsets`, see update_parent_tracking()), so nothing here depends on
+     * what kind of event either side is.
+     */
+    struct SpanConditioning {
+        struct Participant {
+            /// The later participants whose marginals this one's realization indexes, by cursor,
+            /// with the stride it moves them by.
+            std::vector<std::pair<std::size_t, int>> children;
+            /// The offsets of the parent realizations the fold does not choose, which
+            /// realization_bound() takes its maximum over: parents upstream of the reader, the
+            /// reader of a table not conditioned on it, and events between the reader and this
+            /// one that do not take part in the span.
+            std::vector<int> free_parent_offsets;
+        };
+        std::vector<Participant> participants;
+        /// The participants the reader's own realization indexes. Empty unless the table is
+        /// conditioned on that realization: otherwise the reader is one of the free parents.
+        std::vector<std::pair<std::size_t, int>> reader_children;
+    };
+
+    /**
      * \brief One run of the junction-length fold, filling one profile.
      *
      * The fold computes, for every total length the span can take, the best probability the
@@ -525,10 +556,13 @@ protected:
      * does has one profile per reader realization, and one fold for each, starting from that
      * realization's length (R13).
      *
-     * `lengths` is the only state the participants share during a fold. An event that places a
-     * segment's offsets without choosing its nucleotides -- an Insertion -- writes that segment's
-     * length there; a later event whose factor depends on it -- the Dinucl_markov that fills the
-     * segment -- reads it. The driver clears it before each fold.
+     * `lengths` and `parent_offsets` are the state the participants share during a fold. An
+     * event that places a segment's offsets without choosing its nucleotides -- an Insertion --
+     * writes that segment's length into `lengths`; a later event whose factor depends on it --
+     * the Dinucl_markov that fills the segment -- reads it. An event that conditions a later
+     * participant adds its realization's stride to that participant's entry of
+     * `parent_offsets`, which is where in its marginals the later one reads (see
+     * SpanConditioning). The driver resets both before each fold.
      *
      * The struct is nested in Rec_Event only so that from() can call each participant's
      * protected fold_step().
@@ -536,9 +570,11 @@ protected:
     struct SpanFold {
         SegmentSpan span;
         const SpanParticipants &participants;
+        const SpanConditioning &conditioning;
         const Marginal_array_p &model_parameters;
         const Index_map &base_index_map;
         UnfilledSegmentLengths &lengths;
+        std::vector<int> &parent_offsets;
         SpanProfile &profile;
 
         /// Pass the path to participant `cursor`. If every participant has already chosen,
@@ -550,7 +586,8 @@ protected:
      * \brief This event's part of a fold: extend the path once per realization.
      *
      * For each realization, multiply the path's probability by realization_bound(), add the
-     * realization's length_delta() to its length, and pass it on to the next participant. An
+     * realization's length_delta() to its length, move the marginals of the participants it
+     * conditions to that realization, and pass the path on to the next participant. An
      * event that contributes a probability factor but no length -- Dinucl_markov -- does not
      * enumerate: it multiplies in span_proba_factor() once and passes the path on.
      *
@@ -560,15 +597,26 @@ protected:
     void fold_step(const SpanFold &fold, std::size_t cursor, double proba, int length) const;
 
     /**
-     * \brief The highest probability `realization` can have, whatever its conditioning parents.
+     * \brief The highest probability `realization` can have, whatever the parents not yet known.
      *
      * An event's marginals hold one probability per realization for each realization of its
      * parents. A bound must hold whichever parent realization the scenario ends up with, so this
-     * takes the maximum over them. Used by both the fold and build_retained_decomposition(); R6
-     * replaces it with a maximum taken jointly over a group of conditioned events.
+     * takes the maximum over `parent_offsets` -- every parent configuration for
+     * build_retained_decomposition(), and in the fold only those of the parents the fold does not
+     * choose itself (SpanConditioning, R6).
      */
     double realization_bound(const Event_realization &realization, const Marginal_array_p &model_parameters,
-                             int base_index) const;
+                             int base_index, const std::vector<int> &parent_offsets) const;
+
+    /// The offsets into this event's marginals of its parents' configurations in which every
+    /// parent in `fixed` -- given as (stride, number of realizations) -- is at its first
+    /// realization. With `fixed` empty, every configuration.
+    std::vector<int> parent_offsets_free_of(const std::vector<std::pair<int, int>> &fixed) const;
+
+    /// Which parents of each participant in `participants` the fold over `span` chooses itself.
+    /// `reader_conditioned` says whether the table is conditioned on this event's realization.
+    SpanConditioning conditioning_within(const SpanParticipants &participants, SegmentSpan span,
+                                         bool reader_conditioned) const;
 
     /// True for an event that positions its own segment -- an Insertion, a gene choice -- and
     /// false for one that only moves an end of a segment already placed -- a Deletion. Only the

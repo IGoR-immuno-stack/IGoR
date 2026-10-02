@@ -252,9 +252,10 @@ the path's probability is recorded at its total length and the profile keeps the
 
 | piece | role |
 |---|---|
-| `Rec_Event::SpanFold` | what is fixed during one fold — span, participants, marginals, base indices, the `lengths` accumulator, the profile being filled — with one `from(cursor, proba, length)` (R15) |
-| `fold_step()` | one participant's part: per realization, multiply by `realization_bound()`, add `length_delta()`, pass on. An event with a factor but no length (`Dinucl_markov`) multiplies in `span_proba_factor()` once instead |
-| `realization_bound()` | the realization's best probability over its conditioning parents' realizations — the one place R6's joint max replaces |
+| `Rec_Event::SpanFold` | what is fixed during one fold — span, participants, their conditioning, marginals, base indices, the profile being filled — and the two pieces of path state, the `lengths` accumulator and `parent_offsets`, with one `from(cursor, proba, length)` (R15) |
+| `fold_step()` | one participant's part: per realization, multiply by `realization_bound()`, add `length_delta()`, move the marginals of the participants it conditions to that realization, pass on. An event with a factor but no length (`Dinucl_markov`) multiplies in `span_proba_factor()` once instead |
+| `SpanConditioning` | per participant, which later participants its realization indexes and by what stride, and which of its own parent configurations stay open — read off the parents' `memory_and_offsets`, the strides the walk itself applies (R6) |
+| `realization_bound()` | the realization's best probability over the parent configurations still open: every one for a parent the fold does not choose, only the path's own for one it does (R6) |
 | `length_delta(const Event_realization&)` | the scalar the four legacy bodies differed by |
 | `span_proba_factor(SegmentSpan, const UnfilledSegmentLengths&)` | the factor, defaulted to 1 |
 
@@ -313,6 +314,7 @@ reader is, or on what follows it.
 | **R13** conditioned tables (`67fb43c`) | R8's two per-role branches and `is_reader` gone; the reader is enumerated by the driver | the fold makes **no assumption about what follows the reader**, and the base class needs no subclass knowledge | — | — (bitwise, plus a test that fails if the conditioning is lost) |
 | **R14** the crude bound's runtime half (`19c8f40`) | 188 lines deleted: the crude chain, `get_updated_ptr()`, the `updated` flag, a dead store per insertion hand-off | — | — | removes a latent double-free in `Dinucl_markov` — (bitwise) |
 | **R15** the fold as one object (`46e3291`) | `SpanFold`; one recursion step instead of two functions with ten arguments; `realization_bound()` written once; the fold no longer writes to the index map | — | — | — (bitwise) |
+| **R6** the joint max | — | a participant conditioned on an event the fold has already chosen — an earlier participant, or the reader of a conditioned table — is read at that realization rather than at the best of them, from the strides the walk uses; nothing in it names an event kind | the exhaustive position scan `break`s again, on the decomposition's own sort key (R7's re-check) | — (bitwise, and **inert on every model shipped**: no table holds a conditioned participant with its parent. Finding that out found §7.22 of the iterate plan) |
 
 **Until R8, nothing delivered was a correctness fix**, by design — every step before it is
 bitwise on the regression corpus, and so are R13–R15 after it. R8 is the one row that moved results,
@@ -347,7 +349,7 @@ and deserved to go; it was not the bottleneck. **The measured costs are `GeneCho
 | **R3** ✅ | — | — | — | `Insertion` writes its offsets and **requests the layers it writes**; its mismatch-list defect is *dissolved* by R1's rescope rather than fixed. The leaf invariant's offsets half lands with it |
 | **R3b** ✅ | — | — | — | `LayeredArray::set()` requires a prior claim instead of raising it silently |
 | **R12** | — | `affects_length_of`'s enum switches become a rule — *a segment adds length to a span when it sits strictly between its two ends* — so V and J would take part in a span between flanking sequences without a new case | — | — (bitwise by construction) |
-| **R6** | — | — | — | tighter bound via a within-clique **joint** max, replacing `realization_bound()`. **Changes which scenarios survive pruning**, so it is gated on convergence rather than bitwise regression. Size it against §9's post-R8 table |
+| **§7.22** | — | — | the repair needs a fold that does not walk every path: put in as one line it costs 7× on the regression inference track | **the V→J table J reads leaves D's two deletions out**, so it is not a bound: on the corpus it pruned 1 708 scenarios above the threshold in one iteration. Not decided — see the iterate plan, §7.22 |
 
 ---
 
@@ -480,9 +482,13 @@ than after.
 
 Worth stating so the scope is not over-read:
 
-- **The bound is still a relaxation.** It maximises each event's conditional probability
-  independently, which is looser than maximising jointly over a conditioned clique. R6 tightens it;
-  until then the slack is real and §6.10 quantifies where.
+- **The bound is still a relaxation.** Since R6 a participant conditioned on an event the same
+  fold enumerates is read jointly with it, but every parent the fold does not choose — upstream of
+  the reader, or the reader of a table not conditioned on it, as the D gene choice is for its own
+  deletions — is still maximised over independently. On the models shipped that is every
+  conditioning edge there is, so the slack §6.10 quantifies is untouched. Two levers would reach it:
+  conditioning a gene choice's table on its own realization when it conditions a participant, and
+  §6.10's cross-clique parent indexing.
 - **The bound is still query-independent.** It is built from the model alone and knows nothing about
   the read, which is what lets it be built once per EM iteration rather than per sequence.
 - **The tables are still built per consumer**, and redundantly: two events reading the same span
@@ -613,7 +619,7 @@ Three readings.
 ### The baseline after R8
 
 Same corpus, batch, iteration and thresholds, measured Sep 30 2026 after R8 and re-measured
-unchanged after R13, R14 and R15 (Oct 1). 3 767 312 scenarios from 22 236 809 expanded nodes — **5.9 nodes per
+unchanged after R13, R14 and R15 (Oct 1) and after R6 (Oct 2). 3 767 312 scenarios from 22 236 809 expanded nodes — **5.9 nodes per
 scenario**, 23.6 % of nodes barren, and **no node at any depth whose bound sat below the best leaf
 under it**.
 
@@ -642,7 +648,15 @@ Three readings.
   walk now stops, not the insertions.
 - **R6's target is unchanged**: the J gene choice still carries 7.25 decades at the root and the D
   choice 2.50, exactly as before R8. With the insertion steps exact, the remaining per-event slack
-  sits on the gene choices and on two of the deletions (`D_5'` and `J_5'`, 10^3.00 each).
+  sits on the gene choices and on two of the deletions (`D_5'` and `J_5'`, 10^3.00 each). *(R6 left
+  all of it in place, because no shipped model gives its joint max a pair to act on — see the
+  iterate plan's* R6 in more detail.*)*
+- **"No unsound node" is a statement about this run, not about the bound.** An evaluate from the
+  inferred `default_inference/final_*` finds **3 unsound nodes at depth 1**, all on the J gene
+  choice, whose V→J table leaves D's deletions out (iterate plan §7.22). And a prune leaves nothing
+  for the instrument to measure, so the uniform start's zero does not show the J table sound there
+  either: it prunes 1 708 scenarios above the threshold in this very run, found only by putting the
+  deletions in and comparing what is summed.
 
 **The caveat.** This was run on `TRB_uniform_model_marginals.txt` at EM iteration 1. Under a
 uniform model every realization of an event is equiprobable, so `bound / realized` is close to the
@@ -676,3 +690,4 @@ per-sequence best. Not built.
 | decisions O8 (S4 scope), O10 (layer ownership), O11 (boundary spans) | §8 |
 | the bound's measured looseness, and the instrument | §9 above, and §6.16 of the iterate plan |
 | why a table never contains its reader, and why it is conditioned | §7.19 of the iterate plan, and its *R8 in more detail* and *R13 in more detail* |
+| the joint max, why it changes no result, and the table it found unsound | *R6 in more detail* and §7.22 of the iterate plan |

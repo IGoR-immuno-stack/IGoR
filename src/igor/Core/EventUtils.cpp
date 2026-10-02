@@ -40,12 +40,12 @@ bool try_get_event(
     return false;
 }
 
-igor::migration::GeneChoiceStatus check_gene_choice(
+GeneChoiceStatus check_gene_choice(
   const Seq_type_String &gene_seq_type,
     const Events_map &events_map,
     const std::unordered_set<Rec_Event_name> &processed_events) {
 
-  igor::migration::GeneChoiceStatus status;
+  GeneChoiceStatus status;
   status.exists = false;
   status.chosen = false;
   status.event_ptr = nullptr;

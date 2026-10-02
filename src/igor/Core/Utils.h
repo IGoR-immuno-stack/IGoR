@@ -209,9 +209,9 @@ enum Fileformat { CSV_f, FASTA_f, TXT_f, FASTQ_f };
  *   It comes from the data, and every consumer handles it -- averaged over its underlying
  *   bases by Dinucl_markov, matched permissively by the aligner.
  * - `int_undefined` means *this position is not determined yet*. It comes from
- *   Insertion::iterate, which allocates a junction of the right length before anything knows
- *   its content, and it is consumed by Dinucl_markov, which fills exactly the positions
- *   holding it. **No read ever contains it**: nt2int() cannot produce it.
+ *   Dinucl_markov::iterate, which creates a junction of the right length from the offsets
+ *   the Insertion placed, before anything knows its content, and then fills every position.
+ *   **No read ever contains it**: nt2int() cannot produce it.
  *
  * It is a placeholder inside one scenario, not a value. A segment handed to an error rate, a
  * counter or an output file must contain none.
@@ -473,10 +473,10 @@ typedef DynamicSequenceMap<Int_Str_ptr> Seq_type_str_p_map;
 /**
  * The first segment still holding an `int_undefined` position, or `kNoSeqType` if none does.
  *
- * `int_undefined` is a placeholder inside one scenario, not a value: an `Insertion` allocates
- * a junction of the right length and the `Dinucl_markov` that follows fills it. By the time a
- * scenario is complete every position must be determined, so anything that *consumes* a
- * finished scenario -- the error rate, the counters, the output writers -- may assume it.
+ * `int_undefined` is a placeholder inside one scenario, not a value: a `Dinucl_markov`
+ * creates a junction of the right length holding it, and fills it before handing on. By the
+ * time a scenario is complete every position must be determined, so anything that *consumes*
+ * a finished scenario -- the error rate, the counters, the output writers -- may assume it.
  *
  * The assumption is checked at the one place it has to hold (`Rec_Event::iterate_wrap_up`'s
  * leaf branch) and only in a build with assertions enabled: the walk is linear in the
@@ -539,7 +539,7 @@ typedef DynamicSequenceMap<double> Downstream_scenario_proba_bound_map;
 
 
 /*
- * Defining a hash functions for Rec_Event, Gene_class_legacy and pair<Gene_class_legacy,Seq_side>
+ * Hash functions for the enums and tuples used as unordered_map keys
  */
 namespace std {
 /*
@@ -581,28 +581,6 @@ template <>
 struct hash<Gene_class_legacy>
 {
     std::size_t operator()(const Gene_class_legacy &gene) const { return hash<int>()(gene); }
-};
-
-template <>
-struct hash<std::pair<Gene_class_legacy, Seq_side>>
-{
-    std::size_t operator()(const pair<Gene_class_legacy, Seq_side> &gene_pair) const
-    {
-        return (hash<Gene_class_legacy>()(gene_pair.first) ^ (hash<int>()(gene_pair.second) << 1)) >> 1;
-    }
-};
-
-template <>
-struct hash<std::tuple<Event_type, Gene_class_legacy, Seq_side>>
-{
-    std::size_t operator()(const std::tuple<Event_type, Gene_class_legacy, Seq_side> &event_triplet) const
-    {
-        Event_type ev_type;
-        Gene_class_legacy g_class;
-        Seq_side s_side;
-        std::tie(ev_type, g_class, s_side) = event_triplet;
-        return ((hash<int>()(ev_type) ^ (hash<int>()(g_class) << 1) >> 1) ^ (hash<int>()(s_side) << 1));
-    }
 };
 
 template <>

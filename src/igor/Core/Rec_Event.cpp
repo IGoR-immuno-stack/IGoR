@@ -25,7 +25,6 @@
  */
 
 #include <igor/Core/Rec_Event.h>
-#include <igor/Core/gene_to_seqtype_migr.h>
 #include <igor/Core/Counter.h>
 #include <igor/Core/EventUtils.h>
 #include <igor/Core/Scenario.h>  // For Scenario view construction
@@ -495,31 +494,101 @@ void Rec_Event::fold_step(const SpanFold &fold, std::size_t cursor, double proba
     //Read at layer 0, where every event's base index sits before the walk writes any other: a
     //pure read, where the fold used to rewind the key's current layer to 0 first -- a write
     //from a const traversal, and a no-op at initialization, when nothing stands above layer 0.
-    const int base_index = fold.base_index_map.get(this->event_index, 0);
+    //What the path has already chosen of this event's parents is added on top, exactly as the
+    //walk's update_parent_tracking() would have added it (R6).
+    const int base_index = fold.base_index_map.get(this->event_index, 0) + fold.parent_offsets[cursor];
+    const SpanConditioning::Participant &conditioning = fold.conditioning.participants[cursor];
 
     for (std::unordered_map<std::string, Event_realization>::const_iterator iter = this->event_realizations.begin();
          iter != this->event_realizations.end(); ++iter) {
         const Event_realization &realization = iter->second;
         const int delta = this->length_delta(realization);
         publish_unfilled_length(this->seq_type_id, delta, creates_offsets, creates_sequence, fold.lengths);
-        fold.from(cursor + 1, proba * this->realization_bound(realization, fold.model_parameters, base_index),
-                  length + delta);
+        const double bound = this->realization_bound(realization, fold.model_parameters, base_index,
+                                                     conditioning.free_parent_offsets);
+        for (const auto &[child, stride] : conditioning.children) {
+            fold.parent_offsets[child] += realization.index * stride;
+        }
+        fold.from(cursor + 1, proba * bound, length + delta);
+        for (const auto &[child, stride] : conditioning.children) {
+            fold.parent_offsets[child] -= realization.index * stride;
+        }
     }
 }
 
 double Rec_Event::realization_bound(const Event_realization &realization, const Marginal_array_p &model_parameters,
-                                    int base_index) const
+                                    int base_index, const std::vector<int> &parent_offsets) const
 {
     //The realization's marginal is stored once per realization of the conditioning parents, at a
-    //stride of this event's size, and the bound has to hold whichever of them the scenario turns
-    //out to carry.
+    //stride of this event's size, and the bound has to hold whichever of those the scenario
+    //turns out to carry -- among the ones still open.
     double best = 0;
-    for (std::size_t i = 0; i != this->event_marginal_size / this->size(); ++i) {
-        if (model_parameters[base_index + realization.index + i * this->size()] > best) {
-            best = model_parameters[base_index + realization.index + i * this->size()];
+    for (const int parent_offset : parent_offsets) {
+        if (model_parameters[base_index + realization.index + parent_offset] > best) {
+            best = model_parameters[base_index + realization.index + parent_offset];
         }
     }
     return best;
+}
+
+std::vector<int> Rec_Event::parent_offsets_free_of(const std::vector<std::pair<int, int>> &fixed) const
+{
+    //The parents' realizations are a mixed-radix number, each parent's digit weighted by the
+    //stride it was given in memory_and_offsets, so a configuration leaves a parent at its first
+    //realization exactly when that digit is 0.
+    std::vector<int> offsets;
+    offsets.reserve(this->event_marginal_size / this->size());
+    for (std::size_t i = 0; i != this->event_marginal_size / this->size(); ++i) {
+        const int offset = static_cast<int>(i * this->size());
+        bool free = true;
+        for (const auto &[stride, parent_size] : fixed) {
+            if ((offset / stride) % parent_size != 0) {
+                free = false;
+                break;
+            }
+        }
+        if (free) {
+            offsets.push_back(offset);
+        }
+    }
+    return offsets;
+}
+
+Rec_Event::SpanConditioning Rec_Event::conditioning_within(const SpanParticipants &participants, SegmentSpan span,
+                                                           bool reader_conditioned) const
+{
+    //Who indexes whom, read off the parents' side: an event's memory_and_offsets lists its
+    //children and the stride its realization moves each of them by. Only an event the fold
+    //enumerates has a realization on the path -- one that changes the span's length, or the
+    //reader of a table conditioned on its own -- so only those fix anything.
+    SpanConditioning conditioning;
+    conditioning.participants.resize(participants.size());
+    std::vector<std::vector<std::pair<int, int>>> fixed(participants.size());
+
+    const auto link_children = [&](const Rec_Event &parent, std::size_t first_cursor,
+                                   std::vector<std::pair<std::size_t, int>> &children) {
+        for (const auto &[child_id, layer, stride] : parent.memory_and_offsets) {
+            for (std::size_t cursor = first_cursor; cursor != participants.size(); ++cursor) {
+                if (participants[cursor]->event_index == child_id) {
+                    children.emplace_back(cursor, stride);
+                    fixed[cursor].emplace_back(stride, parent.size());
+                }
+            }
+        }
+    };
+
+    if (reader_conditioned) {
+        link_children(*this, 0, conditioning.reader_children);
+    }
+    for (std::size_t cursor = 0; cursor != participants.size(); ++cursor) {
+        if (participants[cursor]->affects_length_of(span)) {
+            link_children(*participants[cursor], cursor + 1, conditioning.participants[cursor].children);
+        }
+    }
+    for (std::size_t cursor = 0; cursor != participants.size(); ++cursor) {
+        conditioning.participants[cursor].free_parent_offsets = participants[cursor]->parent_offsets_free_of(fixed[cursor]);
+    }
+    return conditioning;
 }
 
 bool Rec_Event::creates_own_offsets() const
@@ -579,13 +648,20 @@ void Rec_Event::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &model_q
         //
         //A reader that does not change the span's length -- the gene choice the span is
         //measured from -- has nothing to condition on: one profile, from the events after it.
+        //
+        //Within the table, a participant conditioned on an event the fold has already chosen on
+        //the current path -- an earlier participant, or the reader when the table is conditioned
+        //on it -- reads its marginals at that realization rather than at the best of them (R6).
         const SegmentSpan span = bound.span();
         const bool conditioned = this->affects_length_of(span);
         bound.reset_profiles(conditioned, this->size());
+        const SpanConditioning conditioning = this->conditioning_within(participants, span, conditioned);
+        std::vector<int> parent_offsets(participants.size(), 0);
 
         if (not conditioned) {
             lengths.reset();
-            SpanFold{span, participants, model_parameters_point, base_index_map, lengths, bound.mutable_profile()}
+            SpanFold{span, participants, conditioning, model_parameters_point, base_index_map, lengths,
+                     parent_offsets, bound.mutable_profile()}
                     .from(0, 1.0, 0);
             continue;
         }
@@ -599,8 +675,12 @@ void Rec_Event::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &model_q
             const int delta = this->length_delta(realization);
             lengths.reset();
             publish_unfilled_length(this->seq_type_id, delta, creates_offsets, creates_sequence, lengths);
-            SpanFold{span, participants, model_parameters_point, base_index_map, lengths,
-                     bound.mutable_profile_for(realization.index)}
+            parent_offsets.assign(participants.size(), 0);
+            for (const auto &[child, stride] : conditioning.reader_children) {
+                parent_offsets[child] += realization.index * stride;
+            }
+            SpanFold{span, participants, conditioning, model_parameters_point, base_index_map, lengths,
+                     parent_offsets, bound.mutable_profile_for(realization.index)}
                     .from(0, 1.0, delta);
         }
     }
@@ -640,6 +720,8 @@ void Rec_Event::build_retained_decomposition(const Marginal_array_p &model_param
     }
 
     const int base_index = base_index_map.get(this->event_index, 0);
+    //Every parent of the reader is upstream of it, so none is known when the table is built.
+    const std::vector<int> every_parent_offset = this->parent_offsets_free_of({});
 
     for (std::unordered_map<std::string, Event_realization>::const_iterator iter = this->event_realizations.begin();
          iter != this->event_realizations.end(); ++iter) {
@@ -647,7 +729,8 @@ void Rec_Event::build_retained_decomposition(const Marginal_array_p &model_param
 
         //The same bound the fold takes, for the same reason: this event may be a child, and the
         //bound has to hold whichever parent realization the scenario turns out to carry.
-        const double real_max_proba = this->realization_bound(realization, model_parameters_point, base_index);
+        const double real_max_proba =
+                this->realization_bound(realization, model_parameters_point, base_index, every_parent_offset);
 
         const int own_length = this->length_delta(realization);
 

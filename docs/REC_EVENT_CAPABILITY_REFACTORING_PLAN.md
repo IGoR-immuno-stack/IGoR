@@ -1,33 +1,295 @@
 # Rec_Event Capability Attributes & Gene_class Correction: Architectural Refactoring Plan
 
-**Last Updated**: August 26, 2026
+**Last Updated**: October 2, 2026
 
 ---
 
-## Implementation Status (audited Aug 26 2026; baseline re-checked against `develop` @ `ed5c583`, Aug 27 2026; Phase A / B0 / B6 / B7 rows re-audited against `feature/tandemD` @ `4a6dfee`, Sep 9 2026)
+## Implementation Status (audited Aug 26 2026; baseline re-checked against `develop` @ `ed5c583`, Aug 27 2026; Phase A / B0 / B6 / B7 rows re-audited against `feature/tandemD` @ `4a6dfee`, Sep 9 2026; Phase A, B and C–E rows re-audited against `feature/tandemD` @ `77a9ad7`, Oct 2 2026)
 
 Legend: ✅ done · 🟡 partial · ⬜ not started
 
 | Task | Status | Notes |
 |------|:------:|-------|
-| Phase A | 🟡 | **Two span-addressed capabilities delivered** *(Sep 10 2026, iterate plan S4a, `b432247`)*: `affects_length_of(SegmentSpan)` and `affects_proba_of(SegmentSpan)`, replacing `has_effect_on(Seq_type)`. They occupy the *span* column of the capability surface — `SegmentSpan` being the addressing unit shared with G5's junction bounds and D.3's cluster boundaries — where the four A0 queries all address a *segment*. The split was forced rather than cosmetic: `Dinucl_markov` contributes no length at all and answered `true` purely to gate a probability factor, so a length-only predicate had to gain a probability sibling in the same commit or the bound would have lost that factor. **Tier 3 of the segment-completeness invariant also landed** (`43b3efd`, test-only): the unit harness now asserts at every hand-off that what an event declared through its A0 queries, it did — which makes R3 self-verifying, since flipping `Insertion::get_offset_role` to `Creates` without also writing the offsets now fails immediately. A **complementary, non-capability rule** landed with it (`f568bd4`): *a written layer must have been requested*, the converse of the existing layer contract, covering every layered map including the two no query describes. It found one violation across 49 measured writes — `Insertion` writes the segment it creates without requesting a layer for it, the same under-declaration as its missing offsets, repaired together in R3. Its runtime home is `LayeredArray::set()`, which used to raise the claim implicitly rather than requiring it; that flip is iterate-plan O10 and **landed as R3b on Sep 26 2026**, bitwise on all five regression tracks and with no production violation to repair behind it — the 80 failures it produced were all fixtures that had been writing a map at layer 0 without claiming it. **Two further capabilities identified as missing** *(Sep 9 2026, iterate plan §6.10)*: a **per-realization** length delta (A0 supplies only the `{min,max}` bound over all realizations, but the junction-length fold needs the value for one realization — this is the hook that collapses four `iterate_initialize_Len_proba` bodies into one) and a **probability hook for non-enumerating events**, whose shape D.9 already reserves as `is_multi_realization()`. A *modifier-type* enum was considered and rejected: the four length deltas differ by sign and by which `Event_realization` field they read, which a per-realization accessor states directly, and the qualitative taxonomy already exists as `SeqConstructionRole`. **One delivered A0 query is also wrong** *(Sep 10 2026)*: `Insertion::get_offset_role()` returns `None`, encoding as contract the defect that `Insertion::iterate` records no offsets for the segment it creates — so a query whose purpose is to spare consumers from knowing implementations instead propagates that coupling. Fixed with iterate-plan R3 by reporting plain `Creates`; the enum needs no new value — whether an event can be scheduled before its neighbours is a *context dependency* (D.9's `get_context_seq_types()`), not an offset role, and that is what would differ for an `Insertion` implemented by enumeration rather than by deriving its span. `SeqConstructionRole::Creates` and `OffsetRole::Creates` coincide for every event today but are **not** to be collapsed: an event could construct content and leave placement downstream. The invariant tying them is that **every registry seq_type must have both its sequence and its offsets created by the time a scenario reaches a leaf**, not necessarily by the same event; the content half is already asserted (`1794b5f`), the offsets half becomes assertable with R3. See that plan's §2.5. <br><br>**Partially delivered as A0** *(`db8d960`, Sep 2 2026 — this is decision O2's amendment, recorded here)*. `SeqConstructionRole` and `OffsetRole` exist at [Rec_Event.h:146,154](src/igor/Core/Rec_Event.h#L146), alongside `OffsetDelta` and `LengthContribution` (quantitative bounds the original Phase A did not specify), as four pure virtuals implemented on all four subclasses. Still absent: `is_branching`, `SeqContextDependency`. **No production consumer yet** — the only caller is `JunctionGeometry::PendingModifierBounds::rebuild()`, itself uncalled until step 3 of the iterate plan. |
-| B0 | 🟡 | `Rec_Event` gained a `Seq_type_String seq_type` **string** member; `event_class` was **kept** on the base. No `seq_type_ids` vector, no `primary_seq_type_id()`. Subclasses gained typed members (`Deletion::target_seq_type`, `Insertion::ins_seq_type`, `Dinucl_markov::ins_seq_type`). `Dinucl_markov::start_side` realised as `event_side`, from which `DinuclTraversalSpec::anchor_side` is now **derived** rather than stored (`7104c91`). Adjacency moved onto the base as `left_adjacent_id` / `right_adjacent_id` with a non-virtual `set_adjacent_segments()`, resolved once by `Model_Parms::finalize()` (`4a6dfee`) — topology is told to events, not asked for by them. |
+| Phase A | 🟡 | **Oct 2 2026: what tandem D needs from Phase A has landed; the rest leaves this plan** (see *Remaining work*). Landed: the four A0 queries, `affects_length_of` / `affects_proba_of`, `length_delta`, `span_proba_factor`. Still to do on the tandem-D path: R12, which takes `affects_length_of` off the enum (T3). Moved out with Phases C and D: `is_branching`, `is_multi_realization`, `SeqContextDependency`, `get_context_seq_types`. <br><br>**Two span-addressed capabilities delivered** *(Sep 10 2026, iterate plan S4a, `b432247`)*: `affects_length_of(SegmentSpan)` and `affects_proba_of(SegmentSpan)`, replacing `has_effect_on(Seq_type)`. They occupy the *span* column of the capability surface — `SegmentSpan` being the addressing unit shared with G5's junction bounds and D.3's cluster boundaries — where the four A0 queries all address a *segment*. The split was forced rather than cosmetic: `Dinucl_markov` contributes no length at all and answered `true` purely to gate a probability factor, so a length-only predicate had to gain a probability sibling in the same commit or the bound would have lost that factor. **Tier 3 of the segment-completeness invariant also landed** (`43b3efd`, test-only): the unit harness now asserts at every hand-off that what an event declared through its A0 queries, it did — which makes R3 self-verifying, since flipping `Insertion::get_offset_role` to `Creates` without also writing the offsets now fails immediately. A **complementary, non-capability rule** landed with it (`f568bd4`): *a written layer must have been requested*, the converse of the existing layer contract, covering every layered map including the two no query describes. It found one violation across 49 measured writes — `Insertion` writes the segment it creates without requesting a layer for it, the same under-declaration as its missing offsets, repaired together in R3. Its runtime home is `LayeredArray::set()`, which used to raise the claim implicitly rather than requiring it; that flip is iterate-plan O10 and **landed as R3b on Sep 26 2026**, bitwise on all five regression tracks and with no production violation to repair behind it — the 80 failures it produced were all fixtures that had been writing a map at layer 0 without claiming it. **Two further capabilities identified as missing** *(Sep 9 2026, iterate plan §6.10)*: a **per-realization** length delta (A0 supplies only the `{min,max}` bound over all realizations, but the junction-length fold needs the value for one realization — this is the hook that collapses four `iterate_initialize_Len_proba` bodies into one) and a **probability hook for non-enumerating events**, whose shape D.9 already reserves as `is_multi_realization()`. A *modifier-type* enum was considered and rejected: the four length deltas differ by sign and by which `Event_realization` field they read, which a per-realization accessor states directly, and the qualitative taxonomy already exists as `SeqConstructionRole`. **One delivered A0 query is also wrong** *(Sep 10 2026)*: `Insertion::get_offset_role()` returns `None`, encoding as contract the defect that `Insertion::iterate` records no offsets for the segment it creates — so a query whose purpose is to spare consumers from knowing implementations instead propagates that coupling. Fixed with iterate-plan R3 by reporting plain `Creates`; the enum needs no new value — whether an event can be scheduled before its neighbours is a *context dependency* (D.9's `get_context_seq_types()`), not an offset role, and that is what would differ for an `Insertion` implemented by enumeration rather than by deriving its span. `SeqConstructionRole::Creates` and `OffsetRole::Creates` coincide for every event today but are **not** to be collapsed: an event could construct content and leave placement downstream. The invariant tying them is that **every registry seq_type must have both its sequence and its offsets created by the time a scenario reaches a leaf**, not necessarily by the same event; the content half is already asserted (`1794b5f`), the offsets half becomes assertable with R3. See that plan's §2.5. <br><br>**Partially delivered as A0** *(`db8d960`, Sep 2 2026 — this is decision O2's amendment, recorded here)*. `SeqConstructionRole` and `OffsetRole` exist at [Rec_Event.h:146,154](src/igor/Core/Rec_Event.h#L146), alongside `OffsetDelta` and `LengthContribution` (quantitative bounds the original Phase A did not specify), as four pure virtuals implemented on all four subclasses. Still absent: `is_branching`, `SeqContextDependency`. **No production consumer yet** — the only caller is `JunctionGeometry::PendingModifierBounds::rebuild()`, itself uncalled until step 3 of the iterate plan. |
+| B0 | 🟡 | `Rec_Event` gained a `Seq_type_String seq_type` **string** member; `event_class` was **kept** on the base. No `seq_type_ids` vector, no `primary_seq_type_id()`. Subclasses gained typed members (`Deletion::target_seq_type`, `Insertion::ins_seq_type`, `Dinucl_markov::ins_seq_type`). `Dinucl_markov::start_side` realised as `event_side`, from which `DinuclTraversalSpec::anchor_side` is now **derived** rather than stored (`7104c91`). Adjacency moved onto the base as `left_adjacent_id` / `right_adjacent_id` with a non-virtual `set_adjacent_segments()`, resolved once by `Model_Parms::finalize()` (`4a6dfee`) — topology is told to events, not asked for by them. <br><br>**Oct 2 2026: this is what stops a tandem-D model from loading (T1).** The three subclass members are still typed `Seq_type`, so every constructor, from text or from JSON, goes through `str2SeqType()` and throws on `D1_gene_seq`. |
 | B1 | ✅ | `Gene_class` = `{V_gene, D_gene, J_gene, Undefined_gene}`. Junction values moved to a new `Gene_class_legacy` enum confined to file I/O + `gene_to_seqtype_migr` module. |
 | B2 | ✅ | `SeqTypeId` handle layer added to `SeqTypeRegistry` (`1038c5d`), `LayeredArray` (`f6f0101`) and `DynamicSequenceMap` (`f1d26a4`) added as separate headers, legacy ids pinned to the `Seq_type` enum (`7549a4d`). Split into a pure container + a registry-aware view rather than one class; `standard_count()` and `LegacySequenceRegistry` dropped (see below). Flank types await B3. |
 | B3 | ⬜ | No flank seq types. `Gene_choice` friend declarations for `Hypermutation_*` still present. |
 | B4 | ✅ | `Events_map = unordered_map<tuple<Event_type, Seq_type_String, Seq_side>, shared_ptr<Rec_Event>>`, threaded through every `iterate`/`initialize_event`/counter/error-rate signature. Key built from `get_seq_type()`. Tandem-D uniqueness achieved. |
-| B5 | ⬜ | `Deletion::iterate()` still carries the full 4-case switch (now on `target_seq_type` instead of `event_class`) and the hardcoded `VD_safe`/`DJ_safe`/`VJ_safe` checks. |
+| B5 | ✅ | Iterate plan step 4b (Sep 21 2026): `Deletion::iterate()` is generic, 981 → 246 lines, bitwise. The flank checks still list V, D and J by name (`kGeneSegments`); T3 replaces that. |
 | B6 | ✅ | `96ed833` (Sep 7 2026), iterate plan step 1b. One generic body driven by the adjacency ids; `initialize_crude_scenario_proba_bound`'s switch is one `events_map` lookup; `initialize_event` addresses `seq_type_id` directly. `Insertion::iterate` at 100 % lines, branches and blocks. Bitwise-exact. |
 | B7 | ✅ | `7104c91` (Sep 8 2026), iterate plan step 2b. The hardcoded spec table, both residual `switch`es in `iterate()`, the one in `add_to_marginals()`, three raw `new int[]` buffers and nine named members are gone; the junction is derived from the registry-resolved adjacency plus the event's own `event_side`. `Dinucl_markov::iterate` at 100 % lines and blocks. Bitwise-exact. **The skip-empty walk is deliberately not part of B7** — it differs from the ordering neighbour exactly when the anchor is empty, which is a live segfault, so it is a fix (throw) scheduled in the iterate plan's phase R (repairs), not a refactor. |
 | B8 | ✅ | All five maps migrated and sized from the frozen registry: downstream proba bounds (`13fcdec`), the two mismatch maps (`1abd908`), constructed sequences (`c86d34e`), offsets split per sequence end (`fe8c5d1`), overlap safety to `LayeredArray<bool>` (`a58808b`). `Enum_fast_memory_map`, `Enum_fast_memory_dual_key_map` and `Str_Dual_key_memory_map` are deleted. Measured cost +9.4 % inference wall clock; accepted for the refactoring's duration, see D4 step 3. |
-| B11 *(new)* | 🟡 | **Alignment path done** (iterate plan step 3, Sep 16 2026): `Gene_choice::iterate`'s V/D/J switch and both `initialize_event` switches are gone, the writes are keyed by `seq_type_id`, and the V/J-versus-D asymmetry is read off the registry ordering rather than the gene class — so a tandem D1/D2 pair is not named anywhere in the alignment path. The `no_d_align` exhaustive path is iterate plan step 5b, behind its characterization fixture (5a). |
-| B10 *(new)* | ⬜ | Absent-segment semantics. **Off the tandem-D critical path** — milestone 1 has both D genes always present. Carries a real modelling decision (chain-with-conflation vs. DAG ordering) deferred to milestone 2. |
-| B9 | 🟡 | Legacy→seq_type inference, registry inference (VDJ/VJ), `write_model_parms_legacy` / `write_model_parms_v2` split, v2 `@Version` / `@Seq_type_order` parsing and per-event `write2txt_v2()` are all implemented. `VDJ_genes` `Dinucl_markov` expansion (B9 step 3) and junction safety adjacency generation (step 4) are not. |
-| Phase C | ⬜ | **Waits for the Tensor / topology branch merge** (expected end of phase B) — it validates the interfaces that branch replaces. See the execution plan below. |
-| Phase D | ⬜ | Same gate as Phase C, and additionally wants that branch's containers. |
-| Phase E | ⬜ | — |
+| B11 *(new)* | ✅ | Both paths generic: the alignment path (iterate plan step 3, Sep 16 2026) and the `no_d_align` position scan (step 5b, Sep 21 2026). `Gene_choice::iterate` names no gene. Its flank-check set-up and `affects_length_of` still do (T3). |
+| B10 *(new)* | ⬜ | Absent-segment semantics. **Off the tandem-D critical path** — milestone 1 has both D genes always present. Carries a real modelling decision (chain-with-conflation vs. DAG ordering) deferred to milestone 2. **Oct 2 2026:** the synthesis sets the direction, a layout DAG with existence guards in the model (synthesis step 5); that is option (b) below, generalised. |
+| B9 | 🟡 | Legacy→seq_type inference, registry inference (VDJ/VJ), `write_model_parms_legacy` / `write_model_parms_v2` split, v2 `@Version` / `@Seq_type_order` parsing and per-event `write2txt_v2()` are all implemented. `VDJ_genes` `Dinucl_markov` expansion (B9 step 3) and junction safety adjacency generation (step 4) are not. **Oct 2 2026:** step 3's replacement of the V/D/J literal is part of T3, and its `VDJ_genes` split becomes a shared handler (synthesis); step 4 is superseded by S5's `SafetyMatrix`; step 5 is T4. |
+| Phase C | ⬜ | **Out of this plan (Oct 2 2026).** Engine work, carried on a later branch once legacy inference has moved into a `LegacyDfsEngine` (synthesis step 6). See *Remaining work*. |
+| Phase D | ⬜ | **Out of this plan (Oct 2 2026)**, with Phase C. In the synthesis it is the `ChainDPEngine` (step 9). |
+| Phase E | ⬜ | **Replaced by synthesis step 8 (Oct 2 2026):** the error models become one Probe event with its own handlers. |
+
+## Remaining work for tandem D (Oct 2 2026)
+
+This section replaces the *Execution plan* below for everything still to do. The plan now covers
+**Phases A and B, up to tandem-D milestone 1**. It takes into account
+[ARCHITECTURE_SYNTHESIS.md](ARCHITECTURE_SYNTHESIS.md) ("the synthesis") and
+[TK_REFACTORING_MERGE_ANALYSIS.md](TK_REFACTORING_MERGE_ANALYSIS.md) ("the merge analysis"). The
+merge analysis was written before the synthesis; where they disagree, the synthesis holds.
+
+### Where the work happens
+
+**Decision (Quentin, Oct 2 2026):** the work that concerns tandem D only, T3, T4 and T6 below, lands
+on `feature/tandemD` first. Then `integration/model-on-tandemD` is merged into `feature/tandemD`
+(T0), and T1 and T2 are done on the merged branch. Both change the event constructors and the event
+identity, which the integration branch's JSON constructors and factory also touch; doing them
+before the merge would mean resolving them twice.
+
+The integration branch already exists on origin, by T. Kloczko:
+- It is cut from `feature/tandemD` at `499b257` and merges `feature/tk_refactoring` at `89a5d68`
+  (`b2473ee`). Conflicts were resolved toward tandemD, which owns Core.
+- It caught up with `feature/tandemD` at `7acca10` (`1680eb8`). R11, R6 and their docs
+  (`c5b4db8`..`77a9ad7`) are not on it yet.
+- It adds JSON migration steps 0 to 3: `Rec_Event::to_json()` and `model_parms_to_json()`; a
+  constructor from a JSON node on each of the four event classes; an `EventFactory` that builds
+  from the document. `read_topology()` and `read_parameters()` are deleted, so Core's is the only
+  reader of the text format.
+- `Topology` carries the segment order (`seqTypeOrder()`), from the JSON document or from
+  `LegacyBridge`.
+- One Core fix: a `DinucMarkov`'s generated name no longer depends on the order its setters run
+  in (`731fe95`). No name changes.
+
+**Whether that merge is mechanical is not settled yet.** The branch reports a clean build and
+passing unit suites, measured on macOS arm64. Two things are still open on Linux, where the
+goldens were made:
+- Its lock resolves **GCC 15.3** on linux-64. `feature/tandemD` gets 14.3 from its lock only:
+  both `pixi.toml`s say `cxx-compiler = "*"`. The merge analysis (§4.8) found that GCC 15's
+  libstdc++ rejects Core. The only error was in `gene_to_seqtype_migr.cpp`, in a function nothing
+  called, and T6a deleted it. The branch also builds as C++23 where `feature/tandemD` builds C++20.
+  Both changes sit under the bitwise gate.
+- It reports `scripts/tests/test_generate.sh` failing on the data rows of `seed42_generated`, from
+  before its own Core change.
+
+The merge counts as mechanical once all five regression tracks are bitwise on Linux (T0 below).
+
+### Commit tags
+
+From now on, every commit says which plan it serves, in a trailer, on `feature/tandemD` and on
+the merged branch alike:
+
+| Trailer | For |
+|---|---|
+| `Track: TandemD` | this plan: Phases A and B up to tandem-D milestone 1, including the iterate plan's rows on that path |
+| `Track: ModelRefactoring` | the synthesis' steps and the Model module |
+
+A commit that serves both carries both lines. `git log --grep='^Track: TandemD$'` lists one set.
+Earlier commits are not rewritten: this plan's are `develop..feature/tandemD`.
+
+### Out of this plan: Phases C, D, E and the rest of Phase A
+
+**Decision (Quentin, Oct 2 2026):** Phases C and D belong to engine implementation. They are
+carried on a later branch, once the legacy inference code has moved into a `LegacyDfsEngine`
+(synthesis step 6). In the synthesis, Phase C's structural rules become model validation plus each
+engine's admissibility conditions, and Phase D becomes the `ChainDPEngine` (synthesis step 9).
+
+What follows from it:
+- **The rest of Phase A moves with them.** `is_branching`, `is_multi_realization`,
+  `get_context_dependency`, `get_context_seq_types` and `CodonFrame` have no consumer on the
+  tandem-D path. Their consumers are Phases C and D, event ordering (merge analysis §7.1) and the
+  error model. The synthesis also reshapes them:
+  - `is_branching` becomes an engine's `candidates()`;
+  - `is_multi_realization` becomes the arity of the event's domain;
+  - the two context queries become the "reads" part of the event's footprint.
+
+  Handler selection depends on none of them: a handler is declared per node.
+- **Phase E is replaced by synthesis step 8:** the three error models become one Probe event with
+  Categorical, Logistic or Bernoulli handlers.
+- **No load-time validation for milestone 1.** Without Phase C items 1 and 1b, a malformed tandem-D
+  model is not rejected at load and returns plausible wrong numbers (decision D2). The milestone-1
+  fixture is checked by hand.
+
+### What still blocks a tandem-D model
+
+Measured on `feature/tandemD` @ `77a9ad7`. The integration branch has the same blockers: its JSON
+constructors call `str2SeqType()` too.
+
+| # | Blocker | Evidence | Plan item |
+|---|---|---|---|
+| **T0** | **Merging `integration/model-on-tandemD` into `feature/tandemD`**, and showing on Linux that the merge is mechanical (see above) | GCC 15.3 and C++23 in the integration branch's build; the `test_generate.sh` data rows | merge |
+| **T1** | **A tandem-D model does not load.** `Deletion::target_seq_type`, `Insertion::ins_seq_type` and `Dinucl_markov::ins_seq_type` are typed `Seq_type`, so the text reader ([Model_Parms.cpp:904](../src/igor/Core/Model_Parms.cpp#L904), 923, 953) and the JSON constructors go through `str2SeqType()` | 5 of the 7 `[tandem_d]` cases fail, all with `Unknown Seq_type string in str2SeqType: D1_gene_seq` | **B0**, unfinished |
+| **T2** | **Generated names collide.** The name is type + gene class + side + priority + size ([Rec_Event.cpp:104](../src/igor/Core/Rec_Event.cpp#L104)), and it keys `Model_Parms::edges`, `Index_map`, `processed_events` and `offset_map` | In the fixture, `d1_choice` and `d2_choice` are both D, priority 6, size 1; `d1_5_del` and `d2_5_del` collide the same way | synthesis step 2 |
+| **T3** | **V, D and J are still named in the span and safety set-up.** `affects_length_of` on `Gene_choice`, `Insertion` and `Deletion`, and `Dinucl_markov`'s `affects_proba_of` and `span_proba_factor`, go through `legacy_junction_of()` or a VD/DJ/VJ switch; the flank checks list the gene segments in `kGeneSegments` ([Deletion.cpp:746](../src/igor/Core/Deletion.cpp#L746), [Genechoice.cpp:785](../src/igor/Core/Genechoice.cpp#L785)) | `legacy_junction_of()` throws on any span other than VD, DJ and VJ ([SegmentSpan.h:184](../src/igor/Core/SegmentSpan.h#L184)), and so does `Dinucl_markov` on any other insertion ([Dinuclmarkov.cpp:634](../src/igor/Core/Dinuclmarkov.cpp#L634), 661). On V→J the `Insertion` table leaves out `VD1_ins` and `D1D2_ins`. D1 and D2 are never checked against each other for overlap. The junction slots of the downstream bound map are addressed by an insertion's seq type id, with `VJ_ins_seq` standing in for V→J ([Genechoice.cpp:884](../src/igor/Core/Genechoice.cpp#L884), [Deletion.cpp:817](../src/igor/Core/Deletion.cpp#L817)), so a span such as D1→J has no slot | **R12**, and the literal B9 step 3 was to replace |
+| **T4** | **Tandem-D sequences cannot be generated** for the round-trip test. `draw_random_realization()` writes an `unordered_map<Seq_type, string>`, `Dinucl_markov` throws "see B9", `FastGenerator` names `D_gene_seq` | read from the code | **B9 step 5**: option (a), decided; see *T4* below |
+| **T5** | **Milestone 1 itself:** the dummy tandem-D model, a generate-then-infer round trip, the cost ratio against a matched VDJ model, `[!mayfail]` off the `[tandem_d]` cases | — | Step 1 of the execution plan below |
+| **T6** | **`gene_to_seqtype_migr` is still built**, a temporary bridge from #59 | GCC 15 rejected it until T6a, and most of it had no caller | B1's leftovers; see *T6* below |
+
+**R12's shape decides §7.22 (R16) for tandem D.** The junction fold enumerates every path, and in a
+tandem model J's V→J table holds both D blocks. Rough path counts, with TRB's library sizes and
+both D slots drawing from its 3 D genes:
+
+| Table | Paths |
+|---|---|
+| VDJ today | about 1.4·10⁶ |
+| Tandem D, D deletions left out (what the legacy tables do) | about 1.3·10⁸ |
+| Tandem D, all four D deletions in | about 2.5·10¹³ |
+
+So R12 either carries the unsound exclusion of §7.22 over to both D blocks, or the fold has to
+become polynomial first (§7.22, option A). Recorded for R12; not decided.
+
+### Order of work
+
+| Step | Item | Branch | Bitwise |
+|---|---|---|---|
+| 1 | ✅ **T6a** (Oct 2 2026): delete the dead half of `gene_to_seqtype_migr`, which was the code GCC 15 rejects | `feature/tandemD` | yes, measured |
+| 2 | **T3**: ordering positions instead of V/D/J names | `feature/tandemD` | yes on shipped models, if R12 keeps the legacy deletion rule; R16 moves every output |
+| 3 | **T4**: generation keyed by `SeqTypeId`, legacy generator first, then `FastGenerator`; **T6b** deletes the rest of the module | `feature/tandemD` | the legacy generator yes; `FastGenerator` no (see T4) |
+| 4 | **T0**: merge `integration/model-on-tandemD` into `feature/tandemD`; the Linux gate | `feature/tandemD` | the gate itself |
+| 5 | **T1**, then **T2** | the merged branch | yes |
+| 6 | **T5**: milestone 1 | the merged branch | new tests |
+
+**Testing tandem layouts before T1.** Until T1, no tandem `Deletion`, `Insertion` or
+`Dinucl_markov` can be built. Unit tests build one the way `test_dinucl_markov_iterate.cpp` already
+does: a registry with a tandem ordering, an event made through its legacy constructor, then
+re-pointed with `set_seq_type()`, `set_seq_type_id()` and `set_adjacent_segments()`. That only tests
+code that reads the base class's `seq_type_id` and never the subclass's `Seq_type` member, which is
+the rule T3 and T4 follow anyway. Loading a tandem model file, and so the round trip, waits for T1.
+
+**T3 and T4 shrink T1.** After them, the three enum-typed members are read only by the
+constructors, `copy()` and the generated names.
+
+### T3: ordering positions instead of V/D/J names (R12)
+
+1. **One length rule.** A segment adds length to a span when it lies strictly between the span's
+   two ends in `registry.ordering()`; S5's `SafetyCell` already reads those positions. The rule
+   replaces `Gene_choice::affects_length_of`'s switch, `Insertion::affects_length_of`'s string
+   table, and the VD/DJ/VJ switch behind `Dinucl_markov::affects_proba_of` and
+   `span_proba_factor` (with `dinucl_ins_seq_type_or_throw()`). `Deletion::affects_length_of` is
+   R12's open choice: "the deleted end is an end of the span, facing inward" reproduces the legacy
+   table and stays bitwise; a rule that puts D's deletions into V→J is R16 (path counts above).
+2. **A junction slot per span.** The downstream bound map's junction slots are addressed by an
+   insertion's seq type id, with `VJ_ins_seq` standing in for V→J
+   ([Genechoice.cpp:884](../src/igor/Core/Genechoice.cpp#L884),
+   [Deletion.cpp:817](../src/igor/Core/Deletion.cpp#L817)). Allocate one slot per pair of gene
+   segments when the model is finalised, and resolve each `JunctionBound` to its slot as today.
+   `legacy_span_of()`, `legacy_junction_of()` and `get_deletion_effective_junctions()` then have
+   no caller and go.
+3. **Flank checks from the ordering.** `kGeneSegments`
+   ([Deletion.cpp:746](../src/igor/Core/Deletion.cpp#L746),
+   [Genechoice.cpp:785](../src/igor/Core/Genechoice.cpp#L785)) becomes the gene segments of
+   `registry.ordering()`, the segments a templated event creates. Membership is tested against the
+   ordering, not with `registry.contains()`: `register_legacy_seq_types()` registers the six legacy
+   names in every model, so a tandem registry "contains" `D_gene_seq` although no event creates it.
+
+Gate: the five regression tracks; unit cases on a V-D1-D2-J layout for each of the three; the
+fold's build time on that layout.
+
+### T4: generation keyed by `SeqTypeId` (option (a))
+
+**Decision (Quentin, Oct 2 2026):** option (a). The legacy generator comes off the `Seq_type` enum,
+as B9 step 5 says, rather than being replaced by tk's `SamplingEngine` now. Generation stays on
+`Rec_Event` until synthesis step 1 retires `draw_random_realization()`.
+
+**The legacy generator**, `GenModel::generate_unique_sequence()` and the four
+`draw_random_realization()` overrides. Bitwise.
+
+| Where | Today | Becomes |
+|---|---|---|
+| The scenario's sequences | `unordered_map<Seq_type, string>` | a container indexed by `SeqTypeId` and sized from the frozen registry. It must still tell "not drawn" from "empty", so that trimming a gene nobody drew throws, as `.at()` does today |
+| `Gene_choice` | `switch (event_class)`, three arms | writes at `seq_type_id` |
+| `Deletion` | `switch (target_seq_type)`, four arms | one body on `event_side`. The V arm is the D 3′ arm and the J arm the D 5′ arm, line for line; they differ only for a V 5′ or a J 3′ deletion, since the V and J arms ignore the side, and no shipped model has one |
+| `Insertion` | `insertion_seq_type_str_to_enum()`; a name it does not know writes nothing | writes its `'I'` placeholders at `seq_type_id` |
+| `Dinucl_markov` | throws unless `get_junction().legacy_enums_valid` | reads target and anchor at the ids `get_junction()` already resolves. `legacy_enums_valid`, the spec's two `Seq_type` fields and `kLegacySeqTypeCount` retire, as B9's scope note says |
+| Assembly | `V + VJ + VD + D + DJ + J`, by name | concatenation in `registry.ordering()`. Same string for every VDJ and VJ model: a segment outside the ordering is never written |
+
+Unchanged on purpose: the CDF walks `event_realizations` in `unordered_map` order, so a seed draws
+what it drew before. Walking by index is synthesis step 1's golden-moving commit, not this one.
+
+**`FastGenerator`**, the `generate.fast` path:
+- `apply_gene_choice()` and `apply_deletion()` find their segment through `gene_class` and
+  `gene_to_seqtype_migr`; the Dinucl branch compares `"VD_ins_seq"`-style strings;
+  `assemble_sequence()` names the segments; `FastGenerator.cpp:70` names `D_gene_seq`. All of it
+  becomes `SeqTypeId`-driven, as above.
+- **A defect, read from the code and not run.** Its insertion branch calls
+  `try_insertion_gene_class_to_seq_type()` with a `Gene_class`. That overload has returned false
+  since #59 slimmed `Gene_class`, so the branch returns before writing the placeholder, and
+  sequences from `generate.fast` carry no N nucleotides. No regression covers the path:
+  `test_generate.sh` sets `generate.fast false`. The fix moves `FastGenerator`'s output, so it is
+  a commit of its own.
+
+Gate: the `generate` track bitwise after the legacy half; unit cases that generate on a V-D1-D2-J
+layout. The round trip itself is T5.
+
+### T6: deleting `gene_to_seqtype_migr`
+
+**Decision (Quentin, Oct 2 2026):** the module was a temporary bridge from #59, and it is deleted
+by the end of this plan. What it holds, and who uses it:
+
+| Symbol | Used by | Goes in |
+|---|---|---|
+| `build_legacy_events_map()` | nobody; it is not even declared in the header. **This is what GCC 15 rejects**: its parameter is an `unordered_map` keyed by `tuple<Event_type, Seq_type, Seq_side>`, for which no `std::hash` exists | T6a |
+| `LegacyEventsMap`, `empty_legacy_events_map()` | nobody | T6a |
+| `try_insertion_seq_type_to_gene_class()` | `build_legacy_events_map()` only | T6a |
+| `try_event_key_to_seq_key()` | `test_EventUtils.cpp` only | T6a, with its test |
+| `GeneChoiceStatus` | `EventUtils::check_gene_choice()`, `Genechoice.cpp:796` | T6a: moves to `EventUtils.h`. It has nothing to do with migration |
+| `try_gene_class_to_gene_seq_type()`, both overloads | `FastGenerator.cpp:286` and `305`; the test helper `make_gene_choice()` (`test_utils.cpp:708`); `test_EventUtils.cpp` | T6b, after T4's `FastGenerator` half |
+| `try_insertion_gene_class_to_seq_type()`, both overloads | `FastGenerator.cpp:367`, through the overload that always returns false; `test_EventUtils.cpp` | T6b |
+
+T6a also deletes:
+- `Model_Parms::get_events_map_seq_type()`, both overloads: declared, never defined, never called,
+  with the same unhashable key;
+- the header's include in `Rec_Event.cpp` and `Deletion.cpp`, which use nothing from it;
+- the `std::hash` specialisations for `tuple<Event_type, Gene_class_legacy, Seq_side>` and
+  `pair<Gene_class_legacy, Seq_side>` in `Utils.h`, whose only user is `LegacyEventsMap`.
+
+T6b deletes the two files and their entries in `src/igor/Core/CMakeLists.txt`, once nothing calls
+the two `try_*` families; `make_gene_choice()` takes its seq type from a table of its own.
+
+**T6a, delivered Oct 2 2026.** Everything in the "T6a" rows above is gone; `GeneChoiceStatus` is
+`EventUtils::GeneChoiceStatus`, and the module's header now includes `Utils.h` only.
+- Gates: 327 of 327 ctest cases, one fewer than before because `TryEventKeyToSeqKey` was deleted
+  with its function; all five regression tracks bitwise.
+- GCC 15.3, `-fsyntax-only` over the build's compile commands (C++20, as this branch builds): at
+  `e91dcd2`, one Core file fails, `gene_to_seqtype_migr.cpp`, with libstdc++'s *hash function must
+  be copy constructible*; after T6a, none of the 75 translation units fails. The merge analysis
+  also named `Model_Parms::get_events_map_seq_type()`, but as declarations only it never failed;
+  T6a deleted it anyway. This checks compilation only: whether GCC 15 keeps the gate bitwise is
+  still T0's question, and so is C++23.
+
+**Where `Gene_class_legacy` ends up.** The merge analysis (§5.3) took this module to be the legacy
+translator and the enum's only home. The reader never used it: the v1 reader translates with
+`legacy_gene_class_to_seq_type()` in `Model_Parms.cpp`. With the module gone, the end state is
+`Gene_class_legacy` in the v1 reader and writer only. Its other residents move as §5.3's table says.
+
+### Not on the milestone-1 path
+
+- **B10** (optional D2, milestone 2). The synthesis sets the direction: a layout DAG with
+  existence guards in the model, and adjacency per scenario (synthesis step 5). That is B10's option
+  (b), generalised. The layer-scoping cost recorded under B10 still applies.
+- **B3** (flanks): unchanged.
+- **B9 step 3's `VDJ_genes` split** becomes a shared handler: one parameter entry for two nodes
+  (synthesis §4). **Step 4** is superseded by S5's `SafetyMatrix`.
+- **R4** stays gated: under T4's option (a), `draw_random_common()` keeps reading
+  `dinuc_proba_matrix` from `Rec_Event` until synthesis step 1 retires `draw_random_realization()`.
+  **S4d** is unblocked by the merge, and stays optional.
+- **R16**: undecided; see T3.
+- **`Gene_class_legacy`** outside the v1 reader and writer (merge analysis §5.3, as corrected by
+  T6).
+
+### Merge analysis §8, read against the synthesis and the integration branch
+
+| §8 point | Merge analysis said | Now |
+|---|---|---|
+| 1 | `RecombinationModel` owns the conditioning graph, registry, layout, tensors, error model | Stands; the layout is a DAG with guards, the error model a Probe node. First step on the branch: `Topology` holds the segment order |
+| 2 | One parser; a factory keyed on seq_type | **Done on the branch** in the synthesis' form: one text reader, events built from JSON nodes, factory keyed by the type string |
+| 3 | Fix the priority direction; sort the union of both graphs, priority as tie-break | Direction **fixed** (`89a5d68`). Order now belongs to each engine; priority is an optional hint; ties break by nickname |
+| 4, 5, 7, 10 | Bridge layout and deterministic reduction; tied tensors; the names of §0.1; `Gene_class_legacy` | Stand |
+| 6 | Pin the compiler | **Open**: T0 |
+| 8 | Handler chosen by the rank of `inherent_shape()` | Declared per node, with a default per event type; rank is a check |
+| 9 | Split legacy generation into sample and apply | The indexed sampler comes first (synthesis step 1), with `Event::apply`; `FastGenerator` is kept as an approximate engine |
+| 11 | Phase E as a terminal node | A Probe event with handlers (synthesis step 8) |
 
 ## Execution plan (as of `ed5c583`, Aug 27 2026)
+
+> **Superseded** for what remains by *Remaining work for tandem D (Oct 2 2026)* above. Kept as the
+> record of the Aug 27 plan.
 
 ### Baseline
 
@@ -116,7 +378,7 @@ Milestone 1 runs on a **dummy generative model, not real biological data**. What
 
 Not on the path, deliberately deferred: B3 (flanks), B9 steps 3–4, Phase A, Phase C, Phases D/E.
 
-**Phases C and D wait for the Tensor / topology branch to merge** *(Quentin, Sep 16 2026)*. That
+*(Oct 2 2026: that branch is `feature/tk_refactoring`, merged into `integration/model-on-tandemD`; Phases C and D have since left this plan for engine work.)* **Phases C and D wait for the Tensor / topology branch to merge** *(Quentin, Sep 16 2026)*. That
 branch carries both the Tensor API and the model-topology / model-marginals rework, so it replaces
 the very interfaces C validates and D partitions. Carrying C or D against today's topology handling
 would mean writing validation and decomposition code against an API that is already scheduled to be
@@ -852,7 +1114,7 @@ These are distinct properties:
 >
 > ℹ️ **Not a prerequisite for tandem D** (decision D2) — it can proceed in parallel at any time. It gates Phases C and D only.
 >
-> **Status: ⬜ NOT STARTED.** No capability enum, no pure virtual, no subclass implementation exists on `feature/modelfileformat`.
+> **Status (Oct 2 2026): 🟡 partial.** The A0 queries and the span capabilities have landed; the queries below that remain leave this plan with Phases C and D. See the status table and *Remaining work*.
 
 **Goal**: Add declarative property methods to `Rec_Event` as pure virtuals. Zero behavior change. Can be built against the current `Seq_type` enum (cast to `SeqTypeId`) before `SequenceTypeRegistry` exists.
 
@@ -1159,7 +1421,7 @@ neighbours, with no reference to a legacy interface, delegation, or `const_cast`
 
 > ⚠️ **Conflicts with `feature/AA_PGEN` — see hazard H5.** AA Pgen inserts two-track mismatch recording at six points inside the very V/D/J blocks this section deletes. B5 must be **re-derived, not merged**, and its definition of done extended with the four two-track requirements listed under H5. Also rewrite the stale `iterate()` docstring — see *Documentation debt* above.
 >
-> **Status: ⬜ NOT STARTED.** The 4-case switch survives verbatim, retargeted from `event_class` to `target_seq_type`, along with the hardcoded `VD_safe`/`DJ_safe`/`VJ_safe` neighbour checks and the `get_deletion_effective_junctions()` V/D/J table.
+> **Status: ✅ DONE** (iterate plan step 4b, Sep 21 2026). The switch, the `VD_safe`/`DJ_safe`/`VJ_safe` checks and the eight per-gene offset members below are gone: overlap safety is S5's `SafetyMatrix`, and the offset bounds are `PendingModifierBounds` (R10). Still V/D/J-named: the `kGeneSegments` literal in the flank-check set-up and `get_deletion_effective_junctions()` behind `affects_length_of` (T3).
 
 Remove the 4-case `switch(event_class)` dispatching on V/D/J. Generic implementation:
 
@@ -1201,7 +1463,7 @@ This is not described anywhere else in the plan; B5's task description covers re
 
 ### B6 — Rewrite `Insertion::iterate()` ([src/igor/Core/Insertion.cpp](src/igor/Core/Insertion.cpp))
 
-> **Status: ⬜ NOT STARTED — and currently a regression.** The `switch(event_class)` was replaced by an `if/else` chain of `std::string` comparisons on `this->seq_type` (`"VD_ins_seq"` / `"DJ_ins_seq"` / `"VJ_ins_seq"`) executed inside the per-scenario hot loop, with the same hardcoded `(D_gene_seq, Five_prime) - (V_gene_seq, Three_prime)` neighbour offsets. Rewrite the stale `iterate()` docstring as part of this — see *Documentation debt* above.
+> **Status: ✅ DONE** (iterate plan step 1b, `96ed833`, Sep 7 2026). `Insertion::affects_length_of` still compares seq_type strings (T3).
 
 Remove the 3-case `switch(event_class)` dispatching on VD/DJ/VJ. Generic implementation:
 
@@ -1215,7 +1477,7 @@ Remove the 3-case `switch(event_class)` dispatching on VD/DJ/VJ. Generic impleme
 
 > ⚠️ **Conflicts with `feature/AA_PGEN` — see hazard H6.** `iterate_patched_pgen()` duplicates the `VD_genes`/`DJ_genes`/`VJ_genes` cascade on enum values B1 removes; it will not compile after a merge. Both `iterate()` and `iterate_patched_pgen()` must end up driven by `traversal_specs`. Also rewrite the stale `iterate()` docstring — see *Documentation debt* above.
 >
-> **Status: 🟡 PARTIAL — closest to plan intent of the three.** `iterate()` no longer branches on gene class: it loops over `traversal_specs`, each a `{target_seq, anchor_seq, anchor_side}` triple, and derives the traversal direction from `anchor_side == Five_prime`. However the specs are produced by a hardcoded `switch(Seq_type)` in `get_dinucl_traversal_specs()` (VD→V/Three_prime, DJ→J/Five_prime, VJ→V/Three_prime) rather than by registry neighbour traversal, there is no skip-empty walk, and residual switches remain inside `iterate()` for the per-junction indices array, memory layer and cached sequence size. The tandem-D fallback that motivates B7 is therefore not achieved.
+> **Status: ✅ DONE** (iterate plan step 2b, `7104c91`, Sep 8 2026). The empty-anchor case throws since R2; the skip-empty walk belongs to B10.
 
 Remove all `if (event_class == VD_genes) / (DJ_genes) / ...` branches. Generic implementation:
 
@@ -1254,9 +1516,9 @@ Flank SeqTypeIds (`left_flank_seq`, `right_flank_seq`) appear only in `construct
 
 ### B11 — Generalize `Gene_choice` seq_type writes *(new; added Aug 27 2026)*
 
-> **Status: ⬜ NOT STARTED.** **The single most blocking item for milestone 1** — schedule right
-> after B8, before or alongside B5. Rewrite the stale `iterate()` docstring as part of this — see
-> *Documentation debt* above.
+> **Status: ✅ DONE** — the alignment path in iterate plan step 3 (Sep 16 2026), the exhaustive
+> `no_d_align` path in step 5b (Sep 21 2026). What still names V, D and J is the flank-check set-up
+> and `affects_length_of` (T3).
 
 The plan had no task for `Gene_choice`. B5/B6/B7 cover `Deletion`, `Insertion` and `Dinucl_markov`;
 B3 covers flanks and is deferred. But `Gene_choice::iterate()` opens with
@@ -1647,6 +1909,9 @@ must match the `Seq_type` enum declared in Utils.h") with nothing enforcing it. 
 
 ## Phase C — Model Topology Validation at Initialization
 
+> **Out of this plan (Oct 2 2026):** engine work, carried on a later branch once legacy inference
+> has moved into a `LegacyDfsEngine`. See *Remaining work for tandem D*.
+>
 > **Status: ⬜ NOT STARTED.** Blocked on Phase A — **except items 1 and 1b**, whose inputs
 > (`get_seq_construction_role`, `get_offset_role`) A0 already delivered and whose natural home,
 > `Model_Parms::finalize()`, already exists and already runs a resolution pass. They can land
@@ -1666,6 +1931,9 @@ Errors at this stage produce named diagnostics (e.g. "Two events both declare Cr
 ---
 
 ## Phase D — DP Subgraph Decomposition *(future)*
+
+> **Out of this plan (Oct 2 2026)**, with Phase C. In the synthesis it is the `ChainDPEngine`
+> (step 9), one inference engine among several.
 
 This phase is enabled by Phases A–C but not yet scheduled for implementation. A complete implementation plan will be tailored based on the implementation of previous phases.
 
@@ -1875,6 +2143,9 @@ These figures are compatible with per-sequence inference in a multi-threaded env
 ## Phase E — `Error_rate` as Terminal `Rec_Event` *(can start after Phase A)*
 
 > ⚠️ **Must preserve AA Pgen's patch-aware leaf check — see hazard H8.** That logic currently lives inside `Single_error_rate::compute_scenario_error_probability()` and has to migrate into `ErrorRate_Rec_Event`, whose `get_context_dependency()` must then report the frame dependency.
+>
+> **Replaced (Oct 2 2026)** by synthesis step 8: the three error models become one Probe event with
+> Categorical, Logistic or Bernoulli handlers. The hazard above still applies to that work.
 >
 > **Status: ⬜ NOT STARTED.** Blocked on Phase A.
 

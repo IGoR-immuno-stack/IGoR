@@ -231,6 +231,9 @@ private:
 
     std::unordered_map<int, std::size_t> base_index_overrides_;
 
+    /// Per event id, the product of its conditioning parents' sizes (see condition_on()).
+    std::unordered_map<int, std::size_t> parent_configurations_;
+
 public:
     QuerySequenceContext query;
     ModelContext model;
@@ -250,6 +253,7 @@ public:
           preset_mismatches_{},
           downstream_{},
           base_index_overrides_{},
+          parent_configurations_{},
           query(query_storage.sequence, query_storage.int_sequence, query_storage.gene_alignments),
           model(model_storage.model_marginals, model_storage.offset_map, model_storage.events_map,
                 model_storage.model_queue),
@@ -360,6 +364,28 @@ public:
     {
         const auto found = base_index_overrides_.find(event_id);
         return found == base_index_overrides_.end() ? 0 : found->second;
+    }
+
+    /**
+     * Condition `child`'s marginals on `parent`'s realization, as a model file's `@Edges` line
+     * does: the child's block holds one run of `child->size()` probabilities per parent
+     * realization, and the parent's realization `r` moves the child's base index by
+     * `r * child->size()`. call_iterate() sizes the block, and the parent's initialize_event()
+     * picks the stride up from the offset map exactly as it does in a real run.
+     *
+     * One parent per child: with two, the strides depend on the queue order between them
+     * (Model_marginals::get_inverse_offset_map), and nothing here needs it.
+     */
+    void condition_on(const std::shared_ptr<Rec_Event> &child, const std::shared_ptr<Rec_Event> &parent)
+    {
+        model_storage.offset_map[parent->get_name()].emplace_back(child, child->size());
+        parent_configurations_[child->get_event_identifier()] = static_cast<std::size_t>(parent->size());
+    }
+
+    std::size_t parent_configurations_for(int event_id) const
+    {
+        const auto found = parent_configurations_.find(event_id);
+        return found == parent_configurations_.end() ? 1 : found->second;
     }
 
     /// One entry of the model marginal array, by flat index.
