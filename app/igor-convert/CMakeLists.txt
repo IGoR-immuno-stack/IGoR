@@ -9,8 +9,7 @@ add_executable(${PROJECT_NAME}
 
 target_link_libraries(${PROJECT_NAME}
   PRIVATE
-    igor::Streaming
-    igor::Core)
+    igor::Streaming)
 
 install(
   TARGETS ${PROJECT_NAME}

@@ -1,7 +1,7 @@
 #pragma once
 
-#include <igor/Core/Model_marginals.h>
-#include <igor/Core/Model_Parms.h>
+#include <igor/Model/Legacy/Model_marginals.h>
+#include <igor/Model/Legacy/Model_Parms.h>
 
 #include <memory>
 #include <vector>

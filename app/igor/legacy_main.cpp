@@ -26,24 +26,24 @@
 
 //#include "../config.h"
 
-#include <igor/Core/Deletion.h>
-#include <igor/Core/Insertion.h>
-#include <igor/Core/Genechoice.h>
-#include <igor/Core/Model_Parms.h>
-#include <igor/Core/Rec_Event.h>
-#include <igor/Core/Singleerrorrate.h>
-#include <igor/Core/Model_marginals.h>
-#include <igor/Core/Aligner.h>
-#include <igor/Core/GenModel.h>
-#include <igor/Core/Dinuclmarkov.h>
-#include <igor/Core/Counter.h>
-#include <igor/Core/Coverageerrcounter.h>
-#include <igor/Core/Bestscenarioscounter.h>
-#include <igor/Core/Pgencounter.h>
-#include <igor/Core/Errorscounter.h>
-#include <igor/Core/Utils.h>
-#include <igor/Core/CDR3SeqData.h>
-#include <igor/Core/ExtractFeatures.h>
+#include <igor/Model/Legacy/Deletion.h>
+#include <igor/Model/Legacy/Insertion.h>
+#include <igor/Model/Legacy/Genechoice.h>
+#include <igor/Model/Legacy/Model_Parms.h>
+#include <igor/Model/Legacy/Rec_Event.h>
+#include <igor/Model/Legacy/Singleerrorrate.h>
+#include <igor/Model/Legacy/Model_marginals.h>
+#include <igor/Alignment/Legacy/Aligner.h>
+#include <igor/Inference/Legacy/GenModel.h>
+#include <igor/Model/Legacy/Dinuclmarkov.h>
+#include <igor/Model/Legacy/Counter.h>
+#include <igor/Inference/Legacy/Coverageerrcounter.h>
+#include <igor/Inference/Legacy/Bestscenarioscounter.h>
+#include <igor/Inference/Legacy/Pgencounter.h>
+#include <igor/Inference/Legacy/Errorscounter.h>
+#include <igor/Core/Legacy/Utils.h>
+#include <igor/Alignment/Legacy/CDR3SeqData.h>
+#include <igor/Alignment/Legacy/ExtractFeatures.h>
 
 #include <igor/Core/Config.h>
 

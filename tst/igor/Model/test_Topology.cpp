@@ -7,12 +7,12 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <igor/Model/Topology.h>
-#include <igor/Core/ModelJson.h>
+#include <igor/Model/Legacy/ModelJson.h>
 
 #include <nlohmann/json.hpp>
-#include <igor/Core/Model_Parms.h>
-#include <igor/Core/Rec_Event.h>
-#include <igor/Core/Genechoice.h>
+#include <igor/Model/Legacy/Model_Parms.h>
+#include <igor/Model/Legacy/Rec_Event.h>
+#include <igor/Model/Legacy/Genechoice.h>
 
 
 using namespace igor;

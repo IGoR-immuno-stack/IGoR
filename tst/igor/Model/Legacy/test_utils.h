@@ -1,0 +1,762 @@
+/*
+ * test_utils.h
+ *
+ *  Created on: Jan 21, 2026
+ *      Author: IGoR Test Suite
+ *
+ *  This source code is distributed as part of the IGoR software.
+ *  IGoR (Inference and Generation of Repertoires) is a versatile software to analyze and model immune receptors
+ *  generation, selection, mutation and all other processes.
+ *   Copyright (C) 2017  Quentin Marcou
+ *
+ *   This program is free software: you can redistribute it and/or modify
+ *   it under the terms of the GNU General Public License as published by
+ *   the Free Software Foundation, either version 3 of the License, or
+ *   (at your option) any later version.
+ *
+ *   This program is distributed in the hope that it will be useful,
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *   GNU General Public License for more details.
+
+ *   You should have received a copy of the GNU General Public License
+ *   along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+#pragma once
+
+#include "LayerClaim.h"
+
+#include <igor/Model/Legacy/AccumulationContext.h>
+#include <igor/Model/Legacy/Deletion.h>
+#include <igor/Model/Legacy/Dinuclmarkov.h>
+#include <igor/Model/Legacy/ExplorationContext.h>
+#include <igor/Model/Legacy/Counter.h>
+#include <igor/Model/Legacy/Genechoice.h>
+#include <igor/Model/Legacy/Insertion.h>
+#include <igor/Model/Legacy/ModelContext.h>
+#include <igor/Model/Legacy/Model_Parms.h>
+#include <igor/Model/Legacy/Model_marginals.h>
+#include <igor/Model/Legacy/QuerySequenceContext.h>
+#include <igor/Model/Legacy/Rec_Event.h>
+#include <igor/Model/Legacy/ScenarioContext.h>
+#include <igor/Core/Legacy/SeqTypeRegistry.h>
+#include <igor/Model/Legacy/Singleerrorrate.h>
+#include <igor/Core/Legacy/Utils.h>
+
+#include <deque>
+#include <map>
+#include <memory>
+#include <queue>
+#include <random>
+#include <string>
+#include <unordered_map>
+#include <unordered_set>
+#include <vector>
+
+namespace IgorTestUtils {
+
+/**
+ * @brief Create mock alignment data for testing
+ * 
+ * @param gene_name Name of the gene (e.g., "TRBV1", "TRBJ1-1")
+ * @param offset Alignment position on target sequence
+ * @param five_p_offset 5' alignment boundary
+ * @param three_p_offset 3' alignment boundary
+ * @param mismatches Vector of mismatch positions
+ * @param score Alignment score
+ * @return Alignment_data Mock alignment data structure
+ */
+Alignment_data create_mock_alignment_data(
+    const std::string& gene_name,
+    int offset,
+    size_t five_p_offset,
+    size_t three_p_offset,
+    const std::vector<size_t>& mismatches = {},
+    double score = 100.0
+);
+
+/**
+ * @brief iterate() test harness
+ *
+ * Ported and adapted from the sketch on feature/2_unittests; see
+ * docs/ITERATE_GENERIC_REWRITE_PLAN.md section 6.1. The Storage/Context split is that
+ * branch's design. Everything below the Storage structs was rewritten for the
+ * registry-sized containers of B2/B8, and for the ability to place a neighbouring event in
+ * the "already chosen" state -- which the sketch could not express, and which is why every
+ * safety-check section there was left an empty stub.
+ *
+ * Design contract:
+ *  1. Storage objects own the data and guarantee the lifetime of the Context references.
+ *  2. Context objects are the only surface tests touch.
+ *  3. When a Context grows a field, update the corresponding Storage struct here.
+ */
+
+/// Layers preallocated in every layered container. request_layer() grows on demand, so
+/// this is a starting point rather than a cap.
+inline constexpr std::size_t kTestLayers = 8;
+
+/// Storage for QuerySequenceContext.
+struct QueryStorage {
+    std::string sequence;
+    Int_Str int_sequence;
+    std::unordered_map<Gene_class, std::vector<Alignment_data>> gene_alignments;
+
+    explicit QueryStorage(const std::string &seq)
+        : sequence(seq), int_sequence(nt2int(seq)), gene_alignments{}
+    {
+        //Gene_choice indexes gene_alignments.at(gene_class) unconditionally, so every class
+        //needs an entry even when a test supplies no alignment for it.
+        gene_alignments[V_gene];
+        gene_alignments[D_gene];
+        gene_alignments[J_gene];
+    }
+};
+
+/// Storage for ModelContext.
+struct ModelStorage {
+    Marginal_array_p model_marginals;
+    std::unordered_map<Rec_Event_name,
+                       std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> offset_map;
+    Events_map events_map;
+    std::queue<std::shared_ptr<Rec_Event>> model_queue;
+
+    explicit ModelStorage(std::size_t marginal_array_size)
+        : model_marginals(new long double[marginal_array_size]()),
+          offset_map{}, events_map{}, model_queue{}
+    {}
+};
+
+/**
+ * The two orderings a legacy model can have, as frozen registries.
+ *
+ * `legacy_seq_type_registry()` registers the six standard seq_types but sets **no ordering**,
+ * so `left_neighbor()` / `right_neighbor()` answer kNoSeqType for everything. That is enough
+ * for an event that addresses seq_types by name, and not enough for one that asks who its
+ * neighbours are -- which is what every generic body does. Fixtures therefore pick an
+ * ordering, exactly as Model_Parms::finalize() does for a real model.
+ *
+ * Both keep the standard enum ids (register_legacy_seq_types() runs first), so preset_segment()
+ * and the Seq_type-keyed accessors stay valid under either.
+ */
+const SeqTypeRegistry &vdj_seq_type_registry();
+const SeqTypeRegistry &vj_seq_type_registry();
+
+/// Storage for ScenarioContext. All three maps are sized from the frozen legacy registry,
+/// so SeqTypeId == Seq_type for the six standard types and enum-keyed access is valid.
+struct ScenarioStorage {
+    double scenario_proba;
+    Seq_type_str_p_map constructed_sequences;
+    Seq_offsets_map seq_offsets;
+    Mismatch_vectors_map mismatches_lists;
+
+    explicit ScenarioStorage(const SeqTypeRegistry &registry)
+        : scenario_proba(1.0),
+          constructed_sequences(registry, kTestLayers),
+          seq_offsets(registry, kTestLayers),
+          mismatches_lists(registry, kTestLayers)
+    {}
+};
+
+/// Storage for ExplorationContext.
+struct ExplorationStorage {
+    Downstream_scenario_proba_bound_map downstream_proba_map;
+    double seq_max_prob;
+    double proba_threshold;
+    Index_map index_map;
+    std::shared_ptr<Next_event_ptr> next_event_ptr_arr;
+    SafetyMatrix safety_set;
+    Pruning_mismatch_floor_map pruning_mismatch_floor;
+
+    ExplorationStorage(std::size_t max_events, const SeqTypeRegistry &registry)
+        : downstream_proba_map(registry, kTestLayers),
+          //ExplorationContext copies proba_threshold_factor by value, so it can only be set
+          //here. Fixing it at 1 makes seq_max_prob itself the pruning threshold, and it is a
+          //reference, so set_pruning_threshold() can move it afterwards. Starting at 0 means
+          //should_prune() is false for any non-negative bound: nothing is dropped
+          //incidentally, only by an explicit geometric or range check.
+          seq_max_prob(0.0),
+          proba_threshold(1.0),
+          index_map(max_events, kTestLayers),
+          next_event_ptr_arr(new Next_event_ptr[max_events](),
+                             std::default_delete<Next_event_ptr[]>()),
+          safety_set(registry, kTestLayers),
+          pruning_mismatch_floor(registry, kTestLayers)
+    {
+        //Mirrors GenModel: downstream bounds start at 1 so multiply_all() is neutral.
+        downstream_proba_map.init_first_layer(1.0);
+
+    }
+};
+
+/// Storage for AccumulationContext.
+struct AccumulationStorage {
+    Marginal_array_p updated_marginals;
+    std::map<std::size_t, std::shared_ptr<Counter>> counters_list;
+    std::shared_ptr<Error_rate> error_rate;
+
+    explicit AccumulationStorage(std::size_t marginal_array_size)
+        : updated_marginals(new long double[marginal_array_size]()),
+          counters_list{},
+          error_rate(std::make_shared<Single_error_rate>(0.0))
+    {}
+};
+
+/**
+ * @brief Owns every input iterate() needs, and exposes the five contexts over it.
+ *
+ * Neither copyable nor movable: the contexts hold references into this object's own
+ * storage, so a move would leave them dangling. C++17 guaranteed copy elision is what lets
+ * create_iterate_state() return one by value regardless.
+ */
+struct IterateTestState {
+private:
+    QueryStorage query_storage;
+    ModelStorage model_storage;
+    ScenarioStorage scenario_storage;
+    ExplorationStorage exploration_storage;
+    AccumulationStorage accumulation_storage;
+
+    /// Passed to initialize_event(). An event listed here reads to the code under test as
+    /// "already chosen"/"already processed", which is what drives every *_chosen flag.
+    std::unordered_set<Rec_Event_name> processed_events_;
+
+    /// Stable backing store for sequences handed to the scenario by preset_segment().
+    /// std::deque so that previously returned addresses stay valid as it grows.
+    std::deque<Int_Str> preset_sequences_;
+    std::deque<std::vector<std::size_t>> preset_mismatches_;
+
+    /// Events after the event under test in the model queue, in order.
+    std::vector<std::shared_ptr<Rec_Event>> downstream_;
+
+    std::unordered_map<int, std::size_t> base_index_overrides_;
+
+    /// Per event id, the product of its conditioning parents' sizes (see condition_on()).
+    std::unordered_map<int, std::size_t> parent_configurations_;
+
+public:
+    QuerySequenceContext query;
+    ModelContext model;
+    ScenarioContext scenario;
+    ExplorationContext exploration;
+    AccumulationContext accumulation;
+
+    IterateTestState(const std::string &seq, std::size_t marginal_array_size, std::size_t max_events,
+                     const SeqTypeRegistry &registry)
+        : query_storage(seq),
+          model_storage(marginal_array_size),
+          scenario_storage(registry),
+          exploration_storage(max_events, registry),
+          accumulation_storage(marginal_array_size),
+          processed_events_{},
+          preset_sequences_{},
+          preset_mismatches_{},
+          downstream_{},
+          base_index_overrides_{},
+          parent_configurations_{},
+          query(query_storage.sequence, query_storage.int_sequence, query_storage.gene_alignments),
+          model(model_storage.model_marginals, model_storage.offset_map, model_storage.events_map,
+                model_storage.model_queue),
+          scenario(scenario_storage.scenario_proba, scenario_storage.constructed_sequences,
+                   scenario_storage.seq_offsets, scenario_storage.mismatches_lists),
+          exploration(exploration_storage.downstream_proba_map, exploration_storage.seq_max_prob,
+                      exploration_storage.proba_threshold, exploration_storage.index_map,
+                      exploration_storage.next_event_ptr_arr, exploration_storage.safety_set,
+                      exploration_storage.pruning_mismatch_floor),
+          accumulation(accumulation_storage.updated_marginals, accumulation_storage.counters_list,
+                       accumulation_storage.error_rate)
+    {}
+
+    IterateTestState(const IterateTestState &) = delete;
+    IterateTestState &operator=(const IterateTestState &) = delete;
+    IterateTestState(IterateTestState &&) = delete;
+    IterateTestState &operator=(IterateTestState &&) = delete;
+
+    /// Alignments the gene choice under test will enumerate.
+    void set_alignments(Gene_class gene_class, std::vector<Alignment_data> alignments)
+    {
+        query_storage.gene_alignments[gene_class] = std::move(alignments);
+    }
+
+    /**
+     * Register an event so the code under test can find it. The key is derived from the
+     * event itself, so the event must already carry its seq_type -- see
+     * make_gene_choice()/make_deletion(), which set it.
+     */
+    void add_event(const std::shared_ptr<Rec_Event> &event)
+    {
+        model_storage.events_map[events_map_key(event)] = event;
+    }
+
+    /// Key an event exactly as Model_Parms::get_events_map() does. Dinucl_markov is keyed with
+    /// Undefined_side whatever its own side: for that event the side carries the direction its
+    /// Markov chain runs in, not part of its identity, and every lookup uses Undefined_side.
+    static std::tuple<Event_type, Seq_type_String, Seq_side>
+    events_map_key(const std::shared_ptr<Rec_Event> &event)
+    {
+        const Seq_side map_side =
+                (event->get_type() == Dinuclmarkov_t) ? Undefined_side : event->get_side();
+        return std::make_tuple(event->get_type(), event->get_seq_type(), map_side);
+    }
+
+    /// Mark an event as already processed, so *_chosen is true for the event under test.
+    void mark_chosen(const std::shared_ptr<Rec_Event> &event)
+    {
+        processed_events_.insert(event->get_name());
+    }
+
+    /**
+     * Write a segment as an upstream event would have left it: offsets on both ends, a
+     * constructed sequence and an (empty by default) mismatch list, all at layer 0.
+     *
+     * Pair this with mark_chosen() on the corresponding Gene_choice; mark_chosen() alone
+     * makes the code *look* for the offsets, and they have to be there.
+     */
+    void preset_segment(Seq_type seq_type, Seq_Offset five_prime, Seq_Offset three_prime,
+                        const std::string &segment = "",
+                        const std::vector<std::size_t> &mismatches = {})
+    {
+        claim_layer_zero(scenario_storage.seq_offsets, seq_type, Five_prime);
+        claim_layer_zero(scenario_storage.seq_offsets, seq_type, Three_prime);
+        claim_layer_zero(scenario_storage.constructed_sequences, seq_type);
+        claim_layer_zero(scenario_storage.mismatches_lists, seq_type);
+        scenario_storage.seq_offsets.set(seq_type, Five_prime, five_prime, 0);
+        scenario_storage.seq_offsets.set(seq_type, Three_prime, three_prime, 0);
+        preset_sequences_.push_back(nt2int(segment));
+        scenario_storage.constructed_sequences.set(seq_type, &preset_sequences_.back(), 0);
+        preset_mismatches_.push_back(mismatches);
+        scenario_storage.mismatches_lists.set(seq_type, &preset_mismatches_.back(), 0);
+    }
+
+    /**
+     * Write a junction exactly as an Insertion leaves it under O12 (a'): **its two offsets,
+     * and no sequence at all**.
+     *
+     * The absent sequence is the point, not an omission. The Insertion decides where the
+     * junction sits and how long it is; the Dinucl_markov that follows creates the segment
+     * from these offsets. A fixture that also supplied a placeholder segment would be
+     * handing the event a state the production code no longer produces -- which is the same
+     * reason this helper used to supply no offsets, read the other way round.
+     *
+     * An empty junction is `3' == 5' - 1`, which is what `length == 0` writes.
+     */
+    void preset_junction(Seq_type seq_type, Seq_Offset five_prime, std::size_t length)
+    {
+        claim_layer_zero(scenario_storage.seq_offsets, seq_type, Five_prime);
+        claim_layer_zero(scenario_storage.seq_offsets, seq_type, Three_prime);
+        scenario_storage.seq_offsets.set(seq_type, Five_prime, five_prime, 0);
+        scenario_storage.seq_offsets.set(seq_type, Three_prime,
+                                         five_prime + static_cast<Seq_Offset>(length) - 1, 0);
+    }
+
+    /// The probability the event under test inherits from upstream. Defaults to 1.
+    void set_scenario_proba(double proba) { scenario_storage.scenario_proba = proba; }
+
+    /// Override the base index an event reads its marginals from. call_iterate() puts every
+    /// event at 0 unless told otherwise; a non-zero value pins that the marginal read is
+    /// base_index + realization_index rather than realization_index alone.
+    void set_base_index(int event_id, std::size_t base_index)
+    {
+        base_index_overrides_[event_id] = base_index;
+    }
+
+    std::size_t base_index_for(int event_id) const
+    {
+        const auto found = base_index_overrides_.find(event_id);
+        return found == base_index_overrides_.end() ? 0 : found->second;
+    }
+
+    /**
+     * Condition `child`'s marginals on `parent`'s realization, as a model file's `@Edges` line
+     * does: the child's block holds one run of `child->size()` probabilities per parent
+     * realization, and the parent's realization `r` moves the child's base index by
+     * `r * child->size()`. call_iterate() sizes the block, and the parent's initialize_event()
+     * picks the stride up from the offset map exactly as it does in a real run.
+     *
+     * One parent per child: with two, the strides depend on the queue order between them
+     * (Model_marginals::get_inverse_offset_map), and nothing here needs it.
+     */
+    void condition_on(const std::shared_ptr<Rec_Event> &child, const std::shared_ptr<Rec_Event> &parent)
+    {
+        model_storage.offset_map[parent->get_name()].emplace_back(child, child->size());
+        parent_configurations_[child->get_event_identifier()] = static_cast<std::size_t>(parent->size());
+    }
+
+    std::size_t parent_configurations_for(int event_id) const
+    {
+        const auto found = parent_configurations_.find(event_id);
+        return found == parent_configurations_.end() ? 1 : found->second;
+    }
+
+    /// One entry of the model marginal array, by flat index.
+    void set_marginal(std::size_t index, long double value)
+    {
+        model_storage.model_marginals[index] = value;
+    }
+
+    /**
+     * Register an event that sits *after* the event under test in the model queue.
+     *
+     * These are never iterated -- the recorder intercepts first -- but they are what the
+     * reverse initialize_Len_proba_bound() pass walks to populate the junction-length
+     * maps. Without any, the map collapses to {0: 1.0} and the junction-length guard
+     * discards every scenario whose neighbours are not exactly adjacent, which silently
+     * turns a safety-check test into a test of the junction guard.
+     */
+    void add_downstream_event(const std::shared_ptr<Rec_Event> &event)
+    {
+        add_event(event);
+        downstream_.push_back(event);
+    }
+
+    const std::vector<std::shared_ptr<Rec_Event>> &downstream_events() const { return downstream_; }
+
+    /// Write an overlap verdict for a pair of segments at layer 0, as an upstream
+    /// Gene_choice would have. Pair with a later event that requests its own layer: the
+    /// current layer then tracks the last *write*, so an event that requests a layer and
+    /// never writes leaves it here.
+    ///
+    /// A `true` verdict propagates along the row -- see SafetyMatrix -- so presetting a
+    /// near pair safe also presets everything further 3' of the same left segment.
+    void preset_safety(Seq_type left, Seq_type right, bool value)
+    {
+        const SafetyCell cell = exploration_storage.safety_set.cell(
+                static_cast<SeqTypeId>(left), static_cast<SeqTypeId>(right));
+        claim_layer_zero(exploration_storage.safety_set, cell);
+        exploration_storage.safety_set.set(cell, value, 0);
+    }
+
+    /// Replace the error model. Defaults to Single_error_rate(0.0); a non-zero rate is
+    /// what makes the downstream error bound a number worth asserting on.
+    void set_error_rate(double rate)
+    {
+        accumulation_storage.error_rate = std::make_shared<Single_error_rate>(rate);
+    }
+
+    /// Prune any scenario whose upper bound falls below `threshold`. Off by default.
+    /// The threshold *factor* cannot be changed after construction (ExplorationContext
+    /// holds it by value), so this moves seq_max_prob_scenario instead, which the context
+    /// holds by reference; with the factor pinned at 1 the two are the same knob.
+    void set_pruning_threshold(double threshold) { exploration_storage.seq_max_prob = threshold; }
+
+    std::unordered_set<Rec_Event_name> &processed_events() { return processed_events_; }
+    std::queue<std::shared_ptr<Rec_Event>> &model_queue() { return model_storage.model_queue; }
+};
+
+/// Factory. Defaults to the VDJ ordering; pass vj_seq_type_registry() for a model with no D.
+IterateTestState create_iterate_state(const std::string &sequence,
+                                      std::size_t marginal_array_size = 1000,
+                                      std::size_t max_events = 32,
+                                      const SeqTypeRegistry &registry = vdj_seq_type_registry());
+
+/// Decode an Int_Str back to letters: the four bases as themselves, an ambiguity code as 'N',
+/// and an unfilled position (int_undefined, written by Insertion) as '.'.
+std::string int_str_to_nt(const Int_Str &seq);
+
+/**
+ * @brief Per-key current layer of every layered map, at one instant.
+ *
+ * Taken right after initialize_event(), it records the highest layer any event requested
+ * for each key. See LayerContract below.
+ */
+struct LayerSnapshot {
+    std::map<std::string, std::vector<int>> claimed; ///< map name -> claimed_layer() per key
+    std::map<std::string, std::vector<int>> current; ///< map name -> current_layer() per key
+};
+
+/**
+ * @brief The layer contract: requesting a layer is a promise to write it before handing off.
+ *
+ * An event requests a memory layer so it can write without clobbering the previous value,
+ * and so that downstream readers of `layer - 1` see that previous value. An event that
+ * requests a layer and then returns without writing it leaves the next reader on unwritten
+ * storage -- which LayeredArray refuses, aborting the run, and which the pre-B8 containers
+ * served as uninitialized memory. See docs/ITERATE_GENERIC_REWRITE_PLAN.md section 7.9.
+ *
+ * LayeredArray tracks the two marks separately, so the check states the promise directly:
+ *
+ *     for every key this event claimed a layer for,
+ *         current_layer(key) == claimed_layer(key)   at hand-off
+ *
+ * "Claimed by this event" is the keys whose claimed_layer() the event's initialize_event()
+ * raised, which is why two snapshots are taken -- before any initialization, and once the
+ * event under test has requested its own layers but before downstream events request more.
+ *
+ * Every test going through call_iterate_recording() is checked automatically, so a new
+ * event's sections inherit it without writing anything, and no downstream events are needed
+ * in the fixture for it to see anything.
+ */
+struct LayerViolation {
+    std::size_t call_index = 0;
+    std::string map_name;
+    std::size_t key = 0;
+    int claimed_layer = 0; ///< layer this event claimed
+    int current_layer = 0; ///< layer the data actually stands at, at hand-off
+
+    std::string describe() const;
+};
+
+/**
+ * @brief A write that landed on a layer the event never requested.
+ *
+ * The exact complement of the layer contract. That one says *a requested layer must be
+ * written*; this one says *a written layer must have been requested*. Together they make the
+ * claimed and current marks move as a pair, which is what lets a downstream reader of
+ * `layer - 1` trust that it sees the previous value.
+ *
+ * It is deliberately **not** a capability check: it applies to every layered map the harness
+ * owns, including `mismatches_lists` and `safety_set`, which no A0 query describes. That is
+ * what makes it complementary to the declaration check rather than a special case of it.
+ */
+struct OwnershipViolation {
+    std::size_t call_index = 0;
+    std::string map_name;
+    std::size_t key = 0;
+    int claimed_layer = 0; ///< highest layer this event requested, at the baseline
+    int written_layer = 0; ///< layer the data stands at, at hand-off
+
+    std::string describe() const;
+};
+
+/**
+ * @brief A capability the event under test declared but did not honour at hand-off.
+ *
+ * Tier 3 of the segment-completeness invariant (docs/ITERATE_GENERIC_REWRITE_PLAN.md
+ * section 2.5). Tier 1 -- a check at Model_Parms::finalize() -- asks whether *someone*
+ * declares a creator for every registered seq_type; tier 2 -- the debug assert at the
+ * scenario leaf -- asks whether anything is still missing once every event has run. This
+ * one asks the question a unit test can actually answer: did **this** event do what **it**
+ * said it would? It also localises the failure, where a leaf check only reports that
+ * something, somewhere, is incomplete.
+ */
+struct CapabilityViolation {
+    std::size_t call_index = 0;
+    std::string map_name;
+    Seq_type seq_type = V_gene_seq;
+    std::string declared;  ///< the declaration, and what it promised
+    std::string observed;
+
+    std::string describe() const;
+};
+
+/// Snapshot every layered map the harness owns.
+LayerSnapshot capture_layers(const IterateTestState &state);
+
+/**
+ * @brief What the next event in the chain would see, captured per surviving realization.
+ *
+ * Only seq_types that have actually been written are present in the maps, so a missing key
+ * is itself an observation.
+ */
+struct ScenarioSnapshot {
+    double scenario_proba = 0.0;
+    std::map<Seq_type, std::pair<Seq_Offset, Seq_Offset>> offsets;
+    std::map<Seq_type, std::string> sequences; ///< decoded back to ACGT
+    std::map<Seq_type, std::vector<std::size_t>> mismatches;
+    /// Keyed by the pair, 5'-most member first. Present for every pair of a row some event
+    /// has written: the row word carries a verdict for each of its cells, so "absent" means
+    /// nothing touched that left segment at all, not that this one pair went unrecorded.
+    std::map<std::pair<Seq_type, Seq_type>, bool> safety;
+    std::map<Seq_type, double> downstream_bounds;
+
+    /// Convenience: the 5' offset of a segment, or throws if it was never written.
+    Seq_Offset five_prime(Seq_type seq_type) const { return offsets.at(seq_type).first; }
+    Seq_Offset three_prime(Seq_type seq_type) const { return offsets.at(seq_type).second; }
+};
+
+/**
+ * @brief A stand-in for "the next event", which records instead of recursing.
+ *
+ * This is the primary observation instrument. Testing a single event through the leaf path
+ * instead would drag in Error_rate, which needs a *complete* scenario (it concatenates V,
+ * D and J) and therefore says nothing about the event under test. Recording at the
+ * hand-off point gives one snapshot per realization that survived every check, which is
+ * exactly the quantity these branches decide.
+ */
+class RecordingEvent : public Rec_Event {
+public:
+    explicit RecordingEvent(int event_id);
+
+    std::vector<ScenarioSnapshot> calls;
+
+    /// Layers as they stood before any event was initialized.
+    LayerSnapshot layer_before_init;
+
+    /// Layers immediately after the event under test requested its own. Set by
+    /// call_iterate().
+    LayerSnapshot layer_baseline;
+
+    /// Requested-but-unwritten layers seen at any hand-off. Checked automatically by
+    /// call_iterate_recording().
+    std::vector<LayerViolation> layer_violations;
+
+    /**
+     * What the event under test declared through its A0 capability queries, read by
+     * call_iterate_recording() before the event runs.
+     *
+     * Inactive when call_iterate() is used directly with a hand-made recorder, so a test
+     * that deliberately drives a partially-configured event still works.
+     */
+    struct Declarations {
+        bool active = false;
+        std::map<Seq_type, SeqConstructionRole> construction;
+        std::map<std::pair<Seq_type, Seq_side>, OffsetRole> offsets;
+    };
+    Declarations declarations;
+
+    /// Declarations the event did not honour. Checked automatically by
+    /// call_iterate_recording().
+    std::vector<CapabilityViolation> capability_violations;
+
+    /**
+     * Writes that landed above the layer the event requested. Checked automatically by
+     * call_iterate_recording(), which waives one standing defect (see there); this vector is
+     * the **unwaived** record, so a defect case can assert against it directly.
+     */
+    std::vector<OwnershipViolation> ownership_violations;
+
+    /// Number of realizations that reached the next event.
+    std::size_t call_count() const { return calls.size(); }
+
+    void iterate(QuerySequenceContext &query, const ModelContext &model, ScenarioContext &scenario,
+                 ExplorationContext &exploration, AccumulationContext &accumulation) override;
+
+    //Unused surface, present only because Rec_Event declares it pure virtual.
+    std::shared_ptr<Rec_Event> copy() override;
+    std::queue<int> draw_random_realization(
+            const Marginal_array_p &, std::unordered_map<Rec_Event_name, int> &,
+            const std::unordered_map<Rec_Event_name,
+                                     std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &,
+            std::unordered_map<Seq_type, std::string> &, std::mt19937_64 &) const override;
+    OffsetDelta get_offset_delta_bounds(SeqTypeId, Seq_side) const override { return {}; }
+    LengthContribution get_length_contribution(SeqTypeId) const override { return {}; }
+    SeqConstructionRole get_seq_construction_role(SeqTypeId) const override
+    {
+        return SeqConstructionRole::None;
+    }
+    OffsetRole get_offset_role(SeqTypeId, Seq_side) const override { return OffsetRole::None; }
+    void write2txt(std::ofstream &) override {}
+    void write2txt_legacy(std::ofstream &) override {}
+    void write2txt_v2(std::ofstream &) override {}
+    void add_to_marginals(long double, Marginal_array_p &) const override {}
+    bool affects_length_of(SegmentSpan) const override { return false; }
+    int length_delta(const Event_realization &) const override { return 0; }
+};
+
+/**
+ * @brief Run the production initialization sequence, then call iterate() on `event`.
+ *
+ * Mirrors GenModel::infer_model / compute_Pgen ordering, which matters: the length-proba
+ * bounds are built by a *reverse* pass over the queue after every event is initialized,
+ * and skipping it leaves vd/dj/vj_length_best_proba_map empty, which silently discards
+ * every scenario at the junction-length guard.
+ *
+ * `event` is initialized last, so anything marked with mark_chosen() is already in
+ * processed_events when its initialize_event() runs.
+ */
+void call_iterate(const std::shared_ptr<Rec_Event> &event, IterateTestState &state,
+                  const std::shared_ptr<RecordingEvent> &next = nullptr);
+
+/// Build a recorder, wire it as `event`'s successor, run call_iterate(), return it.
+std::shared_ptr<RecordingEvent> call_iterate_recording(const std::shared_ptr<Rec_Event> &event,
+                                                       IterateTestState &state);
+
+// ============================================================================
+// State inspection
+// ============================================================================
+
+Seq_Offset get_seq_offset(const IterateTestState &state, Seq_type seq_type, Seq_side side,
+                          std::size_t layer = 0);
+bool has_seq_offset(const IterateTestState &state, Seq_type seq_type, Seq_side side);
+
+const Int_Str *get_constructed_sequence(const IterateTestState &state, Seq_type seq_type,
+                                        std::size_t layer = 0);
+bool has_constructed_sequence(const IterateTestState &state, Seq_type seq_type);
+
+std::vector<std::size_t> get_mismatches(const IterateTestState &state, Seq_type seq_type,
+                                        std::size_t layer = 0);
+
+bool is_safe(const IterateTestState &state, Seq_type left, Seq_type right, std::size_t layer = 0);
+bool has_safety(const IterateTestState &state, Seq_type left, Seq_type right);
+
+/// The layer a safety verdict was most recently *written* at. request_layer() advances it
+/// too, but set() pulls it back to the layer written, so after a full iterate() this reports
+/// the last writer -- which is what a downstream reader of `memory_layer - 1` depends on.
+/// It is a property of the pair's *row*, since the row is what carries a layer.
+int safety_current_layer(const IterateTestState &state, Seq_type left, Seq_type right);
+
+double get_downstream_bound(const IterateTestState &state, Seq_type seq_type,
+                            std::size_t layer = 0);
+
+/// Sum of the whole updated-marginals array. Zero means no scenario reached a leaf, which
+/// is the cheapest positive/negative control a section can assert on.
+long double total_marginal_mass(const IterateTestState &state, std::size_t marginal_array_size = 1000);
+
+// ============================================================================
+// Event builders
+// ============================================================================
+
+/**
+ * Build a Gene_choice carrying one realization per (name, sequence) pair.
+ *
+ * `fixed` defaults to true for a reason: at a leaf, iterate_wrap_up() calls
+ * add_to_marginals() on **every** non-fixed event in events_map, and a stub that never
+ * iterated still has new_index == -1, so an unfixed stub writes out of bounds. Only the
+ * event under test should be unfixed.
+ */
+std::shared_ptr<Gene_choice> make_gene_choice(Gene_class gene_class,
+                                              const std::vector<std::pair<std::string, std::string>> &genes,
+                                              int event_id, bool fixed = true);
+
+/// Build a Deletion event over the inclusive realization range [min_del, max_del].
+/// Present purely so a neighbour has non-zero deletion bounds; always fixed.
+std::shared_ptr<Deletion> make_deletion(Seq_type target, Seq_side side, int min_del, int max_del,
+                                        int event_id);
+
+/// Build an Insertion event over the inclusive realization range [min_ins, max_ins].
+/// Present purely so a junction has non-zero insertion bounds; always fixed.
+std::shared_ptr<Insertion> make_insertion(Seq_type target, int min_ins, int max_ins, int event_id);
+
+/**
+ * Build the Dinucl_markov event that fills `target`. An Insertion cannot be initialized
+ * without one: initialize_event() looks it up in events_map and throws if it is missing.
+ * Always fixed.
+ *
+ * `chain_side` is the anchor's end facing the junction, i.e. the direction the Markov chain
+ * runs from. It defaults to what Model_Parms derives for a legacy model file -- VD and VJ seed
+ * from the 3' end of the segment on their left, DJ from the 5' end of the one on their right.
+ * The event carries it as its `event_side`, and B7 resolves the anchor from it plus the
+ * registry ordering, so a fixture that leaves it Undefined_side has no junction to fill.
+ */
+std::shared_ptr<Dinucl_markov> make_dinucl_markov(Seq_type target, int event_id,
+                                                  Seq_side chain_side = Undefined_side);
+
+/**
+ * A repeating ACGT run spanning the inclusive read positions [five_prime, three_prime].
+ *
+ * For a fixture segment whose *content* does not matter but whose *length* must agree with the
+ * offsets written beside it. A segment occupies its two offsets inclusively, so the length is
+ * `three_prime - five_prime + 1`; hardcoding a string next to a parameterised offset lets the
+ * two drift apart the moment a section passes a different offset, leaving the scenario in a
+ * state no upstream event could have produced.
+ */
+std::string segment_run(Seq_Offset five_prime, Seq_Offset three_prime);
+
+Alignment_data create_perfect_alignment(const std::string &gene_name, int offset, int gene_length);
+
+Alignment_data create_alignment_with_mismatches(const std::string &gene_name, int offset,
+                                                int gene_length,
+                                                const std::vector<std::size_t> &mismatch_positions);
+
+} // namespace IgorTestUtils
+
+#include <igor/Core/Legacy/SeqTypeRegistry.h>
+
+/**
+ * A frozen registry holding the six legacy seq_types at their Seq_type enum ids, with no
+ * ordering set. This is what the scenario maps are sized from in tests that only need
+ * enum-keyed access; tests exercising the ordered traversal build their own registry with
+ * an explicit ordering.
+ */
+//legacy_seq_type_registry() now lives in SeqTypeRegistry.h; kept included here so that
+//tests including test_utils.h continue to see it.

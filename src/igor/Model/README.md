@@ -610,7 +610,7 @@ consequences worth knowing about:
   and `D2` collide.
 
 ```cpp
-#include <igor/Core/ModelJson.h>
+#include <igor/Model/Legacy/ModelJson.h>
 #include <igor/Model/Topology.h>
 
 Model_Parms parms;

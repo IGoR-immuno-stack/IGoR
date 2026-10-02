@@ -28,7 +28,7 @@ import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 BUILD = os.path.join(ROOT, "build_cov")
-OBJ_DIR = os.path.join(BUILD, "src", "igor", "Core", "CMakeFiles", "Core.dir")
+OBJ_DIR = os.path.join(BUILD, "src", "igor", "Model", "CMakeFiles", "Model.dir", "Legacy")
 DEFAULT_SOURCES = ["Genechoice.cpp", "Deletion.cpp", "Insertion.cpp", "Dinuclmarkov.cpp"]
 DEFAULT_PATTERN = r"::(iterate|initialize_event)\("
 
@@ -45,7 +45,7 @@ def find_gcov():
 
 
 def run_tests(test_filter):
-    binary = os.path.join(BUILD, "bin", "igor_tests")
+    binary = os.path.join(BUILD, "bin", "model_tests")
     if not os.path.exists(binary):
         sys.exit("No coverage build found. Run: pixi run build_coverage")
     for gcda in glob.glob(os.path.join(BUILD, "**", "*.gcda"), recursive=True):
@@ -62,7 +62,7 @@ def gcov_json(gcov, source, work_dir):
     if not os.path.exists(obj):
         return None
     subprocess.run([gcov, "--json-format", "-b", "-m", "-o", obj,
-                    os.path.join(ROOT, "src", "igor", "Core", source)],
+                    os.path.join(ROOT, "src", "igor", "Model", "Legacy", source)],
                    cwd=work_dir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     reports = glob.glob(os.path.join(work_dir, "*.json.gz"))
     if not reports:
@@ -110,7 +110,7 @@ def main():
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("-f", "--filter", default="", help="Catch2 test specification to run")
     parser.add_argument("-s", "--source", action="append", default=[],
-                        help="Core source to report on (repeatable)")
+                        help="Model/Legacy source to report on (repeatable)")
     parser.add_argument("--pattern", default=DEFAULT_PATTERN,
                         help="regex selecting functions (default: iterate / initialize_event)")
     args = parser.parse_args()

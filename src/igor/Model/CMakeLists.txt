@@ -7,7 +7,7 @@ LANGUAGES
   CXX)
 
 ## #################################################################
-## Core Target Definition (add_library, export header, version, alias)
+## Target Definition (add_library, export header, version, alias)
 ## #################################################################
 
 add_library(${PROJECT_NAME} SHARED)
@@ -27,62 +27,89 @@ add_library(${CMAKE_PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 ## Sources, Headers, Includes, Linking, Install
 ## #################################################################
 
-target_sources(${PROJECT_NAME}
-  PUBLIC FILE_SET HEADERS
-    BASE_DIRS
-      ${CMAKE_BINARY_DIR}/src
-    FILES
-      ${CMAKE_BINARY_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/Export.h
-)
+set(LAYER_DIR ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME})
 
 target_sources(${PROJECT_NAME}
   PRIVATE
     EventFactory.cpp
-    InferenceHandlerFactory.cpp
-    SamplingHandlerFactory.cpp
     Topology.cpp
+    Legacy/Counter.cpp
+    Legacy/Deletion.cpp
+    Legacy/Dinuclmarkov.cpp
+    Legacy/Errorrate.cpp
+    Legacy/EventUtils.cpp
+    Legacy/Genechoice.cpp
+    Legacy/gene_to_seqtype_migr.cpp
+    Legacy/HypermutationfullNmererrorrate.cpp
+    Legacy/Hypermutationglobalerrorrate.cpp
+    Legacy/Insertion.cpp
+    Legacy/ModelJson.cpp
+    Legacy/Model_Parms.cpp
+    Legacy/Model_marginals.cpp
+    Legacy/Rec_Event.cpp
+    Legacy/Singleerrorrate.cpp
   PUBLIC FILE_SET HEADERS
     BASE_DIRS
       ${CMAKE_SOURCE_DIR}/src
+      ${CMAKE_BINARY_DIR}/src
     FILES
+      ${CMAKE_BINARY_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/Export.h
       ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}.h
-      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/CategoricalInferenceHandler.h
-      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/CategoricalInferenceHandler.tpp
-      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/CategoricalSamplingHandler.h
-      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/CategoricalSamplingHandler.tpp
-      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/EventFactory.h
-      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/InferenceEngine.h
-      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/InferenceEngine.tpp
-      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/InferenceHandler.h
-      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/InferenceHandlerFactory.h
-      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/InferenceHandlerFactory.tpp
-      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/LegacyBridge.h
-      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/LegacyBridge.tpp
-      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/MarkovInferenceHandler.h
-      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/MarkovInferenceHandler.tpp
-      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/MarkovSamplingHandler.h
-      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/MarkovSamplingHandler.tpp
-      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/Navigator.h
-      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/RecombinationModel.h
-      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/RecombinationModel.tpp
-      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/SamplingEngine.h
-      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/SamplingEngine.tpp
-      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/SamplingHandler.h
-      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/SamplingHandler.tpp
-      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/SamplingHandlerFactory.h
-      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/SamplingHandlerFactory.tpp
-      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/Scenario.h
-      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/Topology.h
-      )
+      ${LAYER_DIR}/EventFactory.h
+      ${LAYER_DIR}/LegacyBridge.h
+      ${LAYER_DIR}/LegacyBridge.tpp
+      ${LAYER_DIR}/Navigator.h
+      ${LAYER_DIR}/RecombinationModel.h
+      ${LAYER_DIR}/RecombinationModel.tpp
+      ${LAYER_DIR}/Scenario.h
+      ${LAYER_DIR}/Topology.h
+      ${LAYER_DIR}/Legacy/AccumulationContext.h
+      ${LAYER_DIR}/Legacy/BoundTightness.h
+      ${LAYER_DIR}/Legacy/Counter.h
+      ${LAYER_DIR}/Legacy/Deletion.h
+      ${LAYER_DIR}/Legacy/Dinuclmarkov.h
+      ${LAYER_DIR}/Legacy/Errorrate.h
+      ${LAYER_DIR}/Legacy/EventUtils.h
+      ${LAYER_DIR}/Legacy/ExplorationContext.h
+      ${LAYER_DIR}/Legacy/Genechoice.h
+      ${LAYER_DIR}/Legacy/gene_to_seqtype_migr.h
+      ${LAYER_DIR}/Legacy/HypermutationfullNmererrorrate.h
+      ${LAYER_DIR}/Legacy/Hypermutationglobalerrorrate.h
+      ${LAYER_DIR}/Legacy/Insertion.h
+      ${LAYER_DIR}/Legacy/JsonDetail.h
+      ${LAYER_DIR}/Legacy/JunctionGeometry.h
+      ${LAYER_DIR}/Legacy/ModelContext.h
+      ${LAYER_DIR}/Legacy/ModelJson.h
+      ${LAYER_DIR}/Legacy/Model_Parms.h
+      ${LAYER_DIR}/Legacy/Model_marginals.h
+      ${LAYER_DIR}/Legacy/QuerySequenceContext.h
+      ${LAYER_DIR}/Legacy/Rec_Event.h
+      ${LAYER_DIR}/Legacy/SafetyMatrix.h
+      ${LAYER_DIR}/Legacy/Scenario.h
+      ${LAYER_DIR}/Legacy/ScenarioContext.h
+      ${LAYER_DIR}/Legacy/Singleerrorrate.h
+      ${LAYER_DIR}/Legacy/SpanProfile.h
+      ${LAYER_DIR}/Legacy/UnfilledSegmentLengths.h
+)
 
 target_include_directories(${PROJECT_NAME} PUBLIC
   $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src>
   $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/src>
 )
 
+# GSL is PUBLIC because Hypermutationglobalerrorrate.h includes gsl headers; nlohmann_json
+# because Rec_Event.h names nlohmann::json in to_json()'s signature (headers only include
+# <nlohmann/json_fwd.hpp>; the full json.hpp stays in the .cpp files).
+# igor::Alignment is a transitional link (step 1a): Legacy/Rec_Event.h and
+# Legacy/QuerySequenceContext.h include Aligner.h for Alignment_data, and QuerySequenceContext
+# holds a JournaledQuery by value. The first goes away with the AlignmentData.h extraction of
+# step 1c, the second when the contexts leave Model (stage 2).
 target_link_libraries(${PROJECT_NAME} PUBLIC
   ${CMAKE_PROJECT_NAME}::Math
   ${CMAKE_PROJECT_NAME}::Core
+  ${CMAKE_PROJECT_NAME}::Alignment
+  GSL::gsl
+  nlohmann_json::nlohmann_json
 )
 
 ## #################################################################

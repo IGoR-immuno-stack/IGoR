@@ -5,7 +5,7 @@
 #include <igor/Model/Navigator.h>
 #include <igor/Model/Topology.h>
 #include <igor/Math/Tensor.h>
-#include <igor/Core/Typedef.h>
+#include <igor/Core/Legacy/Typedef.h>
 
 #include <memory>
 #include <string>
