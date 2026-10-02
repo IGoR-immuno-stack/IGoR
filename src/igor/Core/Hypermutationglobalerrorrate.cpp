@@ -294,7 +294,7 @@ void Hypermutation_global_errorrate::clear_accumulators()
     }
 }
 
-const double &Hypermutation_global_errorrate::get_err_rate_upper_bound(size_t n_errors, size_t n_error_free)
+const double &Hypermutation_global_errorrate::upper_bound_entry(size_t n_errors, size_t n_error_free)
 {
     /*	double max_proba = 0;
 	for(i=0 ; i!=pow(4,mutation_Nmer_size);i++){

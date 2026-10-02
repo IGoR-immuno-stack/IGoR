@@ -135,8 +135,6 @@ public:
             }
         }
 
-        double downstream_proba_bound = 1;
-        std::forward_list<double *> updated_proba_list;
         while (!init_stack.empty()) {
             std::shared_ptr<Rec_Event> event = init_stack.top();
             init_stack.pop();
@@ -149,8 +147,6 @@ public:
             }
             remaining.pop();
 
-            event->initialize_crude_scenario_proba_bound(downstream_proba_bound, updated_proba_list,
-                                                         events_map_);
             event->initialize_Len_proba_bound(remaining, marginals_.marginal_array_smart_p, index_map_);
         }
     }

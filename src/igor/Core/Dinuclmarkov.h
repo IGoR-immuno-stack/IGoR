@@ -82,7 +82,6 @@ class CORE_EXPORT Dinucl_markov : public Rec_Event
 {
 public:
         using Rec_Event::initialize_event;
-        using Rec_Event::initialize_crude_scenario_proba_bound;
 
     //Constructors
     Dinucl_markov(Seq_type); //TODO should be scalable on one side easily (mono di tri quadri nucl)
@@ -138,11 +137,6 @@ public:
     void add_to_marginals(long double, Marginal_array_p &) const override;
     void update_event_internal_probas(const Marginal_array_p &, const std::unordered_map<Rec_Event_name, int> &) override;
 
-    double *get_updated_ptr() override;
-    void initialize_crude_scenario_proba_bound(
-            double &, std::forward_list<double *> &,
-            const Events_map &) override;
-
     //Proba bound related computation methods
     //Capability queries (task A0)
     OffsetDelta get_offset_delta_bounds(SeqTypeId, Seq_side) const override;
@@ -156,8 +150,6 @@ public:
     double span_proba_factor(SegmentSpan, const UnfilledSegmentLengths &) const override;
 
 private:
-    double *updated_upper_bound_proba =
-            nullptr; //This points to a double modified by the Insertion event given the number of insertion
     Matrix<double> dinuc_proba_matrix;
 
     int total_nucl_count;

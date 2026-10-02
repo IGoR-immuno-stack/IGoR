@@ -81,6 +81,15 @@ double Error_rate::get_seq_mean_error_number() const
     }
 }
 
+const double &Error_rate::get_err_rate_upper_bound(int n_errors, int n_error_free)
+{
+    if (n_errors < 0 or n_error_free < 0) {
+        throw invalid_argument("Error_rate::get_err_rate_upper_bound(): negative count (" + to_string(n_errors)
+                               + " errors, " + to_string(n_error_free) + " error-free)");
+    }
+    return upper_bound_entry(static_cast<size_t>(n_errors), static_cast<size_t>(n_error_free));
+}
+
 void add_to_err_rate(Error_rate *err_p1, Error_rate *err_p2)
 {
     if (err_p1->type() != err_p2->type()) {

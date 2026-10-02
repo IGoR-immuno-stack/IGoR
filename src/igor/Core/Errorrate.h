@@ -176,7 +176,16 @@ public:
     double get_seq_likelihood() const { return seq_likelihood; }
     double get_seq_probability() const { return seq_probability; }
     double get_seq_mean_error_number() const;
-    virtual const double &get_err_rate_upper_bound(size_t, size_t) = 0;
+    /**
+     * \brief The most probable error cost of `n_errors` errors over `n_error_free` further
+     * error-free positions, for pruning.
+     *
+     * The counts are `int` because the callers derive them by subtraction, and a subtraction
+     * that comes out negative is a derivation bug to report rather than a value to index with:
+     * as `size_t` it wrapped, slipped past the growth check and read before the matrix (plan
+     * section 7.18). Throws `std::invalid_argument` on either count negative.
+     */
+    const double &get_err_rate_upper_bound(int n_errors, int n_error_free);
     virtual void build_upper_bound_matrix(size_t, size_t) = 0;
     virtual int get_number_non_zero_likelihood_seqs() const = 0;
     virtual std::queue<int> generate_errors(std::string &, std::mt19937_64 &) const = 0;
@@ -184,6 +193,9 @@ public:
     size_t debug_number_scenarios;
 
 protected:
+    /// get_err_rate_upper_bound()'s entry once both counts are known to be non-negative.
+    virtual const double &upper_bound_entry(size_t n_errors, size_t n_error_free) = 0;
+
     bool updated;
     long double model_log_likelihood;
     int number_seq;

@@ -411,21 +411,15 @@ bool GenModel::infer_model(
             {
                 cerr << "Initializing probability bounds..." << endl;
             }
-            //Compute upper proba bounds for downstream scenarios for each event.
-            //
-            //The crude bound stays per-thread: initialize_crude_scenario_proba_bound() stores a
-            //forward_list<double*> pointing into *this thread's* mutable event members, so a
-            //shared one would leave every thread pointing at one model's doubles.
-            double downstream_proba_bound = 1;
-            forward_list<double *> updated_proba_list;
+            //The events in reverse queue order, which is the order the junction-length fold
+            //below needs: each event's suffix is folded before anything reads it. (A per-thread
+            //"crude" bound used to be initialized in this loop too; nothing read it at scenario
+            //time, and R14 deleted it.)
             vector<shared_ptr<Rec_Event>> len_proba_bound_order;
             len_proba_bound_order.reserve(init_single_thread_stack.size());
             while (!init_single_thread_stack.empty()) {
-                shared_ptr<Rec_Event> last_proba_init_event = init_single_thread_stack.top();
+                len_proba_bound_order.push_back(init_single_thread_stack.top());
                 init_single_thread_stack.pop();
-                last_proba_init_event->initialize_crude_scenario_proba_bound(downstream_proba_bound,
-                                                                             updated_proba_list, events_map);
-                len_proba_bound_order.push_back(last_proba_init_event);
             }
 
             //The junction-length bound, by contrast, is a function of the marginals alone, so all

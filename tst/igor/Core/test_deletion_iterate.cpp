@@ -89,9 +89,13 @@ std::string read_run(Seq_Offset five, Seq_Offset three)
  * reach the distance: `n = distance` when the deletions contribute nothing, and `n = 0`
  * whenever the distance is zero or negative (the deletions can always make up the difference).
  *
- * `contributors` is the number of realization-enumerating events the fold walks: the event
- * under test plus every length-affecting event *after* it in the queue. It differs per fixture,
- * which is why it is a parameter rather than a constant.
+ * `contributors` is the number of realization-enumerating events the fold walks: every
+ * length-affecting event *after* the one under test in the queue. The event under test reads
+ * the table after it has chosen, so its probability is not part of the bound (§7.19, R8 stage
+ * 3c-ii); until then it was, and every value below carried one extra factor of 0.5. Since R13
+ * the table is conditioned on its realization instead, read at the gap before the choice --
+ * which gives the same value as `distance`, the gap the choice leaves, measured here. It is a
+ * parameter because it could differ per fixture; since 3c-ii every fixture has two.
  */
 double junction_bound_at(int distance, int contributors)
 {
@@ -117,12 +121,12 @@ double err_bound(double rate, int mismatches, int matches)
 // ---------------------------------------------------------------------------------------
 
 /// A V 3' deletion with D already chosen: the VD flank is the one it widens.
-/// Fold contributors: this deletion, the D 5' deletion, the VD insertion -> 3.
+/// Fold contributors: the D 5' deletion and the VD insertion -> 2.
 struct VDel {
     IterateTestState state = create_iterate_state(kRead);
     std::shared_ptr<Deletion> deletion;
     std::shared_ptr<Gene_choice> d_stub = make_gene_choice(D_gene, {{"D1", "ACGTA"}}, /*id=*/1);
-    static constexpr int kContributors = 3;
+    static constexpr int kContributors = 2;
 
     VDel(Seq_Offset v_three = 10, Seq_Offset d_five = 14, int min_del = 0, int max_del = 4,
          Seq_Offset v_five = 0, const std::vector<std::size_t> &v_mis = {}, int ins_max = 20)
@@ -154,8 +158,13 @@ struct VDelBare {
 };
 
 /// A D 5' deletion with V already chosen.
-/// Fold contributors: this deletion, the VD insertion -> 2. The V 3' deletion is registered but
-/// sits *before* this event, so it bounds the safety check without entering the fold.
+/// Fold contributors: the V 3' deletion and the VD insertion -> 2.
+///
+/// The V 3' deletion is still pending -- it bounds the overlap check -- so it sits *after* this
+/// event in the queue, which is the only place a pending event can be in a real run: "pending"
+/// means "not yet processed". Until R8 it was registered but kept out of the queue, a state no
+/// run can produce, and it did not matter because this deletion's own realizations stood in for
+/// it in the table. Stage 3c-ii took them out, and the fixture had to become consistent.
 struct D5Del {
     IterateTestState state = create_iterate_state(kRead);
     std::shared_ptr<Deletion> deletion;
@@ -172,7 +181,7 @@ struct D5Del {
         state.add_event(v_stub);
         state.mark_chosen(v_stub);
         state.preset_segment(V_gene_seq, 0, v_three, read_run(0, v_three));
-        state.add_event(make_deletion(V_gene_seq, Three_prime, 0, 4, /*id=*/5));
+        state.add_downstream_event(make_deletion(V_gene_seq, Three_prime, 0, 4, /*id=*/5));
         state.add_downstream_event(make_insertion(VD_ins_seq, 0, ins_max, /*id=*/3));
         state.add_downstream_event(make_dinucl_markov(VD_ins_seq, /*id=*/4));
         for (std::size_t i = 0; i != 64; ++i) { state.set_marginal(i, 0.5L); }
@@ -193,7 +202,8 @@ struct D5DelBare {
     }
 };
 
-/// A D 3' deletion with J already chosen. Fold contributors: this deletion, the DJ insertion.
+/// A D 3' deletion with J already chosen. Fold contributors: the J 5' deletion, still pending and
+/// so downstream (see D5Del), and the DJ insertion -> 2.
 struct D3Del {
     IterateTestState state = create_iterate_state(kRead);
     std::shared_ptr<Deletion> deletion;
@@ -210,7 +220,7 @@ struct D3Del {
         state.add_event(j_stub);
         state.mark_chosen(j_stub);
         state.preset_segment(J_gene_seq, j_five, 27, read_run(j_five, 27));
-        state.add_event(make_deletion(J_gene_seq, Five_prime, 0, 4, /*id=*/5));
+        state.add_downstream_event(make_deletion(J_gene_seq, Five_prime, 0, 4, /*id=*/5));
         state.add_downstream_event(make_insertion(DJ_ins_seq, 0, ins_max, /*id=*/3));
         state.add_downstream_event(make_dinucl_markov(DJ_ins_seq, /*id=*/4));
         for (std::size_t i = 0; i != 64; ++i) { state.set_marginal(i, 0.5L); }
@@ -230,7 +240,8 @@ struct D3DelBare {
     }
 };
 
-/// A J 5' deletion with D already chosen. Fold contributors: this deletion, the DJ insertion.
+/// A J 5' deletion with D already chosen. Fold contributors: the D 3' deletion, still pending and
+/// so downstream (see D5Del), and the DJ insertion -> 2.
 struct JDel {
     IterateTestState state = create_iterate_state(kRead);
     std::shared_ptr<Deletion> deletion;
@@ -246,7 +257,7 @@ struct JDel {
         state.add_event(d_stub);
         state.mark_chosen(d_stub);
         state.preset_segment(D_gene_seq, d_three - 4, d_three, read_run(d_three - 4, d_three));
-        state.add_event(make_deletion(D_gene_seq, Three_prime, 0, 4, /*id=*/5));
+        state.add_downstream_event(make_deletion(D_gene_seq, Three_prime, 0, 4, /*id=*/5));
         state.add_downstream_event(make_insertion(DJ_ins_seq, 0, ins_max, /*id=*/3));
         state.add_downstream_event(make_dinucl_markov(DJ_ins_seq, /*id=*/4));
         for (std::size_t i = 0; i != 64; ++i) { state.set_marginal(i, 0.5L); }
@@ -267,12 +278,12 @@ struct JDelBare {
 };
 
 /// The VJ arm: a model with no D, where a V deletion widens the V->J span.
-/// Fold contributors: this deletion, the J 5' deletion, the VJ insertion -> 3.
+/// Fold contributors: the J 5' deletion and the VJ insertion -> 2.
 struct VJDel {
     IterateTestState state = create_iterate_state(kRead, 1000, 32, vj_seq_type_registry());
     std::shared_ptr<Deletion> deletion;
     std::shared_ptr<Gene_choice> j_stub = make_gene_choice(J_gene, {{"J1", "ACGTACGT"}}, /*id=*/1);
-    static constexpr int kContributors = 3;
+    static constexpr int kContributors = 2;
 
     VJDel(Seq_Offset v_three = 10, Seq_Offset j_five = 14, int min_del = 0, int max_del = 4)
         : deletion(make_deletion(V_gene_seq, Three_prime, min_del, max_del, /*id=*/0))
@@ -648,12 +659,23 @@ TEST_CASE("Deletion: overlap verdicts (G2/G3)", "[deletion][iterate]")
     SECTION("An already-safe flank is not re-checked, and the flag is carried forward")
     {
         // Exactly the geometry of the first section, with one value changed: the incoming
-        // VD_safe flag. Nothing is discarded, because the comparison is skipped outright.
+        // VD_safe flag. The comparison is skipped outright, and what shows it is the flag:
+        // carried forward as true, where the first section lowers it for the same two
+        // survivors.
+        //
+        // The count does not show it, not since R8. The three the comparison discards there --
+        // 18, 19 and 20, at or past D's furthest reach -- leave a gap no later event can close,
+        // and with the deletion out of its own table the junction guard now says so too. On the
+        // flank a deletion widens, an Infeasible verdict and an unreachable junction are the same
+        // condition. It used to read 5: the deletion's own realizations, still in its table,
+        // offered a bound at gaps nothing could fill.
         VDel fixture(/*v_three=*/20, /*d_five=*/14);
         fixture.state.preset_safety(V_gene_seq, D_gene_seq, true);
         const auto next = call_iterate_recording(fixture.deletion, fixture.state);
 
-        REQUIRE(next->call_count() == 5);
+        REQUIRE(next->call_count() == 2);
+        CHECK(next->calls[0].three_prime(V_gene_seq) == 16);
+        CHECK(next->calls[1].three_prime(V_gene_seq) == 17);
         for (const ScenarioSnapshot &call : next->calls) {
             CHECK(call.safety.at({V_gene_seq, D_gene_seq}) == true);
         }
@@ -662,28 +684,39 @@ TEST_CASE("Deletion: overlap verdicts (G2/G3)", "[deletion][iterate]")
     SECTION("...and likewise in the other three arms")
     {
         // Each of the four arms has its own copy of the short-circuit. Comparing against the
-        // three sections of the overlap block above: same fixtures, incoming flag raised,
-        // nothing discarded.
+        // three sections of the overlap block above: same fixtures, incoming flag raised. As in
+        // the V section, the survivors are the same ones -- the junction guard discards exactly
+        // what the comparison would -- so the flag is what tells the two apart: every survivor
+        // here carries it raised, where the checked sections lower it on at least one.
         {
+            //10, 9, 8 and 7; at 6 and 5 the gap is past what the pending V 3' deletion can open.
             D5Del fixture(/*v_three=*/10, /*d_five=*/5, /*d_three=*/9, /*min_del=*/0, /*max_del=*/5);
             fixture.state.preset_safety(V_gene_seq, D_gene_seq, true);
             const auto next = call_iterate_recording(fixture.deletion, fixture.state);
-            CHECK(next->call_count() == 5);
+            CHECK(next->call_count() == 4);
+            for (const ScenarioSnapshot &call : next->calls) {
+                CHECK(call.safety.at({V_gene_seq, D_gene_seq}) == true);
+            }
         }
         {
+            //19 to 23; at 24 the pending J 5' deletion cannot open the gap far enough.
             D3Del fixture(/*d_five=*/10, /*d_three=*/24, /*j_five=*/20, /*min_del=*/0, /*max_del=*/5);
             fixture.state.preset_safety(D_gene_seq, J_gene_seq, true);
             const auto next = call_iterate_recording(fixture.deletion, fixture.state);
-            CHECK(next->call_count() == 6);
+            CHECK(next->call_count() == 5);
+            for (const ScenarioSnapshot &call : next->calls) {
+                CHECK(call.safety.at({D_gene_seq, J_gene_seq}) == true);
+            }
         }
         {
-            // Four rather than six: the two widest deletions leave a gap more negative than
-            // this fold can represent, so the junction guard discards them whatever the
-            // safety flag says. Three survive with the check on, four with it short-circuited.
+            //23, 22 and 21; below that the pending D 3' deletion cannot open the gap.
             JDel fixture(/*d_three=*/24, /*j_five=*/18, /*min_del=*/0, /*max_del=*/5);
             fixture.state.preset_safety(D_gene_seq, J_gene_seq, true);
             const auto next = call_iterate_recording(fixture.deletion, fixture.state);
-            CHECK(next->call_count() == 4);
+            CHECK(next->call_count() == 3);
+            for (const ScenarioSnapshot &call : next->calls) {
+                CHECK(call.safety.at({D_gene_seq, J_gene_seq}) == true);
+            }
         }
     }
 
@@ -1123,7 +1156,9 @@ TEST_CASE("Deletion: the junction-length bound (G5/S4)", "[deletion][iterate]")
 
         for (std::size_t i = 0; i != 5; ++i) {
             const int deletions = 4 - static_cast<int>(i);
-            // The distance the arm looks up: the gap left between the two facing offsets.
+            // The gap this realization leaves between the two facing offsets. The arm reads its
+            // realization's profile at the gap *before* the deletion (R13), whose key counts the
+            // deletion too, so the value is the best completion of this gap either way.
             const int distance = 14 - (10 - deletions) - 1;
             INFO("hand-off " << i << ", distance " << distance);
             CHECK(next->calls[i].downstream_bounds.at(VD_ins_seq)
@@ -1252,17 +1287,182 @@ TEST_CASE("Deletion: what the junction fold composes", "[deletion][iterate][junc
 
     SECTION("A Dinucl_markov whose segment nothing created contributes 1, not p")
     {
-        // Two events enumerate realizations here -- this deletion and the D 5' one -- and each
-        // carries a flat 0.5. The Dinucl is in the fold (it is asked for a factor) but the
-        // junction it fills has no creator on this path, so it must contribute nothing.
-        CHECK(vd_bound_with(/*with_insertion=*/false) == Approx(0.25));
+        // One event enumerates realizations here -- the D 5' deletion, at a flat 0.5; the
+        // deletion under test reads this table and is not in it (R8). The Dinucl is in the fold
+        // (it is asked for a factor) but the junction it fills has no creator on this path, so
+        // it must contribute nothing. Until R8 this read 0.25.
+        CHECK(vd_bound_with(/*with_insertion=*/false) == Approx(0.5));
     }
 
     SECTION("Positive control -- with the creator in the fold the insertion's own factor appears")
     {
         // Same geometry, same distance of zero. The extra halving is the Insertion's marginal,
-        // not the Dinucl's: at length zero `p^L` is still 1.
-        CHECK(vd_bound_with(/*with_insertion=*/true) == Approx(0.125));
+        // not the Dinucl's: at length zero `p^L` is still 1. Until R8 this read 0.125.
+        CHECK(vd_bound_with(/*with_insertion=*/true) == Approx(0.25));
+    }
+}
+
+namespace {
+
+/**
+ * Runs one arm and checks, at every hand-off, that the junction bound it wrote is at least what
+ * the best completion of that junction can still realize.
+ *
+ * Every fixture above leaves a gap of `3 + deletions` and hands off in decreasing deletion
+ * count. The best completion is the fold over the events *after* the one under test: the
+ * shortest insertion that fills the gap, with every later deletion at zero. That is
+ * `junction_bound_at(distance, kContributors)`, which since R8 counts only those events.
+ */
+template <typename Fixture>
+void check_bound_covers_best_completion(Fixture &fixture, Seq_type junction)
+{
+    const auto next = call_iterate_recording(fixture.deletion, fixture.state);
+    //Not a REQUIRE: the caller was written as a `[!shouldfail]` case, which a REQUIRE would
+    //abort -- and satisfy -- before the other arms ran. The hand-off count is pinned by the
+    //junction-length cases above.
+    CHECK(next->call_count() == 5);
+    if (next->call_count() != 5) {
+        return;
+    }
+    for (std::size_t i = 0; i != 5; ++i) {
+        const int distance = 3 + (4 - static_cast<int>(i));
+        const double best = junction_bound_at(distance, Fixture::kContributors);
+        const double bound = next->calls[i].downstream_bounds.at(junction);
+        INFO("hand-off " << i << ", distance " << distance << ": bound " << bound
+                         << ", best completion " << best);
+        CHECK(bound >= best * (1.0 - 1e-12));
+    }
+}
+
+} // namespace
+
+TEST_CASE("Deletion: the junction bound covers the best completion (§7.19, R8)",
+          "[deletion][iterate][junction]")
+{
+    // A deletion reads its junction at the gap its own choice leaves, so that gap already
+    // accounts for the choice. Until R8 the table it read was folded over *this event and its
+    // suffix*, so its own marginal was in there as well as in the scenario probability it had
+    // just multiplied. With flat marginals the best completion only gets worse as the gap grows,
+    // so the table's max landed on "this event deletes nothing more", and the value read was the
+    // best completion times one marginal of this event: 0.5 here -- §7.19's arithmetic on the
+    // other event that read its own table.
+    //
+    // §6.14 had recorded this as a *weakening*: the length half, "counted twice in opposite
+    // directions", widens the range the max is taken over. That half cannot show in these
+    // fixtures, because a wider range over a decreasing profile adds nothing; the probability
+    // half is what did, and it tightened.
+    //
+    // Written under `[!shouldfail]` at plan stage 3c-0, where it failed 25 checks of 25, each
+    // exactly one marginal short. Stage 3c-ii took the deletion out of its own table and the tag
+    // came off with it. Section-free, as it was written to be.
+    {
+        VDel v3;
+        check_bound_covers_best_completion(v3, VD_ins_seq);
+    }
+    {
+        D5Del d5;
+        check_bound_covers_best_completion(d5, VD_ins_seq);
+    }
+    {
+        D3Del d3;
+        check_bound_covers_best_completion(d3, DJ_ins_seq);
+    }
+    {
+        JDel j5;
+        check_bound_covers_best_completion(j5, DJ_ins_seq);
+    }
+    {
+        // The V->J junction, in a model with no D.
+        VJDel vj;
+        check_bound_covers_best_completion(vj, VJ_ins_seq);
+    }
+}
+
+TEST_CASE("Deletion: the junction bound's shortfall is its own marginal and nothing else",
+          "[deletion][iterate][junction]")
+{
+    // The control for the case above, and it passes on both sides of R8: give the event under
+    // test its own marginal block, set it to 1, and the value it reads is the best completion
+    // exactly. So the whole shortfall was this event's own marginal -- no other factor of the
+    // fold was out of place. Before R8 the 1.0 cancelled the double count; after it the event
+    // is not in the table to count, and the marginal it is given no longer matters.
+    //
+    // One arm per side, since the two sides read their gap with opposite signs.
+    const auto own_marginal_at_one = [](IterateTestState &state) {
+        state.set_base_index(0, 40);
+        for (std::size_t i = 0; i != 5; ++i) {
+            state.set_marginal(40 + i, 1.0L);
+        }
+    };
+
+    SECTION("V 3'")
+    {
+        VDel fixture;
+        own_marginal_at_one(fixture.state);
+        const auto next = call_iterate_recording(fixture.deletion, fixture.state);
+        REQUIRE(next->call_count() == 5);
+        for (std::size_t i = 0; i != 5; ++i) {
+            const int distance = 3 + (4 - static_cast<int>(i));
+            INFO("hand-off " << i);
+            CHECK(next->calls[i].downstream_bounds.at(VD_ins_seq)
+                  == Approx(junction_bound_at(distance, VDel::kContributors)));
+        }
+    }
+
+    SECTION("J 5'")
+    {
+        JDel fixture;
+        own_marginal_at_one(fixture.state);
+        const auto next = call_iterate_recording(fixture.deletion, fixture.state);
+        REQUIRE(next->call_count() == 5);
+        for (std::size_t i = 0; i != 5; ++i) {
+            const int distance = 3 + (4 - static_cast<int>(i));
+            INFO("hand-off " << i);
+            CHECK(next->calls[i].downstream_bounds.at(DJ_ins_seq)
+                  == Approx(junction_bound_at(distance, JDel::kContributors)));
+        }
+    }
+}
+
+TEST_CASE("Deletion: the junction bound is conditioned on the realization chosen (R13)",
+          "[deletion][iterate][junction]")
+{
+    // An insertion marginal that makes a *longer* junction the better one: p(7) = 0.9, every other
+    // length 0.01, and nothing after this deletion that changes the junction's length but the
+    // insertion. So the best completion of a gap m is p(m) * 0.5^m, which a flat model cannot tell
+    // apart from a decreasing one: the gap of 7 -- the widest deletion -- is worth 0.9 * 0.5^7,
+    // every narrower gap 0.01 * 0.5^m.
+    //
+    // A table that merged across this deletion's own realizations would hand every realization the
+    // best of its siblings -- the gap of 7 -- and be loose at the other four. Conditioned on the
+    // realization chosen (R13), each reads exactly its own completion. The sections above use flat
+    // marginals, under which the merged table happens to give the same numbers.
+    IterateTestState state = create_iterate_state(kRead);
+    auto deletion = make_deletion(V_gene_seq, Three_prime, 0, 4, /*id=*/0);
+    state.preset_safety(V_gene_seq, D_gene_seq, false);
+    state.preset_segment(V_gene_seq, 0, 10, read_run(0, 10));
+    auto d_stub = make_gene_choice(D_gene, {{"D1", "ACGTA"}}, /*id=*/1);
+    state.add_event(d_stub);
+    state.mark_chosen(d_stub);
+    state.preset_segment(D_gene_seq, 14, 18, read_run(14, 18));
+    state.add_downstream_event(make_insertion(VD_ins_seq, 0, 20, /*id=*/3));
+    state.add_downstream_event(make_dinucl_markov(VD_ins_seq, /*id=*/4));
+    for (std::size_t i = 0; i != 64; ++i) {
+        state.set_marginal(i, 0.5L);
+    }
+    state.set_base_index(/*event_id=*/3, /*base_index=*/100);
+    for (std::size_t length = 0; length != 21; ++length) {
+        state.set_marginal(100 + length, length == 7 ? 0.9L : 0.01L);
+    }
+
+    const auto next = call_iterate_recording(deletion, state);
+    REQUIRE(next->call_count() == 5);
+    for (std::size_t i = 0; i != 5; ++i) {
+        const int deletions = 4 - static_cast<int>(i);
+        const int gap = 14 - (10 - deletions) - 1; // 3 + deletions
+        const double best = (gap == 7 ? 0.9 : 0.01) * std::pow(0.5, gap);
+        INFO("hand-off " << i << ", gap " << gap);
+        CHECK(next->calls[i].downstream_bounds.at(VD_ins_seq) == Approx(best));
     }
 }
 
@@ -1354,13 +1554,17 @@ TEST_CASE("Deletion: pruning", "[deletion][iterate]")
         VDel none;
         CHECK(call_iterate_recording(none.deletion, none.state)->call_count() == 5);
 
+        // Each hand-off's bound is its own 0.5 times the junction's 0.5^(distance + 2), with a
+        // distance of 3 + deletions: 0.5^(6 + deletions). One more survives each threshold than
+        // before R8, which took a factor of 0.5 -- this deletion's own marginal -- out of the
+        // junction bound.
         VDel middle;
         middle.state.set_pruning_threshold(0.001);
-        CHECK(call_iterate_recording(middle.deletion, middle.state)->call_count() == 3);
+        CHECK(call_iterate_recording(middle.deletion, middle.state)->call_count() == 4);
 
         VDel tight;
         tight.state.set_pruning_threshold(0.005);
-        CHECK(call_iterate_recording(tight.deletion, tight.state)->call_count() == 1);
+        CHECK(call_iterate_recording(tight.deletion, tight.state)->call_count() == 2);
     }
 
     SECTION("What survives is the narrow end, with its own state intact")
@@ -1368,16 +1572,18 @@ TEST_CASE("Deletion: pruning", "[deletion][iterate]")
         VDel fixture;
         fixture.state.set_pruning_threshold(0.005);
         const auto next = call_iterate_recording(fixture.deletion, fixture.state);
-        REQUIRE(next->call_count() == 1);
-        CHECK(next->calls.front().three_prime(V_gene_seq) == 10); // zero deletions
+        REQUIRE(next->call_count() == 2);
+        CHECK(next->calls[0].three_prime(V_gene_seq) == 9);  // one deletion
+        CHECK(next->calls[1].three_prime(V_gene_seq) == 10); // zero deletions
     }
 
     SECTION("The D arm prunes once where V and J prune twice")
     {
-        // Same threshold, same 0.5 marginals, and a fold one contributor shorter -- so the D
-        // arm's bound sits a factor of two higher and two realizations survive where the V arm
-        // keeps one. The point of the section is that a *single* check is what stands here:
-        // the D arms have no `break` stage at all.
+        // Same threshold, same 0.5 marginals, and -- since R8 made the fixtures consistent --
+        // the same fold shape as the V arm, so the same two realizations survive. Until then the
+        // D arm's fold was one contributor shorter and it kept two where V kept one. The point
+        // of the section is unchanged: a *single* check is what stands here, since the D arms
+        // have no `break` stage at all.
         D5Del fixture;
         fixture.state.set_pruning_threshold(0.005);
         const auto next = call_iterate_recording(fixture.deletion, fixture.state);

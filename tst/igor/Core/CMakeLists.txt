@@ -10,6 +10,7 @@ set(CORE_TEST_SOURCES
     test_deletion_iterate.cpp
     test_dinucl_markov_iterate.cpp
     test_dynamic_sequence_map.cpp
+    test_error_rate_bound.cpp
     test_event_capabilities.cpp
     test_fast_sampling.cpp
     test_generation.cpp
