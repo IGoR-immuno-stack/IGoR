@@ -52,9 +52,18 @@
  *
  * By construction the corresponding GeneChoice must have been explored first.
  */
+
+namespace igor::core::legacy {}
+namespace igor::alignment::legacy {}
+// Friend of the events below; see the friend declarations.
+namespace igor::inference::legacy { class Coverage_err_counter; }
+namespace igor::model::legacy {
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+
 class MODEL_EXPORT Deletion : public Rec_Event
 {
-    friend class Coverage_err_counter; //Grant friendship to access the current number of deletion
+    friend class igor::inference::legacy::Coverage_err_counter; //Grant friendship to access the current number of deletion
     friend class Hypermutation_global_errorrate; //Grant friendship to access the current number of deletion
     friend class Hypermutation_full_Nmer_errorrate; //Same
     friend class DeletionTest; // For unit testing private members
@@ -204,3 +213,5 @@ MODEL_EXPORT std::string &make_transversions(std::string &);
 MODEL_EXPORT Int_Str &make_transversions(Int_Str &);
 
 MODEL_EXPORT bool del_numb_compare(const Event_realization &, const Event_realization &);
+
+} // namespace igor::model::legacy

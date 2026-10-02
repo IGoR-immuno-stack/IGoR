@@ -54,6 +54,19 @@
 #include <unordered_map>
 #include <vector>
 
+namespace igor::core::legacy {}
+namespace igor::alignment::legacy {}
+namespace igor::model::legacy {}
+namespace igor::generation::legacy {}
+namespace igor::inference::legacy {}
+namespace igor::inference {}
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+using namespace igor::model::legacy;
+using namespace igor::generation::legacy;
+using namespace igor::inference::legacy;
+using namespace igor::inference;
+
 #ifndef IGOR_MODELS_DIR
 #  error "IGOR_MODELS_DIR must be defined (set by CMake)"
 #endif
@@ -404,8 +417,8 @@ TEMPLATE_TEST_CASE("Model architecture: inference recovers ground truth",
     REQUIRE(truth_engine.size() == truth_model->size());
 
     // Verify handler weights reference the model's tensors
-    for (igor::index_type uid = 0;
-         uid < static_cast<igor::index_type>(truth_engine.size()); ++uid)
+    for (igor::core::legacy::index_type uid = 0;
+         uid < static_cast<igor::core::legacy::index_type>(truth_engine.size()); ++uid)
     {
         REQUIRE(&truth_engine.handler(uid).weights() == &truth_model->weight(uid));
     }
@@ -437,8 +450,8 @@ TEMPLATE_TEST_CASE("Model architecture: inference recovers ground truth",
         REQUIRE(bridge_model.size() == truth_model->size());
 
         // Compare every weight tensor element
-        for (igor::index_type uid = 0;
-             uid < static_cast<igor::index_type>(bridge_model.size()); ++uid)
+        for (igor::core::legacy::index_type uid = 0;
+             uid < static_cast<igor::core::legacy::index_type>(bridge_model.size()); ++uid)
         {
             const auto& bridge_w = bridge_model.weight(uid);
             const auto& truth_w  = truth_model->weight(uid);
@@ -545,8 +558,8 @@ TEMPLATE_TEST_CASE("Model architecture: inference recovers ground truth",
             long double* dst = current_marginals.marginal_array_smart_p.get();
 
             const auto& topo = eng.model().topology();
-            for (igor::index_type uid = 0;
-                 uid < static_cast<igor::index_type>(topo.size()); ++uid)
+            for (igor::core::legacy::index_type uid = 0;
+                 uid < static_cast<igor::core::legacy::index_type>(topo.size()); ++uid)
             {
                 const std::string& full_name = topo.event(uid)->get_name();
                 const auto& tensor = eng.model().weight(uid);
@@ -567,8 +580,8 @@ TEMPLATE_TEST_CASE("Model architecture: inference recovers ground truth",
             const Model_marginals& result = iter_gen.get_marginals();
             const long double* src = result.marginal_array_smart_p.get();
 
-            for (igor::index_type uid = 0;
-                 uid < static_cast<igor::index_type>(topo.size()); ++uid)
+            for (igor::core::legacy::index_type uid = 0;
+                 uid < static_cast<igor::core::legacy::index_type>(topo.size()); ++uid)
             {
                 auto& acc = eng.handler(uid).accumulator();
                 const std::string& full_name = topo.event(uid)->get_name();
@@ -591,8 +604,8 @@ TEMPLATE_TEST_CASE("Model architecture: inference recovers ground truth",
     {
         long double* dst = inferred_marginals.marginal_array_smart_p.get();
         const auto& topo = infer_model->topology();
-        for (igor::index_type uid = 0;
-             uid < static_cast<igor::index_type>(topo.size()); ++uid)
+        for (igor::core::legacy::index_type uid = 0;
+             uid < static_cast<igor::core::legacy::index_type>(topo.size()); ++uid)
         {
             const std::string& full_name = topo.event(uid)->get_name();
             const auto& tensor = infer_model->weight(uid);
@@ -607,8 +620,8 @@ TEMPLATE_TEST_CASE("Model architecture: inference recovers ground truth",
     // 10. Validate: compare weight tensors directly
     //     (structural check — all tensor shapes must match)
     // ==================================================================
-    for (igor::index_type uid = 0;
-         uid < static_cast<igor::index_type>(truth_model->size()); ++uid)
+    for (igor::core::legacy::index_type uid = 0;
+         uid < static_cast<igor::core::legacy::index_type>(truth_model->size()); ++uid)
     {
         const auto& tw = truth_model->weight(uid);
         const auto& iw = infer_model->weight(uid);
@@ -650,8 +663,8 @@ TEMPLATE_TEST_CASE("Model architecture: inference recovers ground truth",
     // 12. Validate: handler weights are the model's weight tensors
     //     (the M-step must have written through the borrowed references)
     // ==================================================================
-    for (igor::index_type uid = 0;
-         uid < static_cast<igor::index_type>(engine.size()); ++uid)
+    for (igor::core::legacy::index_type uid = 0;
+         uid < static_cast<igor::core::legacy::index_type>(engine.size()); ++uid)
     {
         REQUIRE(&engine.handler(uid).weights() == &infer_model->weight(uid));
 

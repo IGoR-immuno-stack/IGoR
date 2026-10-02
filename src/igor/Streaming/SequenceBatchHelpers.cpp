@@ -17,7 +17,7 @@
 #include <algorithm>
 #include <iterator>
 
-namespace igor {
+namespace igor::streaming {
 
 // Helper function implementations
 
@@ -225,20 +225,20 @@ std::vector<size_t> get_size_t_list_value(const sparrow::record_batch &batch,
     }
 }
 
-std::unordered_map<Gene_class, std::vector<Alignment_data>>
+std::unordered_map<igor::core::legacy::Gene_class, std::vector<igor::alignment::legacy::Alignment_data>>
 parse_alignments_from_columns(const sparrow::record_batch &batch, size_t row_index)
 {
 
-    std::unordered_map<Gene_class, std::vector<Alignment_data>> alignments;
+    std::unordered_map<igor::core::legacy::Gene_class, std::vector<igor::alignment::legacy::Alignment_data>> alignments;
 
     // Look for common alignment column patterns for V, D, and J genes:
     // - v_gene_name, v_gene_offset, v_gene_score, etc.
     // - d_gene_name, d_gene_offset, d_gene_score, etc.
     // - j_gene_name, j_gene_offset, j_gene_score, etc.
 
-    const std::vector<std::pair<std::string, Gene_class>> gene_prefixes = { { "v_gene", V_gene },
-                                                                            { "d_gene", D_gene },
-                                                                            { "j_gene", J_gene } };
+    const std::vector<std::pair<std::string, igor::core::legacy::Gene_class>> gene_prefixes = { { "v_gene", igor::core::legacy::V_gene },
+                                                                            { "d_gene", igor::core::legacy::D_gene },
+                                                                            { "j_gene", igor::core::legacy::J_gene } };
 
     for (const auto &[prefix, gene_class] : gene_prefixes) {
         std::string name_col = prefix + "_name";
@@ -268,7 +268,7 @@ parse_alignments_from_columns(const sparrow::record_batch &batch, size_t row_ind
                 std::vector<size_t> mismatches_vec = get_size_t_list_value(batch, mismatches_col, row_index);
 
                 // Create complete alignment data structure with all 9 fields
-                Alignment_data align(gene_name, offset, five_p_offset, three_p_offset,
+                igor::alignment::legacy::Alignment_data align(gene_name, offset, five_p_offset, three_p_offset,
                                    align_length, insertions_vec, deletions_vec, mismatches_vec, score);
 
                 alignments[gene_class].push_back(align);
@@ -321,7 +321,7 @@ SequenceData row_to_sequence_data(const sparrow::record_batch &batch, size_t row
 
 sparrow::record_batch vector_to_batch(
         const std::vector<std::tuple<int, std::string,
-                                     std::unordered_map<Gene_class, std::vector<Alignment_data>>>>
+                                     std::unordered_map<igor::core::legacy::Gene_class, std::vector<igor::alignment::legacy::Alignment_data>>>>
                 &sequences)
 {
 
@@ -346,18 +346,18 @@ sparrow::record_batch vector_to_batch(
 
     // Prepare alignment data containers for each gene class
     // List fields (insertions, deletions, mismatches) use native Arrow list<int32> arrays
-    std::unordered_map<Gene_class, std::vector<std::string>> v_gene_names;
-    std::unordered_map<Gene_class, std::vector<int32_t>> v_offsets;
-    std::unordered_map<Gene_class, std::vector<uint64_t>> v_five_p_offsets;
-    std::unordered_map<Gene_class, std::vector<uint64_t>> v_three_p_offsets;
-    std::unordered_map<Gene_class, std::vector<uint64_t>> v_align_lengths;
-    std::unordered_map<Gene_class, std::vector<double>> v_scores;
-    std::unordered_map<Gene_class, std::vector<std::vector<int32_t>>> v_insertions;  // Native list arrays
-    std::unordered_map<Gene_class, std::vector<std::vector<int32_t>>> v_deletions;   // Native list arrays
-    std::unordered_map<Gene_class, std::vector<std::vector<int32_t>>> v_mismatches;  // Native list arrays
+    std::unordered_map<igor::core::legacy::Gene_class, std::vector<std::string>> v_gene_names;
+    std::unordered_map<igor::core::legacy::Gene_class, std::vector<int32_t>> v_offsets;
+    std::unordered_map<igor::core::legacy::Gene_class, std::vector<uint64_t>> v_five_p_offsets;
+    std::unordered_map<igor::core::legacy::Gene_class, std::vector<uint64_t>> v_three_p_offsets;
+    std::unordered_map<igor::core::legacy::Gene_class, std::vector<uint64_t>> v_align_lengths;
+    std::unordered_map<igor::core::legacy::Gene_class, std::vector<double>> v_scores;
+    std::unordered_map<igor::core::legacy::Gene_class, std::vector<std::vector<int32_t>>> v_insertions;  // Native list arrays
+    std::unordered_map<igor::core::legacy::Gene_class, std::vector<std::vector<int32_t>>> v_deletions;   // Native list arrays
+    std::unordered_map<igor::core::legacy::Gene_class, std::vector<std::vector<int32_t>>> v_mismatches;  // Native list arrays
 
     // Preallocate for gene classes we expect
-    for (auto gc : { V_gene, D_gene, J_gene }) {
+    for (auto gc : { igor::core::legacy::V_gene, igor::core::legacy::D_gene, igor::core::legacy::J_gene }) {
         v_gene_names[gc].reserve(sequences.size());
         v_offsets[gc].reserve(sequences.size());
         v_five_p_offsets[gc].reserve(sequences.size());
@@ -377,7 +377,7 @@ sparrow::record_batch vector_to_batch(
         const auto &alignments = std::get<2>(seq_tuple);
 
         // For each gene class, add alignment data (or empty values if no alignments)
-        for (auto gc : { V_gene, D_gene, J_gene }) {
+        for (auto gc : { igor::core::legacy::V_gene, igor::core::legacy::D_gene, igor::core::legacy::J_gene }) {
             auto it = alignments.find(gc);
             if (it != alignments.end() && !it->second.empty()) {
                 // Take the first (best) alignment for this gene class
@@ -442,16 +442,16 @@ sparrow::record_batch vector_to_batch(
     arrays.push_back(std::move(seq_array));
 
     // Add alignment columns for each gene class
-    for (auto gc : { V_gene, D_gene, J_gene }) {
+    for (auto gc : { igor::core::legacy::V_gene, igor::core::legacy::D_gene, igor::core::legacy::J_gene }) {
         std::string prefix;
         switch (gc) {
-        case V_gene:
+        case igor::core::legacy::V_gene:
             prefix = "v_gene";
             break;
-        case D_gene:
+        case igor::core::legacy::D_gene:
             prefix = "d_gene";
             break;
-        case J_gene:
+        case igor::core::legacy::J_gene:
             prefix = "j_gene";
             break;
         default:
@@ -533,4 +533,4 @@ sparrow::record_batch vector_to_batch(
     return sparrow::record_batch(std::move(column_names), std::move(arrays));
 }
 
-} // namespace igor
+} // namespace igor::streaming

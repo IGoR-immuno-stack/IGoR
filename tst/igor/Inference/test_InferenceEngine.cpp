@@ -17,6 +17,19 @@
 
 #include <numeric>
 
+namespace igor::core::legacy {}
+namespace igor::alignment::legacy {}
+namespace igor::model::legacy {}
+namespace igor::generation::legacy {}
+namespace igor::inference::legacy {}
+namespace igor::inference {}
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+using namespace igor::model::legacy;
+using namespace igor::generation::legacy;
+using namespace igor::inference::legacy;
+using namespace igor::inference;
+
 using namespace igor::model;
 using Catch::Matchers::WithinRel;
 using Catch::Matchers::WithinAbs;
@@ -50,15 +63,15 @@ TEST_CASE("InferenceEngine construction from RecombinationModel",
         REQUIRE(engine.size() == model->topology().size());
     }
     SECTION("each handler name matches topology event name") {
-        for (igor::index_type uid = 0;
-             uid < static_cast<igor::index_type>(engine.size()); ++uid) {
+        for (igor::core::legacy::index_type uid = 0;
+             uid < static_cast<igor::core::legacy::index_type>(engine.size()); ++uid) {
             const auto& ev_name = model->topology().event(uid)->get_nickname();
             REQUIRE(engine.handler(uid).name() == ev_name);
         }
     }
     SECTION("handler weights point to model weights (same memory)") {
-        for (igor::index_type uid = 0;
-             uid < static_cast<igor::index_type>(engine.size()); ++uid) {
+        for (igor::core::legacy::index_type uid = 0;
+             uid < static_cast<igor::core::legacy::index_type>(engine.size()); ++uid) {
             REQUIRE(&engine.handler(uid).weights() == &model->weight(uid));
         }
     }
@@ -74,15 +87,15 @@ TEST_CASE("InferenceEngine handler lookup by name and uid",
     InferenceEngine<double> engine(model);
 
     SECTION("lookup by name matches lookup by uid") {
-        for (igor::index_type uid = 0;
-             uid < static_cast<igor::index_type>(engine.size()); ++uid) {
+        for (igor::core::legacy::index_type uid = 0;
+             uid < static_cast<igor::core::legacy::index_type>(engine.size()); ++uid) {
             const auto& name = engine.handler(uid).name();
             REQUIRE(&engine.handler(name) == &engine.handler(uid));
         }
     }
     SECTION("hasHandler returns true for known events") {
-        for (igor::index_type uid = 0;
-             uid < static_cast<igor::index_type>(engine.size()); ++uid) {
+        for (igor::core::legacy::index_type uid = 0;
+             uid < static_cast<igor::core::legacy::index_type>(engine.size()); ++uid) {
             REQUIRE(engine.hasHandler(engine.handler(uid).name()));
         }
     }
@@ -101,8 +114,8 @@ TEST_CASE("InferenceEngine resetAccumulators zeros all",
     engine.handler(0).accumulator().data()[0] = 42.0;
     engine.resetAccumulators();
 
-    for (igor::index_type uid = 0;
-         uid < static_cast<igor::index_type>(engine.size()); ++uid) {
+    for (igor::core::legacy::index_type uid = 0;
+         uid < static_cast<igor::core::legacy::index_type>(engine.size()); ++uid) {
         const auto& acc = engine.handler(uid).accumulator();
         for (std::size_t i = 0; i < acc.size(); ++i) {
             REQUIRE(acc.data()[i] == 0.0);
@@ -242,16 +255,16 @@ TEST_CASE("InferenceEngine parents and children are consistent",
     InferenceEngine<double> engine(model);
 
     SECTION("root events have no parents") {
-        for (igor::index_type uid = 0;
-             uid < static_cast<igor::index_type>(engine.size()); ++uid) {
+        for (igor::core::legacy::index_type uid = 0;
+             uid < static_cast<igor::core::legacy::index_type>(engine.size()); ++uid) {
             auto p = engine.parents(uid);
             auto topo_parents = model->topology().parentsIds(uid);
             REQUIRE(p.size() == topo_parents.size());
         }
     }
     SECTION("parent/child relationship is symmetric") {
-        for (igor::index_type uid = 0;
-             uid < static_cast<igor::index_type>(engine.size()); ++uid) {
+        for (igor::core::legacy::index_type uid = 0;
+             uid < static_cast<igor::core::legacy::index_type>(engine.size()); ++uid) {
             for (const auto& child_ptr : engine.children(uid)) {
                 REQUIRE(child_ptr != nullptr);
                 auto child_uid = child_ptr->uid();
@@ -265,8 +278,8 @@ TEST_CASE("InferenceEngine parents and children are consistent",
         }
     }
     SECTION("children navigators return valid handlers") {
-        for (igor::index_type uid = 0;
-             uid < static_cast<igor::index_type>(engine.size()); ++uid) {
+        for (igor::core::legacy::index_type uid = 0;
+             uid < static_cast<igor::core::legacy::index_type>(engine.size()); ++uid) {
             for (const auto& c : engine.children(uid)) {
                 REQUIRE(c != nullptr);
                 REQUIRE(!c->name().empty());

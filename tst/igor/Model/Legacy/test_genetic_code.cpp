@@ -26,7 +26,19 @@
 #include <stdexcept>
 #include <vector>
 
-using namespace EventUtils;
+namespace igor::core::legacy {}
+namespace igor::alignment::legacy {}
+namespace igor::model::legacy {}
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+using namespace igor::model::legacy;
+
+namespace igor::core::legacy::genetic_code {}
+namespace igor::alignment::legacy::journaled_query {}
+namespace igor::model::legacy::EventUtils {}
+using namespace igor::core::legacy::genetic_code;
+using namespace igor::alignment::legacy::journaled_query;
+using namespace igor::model::legacy::EventUtils;
 using namespace std;
 
 // ============================================================================
@@ -280,7 +292,7 @@ TEST_CASE("Genetic code: translate_int_seq", "[genetic_code]") {
 TEST_CASE("JournaledQuery: single amino acid (Met - unambiguous)", "[journaled_query]") {
   int receptor_len = 3;
   int frame_offset = 0;
-  auto jq = EventUtils::motif_to_journaled_query("M", frame_offset, receptor_len);
+  auto jq = journaled_query::motif_to_journaled_query("M", frame_offset, receptor_len);
 
   // Met has exactly one codon (ATG), so no alternatives → trivial
   REQUIRE(jq.display_string == "M");
@@ -310,7 +322,7 @@ TEST_CASE("JournaledQuery: single amino acid (Met - unambiguous)", "[journaled_q
 }
 
 TEST_CASE("JournaledQuery: Leu (ambiguous - needs patches)", "[journaled_query]") {
-  auto jq = EventUtils::motif_to_journaled_query("L", 0, 3);
+  auto jq = journaled_query::motif_to_journaled_query("L", 0, 3);
 
   REQUIRE(jq.display_string == "L");
   REQUIRE(jq.reference.size() == 3);
@@ -350,7 +362,7 @@ TEST_CASE("JournaledQuery: Leu (ambiguous - needs patches)", "[journaled_query]"
 }
 
 TEST_CASE("JournaledQuery: Arg (two-group codon set)", "[journaled_query]") {
-  auto jq = EventUtils::motif_to_journaled_query("R", 0, 3);
+  auto jq = journaled_query::motif_to_journaled_query("R", 0, 3);
 
   // Arg codons: CGT, CGC, CGA, CGG, AGA, AGG
   // iupac_union: pos0 = {C,A} = M, pos1 = {G} = G, pos2 = {T,C,A,G} = N
@@ -370,7 +382,7 @@ TEST_CASE("JournaledQuery: Arg (two-group codon set)", "[journaled_query]") {
 }
 
 TEST_CASE("JournaledQuery: Ser (two-group codon set)", "[journaled_query]") {
-  auto jq = EventUtils::motif_to_journaled_query("S", 0, 3);
+  auto jq = journaled_query::motif_to_journaled_query("S", 0, 3);
 
   // Ser codons: TCT, TCC, TCA, TCG, AGT, AGC
   // iupac_union: pos0 = {T,A} = W (A|T)
@@ -388,7 +400,7 @@ TEST_CASE("JournaledQuery: Ser (two-group codon set)", "[journaled_query]") {
 }
 
 TEST_CASE("JournaledQuery: bracket group [KS]", "[journaled_query]") {
-  auto jq = EventUtils::motif_to_journaled_query("[KS]", 0, 3);
+  auto jq = journaled_query::motif_to_journaled_query("[KS]", 0, 3);
 
   REQUIRE(jq.display_string == "[KS]");
   REQUIRE(jq.patches.size() == 1);
@@ -408,7 +420,7 @@ TEST_CASE("JournaledQuery: bracket group [KS]", "[journaled_query]") {
 }
 
 TEST_CASE("JournaledQuery: wildcard X", "[journaled_query]") {
-  auto jq = EventUtils::motif_to_journaled_query("X", 0, 3);
+  auto jq = journaled_query::motif_to_journaled_query("X", 0, 3);
 
   // X = any of the 20 standard AAs = 61 codons (all non-stop)
   REQUIRE(jq.patches.size() == 1);
@@ -421,7 +433,7 @@ TEST_CASE("JournaledQuery: wildcard X", "[journaled_query]") {
 }
 
 TEST_CASE("JournaledQuery: multi-codon sequence", "[journaled_query]") {
-  auto jq = EventUtils::motif_to_journaled_query("ML", 0, 6);
+  auto jq = journaled_query::motif_to_journaled_query("ML", 0, 6);
 
   REQUIRE(jq.display_string == "ML");
   REQUIRE(jq.reference.size() == 6);
@@ -443,7 +455,7 @@ TEST_CASE("JournaledQuery: multi-codon sequence", "[journaled_query]") {
 
 TEST_CASE("JournaledQuery: frame_offset in middle of sequence", "[journaled_query]") {
   // Receptor of length 9, codons start at position 3
-  auto jq = EventUtils::motif_to_journaled_query("MW", 3, 9);
+  auto jq = journaled_query::motif_to_journaled_query("MW", 3, 9);
 
   REQUIRE(jq.reference.size() == 9);
   // Non-codon positions (0,1,2,6,7,8) should be int_N
@@ -465,7 +477,7 @@ TEST_CASE("JournaledQuery: frame_offset in middle of sequence", "[journaled_quer
 }
 
 TEST_CASE("JournaledQuery: mixed motif with brackets and wildcards", "[journaled_query]") {
-  auto jq = EventUtils::motif_to_journaled_query("MX[K]X", 0, 12);
+  auto jq = journaled_query::motif_to_journaled_query("MX[K]X", 0, 12);
 
   REQUIRE(jq.display_string == "MX[K]X");
   REQUIRE(jq.reference.size() == 12);
@@ -518,7 +530,7 @@ TEST_CASE("QuerySequenceContext: standard NT mode (no journaled_query)", "[query
 }
 
 TEST_CASE("QuerySequenceContext: motif mode (with journaled_query)", "[query_context]") {
-    auto jq = EventUtils::motif_to_journaled_query("ML", 0, 6);
+    auto jq = journaled_query::motif_to_journaled_query("ML", 0, 6);
     Int_Str iupac_seq = {int_A, int_T, int_G, int_Y, int_T, int_N};
     std::unordered_map<Gene_class, std::vector<Alignment_data>> gene_alignments;
 
@@ -534,7 +546,7 @@ TEST_CASE("QuerySequenceContext: motif mode (with journaled_query)", "[query_con
 }
 
 TEST_CASE("QuerySequenceContext: motif with frame_offset", "[query_context]") {
-    auto jq = EventUtils::motif_to_journaled_query("M", 2, 5);
+    auto jq = journaled_query::motif_to_journaled_query("M", 2, 5);
     Int_Str iupac_seq(5, int_N);
     iupac_seq[2] = int_A;
     iupac_seq[3] = int_T;

@@ -31,6 +31,17 @@
 #include <random>
 #include <vector>
 
+namespace igor::core::legacy {}
+namespace igor::alignment::legacy {}
+namespace igor::model::legacy {}
+namespace igor::generation::legacy {}
+namespace igor::generation {}
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+using namespace igor::model::legacy;
+using namespace igor::generation::legacy;
+using namespace igor::generation;
+
 using namespace igor::model;
 using namespace igor::math;
 using namespace Catch;
@@ -307,10 +318,10 @@ TEST_CASE("SamplingHandlerFactory: build from RecombinationModel", "[Model][Samp
     auto grandchild = std::make_shared<Dinucl_markov>(VD_ins_seq);
     grandchild->set_nickname("GrandChild");
 
-    igor::index_type root1_id = topology->addEvent(root1);
-    igor::index_type root2_id = topology->addEvent(root2);
-    igor::index_type child_id = topology->addEvent(child);
-    igor::index_type grandchild_id = topology->addEvent(grandchild);
+    igor::core::legacy::index_type root1_id = topology->addEvent(root1);
+    igor::core::legacy::index_type root2_id = topology->addEvent(root2);
+    igor::core::legacy::index_type child_id = topology->addEvent(child);
+    igor::core::legacy::index_type grandchild_id = topology->addEvent(grandchild);
 
     topology->addEdge(root1_id, child_id);
     topology->addEdge(root2_id, child_id);
@@ -320,7 +331,7 @@ TEST_CASE("SamplingHandlerFactory: build from RecombinationModel", "[Model][Samp
     // 2. Test topological ordering based on priority.
     //    Core's Event_comparator orders by DESCENDING priority, so Root1 (priority 10)
     //    must be visited before Root2 (priority 5).
-    std::vector<igor::index_type> order = topology->topologicalOrder();
+    std::vector<igor::core::legacy::index_type> order = topology->topologicalOrder();
     REQUIRE(order.size() == 4);
     REQUIRE(order[0] == root1_id);
     REQUIRE(order[1] == root2_id);

@@ -15,6 +15,13 @@
 #include <igor/Core/Legacy/IntStr.h>
 #include <igor/Model/Export.h>
 
+
+namespace igor::core::legacy {}
+namespace igor::alignment::legacy {}
+namespace igor::model::legacy {
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+
 namespace EventUtils {
 
 MODEL_EXPORT bool has_insertion_seq_type(
@@ -69,3 +76,5 @@ MODEL_EXPORT int get_insertion_len_max(
     const Seq_type_String &ins_seq_type,
     const Events_map &events_map);
 } // namespace EventUtils
+
+} // namespace igor::model::legacy

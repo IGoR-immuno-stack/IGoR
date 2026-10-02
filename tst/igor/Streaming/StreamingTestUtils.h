@@ -24,7 +24,12 @@
 #include <unordered_map>
 #include <vector>
 
-namespace igor::test {
+namespace igor::core::legacy {}
+namespace igor::alignment::legacy {}
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+
+namespace igor::streaming::test {
 
 //==============================================================================
 // Type Aliases (eliminates verbose tuple repetition)
@@ -34,7 +39,7 @@ namespace igor::test {
 using SequenceTuple = std::tuple<
     int,
     std::string,
-    std::unordered_map<Gene_class, std::vector<Alignment_data>>
+    std::unordered_map<igor::core::legacy::Gene_class, std::vector<igor::alignment::legacy::Alignment_data>>
 >;
 
 //==============================================================================
@@ -132,7 +137,7 @@ inline std::vector<SequenceTuple> create_test_sequences(
     std::vector<SequenceTuple> sequences;
     sequences.reserve(count);
 
-    std::unordered_map<Gene_class, std::vector<Alignment_data>> empty_alignments;
+    std::unordered_map<igor::core::legacy::Gene_class, std::vector<igor::alignment::legacy::Alignment_data>> empty_alignments;
 
     for (size_t i = 0; i < count; ++i) {
         std::string seq = "ATCGATCGATCGATCG";
@@ -164,9 +169,9 @@ inline std::vector<SequenceTuple> create_test_sequences(
  */
 inline SequenceTuple create_sequence_with_v_alignment(int id, const std::string& seq)
 {
-    std::unordered_map<Gene_class, std::vector<Alignment_data>> alignments;
+    std::unordered_map<igor::core::legacy::Gene_class, std::vector<igor::alignment::legacy::Alignment_data>> alignments;
 
-    Alignment_data v_align(
+    igor::alignment::legacy::Alignment_data v_align(
         "IGHV1-1*01",                     // gene_name
         10,                                // offset
         5,                                 // five_p_offset
@@ -177,7 +182,7 @@ inline SequenceTuple create_sequence_with_v_alignment(int id, const std::string&
         std::vector<size_t>{5, 6},            // mismatches
         123.45                             // score
     );
-    alignments[V_gene].push_back(v_align);
+    alignments[igor::core::legacy::V_gene].push_back(v_align);
 
     return {id, seq, alignments};
 }
@@ -208,8 +213,8 @@ std::vector<SequenceTuple> load_murugan_dataset();
  * @return true if all fields are equal, false otherwise
  */
 inline bool alignments_equal(
-    const Alignment_data& a,
-    const Alignment_data& b)
+    const igor::alignment::legacy::Alignment_data& a,
+    const igor::alignment::legacy::Alignment_data& b)
 {
     if (a.gene_name != b.gene_name) return false;
     if (a.offset != b.offset) return false;
@@ -232,4 +237,4 @@ inline bool alignments_equal(
     return true;
 }
 
-} // namespace igor::test
+} // namespace igor::streaming::test

@@ -44,6 +44,9 @@
  *
  * Do not use it for anything that must respect a model's actual seq_type set.
  */
+
+namespace igor::core::legacy {
+
 class SeqTypeRegistry;
 const SeqTypeRegistry &legacy_seq_type_registry();
 
@@ -293,3 +296,5 @@ inline const SeqTypeRegistry &legacy_seq_type_registry()
     }();
     return registry;
 }
+
+} // namespace igor::core::legacy

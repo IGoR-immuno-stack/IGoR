@@ -56,6 +56,7 @@ target_sources(${PROJECT_NAME}
       ${CMAKE_BINARY_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/Export.h
       ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}.h
       ${LAYER_DIR}/EventFactory.h
+      ${LAYER_DIR}/Forward.h
       ${LAYER_DIR}/LegacyBridge.h
       ${LAYER_DIR}/LegacyBridge.tpp
       ${LAYER_DIR}/Navigator.h

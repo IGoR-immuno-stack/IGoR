@@ -59,6 +59,17 @@
  *    Reporting an arbitrary member of the group instead would bias the output towards
  *    the lowest realization indices.
  */
+
+namespace igor::core::legacy {}
+namespace igor::alignment::legacy {}
+namespace igor::model::legacy {}
+namespace igor::generation::legacy {}
+namespace igor::inference::legacy {
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+using namespace igor::model::legacy;
+using namespace igor::generation::legacy;
+
 class INFERENCE_EXPORT Best_scenarios_counter : public Counter
 {
 public:
@@ -143,3 +154,5 @@ private:
     /// Collect the current realization indices and mismatches into the scratch members.
     void collect_realizations();
 };
+
+} // namespace igor::inference::legacy

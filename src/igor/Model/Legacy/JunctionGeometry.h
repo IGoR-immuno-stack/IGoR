@@ -42,6 +42,13 @@
  * scenario geometry that does not depend on which event is asking: how far an end can still
  * travel, and what that implies for the segment between two ends.
  */
+
+namespace igor::core::legacy {}
+namespace igor::alignment::legacy {}
+namespace igor::model::legacy {
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+
 namespace JunctionGeometry {
 
 /**
@@ -256,3 +263,5 @@ inline Overlap check_overlap(OffsetInterval left_three_prime, OffsetInterval rig
 }
 
 } // namespace JunctionGeometry
+
+} // namespace igor::model::legacy

@@ -26,6 +26,13 @@
 
 #include <igor/Model/Legacy/Singleerrorrate.h>
 
+
+namespace igor::core::legacy {}
+namespace igor::alignment::legacy {}
+namespace igor::model::legacy {
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+
 using namespace std;
 
 Single_error_rate::Single_error_rate() : Single_error_rate(0.0) { }
@@ -359,3 +366,5 @@ void Single_error_rate::write2txt(ofstream &outfile)
     outfile << "#SingleErrorRate" << endl;
     outfile << model_rate << endl;
 }
+
+} // namespace igor::model::legacy

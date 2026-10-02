@@ -42,6 +42,9 @@
 
 /// Name of a sequence type (e.g. "V_gene_seq", "D1_gene_seq"). The serialization identity
 /// of a sequence type; SeqTypeRegistry maps it to the SeqTypeId used at runtime.
+
+namespace igor::core::legacy {
+
 using Seq_type_String = std::string;
 
 /// Type used as key for unordered maps, since Rec_Event cannot be instantiated.
@@ -55,3 +58,5 @@ typedef std::unique_ptr<long double[]> Marginal_array_p;
 typedef int Seq_Offset;
 
 typedef std::unordered_map<std::string, std::string> UMCodonTable;
+
+} // namespace igor::core::legacy

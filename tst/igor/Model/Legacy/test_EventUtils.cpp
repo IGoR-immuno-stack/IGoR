@@ -15,8 +15,20 @@
 #include <unordered_map>
 #include <unordered_set>
 
+namespace igor::core::legacy {}
+namespace igor::alignment::legacy {}
+namespace igor::model::legacy {}
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+using namespace igor::model::legacy;
+
 using namespace std;
-using namespace EventUtils;
+namespace igor::core::legacy::genetic_code {}
+namespace igor::alignment::legacy::journaled_query {}
+namespace igor::model::legacy::EventUtils {}
+using namespace igor::core::legacy::genetic_code;
+using namespace igor::alignment::legacy::journaled_query;
+using namespace igor::model::legacy::EventUtils;
 
 // Mock Rec_Event for testing
 class MockEvent : public Rec_Event {
@@ -256,19 +268,19 @@ TEST_CASE("EventUtils GeneClassToSeqType mapping", "[EventUtils]") {
   Seq_type seq_type;
 
   SECTION("Valid mappings") {
-    REQUIRE(igor::migration::try_gene_class_to_gene_seq_type(V_gene, seq_type));
+    REQUIRE(igor::model::legacy::migration::try_gene_class_to_gene_seq_type(V_gene, seq_type));
     REQUIRE(seq_type == V_gene_seq);
 
-    REQUIRE(igor::migration::try_gene_class_to_gene_seq_type(D_gene, seq_type));
+    REQUIRE(igor::model::legacy::migration::try_gene_class_to_gene_seq_type(D_gene, seq_type));
     REQUIRE(seq_type == D_gene_seq);
 
-    REQUIRE(igor::migration::try_gene_class_to_gene_seq_type(J_gene, seq_type));
+    REQUIRE(igor::model::legacy::migration::try_gene_class_to_gene_seq_type(J_gene, seq_type));
     REQUIRE(seq_type == J_gene_seq);
   }
 
   SECTION("Invalid mappings") {
-    REQUIRE_FALSE(igor::migration::try_gene_class_to_gene_seq_type(VD_genes, seq_type));
-    REQUIRE_FALSE(igor::migration::try_gene_class_to_gene_seq_type(Undefined_gene, seq_type));
+    REQUIRE_FALSE(igor::model::legacy::migration::try_gene_class_to_gene_seq_type(VD_genes, seq_type));
+    REQUIRE_FALSE(igor::model::legacy::migration::try_gene_class_to_gene_seq_type(Undefined_gene, seq_type));
   }
 }
 
@@ -276,19 +288,19 @@ TEST_CASE("EventUtils InsertionGeneClassToSeqType mapping", "[EventUtils]") {
   Seq_type seq_type = VD_ins_seq;
 
   SECTION("Valid mappings") {
-    REQUIRE(igor::migration::try_insertion_gene_class_to_seq_type(VD_genes, seq_type));
+    REQUIRE(igor::model::legacy::migration::try_insertion_gene_class_to_seq_type(VD_genes, seq_type));
     REQUIRE(seq_type == VD_ins_seq);
 
-    REQUIRE(igor::migration::try_insertion_gene_class_to_seq_type(DJ_genes, seq_type));
+    REQUIRE(igor::model::legacy::migration::try_insertion_gene_class_to_seq_type(DJ_genes, seq_type));
     REQUIRE(seq_type == DJ_ins_seq);
 
-    REQUIRE(igor::migration::try_insertion_gene_class_to_seq_type(VJ_genes, seq_type));
+    REQUIRE(igor::model::legacy::migration::try_insertion_gene_class_to_seq_type(VJ_genes, seq_type));
     REQUIRE(seq_type == VJ_ins_seq);
   }
 
   SECTION("Invalid mappings") {
-    REQUIRE_FALSE(igor::migration::try_insertion_gene_class_to_seq_type(V_gene, seq_type));
-    REQUIRE_FALSE(igor::migration::try_insertion_gene_class_to_seq_type(Undefined_gene, seq_type));
+    REQUIRE_FALSE(igor::model::legacy::migration::try_insertion_gene_class_to_seq_type(V_gene, seq_type));
+    REQUIRE_FALSE(igor::model::legacy::migration::try_insertion_gene_class_to_seq_type(Undefined_gene, seq_type));
   }
 }
 
@@ -406,6 +418,7 @@ TEST_CASE("Insertion Bridge Integration", "[Insertion]") {
   }
 }
 
+namespace igor::model::legacy {
 class DeletionTest {
 public:
   static void test_initialization() {
@@ -459,6 +472,7 @@ public:
     }
   }
 };
+} // namespace igor::model::legacy
 
 TEST_CASE("Deletion Member Initialization Regression", "[Deletion]") {
   DeletionTest::test_initialization();

@@ -54,6 +54,13 @@
  * - New interface: initialize(ModelContext) and count_scenario(Scenario, QuerySequenceContext, ModelContext)
  * - Legacy interface: Preserved for compatibility, marked deprecated
  */
+
+namespace igor::core::legacy {}
+namespace igor::alignment::legacy {}
+namespace igor::model::legacy {
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+
 class MODEL_EXPORT Counter
 {
 public:
@@ -140,3 +147,5 @@ protected:
     bool fstreams_created;
     //TODO create a unique identifier of the counter? Make something up to prevent to have twice the same counter??
 };
+
+} // namespace igor::model::legacy

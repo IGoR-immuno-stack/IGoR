@@ -282,6 +282,33 @@ One PR, scripted, no file moves.
 Check: same as 1a, plus `grep -rn "^#include \"" src` is empty and
 `grep -rn "Legacy/" src app tst | wc -l` is recorded in the PR as the starting debt.
 
+What executing 1b added to the rules above (2026-10-03, `scripts/migrate_layers/step1b_namespaces.py`):
+
+- **Visibility between legacy namespaces** goes through using-directives placed right after each
+  legacy namespace opening (`namespace igor::model::legacy { using namespace igor::core::legacy;
+  using namespace igor::alignment::legacy; ... }`), following the DAG. They are transitional and
+  leave with the 1c promotions. Consumers (tests, apps) nominate the same namespaces after their
+  includes; new code qualifies instead: `legacy::X` from `igor::model`, `model::legacy::X` and
+  `core::legacy::X` from the engines, fully qualified in Streaming, where `alignment::` would
+  name `igor::streaming::airr::alignment`.
+- **Core names no Model type any more.** `Next_event_ptr`, `Events_map` and
+  `inverse_offset_comparator` moved from `Utils.h` to `Model/Legacy/EventTypedefs.h`.
+- **`EventUtils` was three namespaces** (GeneticCode.h in Core, JournaledQuery.h in Alignment,
+  EventUtils.h in Model); nominated together they are ambiguous. Core's is now `genetic_code`,
+  Alignment's `journaled_query`, Model keeps `EventUtils`. The only rename of 1b.
+- **Friendship across layers**: `Deletion` and `Gene_choice` befriend `Coverage_err_counter`,
+  which is in Inference. The friend is named in full behind a forward declaration, an upward
+  reference from Model to Inference that the observer rework of 1c removes.
+- **`Model/Forward.h`** forward-declares the Model types the engines name (`RecombinationModel`,
+  `Navigator`, `Topology`, `SampledScenario`, `SampledEvent`); the engines bring them in with
+  using-declarations.
+- **Two exceptions stay in the global namespace**: the `portable_getpid` / `portable_gethostid`
+  shims of `Utils.h`, which sit in the `#if defined(_WIN32)` block that includes `winsock2.h`
+  (a system header cannot be included inside a namespace), and `Math/HybridBuffer.h:78`, the one
+  quoted include left, in a layer 1b does not touch. Both are 1c items.
+- `using std::to_string;` inside `igor::core::legacy`: the legacy `to_string(Gene_class)`
+  overloads would otherwise hide `std::to_string` from every namespace that nominates Core.
+
 ### 1c. Case by case
 
 A queue of small PRs, one file or one coherent cluster each, applying the §5 tags. Suggested

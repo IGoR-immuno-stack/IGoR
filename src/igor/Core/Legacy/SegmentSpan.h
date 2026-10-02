@@ -52,6 +52,9 @@
  * which is why the conversion lives in one function rather than at each call site. Section
  * 2.5 of docs/ITERATE_GENERIC_REWRITE_PLAN.md has the derivation.
  */
+
+namespace igor::core::legacy {
+
 struct SegmentBoundary {
     SeqTypeId id = kNoSeqType;
     Seq_side side = Undefined_side;
@@ -189,3 +192,5 @@ inline Seq_type legacy_junction_of(SegmentSpan span)
     throw std::invalid_argument("legacy_junction_of: span (" + std::to_string(span.left.id) + ","
                                 + std::to_string(span.right.id) + ") is not a legacy junction");
 }
+
+} // namespace igor::core::legacy

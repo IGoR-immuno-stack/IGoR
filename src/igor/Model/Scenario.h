@@ -17,7 +17,7 @@ namespace igor::model {
 //     indices[1..N] = subsequent nucleotides (sampled from transition rows)
 
 struct SampledEvent {
-    igor::index_type        event_id;  // Topology node index
+    igor::core::legacy::index_type        event_id;  // Topology node index
     std::vector<std::size_t> indices;  // sampled realization indices
 };
 
@@ -32,7 +32,7 @@ struct SampledScenario {
     std::vector<SampledEvent> events;
 
     // Convenience: first index for node i (valid for categorical events)
-    std::size_t index_of(igor::index_type i) const {
+    std::size_t index_of(igor::core::legacy::index_type i) const {
         return events[static_cast<std::size_t>(i)].indices[0];
     }
 };

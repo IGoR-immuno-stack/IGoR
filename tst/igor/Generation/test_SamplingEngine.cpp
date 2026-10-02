@@ -12,6 +12,17 @@
 #include <vector>
 #include <string>
 
+namespace igor::core::legacy {}
+namespace igor::alignment::legacy {}
+namespace igor::model::legacy {}
+namespace igor::generation::legacy {}
+namespace igor::generation {}
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+using namespace igor::model::legacy;
+using namespace igor::generation::legacy;
+using namespace igor::generation;
+
 using namespace igor::model;
 
 // Helper to create a dummy Event_realization map for GeneChoice
@@ -61,13 +72,13 @@ TEST_CASE("SamplingEngine generation (Categorical)", "[SamplingEngine]") {
     std::unordered_map<std::string, Event_realization> parent_realizations2 = create_realizations_se(2);
     auto parent_ev = std::make_shared<Gene_choice>(Undefined_gene, parent_realizations2);
     parent_ev->set_nickname("parent");
-    igor::index_type parent_id = topology->addEvent(parent_ev);
+    igor::core::legacy::index_type parent_id = topology->addEvent(parent_ev);
 
     // Child event (size 3)
     std::unordered_map<std::string, Event_realization> child_realizations1 = create_realizations_se(3);
     auto child_ev = std::make_shared<Gene_choice>(Undefined_gene, child_realizations1);
     child_ev->set_nickname("child");
-    igor::index_type child_id = topology->addEvent(child_ev);
+    igor::core::legacy::index_type child_id = topology->addEvent(child_ev);
 
     // Add edge
     topology->addEdge(parent_id, child_id);

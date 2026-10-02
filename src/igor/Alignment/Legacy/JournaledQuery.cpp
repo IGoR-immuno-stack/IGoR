@@ -15,7 +15,12 @@
 #include <stdexcept>
 #include <vector>
 
-using namespace EventUtils;
+
+namespace igor::core::legacy {}
+namespace igor::alignment::legacy {
+using namespace igor::core::legacy;
+
+using namespace genetic_code;
 using namespace std;
 
 namespace {
@@ -72,12 +77,12 @@ void compute_iupac_from_codons(
 
     // Encode as IUPAC codes
     for (int pos = 0; pos < 3; ++pos) {
-        union_result[pos] = EventUtils::iupac_from_bits(union_bits[pos]);
+        union_result[pos] = genetic_code::iupac_from_bits(union_bits[pos]);
         if (inter_bits[pos] == 0) {
             inter_result[pos] = static_cast<int>(int_N); // placeholder
             empty_isect[pos] = true;
         } else {
-            inter_result[pos] = EventUtils::iupac_from_bits(inter_bits[pos]);
+            inter_result[pos] = genetic_code::iupac_from_bits(inter_bits[pos]);
             empty_isect[pos] = false;
         }
     }
@@ -85,7 +90,7 @@ void compute_iupac_from_codons(
 
 } // anonymous namespace
 
-namespace EventUtils {
+namespace journaled_query {
 
 JournaledQuery motif_to_journaled_query(
     const string& motif,
@@ -167,4 +172,6 @@ JournaledQuery motif_to_journaled_query(
     return jq;
 }
 
-} // namespace EventUtils
+} // namespace journaled_query
+
+} // namespace igor::alignment::legacy

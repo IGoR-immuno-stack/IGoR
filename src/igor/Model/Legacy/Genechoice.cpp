@@ -27,6 +27,13 @@
 #include <igor/Model/Legacy/Genechoice.h>
 #include <igor/Model/Legacy/JsonDetail.h>
 
+
+namespace igor::core::legacy {}
+namespace igor::alignment::legacy {}
+namespace igor::model::legacy {
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+
 using namespace std;
 
 
@@ -95,9 +102,9 @@ Gene_choice::Gene_choice(Gene_class gene, vector<pair<string, string>> genomic_s
 }
 
 Gene_choice::Gene_choice(const nlohmann::json &node)
-    : Gene_choice(str2GeneClassNew(igor::json_detail::require(node, "gene_class").get<string>()))
+    : Gene_choice(str2GeneClassNew(igor::model::legacy::json_detail::require(node, "gene_class").get<string>()))
 {
-    using namespace igor::json_detail;
+    using namespace igor::model::legacy::json_detail;
     reject_unknown_keys(node, kEventKeys);
     expect_type(node, "GeneChoice");
 
@@ -1018,3 +1025,4 @@ int Gene_choice::length_delta(const Event_realization &realization) const
     return static_cast<int>(realization.value_str.length());
 }
 
+} // namespace igor::model::legacy

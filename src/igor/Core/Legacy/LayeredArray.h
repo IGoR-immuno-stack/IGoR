@@ -33,6 +33,9 @@
 /// Error paths, kept out of line so that the checks in the hot accessors stay small
 /// enough to inline. Building the message inline is enough to stop GCC inlining the
 /// caller, which costs several times the price of the check itself.
+
+namespace igor::core::legacy {
+
 namespace layered_array_detail {
 
 #if defined(__GNUC__) || defined(__clang__)
@@ -385,3 +388,5 @@ private:
     std::size_t      count_;
     std::size_t      layer_capacity_;
 };
+
+} // namespace igor::core::legacy

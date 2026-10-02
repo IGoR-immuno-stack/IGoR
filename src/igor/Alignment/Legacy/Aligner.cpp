@@ -31,6 +31,11 @@
 #include <unordered_set>
 #include <cmath>
 
+
+namespace igor::core::legacy {}
+namespace igor::alignment::legacy {
+using namespace igor::core::legacy;
+
 using namespace std;
 
 SwAlignmentMode default_sw_alignment_mode_for_gene(Gene_class gene)
@@ -1486,7 +1491,7 @@ unordered_map<int, forward_list<Alignment_data>>
 Aligner::read_alignments_seq_csv(string filename, double score_threshold, bool allow_in_dels)
 {
     unordered_map<int, vector<Alignment_data>> parsed =
-            ::read_alignments_seq_csv(filename, score_threshold, allow_in_dels);
+            legacy::read_alignments_seq_csv(filename, score_threshold, allow_in_dels);
     unordered_map<int, forward_list<Alignment_data>> converted;
     for (const auto &entry : parsed) {
         for (auto it = entry.second.rbegin(); it != entry.second.rend(); ++it) {
@@ -3010,3 +3015,5 @@ bool Alignment_data::validate() const {
     
     return true;
 }
+
+} // namespace igor::alignment::legacy

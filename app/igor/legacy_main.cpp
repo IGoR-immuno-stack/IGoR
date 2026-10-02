@@ -53,6 +53,17 @@
 #include <string>
 #include <filesystem>
 
+namespace igor::core::legacy {}
+namespace igor::alignment::legacy {}
+namespace igor::model::legacy {}
+namespace igor::generation::legacy {}
+namespace igor::inference::legacy {}
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+using namespace igor::model::legacy;
+using namespace igor::generation::legacy;
+using namespace igor::inference::legacy;
+
 using namespace std;
 
 std::string PACKAGE_NAME = "igor";

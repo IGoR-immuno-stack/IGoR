@@ -32,6 +32,9 @@
  * now because they carry export annotations and a cluster of conversion functions.
  */
 
+
+namespace igor::core::legacy {
+
 enum Event_type { GeneChoice_t, Deletion_t, Insertion_t, Dinuclmarkov_t, Undefined_t };
 
 /// Which end of a constructed sequence segment an offset or a deletion refers to.
@@ -46,3 +49,5 @@ enum Seq_side { Five_prime = 0, Three_prime = 1, Undefined_side = 2 };
  * while it is migrated.
  */
 enum Seq_type { V_gene_seq = 0, VD_ins_seq = 1, D_gene_seq = 2, DJ_ins_seq = 3, J_gene_seq = 4, VJ_ins_seq = 5 };
+
+} // namespace igor::core::legacy

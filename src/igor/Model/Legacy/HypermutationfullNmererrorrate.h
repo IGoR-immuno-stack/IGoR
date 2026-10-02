@@ -45,6 +45,13 @@
  * A different mutation probability is recorded for each context of size N, leading to 4^N parameters.
  * This model is inspired from the S5F mutability model. The identity of the resulting nucleotide after mutation is assumed to follow a uniform distribution.
  */
+
+namespace igor::core::legacy {}
+namespace igor::alignment::legacy {}
+namespace igor::model::legacy {
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+
 class MODEL_EXPORT Hypermutation_full_Nmer_errorrate : public Error_rate
 {
 public:
@@ -187,3 +194,5 @@ private:
     std::shared_ptr<std::ofstream> output_Nmer_stat_stream;
     bool output_Nmer_stat;
 };
+
+} // namespace igor::model::legacy

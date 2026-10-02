@@ -69,7 +69,7 @@
 #include <vector>
 #include <unordered_map>
 
-namespace igor::airr::rearrangement {
+namespace igor::streaming::airr::rearrangement {
 
 /**
  * @brief Write sequences to an AIRR TSV file
@@ -83,7 +83,7 @@ namespace igor::airr::rearrangement {
  *
  * Example:
  * @code
- *   using namespace igor::airr::rearrangement;
+ *   using namespace igor::streaming::airr::rearrangement;
  *   std::vector<SequenceData> seqs = ...;
  *   write_tsv("output.tsv", seqs);
  * @endcode
@@ -137,7 +137,7 @@ STREAMING_EXPORT
 void write_legacy_tsv(
     const std::string& filepath,
     const std::vector<std::tuple<int, std::string,
-                                 std::unordered_map<Gene_class, std::vector<Alignment_data>>>>& sequences);
+                                 std::unordered_map<igor::core::legacy::Gene_class, std::vector<igor::alignment::legacy::Alignment_data>>>>& sequences);
 
 /**
  * @brief Write a Sparrow record_batch to an AIRR TSV file
@@ -175,7 +175,7 @@ void write_batch(
  * @return CIGAR string (e.g., "50M2I3D"), or empty string if align_length is 0
  */
 STREAMING_EXPORT
-std::string make_cigar(const Alignment_data& alignment);
+std::string make_cigar(const igor::alignment::legacy::Alignment_data& alignment);
 
 /**
  * @brief Get AIRR column headers
@@ -188,5 +188,5 @@ std::string make_cigar(const Alignment_data& alignment);
 STREAMING_EXPORT
 std::vector<std::string> get_airr_columns(bool include_alignment_details = true);
 
-} // namespace igor::airr::rearrangement
+} // namespace igor::streaming::airr::rearrangement
 

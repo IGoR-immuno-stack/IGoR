@@ -113,6 +113,15 @@ inline uint32_t portable_gethostid()
 
 // Cross-platform population count (number of set bits).
 // Used by the genetic-code utilities (GeneticCode.h) to size CodonMask sets.
+#include <stdio.h>
+#include <unordered_map>
+
+namespace igor::core::legacy {
+
+// The legacy to_string(Gene_class) overloads below would otherwise hide std::to_string
+// from every legacy namespace that nominates this one.
+using std::to_string;
+
 inline int popcountll(uint64_t x)
 {
 #if defined(_MSC_VER)
@@ -154,8 +163,6 @@ inline int popcountll(uint64_t x)
 #  define IGOR_UNROLL(n)
 #endif
 
-#include <stdio.h>
-#include <unordered_map>
 
 /// Slim gene class: only the three fundamental gene types plus Undefined.
 /// Use this everywhere in runtime code. Junction/compound values (VD, DJ, VJ, VDJ)
@@ -525,48 +532,50 @@ typedef DynamicSequenceMap<double> Downstream_scenario_proba_bound_map;
 /*
  * Hash functions for the enums and tuples used as unordered_map keys
  */
+} // namespace igor::core::legacy
 namespace std {
 template <>
-struct hash<Seq_type>
+struct hash<igor::core::legacy::Seq_type>
 {
-    std::size_t operator()(const Seq_type &seq_t) const { return hash<int>()(seq_t); }
+    std::size_t operator()(const igor::core::legacy::Seq_type &seq_t) const { return hash<int>()(seq_t); }
 };
 
 template <>
-struct hash<Gene_class>
+struct hash<igor::core::legacy::Gene_class>
 {
-    std::size_t operator()(const Gene_class &gene) const { return hash<int>()(gene); }
+    std::size_t operator()(const igor::core::legacy::Gene_class &gene) const { return hash<int>()(gene); }
 };
 
 template <>
-struct hash<Gene_class_legacy>
+struct hash<igor::core::legacy::Gene_class_legacy>
 {
-    std::size_t operator()(const Gene_class_legacy &gene) const { return hash<int>()(gene); }
+    std::size_t operator()(const igor::core::legacy::Gene_class_legacy &gene) const { return hash<int>()(gene); }
 };
 
 template <>
-struct hash<std::tuple<Event_type, Seq_type_String, Seq_side>>
+struct hash<std::tuple<igor::core::legacy::Event_type, igor::core::legacy::Seq_type_String, igor::core::legacy::Seq_side>>
 {
-    std::size_t operator()(const std::tuple<Event_type, Seq_type_String, Seq_side> &event_triplet) const
+    std::size_t operator()(const std::tuple<igor::core::legacy::Event_type, igor::core::legacy::Seq_type_String, igor::core::legacy::Seq_side> &event_triplet) const
     {
-        Event_type ev_type;
-        Seq_type_String seq_type_str;
-        Seq_side s_side;
+        igor::core::legacy::Event_type ev_type;
+        igor::core::legacy::Seq_type_String seq_type_str;
+        igor::core::legacy::Seq_side s_side;
         std::tie(ev_type, seq_type_str, s_side) = event_triplet;
-        return ((hash<int>()(ev_type) ^ (hash<Seq_type_String>()(seq_type_str) << 1) >> 1)
+        return ((hash<int>()(ev_type) ^ (hash<igor::core::legacy::Seq_type_String>()(seq_type_str) << 1) >> 1)
                 ^ (hash<int>()(s_side) << 1));
     }
 };
 
 template <>
-struct hash<std::pair<Seq_type, Seq_side>>
+struct hash<std::pair<igor::core::legacy::Seq_type, igor::core::legacy::Seq_side>>
 {
-    std::size_t operator()(const std::pair<Seq_type, Seq_side> seq_pair) const
+    std::size_t operator()(const std::pair<igor::core::legacy::Seq_type, igor::core::legacy::Seq_side> seq_pair) const
     {
         return (hash<int>()(seq_pair.first) ^ (hash<int>()(seq_pair.second) << 1)) >> 1;
     }
 };
 } // namespace std
+namespace igor::core::legacy {
 
 
 CORE_EXPORT std::vector<std::string> extract_string_fields(const std::string &, const std::string &);
@@ -577,3 +586,5 @@ CORE_EXPORT uint64_t draw_random_64bits_seed();
 
 
 CORE_EXPORT std::string translate(const std::string &seq);
+
+} // namespace igor::core::legacy

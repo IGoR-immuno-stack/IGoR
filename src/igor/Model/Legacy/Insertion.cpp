@@ -35,6 +35,13 @@
 
 #include <limits>
 
+
+namespace igor::core::legacy {}
+namespace igor::alignment::legacy {}
+namespace igor::model::legacy {
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+
 using namespace std;
 
 namespace {
@@ -124,9 +131,9 @@ Insertion::Insertion(Seq_type seq_type, unordered_map<string, Event_realization>
 }
 
 Insertion::Insertion(const nlohmann::json &node)
-    : Insertion(str2SeqType(igor::json_detail::require(node, "seq_type").get<Seq_type_String>()))
+    : Insertion(str2SeqType(igor::model::legacy::json_detail::require(node, "seq_type").get<Seq_type_String>()))
 {
-    using namespace igor::json_detail;
+    using namespace igor::model::legacy::json_detail;
     reject_unknown_keys(node, kEventKeys);
     expect_type(node, "Insertion");
 
@@ -516,3 +523,5 @@ void Insertion::update_event_name()
     this->name = string() + this->type + "_" + seq_type_str + "_" + to_string(this->event_side)
                  + "_prio" + to_string(priority) + "_size" + to_string(this->size());
 }
+
+} // namespace igor::model::legacy

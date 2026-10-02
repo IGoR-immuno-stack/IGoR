@@ -101,6 +101,13 @@
 #    include <vector>
 #endif
 
+
+namespace igor::core::legacy {}
+namespace igor::alignment::legacy {}
+namespace igor::model::legacy {
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+
 namespace BoundTightness {
 
 /// Decades of over-estimation the histogram spans, and how finely each is cut. Quarter-decades
@@ -674,3 +681,5 @@ inline void note_prune(bool) {}
 #endif
 
 } // namespace BoundTightness
+
+} // namespace igor::model::legacy

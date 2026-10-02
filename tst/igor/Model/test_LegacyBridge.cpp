@@ -23,6 +23,13 @@
 #include <sstream>
 #include <cmath>
 
+namespace igor::core::legacy {}
+namespace igor::alignment::legacy {}
+namespace igor::model::legacy {}
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+using namespace igor::model::legacy;
+
 using namespace igor::model;
 using Catch::Matchers::WithinRel;
 using Catch::Matchers::WithinAbs;
@@ -41,7 +48,7 @@ TEST_CASE("Topology <-> Model_Parms conversion", "[core][bridge][topology]") {
 
     // Two ways in: through the JSON document and the event factory, or through the bridge,
     // which clones the events Core already built. They must agree on the graph.
-    auto topo1 = igor::model::topology_from_json(igor::model_parms_to_json(parms));
+    auto topo1 = igor::model::topology_from_json(igor::model::legacy::model_parms_to_json(parms));
     REQUIRE(topo1 != nullptr);
 
     auto topo2 = igor::model::import_from_legacy(parms);
@@ -112,7 +119,7 @@ TEST_CASE("read_parameters matches import_from_legacy for Mouse TCR beta",
     // Built through the JSON document rather than the bridge, so this also checks that the
     // factory path yields the same uid order, and therefore the same tensor shapes, as the
     // path recombination_model_from_files uses.
-    auto topology_legacy = igor::model::topology_from_json(igor::model_parms_to_json(parms));
+    auto topology_legacy = igor::model::topology_from_json(igor::model::legacy::model_parms_to_json(parms));
     REQUIRE(topology_legacy);
 
     igor::model::RecombinationModel<double> model_legacy(
@@ -120,8 +127,8 @@ TEST_CASE("read_parameters matches import_from_legacy for Mouse TCR beta",
     import_from_legacy(model_legacy, marginals);
 
     REQUIRE(model_direct.topology().size() > 0);
-    for (igor::index_type uid = 0;
-         uid < static_cast<igor::index_type>(model_direct.topology().size());
+    for (igor::core::legacy::index_type uid = 0;
+         uid < static_cast<igor::core::legacy::index_type>(model_direct.topology().size());
          ++uid)
     {
         const std::string name = model_direct.topology().event(uid)->get_nickname();

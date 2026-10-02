@@ -21,7 +21,7 @@
 #include <sstream>
 #include <stdexcept>
 
-namespace igor {
+namespace igor::streaming {
 
 sparrow::record_batch ParquetReader::read_batch(const std::string &input_path)
 {
@@ -100,7 +100,7 @@ sparrow::record_batch ParquetReader::read_batch(const std::string &input_path)
 }
 
 std::vector<std::tuple<int, std::string,
-                       std::unordered_map<Gene_class, std::vector<Alignment_data>>>>
+                       std::unordered_map<igor::core::legacy::Gene_class, std::vector<igor::alignment::legacy::Alignment_data>>>>
 ParquetReader::read_sequences(const std::string &input_path)
 {
     // Read the entire file as a record_batch
@@ -108,7 +108,7 @@ ParquetReader::read_sequences(const std::string &input_path)
 
     // Convert record_batch to legacy vector format
     std::vector<std::tuple<int, std::string,
-                          std::unordered_map<Gene_class, std::vector<Alignment_data>>>> sequences;
+                          std::unordered_map<igor::core::legacy::Gene_class, std::vector<igor::alignment::legacy::Alignment_data>>>> sequences;
 
     size_t num_rows = batch.nb_rows();
     sequences.reserve(num_rows);
@@ -282,4 +282,4 @@ sparrow::record_batch ParquetReader::read_columns(const std::string &input_path,
     }
 }
 
-} // namespace igor
+} // namespace igor::streaming

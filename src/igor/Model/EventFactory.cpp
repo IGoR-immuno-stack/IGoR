@@ -81,10 +81,10 @@ std::vector<std::string> registered_type_names()
 // must not name Model. The strings are the ones the model file carries, which is why the last
 // one is "DinucMarkov" and not "Dinuclmarkov".
 namespace {
-const Registrar<Gene_choice> gene_choice_registrar{ "GeneChoice" };
-const Registrar<Deletion> deletion_registrar{ "Deletion" };
-const Registrar<Insertion> insertion_registrar{ "Insertion" };
-const Registrar<Dinucl_markov> dinucl_markov_registrar{ "DinucMarkov" };
+const Registrar<legacy::Gene_choice> gene_choice_registrar{ "GeneChoice" };
+const Registrar<legacy::Deletion> deletion_registrar{ "Deletion" };
+const Registrar<legacy::Insertion> insertion_registrar{ "Insertion" };
+const Registrar<legacy::Dinucl_markov> dinucl_markov_registrar{ "DinucMarkov" };
 }  // namespace
 
 }  // namespace igor::model::event_factory

@@ -24,6 +24,13 @@
  * exploration strategies (aggressive vs conservative pruning)
  * without changing result collection logic.
  */
+
+namespace igor::core::legacy {}
+namespace igor::alignment::legacy {}
+namespace igor::model::legacy {
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+
 struct ExplorationContext {
     // Downstream probability bounds for pruning
     // Maps event → max probability of all downstream paths
@@ -203,3 +210,5 @@ struct ExplorationContext {
         safety_set.set(cell, is_safe, memory_layer);
     }
 };
+
+} // namespace igor::model::legacy

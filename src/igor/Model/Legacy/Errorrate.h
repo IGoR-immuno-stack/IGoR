@@ -52,6 +52,13 @@
 #include <igor/Model/Export.h>
 
 //Forward declare Rec_event
+
+namespace igor::core::legacy {}
+namespace igor::alignment::legacy {}
+namespace igor::model::legacy {
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+
 class Rec_Event;
 
 /**
@@ -211,3 +218,5 @@ protected:
 };
 
 MODEL_EXPORT void add_to_err_rate(Error_rate *, Error_rate *);
+
+} // namespace igor::model::legacy

@@ -26,6 +26,9 @@
 
 #include <stdexcept>
 
+namespace igor::core::legacy {}
+using namespace igor::core::legacy;
+
 // ===========================================================================================
 // Matrix bounds (plan section 7.18, repair R0).
 //

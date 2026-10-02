@@ -26,6 +26,13 @@
 
 #include <igor/Model/Legacy/Model_marginals.h>
 
+
+namespace igor::core::legacy {}
+namespace igor::alignment::legacy {}
+namespace igor::model::legacy {
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+
 using namespace std;
 
 Model_marginals::Model_marginals()
@@ -1555,3 +1562,5 @@ void align_marginal_array(const list<pair<Rec_Event_name, size_t>> &reference_ma
         ++reference_iterator;
     }
 }
+
+} // namespace igor::model::legacy

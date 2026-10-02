@@ -38,6 +38,13 @@
 #include <stack>
 #include <stdexcept>
 
+namespace igor::core::legacy {}
+namespace igor::alignment::legacy {}
+namespace igor::model::legacy {}
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+using namespace igor::model::legacy;
+
 namespace IgorTestUtils {
 
 Alignment_data create_mock_alignment_data(
@@ -705,7 +712,7 @@ std::shared_ptr<Gene_choice> make_gene_choice(Gene_class gene_class,
     event->set_event_identifier(event_id);
     event->set_priority(1);
     Seq_type target = V_gene_seq;
-    if (!igor::migration::try_gene_class_to_gene_seq_type(gene_class, target)) {
+    if (!igor::model::legacy::migration::try_gene_class_to_gene_seq_type(gene_class, target)) {
         throw std::invalid_argument("make_gene_choice: gene class has no gene seq_type");
     }
     const Seq_type_String seq_type = EventUtils::seq_type_to_string(target);

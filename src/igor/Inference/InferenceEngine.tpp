@@ -1,6 +1,13 @@
 #pragma once
 
-namespace igor::model {
+#include <igor/Model/Forward.h>
+
+namespace igor::inference {
+using igor::model::RecombinationModel;
+using igor::model::Navigator;
+using igor::model::Topology;
+using igor::model::SampledScenario;
+using igor::model::SampledEvent;
 
 // ─── Construction from shared RecombinationModel ───────────────────────
 
@@ -38,7 +45,7 @@ template <typename T>
 InferenceHandler<T>& InferenceEngine<T>::handler(const std::string& name) {
     const auto& topology = m_model->topology();
     auto id = topology.eventId(name);
-    if (id < 0 || id >= static_cast<igor::index_type>(m_handlers.size())) {
+    if (id < 0 || id >= static_cast<igor::core::legacy::index_type>(m_handlers.size())) {
         throw std::runtime_error(
             "InferenceEngine: no handler named '" + name + "'");
     }
@@ -49,7 +56,7 @@ template <typename T>
 const InferenceHandler<T>& InferenceEngine<T>::handler(const std::string& name) const {
     const auto& topology = m_model->topology();
     auto id = topology.eventId(name);
-    if (id < 0 || id >= static_cast<igor::index_type>(m_handlers.size())) {
+    if (id < 0 || id >= static_cast<igor::core::legacy::index_type>(m_handlers.size())) {
         throw std::runtime_error(
             "InferenceEngine: no handler named '" + name + "'");
     }
@@ -57,16 +64,16 @@ const InferenceHandler<T>& InferenceEngine<T>::handler(const std::string& name) 
 }
 
 template <typename T>
-InferenceHandler<T>& InferenceEngine<T>::handler(igor::index_type uid) {
-    if (uid < 0 || uid >= static_cast<igor::index_type>(m_handlers.size())) {
+InferenceHandler<T>& InferenceEngine<T>::handler(igor::core::legacy::index_type uid) {
+    if (uid < 0 || uid >= static_cast<igor::core::legacy::index_type>(m_handlers.size())) {
         throw std::out_of_range("InferenceEngine: uid out of range");
     }
     return *m_handlers[uid];
 }
 
 template <typename T>
-const InferenceHandler<T>& InferenceEngine<T>::handler(igor::index_type uid) const {
-    if (uid < 0 || uid >= static_cast<igor::index_type>(m_handlers.size())) {
+const InferenceHandler<T>& InferenceEngine<T>::handler(igor::core::legacy::index_type uid) const {
+    if (uid < 0 || uid >= static_cast<igor::core::legacy::index_type>(m_handlers.size())) {
         throw std::out_of_range("InferenceEngine: uid out of range");
     }
     return *m_handlers[uid];
@@ -76,7 +83,7 @@ template <typename T>
 bool InferenceEngine<T>::hasHandler(const std::string& name) const {
     const auto& topology = m_model->topology();
     auto id = topology.eventId(name);
-    return id >= 0 && id < static_cast<igor::index_type>(m_handlers.size());
+    return id >= 0 && id < static_cast<igor::core::legacy::index_type>(m_handlers.size());
 }
 
 // ─── EM Operations ─────────────────────────────────────────────────────
@@ -112,13 +119,13 @@ auto InferenceEngine<T>::orderedHandlers(void) const -> OrderedList
 }
 
 template <typename T>
-auto InferenceEngine<T>::parents(igor::index_type uid) const -> Adjacency_t
+auto InferenceEngine<T>::parents(igor::core::legacy::index_type uid) const -> Adjacency_t
 {
     return Adjacency_t(m_handlers, m_model->topology().parentsIds(uid));
 }
 
 template <typename T>
-auto InferenceEngine<T>::children(igor::index_type uid) const -> Adjacency_t
+auto InferenceEngine<T>::children(igor::core::legacy::index_type uid) const -> Adjacency_t
 {
     return Adjacency_t(m_handlers, m_model->topology().childrenIds(uid));
 }
@@ -150,4 +157,4 @@ void InferenceEngine<T>::run(Func&& eStep)
     updateParameters();
 }
 
-} // namespace igor::model
+} // namespace igor::inference

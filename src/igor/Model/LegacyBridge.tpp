@@ -13,7 +13,7 @@ namespace igor::model {
 
 // ─── Convert Topology <-> Model_Parms ──────────────────────────────────────
 
-inline std::shared_ptr<Topology> import_from_legacy(const Model_Parms& legacy_model) {
+inline std::shared_ptr<Topology> import_from_legacy(const legacy::Model_Parms& legacy_model) {
     auto topo = std::make_shared<Topology>();
 
     // The segment order is model data and cannot be recovered from the graph, so it is carried
@@ -45,15 +45,15 @@ inline std::shared_ptr<Topology> import_from_legacy(const Model_Parms& legacy_mo
     return topo;
 }
 
-inline std::shared_ptr<Model_Parms> export_to_legacy(const Topology& topology) {
-    std::list<std::shared_ptr<Rec_Event>> event_list;
+inline std::shared_ptr<legacy::Model_Parms> export_to_legacy(const Topology& topology) {
+    std::list<std::shared_ptr<legacy::Rec_Event>> event_list;
     for (const auto& ev : topology) {
         event_list.push_back(ev->copy());
     }
-    auto parms = std::make_shared<Model_Parms>(event_list);
+    auto parms = std::make_shared<legacy::Model_Parms>(event_list);
 
     for (const auto& ev : topology) {
-        index_type child_id = topology.eventId(ev->get_nickname());
+        core::legacy::index_type child_id = topology.eventId(ev->get_nickname());
         auto parents = topology.parents(child_id);
         for (const auto& parent : parents) {
             parms->add_edge(parent->get_name(), ev->get_name());
@@ -66,7 +66,7 @@ inline std::shared_ptr<Model_Parms> export_to_legacy(const Topology& topology) {
 
 template <typename T>
 void import_from_legacy(RecombinationModel<T>& model,
-                        const Model_marginals& marginals)
+                        const legacy::Model_marginals& marginals)
 {
     const auto& topology = model.topology();
 
@@ -77,7 +77,7 @@ void import_from_legacy(RecombinationModel<T>& model,
     auto index_map            = marginals.get_index_map(*parms);
     const long double* source = marginals.marginal_array_smart_p.get();
 
-    for (index_type uid = 0; uid < static_cast<index_type>(topology.size()); ++uid) {
+    for (core::legacy::index_type uid = 0; uid < static_cast<core::legacy::index_type>(topology.size()); ++uid) {
         // index_map is keyed by full event name, not nickname
         const std::string full_name = topology.event(uid)->get_name();
 

@@ -7,7 +7,14 @@
 
 #include <string>
 
-namespace igor::model {
+#include <igor/Model/Forward.h>
+
+namespace igor::inference {
+using igor::model::RecombinationModel;
+using igor::model::Navigator;
+using igor::model::Topology;
+using igor::model::SampledScenario;
+using igor::model::SampledEvent;
 
 // ─── InferenceHandler<T> ─────────────────────────────────────────────────────
 //
@@ -40,8 +47,8 @@ public:
 
     const std::string& name(void) const { return m_name; }
 
-    igor::index_type uid(void) const { return m_uid; }
-    void setUid(igor::index_type id) { m_uid = id; }
+    igor::core::legacy::index_type uid(void) const { return m_uid; }
+    void setUid(igor::core::legacy::index_type id) { m_uid = id; }
 
     // ── Tensor access ────────────────────────────────────────────────────
 
@@ -57,15 +64,15 @@ public:
     virtual void maximizeLikelihood(void) = 0;
 
 protected:
-    explicit InferenceHandler(std::string name, igor::index_type uid)
+    explicit InferenceHandler(std::string name, igor::core::legacy::index_type uid)
         : m_name(std::move(name))
         , m_uid(uid) {}
 
     std::string      m_name;
-    igor::index_type m_uid;
+    igor::core::legacy::index_type m_uid;
 };
 
-} // namespace igor::model
+} // namespace igor::inference
 
 //
 // InferenceHandler.h ends here

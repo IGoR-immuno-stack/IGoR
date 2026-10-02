@@ -48,6 +48,19 @@
 #include <unordered_map>
 #include <vector>
 
+namespace igor::core::legacy {}
+namespace igor::alignment::legacy {}
+namespace igor::model::legacy {}
+namespace igor::generation::legacy {}
+namespace igor::inference::legacy {}
+namespace igor::inference {}
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+using namespace igor::model::legacy;
+using namespace igor::generation::legacy;
+using namespace igor::inference::legacy;
+using namespace igor::inference;
+
 #ifndef IGOR_MODELS_DIR
 #  error "IGOR_MODELS_DIR must be defined (set by CMake)"
 #endif
@@ -274,8 +287,8 @@ TEMPLATE_TEST_CASE("Normalization comparison: legacy vs new architecture",
             std::size_t legacy_size = test_legacy.get_length();
             
             // New: fill handler accumulators
-            for (igor::index_type uid = 0; 
-                 uid < static_cast<igor::index_type>(engine.size()); ++uid)
+            for (igor::core::legacy::index_type uid = 0; 
+                 uid < static_cast<igor::core::legacy::index_type>(engine.size()); ++uid)
             {
                 const std::string& event_name = model->topology().event(uid)->get_name();
                 int base_idx = index_map.at(event_name);
@@ -314,8 +327,8 @@ TEMPLATE_TEST_CASE("Normalization comparison: legacy vs new architecture",
             
             bool all_exact = true;
             
-            for (igor::index_type uid = 0; 
-                 uid < static_cast<igor::index_type>(engine.size()); ++uid)
+            for (igor::core::legacy::index_type uid = 0; 
+                 uid < static_cast<igor::core::legacy::index_type>(engine.size()); ++uid)
             {
                 const auto& event = model->topology().event(uid);
                 const std::string& event_name = event->get_name();
@@ -375,8 +388,8 @@ TEMPLATE_TEST_CASE("Normalization comparison: legacy vs new architecture",
             
             std::cout << "\n─── Checking normalization correctness ───" << std::endl;
             
-            for (igor::index_type uid = 0; 
-                 uid < static_cast<igor::index_type>(engine.size()); ++uid)
+            for (igor::core::legacy::index_type uid = 0; 
+                 uid < static_cast<igor::core::legacy::index_type>(engine.size()); ++uid)
             {
                 const auto& event = model->topology().event(uid);
                 const std::string& nickname = event->get_nickname();
@@ -454,8 +467,8 @@ TEMPLATE_TEST_CASE("Normalization idempotency",
     Model_marginals legacy(parms);
     long double* legacy_data = legacy.marginal_array_smart_p.get();
     
-    for (igor::index_type uid = 0; 
-         uid < static_cast<igor::index_type>(engine.size()); ++uid)
+    for (igor::core::legacy::index_type uid = 0; 
+         uid < static_cast<igor::core::legacy::index_type>(engine.size()); ++uid)
     {
         const std::string& event_name = model->topology().event(uid)->get_name();
         int base_idx = index_map.at(event_name);
@@ -481,9 +494,9 @@ TEMPLATE_TEST_CASE("Normalization idempotency",
     std::copy(legacy_data, legacy_data + legacy.get_length(), 
               legacy_after_first.begin());
     
-    std::unordered_map<igor::index_type, std::vector<T>> new_after_first;
-    for (igor::index_type uid = 0; 
-         uid < static_cast<igor::index_type>(engine.size()); ++uid)
+    std::unordered_map<igor::core::legacy::index_type, std::vector<T>> new_after_first;
+    for (igor::core::legacy::index_type uid = 0; 
+         uid < static_cast<igor::core::legacy::index_type>(engine.size()); ++uid)
     {
         const auto& weights = engine.handler(uid).weights();
         new_after_first[uid] = std::vector<T>(weights.begin(), weights.end());
@@ -494,8 +507,8 @@ TEMPLATE_TEST_CASE("Normalization idempotency",
     // ══════════════════════════════════════════════════════════════════════
     
     // Legacy: copy back and normalize
-    for (igor::index_type uid = 0; 
-         uid < static_cast<igor::index_type>(engine.size()); ++uid)
+    for (igor::core::legacy::index_type uid = 0; 
+         uid < static_cast<igor::core::legacy::index_type>(engine.size()); ++uid)
     {
         const std::string& event_name = model->topology().event(uid)->get_name();
         int base_idx = index_map.at(event_name);
@@ -509,8 +522,8 @@ TEMPLATE_TEST_CASE("Normalization idempotency",
     legacy.normalize(inverse_offset_map, index_map, model_queue);
     
     // New: copy to accumulator and normalize
-    for (igor::index_type uid = 0; 
-         uid < static_cast<igor::index_type>(engine.size()); ++uid)
+    for (igor::core::legacy::index_type uid = 0; 
+         uid < static_cast<igor::core::legacy::index_type>(engine.size()); ++uid)
     {
         auto& acc = engine.handler(uid).accumulator();
         const auto& saved = new_after_first[uid];
@@ -524,8 +537,8 @@ TEMPLATE_TEST_CASE("Normalization idempotency",
     std::cout << "\nEvent                  | Max change after 2nd norm" << std::endl;
     std::cout << "---------------------- | -------------------------" << std::endl;
     
-    for (igor::index_type uid = 0; 
-         uid < static_cast<igor::index_type>(engine.size()); ++uid)
+    for (igor::core::legacy::index_type uid = 0; 
+         uid < static_cast<igor::core::legacy::index_type>(engine.size()); ++uid)
     {
         const auto& event = model->topology().event(uid);
         const std::string& nickname = event->get_nickname();
@@ -580,8 +593,8 @@ TEST_CASE("Markov normalization correctness", "[model][normalization][markov]")
     std::cout << "\n=== Testing Markov chain normalization (TCR beta model) ===" << std::endl;
     
     // Find markov events
-    for (igor::index_type uid = 0; 
-         uid < static_cast<igor::index_type>(engine.size()); ++uid)
+    for (igor::core::legacy::index_type uid = 0; 
+         uid < static_cast<igor::core::legacy::index_type>(engine.size()); ++uid)
     {
         const auto& event = model->topology().event(uid);
         if (event->get_type() != Dinuclmarkov_t) continue;

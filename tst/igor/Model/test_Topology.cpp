@@ -14,6 +14,13 @@
 #include <igor/Model/Legacy/Rec_Event.h>
 #include <igor/Model/Legacy/Genechoice.h>
 
+namespace igor::core::legacy {}
+namespace igor::alignment::legacy {}
+namespace igor::model::legacy {}
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+using namespace igor::model::legacy;
+
 
 using namespace igor;
 using namespace igor::model;
@@ -153,7 +160,7 @@ TEST_CASE("Topology from a model document", "[Model][Topology]") {
     try { parms.read_model_parms(model_path); }
     catch (...) { SKIP("Mouse TCR beta model_parms not found at: " + model_path); }
 
-    auto topo = igor::model::topology_from_json(igor::model_parms_to_json(parms));
+    auto topo = igor::model::topology_from_json(igor::model::legacy::model_parms_to_json(parms));
     REQUIRE(topo != nullptr);
     REQUIRE(topo->size() > 0);
 

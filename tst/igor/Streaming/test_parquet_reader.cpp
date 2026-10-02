@@ -28,8 +28,13 @@
 #include <igor/Streaming/ParquetWriter.h>
 #include <igor/Streaming/SequenceBatchHelpers.h>
 
-using namespace igor;
-using namespace igor::test;
+namespace igor::core::legacy {}
+namespace igor::alignment::legacy {}
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+
+using namespace igor::streaming;
+using namespace igor::streaming::test;
 using namespace Catch::Matchers;
 
 //==============================================================================

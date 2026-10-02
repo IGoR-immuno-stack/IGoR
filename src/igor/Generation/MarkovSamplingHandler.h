@@ -6,7 +6,14 @@
 #include <vector>
 #include <string>
 
-namespace igor::model {
+#include <igor/Model/Forward.h>
+
+namespace igor::generation {
+using igor::model::RecombinationModel;
+using igor::model::Navigator;
+using igor::model::Topology;
+using igor::model::SampledScenario;
+using igor::model::SampledEvent;
 
 // ─── MarkovSamplingHandler<T> ─────────────────────────────────────────────────
 //
@@ -27,7 +34,7 @@ template <typename T = double>
 class MarkovSamplingHandler : public SamplingHandler<T>
 {
 public:
-    MarkovSamplingHandler(std::string name, igor::index_type uid, const math::Tensor<T>& weights);
+    MarkovSamplingHandler(std::string name, igor::core::legacy::index_type uid, const math::Tensor<T>& weights);
 
     ~MarkovSamplingHandler(void) = default;
 
@@ -63,6 +70,6 @@ private:
     std::size_t sampleFromCDF(std::mt19937_64& gen, const T* cdf_row, std::size_t size) const;
 };
 
-} // namespace igor::model
+} // namespace igor::generation
 
 #include <igor/Generation/MarkovSamplingHandler.tpp>

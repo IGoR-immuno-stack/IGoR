@@ -36,6 +36,9 @@
  * vectors are meaningful as soon as they are written, so the default says "never empty"
  * and the traversal falls back to the written/unwritten distinction alone.
  */
+
+namespace igor::core::legacy {
+
 template <typename V>
 struct SeqSegmentEmptiness
 {
@@ -169,3 +172,5 @@ public:
 private:
     const SeqTypeRegistry &registry_;
 };
+
+} // namespace igor::core::legacy

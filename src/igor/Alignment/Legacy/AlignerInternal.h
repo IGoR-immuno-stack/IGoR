@@ -31,6 +31,11 @@
 #include <igor/Alignment/Legacy/Aligner.h>
 #include <vector>
 
+
+namespace igor::core::legacy {}
+namespace igor::alignment::legacy {
+using namespace igor::core::legacy;
+
 namespace swalign {
 
 /**
@@ -108,3 +113,5 @@ struct ALIGNMENT_TESTING_EXPORT SwPreparedInputs
 ALIGNMENT_TESTING_EXPORT void initialize_sw_matrices(SwDPState &dp, const SwDPConfig &config);
 
 } // namespace swalign
+
+} // namespace igor::alignment::legacy

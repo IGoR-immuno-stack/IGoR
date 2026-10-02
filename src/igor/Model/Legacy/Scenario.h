@@ -19,6 +19,13 @@
  * scenario. This flattened view hides implementation details and provides
  * a simple, testable interface.
  */
+
+namespace igor::core::legacy {}
+namespace igor::alignment::legacy {}
+namespace igor::model::legacy {
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+
 struct Scenario {
     // Scenario probabilities
     const double scenario_proba;
@@ -183,3 +190,5 @@ struct Scenario {
         return result;
     }
 };
+
+} // namespace igor::model::legacy

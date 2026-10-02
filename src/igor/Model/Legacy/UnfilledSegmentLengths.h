@@ -68,6 +68,13 @@
  * is overwritten by the next realization of the same event rather than restored on backtrack,
  * because every event appears at most once on a path.
  */
+
+namespace igor::core::legacy {}
+namespace igor::alignment::legacy {}
+namespace igor::model::legacy {
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+
 class UnfilledSegmentLengths
 {
 public:
@@ -104,3 +111,5 @@ private:
 
     std::vector<int> lengths_;
 };
+
+} // namespace igor::model::legacy

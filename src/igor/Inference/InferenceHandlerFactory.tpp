@@ -3,10 +3,10 @@
 #include <stdexcept>
 #include <igor/Model/RecombinationModel.h>
 
-namespace igor::model::inference_handler_factory {
+namespace igor::inference::inference_handler_factory {
 
 template <typename T>
-void register_creator(Event_type type, Creator<T> func)
+void register_creator(core::legacy::Event_type type, Creator<T> func)
 {
     if (!func) {
         throw std::invalid_argument("InferenceHandlerFactory: Null creator");
@@ -15,7 +15,7 @@ void register_creator(Event_type type, Creator<T> func)
 }
 
 template <typename T>
-HandlerPtr<T> create(Event_type type, EventPtr event, math::Tensor<T>& weights)
+HandlerPtr<T> create(core::legacy::Event_type type, EventPtr event, math::Tensor<T>& weights)
 {
     auto it = detail::get_creators<T>().find(type);
     if (it == detail::get_creators<T>().end()) {
@@ -25,12 +25,12 @@ HandlerPtr<T> create(Event_type type, EventPtr event, math::Tensor<T>& weights)
 }
 
 template <typename T>
-std::vector<HandlerPtr<T>> build(igor::model::RecombinationModel<T>& model)
+std::vector<HandlerPtr<T>> build(igor::inference::RecombinationModel<T>& model)
 {
     const auto& topology = model.topology();
     std::vector<HandlerPtr<T>> handlers(topology.size());
 
-    for (igor::index_type uid = 0; uid < static_cast<igor::index_type>(topology.size()); ++uid) {
+    for (igor::core::legacy::index_type uid = 0; uid < static_cast<igor::core::legacy::index_type>(topology.size()); ++uid) {
         EventPtr event = topology.event(uid);
         auto& weights = model.weight(uid);
 

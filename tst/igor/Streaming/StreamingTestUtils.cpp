@@ -9,7 +9,7 @@
 
 #include "StreamingTestUtils.h"
 
-namespace igor::test {
+namespace igor::streaming::test {
 
 std::vector<SequenceTuple> load_murugan_dataset()
 {
@@ -109,4 +109,4 @@ std::vector<SequenceTuple> load_murugan_dataset()
     return result;
 }
 
-} // namespace igor::test
+} // namespace igor::streaming::test

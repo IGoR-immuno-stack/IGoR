@@ -35,7 +35,7 @@
 #include <algorithm>
 #include <optional>
 
-namespace igor::airr::rearrangement {
+namespace igor::streaming::airr::rearrangement {
 
 //==============================================================================
 // Internal helpers (anonymous namespace)
@@ -124,17 +124,17 @@ double get_double_field(
     }
 }
 
-std::optional<Alignment_data> extract_alignment(
+std::optional<igor::alignment::legacy::Alignment_data> extract_alignment(
     const std::vector<std::string>& row,
     const std::unordered_map<std::string, size_t>& col_idx,
-    Gene_class gene_class)
+    igor::core::legacy::Gene_class gene_class)
 {
     // Determine prefix based on gene class
     std::string prefix;
     switch (gene_class) {
-        case Gene_class::V_gene: prefix = "v_"; break;
-        case Gene_class::D_gene: prefix = "d_"; break;
-        case Gene_class::J_gene: prefix = "j_"; break;
+        case igor::core::legacy::Gene_class::V_gene: prefix = "v_"; break;
+        case igor::core::legacy::Gene_class::D_gene: prefix = "d_"; break;
+        case igor::core::legacy::Gene_class::J_gene: prefix = "j_"; break;
         default: return std::nullopt;
     }
 
@@ -172,7 +172,7 @@ std::optional<Alignment_data> extract_alignment(
     std::vector<size_t> deletions;
     std::vector<size_t> mismatches;
 
-    return Alignment_data(
+    return igor::alignment::legacy::Alignment_data(
         gene_name,
         offset,
         five_p_offset,
@@ -347,21 +347,21 @@ std::vector<SequenceData> read_sequences(const std::string& filepath, Delimiter 
         std::string sequence = get_field(fields, col_idx, "sequence");
 
         // Extract alignments for V, D, J genes
-        std::unordered_map<Gene_class, std::vector<Alignment_data>> alignments;
+        std::unordered_map<igor::core::legacy::Gene_class, std::vector<igor::alignment::legacy::Alignment_data>> alignments;
 
-        auto v_align = extract_alignment(fields, col_idx, Gene_class::V_gene);
+        auto v_align = extract_alignment(fields, col_idx, igor::core::legacy::Gene_class::V_gene);
         if (v_align) {
-            alignments[Gene_class::V_gene].push_back(*v_align);
+            alignments[igor::core::legacy::Gene_class::V_gene].push_back(*v_align);
         }
 
-        auto d_align = extract_alignment(fields, col_idx, Gene_class::D_gene);
+        auto d_align = extract_alignment(fields, col_idx, igor::core::legacy::Gene_class::D_gene);
         if (d_align) {
-            alignments[Gene_class::D_gene].push_back(*d_align);
+            alignments[igor::core::legacy::Gene_class::D_gene].push_back(*d_align);
         }
 
-        auto j_align = extract_alignment(fields, col_idx, Gene_class::J_gene);
+        auto j_align = extract_alignment(fields, col_idx, igor::core::legacy::Gene_class::J_gene);
         if (j_align) {
-            alignments[Gene_class::J_gene].push_back(*j_align);
+            alignments[igor::core::legacy::Gene_class::J_gene].push_back(*j_align);
         }
 
         sequences.emplace_back(seq_id, sequence, alignments);
@@ -372,13 +372,13 @@ std::vector<SequenceData> read_sequences(const std::string& filepath, Delimiter 
 }
 
 std::vector<std::tuple<int, std::string,
-                       std::unordered_map<Gene_class, std::vector<Alignment_data>>>>
+                       std::unordered_map<igor::core::legacy::Gene_class, std::vector<igor::alignment::legacy::Alignment_data>>>>
 read_legacy(const std::string& filepath, Delimiter delimiter)
 {
     auto sequences = read_sequences(filepath, delimiter);
 
     std::vector<std::tuple<int, std::string,
-                           std::unordered_map<Gene_class, std::vector<Alignment_data>>>> result;
+                           std::unordered_map<igor::core::legacy::Gene_class, std::vector<igor::alignment::legacy::Alignment_data>>>> result;
     result.reserve(sequences.size());
 
     for (const auto& seq : sequences) {
@@ -450,5 +450,5 @@ sparrow::record_batch read_columns(
     return sparrow::record_batch(std::move(names), std::move(arrays));
 }
 
-} // namespace igor::airr::rearrangement
+} // namespace igor::streaming::airr::rearrangement
 

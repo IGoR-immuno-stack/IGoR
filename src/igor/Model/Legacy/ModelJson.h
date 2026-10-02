@@ -22,9 +22,13 @@
 
 #include <nlohmann/json_fwd.hpp>
 
-class Model_Parms;
+namespace igor::core::legacy {}
+namespace igor::alignment::legacy {}
+namespace igor::model::legacy {
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
 
-namespace igor {
+class Model_Parms;
 
 /// Schema version written into every document, and the only version the future reader
 /// will accept without a migration.
@@ -39,4 +43,4 @@ constexpr int kModelJsonSchemaVersion = 1;
  */
 MODEL_EXPORT nlohmann::json model_parms_to_json(const Model_Parms &parms);
 
-}  // namespace igor
+} // namespace igor::model::legacy

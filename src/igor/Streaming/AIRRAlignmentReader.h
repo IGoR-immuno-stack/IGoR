@@ -73,7 +73,7 @@
 #include <vector>
 #include <forward_list>
 
-namespace igor::airr::alignment {
+namespace igor::streaming::airr::alignment {
 
 // Use shared types from parent namespace
 using airr::Delimiter;
@@ -89,7 +89,7 @@ using airr::FileInfo;
  *
  * Example usage:
  * @code
- *   using namespace igor::airr::alignment;
+ *   using namespace igor::streaming::airr::alignment;
  *
  *   // Read file info
  *   auto info = get_file_info("alignments.tsv");
@@ -181,4 +181,4 @@ bool parse_cigar(
     std::vector<size_t>& deletions,
     size_t& align_length);
 
-} // namespace igor::airr::alignment
+} // namespace igor::streaming::airr::alignment

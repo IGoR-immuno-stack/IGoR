@@ -26,6 +26,9 @@
 
 #include <igor/Core/Legacy/IntStr.h>
 
+
+namespace igor::core::legacy {
+
 using namespace std;
 
 Int_Str &Int_Str::operator+=(const Int_Str &other)
@@ -146,3 +149,5 @@ size_t Int_Str::capacity() const noexcept{
 void Int_Str::clear(){
 
 }*/
+
+} // namespace igor::core::legacy

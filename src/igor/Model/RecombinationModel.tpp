@@ -55,9 +55,9 @@ auto RecombinationModel<T>::orderedWeights() const -> OrderedList
 // ─── Weight access by UID ────────────────────────────────────────────────────
 
 template <typename T>
-math::Tensor<T>& RecombinationModel<T>::weight(igor::index_type uid)
+math::Tensor<T>& RecombinationModel<T>::weight(igor::core::legacy::index_type uid)
 {
-    if (uid < 0 || uid >= static_cast<igor::index_type>(m_weights.size())) {
+    if (uid < 0 || uid >= static_cast<igor::core::legacy::index_type>(m_weights.size())) {
         throw std::out_of_range(
             "RecombinationModel::weight: invalid UID " + std::to_string(uid));
     }
@@ -65,9 +65,9 @@ math::Tensor<T>& RecombinationModel<T>::weight(igor::index_type uid)
 }
 
 template <typename T>
-const math::Tensor<T>& RecombinationModel<T>::weight(igor::index_type uid) const
+const math::Tensor<T>& RecombinationModel<T>::weight(igor::core::legacy::index_type uid) const
 {
-    if (uid < 0 || uid >= static_cast<igor::index_type>(m_weights.size())) {
+    if (uid < 0 || uid >= static_cast<igor::core::legacy::index_type>(m_weights.size())) {
         throw std::out_of_range(
             "RecombinationModel::weight: invalid UID " + std::to_string(uid));
     }
@@ -106,10 +106,10 @@ RecombinationModel<T> recombination_model_from_files(
     // 1. Core reads. It is the only tokenizer of the text format, so the v2 sections come for
     //    free: @Version, @Seq_type_order, and the six-field event lines that carry the
     //    seq_type. Both calls throw std::runtime_error when a file is missing or malformed.
-    Model_Parms parms;
+    legacy::Model_Parms parms;
     parms.read_model_parms(file_model_parms);
 
-    Model_marginals marginals(parms);
+    legacy::Model_marginals marginals(parms);
     marginals.txt2marginals(file_model_marginals, parms);
 
     // 2. The bridge builds: events cloned, edges translated by nickname, segment order carried.

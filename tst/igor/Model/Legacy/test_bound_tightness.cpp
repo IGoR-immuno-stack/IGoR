@@ -33,6 +33,13 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+namespace igor::core::legacy {}
+namespace igor::alignment::legacy {}
+namespace igor::model::legacy {}
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+using namespace igor::model::legacy;
+
 TEST_CASE("BoundTightness::bucket_for classifies a leaf by decades of over-estimation",
           "[bound_tightness]")
 {

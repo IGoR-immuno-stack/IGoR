@@ -81,6 +81,11 @@
  * - get_core/extended/all_insertions: insertion accessors
  * - get_core/extended/all_deletions: deletion accessors
  */
+
+namespace igor::core::legacy {}
+namespace igor::alignment::legacy {
+using namespace igor::core::legacy;
+
 struct ALIGNMENT_EXPORT Alignment_data
 {
     std::string gene_name;
@@ -477,3 +482,5 @@ std::vector<size_t> merge_and_sort_mismatches(const std::vector<size_t> &core_mi
                                       const std::vector<size_t> &extended_3p_mismatches);
 
 } // namespace swalign
+
+} // namespace igor::alignment::legacy

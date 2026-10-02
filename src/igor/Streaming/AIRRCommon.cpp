@@ -13,7 +13,7 @@
 #include <algorithm>
 #include <stdexcept>
 
-namespace igor::airr {
+namespace igor::streaming::airr {
 
 char delimiter_char(Delimiter delimiter)
 {
@@ -55,4 +55,4 @@ Delimiter detect_delimiter(const std::string& filepath)
     return Delimiter::TAB;
 }
 
-} // namespace igor::airr
+} // namespace igor::streaming::airr

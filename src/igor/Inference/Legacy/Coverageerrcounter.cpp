@@ -26,6 +26,17 @@
 #include <igor/Inference/Legacy/Coverageerrcounter.h>
 #include <igor/Model/Legacy/EventUtils.h>
 
+
+namespace igor::core::legacy {}
+namespace igor::alignment::legacy {}
+namespace igor::model::legacy {}
+namespace igor::generation::legacy {}
+namespace igor::inference::legacy {
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+using namespace igor::model::legacy;
+using namespace igor::generation::legacy;
+
 using namespace std;
 
 Coverage_err_counter::Coverage_err_counter(Gene_class count_on)
@@ -1018,3 +1029,5 @@ void Coverage_err_counter::symmetrize_counter_array_recurs(size_t adress, size_t
         }
     }
 }
+
+} // namespace igor::inference::legacy

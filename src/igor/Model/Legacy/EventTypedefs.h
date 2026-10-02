@@ -36,6 +36,13 @@
 #include <igor/Core/Legacy/StdTypedefs.h>
 #include <igor/Core/Legacy/Utils.h>
 
+
+namespace igor::core::legacy {}
+namespace igor::alignment::legacy {}
+namespace igor::model::legacy {
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+
 class Rec_Event;
 
 //Typedef used for getting the next event ptr
@@ -57,3 +64,5 @@ struct inverse_offset_comparator
         return inv_offset_1.second < inv_offset_2.second;
     }
 };
+
+} // namespace igor::model::legacy

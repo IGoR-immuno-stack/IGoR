@@ -5,11 +5,18 @@
 #include <stdexcept>
 #include <typeinfo>
 
-namespace igor::model {
+#include <igor/Model/Forward.h>
+
+namespace igor::generation {
+using igor::model::RecombinationModel;
+using igor::model::Navigator;
+using igor::model::Topology;
+using igor::model::SampledScenario;
+using igor::model::SampledEvent;
 
 template <typename T>
 MarkovSamplingHandler<T>::MarkovSamplingHandler(
-    std::string name, igor::index_type uid, const math::Tensor<T>& weights)
+    std::string name, igor::core::legacy::index_type uid, const math::Tensor<T>& weights)
     : SamplingHandler<T>(std::move(name), uid)
     , m_weights(weights)
     , m_state_count(m_weights.shape()[m_weights.ndim() >= 2 ? m_weights.ndim() - 2 : 0])
@@ -185,4 +192,4 @@ std::vector<std::size_t> MarkovSamplingHandler<T>::sampleSequence(std::mt19937_6
     return chain;
 }
 
-} // namespace igor::model
+} // namespace igor::generation

@@ -75,7 +75,7 @@
 #include <vector>
 #include <unordered_map>
 
-namespace igor::airr::rearrangement {
+namespace igor::streaming::airr::rearrangement {
 
 // Use shared types from parent namespace
 using airr::Delimiter;
@@ -94,7 +94,7 @@ using airr::FileInfo;
  *
  * Example usage:
  * @code
- *   using namespace igor::airr::rearrangement;
+ *   using namespace igor::streaming::airr::rearrangement;
  *
  *   auto info = get_file_info("data.tsv");
  *   std::cout << "Found " << info.num_rows << " sequences\n";
@@ -150,7 +150,7 @@ std::vector<SequenceData> read_sequences(
  */
 STREAMING_EXPORT
 std::vector<std::tuple<int, std::string,
-                       std::unordered_map<Gene_class, std::vector<Alignment_data>>>>
+                       std::unordered_map<igor::core::legacy::Gene_class, std::vector<igor::alignment::legacy::Alignment_data>>>>
 read_legacy(
     const std::string& filepath,
     Delimiter delimiter = Delimiter::AUTO);
@@ -189,5 +189,5 @@ bool validate_schema(
     const std::string& filepath,
     Delimiter delimiter = Delimiter::AUTO);
 
-} // namespace igor::airr::rearrangement
+} // namespace igor::streaming::airr::rearrangement
 

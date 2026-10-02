@@ -39,7 +39,7 @@
 #include <tuple>
 #include <unordered_map>
 
-namespace igor {
+namespace igor::streaming {
 
 /**
  * @brief Compression types supported for Parquet files
@@ -89,8 +89,8 @@ public:
     static void write_sequences(
             const std::string &output_path,
             const std::vector<std::tuple<int, std::string,
-                                         std::unordered_map<Gene_class,
-                                                            std::vector<Alignment_data>>>>
+                                         std::unordered_map<igor::core::legacy::Gene_class,
+                                                            std::vector<igor::alignment::legacy::Alignment_data>>>>
                     &sequences,
             CompressionType compression = CompressionType::SNAPPY);
 
@@ -121,4 +121,4 @@ private:
     static int get_arrow_compression(CompressionType compression);
 };
 
-} // namespace igor
+} // namespace igor::streaming

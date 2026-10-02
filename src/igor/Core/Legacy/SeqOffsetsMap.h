@@ -48,6 +48,9 @@
  * Undefined_side is not a valid offset key -- an offset is one end of a segment or the
  * other -- and was never used as one even though the old map allocated a row for it.
  */
+
+namespace igor::core::legacy {
+
 class Seq_offsets_map
 {
 public:
@@ -105,3 +108,5 @@ public:
     DynamicSequenceMap<Seq_Offset> five_prime;
     DynamicSequenceMap<Seq_Offset> three_prime;
 };
+
+} // namespace igor::core::legacy

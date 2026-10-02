@@ -22,6 +22,13 @@
 #include <memory>
 #include <string>
 
+namespace igor::core::legacy {}
+namespace igor::alignment::legacy {}
+namespace igor::model::legacy {}
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+using namespace igor::model::legacy;
+
 static const std::string TEST_DATA_DIR = std::string(IGOR_SOURCE_DIR) + "/tst/test_data/format_v2/";
 static const std::string MODELS_DIR = std::string(IGOR_SOURCE_DIR) + "/models/";
 
@@ -73,10 +80,10 @@ TEST_CASE("model json: a v2 model serializes with its segment order", "[Core][js
     Model_Parms parms;
     REQUIRE_NOTHROW(parms.read_model_parms(TEST_DATA_DIR + "test_legacy_vdj_model_parms_v2.txt"));
 
-    const nlohmann::json doc = igor::model_parms_to_json(parms);
+    const nlohmann::json doc = igor::model::legacy::model_parms_to_json(parms);
 
     SECTION("the document carries its schema version") {
-        REQUIRE(doc.at("schema_version").get<int>() == igor::kModelJsonSchemaVersion);
+        REQUIRE(doc.at("schema_version").get<int>() == igor::model::legacy::kModelJsonSchemaVersion);
     }
 
     SECTION("the segment order survives as an array, in file order") {
@@ -115,7 +122,7 @@ TEST_CASE("model json: a v2 model serializes with its segment order", "[Core][js
     }
 
     SECTION("serialization is reproducible") {
-        REQUIRE(igor::model_parms_to_json(parms) == doc);
+        REQUIRE(igor::model::legacy::model_parms_to_json(parms) == doc);
     }
 }
 
@@ -124,7 +131,7 @@ TEST_CASE("model json: a legacy file serializes too, with the inferred order", "
     Model_Parms parms;
     REQUIRE_NOTHROW(parms.read_model_parms(TEST_DATA_DIR + "test_legacy_vdj_model_parms.txt"));
 
-    const nlohmann::json doc = igor::model_parms_to_json(parms);
+    const nlohmann::json doc = igor::model::legacy::model_parms_to_json(parms);
 
     // A legacy file carries no order, so read_model_parms infers the standard VDJ one.
     REQUIRE(doc.at("seq_type_order")
@@ -140,7 +147,7 @@ TEST_CASE("model json: realizations come out sorted by index", "[Core][json][int
         SKIP("models submodule not checked out: " + shipped);
     REQUIRE_NOTHROW(parms.read_model_parms(shipped));
 
-    const nlohmann::json doc = igor::model_parms_to_json(parms);
+    const nlohmann::json doc = igor::model::legacy::model_parms_to_json(parms);
     const auto &v_choice = event_by_nickname(doc, "v_choice");
 
     REQUIRE(v_choice.at("realizations").size() == 89);
@@ -160,7 +167,7 @@ TEST_CASE("model json: json to object to json is the identity", "[Core][json]")
 {
     Model_Parms parms;
     REQUIRE_NOTHROW(parms.read_model_parms(TEST_DATA_DIR + "test_legacy_vdj_model_parms_v2.txt"));
-    const nlohmann::json doc = igor::model_parms_to_json(parms);
+    const nlohmann::json doc = igor::model::legacy::model_parms_to_json(parms);
 
     for (const auto &node : doc.at("events")) {
         const auto rebuilt = event_from_json(node);
@@ -176,7 +183,7 @@ TEST_CASE("model json: round trip on a shipped model", "[Core][json][integration
 
     Model_Parms parms;
     REQUIRE_NOTHROW(parms.read_model_parms(shipped));
-    const nlohmann::json doc = igor::model_parms_to_json(parms);
+    const nlohmann::json doc = igor::model::legacy::model_parms_to_json(parms);
 
     REQUIRE(doc.at("events").size() == 11);
     for (const auto &node : doc.at("events")) {
@@ -201,7 +208,7 @@ TEST_CASE("model json: a rebuilt DinucMarkov gets the same name as the text read
     // of the scenario and generation output columns.
     Model_Parms parms;
     REQUIRE_NOTHROW(parms.read_model_parms(TEST_DATA_DIR + "test_legacy_vdj_model_parms_v2.txt"));
-    const nlohmann::json doc = igor::model_parms_to_json(parms);
+    const nlohmann::json doc = igor::model::legacy::model_parms_to_json(parms);
 
     const nlohmann::json &node = event_by_nickname(doc, "vd_dinucl");
     REQUIRE(node.at("side").get<std::string>() == "Three_prime");
@@ -252,7 +259,7 @@ TEST_CASE("model json: a malformed event node is rejected", "[Core][json]")
 {
     Model_Parms parms;
     REQUIRE_NOTHROW(parms.read_model_parms(TEST_DATA_DIR + "test_legacy_vdj_model_parms_v2.txt"));
-    const nlohmann::json doc = igor::model_parms_to_json(parms);
+    const nlohmann::json doc = igor::model::legacy::model_parms_to_json(parms);
 
     SECTION("an unknown key, a typo for instance") {
         nlohmann::json node = event_by_nickname(doc, "v_3_del");

@@ -5,6 +5,13 @@
 #include <memory>
 
 // Forward declarations
+
+namespace igor::core::legacy {}
+namespace igor::alignment::legacy {}
+namespace igor::model::legacy {
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+
 class Counter;
 class Error_rate;
 
@@ -57,3 +64,5 @@ struct AccumulationContext {
     AccumulationContext(AccumulationContext&&) = default;
     AccumulationContext& operator=(AccumulationContext&&) = delete;
 };
+
+} // namespace igor::model::legacy

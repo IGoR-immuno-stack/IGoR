@@ -20,6 +20,13 @@
  * Design principle: Zero-copy - store references/pointers to minimize
  * overhead in hot path (called millions of times per sequence).
  */
+
+namespace igor::core::legacy {}
+namespace igor::alignment::legacy {}
+namespace igor::model::legacy {
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+
 struct ScenarioContext {
     // Scenario probability (multiplied at each recursion level)
     double& scenario_proba;
@@ -260,3 +267,5 @@ struct ScenarioContext {
         return const_cast<Int_Str*>(constructed_sequences.get(seq_type));
     }
 };
+
+} // namespace igor::model::legacy

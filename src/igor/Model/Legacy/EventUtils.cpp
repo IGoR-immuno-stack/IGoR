@@ -1,6 +1,13 @@
 #include <igor/Model/Legacy/EventUtils.h>
 #include <igor/Model/Legacy/Rec_Event.h>
 
+
+namespace igor::core::legacy {}
+namespace igor::alignment::legacy {}
+namespace igor::model::legacy {
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+
 namespace EventUtils {
 
 Seq_type_String seq_type_to_string(Seq_type seq_type)
@@ -133,3 +140,5 @@ void initialize_offset_memory(
   }
 }
 } // namespace EventUtils
+
+} // namespace igor::model::legacy

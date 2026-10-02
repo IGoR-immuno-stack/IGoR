@@ -2,12 +2,19 @@
 
 #include <igor/Math/TensorCreation.h>
 
-namespace igor::model {
+#include <igor/Model/Forward.h>
+
+namespace igor::inference {
+using igor::model::RecombinationModel;
+using igor::model::Navigator;
+using igor::model::Topology;
+using igor::model::SampledScenario;
+using igor::model::SampledEvent;
 
 // ─── Constructor ───────────────────────────────────────────────────────
 
 template <typename T>
-MarkovInferenceHandler<T>::MarkovInferenceHandler(std::string name, igor::index_type uid, math::Tensor<T>& weights)
+MarkovInferenceHandler<T>::MarkovInferenceHandler(std::string name, igor::core::legacy::index_type uid, math::Tensor<T>& weights)
     : InferenceHandler<T>(std::move(name), uid)
     , m_weights(weights)
     , m_accumulator(math::tensor::zeros_like(weights))
@@ -95,4 +102,4 @@ void MarkovInferenceHandler<T>::maximizeLikelihood(void)
     }
 }
 
-} // namespace igor::model
+} // namespace igor::inference

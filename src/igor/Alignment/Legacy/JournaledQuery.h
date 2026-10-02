@@ -24,6 +24,11 @@
 
 /// One span of positions with multiple valid NT alternatives.
 /// Covers arbitrary-length patches (e.g. one codon = 3 positions).
+
+namespace igor::core::legacy {}
+namespace igor::alignment::legacy {
+using namespace igor::core::legacy;
+
 struct Patch {
     /// First position within the full receptor nt sequence
     int start;
@@ -73,7 +78,7 @@ struct ALIGNMENT_EXPORT JournaledQuery {
     std::string display_string;
 };
 
-namespace EventUtils {
+namespace journaled_query {
 
 /**
  * @brief Build a JournaledQuery from an OLGA-style AA motif string.
@@ -106,4 +111,6 @@ inline JournaledQuery aa_to_journaled_query(
     return motif_to_journaled_query(aa_seq, frame_offset, receptor_len);
 }
 
-} // namespace EventUtils
+} // namespace journaled_query
+
+} // namespace igor::alignment::legacy
