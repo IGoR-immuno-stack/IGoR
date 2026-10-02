@@ -812,6 +812,9 @@ The one visible inconsistency the frame would expose —
 `get_deletion_effective_junctions(D_gene_seq, ·)` omits the V→J span while
 `Gene_choice(D)::has_effect_on(VJ_ins_seq)` includes it — is harmless only because that map is
 never read (§6.10, finding 2).
+*(Wrong, corrected Oct 2 2026. The J gene choice reads a V→J table whenever it is placed after V
+and before D, which is the shipped priority order (7, 7, 6), and that table takes D's template
+without D's deletions, so it is not a bound: §7.22. R12's rule is what removes the inconsistency.)*
 
 **The elementary factors** are therefore alternating, not per-seq_type. "Anchor" below is the
 dynamic criterion just given. Because the consumer→anchors map is fixed at initialization, the
@@ -2286,11 +2289,11 @@ Decided behaviour changes, none of which had a row in §6 before this re-assessm
 | **R10** | ✅ **done Sep 26 2026.** §7.4 — `Deletion` stops reproducing the short `len_min` / `len_max` bound. `JunctionGeometry::legacy_offset_delta()` is deleted, both events carry a `PendingModifierBounds`, and `Deletion::iterate` reads its partner intervals from `pending_.reachable()` rather than translating a cached delta by hand. **One line of behaviour, and it is the line 4b could not take**: `Gene_choice` has been on the correct interval since B11a, so this is also what makes the two agree again | Sep 21, done Sep 26 | `Deletion`, `Gene_choice` | **`no_d_align` moves, and nothing else does.** Exactly one interval differs on the demo model, and the `Gene_choice` half measured **bitwise on its own**: see below |
 | **R7** | ✅ **done Sep 27 2026.** §7.16 — the `no_d_align` path compounded the D probability across placements, so placement *k* was handed off at `incoming × p^k` where every placement is the same realization and carries `incoming × p`. Both exhaustive loops read the live `scenario.scenario_proba` where the alignment loop restarts from a value captured once; both now read that same captured value. Two `[!shouldfail]` tags off. The re-check of §6.15's first-stage `break` came back **negative** — its licence was the monotonicity the defect created, not the sort order — so it is a `continue`, measured bitwise | Sep 16, done Sep 27 | `Gene_choice` | **`no_d_align` moves** — the reference encoded the compounded values. **And one `[!mayfail]` convergence section starts passing**: see below |
 | R11 | ✅ **done Oct 1 2026**, bitwise. **Delete the placeholder guard in `Dinucl_markov::iterate_common()`.** `ins_seq.at(i) == int_undefined` existed for the regime R1 removed: one buffer shared with the `Insertion` across sibling scenarios, where an already-written position had to read as *someone filled this*. The buffer is now created per scenario with every position a placeholder, so the guard is unreachable through `iterate()` and the unit case that pinned it was deleted rather than rewritten. Dead code with a live trap in it — the same shape as R9, and the reason it is a row rather than a tidy-up is that it is the last residue of the shared-buffer design | Sep 24 | `Dinucl_markov` | none — unreachable by construction after R1 |
-| R12 | **Generalise `affects_length_of` off the enum.** `Gene_choice`'s switch pins V leftmost and J rightmost and barely reads the `SegmentSpan` it is passed; the rule it stands for is *a segment adds length to a span when it sits strictly between the span's two ends in the 5′→3′ ordering*, which S5's `SafetyCell` already reads positions from. `Insertion`'s and `Deletion`'s overrides are the same kind of enum table — the latter already names its generic form. The comment deferring this to S4b is stale: S4b landed without it. Together with R8's rule it makes V's and J's absence from the junction tables follow from a rule instead of from ordering, and it is what a span between flanking sequences needs (§7.19's decision) | Sep 30 | `Gene_choice`, `Insertion`, `Deletion` | none — bitwise by construction: no shipped model has a span with a gene inside it other than D within V→J |
+| R12 | **Generalise `affects_length_of` off the enum.** `Gene_choice`'s switch pins V leftmost and J rightmost and barely reads the `SegmentSpan` it is passed; the rule it stands for is *a segment adds length to a span when it sits strictly between the span's two ends in the 5′→3′ ordering*, which S5's `SafetyCell` already reads positions from. `Insertion`'s and `Deletion`'s overrides are the same kind of enum table — the latter names a generic form in its comment, which turned out to be incomplete. The comment deferring this to S4b is stale: S4b landed without it. Together with R8's rule it makes V's and J's absence from the junction tables follow from a rule instead of from ordering, and it is what a span between flanking sequences needs (§7.19's decision). **Re-assessed Oct 1 2026: not bitwise, and blocked on the fold.** Written as a rule over the offset roles every event already declares — *an event changes a span's length when it creates or modifies an end of a segment strictly inside the span, or modifies one of the span's two ends* — it agrees with today's four tables in every reachable cell but one: **D's two deletions on V→J, which it puts in**. That cell is §7.22's defect, so R12 *is* R16's change, made by rule rather than by one more table entry. The bitwise alternative, the rule plus an exception for that cell, writes the defect into the rule. See *R12 in more detail* | Sep 30, re-assessed Oct 1 | `Rec_Event` (one rule replacing four overrides), `Dinucl_markov::affects_proba_of`, the fold driver (takes the model's registry) | **every inference output moves** — R16's movement, and only after the fold stops walking every path: as it stands, the bound build on the TRB corpus goes from 36 ms to 13.3 s. The original prediction, *"bitwise by construction: no shipped model has a span with a gene inside it other than D within V→J"*, named the one case where it fails |
 | R13 | ✅ **done Oct 1 2026.** **Junction tables conditioned on their reader's realization** *(decided Oct 1 2026, Quentin)*. R8 enforced *a table never contains its reader* with two per-role branches — `Insertion` in at weight 1, `Deletion` out — and the diagnosis afterwards is that neither branch was the point: what was wrong was that the table **merged across the reader's own realizations**, harmless for the insertion because its key identifies its realization, lossy for the deletion. The rule becomes two parts with no role in them: the reader's probability is never in its table, and a reader that changes its span's length gets **one profile per realization**, folded from that realization at weight 1 with its length published like any participant's. The key is always the plain sum of `length_delta` over every enumerated event, so each reader reads *its realization's* profile at the gap as it stood **before its own choice**. Makes no assumption about what follows the reader — R8's 3c-i and the first proposal after it both leaned on "only a `Dinucl_markov` follows an insertion", which the base class has no business knowing — and needs no subclass knowledge: `participates_in_span`, `affects_length_of`, `length_delta` and the existing publisher step. `is_reader`, `creates_own_offsets()`'s use as a reader test, and the entry-point overload go | Oct 1 | the fold's driver, `JunctionBound`, the `Insertion` and `Deletion` consumers | **none — expected bitwise against 3c-ii**: every value is a max over the same completions, each path multiplying the same factors in the same order |
 | R14 | ✅ **done Oct 1 2026.** **Delete the crude bound path's runtime half.** `compute_crude_upper_bound_scenario_proba()` has no caller, so `updated_proba_bounds_list`, `scenario_downstream_upper_bound_proba`, `Dinucl_markov::get_updated_ptr()` with its heap-allocated `updated_upper_bound_proba`, and `Insertion`'s `*dinuc_updated_bound = …` — a dead store in the hot loop — are unreachable at scenario time. The init half stays: `event_upper_bound_proba` feeds `Dinucl_markov::span_proba_factor` | Oct 1 | `Rec_Event`, `Insertion`, `Dinucl_markov`, `GenModel`'s init loop | none — bitwise by construction, **confirmed**: see *R14 in more detail* |
 | R15 | ✅ **done Oct 1 2026.** **The fold's state as one object.** The recursion passes nine or ten arguments per call; `double &scenario_proba` and `int &seq_len` are never written through; the `const` fold mutates `base_index_map` via `set_current_layer(…, 0)` to read a base index; and the `maxᵢ` over conditioning parents is written twice, in the fold body and in `build_retained_decomposition()`, which R6 would otherwise have to replace in two places. A small `SpanFold` (span, profile, participants, lengths, parameters, base indices) with one `fold_from(cursor, proba, length)`, and one `realization_bound()` helper | Oct 1 | the fold | none — bitwise, **confirmed**: see *R15 in more detail* |
-| R16 | **Put D's deletions into the V→J table the J gene choice reads** (§7.22). Today they take part only on VD and DJ — legacy `has_effect_on`'s table — so J's table credits a gap without pricing the D nucleotides it needs trimmed, and is not a bound: one iteration of the corpus loses 1 708 scenarios above the threshold to it. As one line it costs 7× on the regression inference track, because the fold walks every path; §7.22 gives two shapes that do not. **Not decided** | Oct 2 (found) | the fold, and `Deletion::affects_length_of` | **every inference output moves**, upward where the threshold is concerned |
+| R16 | **Put D's deletions into the V→J table the J gene choice reads** (§7.22). Today they take part only on VD and DJ — legacy `has_effect_on`'s table — so J's table credits a gap without pricing the D nucleotides it needs trimmed, and is not a bound: one iteration of the corpus loses 1 708 scenarios above the threshold to it. As one line it costs 7× on the regression inference track, because the fold walks every path; §7.22 gives two shapes that do not. **R12 reaches the same cell from the other side** (Oct 1 2026, found independently): generalising `affects_length_of` puts D's deletions on V→J by rule, so the two rows are one change — *R12 in more detail* proposes how to split it. **Not decided** | Oct 2 (found) | the fold, and `Deletion::affects_length_of` | **every inference output moves**, upward where the threshold is concerned |
 | **R8** | ✅ **done Sep 30 2026, in three stages.** §7.19 — an `Insertion`'s bound multiplies in its own realization's marginal twice, once through `proba_contribution` and once inside the junction profile it reads, so the bound falls below the probability the scenario goes on to realize and insertion nodes prune harder than the threshold asks. **Decided Sep 30 2026 (Quentin): shape 2, as a rule** — an event's bound is built only from the events not yet realized when it reads the table, so the reader is out of its own table by definition. `Deletion` modifies an anchor and leaves its own table entirely; `Insertion` creates the length the key counts and stays in for its length with probability 1. **`Deletion`'s mirror is derived to tighten the bound as well** — by one deletion marginal under uniform marginals — not to weaken it as §6.14 recorded; **confirmed by stage 3c-0, Sep 30 2026**, exactly one marginal short in every arm. Does **not** merge with R6: R8 changes which events enter a table, R6 what each contributes. See §7.19's decision. **3c-i (`Insertion`) and 3c-ii (`Deletion`) both landed Sep 30 2026** — see *R8 in more detail* | Sep 17, decided Sep 30 | the fold's entry point in `Rec_Event.cpp`; `Insertion` and `Deletion` consumers unchanged | **every inference output moves**, upward: bounds only rise, so less is pruned. Staged so each movement has one cause |
 
 R9, R0, R2, R1+R3 and R3b were each expected to be bitwise-neutral despite being behaviour
@@ -2340,7 +2343,7 @@ first and attributability second:
 bitwise by construction. R15 is worth landing before R6, which rewrites the same `maxᵢ`. **R14
 and R15 landed the same day**, both bitwise.
 
-**R12 joined the catalogue on Sep 30 2026**, with R8's decision, and is not placed either: bitwise by construction, so it lands wherever convenient, and before any flanking-sequence work at the latest.
+**R12 joined the catalogue on Sep 30 2026**, with R8's decision, and is not placed either: bitwise by construction, so it lands wherever convenient, and before any flanking-sequence work at the latest. **That premise did not survive (Oct 1 2026).** The rule moves every inference output, because it is R16's change, and it needs a fold that does not walk every path. So R12 goes with R16, after the fold rewrite — see *R12 in more detail*.
 
 **R11 joined the catalogue on Sep 24 2026** and is not placed in the order above. It is free —
 unreachable code, no dependencies either way — so it lands wherever it is convenient, in the way R9
@@ -3250,6 +3253,98 @@ taken: conditioning a gene choice's tables on its own realization when it condit
 — R13's rule with a second trigger, which is D's own two tables — and the cross-clique parent
 indexing above. And §7.22's table, which is the more pressing, since it is a soundness defect
 rather than slack: **R16**.
+
+**R12 in more detail** *(Oct 1–2 2026; a proposal, not decided)*. R12 was started on Oct 1 as a
+bitwise row and stopped before any code landed, because the rule it asks for turned out to be
+R16's change.
+
+*The rule.* Stated over the offset roles every event already declares, and nothing else:
+
+> An event changes the length of `span(L 3′, R 5′)` when, by its own `get_offset_role()`, it
+> **creates or modifies an end of a segment strictly inside the span**, or **modifies one of the
+> span's two ends**. Creating one of the two ends does not count: that is anchoring, and the span is
+> measured from it.
+
+`Gene_choice` and `Insertion` create both ends of their segment, `Deletion` modifies one end of its
+target, and `Dinucl_markov` places none. *Strictly inside* is read off the model's ordering. Nothing
+in the rule names an event kind, and V and J would take part in a span between flanking sequences
+without a new case. `Dinucl_markov::affects_proba_of()` becomes the same test on the segment it
+creates.
+
+*Against today's tables, cell by cell:*
+
+| event | today | the rule | |
+|---|---|---|---|
+| `Gene_choice` V, J | no span | no span: they are an end of every span a shipped model asks for | same |
+| `Gene_choice` D | V→J | V→J | same |
+| `Insertion` VD / DJ / VJ | {VD, VJ} / {DJ, VJ} / {VJ} | the spans its segment sits inside | same |
+| `Dinucl_markov` (probability) | as its insertion | as its segment | same |
+| `Deletion` V 3′ / J 5′ | {VD, VJ} / {DJ, VJ} | the spans whose end it moves | same |
+| `Deletion` D 5′ / D 3′ | {VD} / {DJ} | {VD, **VJ**} / {DJ, **VJ**}: D is strictly inside V→J | **differs: §7.22's cell** |
+| `Deletion` V 5′ / J 3′ | as V 3′ / J 5′: the legacy table ignores the side | none | differs; no shipped model has one |
+
+The row's own one-line rule, *a segment adds length when it sits strictly between the ends*, covers
+creators only. The generic form `Deletion::affects_length_of()`'s comment names, *(target, side) is
+an inward-facing endpoint of the span*, leaves out the interior. Each of them, taken alone, keeps
+the defect. Only the two together, as above, are consistent with D's template counting on V→J.
+
+**Readers are unaffected.** R13 conditions a table on its reader when the reader
+`affects_length_of()` the span, and the rule answers as today for every reader in a shipped model:
+the second of V and J on V→J, and D on V→D and D→J, create an end of the span, so they are not
+conditioned; a deletion moves an end of the span it reads, and an insertion sits inside its own,
+so both are conditioned. The only thing that changes is which events take part in J's V→J table.
+
+*Measured* on Oct 1, before R6 landed, with a throwaway patch to `Deletion::affects_length_of()`
+that answers yes for a D deletion on V→J (reverted afterwards):
+
+| measured | result |
+|---|---|
+| `demo` batch, iteration 1 | identical |
+| `demo` batch, iteration 2 | 1 sequence of 300 changes: +391 scenarios, likelihood +0.9 %, same best scenario |
+| `demo` batch, iterations 3–4 | all 300 change, through the marginals; final marginals at most 1.25 × 10⁻³ apart |
+| bound build, TRB regression corpus (`[proba_bound]` benchmark) | 36.1 ms → **13.3 s per sweep** (×370), paid once per EM iteration |
+| bound build, human TCR-alpha (VJ) | unchanged, ≈ 1 ms |
+
+Human TCR-beta and BCR-heavy were not measured; the run was stopped there. The numbers agree with
+§7.22's, which the R6 session took separately. *R6, delivered* also ran this state with the joint
+max on and off and found every output identical. So the movement belongs to R16 alone and does not
+depend on R6.
+
+*Options.*
+
+- **A (proposed): two stages.**
+  1. **The fold stops walking every path**: §7.22's shape 1, as a cache on today's walk. Expected
+     bitwise, but not bitwise by construction: the cache multiplies `proba × (p₁ × p₂)` where the
+     walk multiplies `(proba × p₁) × p₂`, so a bound can move by one unit in the last place. That
+     flips a pruning decision only for a bound within that distance of the threshold. Gate: the
+     full ladder, the `[proba_bound]` benchmark, and an identical instrument report.
+  2. **R12's rule**, which is R16. Every inference output moves, and `cli`, `no_d_align` and
+     `generate` move with it through the golden model they read, so the cascade is regenerated in
+     order. Gate: the full ladder, convergence, and the instrument, where the three unsound
+     `GeneChoice_J_gene` nodes on the inferred model should go to 0.
+- **B: the rule, plus an exception for D's deletions on V→J.** Bitwise, but it writes §7.22's defect
+  into the rule. Not recommended.
+- **C: the rule on today's fold.** 370× on the bound build, every EM iteration. Not viable.
+
+*What stage 2 touches, besides the rule:*
+
+- **The fold driver takes the model's `SeqTypeRegistry`**, which answers *strictly inside*. The same
+  registry then sizes `UnfilledSegmentLengths`, which today uses `legacy_seq_type_registry()`. That
+  registry has six ids, so a tandem-D junction's id would fall outside it.
+- **`affects_length_of()` becomes one non-virtual rule on `Rec_Event`.** The overrides go from
+  `Gene_choice`, `Insertion`, `Deletion` and `Dinucl_markov`, and from the three test mocks in
+  `test_utils.h`, `test_EventUtils.cpp` and `test_junction_geometry.cpp`. `legacy_junction_of()`
+  keeps one job: the downstream-map key that `Gene_choice` and `Deletion` compute in
+  `initialize_event()`.
+- **`Dinucl_markov::span_proba_factor()` reads `this->seq_type_id`** instead of the enum value. That
+  leaves `dinucl_ins_seq_type_or_throw()` with no caller in the fold, so the case *"An unrecognised
+  Dinucl_markov seq_type is rejected"* moves to wherever validation belongs, or goes: a D1D2 Dinucl
+  is what tandem D needs accepted.
+- **A test pins the defect.** `test_event_capabilities.cpp`'s *"A deletion widens the span whose
+  anchor boundary it moves"* has `CHECK_FALSE` on V→J for both D deletions, with a comment arguing
+  that a D deletion never changes V→J. Both checks flip, and the comment goes.
+- **A stale comment, for whichever fold change lands next.** `SpanProfile.h`'s class comment still
+  says *"each owner folds itself plus its suffix"*, which has been wrong since R8.
 
 **Naming**: R1–R6 are *repairs*; F1–F5 in §6.8 are the *findings* of the re-assessment. Different
 sequences, deliberately different letters.
@@ -5440,6 +5535,19 @@ threshold.
    **one** participant with a few dozen lengths instead of three events with 3 × 21 × 21 paths.
    That is §6.10's *"fold over contribution groups rather than events"*, with its first real
    consumer.
+
+**Two additions from R12** *(Oct 2 2026)*, which reached this cell independently — see *R12 in
+more detail* for the rule and the measurements:
+
+- **Shape 1's state has a third component**: the lengths published but not yet read. A
+  `Dinucl_markov`'s `p^L` factor reads the length its `Insertion` published earlier on the path, so
+  a profile kept per *(length, open parent realizations)* cannot price it, unless the fold assumes
+  the `Dinucl_markov` comes right after its `Insertion`, and the base class must not assume that
+  (R13).
+- **Shape 1 can be had as a cache on the walk we already have**, and it saves what shape 2 saves
+  without shape 2's grouping. Keyed by the participant and that three-part state, the profile of
+  everything after a participant is built once and reused by every path that reaches it in that
+  state. Nothing has to find the clique, and its members need not be adjacent in the fold's order.
 
 **The relevant history.** The legacy fold carries a commented-out block that updated
 `base_index_map` from each realization's `memory_and_offsets` — R6's joint max, sketched and
