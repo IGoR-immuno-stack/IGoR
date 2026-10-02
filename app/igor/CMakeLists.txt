@@ -35,7 +35,7 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
 find_package(OpenSSL REQUIRED)
 target_link_libraries(${PROJECT_NAME} PRIVATE OpenSSL::Crypto)
 
-target_link_libraries(${PROJECT_NAME} PRIVATE igor::Core)
+target_link_libraries(${PROJECT_NAME} PRIVATE igor::Inference igor::Generation igor::Alignment)
 target_link_libraries(${PROJECT_NAME} PRIVATE GSL::gsl)
 target_link_libraries(${PROJECT_NAME} PRIVATE CLI11::CLI11)
 target_link_libraries(${PROJECT_NAME} PRIVATE tomlplusplus::tomlplusplus)

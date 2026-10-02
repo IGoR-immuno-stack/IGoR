@@ -1,6 +1,6 @@
 #pragma once
 
-#include <igor/Core/Typedef.h>
+#include <igor/Core/Legacy/Typedef.h>
 
 #include <vector>
 #include <string>

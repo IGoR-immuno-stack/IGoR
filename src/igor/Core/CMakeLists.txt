@@ -12,6 +12,8 @@ LANGUAGES
 
 add_library(${PROJECT_NAME} SHARED)
 
+# Step 1a keeps Core's flat export header (<igorCoreExport.h>); aligning it on the other
+# layers' <igor/<Layer>/Export.h> scheme is step 1b of doc/LAYER_REFACTORING_PROPOSAL.md.
 generate_export_header(${PROJECT_NAME}
   EXPORT_FILE_NAME "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_PROJECT_NAME}${PROJECT_NAME}Export.h")
 
@@ -29,86 +31,26 @@ add_library(${CMAKE_PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 
 target_sources(${PROJECT_NAME}
   PRIVATE
-    Aligner.cpp
-    Bestscenarioscounter.cpp
-    CDR3SeqData.cpp
-    Counter.cpp
-    Coverageerrcounter.cpp
-    Deletion.cpp
-    Dinuclmarkov.cpp
-    Errorrate.cpp
-    Errorscounter.cpp
-    EventUtils.cpp
-    ExtractFeatures.cpp
-    FastGenerator.cpp
-    FastSampling.cpp
-    GenModel.cpp
-    Genechoice.cpp
-    GeneticCode.cpp
-    gene_to_seqtype_migr.cpp
-    HypermutationfullNmererrorrate.cpp
-    Hypermutationglobalerrorrate.cpp
-    Insertion.cpp
-    IntStr.cpp
-    JournaledQuery.cpp
-    ModelJson.cpp
-    Model_Parms.cpp
-    Model_marginals.cpp
-    Pgencounter.cpp
-    Rec_Event.cpp
-    Singleerrorrate.cpp
-    Utils.cpp
+    Legacy/GeneticCode.cpp
+    Legacy/IntStr.cpp
+    Legacy/Utils.cpp
 
   PUBLIC FILE_SET HEADERS
     BASE_DIRS
       ${CMAKE_CURRENT_SOURCE_DIR}
       ${CMAKE_CURRENT_BINARY_DIR}
     FILES
-      AccumulationContext.h
-      Aligner.h
-      Bestscenarioscounter.h
-      CDR3SeqData.h
-      Counter.h
-      Coverageerrcounter.h
-      Deletion.h
-      Dinuclmarkov.h
-      Errorrate.h
-      Errorscounter.h
-      EventUtils.h
-      ExplorationContext.h
-      ExtractFeatures.h
-      FastGenerator.h
-      FastSampling.h
-      GenModel.h
-      Genechoice.h
-      GeneticCode.h
-      gene_to_seqtype_migr.h
-      HypermutationfullNmererrorrate.h
-      Hypermutationglobalerrorrate.h
-      Insertion.h
-      IntStr.h
-      JournaledQuery.h
-      JunctionGeometry.h
-      ModelContext.h
-      ModelJson.h
-      Model_Parms.h
-      Model_marginals.h
-      Pgencounter.h
-      QuerySequenceContext.h
-      Rec_Event.h
-      Scenario.h
-      ScenarioContext.h
-      DynamicSequenceMap.h
-      LayeredArray.h
-      StdTypedefs.h
-      CoreEnums.h
-      SegmentSpan.h
-      SeqOffsetsMap.h
-      SeqTypeRegistry.h
-      UnfilledSegmentLengths.h
-      SpanProfile.h
-      Singleerrorrate.h
-      Utils.h
+      Legacy/CoreEnums.h
+      Legacy/DynamicSequenceMap.h
+      Legacy/GeneticCode.h
+      Legacy/IntStr.h
+      Legacy/LayeredArray.h
+      Legacy/SegmentSpan.h
+      Legacy/SeqOffsetsMap.h
+      Legacy/SeqTypeRegistry.h
+      Legacy/StdTypedefs.h
+      Legacy/Typedef.h
+      Legacy/Utils.h
       ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_PROJECT_NAME}${PROJECT_NAME}Export.h
       ${CMAKE_CURRENT_BINARY_DIR}/Config
       ${CMAKE_CURRENT_BINARY_DIR}/Config.h
@@ -125,12 +67,6 @@ target_include_directories(${PROJECT_NAME} PUBLIC
   $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src>
   $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/src>
 )
-
-target_link_libraries(${PROJECT_NAME} PUBLIC GSL::gsl)
-# PUBLIC because Rec_Event.h names nlohmann::json in to_json()'s signature. Headers only
-# include <nlohmann/json_fwd.hpp>; the full json.hpp stays in the .cpp files.
-target_link_libraries(${PROJECT_NAME} PUBLIC nlohmann_json::nlohmann_json)
-target_link_libraries(${PROJECT_NAME} PRIVATE OpenMP::OpenMP_CXX)
 
 if(WIN32)
   target_link_libraries(${PROJECT_NAME} PRIVATE ws2_32)

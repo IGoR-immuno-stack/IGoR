@@ -14,11 +14,11 @@
 #include <igor/Model/LegacyBridge.h>
 #include <igor/Model/Topology.h>
 #include <igor/Model/RecombinationModel.h>
-#include <igor/Core/ModelJson.h>
+#include <igor/Model/Legacy/ModelJson.h>
 
 #include <nlohmann/json.hpp>
-#include <igor/Core/Model_marginals.h>
-#include <igor/Core/Model_Parms.h>
+#include <igor/Model/Legacy/Model_marginals.h>
+#include <igor/Model/Legacy/Model_Parms.h>
 
 #include <sstream>
 #include <cmath>

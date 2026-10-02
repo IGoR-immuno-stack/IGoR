@@ -8,10 +8,10 @@
 
 #pragma once
 
-#include <igor/Core/Model_Parms.h>
-#include <igor/Core/Model_marginals.h>
-#include <igor/Core/Rec_Event.h>
-#include <igor/Core/FastGenerator.h>
+#include <igor/Model/Legacy/Model_Parms.h>
+#include <igor/Model/Legacy/Model_marginals.h>
+#include <igor/Model/Legacy/Rec_Event.h>
+#include <igor/Generation/Legacy/FastGenerator.h>
 
 #include <algorithm>
 #include <array>

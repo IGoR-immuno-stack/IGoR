@@ -3,8 +3,8 @@
 #include <igor/Model/Export.h>
 #include <igor/Model/Navigator.h>
 
-#include <igor/Core/Rec_Event.h>
-#include <igor/Core/Typedef.h>
+#include <igor/Model/Legacy/Rec_Event.h>
+#include <igor/Core/Legacy/Typedef.h>
 
 #include <nlohmann/json_fwd.hpp>
 

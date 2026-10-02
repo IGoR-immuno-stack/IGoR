@@ -12,10 +12,10 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-#include <igor/Core/Deletion.h>
-#include <igor/Core/Dinuclmarkov.h>
-#include <igor/Core/Genechoice.h>
-#include <igor/Core/Insertion.h>
+#include <igor/Model/Legacy/Deletion.h>
+#include <igor/Model/Legacy/Dinuclmarkov.h>
+#include <igor/Model/Legacy/Genechoice.h>
+#include <igor/Model/Legacy/Insertion.h>
 #include <igor/Model/EventFactory.h>
 
 #include <nlohmann/json.hpp>

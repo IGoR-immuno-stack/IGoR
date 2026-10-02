@@ -3,7 +3,7 @@
 #pragma once
 
 #include <igor/Model/Export.h>
-#include <igor/Core/Rec_Event.h>
+#include <igor/Model/Legacy/Rec_Event.h>
 
 #include <nlohmann/json_fwd.hpp>
 

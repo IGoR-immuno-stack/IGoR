@@ -10,8 +10,8 @@
 #pragma once
 
 #include <igor/Streaming/SequenceBatchHelpers.h>
-#include <igor/Core/Utils.h>
-#include <igor/Core/Aligner.h>
+#include <igor/Core/Legacy/Utils.h>
+#include <igor/Alignment/Legacy/Aligner.h>
 
 #include <exception>
 #include <sparrow/record_batch.hpp>

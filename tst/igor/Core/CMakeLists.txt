@@ -1,56 +1,25 @@
 ### CMakeLists.txt ---
 
-set(CORE_TEST_SOURCES
-    test_aligner.cpp
-    test_aligner_benchmark.cpp
-    test_alignment_cigar.cpp
-    test_bound_tightness.cpp
-    test_Contexts.cpp
-    test_EventUtils.cpp
-    test_deletion_iterate.cpp
-    test_dinucl_markov_iterate.cpp
-    test_dynamic_sequence_map.cpp
-    test_error_rate_bound.cpp
-    test_event_capabilities.cpp
-    test_fast_sampling.cpp
-    test_generation.cpp
-    test_gene_choice_iterate.cpp
-    test_genetic_code.cpp
-    test_inference.cpp
-    test_insertion_iterate.cpp
-    test_junction_geometry.cpp
-    test_layered_array.cpp
-    test_matrix.cpp
-    test_model_format_v2.cpp
-    test_model_json.cpp
-    test_proba_bound_benchmark.cpp
-    test_safety_matrix.cpp
-    test_sanity.cpp
-    test_span_profile.cpp
-    test_utils.cpp
-    AlignerTestUtils.cpp
+add_executable(core_tests
+    Legacy/test_dynamic_sequence_map.cpp
+    Legacy/test_layered_array.cpp
+    Legacy/test_matrix.cpp
+    Legacy/test_sanity.cpp
 )
 
-add_executable(igor_tests ${CORE_TEST_SOURCES})
+set_target_properties(core_tests PROPERTIES CXX_STANDARD 23)
 
-target_link_libraries(igor_tests
+target_link_libraries(core_tests
     PRIVATE
         igor::Core
         Catch2::Catch2WithMain)
 
-target_compile_definitions(igor_tests PRIVATE
+target_compile_definitions(core_tests PRIVATE
     IGOR_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 
-# Whitebox tests reach into Core-internal Smith-Waterman DP symbols (see AlignerInternal.h)
-# that aren't part of Core's normal public API. CORE_TESTING_ENABLED switches those symbols'
-# CORE_TESTING_EXPORT annotation to a real export/import (instead of hidden visibility) only
-# for this test build, on both sides of the Core shared library boundary: Core itself (so it
-# actually exports them) and igor_tests (so it declares them the same way when importing).
-target_compile_definitions(Core PRIVATE CORE_TESTING_ENABLED)
-target_compile_definitions(igor_tests PRIVATE CORE_TESTING_ENABLED)
-
 include(Catch)
-catch_discover_tests(igor_tests
+# CI's main job runs `ctest -L unit`; the other two groups are run by the nightly job.
+catch_discover_tests(core_tests
     TEST_SPEC "~[integration]~[slow]"
     TEST_PREFIX "unit::"
     PROPERTIES
@@ -58,7 +27,7 @@ catch_discover_tests(igor_tests
         LABELS "unit"
 )
 
-catch_discover_tests(igor_tests
+catch_discover_tests(core_tests
     TEST_SPEC "[integration]"
     TEST_PREFIX "integration::"
     PROPERTIES
@@ -66,7 +35,7 @@ catch_discover_tests(igor_tests
         LABELS "integration"
 )
 
-catch_discover_tests(igor_tests
+catch_discover_tests(core_tests
     TEST_SPEC "[convergence]"
     TEST_PREFIX "convergence::"
     PROPERTIES
