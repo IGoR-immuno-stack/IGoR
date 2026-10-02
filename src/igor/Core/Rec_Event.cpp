@@ -734,12 +734,12 @@ void Rec_Event::build_retained_decomposition(const Marginal_array_p &model_param
 
         const int own_length = this->length_delta(realization);
 
-        for (const SpanProfile::Entry near : left.profile()) {
-            for (const SpanProfile::Entry far : right.profile()) {
-                decomposition.record(own_length + near.distance + far.distance,
-                                     SpanDecomposition::Placement{realization.index, near.distance,
-                                                                  far.distance,
-                                                                  real_max_proba * near.proba * far.proba});
+        for (const SpanProfile::Entry near_ : left.profile()) {
+            for (const SpanProfile::Entry far_ : right.profile()) {
+                decomposition.record(own_length + near_.distance + far_.distance,
+                                     SpanDecomposition::Placement{realization.index, near_.distance,
+                                                                  far_.distance,
+                                                                  real_max_proba * near_.proba * far_.proba});
             }
         }
     }
