@@ -5,15 +5,16 @@
  *
  *  Handler for categorical distributions (Gene_choice, Deletion, Insertion).
  *
- *  The weight tensor has shape [n_realizations, parent1, parent2, ...]
- *  where the first dimension is the event's own realizations and the
- *  remaining dimensions correspond to parent event realizations.
+ *  The weight tensor has shape [parent1, parent2, ..., n_realizations]
+ *  where the leading dimensions are the parent events' realizations and the
+ *  last dimension is the event's own realizations, so that one parent
+ *  combination is one contiguous row.
  *
  *  The handler borrows a mutable reference to the probability tensor stored
  *  in RecombinationModel. It only owns the accumulator tensor needed for
  *  the E-step.
  *
- *  M-step: normalize along axis 0 (sum over own realizations = 1
+ *  M-step: normalize along the last axis (sum over own realizations = 1
  *          for each combination of parent values).
  */
 

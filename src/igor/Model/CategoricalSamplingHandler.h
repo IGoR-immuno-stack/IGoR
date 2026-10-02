@@ -11,7 +11,7 @@ namespace igor::model {
 // ─── CategoricalSamplingHandler<T> ───────────────────────────────────────────
 //
 // Handler for categorical distributions (Gene_choice, Deletion, Insertion).
-// Tensor shape: [n_realizations, parent1_size, parent2_size, ...]
+// Tensor shape: [parent1_size, parent2_size, ..., n_realizations]  (parents first, own last)
 //
 // The handler borrows a const reference to the probability tensor stored in
 // RecombinationModel. It only owns the precomputed CDF tables.
