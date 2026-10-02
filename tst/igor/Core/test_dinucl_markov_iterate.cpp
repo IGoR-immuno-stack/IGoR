@@ -261,11 +261,9 @@ TEST_CASE("Dinucl_markov: an empty junction is filled with nothing, not skipped"
 // The case that used to stand here -- "only placeholder positions are written" -- pinned the
 // `ins_seq.at(i) == int_undefined` guard in iterate_common(), which let this event share one
 // buffer with the Insertion across sibling scenarios. O12 (a') removed the sharing: the buffer
-// is created here, per scenario, every position a placeholder by construction. The guard is
-// still in the code and is now unreachable through iterate(); setting up the state it tested
-// would mean reaching past the production path to build a scenario the code cannot produce,
-// which is exactly what this file declines to do elsewhere. Deleting the guard is its own
-// change, queued behind this one.
+// is created here, per scenario, every position a placeholder by construction, which left the
+// guard unreachable through iterate(). R11 deleted it, so iterate_common() now writes every
+// position; the cases above that read the filled junction are what cover that.
 
 TEST_CASE("Dinucl_markov: downstream bound and memory layering", "[dinucl][iterate]")
 {

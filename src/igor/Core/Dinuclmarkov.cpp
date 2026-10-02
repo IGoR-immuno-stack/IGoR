@@ -184,10 +184,10 @@ void Dinucl_markov::iterate(
         scenario.constructed_sequences.set(spec.target_id, &junction_str, memory_layer_seq);
 
         //One entry per position filled, appended as the fill proceeds, where a fixed-width
-        //array would keep the previous scenario's value at any position this one skips. Since
-        //(a') there are none to skip -- every position of a freshly created junction is a
-        //placeholder -- but the append is what makes that a fact about the state rather than
-        //a coincidence the reader has to check for.
+        //array would keep the previous scenario's value at any position this one skips. There
+        //are none to skip -- iterate_common() writes every position -- but the append is what
+        //makes that a fact about the state rather than a coincidence the reader has to check
+        //for.
         realization_indices.clear();
         //Capacity comes from the paired Insertion's longest realization, so the push_backs
         //below never reallocate. Worth stating: a junction that outgrew it would still be
@@ -411,23 +411,53 @@ void Dinucl_markov::iterate_common(std::vector<int> &realization_indices, int &p
                                    Int_Str &ins_seq, const Marginal_array_p &model_parameters_point)
 {
 
+    //Every position is written. The junction is created by iterate() for this scenario alone
+    //(O12 (a')), so there is no earlier fill to preserve; the guard that skipped positions
+    //already holding a nucleotide belonged to the buffer once shared with the Insertion, and
+    //went with it (R11, plan section 7.13).
     if (!ins_seq.empty()) {
-        if (ins_seq.at(0) == int_undefined) {
 
-            //first_nt_index = event_realizations.at(previous_assigned_nt).index;
-            //sec_nt_index = event_realizations.at(data_seq_substr.substr(0,1)).index;
+        //first_nt_index = event_realizations.at(previous_assigned_nt).index;
+        //sec_nt_index = event_realizations.at(data_seq_substr.substr(0,1)).index;
 
-            first_nt_index = previous_assigned_nt; //[0] -'0';
-            sec_nt_index = data_seq_substr[0]; //-'0';
+        first_nt_index = previous_assigned_nt; //[0] -'0';
+        sec_nt_index = data_seq_substr[0]; //-'0';
+
+        current_realizations_index_vec.emplace_back(sec_nt_index);
+
+        //For this Dinucl_Markov model the values on the marginal array represents the conditional probability of a couple of nucleotides (N2 | N1)
+        if ((first_nt_index < 4) & (sec_nt_index < 4)) {
+            offset = first_nt_index * event_realizations.size();
+            realization_final_index = base_index + offset + sec_nt_index;
+            proba_contribution *= model_parameters_point
+                    [realization_final_index]; ///compute_nt_freq(base_index+offset , model_parameters_point);
+            realization_indices.push_back(realization_final_index);
+        } else {
+            //If an ambiguous nucleotide is present we take the average probability over possible underlying nts
+            proba_contribution *= dinuc_proba_matrix(first_nt_index, sec_nt_index);
+            realization_indices.push_back(-1);
+        }
+
+        ins_seq.at(0) = data_seq_substr.at(0);
+        total_nucl_count += 1;
+
+        for (size_t i = 1; i != ins_seq.size(); ++i) {
+
+            //first_nt_index = event_realizations.at(data_seq_substr.substr(i-1,1)).index;
+            //sec_nt_index = event_realizations.at(data_seq_substr.substr(i,1)).index;
+
+            first_nt_index = data_seq_substr[i - 1]; // -'0';
+            sec_nt_index = data_seq_substr[i]; // -'0';
 
             current_realizations_index_vec.emplace_back(sec_nt_index);
 
-            //For this Dinucl_Markov model the values on the marginal array represents the conditional probability of a couple of nucleotides (N2 | N1)
+            //For this Dinucl_Markov model the values on the marginal array represents the joint probability of a couple of nucleotides (N1 , N2)
             if ((first_nt_index < 4) & (sec_nt_index < 4)) {
                 offset = first_nt_index * event_realizations.size();
                 realization_final_index = base_index + offset + sec_nt_index;
                 proba_contribution *= model_parameters_point
-                        [realization_final_index]; ///compute_nt_freq(base_index+offset , model_parameters_point);
+                        [base_index + offset
+                         + sec_nt_index]; ///compute_nt_freq(base_index+offset , model_parameters_point);
                 realization_indices.push_back(realization_final_index);
             } else {
                 //If an ambiguous nucleotide is present we take the average probability over possible underlying nts
@@ -435,38 +465,8 @@ void Dinucl_markov::iterate_common(std::vector<int> &realization_indices, int &p
                 realization_indices.push_back(-1);
             }
 
-            ins_seq.at(0) = data_seq_substr.at(0);
+            ins_seq.at(i) = data_seq_substr.at(i);
             total_nucl_count += 1;
-        }
-
-        for (size_t i = 1; i != ins_seq.size(); ++i) {
-            if (ins_seq.at(i) == int_undefined) {
-
-                //first_nt_index = event_realizations.at(data_seq_substr.substr(i-1,1)).index;
-                //sec_nt_index = event_realizations.at(data_seq_substr.substr(i,1)).index;
-
-                first_nt_index = data_seq_substr[i - 1]; // -'0';
-                sec_nt_index = data_seq_substr[i]; // -'0';
-
-                current_realizations_index_vec.emplace_back(sec_nt_index);
-
-                //For this Dinucl_Markov model the values on the marginal array represents the joint probability of a couple of nucleotides (N1 , N2)
-                if ((first_nt_index < 4) & (sec_nt_index < 4)) {
-                    offset = first_nt_index * event_realizations.size();
-                    realization_final_index = base_index + offset + sec_nt_index;
-                    proba_contribution *= model_parameters_point
-                            [base_index + offset
-                             + sec_nt_index]; ///compute_nt_freq(base_index+offset , model_parameters_point);
-                    realization_indices.push_back(realization_final_index);
-                } else {
-                    //If an ambiguous nucleotide is present we take the average probability over possible underlying nts
-                    proba_contribution *= dinuc_proba_matrix(first_nt_index, sec_nt_index);
-                    realization_indices.push_back(-1);
-                }
-
-                ins_seq.at(i) = data_seq_substr.at(i);
-                total_nucl_count += 1;
-            }
         }
     }
 }
