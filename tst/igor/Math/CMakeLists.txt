@@ -23,7 +23,13 @@ target_link_libraries(math_tests
 )
 
 include(Catch)
-catch_discover_tests(math_tests)
+# Labelled like tst/igor/Core so that CI's `ctest -L unit` runs this suite. Pure, no fixtures.
+catch_discover_tests(math_tests
+    TEST_PREFIX "unit::"
+    PROPERTIES
+        TIMEOUT 3600
+        LABELS "unit"
+)
 
 ######################################################################
 ### CMakeLists.txt ends here

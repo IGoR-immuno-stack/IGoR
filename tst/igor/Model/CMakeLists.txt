@@ -30,7 +30,24 @@ target_compile_definitions(model_tests
 )
 
 include(Catch)
-catch_discover_tests(model_tests)
+# Same labelling as tst/igor/Core: CI's main job runs `ctest -L unit`, so an unlabelled
+# discovery is a suite CI never runs. The two [inference] cases drive a full EM through
+# GenModel on generated data (about 11 s together) and go with [integration].
+catch_discover_tests(model_tests
+    TEST_SPEC "~[inference]~[integration]~[slow]"
+    TEST_PREFIX "unit::"
+    PROPERTIES
+        TIMEOUT 3600
+        LABELS "unit"
+)
+
+catch_discover_tests(model_tests
+    TEST_SPEC "[inference],[integration]"
+    TEST_PREFIX "integration::"
+    PROPERTIES
+        TIMEOUT 3600
+        LABELS "integration"
+)
 
 ######################################################################
 ### CMakeLists.txt ends here
