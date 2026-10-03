@@ -116,3 +116,34 @@ TEST_CASE("SamplingEngine generation (Categorical)", "[SamplingEngine]") {
     REQUIRE(scenario.events[child_id].indices.size() == 1);
     REQUIRE(scenario.events[child_id].indices[0] == 2);
 }
+
+// ─── Consistency: SamplingEngine handlers borrow model tensors ───────────────
+
+TEST_CASE("SamplingEngine handlers reference RecombinationModel tensors",
+          "[Model][RecombinationModel]")
+{
+    const std::string parms_path =
+        std::string(IGOR_MODELS_DIR) + "/mouse/tcr_beta/models/model_parms.txt";
+    const std::string marginals_path =
+        std::string(IGOR_MODELS_DIR) + "/mouse/tcr_beta/models/model_marginals.txt";
+
+    RecombinationModel<double> model = [&]{
+        try { return recombination_model_from_files<double>(parms_path, marginals_path); }
+        catch (...) { SKIP("Mouse TCR beta model files not found"); throw; }
+    }();
+
+    auto model_ptr = std::make_shared<const RecombinationModel<double>>(std::move(model));
+    SamplingEngine<double> engine(model_ptr);
+
+    // Every handler's weights() must point to the exact same data as the model tensor
+    for (index_type uid = 0;
+         uid < static_cast<index_type>(model_ptr->topology().size()); ++uid)
+    {
+        const auto& tensor = model_ptr->weight(uid);
+        const auto& handler = engine.handler(uid);
+
+        INFO("Event: " << model_ptr->topology().event(uid)->get_nickname());
+        REQUIRE(handler.weights().data() == tensor.data());
+        REQUIRE(handler.weights().size() == tensor.size());
+    }
+}

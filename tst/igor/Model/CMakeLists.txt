@@ -3,6 +3,7 @@
 add_executable(model_tests
     test_EventFactory.cpp
     test_LegacyBridge.cpp
+    test_RecombinationModel.cpp
     test_Topology.cpp
     test_bound_tightness.cpp
     Legacy/test_Contexts.cpp

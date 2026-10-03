@@ -1,7 +1,6 @@
 ### CMakeLists.txt ---
 
 add_executable(generation_tests
-    test_RecombinationModel.cpp
     test_SamplingEngine.cpp
     test_SamplingHandlers.cpp
     Legacy/test_fast_sampling.cpp

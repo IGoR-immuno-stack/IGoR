@@ -9,7 +9,6 @@
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
 #include <igor/Model/RecombinationModel.h>
-#include <igor/Generation/SamplingEngine.h>
 #include <igor/Model/Topology.h>
 #include <igor/Model/LegacyBridge.h>
 #include <igor/Model/Legacy/Genechoice.h>
@@ -25,7 +24,6 @@
 using namespace igor::core::legacy;
 using namespace igor::alignment::legacy;
 using namespace igor::model::legacy;
-using namespace igor::generation;
 
 using namespace igor;
 using namespace igor::model;
@@ -154,37 +152,6 @@ TEST_CASE("RecombinationModel tensors filled from the legacy marginals",
         Model_marginals marginals(parms);
         REQUIRE_THROWS_AS(marginals.txt2marginals("/no/such/path.txt", parms),
                           std::runtime_error);
-    }
-}
-
-// ─── Consistency: SamplingEngine handlers borrow model tensors ───────────────
-
-TEST_CASE("SamplingEngine handlers reference RecombinationModel tensors",
-          "[Model][RecombinationModel]")
-{
-    const std::string parms_path =
-        std::string(IGOR_MODELS_DIR) + "/mouse/tcr_beta/models/model_parms.txt";
-    const std::string marginals_path =
-        std::string(IGOR_MODELS_DIR) + "/mouse/tcr_beta/models/model_marginals.txt";
-
-    RecombinationModel<double> model = [&]{
-        try { return recombination_model_from_files<double>(parms_path, marginals_path); }
-        catch (...) { SKIP("Mouse TCR beta model files not found"); throw; }
-    }();
-
-    auto model_ptr = std::make_shared<const RecombinationModel<double>>(std::move(model));
-    SamplingEngine<double> engine(model_ptr);
-
-    // Every handler's weights() must point to the exact same data as the model tensor
-    for (index_type uid = 0;
-         uid < static_cast<index_type>(model_ptr->topology().size()); ++uid)
-    {
-        const auto& tensor = model_ptr->weight(uid);
-        const auto& handler = engine.handler(uid);
-
-        INFO("Event: " << model_ptr->topology().event(uid)->get_nickname());
-        REQUIRE(handler.weights().data() == tensor.data());
-        REQUIRE(handler.weights().size() == tensor.size());
     }
 }
 
