@@ -75,4 +75,4 @@ public:
 
 } // namespace igor::math
 
-#include "HybridBuffer.tpp"
+#include <igor/Math/HybridBuffer.tpp>
