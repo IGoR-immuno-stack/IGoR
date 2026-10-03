@@ -124,7 +124,7 @@ double get_double_field(
     }
 }
 
-std::optional<igor::alignment::legacy::Alignment_data> extract_alignment(
+std::optional<igor::core::AlignmentData> extract_alignment(
     const std::vector<std::string>& row,
     const std::unordered_map<std::string, size_t>& col_idx,
     igor::core::legacy::Gene_class gene_class)
@@ -172,7 +172,7 @@ std::optional<igor::alignment::legacy::Alignment_data> extract_alignment(
     std::vector<size_t> deletions;
     std::vector<size_t> mismatches;
 
-    return igor::alignment::legacy::Alignment_data(
+    return igor::core::AlignmentData(
         gene_name,
         offset,
         five_p_offset,
@@ -347,7 +347,7 @@ std::vector<SequenceData> read_sequences(const std::string& filepath, Delimiter 
         std::string sequence = get_field(fields, col_idx, "sequence");
 
         // Extract alignments for V, D, J genes
-        std::unordered_map<igor::core::legacy::Gene_class, std::vector<igor::alignment::legacy::Alignment_data>> alignments;
+        std::unordered_map<igor::core::legacy::Gene_class, std::vector<igor::core::AlignmentData>> alignments;
 
         auto v_align = extract_alignment(fields, col_idx, igor::core::legacy::Gene_class::V_gene);
         if (v_align) {
@@ -372,13 +372,13 @@ std::vector<SequenceData> read_sequences(const std::string& filepath, Delimiter 
 }
 
 std::vector<std::tuple<int, std::string,
-                       std::unordered_map<igor::core::legacy::Gene_class, std::vector<igor::alignment::legacy::Alignment_data>>>>
+                       std::unordered_map<igor::core::legacy::Gene_class, std::vector<igor::core::AlignmentData>>>>
 read_legacy(const std::string& filepath, Delimiter delimiter)
 {
     auto sequences = read_sequences(filepath, delimiter);
 
     std::vector<std::tuple<int, std::string,
-                           std::unordered_map<igor::core::legacy::Gene_class, std::vector<igor::alignment::legacy::Alignment_data>>>> result;
+                           std::unordered_map<igor::core::legacy::Gene_class, std::vector<igor::core::AlignmentData>>>> result;
     result.reserve(sequences.size());
 
     for (const auto& seq : sequences) {

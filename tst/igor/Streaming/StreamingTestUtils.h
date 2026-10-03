@@ -11,7 +11,7 @@
 
 #include <igor/Streaming/SequenceBatchHelpers.h>
 #include <igor/Core/Legacy/Utils.h>
-#include <igor/Alignment/Legacy/Aligner.h>
+#include <igor/Core/AlignmentData.h>
 
 #include <exception>
 #include <sparrow/record_batch.hpp>
@@ -25,7 +25,6 @@
 #include <vector>
 
 using namespace igor::core::legacy;
-using namespace igor::alignment::legacy;
 
 namespace igor::streaming::test {
 
@@ -37,7 +36,7 @@ namespace igor::streaming::test {
 using SequenceTuple = std::tuple<
     int,
     std::string,
-    std::unordered_map<igor::core::legacy::Gene_class, std::vector<igor::alignment::legacy::Alignment_data>>
+    std::unordered_map<igor::core::legacy::Gene_class, std::vector<igor::core::AlignmentData>>
 >;
 
 //==============================================================================
@@ -135,7 +134,7 @@ inline std::vector<SequenceTuple> create_test_sequences(
     std::vector<SequenceTuple> sequences;
     sequences.reserve(count);
 
-    std::unordered_map<igor::core::legacy::Gene_class, std::vector<igor::alignment::legacy::Alignment_data>> empty_alignments;
+    std::unordered_map<igor::core::legacy::Gene_class, std::vector<igor::core::AlignmentData>> empty_alignments;
 
     for (size_t i = 0; i < count; ++i) {
         std::string seq = "ATCGATCGATCGATCG";
@@ -167,9 +166,9 @@ inline std::vector<SequenceTuple> create_test_sequences(
  */
 inline SequenceTuple create_sequence_with_v_alignment(int id, const std::string& seq)
 {
-    std::unordered_map<igor::core::legacy::Gene_class, std::vector<igor::alignment::legacy::Alignment_data>> alignments;
+    std::unordered_map<igor::core::legacy::Gene_class, std::vector<igor::core::AlignmentData>> alignments;
 
-    igor::alignment::legacy::Alignment_data v_align(
+    igor::core::AlignmentData v_align(
         "IGHV1-1*01",                     // gene_name
         10,                                // offset
         5,                                 // five_p_offset
@@ -211,8 +210,8 @@ std::vector<SequenceTuple> load_murugan_dataset();
  * @return true if all fields are equal, false otherwise
  */
 inline bool alignments_equal(
-    const igor::alignment::legacy::Alignment_data& a,
-    const igor::alignment::legacy::Alignment_data& b)
+    const igor::core::AlignmentData& a,
+    const igor::core::AlignmentData& b)
 {
     if (a.gene_name != b.gene_name) return false;
     if (a.offset != b.offset) return false;

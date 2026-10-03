@@ -28,6 +28,8 @@
  */
 
 #include <igor/Model/Legacy/Model_Parms.h>
+#include <igor/Alignment/Legacy/Aligner.h>
+#include <set>
 
 #include <cassert>
 #include <igor/Model/Legacy/gene_to_seqtype_migr.h>

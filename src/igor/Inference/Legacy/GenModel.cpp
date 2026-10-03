@@ -26,6 +26,7 @@
  */
 
 #include <igor/Inference/Legacy/GenModel.h>
+#include <igor/Alignment/Legacy/Aligner.h>
 #include <igor/Model/Legacy/QuerySequenceContext.h>
 #include <igor/Model/Legacy/ModelContext.h>
 #include <igor/Model/Legacy/ScenarioContext.h>

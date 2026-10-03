@@ -36,6 +36,7 @@ configure_file(
 
 target_sources(${PROJECT_NAME}
   PRIVATE
+    AlignmentData.cpp
     Legacy/GeneticCode.cpp
     Legacy/IntStr.cpp
     Legacy/Utils.cpp
@@ -46,6 +47,8 @@ target_sources(${PROJECT_NAME}
     FILES
       ${LAYER_BINARY_DIR}/Export.h
       ${LAYER_BINARY_DIR}/Config.h
+      ${LAYER_DIR}/AlignmentData.h
+      ${LAYER_DIR}/Legacy/AlignmentData.h
       ${LAYER_DIR}/Legacy/CoreEnums.h
       ${LAYER_DIR}/Legacy/DynamicSequenceMap.h
       ${LAYER_DIR}/Legacy/GeneticCode.h

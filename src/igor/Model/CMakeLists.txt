@@ -102,10 +102,9 @@ target_include_directories(${PROJECT_NAME} PUBLIC
 # GSL is PUBLIC because Hypermutationglobalerrorrate.h includes gsl headers; nlohmann_json
 # because Rec_Event.h names nlohmann::json in to_json()'s signature (headers only include
 # <nlohmann/json_fwd.hpp>; the full json.hpp stays in the .cpp files).
-# igor::Alignment is a transitional link (step 1a): Legacy/Rec_Event.h and
-# Legacy/QuerySequenceContext.h include Aligner.h for Alignment_data, and QuerySequenceContext
-# holds a JournaledQuery by value. The first goes away with the AlignmentData.h extraction of
-# step 1c, the second when the contexts leave Model (stage 2).
+# igor::Alignment is a transitional link: Legacy/QuerySequenceContext.h holds a JournaledQuery
+# by value, and the events call the Aligner's nucleotide helpers. It goes away when the contexts
+# leave Model (stage 2).
 target_link_libraries(${PROJECT_NAME} PUBLIC
   ${CMAKE_PROJECT_NAME}::Math
   ${CMAKE_PROJECT_NAME}::Core

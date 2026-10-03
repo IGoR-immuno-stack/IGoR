@@ -100,7 +100,7 @@ sparrow::record_batch ParquetReader::read_batch(const std::string &input_path)
 }
 
 std::vector<std::tuple<int, std::string,
-                       std::unordered_map<igor::core::legacy::Gene_class, std::vector<igor::alignment::legacy::Alignment_data>>>>
+                       std::unordered_map<igor::core::legacy::Gene_class, std::vector<igor::core::AlignmentData>>>>
 ParquetReader::read_sequences(const std::string &input_path)
 {
     // Read the entire file as a record_batch
@@ -108,7 +108,7 @@ ParquetReader::read_sequences(const std::string &input_path)
 
     // Convert record_batch to legacy vector format
     std::vector<std::tuple<int, std::string,
-                          std::unordered_map<igor::core::legacy::Gene_class, std::vector<igor::alignment::legacy::Alignment_data>>>> sequences;
+                          std::unordered_map<igor::core::legacy::Gene_class, std::vector<igor::core::AlignmentData>>>> sequences;
 
     size_t num_rows = batch.nb_rows();
     sequences.reserve(num_rows);

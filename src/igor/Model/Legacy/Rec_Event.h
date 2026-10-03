@@ -28,7 +28,7 @@
 
 #include <igor/Model/Legacy/Errorrate.h>
 #include <igor/Core/Legacy/IntStr.h>
-#include <igor/Alignment/Legacy/Aligner.h>
+#include <igor/Core/Legacy/AlignmentData.h>
 #include <igor/Core/Legacy/SegmentSpan.h>
 #include <igor/Model/Legacy/SafetyMatrix.h>
 #include <igor/Core/Legacy/SeqTypeRegistry.h>

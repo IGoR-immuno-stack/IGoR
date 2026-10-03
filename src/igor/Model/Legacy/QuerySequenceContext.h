@@ -2,7 +2,7 @@
 
 #include <igor/Core/Legacy/Utils.h>
 #include <igor/Core/Legacy/IntStr.h>
-#include <igor/Alignment/Legacy/Aligner.h>
+#include <igor/Core/Legacy/AlignmentData.h>
 #include <igor/Alignment/Legacy/JournaledQuery.h>
 #include <optional>
 #include <unordered_map>

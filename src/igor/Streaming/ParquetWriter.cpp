@@ -64,7 +64,7 @@ void ParquetWriter::write_sequences(
         const std::string &output_path,
         const std::vector<std::tuple<int, std::string,
                                      std::unordered_map<igor::core::legacy::Gene_class,
-                                                        std::vector<igor::alignment::legacy::Alignment_data>>>>
+                                                        std::vector<igor::core::AlignmentData>>>>
                 &sequences,
         CompressionType compression)
 {
