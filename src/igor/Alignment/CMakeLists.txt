@@ -30,6 +30,16 @@ add_library(${CMAKE_PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 set(LAYER_DIR ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME})
 
 target_sources(${PROJECT_NAME}
+  PUBLIC FILE_SET HEADERS
+    BASE_DIRS
+      ${CMAKE_SOURCE_DIR}/src
+      ${CMAKE_BINARY_DIR}/src
+    FILES
+      ${CMAKE_BINARY_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/Export.h
+)
+
+# Legacy files: everything under Legacy/, the stubs of promoted headers included.
+target_sources(${PROJECT_NAME}
   PRIVATE
     Legacy/Aligner.cpp
     Legacy/CDR3SeqData.cpp
@@ -40,7 +50,6 @@ target_sources(${PROJECT_NAME}
       ${CMAKE_SOURCE_DIR}/src
       ${CMAKE_BINARY_DIR}/src
     FILES
-      ${CMAKE_BINARY_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/Export.h
       ${LAYER_DIR}/Legacy/Aligner.h
       ${LAYER_DIR}/Legacy/AlignerInternal.h
       ${LAYER_DIR}/Legacy/CDR3SeqData.h

@@ -32,9 +32,6 @@ set(LAYER_DIR ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME})
 target_sources(${PROJECT_NAME}
   PRIVATE
     SamplingHandlerFactory.cpp
-    Legacy/FastGenerator.cpp
-    Legacy/FastSampling.cpp
-    Legacy/SequenceGenerator.cpp
   PUBLIC FILE_SET HEADERS
     BASE_DIRS
       ${CMAKE_SOURCE_DIR}/src
@@ -52,6 +49,19 @@ target_sources(${PROJECT_NAME}
       ${LAYER_DIR}/SamplingHandler.tpp
       ${LAYER_DIR}/SamplingHandlerFactory.h
       ${LAYER_DIR}/SamplingHandlerFactory.tpp
+)
+
+# Legacy files: everything under Legacy/, the stubs of promoted headers included.
+target_sources(${PROJECT_NAME}
+  PRIVATE
+    Legacy/FastGenerator.cpp
+    Legacy/FastSampling.cpp
+    Legacy/SequenceGenerator.cpp
+  PUBLIC FILE_SET HEADERS
+    BASE_DIRS
+      ${CMAKE_SOURCE_DIR}/src
+      ${CMAKE_BINARY_DIR}/src
+    FILES
       ${LAYER_DIR}/Legacy/FastGenerator.h
       ${LAYER_DIR}/Legacy/FastSampling.h
       ${LAYER_DIR}/Legacy/SequenceGenerator.h

@@ -31,7 +31,6 @@ target_sources(${PROJECT_NAME}
       ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}.h
       ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/HybridBuffer.h
       ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/HybridBuffer.tpp
-      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/Legacy/Matrix.h
       ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/Linalg.h
       ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/Linalg.tpp
       ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/MdspanCompat.h
@@ -39,6 +38,15 @@ target_sources(${PROJECT_NAME}
       ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/Tensor.tpp
       ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/TensorCreation.h
       ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/TensorCreation.tpp
+)
+
+# Legacy files: everything under Legacy/, the stubs of promoted headers included.
+target_sources(${PROJECT_NAME}
+  PUBLIC FILE_SET HEADERS
+    BASE_DIRS
+      ${CMAKE_SOURCE_DIR}/src
+    FILES
+      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/Legacy/Matrix.h
 )
 
 target_include_directories(${PROJECT_NAME} INTERFACE

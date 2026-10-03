@@ -251,13 +251,24 @@ def promote(layer, stem, symbols, renames):
         write(path, text)
     write(old_h, stub_text(layer, stem, symbols, license_of(read(new_h))))
     subprocess.check_call(["git", "add", old_h])
-    # CMake: the promoted header joins the list; the stub keeps the Legacy/ entry.
+    # CMake keeps two target_sources blocks per layer, the layer's own files first and the
+    # Legacy/ files second. The promoted header and source join the first block; the stub keeps
+    # its entry in the second.
     cmake = f"src/igor/{layer}/CMakeLists.txt"
     text = read(cmake)
-    entry = f"      ${{LAYER_DIR}}/Legacy/{stem}.h\n"
-    if entry in text and f"      ${{LAYER_DIR}}/{stem}.h\n" not in text:
-        text = text.replace(entry, f"      ${{LAYER_DIR}}/{stem}.h\n" + entry, 1)
-    text = text.replace(f"    Legacy/{stem}.cpp\n", f"    {stem}.cpp\n")
+    first = text.index("target_sources(${PROJECT_NAME}")
+    first_end = text.index("\n)\n", first)
+    if f"      ${{LAYER_DIR}}/{stem}.h\n" not in text:
+        text = text[:first_end] + f"\n      ${{LAYER_DIR}}/{stem}.h" + text[first_end:]
+    if f"    Legacy/{stem}.cpp\n" in text:
+        text = text.replace(f"    Legacy/{stem}.cpp\n", "")
+        head = text[first:text.index("  PUBLIC FILE_SET HEADERS", first)]
+        if "  PRIVATE\n" in head:
+            at = first + len(head)
+            text = text[:at] + f"    {stem}.cpp\n" + text[at:]
+        else:
+            at = first + len("target_sources(${PROJECT_NAME}\n")
+            text = text[:at] + f"  PRIVATE\n    {stem}.cpp\n" + text[at:]
     write(cmake, text)
     return True
 

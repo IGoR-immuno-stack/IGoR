@@ -33,6 +33,32 @@ target_sources(${PROJECT_NAME}
   PRIVATE
     EventFactory.cpp
     Topology.cpp
+  PUBLIC FILE_SET HEADERS
+    BASE_DIRS
+      ${CMAKE_SOURCE_DIR}/src
+      ${CMAKE_BINARY_DIR}/src
+    FILES
+      ${CMAKE_BINARY_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/Export.h
+      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}.h
+      ${LAYER_DIR}/EventFactory.h
+      ${LAYER_DIR}/Forward.h
+      ${LAYER_DIR}/LegacyBridge.h
+      ${LAYER_DIR}/LegacyBridge.tpp
+      ${LAYER_DIR}/Navigator.h
+      ${LAYER_DIR}/RecombinationModel.h
+      ${LAYER_DIR}/RecombinationModel.tpp
+      ${LAYER_DIR}/Scenario.h
+      ${LAYER_DIR}/Topology.h
+      ${LAYER_DIR}/BoundTightness.h
+      ${LAYER_DIR}/JunctionGeometry.h
+      ${LAYER_DIR}/SafetyMatrix.h
+      ${LAYER_DIR}/SpanProfile.h
+      ${LAYER_DIR}/UnfilledSegmentLengths.h
+)
+
+# Legacy files: everything under Legacy/, the stubs of promoted headers included.
+target_sources(${PROJECT_NAME}
+  PRIVATE
     Legacy/Counter.cpp
     Legacy/Deletion.cpp
     Legacy/Dinuclmarkov.cpp
@@ -53,19 +79,7 @@ target_sources(${PROJECT_NAME}
       ${CMAKE_SOURCE_DIR}/src
       ${CMAKE_BINARY_DIR}/src
     FILES
-      ${CMAKE_BINARY_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/Export.h
-      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}.h
-      ${LAYER_DIR}/EventFactory.h
-      ${LAYER_DIR}/Forward.h
-      ${LAYER_DIR}/LegacyBridge.h
-      ${LAYER_DIR}/LegacyBridge.tpp
-      ${LAYER_DIR}/Navigator.h
-      ${LAYER_DIR}/RecombinationModel.h
-      ${LAYER_DIR}/RecombinationModel.tpp
-      ${LAYER_DIR}/Scenario.h
-      ${LAYER_DIR}/Topology.h
       ${LAYER_DIR}/Legacy/AccumulationContext.h
-      ${LAYER_DIR}/BoundTightness.h
       ${LAYER_DIR}/Legacy/BoundTightness.h
       ${LAYER_DIR}/Legacy/Counter.h
       ${LAYER_DIR}/Legacy/Deletion.h
@@ -80,7 +94,6 @@ target_sources(${PROJECT_NAME}
       ${LAYER_DIR}/Legacy/Hypermutationglobalerrorrate.h
       ${LAYER_DIR}/Legacy/Insertion.h
       ${LAYER_DIR}/Legacy/JsonDetail.h
-      ${LAYER_DIR}/JunctionGeometry.h
       ${LAYER_DIR}/Legacy/JunctionGeometry.h
       ${LAYER_DIR}/Legacy/ModelContext.h
       ${LAYER_DIR}/Legacy/ModelJson.h
@@ -88,14 +101,11 @@ target_sources(${PROJECT_NAME}
       ${LAYER_DIR}/Legacy/Model_marginals.h
       ${LAYER_DIR}/Legacy/QuerySequenceContext.h
       ${LAYER_DIR}/Legacy/Rec_Event.h
-      ${LAYER_DIR}/SafetyMatrix.h
       ${LAYER_DIR}/Legacy/SafetyMatrix.h
       ${LAYER_DIR}/Legacy/Scenario.h
       ${LAYER_DIR}/Legacy/ScenarioContext.h
       ${LAYER_DIR}/Legacy/Singleerrorrate.h
-      ${LAYER_DIR}/SpanProfile.h
       ${LAYER_DIR}/Legacy/SpanProfile.h
-      ${LAYER_DIR}/UnfilledSegmentLengths.h
       ${LAYER_DIR}/Legacy/UnfilledSegmentLengths.h
 )
 

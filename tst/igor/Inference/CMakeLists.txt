@@ -5,7 +5,12 @@ add_executable(inference_tests
     test_InferenceHandlers.cpp
     test_ModelInference.cpp
     test_NormalizationCompareLegacy.cpp
-    Legacy/test_inference.cpp
+)
+
+# Legacy tests: the tests of the code still under <Layer>/Legacy.
+target_sources(inference_tests
+    PRIVATE
+        Legacy/test_inference.cpp
 )
 
 set_target_properties(inference_tests PROPERTIES CXX_STANDARD 23)
