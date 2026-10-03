@@ -35,7 +35,6 @@
 #include <igor/Alignment/Export.h>
 
 
-namespace igor::core::legacy {}
 namespace igor::alignment::legacy {
 using namespace igor::core::legacy;
 

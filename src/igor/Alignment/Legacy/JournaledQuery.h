@@ -25,7 +25,6 @@
 /// One span of positions with multiple valid NT alternatives.
 /// Covers arbitrary-length patches (e.g. one codon = 3 positions).
 
-namespace igor::core::legacy {}
 namespace igor::alignment::legacy {
 using namespace igor::core::legacy;
 

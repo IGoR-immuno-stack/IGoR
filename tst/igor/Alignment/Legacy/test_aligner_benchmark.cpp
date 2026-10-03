@@ -36,8 +36,6 @@
 #include <string>
 #include <vector>
 
-namespace igor::core::legacy {}
-namespace igor::alignment::legacy {}
 using namespace igor::core::legacy;
 using namespace igor::alignment::legacy;
 

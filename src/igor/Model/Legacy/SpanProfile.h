@@ -72,11 +72,8 @@
  * discarded. See section 6.10, finding 6.
  */
 
-namespace igor::core::legacy {}
-namespace igor::alignment::legacy {}
 namespace igor::model::legacy {
 using namespace igor::core::legacy;
-using namespace igor::alignment::legacy;
 
 class SpanProfile
 {

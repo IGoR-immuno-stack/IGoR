@@ -39,15 +39,10 @@
  * The recording can be made at the single position level, as well as joint over positions duet,triplet etc (e.g the number of times two nucleotides were observed in the same scenario)
  */
 
-namespace igor::core::legacy {}
-namespace igor::alignment::legacy {}
-namespace igor::model::legacy {}
-namespace igor::generation::legacy {}
 namespace igor::inference::legacy {
 using namespace igor::core::legacy;
 using namespace igor::alignment::legacy;
 using namespace igor::model::legacy;
-using namespace igor::generation::legacy;
 
 class INFERENCE_EXPORT Coverage_err_counter : public Counter
 {

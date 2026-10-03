@@ -53,8 +53,6 @@
  * By construction the corresponding GeneChoice must have been explored first.
  */
 
-namespace igor::core::legacy {}
-namespace igor::alignment::legacy {}
 // Friend of the events below; see the friend declarations.
 namespace igor::inference::legacy { class Coverage_err_counter; }
 namespace igor::model::legacy {

@@ -1,13 +1,8 @@
 #pragma once
 
 // Forward declarations of the Model types the engines (Inference, Generation) name in their
-// headers, plus the legacy namespaces they qualify into. Including this header is enough to
-// write `using igor::model::RecombinationModel;` or `model::legacy::Rec_Event` before the
-// full definitions are visible.
-
-namespace igor::core::legacy {}
-namespace igor::alignment::legacy {}
-namespace igor::model::legacy {}
+// headers. Including this header is enough to write `using igor::model::RecombinationModel;`
+// before the full definition is visible.
 
 namespace igor::model {
 

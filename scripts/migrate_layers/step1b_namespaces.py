@@ -71,6 +71,41 @@ def directives(layer):
     return "".join(f"using namespace {ns(l)};\n" for l in VISIBLE[layer])
 
 
+
+# ----------------------------------------------------------------------------- include closure
+
+INCLUDE_LINE = re.compile(r'^\s*#\s*include\s*[<"]igor/([^>"]+)[>"]', re.M)
+_closure_cache = {}
+
+
+def include_closure(path):
+    """Every repository header reachable from `path` through <igor/...> includes."""
+    if path in _closure_cache:
+        return _closure_cache[path]
+    seen = set()
+    stack = [path]
+    while stack:
+        current = stack.pop()
+        if current in seen or not os.path.exists(current):
+            continue
+        seen.add(current)
+        for rel in INCLUDE_LINE.findall(read(current)):
+            stack.append(f"src/igor/{rel}")
+    _closure_cache[path] = seen
+    return seen
+
+
+def declared_layers(path, layers):
+    """The layers whose legacy namespace a header of the closure declares. A using-directive
+    for any other layer would be the only thing in the file that fails to compile, so it is
+    not emitted."""
+    closure = include_closure(path)
+    return [l for l in layers if any(f"src/igor/{l}/Legacy/" in h for h in closure)]
+
+
+def directives_for(path, layers):
+    return "".join(f"using namespace {ns(l)};\n" for l in declared_layers(path, layers))
+
 # ----------------------------------------------------------------------------- rule 1 and 2
 
 def first_code_line(lines):
@@ -139,10 +174,8 @@ def wrap_generic(path, layer):
     body = [l for l, d in zip(body, depths) if not (l.lstrip().startswith("#include") and d == 0)]
     if hoisted:
         head = head + hoisted
-    # An empty definition declares each nominated namespace, so the using-directive compiles
-    # whichever header of the lower layer this file happens to be included after.
-    forward = [f"namespace {ns(l)} {{}}" for l in VISIBLE[layer]]
-    opening = forward + [marker] + (directives(layer).rstrip("\n").split("\n") if VISIBLE[layer] else [])
+    usings = directives_for(path, VISIBLE[layer]).rstrip("\n")
+    opening = [marker] + (usings.split("\n") if usings else [])
     closing = f"}} // namespace {ns(layer)}"
     # split around top-level `namespace std {` blocks
     out = []
@@ -213,10 +246,10 @@ def rename_igor_namespace(path, layer, sub):
         if path.endswith("Typedef.h"):
             text = text.replace("\n}\n", f"\n}} // namespace {target}\n", 1)
     # using-directives after the opening
-    if VISIBLE[layer]:
+    usings = directives_for(path, VISIBLE[layer]).rstrip("\n")
+    if usings:
         opening = f"namespace {target}::{sub} {{" if sub else f"namespace {target} {{"
-        forward = "".join(f"namespace {ns(l)} {{}}\n" for l in VISIBLE[layer])
-        text = text.replace(opening, forward + opening + "\n" + directives(layer).rstrip("\n"), 1)
+        text = text.replace(opening, opening + "\n" + usings, 1)
     write(path, text)
     return True
 
@@ -395,30 +428,31 @@ CONSUMER_DIRECTIVES = {
 
 def add_consumer_directives(path, layers):
     text = read(path)
-    if f"using namespace {ns(layers[-1])};" in text or "#include <igor/" not in text:
+    if "using namespace igor::core::legacy;" in text or "#include <igor/" not in text:
         return False
     lines = text.split("\n")
     stop = first_code_line(lines)
     last_include = max((i for i, l in enumerate(lines[:stop]) if l.lstrip().startswith("#include")), default=-1)
     if last_include < 0:
         return False
-    nominated = [ns(l) for l in layers]
+    closure = include_closure(path)
+    nominated = [ns(l) for l in declared_layers(path, layers)]
     # tests of the engines also open the engine namespace itself
-    if path.startswith("tst/igor/Inference/") and not path.endswith(".h"):
+    if path.startswith("tst/igor/Inference/") and any("src/igor/Inference/" in h for h in closure):
         nominated.append("igor::inference")
-    if path.startswith("tst/igor/Generation/") and not path.endswith(".h"):
+    if path.startswith("tst/igor/Generation/") and any("src/igor/Generation/" in h for h in closure):
         nominated.append("igor::generation")
-    # an empty definition declares each namespace, whatever headers this file includes
-    block = [f"namespace {n} {{}}" for n in nominated] + [f"using namespace {n};" for n in nominated]
+    if not nominated:
+        return False
+    block = [f"using namespace {n};" for n in nominated]
     lines[last_include + 1:last_include + 1] = [""] + block
     text = "\n".join(lines)
-    text = text.replace("using namespace EventUtils;",
-                        "namespace igor::core::legacy::genetic_code {}\n"
-                        "namespace igor::alignment::legacy::journaled_query {}\n"
-                        "namespace igor::model::legacy::EventUtils {}\n"
-                        "using namespace igor::core::legacy::genetic_code;\n"
-                        "using namespace igor::alignment::legacy::journaled_query;\n"
-                        "using namespace igor::model::legacy::EventUtils;")
+    if "using namespace EventUtils;" in text:
+        owners = [("GeneticCode.h", "igor::core::legacy::genetic_code"),
+                  ("JournaledQuery.h", "igor::alignment::legacy::journaled_query"),
+                  ("EventUtils.h", "igor::model::legacy::EventUtils")]
+        repl = "".join(f"using namespace {n};\n" for h, n in owners if any(c.endswith(h) for c in closure))
+        text = text.replace("using namespace EventUtils;", repl.rstrip("\n"))
     write(path, text)
     return True
 

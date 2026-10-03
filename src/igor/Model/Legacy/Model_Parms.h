@@ -60,8 +60,6 @@
  * Contains a list of smart pointers pointing to an event parents and children (i.e adjacent nodes)
  */
 
-namespace igor::core::legacy {}
-namespace igor::alignment::legacy {}
 namespace igor::model::legacy {
 using namespace igor::core::legacy;
 using namespace igor::alignment::legacy;

@@ -50,8 +50,6 @@
  * Since D gene can be heavily deleted and might not be recognizable by sequence alignments, a special handling of the D gene choice exploring all D positions ranked by their likelihood has been implemented.
  */
 
-namespace igor::core::legacy {}
-namespace igor::alignment::legacy {}
 // Friend of the events below; see the friend declarations.
 namespace igor::inference::legacy { class Coverage_err_counter; }
 namespace igor::model::legacy {

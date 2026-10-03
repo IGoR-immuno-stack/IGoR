@@ -44,8 +44,6 @@
  * Simplest instance of the ErrorRate family. Models errors/mutations as a Bernouilli process with a global rate independent of position and context.
  */
 
-namespace igor::core::legacy {}
-namespace igor::alignment::legacy {}
 namespace igor::model::legacy {
 using namespace igor::core::legacy;
 using namespace igor::alignment::legacy;

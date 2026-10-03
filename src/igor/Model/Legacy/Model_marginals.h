@@ -56,8 +56,6 @@
  * The class supplies various methods to navigate into this array and as well methods handling normalization and other various transformation.
  */
 
-namespace igor::core::legacy {}
-namespace igor::alignment::legacy {}
 namespace igor::model::legacy {
 using namespace igor::core::legacy;
 using namespace igor::alignment::legacy;

@@ -4,11 +4,8 @@
 
 #include <igor/Model/Export.h>
 
-namespace igor::core::legacy {}
-namespace igor::alignment::legacy {}
 namespace igor::model::legacy {
 using namespace igor::core::legacy;
-using namespace igor::alignment::legacy;
 namespace migration {
 
 MODEL_EXPORT bool try_gene_class_to_gene_seq_type(Gene_class_legacy gene, Seq_type &seq_type);

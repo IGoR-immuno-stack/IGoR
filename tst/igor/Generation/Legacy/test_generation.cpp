@@ -63,11 +63,6 @@
 #include <utility>
 #include <vector>
 
-namespace igor::core::legacy {}
-namespace igor::alignment::legacy {}
-namespace igor::model::legacy {}
-namespace igor::generation::legacy {}
-namespace igor::generation {}
 using namespace igor::core::legacy;
 using namespace igor::alignment::legacy;
 using namespace igor::model::legacy;

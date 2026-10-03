@@ -46,8 +46,6 @@
  * This model is inspired from the S5F mutability model. The identity of the resulting nucleotide after mutation is assumed to follow a uniform distribution.
  */
 
-namespace igor::core::legacy {}
-namespace igor::alignment::legacy {}
 namespace igor::model::legacy {
 using namespace igor::core::legacy;
 using namespace igor::alignment::legacy;

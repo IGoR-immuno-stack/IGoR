@@ -25,11 +25,8 @@
  * without changing result collection logic.
  */
 
-namespace igor::core::legacy {}
-namespace igor::alignment::legacy {}
 namespace igor::model::legacy {
 using namespace igor::core::legacy;
-using namespace igor::alignment::legacy;
 
 struct ExplorationContext {
     // Downstream probability bounds for pruning

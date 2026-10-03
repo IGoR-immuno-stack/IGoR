@@ -41,15 +41,10 @@
  * Alternatively the counter can record the probability of generation of putative ancestor (unmutated/error free) sequences and their associated posterior probability.
  */
 
-namespace igor::core::legacy {}
-namespace igor::alignment::legacy {}
-namespace igor::model::legacy {}
-namespace igor::generation::legacy {}
 namespace igor::inference::legacy {
 using namespace igor::core::legacy;
 using namespace igor::alignment::legacy;
 using namespace igor::model::legacy;
-using namespace igor::generation::legacy;
 
 class INFERENCE_EXPORT Pgen_counter : public Counter
 {

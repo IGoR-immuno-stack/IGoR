@@ -26,7 +26,6 @@
 #include <igor/Alignment/Legacy/ExtractFeatures.h>
 
 
-namespace igor::core::legacy {}
 namespace igor::alignment::legacy {
 using namespace igor::core::legacy;
 

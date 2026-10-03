@@ -43,8 +43,6 @@
  * travel, and what that implies for the segment between two ends.
  */
 
-namespace igor::core::legacy {}
-namespace igor::alignment::legacy {}
 namespace igor::model::legacy {
 using namespace igor::core::legacy;
 using namespace igor::alignment::legacy;

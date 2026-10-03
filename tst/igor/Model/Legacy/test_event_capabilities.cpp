@@ -43,9 +43,6 @@
 #include <limits>
 #include <stdexcept>
 
-namespace igor::core::legacy {}
-namespace igor::alignment::legacy {}
-namespace igor::model::legacy {}
 using namespace igor::core::legacy;
 using namespace igor::alignment::legacy;
 using namespace igor::model::legacy;

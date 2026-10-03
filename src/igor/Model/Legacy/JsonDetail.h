@@ -22,11 +22,7 @@
 #include <string>
 #include <vector>
 
-namespace igor::core::legacy {}
-namespace igor::alignment::legacy {}
 namespace igor::model::legacy::json_detail {
-using namespace igor::core::legacy;
-using namespace igor::alignment::legacy;
 
 /// Keys every event node may carry. "parents" is model-level, written and read by
 /// ModelJson, but it is listed here so that an event constructor does not reject it.

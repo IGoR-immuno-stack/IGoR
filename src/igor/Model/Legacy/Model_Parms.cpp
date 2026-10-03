@@ -33,8 +33,6 @@
 #include <igor/Model/Legacy/gene_to_seqtype_migr.h>
 #include <igor/Model/Legacy/EventUtils.h>
 
-namespace igor::core::legacy {}
-namespace igor::alignment::legacy {}
 namespace igor::model::legacy {
 using namespace igor::core::legacy;
 using namespace igor::alignment::legacy;

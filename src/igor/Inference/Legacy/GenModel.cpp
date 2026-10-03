@@ -33,10 +33,6 @@
 #include <igor/Model/Legacy/AccumulationContext.h>
 
 
-namespace igor::core::legacy {}
-namespace igor::alignment::legacy {}
-namespace igor::model::legacy {}
-namespace igor::generation::legacy {}
 namespace igor::inference::legacy {
 using namespace igor::core::legacy;
 using namespace igor::alignment::legacy;

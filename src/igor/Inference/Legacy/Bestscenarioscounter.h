@@ -60,15 +60,10 @@
  *    the lowest realization indices.
  */
 
-namespace igor::core::legacy {}
-namespace igor::alignment::legacy {}
-namespace igor::model::legacy {}
-namespace igor::generation::legacy {}
 namespace igor::inference::legacy {
 using namespace igor::core::legacy;
 using namespace igor::alignment::legacy;
 using namespace igor::model::legacy;
-using namespace igor::generation::legacy;
 
 class INFERENCE_EXPORT Best_scenarios_counter : public Counter
 {

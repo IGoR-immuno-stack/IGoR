@@ -28,9 +28,7 @@
 #include <igor/Alignment/Legacy/CDR3SeqData.h>
 
 
-namespace igor::core::legacy {}
 namespace igor::alignment::legacy {
-using namespace igor::core::legacy;
 
 CDR3SeqData::CDR3SeqData()
 {

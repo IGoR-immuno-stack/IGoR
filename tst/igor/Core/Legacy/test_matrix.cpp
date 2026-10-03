@@ -26,7 +26,6 @@
 
 #include <stdexcept>
 
-namespace igor::core::legacy {}
 using namespace igor::core::legacy;
 
 // ===========================================================================================

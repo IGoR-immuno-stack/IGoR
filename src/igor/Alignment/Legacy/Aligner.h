@@ -82,7 +82,6 @@
  * - get_core/extended/all_deletions: deletion accessors
  */
 
-namespace igor::core::legacy {}
 namespace igor::alignment::legacy {
 using namespace igor::core::legacy;
 
