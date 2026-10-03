@@ -137,7 +137,7 @@ STREAMING_EXPORT
 void write_legacy_tsv(
     const std::string& filepath,
     const std::vector<std::tuple<int, std::string,
-                                 std::unordered_map<igor::core::legacy::Gene_class, std::vector<igor::alignment::legacy::Alignment_data>>>>& sequences);
+                                 std::unordered_map<igor::core::legacy::Gene_class, std::vector<igor::core::AlignmentData>>>>& sequences);
 
 /**
  * @brief Write a Sparrow record_batch to an AIRR TSV file
@@ -175,7 +175,7 @@ void write_batch(
  * @return CIGAR string (e.g., "50M2I3D"), or empty string if align_length is 0
  */
 STREAMING_EXPORT
-std::string make_cigar(const igor::alignment::legacy::Alignment_data& alignment);
+std::string make_cigar(const igor::core::AlignmentData& alignment);
 
 /**
  * @brief Get AIRR column headers

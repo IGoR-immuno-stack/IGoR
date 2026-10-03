@@ -3,7 +3,7 @@
 #pragma once
 
 #include <igor/Math/Tensor.h>
-#include <igor/Core/Legacy/Typedef.h>
+#include <igor/Core/Types.h>
 
 #include <string>
 
@@ -47,8 +47,8 @@ public:
 
     const std::string& name(void) const { return m_name; }
 
-    igor::core::legacy::index_type uid(void) const { return m_uid; }
-    void setUid(igor::core::legacy::index_type id) { m_uid = id; }
+    igor::core::index_type uid(void) const { return m_uid; }
+    void setUid(igor::core::index_type id) { m_uid = id; }
 
     // ── Tensor access ────────────────────────────────────────────────────
 
@@ -64,12 +64,12 @@ public:
     virtual void maximizeLikelihood(void) = 0;
 
 protected:
-    explicit InferenceHandler(std::string name, igor::core::legacy::index_type uid)
+    explicit InferenceHandler(std::string name, igor::core::index_type uid)
         : m_name(std::move(name))
         , m_uid(uid) {}
 
     std::string      m_name;
-    igor::core::legacy::index_type m_uid;
+    igor::core::index_type m_uid;
 };
 
 } // namespace igor::inference

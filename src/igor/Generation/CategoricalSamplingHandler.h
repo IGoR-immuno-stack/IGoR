@@ -34,7 +34,7 @@ template <typename T = double>
 class CategoricalSamplingHandler : public SamplingHandler<T>
 {
 public:
-    CategoricalSamplingHandler(std::string name, igor::core::legacy::index_type uid, const math::Tensor<T>& weights);
+    CategoricalSamplingHandler(std::string name, igor::core::index_type uid, const math::Tensor<T>& weights);
 
     ~CategoricalSamplingHandler(void) = default;
 

@@ -50,19 +50,21 @@
  * Since D gene can be heavily deleted and might not be recognizable by sequence alignments, a special handling of the D gene choice exploring all D positions ranked by their likelihood has been implemented.
  */
 
-// Friend of the events below; see the friend declarations.
-namespace igor::inference::legacy { class Coverage_err_counter; }
 namespace igor::model::legacy {
 using namespace igor::core::legacy;
 using namespace igor::alignment::legacy;
 
 class MODEL_EXPORT Gene_choice : public Rec_Event
 {
-    friend class igor::inference::legacy::Coverage_err_counter; //Grant friendship to access current gene realization and offset
     friend class Hypermutation_global_errorrate; //Grant friendship to access current gene realization and offset
     friend class Hypermutation_full_Nmer_errorrate; //Same
 
 public:
+    /// Address of the slot holding the offset of the current alignment, for observers that read
+    /// it at every leaf. Public since step 1c: it replaces the friendship granted to Coverage_err_counter, so that
+    /// Model no longer names an Inference class.
+    const int *const *alignment_offset_slot() const { return &alignment_offset_p; }
+
 
     //Constructors
     Gene_choice();

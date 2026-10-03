@@ -6,7 +6,7 @@
 namespace igor::generation::sampling_handler_factory {
 
 template <typename T>
-void register_creator(core::legacy::Event_type type, Creator<T> func)
+void register_creator(core::EventType type, Creator<T> func)
 {
     if (!func) {
         throw std::invalid_argument("SamplingHandlerFactory: Null creator");
@@ -15,7 +15,7 @@ void register_creator(core::legacy::Event_type type, Creator<T> func)
 }
 
 template <typename T>
-HandlerPtr<T> create(core::legacy::Event_type type, EventPtr event, const math::Tensor<T>& weights)
+HandlerPtr<T> create(core::EventType type, EventPtr event, const math::Tensor<T>& weights)
 {
     auto it = detail::get_creators<T>().find(type);
     if (it == detail::get_creators<T>().end()) {
@@ -30,7 +30,7 @@ std::vector<HandlerPtr<T>> build(const igor::generation::RecombinationModel<T>& 
     const auto& topology = model.topology();
     std::vector<HandlerPtr<T>> handlers(topology.size());
 
-    for (igor::core::legacy::index_type uid = 0; uid < static_cast<igor::core::legacy::index_type>(topology.size()); ++uid) {
+    for (igor::core::index_type uid = 0; uid < static_cast<igor::core::index_type>(topology.size()); ++uid) {
         EventPtr event = topology.event(uid);
         const auto& weights = model.weight(uid);
 

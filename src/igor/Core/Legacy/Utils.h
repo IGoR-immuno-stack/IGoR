@@ -49,63 +49,7 @@
 #include <chrono>
 #include <sys/types.h>
 #include <igor/Core/Export.h>
-#if defined(_WIN32)
-
-#  ifndef WIN32_LEAN_AND_MEAN
-#    define WIN32_LEAN_AND_MEAN
-#  endif
-#  ifndef NOMINMAX
-#    define NOMINMAX
-#  endif
-
-#  include <process.h>
-#  include <winsock2.h>
-#  include <windows.h>
-#  include <ws2tcpip.h>
-
-inline int portable_getpid()
-{
-    return _getpid();
-}
-
-inline uint32_t portable_gethostid()
-{
-    // Version approximative: IP locale
-    WSADATA wsaData;
-    WSAStartup(MAKEWORD(2, 2), &wsaData);
-
-    char hostname[256];
-    gethostname(hostname, sizeof(hostname));
-
-    struct addrinfo hints{};
-    hints.ai_family = AF_INET;
-
-    struct addrinfo *info;
-    if (getaddrinfo(hostname, nullptr, &hints, &info) != 0)
-        return 0;
-
-    uint32_t res = ((struct sockaddr_in *)info->ai_addr)->sin_addr.S_un.S_addr;
-
-    freeaddrinfo(info);
-    WSACleanup();
-    return res;
-}
-
-#else
-
-#  include <unistd.h>
-
-inline int portable_getpid()
-{
-    return getpid();
-}
-
-inline uint32_t portable_gethostid()
-{
-    return gethostid();
-}
-
-#endif
+#include <igor/Core/Platform.h>
 
 #if defined(_MSC_VER)
 #  include <intrin.h>
@@ -243,17 +187,12 @@ enum Int_nt {
 constexpr std::size_t kIntNtCount = static_cast<std::size_t>(int_undefined);
 
 CORE_EXPORT Seq_type str2SeqType(const Seq_type_String &);
-CORE_EXPORT Seq_type_String to_string(const Seq_type);
 CORE_EXPORT Gene_class_legacy str2GeneClass(const std::string &);
 CORE_EXPORT std::string to_string(const Gene_class_legacy);
 CORE_EXPORT Seq_side str2SeqSide(const std::string &);
-CORE_EXPORT std::string to_string(const Seq_side);
 
 CORE_EXPORT std::ostream &operator<<(std::ostream &, Gene_class_legacy);
-CORE_EXPORT std::ostream &operator<<(std::ostream &, Seq_side);
 CORE_EXPORT std::string operator+(const std::string &, Gene_class_legacy);
-CORE_EXPORT std::string operator+(const std::string &, Seq_side);
-CORE_EXPORT std::string operator+(const std::string &, Event_type);
 
 typedef Int_Str *Int_Str_ptr;
 
@@ -273,188 +212,6 @@ struct null_delete
 
     void operator()(T *) const { }
 };
-
-/*
- * Declare a simple matrix class with column major data ordering.
- *
- */
-template <typename T>
-struct Matrix
-{
-public:
-    Matrix() : rows(0), cols(0), array_p(new T[0]) { }
-    Matrix(int m, int n) : rows(m), cols(n), array_p(nullptr)
-    {
-        if (m * n > 0 and m > 0) {
-            array_p = new T[m * n];
-        }
-    }
-    Matrix(int m, int n, T arr[]) : rows(m), cols(n), array_p(new T[m * n])
-    {
-        for (size_t i = 0; i != m * n; i++) {
-            array_p[i] = arr[i];
-        }
-    }
-    Matrix(int m, int n, std::vector<T> vect) : rows(m), cols(n), array_p(new T[m * n])
-    {
-        for (size_t i = 0; i != m * n; i++) {
-            array_p[i] = vect.at(i);
-        }
-    }
-    Matrix(const Matrix<T> &other)
-    {
-        //Provides deep copy of a matrix
-        this->rows = other.rows;
-        this->cols = other.cols;
-        this->array_p = new T[rows * cols];
-        for (int i = 0; i != rows * cols; i++) {
-            this->array_p[i] = other.array_p[i];
-        }
-    }
-    ~Matrix() { delete[] array_p; }
-
-    Matrix<T> &operator=(const Matrix &other)
-    {
-        delete[] array_p;
-        this->rows = other.rows;
-        this->cols = other.cols;
-        this->array_p = new T[rows * cols];
-        for (int i = 0; i != rows * cols; i++) {
-            this->array_p[i] = other.array_p[i];
-        }
-        return *this;
-    }
-
-    Matrix(Matrix &&other) noexcept : rows(other.rows), cols(other.cols), array_p(other.array_p)
-    {
-        other.rows = 0;
-        other.cols = 0;
-        other.array_p = nullptr;
-    }
-
-    Matrix<T> &operator=(Matrix &&other) noexcept
-    {
-        if (this != &other) {
-            delete[] array_p;
-            this->rows = other.rows;
-            this->cols = other.cols;
-            this->array_p = other.array_p;
-            other.rows = 0;
-            other.cols = 0;
-            other.array_p = nullptr;
-        }
-        return *this;
-    }
-
-    /**
-     * \brief Whether (i, j) addresses a cell of this matrix.
-     *
-     * Exposed rather than left inside the assert so it can be tested without a debug build --
-     * the same reason first_unfilled_segment() is a predicate (plan section 7.14).
-     *
-     * **The lower bound is not redundant.** The indices are `int`, and a caller that derives one
-     * by subtraction can hand over a negative value. An upper-bound-only check accepts it, and
-     * `array_p[i + rows * j]` then reads from before the allocation -- silently, since every
-     * layer above fails to stop it too: an unsigned count wraps to a huge value, the growth
-     * check adds to it and wraps back, and the conversion to `int` here brings it out as -1.
-     * Plan section 7.18 measured that path returning two different answers for one arithmetic.
-     * R5a corrects the derivation that produces the negative index; this is what stops the read.
-     */
-    bool in_range(const int &i, const int &j) const
-    {
-        return (i >= 0) && (j >= 0) && (i <= rows - 1) && (j <= cols - 1);
-    }
-
-    T &operator()(const int &i, const int &j)
-    {
-        assert(in_range(i, j));
-        return array_p[i + rows * j];
-    }
-
-    const T &operator()(const int &i, const int &j) const
-    {
-        assert(in_range(i, j));
-        return array_p[i + rows * j];
-    }
-
-    T get_field(const int &i, const int &j) const
-    {
-        if (not in_range(i, j)) {
-            throw std::length_error("Cannot access indices [" + std::to_string(i) + "," + std::to_string(j)
-                                    + "] with matrix dimensions [" + std::to_string(rows) + "," + std::to_string(cols)
-                                    + "]");
-            std::cout << "out_of range matrix coordinates: " << rows << "<" << i << " or " << cols << "<" << j
-                      << std::endl;
-        }
-        return array_p[i + rows * j];
-    }
-
-    //Accessors
-    const int &get_n_rows() const { return rows; }
-    const int &get_n_cols() const { return cols; }
-
-    // Raw storage access, for callers that need to compute a linear index once and share it
-    // across several matrices with matching dimensions (see swalign::fill_sw_score_matrix).
-    T *data() { return array_p; }
-    const T *data() const { return array_p; }
-
-    Matrix<T> transpose() const
-    {
-        Matrix<T> result(cols, rows);
-        for (int i = 0; i != rows; ++i) {
-            for (int j = 0; j != cols; ++j) {
-                result(j, i) = array_p[i + rows * j];
-            }
-        }
-        return result;
-    }
-
-    // Debug print
-    void print(std::ostream &out = std::cout) const {
-        out << rows << "x" << cols << " Matrix\n";
-        if (rows == 0 || cols == 0) return;
-        // Find max display width using string stream
-        size_t max_width = 1;
-        std::ostringstream oss;
-        for (int k = 0; k < rows * cols; ++k) {
-            oss.str("");
-            oss.clear();
-            oss << array_p[k];
-            size_t len = oss.str().size();
-            if (len > max_width) max_width = len;
-        }
-        // Print with fixed width
-        for (int i = 0; i < rows; ++i) {
-            for (int j = 0; j < cols; ++j) {
-                if (j > 0) out << " ";
-                out << std::setw(static_cast<int>(max_width)) << std::right << array_p[i + j * rows];
-            }
-            out << "\n";
-        }
-    }
-
-private:
-    int rows;
-    int cols;
-    T *array_p;
-};
-
-template <typename T>
-std::ostream &operator<<(std::ostream &stream, const Matrix<T> &mat)
-{
-    stream << mat.get_n_rows() << "x" << mat.get_n_cols() << " Matrix" << std::endl;
-    for (int j = 0; j != mat.get_n_cols(); ++j) {
-        for (int i = 0; i != mat.get_n_rows(); ++i) {
-            if (i != 0) {
-                stream << " ";
-            }
-            stream << mat.get_field(i, j);
-        }
-        stream << std::endl;
-    }
-    return stream;
-}
-
 
 //Keyed by SeqTypeId. This is the one map whose values can be *actively absent*: a
 //zero-length segment means an event ran and produced nothing, which the ordered traversal

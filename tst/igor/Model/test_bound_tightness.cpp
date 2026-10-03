@@ -29,11 +29,11 @@
  * without making the default build carry the machinery.
  */
 
-#include <igor/Model/Legacy/BoundTightness.h>
+#include <igor/Model/BoundTightness.h>
 
 #include <catch2/catch_test_macros.hpp>
 
-using namespace igor::model::legacy;
+using namespace igor::model;
 
 TEST_CASE("BoundTightness::bucket_for classifies a leaf by decades of over-estimation",
           "[bound_tightness]")

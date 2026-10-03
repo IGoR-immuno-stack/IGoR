@@ -134,6 +134,6 @@ void write_batch(
  * @return CIGAR string (e.g., "50M2I3D")
  */
 STREAMING_EXPORT
-std::string make_cigar(const igor::alignment::legacy::Alignment_data& align);
+std::string make_cigar(const igor::core::AlignmentData& align);
 
 } // namespace igor::streaming::airr::alignment

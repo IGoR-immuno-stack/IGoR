@@ -39,6 +39,7 @@
 
 // Legacy Core types (for generation + inference E-step)
 #include <igor/Inference/Legacy/GenModel.h>
+#include <igor/Generation/Legacy/SequenceGenerator.h>
 #include <igor/Model/Legacy/Model_Parms.h>
 #include <igor/Model/Legacy/Model_marginals.h>
 #include <igor/Model/Legacy/Rec_Event.h>
@@ -480,7 +481,7 @@ TEMPLATE_TEST_CASE("Model architecture: inference recovers ground truth",
     // 6. Generate sequences with scenarios (legacy GenModel)
     // ==================================================================
     std::cout << "\n=== Generating " << sample_size << " sequences ===" << std::endl;
-    GenModel gen_model(truth_parms, truth_marginals);
+    SequenceGenerator gen_model(truth_parms, truth_marginals);
     auto scenarios = gen_model.generate_sequences(sample_size, /*errors=*/false);
 
     std::size_t actual_count = 0;

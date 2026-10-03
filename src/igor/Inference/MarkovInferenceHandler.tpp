@@ -14,7 +14,7 @@ using igor::model::SampledEvent;
 // ─── Constructor ───────────────────────────────────────────────────────
 
 template <typename T>
-MarkovInferenceHandler<T>::MarkovInferenceHandler(std::string name, igor::core::legacy::index_type uid, math::Tensor<T>& weights)
+MarkovInferenceHandler<T>::MarkovInferenceHandler(std::string name, igor::core::index_type uid, math::Tensor<T>& weights)
     : InferenceHandler<T>(std::move(name), uid)
     , m_weights(weights)
     , m_accumulator(math::tensor::zeros_like(weights))

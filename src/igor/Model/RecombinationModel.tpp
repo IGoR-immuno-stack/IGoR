@@ -55,9 +55,9 @@ auto RecombinationModel<T>::orderedWeights() const -> OrderedList
 // ─── Weight access by UID ────────────────────────────────────────────────────
 
 template <typename T>
-math::Tensor<T>& RecombinationModel<T>::weight(igor::core::legacy::index_type uid)
+math::Tensor<T>& RecombinationModel<T>::weight(igor::core::index_type uid)
 {
-    if (uid < 0 || uid >= static_cast<igor::core::legacy::index_type>(m_weights.size())) {
+    if (uid < 0 || uid >= static_cast<igor::core::index_type>(m_weights.size())) {
         throw std::out_of_range(
             "RecombinationModel::weight: invalid UID " + std::to_string(uid));
     }
@@ -65,9 +65,9 @@ math::Tensor<T>& RecombinationModel<T>::weight(igor::core::legacy::index_type ui
 }
 
 template <typename T>
-const math::Tensor<T>& RecombinationModel<T>::weight(igor::core::legacy::index_type uid) const
+const math::Tensor<T>& RecombinationModel<T>::weight(igor::core::index_type uid) const
 {
-    if (uid < 0 || uid >= static_cast<igor::core::legacy::index_type>(m_weights.size())) {
+    if (uid < 0 || uid >= static_cast<igor::core::index_type>(m_weights.size())) {
         throw std::out_of_range(
             "RecombinationModel::weight: invalid UID " + std::to_string(uid));
     }

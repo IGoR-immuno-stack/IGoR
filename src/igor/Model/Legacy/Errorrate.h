@@ -26,6 +26,7 @@
 #pragma once
 
 #include <igor/Core/Legacy/Utils.h>
+#include <igor/Math/Legacy/Matrix.h>
 #include <igor/Model/Legacy/EventTypedefs.h>
 #include <igor/Core/Legacy/IntStr.h>
 #include <unordered_map>
@@ -54,6 +55,7 @@
 //Forward declare Rec_event
 
 namespace igor::model::legacy {
+using namespace igor::math::legacy;
 using namespace igor::core::legacy;
 using namespace igor::alignment::legacy;
 

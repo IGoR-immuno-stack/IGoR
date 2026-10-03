@@ -53,7 +53,7 @@ inline std::shared_ptr<legacy::Model_Parms> export_to_legacy(const Topology& top
     auto parms = std::make_shared<legacy::Model_Parms>(event_list);
 
     for (const auto& ev : topology) {
-        core::legacy::index_type child_id = topology.eventId(ev->get_nickname());
+        core::index_type child_id = topology.eventId(ev->get_nickname());
         auto parents = topology.parents(child_id);
         for (const auto& parent : parents) {
             parms->add_edge(parent->get_name(), ev->get_name());
@@ -77,7 +77,7 @@ void import_from_legacy(RecombinationModel<T>& model,
     auto index_map            = marginals.get_index_map(*parms);
     const long double* source = marginals.marginal_array_smart_p.get();
 
-    for (core::legacy::index_type uid = 0; uid < static_cast<core::legacy::index_type>(topology.size()); ++uid) {
+    for (core::index_type uid = 0; uid < static_cast<core::index_type>(topology.size()); ++uid) {
         // index_map is keyed by full event name, not nickname
         const std::string full_name = topology.event(uid)->get_name();
 

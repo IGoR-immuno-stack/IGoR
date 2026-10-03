@@ -62,7 +62,7 @@ std::string gene_class_to_segment(igor::core::legacy::Gene_class gc)
 // Use shared utility function from parent namespace
 using airr::delimiter_char;
 
-std::string make_cigar(const igor::alignment::legacy::Alignment_data& align)
+std::string make_cigar(const igor::core::AlignmentData& align)
 {
     std::ostringstream cigar;
 

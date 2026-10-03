@@ -27,13 +27,13 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-#include <igor/Core/Legacy/SegmentSpan.h>
-#include <igor/Model/Legacy/SpanProfile.h>
+#include <igor/Core/SegmentSpan.h>
+#include <igor/Model/SpanProfile.h>
 
 #include <vector>
 
-using namespace igor::core::legacy;
-using namespace igor::model::legacy;
+using namespace igor::core;
+using namespace igor::model;
 
 TEST_CASE("SpanProfile keeps the best probability per distance", "[unit][span_profile]")
 {

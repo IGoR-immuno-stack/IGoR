@@ -23,7 +23,6 @@
 #include <sstream>
 
 using namespace igor::core::legacy;
-using namespace igor::alignment::legacy;
 
 using namespace igor::streaming;
 using namespace igor::streaming::airr::alignment;
@@ -112,7 +111,7 @@ struct AIRRAlignmentFixture
 
         // Sequence 1: Full V/D/J
         {
-            std::unordered_map<Gene_class, std::vector<Alignment_data>> aligns;
+            std::unordered_map<Gene_class, std::vector<igor::core::AlignmentData>> aligns;
 
             std::vector<size_t> insertions;
             std::vector<size_t> deletions;
@@ -130,7 +129,7 @@ struct AIRRAlignmentFixture
 
         // Sequence 2: V with secondary alignment and J
         {
-            std::unordered_map<Gene_class, std::vector<Alignment_data>> aligns;
+            std::unordered_map<Gene_class, std::vector<igor::core::AlignmentData>> aligns;
 
             std::vector<size_t> insertions;
             std::vector<size_t> deletions;
@@ -448,7 +447,7 @@ TEST_CASE("alignment::make_cigar", "[airr][alignment][writer][cigar]")
         std::vector<size_t> deletions;
         std::vector<size_t> mismatches;
 
-        Alignment_data align("IGHV1", 0, 0, 0, 50, insertions, deletions, mismatches, 100.0);
+        igor::core::AlignmentData align("IGHV1", 0, 0, 0, 50, insertions, deletions, mismatches, 100.0);
 
         REQUIRE(make_cigar(align) == "50M");
     }
@@ -459,7 +458,7 @@ TEST_CASE("alignment::make_cigar", "[airr][alignment][writer][cigar]")
         std::vector<size_t> deletions;
         std::vector<size_t> mismatches;
 
-        Alignment_data align("IGHV1", 0, 0, 0, 50, insertions, deletions, mismatches, 100.0);
+        igor::core::AlignmentData align("IGHV1", 0, 0, 0, 50, insertions, deletions, mismatches, 100.0);
 
         REQUIRE(make_cigar(align) == "50M2I");
     }
@@ -470,7 +469,7 @@ TEST_CASE("alignment::make_cigar", "[airr][alignment][writer][cigar]")
         std::vector<size_t> deletions = {15, 20, 25};
         std::vector<size_t> mismatches;
 
-        Alignment_data align("IGHV1", 0, 0, 0, 50, insertions, deletions, mismatches, 100.0);
+        igor::core::AlignmentData align("IGHV1", 0, 0, 0, 50, insertions, deletions, mismatches, 100.0);
 
         REQUIRE(make_cigar(align) == "50M3D");
     }
@@ -481,7 +480,7 @@ TEST_CASE("alignment::make_cigar", "[airr][alignment][writer][cigar]")
         std::vector<size_t> deletions = {10, 15};
         std::vector<size_t> mismatches;
 
-        Alignment_data align("IGHV1", 0, 0, 0, 50, insertions, deletions, mismatches, 100.0);
+        igor::core::AlignmentData align("IGHV1", 0, 0, 0, 50, insertions, deletions, mismatches, 100.0);
 
         REQUIRE(make_cigar(align) == "50M1I2D");
     }
@@ -492,7 +491,7 @@ TEST_CASE("alignment::make_cigar", "[airr][alignment][writer][cigar]")
         std::vector<size_t> deletions;
         std::vector<size_t> mismatches;
 
-        Alignment_data align("IGHV1", 0, 0, 0, 0, insertions, deletions, mismatches, 0.0);
+        igor::core::AlignmentData align("IGHV1", 0, 0, 0, 0, insertions, deletions, mismatches, 0.0);
 
         REQUIRE(make_cigar(align) == "");
     }

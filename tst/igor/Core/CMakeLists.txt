@@ -1,10 +1,14 @@
 ### CMakeLists.txt ---
 
 add_executable(core_tests
-    Legacy/test_dynamic_sequence_map.cpp
-    Legacy/test_layered_array.cpp
-    Legacy/test_matrix.cpp
-    Legacy/test_sanity.cpp
+    test_dynamic_sequence_map.cpp
+    test_layered_array.cpp
+)
+
+# Legacy tests: the tests of the code still under <Layer>/Legacy.
+target_sources(core_tests
+    PRIVATE
+        Legacy/test_sanity.cpp
 )
 
 set_target_properties(core_tests PROPERTIES CXX_STANDARD 23)

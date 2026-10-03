@@ -150,7 +150,7 @@ std::vector<SequenceData> read_sequences(
  */
 STREAMING_EXPORT
 std::vector<std::tuple<int, std::string,
-                       std::unordered_map<igor::core::legacy::Gene_class, std::vector<igor::alignment::legacy::Alignment_data>>>>
+                       std::unordered_map<igor::core::legacy::Gene_class, std::vector<igor::core::AlignmentData>>>>
 read_legacy(
     const std::string& filepath,
     Delimiter delimiter = Delimiter::AUTO);

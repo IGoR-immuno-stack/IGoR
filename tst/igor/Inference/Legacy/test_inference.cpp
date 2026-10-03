@@ -19,6 +19,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <igor/Inference/Legacy/GenModel.h>
+#include <igor/Generation/Legacy/SequenceGenerator.h>
 #include <igor/Model/Legacy/Model_Parms.h>
 #include <igor/Model/Legacy/Model_marginals.h>
 #include <igor/Model/Legacy/Rec_Event.h>
@@ -509,7 +510,7 @@ static void run_inference_recovery_test(const InferenceTestConfig& cfg)
     // Create a 0 error rate
     Single_error_rate null_error_model = Single_error_rate(0.0);
     truth_parms.set_error_ratep(&null_error_model);
-    GenModel gen_model(truth_parms, truth_marginals);
+    SequenceGenerator gen_model(truth_parms, truth_marginals);
     auto scenarios = gen_model.generate_sequences(cfg.sample_size, /*generate_errors=*/false);
 
     // Count generated sequences

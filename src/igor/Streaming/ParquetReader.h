@@ -29,7 +29,7 @@
 #include <igor/Streaming/Export.h>
 
 #include <igor/Core/Legacy/Utils.h>
-#include <igor/Alignment/Legacy/Aligner.h>
+#include <igor/Core/AlignmentData.h>
 
 #include <exception>
 #include <sparrow/record_batch.hpp>
@@ -101,7 +101,7 @@ public:
      */
     static std::vector<std::tuple<int, std::string,
                                   std::unordered_map<igor::core::legacy::Gene_class,
-                                                     std::vector<igor::alignment::legacy::Alignment_data>>>>
+                                                     std::vector<igor::core::AlignmentData>>>>
     read_sequences(const std::string &input_path);
 
     /**

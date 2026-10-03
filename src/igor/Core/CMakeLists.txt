@@ -36,9 +36,10 @@ configure_file(
 
 target_sources(${PROJECT_NAME}
   PRIVATE
-    Legacy/GeneticCode.cpp
-    Legacy/IntStr.cpp
-    Legacy/Utils.cpp
+    AlignmentData.cpp
+    Types.cpp
+    GeneticCode.cpp
+    IntStr.cpp
   PUBLIC FILE_SET HEADERS
     BASE_DIRS
       ${CMAKE_SOURCE_DIR}/src
@@ -46,6 +47,29 @@ target_sources(${PROJECT_NAME}
     FILES
       ${LAYER_BINARY_DIR}/Export.h
       ${LAYER_BINARY_DIR}/Config.h
+      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}.h
+      ${LAYER_DIR}/AlignmentData.h
+      ${LAYER_DIR}/Platform.h
+      ${LAYER_DIR}/Types.h
+      ${LAYER_DIR}/DynamicSequenceMap.h
+      ${LAYER_DIR}/GeneticCode.h
+      ${LAYER_DIR}/IntStr.h
+      ${LAYER_DIR}/LayeredArray.h
+      ${LAYER_DIR}/SegmentSpan.h
+      ${LAYER_DIR}/SeqOffsetsMap.h
+      ${LAYER_DIR}/SeqTypeRegistry.h
+)
+
+# Legacy files: everything under Legacy/, the stubs of promoted headers included.
+target_sources(${PROJECT_NAME}
+  PRIVATE
+    Legacy/Utils.cpp
+  PUBLIC FILE_SET HEADERS
+    BASE_DIRS
+      ${CMAKE_SOURCE_DIR}/src
+      ${CMAKE_BINARY_DIR}/src
+    FILES
+      ${LAYER_DIR}/Legacy/AlignmentData.h
       ${LAYER_DIR}/Legacy/CoreEnums.h
       ${LAYER_DIR}/Legacy/DynamicSequenceMap.h
       ${LAYER_DIR}/Legacy/GeneticCode.h

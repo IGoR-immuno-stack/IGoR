@@ -34,7 +34,7 @@ template <typename T = double>
 class MarkovSamplingHandler : public SamplingHandler<T>
 {
 public:
-    MarkovSamplingHandler(std::string name, igor::core::legacy::index_type uid, const math::Tensor<T>& weights);
+    MarkovSamplingHandler(std::string name, igor::core::index_type uid, const math::Tensor<T>& weights);
 
     ~MarkovSamplingHandler(void) = default;
 
