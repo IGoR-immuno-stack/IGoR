@@ -34,6 +34,7 @@ target_sources(${PROJECT_NAME}
     SamplingHandlerFactory.cpp
     Legacy/FastGenerator.cpp
     Legacy/FastSampling.cpp
+    Legacy/SequenceGenerator.cpp
   PUBLIC FILE_SET HEADERS
     BASE_DIRS
       ${CMAKE_SOURCE_DIR}/src
@@ -53,6 +54,7 @@ target_sources(${PROJECT_NAME}
       ${LAYER_DIR}/SamplingHandlerFactory.tpp
       ${LAYER_DIR}/Legacy/FastGenerator.h
       ${LAYER_DIR}/Legacy/FastSampling.h
+      ${LAYER_DIR}/Legacy/SequenceGenerator.h
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC

@@ -13,6 +13,7 @@ set_target_properties(inference_tests PROPERTIES CXX_STANDARD 23)
 target_link_libraries(inference_tests
     PRIVATE
         igor::Inference
+        igor::Generation
         Catch2::Catch2WithMain
 )
 

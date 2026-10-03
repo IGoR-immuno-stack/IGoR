@@ -66,11 +66,8 @@ target_include_directories(${PROJECT_NAME} PUBLIC
 )
 
 # OpenMP is PUBLIC because Legacy/GenModel.h includes <omp.h>.
-# igor::Generation is a transitional link (step 1a): Legacy/GenModel.h includes
-# FastGenerator.h for generate_sequences*(). It goes away with the GenModel split of step 1c.
 target_link_libraries(${PROJECT_NAME} PUBLIC
   ${CMAKE_PROJECT_NAME}::Model
-  ${CMAKE_PROJECT_NAME}::Generation
   OpenMP::OpenMP_CXX
 )
 
