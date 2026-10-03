@@ -168,7 +168,7 @@ unchanged.
 
 | From | File | Tag | Target name / note |
 |---|---|---|---|
-| Core | `Aligner.*`, `AlignerInternal.h` | promote | 3 000 lines of Smith-Waterman nobody plans to rewrite; namespace and method names only |
+| Core | `Aligner.*`, `AlignerInternal.h` | promote | 3 000 lines of Smith-Waterman nobody plans to rewrite; namespace and method names only. `AlignerInternal.h` and its `swalign` testing export stay: they exist for the three whitebox DP tests of `test_aligner.cpp` (decided 2026-10-03) |
 | Core | `ExtractFeatures.*`, `CDR3SeqData.*` | promote | |
 | Core | `JournaledQuery.*` | promote | Nicolas's AA_PGEN work, already in style |
 
