@@ -348,10 +348,27 @@ What remains transitional: Model → Alignment, for `JournaledQuery` held by
 
 What remains in `Legacy/` after this pass, by tag: **keep** (`Utils`, `Matrix`, `EventUtils`,
 `gene_to_seqtype_migr`, `Model_Parms`, `Model_marginals`, `FastGenerator`, `FastSampling`);
-**promote, not done yet** (`Aligner`, `ExtractFeatures`, `CDR3SeqData`, `JournaledQuery`,
-`JsonDetail`, `ModelJson`, and the `Gene_class` enums of `Utils.h`); **replace, stage 2** (the
-events, the contexts, the error rates, `Counter` and the four counters, `GenModel`,
-`SequenceGenerator`).
+**promote, not done** (`Aligner`, `ExtractFeatures`, `CDR3SeqData`, `JournaledQuery`,
+`JsonDetail`, and the `Gene_class` enums of `Utils.h`); **replace, stage 2** (the events, the
+contexts, the error rates, `Counter` and the four counters, `GenModel`, `SequenceGenerator`,
+`ModelJson`).
+
+Hand-over (decided 2026-10-04). The layer set-up stops here on our side; what follows is
+Quentin's:
+
+- **Alignment stays in `Legacy/`** for the foreseeable future. It is not a priority.
+- **`Utils.h`**: the `Gene_class` enums and their conversion functions, the string helpers and
+  the scratch-map typedefs are his to disperse.
+- **Model's JSON**: `JsonDetail.h` has only legacy consumers (the four events' JSON
+  constructors) and follows the events. `ModelJson` is a replace, not a promote: its one
+  function takes a `Model_Parms`, while the reader, `topology_from_json`, is new code. The
+  writer the new side lacks is `topology_to_json(const Topology &)`; it also raises the open
+  question of where the error rate lives in the new model, since `Topology` carries none.
+- **Stage 2** (§7), as planned.
+
+The tools stay in `scripts/migrate_layers/`: `promote.py` (add a line to its table, run it,
+build), `check_directives.py --fix` after every promotion, and the two checks of step 1b,
+`grep -rn '^#include "' src` empty and `grep -rn "Legacy/" src app tst | wc -l` not increasing.
 
 ## 7. Stage 2: the DFS becomes an engine
 
