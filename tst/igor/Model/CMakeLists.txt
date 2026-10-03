@@ -4,7 +4,7 @@ add_executable(model_tests
     test_EventFactory.cpp
     test_LegacyBridge.cpp
     test_Topology.cpp
-    Legacy/test_bound_tightness.cpp
+    test_bound_tightness.cpp
     Legacy/test_Contexts.cpp
     Legacy/test_deletion_iterate.cpp
     Legacy/test_dinucl_markov_iterate.cpp
@@ -14,12 +14,12 @@ add_executable(model_tests
     Legacy/test_gene_choice_iterate.cpp
     Legacy/test_genetic_code.cpp
     Legacy/test_insertion_iterate.cpp
-    Legacy/test_junction_geometry.cpp
+    test_junction_geometry.cpp
     Legacy/test_model_format_v2.cpp
     Legacy/test_model_json.cpp
     Legacy/test_proba_bound_benchmark.cpp
-    Legacy/test_safety_matrix.cpp
-    Legacy/test_span_profile.cpp
+    test_safety_matrix.cpp
+    test_span_profile.cpp
     Legacy/test_utils.cpp
 )
 

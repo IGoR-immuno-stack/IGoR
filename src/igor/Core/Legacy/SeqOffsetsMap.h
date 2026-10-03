@@ -22,91 +22,15 @@
 
 #pragma once
 
+#include <igor/Core/SeqOffsetsMap.h>
 #include <igor/Core/Legacy/DynamicSequenceMap.h>
 #include <igor/Core/Legacy/SeqTypeRegistry.h>
-#include <igor/Core/Legacy/CoreEnums.h>
-#include <igor/Core/Legacy/StdTypedefs.h>
 
-/**
- * \class Seq_offsets_map SeqOffsetsMap.h
- * \brief The 5' and 3' offsets of each constructed sequence segment.
- *
- * Replaces Enum_fast_memory_dual_key_map<Seq_type, Seq_side, Seq_Offset>. The dual-key map
- * addressed a single array as `key1 + range_key1 * key2`, with range_key1 fixed at the six
- * Seq_type enum values -- which is exactly what a model with more sequence types cannot
- * use. Storage is now **two independent single-key maps**, each runtime-sized from the
- * registry, so Seq_side stops being a dimension of the address space and becomes the
- * identity of the map you are addressing.
- *
- * Both are public: code that knows its side at compile time should say
- * `five_prime.get(id)` and skip the dispatch. The dual-key methods below are kept because
- * they let the ~100 existing call sites move over without being rewritten, and because
- * ScenarioContext's wrappers genuinely take the side as a parameter. As Deletion,
- * Gene_choice and Insertion are rewritten (B5/B6/B11) their sites become direct, and what
- * remains of this API is the handful that dispatch for real.
- *
- * Undefined_side is not a valid offset key -- an offset is one end of a segment or the
- * other -- and was never used as one even though the old map allocated a row for it.
- */
-
+// SeqOffsetsMap.h was promoted out of Legacy/ (step 1c of doc/LAYER_REFACTORING_PROPOSAL.md).
+// This stub keeps the legacy include path and the legacy names for the code that has not
+// been promoted yet; it goes when its last consumer switches.
 namespace igor::core::legacy {
 
-class Seq_offsets_map
-{
-public:
-    explicit Seq_offsets_map(const SeqTypeRegistry &registry, std::size_t initial_layers = 1)
-        : five_prime(registry, initial_layers), three_prime(registry, initial_layers)
-    { }
-
-    /// The map for one end. \throws std::out_of_range for Undefined_side.
-    DynamicSequenceMap<Seq_Offset> &side(Seq_side seq_side)
-    {
-        return const_cast<DynamicSequenceMap<Seq_Offset> &>(
-            static_cast<const Seq_offsets_map *>(this)->side(seq_side));
-    }
-
-    const DynamicSequenceMap<Seq_Offset> &side(Seq_side seq_side) const
-    {
-        switch (seq_side) {
-        case Five_prime:
-            return five_prime;
-        case Three_prime:
-            return three_prime;
-        default:
-            throw std::out_of_range("Seq_offsets_map: an offset must be Five_prime or Three_prime");
-        }
-    }
-
-    Seq_Offset get(SeqTypeId type_id, Seq_side seq_side) const { return side(seq_side).get(type_id); }
-
-    Seq_Offset get(SeqTypeId type_id, Seq_side seq_side, std::size_t layer) const
-    {
-        return side(seq_side).get(type_id, layer);
-    }
-
-    void set(SeqTypeId type_id, Seq_side seq_side, Seq_Offset offset, std::size_t layer)
-    {
-        side(seq_side).set(type_id, offset, layer);
-    }
-
-    void set_current(SeqTypeId type_id, Seq_side seq_side, Seq_Offset offset)
-    {
-        side(seq_side).set_current(type_id, offset);
-    }
-
-    bool exists(SeqTypeId type_id, Seq_side seq_side) const { return side(seq_side).exists(type_id); }
-
-    int claimed_layer(SeqTypeId type_id, Seq_side seq_side) const
-    {
-        return side(seq_side).claimed_layer(type_id);
-    }
-
-    void request_layer(SeqTypeId type_id, Seq_side seq_side) { side(seq_side).request_layer(type_id); }
-
-    void restore_layer(SeqTypeId type_id, Seq_side seq_side) { side(seq_side).restore_layer(type_id); }
-
-    DynamicSequenceMap<Seq_Offset> five_prime;
-    DynamicSequenceMap<Seq_Offset> three_prime;
-};
+using Seq_offsets_map = igor::core::SeqOffsetsMap;
 
 } // namespace igor::core::legacy

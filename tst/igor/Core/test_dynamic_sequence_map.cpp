@@ -12,13 +12,14 @@
 
 #include "LayerClaim.h"
 
-#include <igor/Core/Legacy/DynamicSequenceMap.h>
+#include <igor/Core/DynamicSequenceMap.h>
 #include <igor/Core/Legacy/IntStr.h>
-#include <igor/Core/Legacy/SeqTypeRegistry.h>
+#include <igor/Core/SeqTypeRegistry.h>
 #include <igor/Core/Legacy/Utils.h>
 
 #include <stdexcept>
 
+using namespace igor::core;
 using namespace igor::core::legacy;
 
 namespace {

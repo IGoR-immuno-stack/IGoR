@@ -22,8 +22,8 @@
  *   along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <igor/Model/Legacy/JunctionGeometry.h>
-#include <igor/Model/Legacy/SafetyMatrix.h>
+#include <igor/Model/JunctionGeometry.h>
+#include <igor/Model/SafetyMatrix.h>
 
 #include "LayerClaim.h"
 
@@ -32,6 +32,8 @@
 #include <string>
 #include <vector>
 
+using namespace igor::core;
+using namespace igor::model;
 using namespace igor::core::legacy;
 using namespace igor::alignment::legacy;
 using namespace igor::model::legacy;

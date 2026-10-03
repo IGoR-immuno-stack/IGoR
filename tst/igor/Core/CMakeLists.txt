@@ -1,8 +1,8 @@
 ### CMakeLists.txt ---
 
 add_executable(core_tests
-    Legacy/test_dynamic_sequence_map.cpp
-    Legacy/test_layered_array.cpp
+    test_dynamic_sequence_map.cpp
+    test_layered_array.cpp
     Legacy/test_matrix.cpp
     Legacy/test_sanity.cpp
 )

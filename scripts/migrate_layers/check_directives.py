@@ -2,7 +2,8 @@
 """Keep the transitional using-directives honest (step 1c of doc/LAYER_REFACTORING_PROPOSAL.md).
 
 A `using namespace igor::<layer>::legacy;` is legitimate only if the file reaches a header of
-`src/igor/<Layer>/Legacy/` through its <igor/...> includes: otherwise the namespace may not even
+`src/igor/<Layer>/Legacy/` through its <igor/...> includes (and `using namespace igor::<layer>;`
+a header of `src/igor/<Layer>/`): otherwise the namespace may not even
 be declared, and the directive is the one line that fails to compile. Each promotion of 1c
 shrinks include closures, so run this after every one.
 
@@ -21,7 +22,7 @@ ROOT = subprocess.check_output(["git", "rev-parse", "--show-toplevel"], text=Tru
 os.chdir(ROOT)
 
 INCLUDE_LINE = re.compile(r'^\s*#\s*include\s*[<"]igor/([^>"]+)[>"]', re.M)
-DIRECTIVE = re.compile(r"^using namespace igor::([a-z]+)::legacy;\n", re.M)
+DIRECTIVE = re.compile(r"^using namespace igor::([a-z]+)(::legacy)?;\n", re.M)
 _cache = {}
 
 
@@ -59,19 +60,25 @@ def main():
                     continue
                 path = os.path.join(dirpath, name)
                 text = read(path)
-                reached = {m.group(1).lower() for h in closure(path)
-                           for m in [re.match(r"src/igor/([A-Za-z]+)/Legacy/", h)] if m}
-                # a legacy file is itself a declaration of its own layer's namespace
+                reached = set()
+                for h in closure(path):
+                    m = re.match(r"src/igor/([A-Za-z]+)/(Legacy/)?", h)
+                    if m and h != path:
+                        reached.add((m.group(1).lower(), "::legacy" if m.group(2) else ""))
+                # a file under src/igor/<Layer>/ declares its own namespace
                 if own_layer(path):
-                    reached.add(own_layer(path))
-                dead = [layer for layer in DIRECTIVE.findall(text) if layer not in reached]
+                    reached.add((own_layer(path), "::legacy"))
+                # a legacy namespace nests in its layer's namespace, which it therefore declares
+                reached |= {(layer, "") for layer, _ in list(reached)}
+                dead = [(layer, leg) for layer, leg in DIRECTIVE.findall(text)
+                        if layer not in ("math", "streaming") and (layer, leg) not in reached]
                 if not dead:
                     continue
                 stale += len(dead)
-                for layer in dead:
-                    print(f"{path}: igor::{layer}::legacy is not reachable")
+                for layer, leg in dead:
+                    print(f"{path}: igor::{layer}{leg} is not reachable")
                     if fix:
-                        text = text.replace(f"using namespace igor::{layer}::legacy;\n", "")
+                        text = text.replace(f"using namespace igor::{layer}{leg};\n", "")
                 if fix:
                     with open(path, "w", encoding="utf-8", errors="surrogateescape") as handle:
                         handle.write(text)

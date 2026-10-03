@@ -50,12 +50,17 @@ target_sources(${PROJECT_NAME}
       ${LAYER_DIR}/AlignmentData.h
       ${LAYER_DIR}/Legacy/AlignmentData.h
       ${LAYER_DIR}/Legacy/CoreEnums.h
+      ${LAYER_DIR}/DynamicSequenceMap.h
       ${LAYER_DIR}/Legacy/DynamicSequenceMap.h
       ${LAYER_DIR}/Legacy/GeneticCode.h
       ${LAYER_DIR}/Legacy/IntStr.h
+      ${LAYER_DIR}/LayeredArray.h
       ${LAYER_DIR}/Legacy/LayeredArray.h
+      ${LAYER_DIR}/SegmentSpan.h
       ${LAYER_DIR}/Legacy/SegmentSpan.h
+      ${LAYER_DIR}/SeqOffsetsMap.h
       ${LAYER_DIR}/Legacy/SeqOffsetsMap.h
+      ${LAYER_DIR}/SeqTypeRegistry.h
       ${LAYER_DIR}/Legacy/SeqTypeRegistry.h
       ${LAYER_DIR}/Legacy/StdTypedefs.h
       ${LAYER_DIR}/Legacy/Typedef.h

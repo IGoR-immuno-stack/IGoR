@@ -10,12 +10,13 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/benchmark/catch_benchmark.hpp>
 
-#include <igor/Core/Legacy/LayeredArray.h>
+#include <igor/Core/LayeredArray.h>
 #include <igor/Core/Legacy/Utils.h>
 
 #include <stdexcept>
 #include <vector>
 
+using namespace igor::core;
 using namespace igor::core::legacy;
 
 TEST_CASE("LayeredArray: unwritten keys are distinct from written-but-empty", "[layered_array]")
