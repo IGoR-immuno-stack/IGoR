@@ -47,6 +47,7 @@ target_sources(${PROJECT_NAME}
     FILES
       ${LAYER_BINARY_DIR}/Export.h
       ${LAYER_BINARY_DIR}/Config.h
+      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}.h
       ${LAYER_DIR}/AlignmentData.h
       ${LAYER_DIR}/Platform.h
       ${LAYER_DIR}/Types.h

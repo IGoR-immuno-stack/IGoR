@@ -7,3 +7,4 @@
 #include <igor/Math/MdspanCompat.h>
 #include <igor/Math/Tensor.h>
 #include <igor/Math/Tensor.tpp>
+#include <igor/Math/TensorCreation.h>

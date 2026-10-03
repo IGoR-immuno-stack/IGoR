@@ -24,6 +24,9 @@ if(SCENARIO STREQUAL "all")
   endforeach()
   add_executable(consumer model.cpp)
   target_link_libraries(consumer PRIVATE igor::Inference igor::Generation igor::Streaming)
+  # Every umbrella header igor/<Layer>.h compiles on its own.
+  add_executable(umbrellas engines.cpp)
+  target_link_libraries(umbrellas PRIVATE igor::Alignment igor::Inference igor::Generation)
 
 elseif(SCENARIO STREQUAL "model")
   # One component: it comes with what it depends on, and with nothing else.

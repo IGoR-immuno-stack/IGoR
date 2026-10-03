@@ -1,5 +1,5 @@
 // Links against the Core layer alone: IntStr's append is defined in the library.
-#include <igor/Core/IntStr.h>
+#include <igor/Core.h>
 
 int main()
 {
