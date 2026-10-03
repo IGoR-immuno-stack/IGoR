@@ -23,6 +23,7 @@
 #pragma once
 
 #include <igor/Core/DynamicSequenceMap.h>
+#include <igor/Core/Legacy/IntStr.h>
 #include <igor/Core/Legacy/LayeredArray.h>
 #include <igor/Core/Legacy/SeqTypeRegistry.h>
 

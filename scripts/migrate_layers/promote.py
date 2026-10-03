@@ -59,30 +59,6 @@ def vocabulary_promoted():
     return os.path.exists("src/igor/Core/Types.h")
 
 
-def modernize_core_names(text, in_core):
-    """In promoted or new code, replace the legacy spelling of promoted Core vocabulary."""
-    prefix = "" if in_core else "core::"
-    for old, new in CORE_RENAMED.items():
-        text = re.sub(r"(?:(?:igor::)?core::)?legacy::" + old + r"\b", (prefix if not in_core else "") + new, text) \
-            if in_core else re.sub(r"((?:igor::)?)core::legacy::" + old + r"\b", r"\1core::" + new, text)
-    for name in CORE_PROMOTED_AS_IS:
-        text = re.sub(r"(?:(?:igor::)?core::)?legacy::" + name + r"\b", name, text) \
-            if in_core else re.sub(r"((?:igor::)?)core::legacy::" + name + r"\b", r"\1core::" + name, text)
-    for old in ("CoreEnums", "StdTypedefs", "Typedef"):
-        text = text.replace(f"#include <igor/Core/Legacy/{old}.h>", "#include <igor/Core/Types.h>")
-    for stem in ("IntStr", "GeneticCode"):
-        text = text.replace(f"#include <igor/Core/Legacy/{stem}.h>", f"#include <igor/Core/{stem}.h>")
-    # the three legacy headers collapse into one include
-    lines, seen = [], False
-    for line in text.split("\n"):
-        if line == "#include <igor/Core/Types.h>":
-            if seen:
-                continue
-            seen = True
-        lines.append(line)
-    return "\n".join(lines)
-
-
 class Symbol:
     """A top-level name of a promoted header and how the legacy stub re-declares it."""
 

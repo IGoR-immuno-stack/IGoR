@@ -222,11 +222,13 @@ Already in style; step 1b renames `igor` → `igor::streaming` and `igor::airr` 
 
 ## 6. Stage 1: the move, in three steps
 
-Right after the `tk_refactoring` + `tandemD` merge lands. Steps 1a and 1b are two PRs, each
-mechanical, each produced by a committed, re-runnable script (`scripts/migrate_layers/`), so
-that Quentin applies the same scripts to `feature/TensorLinalg` and
-`feature/MarginalRefactoring` instead of rebasing a 200-file rename by hand. Step 1c is a
-queue of small PRs.
+Done between 2026-10-02 and 2026-10-04, right after the `tk_refactoring` + `tandemD` merge.
+Steps 1a and 1b were two mechanical PRs (#71, #72), each produced by a one-shot script; step 1c
+was a queue of small commits. The one-shot scripts were removed once applied: they cannot bring
+a branch forked before the move to the current tree, because part of 1c was done by hand. Such
+a branch merges `feature/tandemD` and lets git's rename detection follow the files. The scripts
+remain in the history (`0ff77c7`, `afecc0b`, `8520ddb`) for whoever wants to read how a step was
+done.
 
 ### 1a. Everyone into Legacy
 
@@ -256,7 +258,7 @@ passes per layer.
 
 ### 1b. Conventions: namespaces, includes, CMake
 
-One PR, scripted, no file moves.
+One PR, no file moves.
 
 - Every file under `<Layer>/Legacy/` is wrapped in `namespace igor::<layer>::legacy { }`;
   the files already in a layer directory take `igor::<layer>` (Streaming: `igor` →
@@ -282,7 +284,7 @@ One PR, scripted, no file moves.
 Check: same as 1a, plus `grep -rn "^#include \"" src` is empty and
 `grep -rn "Legacy/" src app tst | wc -l` is recorded in the PR as the starting debt.
 
-What executing 1b added to the rules above (2026-10-03, `scripts/migrate_layers/step1b_namespaces.py`):
+What executing 1b added to the rules above (2026-10-03):
 
 - **Visibility between legacy namespaces** goes through using-directives placed right after each
   legacy namespace opening (`namespace igor::model::legacy { using namespace igor::core::legacy;
