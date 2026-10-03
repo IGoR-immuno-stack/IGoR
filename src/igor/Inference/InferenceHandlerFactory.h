@@ -25,7 +25,7 @@ using Creator = std::function<HandlerPtr<T>(EventPtr, math::Tensor<T>&)>;
 
 namespace detail {
 template <typename T>
-INFERENCE_EXPORT std::unordered_map<core::legacy::Event_type, Creator<T>>& get_creators();
+INFERENCE_EXPORT std::unordered_map<core::EventType, Creator<T>>& get_creators();
 }
 
 /**
@@ -34,7 +34,7 @@ INFERENCE_EXPORT std::unordered_map<core::legacy::Event_type, Creator<T>>& get_c
  * @param func Function that creates a handler borrowing a mutable tensor reference
  */
 template <typename T>
-void register_creator(core::legacy::Event_type type, Creator<T> func);
+void register_creator(core::EventType type, Creator<T> func);
 
 /**
  * @brief Create a handler of the specified type
@@ -45,14 +45,14 @@ void register_creator(core::legacy::Event_type type, Creator<T> func);
  * @throws std::runtime_error if type not registered
  */
 template <typename T>
-HandlerPtr<T> create(core::legacy::Event_type type, EventPtr event, math::Tensor<T>& weights);
+HandlerPtr<T> create(core::EventType type, EventPtr event, math::Tensor<T>& weights);
 
 /**
  * @brief Check if an event type has a registered creator
  * @param type The Event_type to check
  * @return true if registered, false otherwise
  */
-INFERENCE_EXPORT bool is_registered(core::legacy::Event_type type);
+INFERENCE_EXPORT bool is_registered(core::EventType type);
 
 } // namespace igor::inference::inference_handler_factory
 
@@ -89,7 +89,7 @@ std::vector<HandlerPtr<T>> build(igor::inference::RecombinationModel<T>& model);
  */
 template<typename T, typename HandlerClass>
 struct Registrar {
-    Registrar(std::initializer_list<core::legacy::Event_type> types) {
+    Registrar(std::initializer_list<core::EventType> types) {
         for (auto type : types) {
             register_creator<T>(type, [](EventPtr event, math::Tensor<T>& weights) {
                 return std::make_unique<HandlerClass>(event->get_nickname(), event->uid(), weights);

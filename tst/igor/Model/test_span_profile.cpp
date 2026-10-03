@@ -34,7 +34,6 @@
 
 using namespace igor::core;
 using namespace igor::model;
-using namespace igor::core::legacy;
 
 TEST_CASE("SpanProfile keeps the best probability per distance", "[unit][span_profile]")
 {

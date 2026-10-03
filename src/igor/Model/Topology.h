@@ -4,7 +4,7 @@
 #include <igor/Model/Navigator.h>
 
 #include <igor/Model/Legacy/Rec_Event.h>
-#include <igor/Core/Legacy/Typedef.h>
+#include <igor/Core/Types.h>
 
 #include <nlohmann/json_fwd.hpp>
 
@@ -21,35 +21,35 @@ public:
     using Adjacency_t = Navigator<legacy::Rec_Event>;
 
     // Core Graph Construction
-    core::legacy::index_type addEvent(std::shared_ptr<legacy::Rec_Event> event);
-    void addEdge(core::legacy::index_type parent_id, core::legacy::index_type child_id);
+    core::index_type addEvent(std::shared_ptr<legacy::Rec_Event> event);
+    void addEdge(core::index_type parent_id, core::index_type child_id);
     
     // Efficient Access
-    std::shared_ptr<legacy::Rec_Event> event(core::legacy::index_type id) const;
+    std::shared_ptr<legacy::Rec_Event> event(core::index_type id) const;
     std::shared_ptr<legacy::Rec_Event> event(const std::string& name) const;
-    core::legacy::index_type eventId(const std::string& name) const;
-    std::string eventName(core::legacy::index_type id) const;
+    core::index_type eventId(const std::string& name) const;
+    std::string eventName(core::index_type id) const;
     bool hasEvent(const std::string& name) const;
 
-    const std::vector<core::legacy::index_type>& childrenIds(core::legacy::index_type id) const;
-    const std::vector<core::legacy::index_type>& parentsIds(core::legacy::index_type id) const;
+    const std::vector<core::index_type>& childrenIds(core::index_type id) const;
+    const std::vector<core::index_type>& parentsIds(core::index_type id) const;
 
     // Range-based iteration helpers (typed via Adjacency_t)
-    Adjacency_t parents (core::legacy::index_type id) const { return Adjacency_t(m_events, m_parents [id]); }
-    Adjacency_t children(core::legacy::index_type id) const { return Adjacency_t(m_events, m_children[id]); }
+    Adjacency_t parents (core::index_type id) const { return Adjacency_t(m_events, m_parents [id]); }
+    Adjacency_t children(core::index_type id) const { return Adjacency_t(m_events, m_children[id]); }
   
     // Graph Inspection
-    bool hasEdge(core::legacy::index_type parent_id, core::legacy::index_type child_id) const;
-    std::vector<core::legacy::index_type> roots() const;
-    std::vector<core::legacy::index_type> ancestors(core::legacy::index_type id) const;
+    bool hasEdge(core::index_type parent_id, core::index_type child_id) const;
+    std::vector<core::index_type> roots() const;
+    std::vector<core::index_type> ancestors(core::index_type id) const;
 
     // Topological ordering (Kahn's algorithm) — roots first, leaves last.
     // Required by InferenceEngine and SamplingEngine iteration.
-    std::vector<core::legacy::index_type> topologicalOrder() const;
+    std::vector<core::index_type> topologicalOrder() const;
 
     // Graph Modification
-    void removeEdge(core::legacy::index_type parent_id, core::legacy::index_type child_id);
-    void invertEdge(core::legacy::index_type parent_id, core::legacy::index_type child_id);
+    void removeEdge(core::index_type parent_id, core::index_type child_id);
+    void invertEdge(core::index_type parent_id, core::index_type child_id);
 
     std::size_t size() const { return m_events.size(); }
     auto begin() const { return m_events.begin(); }
@@ -65,15 +65,15 @@ public:
      *
      * Empty when the Topology was built by hand rather than from a model.
      */
-    const std::vector<core::legacy::Seq_type_String>& seqTypeOrder() const { return m_seq_type_order; }
-    void setSeqTypeOrder(std::vector<core::legacy::Seq_type_String> order) { m_seq_type_order = std::move(order); }
+    const std::vector<core::SeqTypeString>& seqTypeOrder() const { return m_seq_type_order; }
+    void setSeqTypeOrder(std::vector<core::SeqTypeString> order) { m_seq_type_order = std::move(order); }
 
 private:
     std::vector<std::shared_ptr<legacy::Rec_Event>>     m_events;
-    std::vector<std::vector<core::legacy::index_type>>         m_children;
-    std::vector<std::vector<core::legacy::index_type>>         m_parents;
-    std::unordered_map<std::string, core::legacy::index_type>  m_name_to_id;
-    std::vector<core::legacy::Seq_type_String>                 m_seq_type_order;
+    std::vector<std::vector<core::index_type>>         m_children;
+    std::vector<std::vector<core::index_type>>         m_parents;
+    std::unordered_map<std::string, core::index_type>  m_name_to_id;
+    std::vector<core::SeqTypeString>                 m_seq_type_order;
 };
 
 /**

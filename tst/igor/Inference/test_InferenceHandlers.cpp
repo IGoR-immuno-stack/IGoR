@@ -15,7 +15,6 @@
 #include <igor/Inference/CategoricalInferenceHandler.h>
 #include <igor/Inference/MarkovInferenceHandler.h>
 
-using namespace igor::core::legacy;
 using namespace igor::inference;
 
 using namespace igor::model;

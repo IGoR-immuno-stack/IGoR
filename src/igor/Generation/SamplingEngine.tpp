@@ -46,8 +46,8 @@ bool SamplingEngine<T>::hasHandler(const std::string& name) const
 {
     const auto& topo = m_model->topology();
     if (!topo.hasEvent(name)) return false;
-    core::legacy::index_type uid = topo.eventId(name);
-    return uid >= 0 && uid < static_cast<core::legacy::index_type>(m_handlers.size()) && m_handlers[uid] != nullptr;
+    core::index_type uid = topo.eventId(name);
+    return uid >= 0 && uid < static_cast<core::index_type>(m_handlers.size()) && m_handlers[uid] != nullptr;
 }
 
 template <typename T>
@@ -57,7 +57,7 @@ const SamplingHandler<T>& SamplingEngine<T>::handler(const std::string& name) co
     if (!topo.hasEvent(name)) {
         throw std::out_of_range("SamplingEngine: event not found: " + name);
     }
-    core::legacy::index_type uid = topo.eventId(name);
+    core::index_type uid = topo.eventId(name);
     if (!m_handlers[uid]) {
         throw std::logic_error("SamplingEngine: no handler registered for: " + name);
     }
@@ -65,9 +65,9 @@ const SamplingHandler<T>& SamplingEngine<T>::handler(const std::string& name) co
 }
 
 template <typename T>
-const SamplingHandler<T>& SamplingEngine<T>::handler(core::legacy::index_type uid) const
+const SamplingHandler<T>& SamplingEngine<T>::handler(core::index_type uid) const
 {
-    if (uid >= static_cast<core::legacy::index_type>(m_handlers.size()) || uid < 0) {
+    if (uid >= static_cast<core::index_type>(m_handlers.size()) || uid < 0) {
         throw std::out_of_range("SamplingEngine: invalid handler UID: " + std::to_string(uid));
     }
     if (!m_handlers[uid]) {
@@ -83,7 +83,7 @@ SamplingHandler<T>& SamplingEngine<T>::handler(const std::string& name)
     if (!topo.hasEvent(name)) {
         throw std::out_of_range("SamplingEngine: event not found: " + name);
     }
-    core::legacy::index_type uid = topo.eventId(name);
+    core::index_type uid = topo.eventId(name);
     if (!m_handlers[uid]) {
         throw std::logic_error("SamplingEngine: no handler registered for: " + name);
     }
@@ -91,9 +91,9 @@ SamplingHandler<T>& SamplingEngine<T>::handler(const std::string& name)
 }
 
 template <typename T>
-SamplingHandler<T>& SamplingEngine<T>::handler(core::legacy::index_type uid)
+SamplingHandler<T>& SamplingEngine<T>::handler(core::index_type uid)
 {
-    if (uid >= static_cast<core::legacy::index_type>(m_handlers.size()) || uid < 0) {
+    if (uid >= static_cast<core::index_type>(m_handlers.size()) || uid < 0) {
         throw std::out_of_range("SamplingEngine: invalid handler UID: " + std::to_string(uid));
     }
     if (!m_handlers[uid]) {
@@ -116,7 +116,7 @@ SampledScenario SamplingEngine<T>::run(std::mt19937_64& rng) const
         }
 
         const auto& current_handler = *handler_ptr;
-        core::legacy::index_type current_uid = current_handler.uid();
+        core::index_type current_uid = current_handler.uid();
 
         // 3. Resolve parent realizations
         auto parents_nav = this->parents(current_uid);
@@ -129,9 +129,9 @@ SampledScenario SamplingEngine<T>::run(std::mt19937_64& rng) const
             if (!parent_ptr) {
                  throw std::logic_error("SamplingEngine: parent handler missing");
             }
-            core::legacy::index_type parent_uid = parent_ptr->uid();
+            core::index_type parent_uid = parent_ptr->uid();
 
-            if (parent_uid >= static_cast<core::legacy::index_type>(result.events.size()) || result.events[parent_uid].indices.empty()) {
+            if (parent_uid >= static_cast<core::index_type>(result.events.size()) || result.events[parent_uid].indices.empty()) {
                 throw std::logic_error("SamplingEngine: parent not realized");
             }
             parent_realizations.push_back(result.index_of(parent_uid));
@@ -152,13 +152,13 @@ auto SamplingEngine<T>::orderedHandlers() const -> OrderedList
 }
 
 template <typename T>
-auto SamplingEngine<T>::parents(core::legacy::index_type uid) const -> Adjacency_t
+auto SamplingEngine<T>::parents(core::index_type uid) const -> Adjacency_t
 {
     return Adjacency_t(m_handlers, m_model->topology().parentsIds(uid));
 }
 
 template <typename T>
-auto SamplingEngine<T>::children(core::legacy::index_type uid) const -> Adjacency_t
+auto SamplingEngine<T>::children(core::index_type uid) const -> Adjacency_t
 {
     return Adjacency_t(m_handlers, m_model->topology().childrenIds(uid));
 }

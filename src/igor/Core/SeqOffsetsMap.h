@@ -24,8 +24,7 @@
 
 #include <igor/Core/DynamicSequenceMap.h>
 #include <igor/Core/SeqTypeRegistry.h>
-#include <igor/Core/Legacy/CoreEnums.h>
-#include <igor/Core/Legacy/StdTypedefs.h>
+#include <igor/Core/Types.h>
 
 /**
  * \class SeqOffsetsMap SeqOffsetsMap.h
@@ -59,54 +58,54 @@ public:
     { }
 
     /// The map for one end. \throws std::out_of_range for Undefined_side.
-    DynamicSequenceMap<legacy::Seq_Offset> &side(legacy::Seq_side seq_side)
+    DynamicSequenceMap<SeqOffset> &side(SeqSide seq_side)
     {
-        return const_cast<DynamicSequenceMap<legacy::Seq_Offset> &>(
+        return const_cast<DynamicSequenceMap<SeqOffset> &>(
             static_cast<const SeqOffsetsMap *>(this)->side(seq_side));
     }
 
-    const DynamicSequenceMap<legacy::Seq_Offset> &side(legacy::Seq_side seq_side) const
+    const DynamicSequenceMap<SeqOffset> &side(SeqSide seq_side) const
     {
         switch (seq_side) {
-        case legacy::Five_prime:
+        case Five_prime:
             return five_prime;
-        case legacy::Three_prime:
+        case Three_prime:
             return three_prime;
         default:
             throw std::out_of_range("SeqOffsetsMap: an offset must be Five_prime or Three_prime");
         }
     }
 
-    legacy::Seq_Offset get(SeqTypeId type_id, legacy::Seq_side seq_side) const { return side(seq_side).get(type_id); }
+    SeqOffset get(SeqTypeId type_id, SeqSide seq_side) const { return side(seq_side).get(type_id); }
 
-    legacy::Seq_Offset get(SeqTypeId type_id, legacy::Seq_side seq_side, std::size_t layer) const
+    SeqOffset get(SeqTypeId type_id, SeqSide seq_side, std::size_t layer) const
     {
         return side(seq_side).get(type_id, layer);
     }
 
-    void set(SeqTypeId type_id, legacy::Seq_side seq_side, legacy::Seq_Offset offset, std::size_t layer)
+    void set(SeqTypeId type_id, SeqSide seq_side, SeqOffset offset, std::size_t layer)
     {
         side(seq_side).set(type_id, offset, layer);
     }
 
-    void set_current(SeqTypeId type_id, legacy::Seq_side seq_side, legacy::Seq_Offset offset)
+    void set_current(SeqTypeId type_id, SeqSide seq_side, SeqOffset offset)
     {
         side(seq_side).set_current(type_id, offset);
     }
 
-    bool exists(SeqTypeId type_id, legacy::Seq_side seq_side) const { return side(seq_side).exists(type_id); }
+    bool exists(SeqTypeId type_id, SeqSide seq_side) const { return side(seq_side).exists(type_id); }
 
-    int claimed_layer(SeqTypeId type_id, legacy::Seq_side seq_side) const
+    int claimed_layer(SeqTypeId type_id, SeqSide seq_side) const
     {
         return side(seq_side).claimed_layer(type_id);
     }
 
-    void request_layer(SeqTypeId type_id, legacy::Seq_side seq_side) { side(seq_side).request_layer(type_id); }
+    void request_layer(SeqTypeId type_id, SeqSide seq_side) { side(seq_side).request_layer(type_id); }
 
-    void restore_layer(SeqTypeId type_id, legacy::Seq_side seq_side) { side(seq_side).restore_layer(type_id); }
+    void restore_layer(SeqTypeId type_id, SeqSide seq_side) { side(seq_side).restore_layer(type_id); }
 
-    DynamicSequenceMap<legacy::Seq_Offset> five_prime;
-    DynamicSequenceMap<legacy::Seq_Offset> three_prime;
+    DynamicSequenceMap<SeqOffset> five_prime;
+    DynamicSequenceMap<SeqOffset> three_prime;
 };
 
 } // namespace igor::core

@@ -16,7 +16,7 @@ using igor::model::SampledEvent;
 
 template <typename T>
 MarkovSamplingHandler<T>::MarkovSamplingHandler(
-    std::string name, igor::core::legacy::index_type uid, const math::Tensor<T>& weights)
+    std::string name, igor::core::index_type uid, const math::Tensor<T>& weights)
     : SamplingHandler<T>(std::move(name), uid)
     , m_weights(weights)
     , m_state_count(m_weights.shape()[m_weights.ndim() >= 2 ? m_weights.ndim() - 2 : 0])

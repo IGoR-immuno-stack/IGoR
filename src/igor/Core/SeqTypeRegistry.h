@@ -24,7 +24,7 @@
 
 //StdTypedefs.h rather than Utils.h: Utils.h pulls in DynamicSequenceMap.h, which needs
 //this header, so including Utils.h here would be circular.
-#include <igor/Core/Legacy/StdTypedefs.h>
+#include <igor/Core/Types.h>
 
 #include <cstdint>
 #include <limits>
@@ -91,7 +91,7 @@ public:
      * Replace the registry contents with a new ordered list of seq_type names.
      * The order must reflect the 5'→3' direction of the constructed sequence.
      */
-    void set_ordered_types(const std::vector<legacy::Seq_type_String> &types)
+    void set_ordered_types(const std::vector<SeqTypeString> &types)
     {
         throw_if_frozen("set_ordered_types");
         ordered_seq_types = types;
@@ -139,7 +139,7 @@ public:
      * \throws std::logic_error if the registry is frozen.
      * \throws std::length_error if the id space (65535 types) is exhausted.
      */
-    SeqTypeId register_type(const legacy::Seq_type_String &name)
+    SeqTypeId register_type(const SeqTypeString &name)
     {
         auto it = name_to_id_.find(name);
         if (it != name_to_id_.end()) {
@@ -160,7 +160,7 @@ public:
     }
 
     /// Id of a registered name. \throws std::out_of_range if the name is unknown.
-    SeqTypeId id(const legacy::Seq_type_String &name) const
+    SeqTypeId id(const SeqTypeString &name) const
     {
         auto it = name_to_id_.find(name);
         if (it == name_to_id_.end()) {
@@ -170,7 +170,7 @@ public:
     }
 
     /// Name behind an id. \throws std::out_of_range if the id was never allocated.
-    const legacy::Seq_type_String &name(SeqTypeId type_id) const
+    const SeqTypeString &name(SeqTypeId type_id) const
     {
         if (type_id >= id_to_name_.size()) {
             throw std::out_of_range("Unknown SeqTypeId in SeqTypeRegistry::name(): "
@@ -204,16 +204,16 @@ public:
     bool is_frozen() const { return frozen_; }
 
     /** Return the ordered list of seq_type names (5'→3'). */
-    const std::vector<legacy::Seq_type_String> &get_ordered_types() const { return ordered_seq_types; }
+    const std::vector<SeqTypeString> &get_ordered_types() const { return ordered_seq_types; }
 
     /** Return true if the given seq_type is registered. */
-    bool contains(const legacy::Seq_type_String &seq_type) const { return type_to_index.count(seq_type) > 0; }
+    bool contains(const SeqTypeString &seq_type) const { return type_to_index.count(seq_type) > 0; }
 
     /**
      * Return the zero-based position of seq_type in the 5'→3' order.
      * \throws std::out_of_range if seq_type is not registered.
      */
-    size_t index_of(const legacy::Seq_type_String &seq_type) const
+    size_t index_of(const SeqTypeString &seq_type) const
     {
         auto it = type_to_index.find(seq_type);
         if (it == type_to_index.end()) {
@@ -226,7 +226,7 @@ public:
      * Return the seq_type immediately to the left (5' side) of the given seq_type,
      * or std::nullopt if seq_type is the leftmost segment or is not registered.
      */
-    std::optional<legacy::Seq_type_String> get_left_neighbor(const legacy::Seq_type_String &seq_type) const
+    std::optional<SeqTypeString> get_left_neighbor(const SeqTypeString &seq_type) const
     {
         auto it = type_to_index.find(seq_type);
         if (it == type_to_index.end() || it->second == 0) {
@@ -239,7 +239,7 @@ public:
      * Return the seq_type immediately to the right (3' side) of the given seq_type,
      * or std::nullopt if seq_type is the rightmost segment or is not registered.
      */
-    std::optional<legacy::Seq_type_String> get_right_neighbor(const legacy::Seq_type_String &seq_type) const
+    std::optional<SeqTypeString> get_right_neighbor(const SeqTypeString &seq_type) const
     {
         auto it = type_to_index.find(seq_type);
         if (it == type_to_index.end() || it->second + 1 >= ordered_seq_types.size()) {
@@ -276,11 +276,11 @@ private:
         }
     }
 
-    std::vector<legacy::Seq_type_String> ordered_seq_types;              ///< ordering by name (5'->3')
-    std::unordered_map<legacy::Seq_type_String, size_t> type_to_index;   ///< name -> position in the ordering
+    std::vector<SeqTypeString> ordered_seq_types;              ///< ordering by name (5'->3')
+    std::unordered_map<SeqTypeString, size_t> type_to_index;   ///< name -> position in the ordering
 
-    std::vector<legacy::Seq_type_String> id_to_name_;                    ///< id -> name; size == total_count()
-    std::unordered_map<legacy::Seq_type_String, SeqTypeId> name_to_id_;
+    std::vector<SeqTypeString> id_to_name_;                    ///< id -> name; size == total_count()
+    std::unordered_map<SeqTypeString, SeqTypeId> name_to_id_;
     std::vector<SeqTypeId> ordering_;                            ///< ordering by id (5'->3')
     std::vector<SeqTypeId> left_, right_;                        ///< id-indexed neighbour tables
     bool frozen_ = false;

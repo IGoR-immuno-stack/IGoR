@@ -1,0 +1,135 @@
+/*
+ * IntStr.h
+ *
+ *  Created on: Jul 21, 2016
+ *      Author: Quentin Marcou
+ *
+ *  This source code is distributed as part of the IGoR software.
+ *  IGoR (Inference and Generation of Repertoires) is a versatile software to analyze and model immune receptors
+ *  generation, selection, mutation and all other processes.
+ *   Copyright (C) 2017  Quentin Marcou
+ *
+ *   This program is free software: you can redistribute it and/or modify
+ *   it under the terms of the GNU General Public License as published by
+ *   the Free Software Foundation, either version 3 of the License, or
+ *   (at your option) any later version.
+ *
+ *   This program is distributed in the hope that it will be useful,
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *   GNU General Public License for more details.
+
+ *   You should have received a copy of the GNU General Public License
+ *   along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ *
+ */
+
+#pragma once
+
+#include <vector>
+#include <ostream>
+
+#include <igor/Core/Export.h>
+
+// Not a dllexport class on purpose: exporting a class that derives from an STL template makes
+// MSVC export the std::vector<int> instantiation from the DLL, and every consumer that
+// instantiates std::vector<int> on its own then fails to link (LNK2005). Only the members
+// defined in IntStr.cpp are exported.
+
+namespace igor::core {
+
+class IntStr : public std::vector<int>
+{
+
+public:
+    using std::vector<int>::vector;
+
+    static const std::size_t npos = -1;
+
+    CORE_EXPORT IntStr &operator+=(const IntStr &);
+    CORE_EXPORT IntStr &operator+=(const int &);
+    CORE_EXPORT IntStr &operator+=(int &&);
+    //IntStr& operator+=(int);
+    CORE_EXPORT IntStr &append(const IntStr &);
+    CORE_EXPORT IntStr &append(const int &);
+
+    CORE_EXPORT IntStr operator+(const IntStr &) const;
+    // IntStr operator+(const int &) const; // Dead code
+    // IntStr operator+(int) const; // Dead code
+
+    bool operator==(const IntStr &other) const {
+        return static_cast<const std::vector<int> &>(*this) ==
+               static_cast<const std::vector<int> &>(other);
+    }
+
+    CORE_EXPORT IntStr substr(std::size_t pos = 0, std::size_t len = npos) const; //TODO correct this with aproper value
+    CORE_EXPORT void substr(IntStr &, std::size_t pos = 0, std::size_t len = npos) const; //TODO correct this with aproper value
+
+    using std::vector<int>::erase;
+    CORE_EXPORT IntStr &erase(std::size_t pos, std::size_t len);
+
+    /*	IntStr();
+	//IntStr (const std::string& str);//cannot be unambiguously identified
+	IntStr (const IntStr&);
+	//string (const string& str, size_t pos, size_t len = npos);//substring (3)
+	//string (const char* s);//from c-string (4)
+	//string (const char* s, size_t n);//from buffer (5)
+	//string (size_t n, char c);//fill (6)
+	//template <class InputIterator> string  (InputIterator first, InputIterator last);//range (7)
+	//string (initializer_list<char> il);//initializer list (8)
+	//string (string&& str) noexcept;//move (9)
+	virtual ~IntStr();
+	IntStr& operator=(const IntStr&);*/
+
+    //Iterators
+
+    /*
+	//Capacity
+	size_t max_size() const noexcept;
+	//void resize();
+	size_t capacity() const noexcept;
+	void clear() noexcept;
+	bool empty() const noexcept;
+	size_t size() const noexcept;
+
+	//Element access
+	const int& operator[]() const;
+	int& operator[]();
+	const int& at() const;
+	int& at() const;
+	int& front();
+	int& back();
+*/
+
+    //erase()
+
+    //String operations
+    //size_t find();
+    //copy()
+    //substr()
+    //compare()
+
+    /*private:
+	std::vector<int> int_vector;*/
+};
+
+} // namespace igor::core
+namespace std {
+
+template <>
+struct hash<igor::core::IntStr>
+{
+    std::size_t operator()(igor::core::IntStr const &int_str) const
+    {
+        std::size_t seed = int_str.size();
+        for (auto &i : int_str) {
+            seed ^= i + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+        }
+        return seed;
+    }
+};
+
+} // namespace std
+namespace igor::core {
+
+} // namespace igor::core

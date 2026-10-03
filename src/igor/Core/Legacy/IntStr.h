@@ -26,110 +26,13 @@
 
 #pragma once
 
-#include <vector>
-#include <ostream>
+#include <igor/Core/IntStr.h>
 
-#include <igor/Core/Export.h>
-
-// Not a dllexport class on purpose: exporting a class that derives from an STL template makes
-// MSVC export the std::vector<int> instantiation from the DLL, and every consumer that
-// instantiates std::vector<int> on its own then fails to link (LNK2005). Only the members
-// defined in IntStr.cpp are exported.
-
+// IntStr.h was promoted out of Legacy/ (step 1c of doc/LAYER_REFACTORING_PROPOSAL.md).
+// This stub keeps the legacy include path and the legacy names for the code that has not
+// been promoted yet; it goes when its last consumer switches.
 namespace igor::core::legacy {
 
-class Int_Str : public std::vector<int>
-{
-
-public:
-    using std::vector<int>::vector;
-
-    static const std::size_t npos = -1;
-
-    CORE_EXPORT Int_Str &operator+=(const Int_Str &);
-    CORE_EXPORT Int_Str &operator+=(const int &);
-    CORE_EXPORT Int_Str &operator+=(int &&);
-    //Int_Str& operator+=(int);
-    CORE_EXPORT Int_Str &append(const Int_Str &);
-    CORE_EXPORT Int_Str &append(const int &);
-
-    CORE_EXPORT Int_Str operator+(const Int_Str &) const;
-    // Int_Str operator+(const int &) const; // Dead code
-    // Int_Str operator+(int) const; // Dead code
-
-    bool operator==(const Int_Str &other) const {
-        return static_cast<const std::vector<int> &>(*this) ==
-               static_cast<const std::vector<int> &>(other);
-    }
-
-    CORE_EXPORT Int_Str substr(std::size_t pos = 0, std::size_t len = npos) const; //TODO correct this with aproper value
-    CORE_EXPORT void substr(Int_Str &, std::size_t pos = 0, std::size_t len = npos) const; //TODO correct this with aproper value
-
-    using std::vector<int>::erase;
-    CORE_EXPORT Int_Str &erase(std::size_t pos, std::size_t len);
-
-    /*	Int_Str();
-	//Int_Str (const std::string& str);//cannot be unambiguously identified
-	Int_Str (const Int_Str&);
-	//string (const string& str, size_t pos, size_t len = npos);//substring (3)
-	//string (const char* s);//from c-string (4)
-	//string (const char* s, size_t n);//from buffer (5)
-	//string (size_t n, char c);//fill (6)
-	//template <class InputIterator> string  (InputIterator first, InputIterator last);//range (7)
-	//string (initializer_list<char> il);//initializer list (8)
-	//string (string&& str) noexcept;//move (9)
-	virtual ~Int_Str();
-	Int_Str& operator=(const Int_Str&);*/
-
-    //Iterators
-
-    /*
-	//Capacity
-	size_t max_size() const noexcept;
-	//void resize();
-	size_t capacity() const noexcept;
-	void clear() noexcept;
-	bool empty() const noexcept;
-	size_t size() const noexcept;
-
-	//Element access
-	const int& operator[]() const;
-	int& operator[]();
-	const int& at() const;
-	int& at() const;
-	int& front();
-	int& back();
-*/
-
-    //erase()
-
-    //String operations
-    //size_t find();
-    //copy()
-    //substr()
-    //compare()
-
-    /*private:
-	std::vector<int> int_vector;*/
-};
-
-} // namespace igor::core::legacy
-namespace std {
-
-template <>
-struct hash<igor::core::legacy::Int_Str>
-{
-    std::size_t operator()(igor::core::legacy::Int_Str const &int_str) const
-    {
-        std::size_t seed = int_str.size();
-        for (auto &i : int_str) {
-            seed ^= i + 0x9e3779b9 + (seed << 6) + (seed >> 2);
-        }
-        return seed;
-    }
-};
-
-} // namespace std
-namespace igor::core::legacy {
+using Int_Str = igor::core::IntStr;
 
 } // namespace igor::core::legacy

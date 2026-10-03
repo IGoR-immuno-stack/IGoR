@@ -42,7 +42,7 @@ public:
     explicit SamplingEngine(std::shared_ptr<RecombinationModel<T>> model);
 
     SamplingHandler<T>& handler(const std::string& name);
-    SamplingHandler<T>& handler(core::legacy::index_type uid);
+    SamplingHandler<T>& handler(core::index_type uid);
 
     /**
      * @brief generate
@@ -53,7 +53,7 @@ public:
     SampledScenario run(std::mt19937_64& rng) const;
 
     const SamplingHandler<T>& handler(const std::string& name) const;
-    const SamplingHandler<T>& handler(core::legacy::index_type uid) const;
+    const SamplingHandler<T>& handler(core::index_type uid) const;
 
     /// Check if a handler exists for the given event name
     bool hasHandler(const std::string& name) const;
@@ -74,12 +74,12 @@ public:
     /**
      * @brief Navigator over the parents of a specific event.
      */
-    Adjacency_t parents(core::legacy::index_type uid) const;
+    Adjacency_t parents(core::index_type uid) const;
 
     /**
      * @brief Navigator over the children of a specific event.
      */
-    Adjacency_t children(core::legacy::index_type uid) const;
+    Adjacency_t children(core::index_type uid) const;
 
     /**
      * @brief Access the underlying RecombinationModel.
@@ -93,7 +93,7 @@ private:
     std::vector<HandlerPtr> m_handlers;
 
     // Cached topological order for generation loop (optimization)
-    std::vector<core::legacy::index_type> m_execution_order;
+    std::vector<core::index_type> m_execution_order;
 };
 
 } // namespace igor::generation

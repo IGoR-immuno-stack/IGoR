@@ -22,9 +22,8 @@
 
 #pragma once
 
-#include <igor/Core/Legacy/CoreEnums.h>
+#include <igor/Core/Types.h>
 #include <igor/Core/SeqTypeRegistry.h>
-#include <igor/Core/Legacy/StdTypedefs.h>
 
 #include <stdexcept>
 #include <string>
@@ -57,7 +56,7 @@ namespace igor::core {
 
 struct SegmentBoundary {
     SeqTypeId id = kNoSeqType;
-    legacy::Seq_side side = legacy::Undefined_side;
+    SeqSide side = Undefined_side;
 
     friend bool operator==(SegmentBoundary, SegmentBoundary) = default;
 };
@@ -84,12 +83,12 @@ struct SegmentBoundary {
  *
  * \throws std::invalid_argument for Undefined_side, which names no end of anything.
  */
-inline legacy::Seq_Offset cut_position(legacy::Seq_side side, legacy::Seq_Offset segment_end_offset)
+inline SeqOffset cut_position(SeqSide side, SeqOffset segment_end_offset)
 {
     switch (side) {
-    case legacy::Five_prime:
+    case Five_prime:
         return segment_end_offset;
-    case legacy::Three_prime:
+    case Three_prime:
         return segment_end_offset + 1;
     default:
         throw std::invalid_argument("cut_position: Undefined_side names no cut");
@@ -136,7 +135,7 @@ struct SegmentSpan {
      */
     static constexpr SegmentSpan gap(SeqTypeId l, SeqTypeId r)
     {
-        return SegmentSpan{SegmentBoundary{l, legacy::Three_prime}, SegmentBoundary{r, legacy::Five_prime}};
+        return SegmentSpan{SegmentBoundary{l, Three_prime}, SegmentBoundary{r, Five_prime}};
     }
 };
 
@@ -159,15 +158,15 @@ struct SegmentSpan {
  *
  * \throws std::invalid_argument for a seq_type that names no junction.
  */
-inline SegmentSpan legacy_span_of(legacy::Seq_type junction)
+inline SegmentSpan legacy_span_of(SeqType junction)
 {
     switch (junction) {
-    case legacy::VD_ins_seq:
-        return SegmentSpan::gap(static_cast<SeqTypeId>(legacy::V_gene_seq), static_cast<SeqTypeId>(legacy::D_gene_seq));
-    case legacy::DJ_ins_seq:
-        return SegmentSpan::gap(static_cast<SeqTypeId>(legacy::D_gene_seq), static_cast<SeqTypeId>(legacy::J_gene_seq));
-    case legacy::VJ_ins_seq:
-        return SegmentSpan::gap(static_cast<SeqTypeId>(legacy::V_gene_seq), static_cast<SeqTypeId>(legacy::J_gene_seq));
+    case VD_ins_seq:
+        return SegmentSpan::gap(static_cast<SeqTypeId>(V_gene_seq), static_cast<SeqTypeId>(D_gene_seq));
+    case DJ_ins_seq:
+        return SegmentSpan::gap(static_cast<SeqTypeId>(D_gene_seq), static_cast<SeqTypeId>(J_gene_seq));
+    case VJ_ins_seq:
+        return SegmentSpan::gap(static_cast<SeqTypeId>(V_gene_seq), static_cast<SeqTypeId>(J_gene_seq));
     default:
         throw std::invalid_argument("legacy_span_of: seq_type " + std::to_string(junction)
                                     + " names no junction span");
@@ -184,11 +183,11 @@ inline SegmentSpan legacy_span_of(legacy::Seq_type junction)
  *
  * \throws std::invalid_argument for a span no legacy junction names.
  */
-inline legacy::Seq_type legacy_junction_of(SegmentSpan span)
+inline SeqType legacy_junction_of(SegmentSpan span)
 {
-    if (span == legacy_span_of(legacy::VD_ins_seq)) { return legacy::VD_ins_seq; }
-    if (span == legacy_span_of(legacy::DJ_ins_seq)) { return legacy::DJ_ins_seq; }
-    if (span == legacy_span_of(legacy::VJ_ins_seq)) { return legacy::VJ_ins_seq; }
+    if (span == legacy_span_of(VD_ins_seq)) { return VD_ins_seq; }
+    if (span == legacy_span_of(DJ_ins_seq)) { return DJ_ins_seq; }
+    if (span == legacy_span_of(VJ_ins_seq)) { return VJ_ins_seq; }
     throw std::invalid_argument("legacy_junction_of: span (" + std::to_string(span.left.id) + ","
                                 + std::to_string(span.right.id) + ") is not a legacy junction");
 }

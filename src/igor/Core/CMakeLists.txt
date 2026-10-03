@@ -37,8 +37,9 @@ configure_file(
 target_sources(${PROJECT_NAME}
   PRIVATE
     AlignmentData.cpp
-    Legacy/GeneticCode.cpp
-    Legacy/IntStr.cpp
+    Types.cpp
+    GeneticCode.cpp
+    IntStr.cpp
     Legacy/Utils.cpp
   PUBLIC FILE_SET HEADERS
     BASE_DIRS
@@ -49,10 +50,14 @@ target_sources(${PROJECT_NAME}
       ${LAYER_BINARY_DIR}/Config.h
       ${LAYER_DIR}/AlignmentData.h
       ${LAYER_DIR}/Legacy/AlignmentData.h
+      ${LAYER_DIR}/Platform.h
+      ${LAYER_DIR}/Types.h
       ${LAYER_DIR}/Legacy/CoreEnums.h
       ${LAYER_DIR}/DynamicSequenceMap.h
       ${LAYER_DIR}/Legacy/DynamicSequenceMap.h
+      ${LAYER_DIR}/GeneticCode.h
       ${LAYER_DIR}/Legacy/GeneticCode.h
+      ${LAYER_DIR}/IntStr.h
       ${LAYER_DIR}/Legacy/IntStr.h
       ${LAYER_DIR}/LayeredArray.h
       ${LAYER_DIR}/Legacy/LayeredArray.h

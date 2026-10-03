@@ -22,10 +22,9 @@
 
 #pragma once
 
-#include <igor/Core/Legacy/CoreEnums.h>
+#include <igor/Core/Types.h>
 #include <igor/Model/Legacy/Rec_Event.h>
 #include <igor/Core/SeqTypeRegistry.h>
-#include <igor/Core/Legacy/StdTypedefs.h>
 #include <igor/Core/Legacy/Utils.h>
 
 #include <cstddef>
@@ -79,8 +78,8 @@ namespace JunctionGeometry {
  * `lo == hi` means the end is pinned: every pending modifier bearing on it has been decided.
  */
 struct OffsetInterval {
-    core::legacy::Seq_Offset lo = 0;
-    core::legacy::Seq_Offset hi = 0;
+    core::SeqOffset lo = 0;
+    core::SeqOffset hi = 0;
 
     bool operator==(const OffsetInterval &) const = default;
 };
@@ -111,7 +110,7 @@ public:
      * the same as building it fresh.
      */
     void rebuild(const core::SeqTypeRegistry &registry, const legacy::Events_map &events_map,
-                 const std::unordered_set<core::legacy::Rec_Event_name> &processed_events)
+                 const std::unordered_set<core::EventName> &processed_events)
     {
         const std::size_t count = registry.total_count();
         offset_.assign(count * 2, legacy::OffsetDelta{});
@@ -124,7 +123,7 @@ public:
             }
             for (std::size_t id = 0; id != count; ++id) {
                 const auto type_id = static_cast<core::SeqTypeId>(id);
-                for (const core::legacy::Seq_side side : {core::legacy::Five_prime, core::legacy::Three_prime}) {
+                for (const core::SeqSide side : {core::Five_prime, core::Three_prime}) {
                     const legacy::OffsetDelta delta = event->get_offset_delta_bounds(type_id, side);
                     check_ordered(delta.min, delta.max, *event, registry, type_id,
                                   "get_offset_delta_bounds");
@@ -143,7 +142,7 @@ public:
     }
 
     /// Signed range by which `(type_id, side)` can still be shifted. `{0, 0}` if it cannot.
-    legacy::OffsetDelta offset_delta(core::SeqTypeId type_id, core::legacy::Seq_side side) const
+    legacy::OffsetDelta offset_delta(core::SeqTypeId type_id, core::SeqSide side) const
     {
         check_id(type_id, "offset_delta");
         return offset_[end_index(type_id, checked_side(side))];
@@ -171,7 +170,7 @@ public:
      * `Deletion::iterate` the event being consumed *is* that modifier, so its own end has
      * collapsed by the time the check runs.
      */
-    OffsetInterval reachable(core::SeqTypeId type_id, core::legacy::Seq_side side, core::legacy::Seq_Offset current) const
+    OffsetInterval reachable(core::SeqTypeId type_id, core::SeqSide side, core::SeqOffset current) const
     {
         const legacy::OffsetDelta delta = offset_delta(type_id, side);
         return {current + delta.min, current + delta.max};
@@ -181,14 +180,14 @@ public:
     std::size_t seq_type_count() const noexcept { return length_.size(); }
 
 private:
-    static std::size_t end_index(std::size_t type_id, core::legacy::Seq_side side)
+    static std::size_t end_index(std::size_t type_id, core::SeqSide side)
     {
         return type_id * 2 + static_cast<std::size_t>(side);
     }
 
-    static core::legacy::Seq_side checked_side(core::legacy::Seq_side side)
+    static core::SeqSide checked_side(core::SeqSide side)
     {
-        if (side != core::legacy::Five_prime && side != core::legacy::Three_prime) {
+        if (side != core::Five_prime && side != core::Three_prime) {
             throw std::invalid_argument("PendingModifierBounds: a segment end must be Five_prime "
                                         "or Three_prime, got " + to_string(side));
         }

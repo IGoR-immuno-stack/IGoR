@@ -49,63 +49,7 @@
 #include <chrono>
 #include <sys/types.h>
 #include <igor/Core/Export.h>
-#if defined(_WIN32)
-
-#  ifndef WIN32_LEAN_AND_MEAN
-#    define WIN32_LEAN_AND_MEAN
-#  endif
-#  ifndef NOMINMAX
-#    define NOMINMAX
-#  endif
-
-#  include <process.h>
-#  include <winsock2.h>
-#  include <windows.h>
-#  include <ws2tcpip.h>
-
-inline int portable_getpid()
-{
-    return _getpid();
-}
-
-inline uint32_t portable_gethostid()
-{
-    // Version approximative: IP locale
-    WSADATA wsaData;
-    WSAStartup(MAKEWORD(2, 2), &wsaData);
-
-    char hostname[256];
-    gethostname(hostname, sizeof(hostname));
-
-    struct addrinfo hints{};
-    hints.ai_family = AF_INET;
-
-    struct addrinfo *info;
-    if (getaddrinfo(hostname, nullptr, &hints, &info) != 0)
-        return 0;
-
-    uint32_t res = ((struct sockaddr_in *)info->ai_addr)->sin_addr.S_un.S_addr;
-
-    freeaddrinfo(info);
-    WSACleanup();
-    return res;
-}
-
-#else
-
-#  include <unistd.h>
-
-inline int portable_getpid()
-{
-    return getpid();
-}
-
-inline uint32_t portable_gethostid()
-{
-    return gethostid();
-}
-
-#endif
+#include <igor/Core/Platform.h>
 
 #if defined(_MSC_VER)
 #  include <intrin.h>
@@ -243,17 +187,12 @@ enum Int_nt {
 constexpr std::size_t kIntNtCount = static_cast<std::size_t>(int_undefined);
 
 CORE_EXPORT Seq_type str2SeqType(const Seq_type_String &);
-CORE_EXPORT Seq_type_String to_string(const Seq_type);
 CORE_EXPORT Gene_class_legacy str2GeneClass(const std::string &);
 CORE_EXPORT std::string to_string(const Gene_class_legacy);
 CORE_EXPORT Seq_side str2SeqSide(const std::string &);
-CORE_EXPORT std::string to_string(const Seq_side);
 
 CORE_EXPORT std::ostream &operator<<(std::ostream &, Gene_class_legacy);
-CORE_EXPORT std::ostream &operator<<(std::ostream &, Seq_side);
 CORE_EXPORT std::string operator+(const std::string &, Gene_class_legacy);
-CORE_EXPORT std::string operator+(const std::string &, Seq_side);
-CORE_EXPORT std::string operator+(const std::string &, Event_type);
 
 typedef Int_Str *Int_Str_ptr;
 

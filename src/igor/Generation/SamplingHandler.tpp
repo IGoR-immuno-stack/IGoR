@@ -1,6 +1,6 @@
 #pragma once
 
-#include <igor/Core/Legacy/Typedef.h>
+#include <igor/Core/Types.h>
 #include <vector>
 #include <random>
 #include <stdexcept>
@@ -15,7 +15,7 @@ using igor::model::SampledScenario;
 using igor::model::SampledEvent;
 
 template <typename T>
-SamplingHandler<T>::SamplingHandler(std::string name, igor::core::legacy::index_type uid) : m_name(std::move(name)), m_uid(uid) 
+SamplingHandler<T>::SamplingHandler(std::string name, igor::core::index_type uid) : m_name(std::move(name)), m_uid(uid) 
 {
 
 }
@@ -27,13 +27,13 @@ const std::string& SamplingHandler<T>::name(void) const
 }
     
 template <typename T>
-igor::core::legacy::index_type  SamplingHandler<T>::uid(void) const 
+igor::core::index_type  SamplingHandler<T>::uid(void) const 
 {
      return m_uid; 
 }
 
 template <typename T>
-void  SamplingHandler<T>::setUid(igor::core::legacy::index_type id) 
+void  SamplingHandler<T>::setUid(igor::core::index_type id) 
 {
      m_uid = id;  
 }

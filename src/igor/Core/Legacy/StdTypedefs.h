@@ -22,41 +22,17 @@
 
 #pragma once
 
-/**
- * \file StdTypedefs.h
- * \brief IGoR typedefs whose definitions involve only standard-library types.
- *
- * Split out of Utils.h so that low-level headers can name these types without pulling in
- * Utils.h wholesale -- SeqTypeRegistry.h needs Seq_type_String, and including Utils.h for
- * it creates a cycle (Utils.h -> DynamicSequenceMap.h -> SeqTypeRegistry.h).
- *
- * The dividing line is deliberate: everything here depends only on <string>, <memory> and
- * friends. Typedefs that name IGoR's own classes (Int_Str_ptr, Next_event_ptr, the layered
- * map instantiations) stay with those classes, since they cannot be used without them
- * anyway. Utils.h includes this header, so existing consumers are unaffected.
- */
+#include <igor/Core/Types.h>
 
-#include <memory>
-#include <string>
-#include <unordered_map>
-
-/// Name of a sequence type (e.g. "V_gene_seq", "D1_gene_seq"). The serialization identity
-/// of a sequence type; SeqTypeRegistry maps it to the SeqTypeId used at runtime.
-
+// StdTypedefs.h was merged into igor/Core/Types.h (step 1c of doc/LAYER_REFACTORING_PROPOSAL.md).
+// This stub keeps the legacy include path and the legacy names for the code that has not
+// been promoted yet; it goes when its last consumer switches.
 namespace igor::core::legacy {
 
-using Seq_type_String = std::string;
-
-/// Type used as key for unordered maps, since Rec_Event cannot be instantiated.
-typedef std::string Rec_Event_name;
-
-/// Array of long doubles holding the marginal values.
-typedef std::unique_ptr<long double[]> Marginal_array_p;
-
-/// Offset of an aligned sequence in the sequence_offsets maps. Characterizes the beginning
-/// and the end of a sequence piece on the data sequence.
-typedef int Seq_Offset;
-
-typedef std::unordered_map<std::string, std::string> UMCodonTable;
+using Seq_type_String = igor::core::SeqTypeString;
+using Rec_Event_name = igor::core::EventName;
+using Marginal_array_p = igor::core::MarginalArrayPtr;
+using Seq_Offset = igor::core::SeqOffset;
+using UMCodonTable = igor::core::CodonTable;
 
 } // namespace igor::core::legacy

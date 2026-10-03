@@ -22,7 +22,7 @@
 
 #pragma once
 
-#include <igor/Core/Legacy/IntStr.h>
+#include <igor/Core/IntStr.h>
 #include <igor/Core/LayeredArray.h>
 #include <igor/Core/SeqTypeRegistry.h>
 
@@ -49,9 +49,9 @@ struct SeqSegmentEmptiness
 /// zero-length case is the one that matters: it is how an event says "this segment was
 /// processed and is not there", as opposed to "not processed yet" (layer -1).
 template <>
-struct SeqSegmentEmptiness<legacy::Int_Str *>
+struct SeqSegmentEmptiness<IntStr *>
 {
-    static bool is_empty(legacy::Int_Str *const &value) { return value == nullptr || value->empty(); }
+    static bool is_empty(IntStr *const &value) { return value == nullptr || value->empty(); }
 };
 
 /**

@@ -57,8 +57,8 @@ public:
     const InferenceHandler<T>& handler(const std::string& name) const;
 
     /// Access handler by topology uid
-          InferenceHandler<T>& handler(igor::core::legacy::index_type uid);
-    const InferenceHandler<T>& handler(igor::core::legacy::index_type uid) const;
+          InferenceHandler<T>& handler(igor::core::index_type uid);
+    const InferenceHandler<T>& handler(igor::core::index_type uid) const;
 
     /// Check if a handler exists for the given event name
     bool hasHandler(const std::string& name) const;
@@ -109,10 +109,10 @@ public:
     OrderedList orderedHandlers(void) const;
 
     /// Navigator over the parents of a specific event.
-    Adjacency_t parents(igor::core::legacy::index_type uid) const;
+    Adjacency_t parents(igor::core::index_type uid) const;
 
     /// Navigator over the children of a specific event.
-    Adjacency_t children(igor::core::legacy::index_type uid) const;
+    Adjacency_t children(igor::core::index_type uid) const;
 
     /// Iterate over all handlers in topological order (const)
     template <typename Func>
@@ -125,7 +125,7 @@ public:
 private:
     std::shared_ptr<RecombinationModel<T>> m_model;
     std::vector<HandlerPtr>                m_handlers;        // indexed by topology uid
-    std::vector<igor::core::legacy::index_type>          m_execution_order;  // topological order
+    std::vector<igor::core::index_type>          m_execution_order;  // topological order
 };
 
 // ─── Type Aliases ──────────────────────────────────────────────────────

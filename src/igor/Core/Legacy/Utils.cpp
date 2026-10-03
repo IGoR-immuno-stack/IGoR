@@ -67,24 +67,6 @@ ostream &operator<<(ostream &os, Gene_class_legacy gc)
     return os;
 }
 
-ostream &operator<<(ostream &os, Seq_side ss)
-{
-    switch (ss) {
-    case Five_prime:
-        os << "Five_prime";
-        break;
-    case Three_prime:
-        os << "Three_prime";
-        break;
-    case Undefined_side:
-        os << "Undefined_side";
-        break;
-
-    default:
-        throw invalid_argument("Unknown Seq_side in operator << ");
-    }
-    return os;
-}
 
 string operator+(const string &str, Gene_class_legacy gc)
 {
@@ -118,42 +100,7 @@ string operator+(const string &str, Gene_class_legacy gc)
     return str + next_str;
 }
 
-string operator+(const string &str, Seq_side ss)
-{
-    string next_str;
-    switch (ss) {
-    case Five_prime:
-        next_str = "Five_prime";
-        break;
-    case Three_prime:
-        next_str = "Three_prime";
-        break;
-    case Undefined_side:
-        next_str = "Undefined_side";
-        break;
-    }
-    return str + next_str;
-}
 
-string operator+(const string &str, Event_type et)
-{
-    string next_str;
-    switch (et) {
-    case GeneChoice_t:
-        next_str = "GeneChoice";
-        break;
-    case Deletion_t:
-        next_str = "Deletion";
-        break;
-    case Insertion_t:
-        next_str = "Insertion";
-        break;
-    case Dinuclmarkov_t:
-        next_str = "DinucMarkov";
-        break;
-    }
-    return str + next_str;
-}
 
 /**
  * \brief Creates a Gene_class_legacy object from a string.
@@ -268,18 +215,6 @@ Seq_type str2SeqType(const string &str)
     throw runtime_error("Unknown Seq_type string in str2SeqType: " + str);
 }
 
-string to_string(const Seq_type st)
-{
-    switch (st) {
-    case V_gene_seq: return "V_gene_seq";
-    case VD_ins_seq: return "VD_ins_seq";
-    case D_gene_seq: return "D_gene_seq";
-    case DJ_ins_seq: return "DJ_ins_seq";
-    case J_gene_seq: return "J_gene_seq";
-    case VJ_ins_seq: return "VJ_ins_seq";
-    default: throw invalid_argument("Unknown Seq_type in to_string(Seq_type)");
-    }
-}
 
 /**
  * \brief Creates a Seq_side object from a string.
@@ -306,20 +241,6 @@ Seq_side str2SeqSide(const string &str)
  * \author Q.Marcou
  * \version 1.2.0
  */
-string to_string(const Seq_side ss)
-{
-    switch (ss) {
-    case Five_prime:
-        return "Five_prime";
-    case Three_prime:
-        return "Three_prime";
-    case Undefined_side:
-        return "Undefined_side";
-
-    default:
-        throw invalid_argument("Unknown Seq_side in to_string(const Seq_side).");
-    }
-}
 
 //Seq_type_str_p_map::Seq_type_str_p_map(): Enum_fast_memory_map<Seq_type,Str_ptr>(6){}
 
@@ -605,9 +526,9 @@ uint64_t draw_random_64bits_seed()
         uint64_t time1 = dur1.count();
         uint64_t time2 = dur2.count();
         // Get process ID
-        int pid = ::portable_getpid();
+        int pid = igor::core::portable_getpid();
         // Get host ID
-        long int hid = ::portable_gethostid();
+        long int hid = igor::core::portable_gethostid();
         //Get a somewhat random timing (will vary of the order of micro seconds)
         chrono::duration<uint64_t, nano> dur3(myclock::now() - time);
         uint64_t time3 = dur3.count();

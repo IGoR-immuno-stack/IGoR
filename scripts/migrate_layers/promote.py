@@ -33,11 +33,54 @@ CORE_LEGACY = ["Event_type", "GeneChoice_t", "Deletion_t", "Insertion_t", "Dinuc
                "Int_Str", "Int_Str_ptr", "Gene_class", "Gene_class_legacy", "V_gene", "D_gene", "J_gene",
                "Undefined_gene", "Int_nt", "Matrix", "Seq_type_str_p_map", "Mismatch_vectors_map",
                "Pruning_mismatch_floor_map", "Index_map", "Downstream_scenario_proba_bound_map",
-               "index_type", "first_unfilled_segment", "first_unplaced_segment_end", "kIntNtCount"]
+               "index_type", "first_unfilled_segment", "first_unplaced_segment_end", "kIntNtCount",
+               "int_A", "int_C", "int_G", "int_T", "int_R", "int_Y", "int_K", "int_M", "int_S", "int_W",
+               "int_B", "int_D", "int_H", "int_V", "int_N", "int_undefined"]
 MODEL_LEGACY = ["Rec_Event", "Events_map", "Next_event_ptr", "Gene_choice", "Deletion", "Insertion",
                 "Dinucl_markov", "Event_realization", "Error_rate", "OffsetDelta", "LengthContribution",
                 "SeqConstructionRole", "OffsetRole", "Model_Parms", "Model_marginals", "Counter",
                 "EventUtils"]
+
+
+# Core vocabulary promoted under a new name (Core/Types.h, Core/IntStr.h): old -> new. Promoted
+# and new code uses the new name; the stubs alias the old one for legacy code.
+CORE_RENAMED = {"Event_type": "EventType", "Seq_side": "SeqSide", "Seq_type": "SeqType",
+                "Seq_type_String": "SeqTypeString", "Rec_Event_name": "EventName",
+                "Marginal_array_p": "MarginalArrayPtr", "Seq_Offset": "SeqOffset",
+                "UMCodonTable": "CodonTable", "Int_Str": "IntStr"}
+# Core vocabulary promoted under its own name.
+CORE_PROMOTED_AS_IS = ["GeneChoice_t", "Deletion_t", "Insertion_t", "Dinuclmarkov_t", "Undefined_t",
+                       "Five_prime", "Three_prime", "Undefined_side",
+                       "V_gene_seq", "VD_ins_seq", "D_gene_seq", "DJ_ins_seq", "J_gene_seq", "VJ_ins_seq",
+                       "index_type", "genetic_code"]
+
+
+def vocabulary_promoted():
+    return os.path.exists("src/igor/Core/Types.h")
+
+
+def modernize_core_names(text, in_core):
+    """In promoted or new code, replace the legacy spelling of promoted Core vocabulary."""
+    prefix = "" if in_core else "core::"
+    for old, new in CORE_RENAMED.items():
+        text = re.sub(r"(?:(?:igor::)?core::)?legacy::" + old + r"\b", (prefix if not in_core else "") + new, text) \
+            if in_core else re.sub(r"((?:igor::)?)core::legacy::" + old + r"\b", r"\1core::" + new, text)
+    for name in CORE_PROMOTED_AS_IS:
+        text = re.sub(r"(?:(?:igor::)?core::)?legacy::" + name + r"\b", name, text) \
+            if in_core else re.sub(r"((?:igor::)?)core::legacy::" + name + r"\b", r"\1core::" + name, text)
+    for old in ("CoreEnums", "StdTypedefs", "Typedef"):
+        text = text.replace(f"#include <igor/Core/Legacy/{old}.h>", "#include <igor/Core/Types.h>")
+    for stem in ("IntStr", "GeneticCode"):
+        text = text.replace(f"#include <igor/Core/Legacy/{stem}.h>", f"#include <igor/Core/{stem}.h>")
+    # the three legacy headers collapse into one include
+    lines, seen = [], False
+    for line in text.split("\n"):
+        if line == "#include <igor/Core/Types.h>":
+            if seen:
+                continue
+            seen = True
+        lines.append(line)
+    return "\n".join(lines)
 
 
 class Symbol:
@@ -58,6 +101,10 @@ PROMOTIONS = {
          {"Seq_offsets_map": "SeqOffsetsMap"}),
         ("SegmentSpan", [Symbol("SegmentBoundary"), Symbol("SegmentSpan"), Symbol("cut_position"),
                          Symbol("legacy_span_of"), Symbol("legacy_junction_of")], {}),
+    ]),
+    "core-vocabulary": ("Core", [
+        ("IntStr", [Symbol("IntStr", "alias", "Int_Str")], {"Int_Str": "IntStr"}),
+        ("GeneticCode", [Symbol("genetic_code", "namespace")], {}),
     ]),
     "model-geometry": ("Model", [
         ("SpanProfile", [Symbol("SpanProfile"), Symbol("SpanDecomposition"), Symbol("JunctionBound")], {}),
@@ -174,15 +221,26 @@ def promote(layer, stem, symbols, renames):
         text = text.replace(f"namespace igor::{low}::legacy {{", f"namespace igor::{low} {{")
         text = text.replace(f"}} // namespace igor::{low}::legacy", f"}} // namespace igor::{low}")
         text = re.sub(r"^using namespace igor::[a-z]+::legacy;\n", "", text, flags=re.M)
+        text = text.replace(f"igor::{low}::legacy::", f"igor::{low}::")
         for old, new in renames.items():
             text = re.sub(r"\b" + old + r"\b", new, text)
         own = {s.name for s in symbols}
         promoted = promoted_names()
+        core_legacy = CORE_LEGACY
+        if vocabulary_promoted():
+            gone = set(CORE_RENAMED) | set(CORE_PROMOTED_AS_IS)
+            core_legacy = [n for n in CORE_LEGACY if n not in gone]
+            for old, new in CORE_RENAMED.items():
+                if new not in own:
+                    text = qualify(text, [old], "\0")
+                    text = text.replace("\0" + old, new if layer == "Core" else "core::" + new)
+            if layer != "Core":
+                text = qualify(text, CORE_PROMOTED_AS_IS, "core::")
         if layer == "Core":
-            text = qualify(text, [n for n in CORE_LEGACY if n not in own], "legacy::")
+            text = qualify(text, [n for n in core_legacy if n not in own], "legacy::")
         else:
             text = qualify(text, [n for n in promoted.get("Core", []) if n not in own], "core::")
-            text = qualify(text, CORE_LEGACY, "core::legacy::")
+            text = qualify(text, core_legacy, "core::legacy::")
             text = qualify(text, [n for n in MODEL_LEGACY if n not in own], "legacy::")
         # includes of promoted headers lose their Legacy/
         for other_layer, entries in PROMOTIONS.values():
