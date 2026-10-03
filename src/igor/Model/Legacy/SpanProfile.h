@@ -71,6 +71,10 @@
  * Deletion, plus one `at()` with no guard at all (Insertion), which threw where the others
  * discarded. See section 6.10, finding 6.
  */
+
+namespace igor::model::legacy {
+using namespace igor::core::legacy;
+
 class SpanProfile
 {
 public:
@@ -457,3 +461,5 @@ private:
     std::vector<SpanProfile> profiles_ = std::vector<SpanProfile>(1);
     SpanDecomposition decomposition_{};
 };
+
+} // namespace igor::model::legacy

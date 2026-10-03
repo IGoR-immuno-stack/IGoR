@@ -3,6 +3,7 @@
 #include <igor/Model/Legacy/SafetyMatrix.h>
 #include <igor/Model/Legacy/BoundTightness.h>
 #include <igor/Core/Legacy/Utils.h>
+#include <igor/Model/Legacy/EventTypedefs.h>
 #include <span>
 
 /**
@@ -23,6 +24,10 @@
  * exploration strategies (aggressive vs conservative pruning)
  * without changing result collection logic.
  */
+
+namespace igor::model::legacy {
+using namespace igor::core::legacy;
+
 struct ExplorationContext {
     // Downstream probability bounds for pruning
     // Maps event → max probability of all downstream paths
@@ -202,3 +207,5 @@ struct ExplorationContext {
         safety_set.set(cell, is_safe, memory_layer);
     }
 };
+
+} // namespace igor::model::legacy

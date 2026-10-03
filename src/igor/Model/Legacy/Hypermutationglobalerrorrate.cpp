@@ -29,6 +29,11 @@
 #include <igor/Model/Legacy/Hypermutationglobalerrorrate.h>
 #include <igor/Model/Legacy/EventUtils.h>
 
+
+namespace igor::model::legacy {
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+
 using namespace std;
 
 
@@ -1880,3 +1885,5 @@ void Hypermutation_global_errorrate::introduce_uniform_transversion(
         throw runtime_error("unknown nucleotide in Hypermutationglobalerrorrate::generate_errors()");
     }
 }
+
+} // namespace igor::model::legacy

@@ -28,6 +28,12 @@
 #include <cmath>
 #include <limits>
 
+
+namespace igor::inference::legacy {
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+using namespace igor::model::legacy;
+
 using namespace std;
 
 Best_scenarios_counter::Best_scenarios_counter(size_t n_scenarios) : Counter(), n_scenarios_counted(n_scenarios) { }
@@ -332,3 +338,5 @@ shared_ptr<Counter> Best_scenarios_counter::copy() const
     }
     return counter_copy_ptr;
 }
+
+} // namespace igor::inference::legacy

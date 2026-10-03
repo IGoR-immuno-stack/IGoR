@@ -51,6 +51,11 @@
  * Such a model contains only 3N+1 parameters and allows to probe large context sizes.
  * The identity of the resulting nucleotide after mutation is assumed to follow a uniform distribution.
  */
+
+namespace igor::model::legacy {
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+
 class MODEL_EXPORT Hypermutation_global_errorrate : public Error_rate
 {
 
@@ -208,3 +213,5 @@ private:
     std::shared_ptr<std::ofstream> output_Nmer_stat_stream;
     bool output_Nmer_stat;
 };
+
+} // namespace igor::model::legacy

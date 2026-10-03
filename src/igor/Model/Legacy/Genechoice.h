@@ -49,9 +49,16 @@
  * The event realizations are explored based on the sequence alignments that were provdided to the inference.
  * Since D gene can be heavily deleted and might not be recognizable by sequence alignments, a special handling of the D gene choice exploring all D positions ranked by their likelihood has been implemented.
  */
+
+// Friend of the events below; see the friend declarations.
+namespace igor::inference::legacy { class Coverage_err_counter; }
+namespace igor::model::legacy {
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+
 class MODEL_EXPORT Gene_choice : public Rec_Event
 {
-    friend class Coverage_err_counter; //Grant friendship to access current gene realization and offset
+    friend class igor::inference::legacy::Coverage_err_counter; //Grant friendship to access current gene realization and offset
     friend class Hypermutation_global_errorrate; //Grant friendship to access current gene realization and offset
     friend class Hypermutation_full_Nmer_errorrate; //Same
 
@@ -237,3 +244,5 @@ private:
     int nearest_left_check_ = -1;
     int nearest_right_check_ = -1;
 };
+
+} // namespace igor::model::legacy

@@ -49,6 +49,13 @@
 #include <igor/Inference/Export.h>
 
 //Make typedef for the function pointers
+
+namespace igor::inference::legacy {
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+using namespace igor::model::legacy;
+using namespace igor::generation::legacy;
+
 typedef void (*gen_seq_trans)(size_t, std::pair<std::string, std::queue<std::queue<int>>>, std::shared_ptr<void>);
 
 /**
@@ -207,7 +214,7 @@ public:
      *
      * Initializes the fast generator if not already done.
      */
-    igor::fast::FastGenerator &get_fast_generator();
+    igor::generation::legacy::fast::FastGenerator &get_fast_generator();
 
     std::forward_list<std::pair<std::string, std::queue<std::queue<int>>>> generate_sequences(int, bool);
     void generate_sequences(int, bool, std::string, std::string,
@@ -229,7 +236,7 @@ private:
     Model_marginals model_marginals;
     std::map<size_t, std::shared_ptr<Counter>>
             counters_list; //Size_t is a unique identifier for the Counter(useful for adding them up)
-    std::unique_ptr<igor::fast::FastGenerator> fast_generator_;
+    std::unique_ptr<igor::generation::legacy::fast::FastGenerator> fast_generator_;
     std::pair<std::string, std::queue<std::queue<int>>> generate_unique_sequence(
             std::queue<std::shared_ptr<Rec_Event>>, std::unordered_map<Rec_Event_name, int>,
             const std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &,
@@ -246,3 +253,5 @@ get_best_aligns(
 
 INFERENCE_EXPORT void output_CDR3_gen_data(size_t, std::pair<std::string, std::queue<std::queue<int>>> seq_and_real,
                                       std::shared_ptr<void> func_data);
+
+} // namespace igor::inference::legacy

@@ -45,6 +45,13 @@
 #include <utility>
 #include <vector>
 
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+using namespace igor::model::legacy;
+using namespace igor::generation::legacy;
+using namespace igor::inference::legacy;
+using namespace igor::inference;
+
 #ifndef IGOR_SOURCE_DIR
 #error "IGOR_SOURCE_DIR must be defined (set by CMake)"
 #endif

@@ -51,6 +51,11 @@
  * topology, so the registry supplies *which* segment is the neighbour and the event supplies
  * *which side* it seeds from.
  */
+
+namespace igor::model::legacy {
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+
 struct DinuclTraversalSpec {
     SeqTypeId target_id = kNoSeqType;
     SeqTypeId anchor_id = kNoSeqType;
@@ -195,3 +200,5 @@ private:
                                               std::uniform_real_distribution<double> &, std::mt19937_64 &) const;
     inline double compute_nt_freq(int, const Marginal_array_p &) const;
 };
+
+} // namespace igor::model::legacy

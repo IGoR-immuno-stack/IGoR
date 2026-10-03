@@ -4,6 +4,7 @@
 #include <igor/Model/Legacy/Rec_Event.h>
 #include <igor/Core/Legacy/SeqTypeRegistry.h>
 #include <igor/Core/Legacy/Utils.h>
+#include <igor/Model/Legacy/EventTypedefs.h>
 #include <memory>
 #include <string>
 #include <tuple>
@@ -13,6 +14,11 @@
 
 #include <igor/Core/Legacy/IntStr.h>
 #include <igor/Model/Export.h>
+
+
+namespace igor::model::legacy {
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
 
 namespace EventUtils {
 
@@ -68,3 +74,5 @@ MODEL_EXPORT int get_insertion_len_max(
     const Seq_type_String &ins_seq_type,
     const Events_map &events_map);
 } // namespace EventUtils
+
+} // namespace igor::model::legacy

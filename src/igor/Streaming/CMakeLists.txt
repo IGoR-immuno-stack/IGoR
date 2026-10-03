@@ -27,14 +27,7 @@ add_library(${CMAKE_PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 ## Sources, Headers, Includes, Linking
 ## #################################################################
 
-target_sources(${PROJECT_NAME}
-  PUBLIC
-    FILE_SET HEADERS
-    BASE_DIRS
-      ${CMAKE_CURRENT_BINARY_DIR}
-    FILES
-      ${CMAKE_CURRENT_BINARY_DIR}/Export.h
-)
+set(LAYER_DIR ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME})
 
 target_sources(${PROJECT_NAME}
   PRIVATE
@@ -46,20 +39,21 @@ target_sources(${PROJECT_NAME}
     AIRRRearrangementWriter.cpp
     AIRRAlignmentReader.cpp
     AIRRAlignmentWriter.cpp
-  PUBLIC
-    FILE_SET HEADERS
+  PUBLIC FILE_SET HEADERS
     BASE_DIRS
-      ${CMAKE_CURRENT_SOURCE_DIR}
+      ${CMAKE_SOURCE_DIR}/src
+      ${CMAKE_BINARY_DIR}/src
     FILES
-      SequenceBatchHelpers.h
-      ParquetWriter.h
-      ParquetReader.h
-      AIRRCommon.h
-      AIRRRearrangementReader.h
-      AIRRRearrangementWriter.h
-      AIRRAlignmentReader.h
-      AIRRAlignmentWriter.h
-      ArrowCompatibility.h
+      ${CMAKE_BINARY_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/Export.h
+      ${LAYER_DIR}/SequenceBatchHelpers.h
+      ${LAYER_DIR}/ParquetWriter.h
+      ${LAYER_DIR}/ParquetReader.h
+      ${LAYER_DIR}/AIRRCommon.h
+      ${LAYER_DIR}/AIRRRearrangementReader.h
+      ${LAYER_DIR}/AIRRRearrangementWriter.h
+      ${LAYER_DIR}/AIRRAlignmentReader.h
+      ${LAYER_DIR}/AIRRAlignmentWriter.h
+      ${LAYER_DIR}/ArrowCompatibility.h
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC
@@ -97,7 +91,7 @@ install(
   RUNTIME
     DESTINATION ${CMAKE_INSTALL_BINDIR}
   FILE_SET HEADERS
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
   INCLUDES
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )

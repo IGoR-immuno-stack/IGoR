@@ -23,6 +23,10 @@
 #include <algorithm>
 #include <string>
 
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+using namespace igor::model::legacy;
+
 namespace {
 
 /// A minimal but complete node, of the shape Rec_Event::to_json() emits.

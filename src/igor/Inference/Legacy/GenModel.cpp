@@ -32,6 +32,13 @@
 #include <igor/Model/Legacy/ExplorationContext.h>
 #include <igor/Model/Legacy/AccumulationContext.h>
 
+
+namespace igor::inference::legacy {
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+using namespace igor::model::legacy;
+using namespace igor::generation::legacy;
+
 using namespace std;
 
 namespace {
@@ -1030,19 +1037,19 @@ void GenModel::generate_sequences_fast(size_t num_sequences, const string &seq_f
     generation_infos_file << "Date: " << ctime(&tt) << endl;
     generation_infos_file << "Number of sequences = " << num_sequences << endl;
     generation_infos_file << "Number of threads = "
-                          << (num_threads == 0 ? igor::fast::get_optimal_thread_count() : num_threads) << endl;
+                          << (num_threads == 0 ? igor::generation::legacy::fast::get_optimal_thread_count() : num_threads) << endl;
 
     // Initialize fast generator if needed
-    igor::fast::FastGenerator &generator = get_fast_generator();
+    igor::generation::legacy::fast::FastGenerator &generator = get_fast_generator();
 
     // Configure generation
-    igor::fast::FastGeneratorConfig config;
+    igor::generation::legacy::fast::FastGeneratorConfig config;
     config.num_threads = num_threads;
     config.show_progress = show_progress;
     if (seed >= 0) {
         config.base_seed = static_cast<uint64_t>(seed);
     } else {
-        config.base_seed = igor::fast::draw_random_seed();
+        config.base_seed = igor::generation::legacy::fast::draw_random_seed();
     }
     generation_infos_file << "Seed = " << config.base_seed << endl;
 
@@ -1073,11 +1080,13 @@ void GenModel::generate_sequences_fast(size_t num_sequences, const string &seq_f
          << static_cast<size_t>(stats.sequences_per_second) << " seq/s)" << endl;
 }
 
-igor::fast::FastGenerator &GenModel::get_fast_generator()
+igor::generation::legacy::fast::FastGenerator &GenModel::get_fast_generator()
 {
     if (!fast_generator_) {
-        fast_generator_ = make_unique<igor::fast::FastGenerator>();
+        fast_generator_ = make_unique<igor::generation::legacy::fast::FastGenerator>();
         fast_generator_->initialize(model_parms, model_marginals);
     }
     return *fast_generator_;
 }
+
+} // namespace igor::inference::legacy

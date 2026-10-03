@@ -25,6 +25,10 @@
 
 #include <igor/Alignment/Legacy/ExtractFeatures.h>
 
+
+namespace igor::alignment::legacy {
+using namespace igor::core::legacy;
+
 ExtractFeatures::ExtractFeatures() { }
 
 ExtractFeatures::ExtractFeatures(const ExtractFeatures &orig) { }
@@ -224,3 +228,5 @@ string ExtractFeatures::generateCDR3_csv_line(CDR3SeqData cdr3InputSeq)
 
     return ("" + sstm.str());
 }
+
+} // namespace igor::alignment::legacy

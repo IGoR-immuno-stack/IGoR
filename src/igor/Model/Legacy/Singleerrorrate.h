@@ -43,6 +43,11 @@
  *
  * Simplest instance of the ErrorRate family. Models errors/mutations as a Bernouilli process with a global rate independent of position and context.
  */
+
+namespace igor::model::legacy {
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+
 class MODEL_EXPORT Single_error_rate : public Error_rate
 {
 public:
@@ -94,3 +99,5 @@ private:
     int subseq_compare_err_num(const std::string &, const std::string &);
     //TODO use seq likelihood to extract the likelihood of the model on the fly
 };
+
+} // namespace igor::model::legacy

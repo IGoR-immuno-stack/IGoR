@@ -1,12 +1,17 @@
 #pragma once
 
 #include <igor/Core/Legacy/Utils.h>
+#include <igor/Model/Legacy/EventTypedefs.h>
 #include <memory>
 #include <unordered_map>
 #include <vector>
 #include <queue>
 
 // Forward declarations
+
+namespace igor::model::legacy {
+using namespace igor::core::legacy;
+
 class Rec_Event;
 
 /**
@@ -65,3 +70,5 @@ struct ModelContext {
     ModelContext(ModelContext&&) = delete;
     ModelContext& operator=(ModelContext&&) = delete;
 };
+
+} // namespace igor::model::legacy

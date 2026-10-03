@@ -36,6 +36,11 @@
 #include <cassert>
 #include <iostream>
 
+
+namespace igor::model::legacy {
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+
 using namespace std;
 
 
@@ -763,3 +768,5 @@ void Rec_Event::adopt_Len_proba_bound(const Rec_Event &source)
         enclosing.mutable_decomposition() = source.junction_bounds_[kEnclosingJunction].decomposition();
     }
 }
+
+} // namespace igor::model::legacy

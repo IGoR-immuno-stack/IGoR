@@ -32,6 +32,11 @@
 #include <cassert>
 #include <igor/Model/Legacy/gene_to_seqtype_migr.h>
 #include <igor/Model/Legacy/EventUtils.h>
+
+namespace igor::model::legacy {
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+
 using namespace std;
 
 /*
@@ -1118,3 +1123,5 @@ void Model_Parms::set_fixed_all_events(bool fix_bool_status)
         (*iter)->fix(fix_bool_status);
     }
 }
+
+} // namespace igor::model::legacy

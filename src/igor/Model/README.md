@@ -361,7 +361,7 @@ for (const auto& handler_ptr : orderedHandlers()) {
 **Example — walking the Topology graph:**
 
 ```cpp
-auto topology = topology_from_json(igor::model_parms_to_json(parms));
+auto topology = topology_from_json(igor::model::legacy::model_parms_to_json(parms));
 
 // Children of event 0
 for (const auto& child : topology->children(0)) {
@@ -616,7 +616,7 @@ consequences worth knowing about:
 Model_Parms parms;
 parms.read_model_parms("model_parms.txt");        // Core tokenizes
 
-nlohmann::json doc = igor::model_parms_to_json(parms);
+nlohmann::json doc = igor::model::legacy::model_parms_to_json(parms);
 auto topology = igor::model::topology_from_json(doc);
 ```
 

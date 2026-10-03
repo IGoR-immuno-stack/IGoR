@@ -28,10 +28,13 @@
 #include <tuple>
 #include <cstring>
 
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+
 namespace fs = std::filesystem;
 
 // Bring igor types into scope for convenience
-using namespace igor;
+using namespace igor::streaming;
 
 // Type alias for the legacy sequence tuple format
 using SequenceTuple = std::tuple<
@@ -127,36 +130,36 @@ const char* format_name(Format fmt)
 void convert_parquet_to_rearrangement(
     const std::string& input,
     const std::string& output,
-    igor::airr::Delimiter delim)
+    igor::streaming::airr::Delimiter delim)
 {
     std::cout << "Reading Parquet file: " << input << std::endl;
-    auto sequences = igor::ParquetReader::read_sequences(input);
+    auto sequences = igor::streaming::ParquetReader::read_sequences(input);
 
     std::cout << "Writing AIRR Rearrangement file: " << output << std::endl;
     std::cout << "  Sequences: " << sequences.size() << std::endl;
 
     // Convert to SequenceData vector
-    std::vector<igor::SequenceData> seq_data;
+    std::vector<igor::streaming::SequenceData> seq_data;
     seq_data.reserve(sequences.size());
     for (const auto& [id, seq, alignments] : sequences) {
         seq_data.emplace_back(id, seq, alignments);
     }
 
-    igor::airr::rearrangement::write(output, seq_data, delim);
+    igor::streaming::airr::rearrangement::write(output, seq_data, delim);
     std::cout << "✓ Conversion complete" << std::endl;
 }
 
 void convert_rearrangement_to_parquet(
     const std::string& input,
     const std::string& output,
-    igor::CompressionType compression)
+    igor::streaming::CompressionType compression)
 {
     std::cout << "Reading AIRR Rearrangement file: " << input << std::endl;
-    auto sequences = igor::airr::rearrangement::read_sequences(input);
+    auto sequences = igor::streaming::airr::rearrangement::read_sequences(input);
 
     std::cout << "Writing Parquet file: " << output << std::endl;
     std::cout << "  Sequences: " << sequences.size() << std::endl;
-    std::cout << "  Compression: " << igor::ParquetWriter::compression_name(compression) << std::endl;
+    std::cout << "  Compression: " << igor::streaming::ParquetWriter::compression_name(compression) << std::endl;
 
     // Convert SequenceData to tuple format
     std::vector<SequenceTuple> tuples;
@@ -165,7 +168,7 @@ void convert_rearrangement_to_parquet(
         tuples.emplace_back(seq.index, seq.sequence, seq.alignments);
     }
 
-    igor::ParquetWriter::write_sequences(output, tuples, compression);
+    igor::streaming::ParquetWriter::write_sequences(output, tuples, compression);
     std::cout << "✓ Conversion complete" << std::endl;
 }
 
@@ -173,35 +176,35 @@ void convert_rearrangement_to_parquet(
 void convert_parquet_to_alignment(
     const std::string& input,
     const std::string& output,
-    igor::airr::Delimiter delim)
+    igor::streaming::airr::Delimiter delim)
 {
     std::cout << "Reading Parquet file: " << input << std::endl;
-    auto sequences = igor::ParquetReader::read_sequences(input);
+    auto sequences = igor::streaming::ParquetReader::read_sequences(input);
 
     std::cout << "Writing AIRR Alignment file: " << output << std::endl;
 
     // Convert to SequenceData vector
-    std::vector<igor::SequenceData> seq_data;
+    std::vector<igor::streaming::SequenceData> seq_data;
     seq_data.reserve(sequences.size());
     for (const auto& [id, seq, alignments] : sequences) {
         seq_data.emplace_back(id, seq, alignments);
     }
 
-    igor::airr::alignment::write_sequences(output, seq_data, delim);
+    igor::streaming::airr::alignment::write_sequences(output, seq_data, delim);
     std::cout << "✓ Conversion complete" << std::endl;
 }
 
 void convert_alignment_to_parquet(
     const std::string& input,
     const std::string& output,
-    igor::CompressionType compression)
+    igor::streaming::CompressionType compression)
 {
     std::cout << "Reading AIRR Alignment file: " << input << std::endl;
-    auto sequences = igor::airr::alignment::read_sequences(input);
+    auto sequences = igor::streaming::airr::alignment::read_sequences(input);
 
     std::cout << "Writing Parquet file: " << output << std::endl;
     std::cout << "  Sequences: " << sequences.size() << std::endl;
-    std::cout << "  Compression: " << igor::ParquetWriter::compression_name(compression) << std::endl;
+    std::cout << "  Compression: " << igor::streaming::ParquetWriter::compression_name(compression) << std::endl;
 
     // Convert SequenceData to tuple format
     std::vector<SequenceTuple> tuples;
@@ -210,7 +213,7 @@ void convert_alignment_to_parquet(
         tuples.emplace_back(seq.index, seq.sequence, seq.alignments);
     }
 
-    igor::ParquetWriter::write_sequences(output, tuples, compression);
+    igor::streaming::ParquetWriter::write_sequences(output, tuples, compression);
     std::cout << "✓ Conversion complete" << std::endl;
 }
 
@@ -218,33 +221,33 @@ void convert_alignment_to_parquet(
 void convert_rearrangement_to_alignment(
     const std::string& input,
     const std::string& output,
-    igor::airr::Delimiter out_delim)
+    igor::streaming::airr::Delimiter out_delim)
 {
     std::cout << "Reading AIRR Rearrangement file: " << input << std::endl;
-    auto sequences = igor::airr::rearrangement::read_sequences(input);
+    auto sequences = igor::streaming::airr::rearrangement::read_sequences(input);
 
     std::cout << "Writing AIRR Alignment file: " << output << std::endl;
-    igor::airr::alignment::write_sequences(output, sequences, out_delim);
+    igor::streaming::airr::alignment::write_sequences(output, sequences, out_delim);
     std::cout << "✓ Conversion complete" << std::endl;
 }
 
 void convert_alignment_to_rearrangement(
     const std::string& input,
     const std::string& output,
-    igor::airr::Delimiter out_delim)
+    igor::streaming::airr::Delimiter out_delim)
 {
     std::cout << "Reading AIRR Alignment file: " << input << std::endl;
-    auto sequences = igor::airr::alignment::read_sequences(input);
+    auto sequences = igor::streaming::airr::alignment::read_sequences(input);
 
     std::cout << "Writing AIRR Rearrangement file: " << output << std::endl;
-    igor::airr::rearrangement::write(output, sequences, out_delim);
+    igor::streaming::airr::rearrangement::write(output, sequences, out_delim);
     std::cout << "✓ Conversion complete" << std::endl;
 }
 
 void convert_legacy_to_rearrangement(
     const std::string& input,
     const std::string& output,
-    igor::airr::Delimiter out_delim)
+    igor::streaming::airr::Delimiter out_delim)
 {
     std::cout << "Reading IGoR Legacy file: " << input << std::endl;
 
@@ -279,14 +282,14 @@ void convert_legacy_to_rearrangement(
 
     std::cout << "  Sequences: " << sequences.size() << std::endl;
     std::cout << "Writing AIRR Rearrangement file: " << output << std::endl;
-    igor::airr::rearrangement::write(output, sequences, out_delim);
+    igor::streaming::airr::rearrangement::write(output, sequences, out_delim);
     std::cout << "✓ Conversion complete" << std::endl;
 }
 
 void convert_legacy_to_parquet(
     const std::string& input,
     const std::string& output,
-    igor::CompressionType compression)
+    igor::streaming::CompressionType compression)
 {
     std::cout << "Reading IGoR Legacy file: " << input << std::endl;
 
@@ -390,8 +393,8 @@ int main(int argc, char* argv[])
     // Parse arguments
     std::string input;
     std::string output;
-    igor::CompressionType compression = igor::CompressionType::SNAPPY;
-    igor::airr::Delimiter delimiter = igor::airr::Delimiter::AUTO;
+    igor::streaming::CompressionType compression = igor::streaming::CompressionType::SNAPPY;
+    igor::streaming::airr::Delimiter delimiter = igor::streaming::airr::Delimiter::AUTO;
 
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
@@ -406,11 +409,11 @@ int main(int argc, char* argv[])
                 return 1;
             }
             std::string comp = argv[++i];
-            if (comp == "NONE") compression = igor::CompressionType::NONE;
-            else if (comp == "SNAPPY") compression = igor::CompressionType::SNAPPY;
-            else if (comp == "GZIP") compression = igor::CompressionType::GZIP;
-            else if (comp == "ZSTD") compression = igor::CompressionType::ZSTD;
-            else if (comp == "LZ4") compression = igor::CompressionType::LZ4;
+            if (comp == "NONE") compression = igor::streaming::CompressionType::NONE;
+            else if (comp == "SNAPPY") compression = igor::streaming::CompressionType::SNAPPY;
+            else if (comp == "GZIP") compression = igor::streaming::CompressionType::GZIP;
+            else if (comp == "ZSTD") compression = igor::streaming::CompressionType::ZSTD;
+            else if (comp == "LZ4") compression = igor::streaming::CompressionType::LZ4;
             else {
                 std::cerr << "Error: Unknown compression type: " << comp << std::endl;
                 return 1;
@@ -422,8 +425,8 @@ int main(int argc, char* argv[])
                 return 1;
             }
             std::string delim = argv[++i];
-            if (delim == "TAB") delimiter = igor::airr::Delimiter::TAB;
-            else if (delim == "COMMA") delimiter = igor::airr::Delimiter::COMMA;
+            if (delim == "TAB") delimiter = igor::streaming::airr::Delimiter::TAB;
+            else if (delim == "COMMA") delimiter = igor::streaming::airr::Delimiter::COMMA;
             else {
                 std::cerr << "Error: Unknown delimiter type: " << delim << std::endl;
                 return 1;
@@ -473,13 +476,13 @@ int main(int argc, char* argv[])
     std::cout << std::endl;
 
     // Auto-detect delimiter from output extension if not specified
-    if (delimiter == igor::airr::Delimiter::AUTO) {
+    if (delimiter == igor::streaming::airr::Delimiter::AUTO) {
         fs::path out_path(output);
         auto ext = out_path.extension().string();
         if (ext == ".csv") {
-            delimiter = igor::airr::Delimiter::COMMA;
+            delimiter = igor::streaming::airr::Delimiter::COMMA;
         } else {
-            delimiter = igor::airr::Delimiter::TAB;
+            delimiter = igor::streaming::airr::Delimiter::TAB;
         }
     }
 
@@ -513,7 +516,7 @@ int main(int argc, char* argv[])
         else if (input_fmt == Format::IGoRLegacy && output_fmt == Format::AIRRAlignment) {
             // Legacy → Rearrangement → Alignment
             std::string temp = output + ".tmp.tsv";
-            convert_legacy_to_rearrangement(input, temp, igor::airr::Delimiter::TAB);
+            convert_legacy_to_rearrangement(input, temp, igor::streaming::airr::Delimiter::TAB);
             convert_rearrangement_to_alignment(temp, output, delimiter);
             fs::remove(temp);
         }

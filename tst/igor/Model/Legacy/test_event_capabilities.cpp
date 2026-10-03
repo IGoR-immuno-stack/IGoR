@@ -43,6 +43,10 @@
 #include <limits>
 #include <stdexcept>
 
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+using namespace igor::model::legacy;
+
 using namespace IgorTestUtils;
 
 namespace {

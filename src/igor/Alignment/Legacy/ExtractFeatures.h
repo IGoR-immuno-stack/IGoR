@@ -34,6 +34,10 @@
 
 #include <igor/Alignment/Export.h>
 
+
+namespace igor::alignment::legacy {
+using namespace igor::core::legacy;
+
 using namespace std;
 
 /**
@@ -75,3 +79,5 @@ public:
 
 private:
 };
+
+} // namespace igor::alignment::legacy

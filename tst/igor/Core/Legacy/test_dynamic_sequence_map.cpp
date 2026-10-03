@@ -19,6 +19,8 @@
 
 #include <stdexcept>
 
+using namespace igor::core::legacy;
+
 namespace {
 
 /// Standard VDJ ordering, frozen and ready to size a map from.

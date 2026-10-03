@@ -40,6 +40,12 @@
  * This Counter implements an estimator for the generation probability of evaluated sequences.
  * Alternatively the counter can record the probability of generation of putative ancestor (unmutated/error free) sequences and their associated posterior probability.
  */
+
+namespace igor::inference::legacy {
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+using namespace igor::model::legacy;
+
 class INFERENCE_EXPORT Pgen_counter : public Counter
 {
 public:
@@ -89,3 +95,5 @@ private:
     bool dj_ins;
     bool vj_ins;
 };
+
+} // namespace igor::inference::legacy

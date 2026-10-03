@@ -4,12 +4,19 @@
 
 #include <numeric>
 
-namespace igor::model {
+#include <igor/Model/Forward.h>
+
+namespace igor::inference {
+using igor::model::RecombinationModel;
+using igor::model::Navigator;
+using igor::model::Topology;
+using igor::model::SampledScenario;
+using igor::model::SampledEvent;
 
 // ─── Constructor ───────────────────────────────────────────────────────
 
 template <typename T>
-CategoricalInferenceHandler<T>::CategoricalInferenceHandler(std::string name, igor::index_type uid, math::Tensor<T>& weights)
+CategoricalInferenceHandler<T>::CategoricalInferenceHandler(std::string name, igor::core::legacy::index_type uid, math::Tensor<T>& weights)
     : InferenceHandler<T>(std::move(name), uid)
     , m_weights(weights)
     , m_accumulator(math::tensor::zeros_like(weights))
@@ -90,4 +97,4 @@ void CategoricalInferenceHandler<T>::maximizeLikelihood(void)
     }
 }
 
-} // namespace igor::model
+} // namespace igor::inference

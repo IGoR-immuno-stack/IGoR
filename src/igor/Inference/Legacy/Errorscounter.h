@@ -37,6 +37,12 @@
  * Counter recording the number of genomic nucleotides and errors/mismatch per scenario.
  * This information can either be recorded for the N best scenarios or be aggregated to extract individual sequence posterior error/mutation load.
  */
+
+namespace igor::inference::legacy {
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+using namespace igor::model::legacy;
+
 class INFERENCE_EXPORT Errors_counter : public Counter
 {
 public:
@@ -90,3 +96,5 @@ private:
 
     std::vector<std::tuple<long double, size_t, size_t>> best_scenarios_vec;
 };
+
+} // namespace igor::inference::legacy

@@ -32,6 +32,9 @@
 
 #include <vector>
 
+using namespace igor::core::legacy;
+using namespace igor::model::legacy;
+
 TEST_CASE("SpanProfile keeps the best probability per distance", "[unit][span_profile]")
 {
     SpanProfile profile;

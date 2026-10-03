@@ -41,6 +41,11 @@
  * For now, we keep the current structure but name it explicitly as
  * "gene_alignments" to clarify its current scope.
  */
+
+namespace igor::model::legacy {
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+
 struct QuerySequenceContext {
     // Input sequence (nucleotide string)
     const std::string& sequence;
@@ -114,3 +119,5 @@ struct QuerySequenceContext {
     QuerySequenceContext(QuerySequenceContext&&) = delete;
     QuerySequenceContext& operator=(QuerySequenceContext&&) = delete;
 };
+
+} // namespace igor::model::legacy

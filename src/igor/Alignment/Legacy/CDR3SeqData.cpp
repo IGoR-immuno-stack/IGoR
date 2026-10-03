@@ -27,6 +27,9 @@
 
 #include <igor/Alignment/Legacy/CDR3SeqData.h>
 
+
+namespace igor::alignment::legacy {
+
 CDR3SeqData::CDR3SeqData()
 {
     seq_index = -1;
@@ -54,3 +57,5 @@ std::string CDR3SeqData::strData()
     return std::to_string(seq_index) + delimiter + std::to_string(v_anchor) + delimiter + std::to_string(j_anchor)
             + delimiter + CDR3nt + delimiter + CDR3aa;
 }
+
+} // namespace igor::alignment::legacy

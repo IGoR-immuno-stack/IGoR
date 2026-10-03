@@ -28,6 +28,10 @@
 #include <cmath>
 #include <stdexcept>
 
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+using namespace igor::model::legacy;
+
 // ===========================================================================================
 // The error-rate pruning bound's counts (plan section 7.18, repair R5a).
 //

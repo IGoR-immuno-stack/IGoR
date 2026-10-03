@@ -8,7 +8,14 @@
 #include <memory>
 #include <random>
 
-namespace igor::model {
+#include <igor/Model/Forward.h>
+
+namespace igor::generation {
+using igor::model::RecombinationModel;
+using igor::model::Navigator;
+using igor::model::Topology;
+using igor::model::SampledScenario;
+using igor::model::SampledEvent;
 
 // ─── SamplingHandler<T> ───────────────────────────────────────────────────────
 //
@@ -34,8 +41,8 @@ public:
 
     const std::string& name(void) const;
 
-    igor::index_type uid(void) const;
-    void setUid(igor::index_type id);
+    igor::core::legacy::index_type uid(void) const;
+    void setUid(igor::core::legacy::index_type id);
 
     // ── Weight access ─────────────────────────────────────────────────────────
     //
@@ -77,12 +84,12 @@ public:
         const std::vector<std::size_t>& parent_indices = {}) const;
 
 protected:
-    explicit SamplingHandler(std::string name, igor::index_type uid);
+    explicit SamplingHandler(std::string name, igor::core::legacy::index_type uid);
 
     std::string      m_name;
-    igor::index_type m_uid;
+    igor::core::legacy::index_type m_uid;
 };
 
-} // namespace igor::model
+} // namespace igor::generation
 
 #include <igor/Generation/SamplingHandler.tpp>

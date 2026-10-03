@@ -35,7 +35,7 @@ public:
         using reference         = const PtrType&;
 
         Iterator(const std::vector<PtrType>& nodes,
-                 std::vector<igor::index_type>::const_iterator  it)
+                 std::vector<igor::core::legacy::index_type>::const_iterator  it)
             : m_nodes(nodes), m_it(it) {}
 
         reference operator*()  const { return m_nodes[*m_it]; }
@@ -69,7 +69,7 @@ public:
 
     private:
         const std::vector<PtrType>& m_nodes;
-        std::vector<igor::index_type>::const_iterator  m_it;
+        std::vector<igor::core::legacy::index_type>::const_iterator  m_it;
     };
 
     // ── Construction ──────────────────────────────────────────────────────────
@@ -77,7 +77,7 @@ public:
     /// View over a subset of `nodes` identified by `indices`.
     /// Both references must outlive this Navigator object.
     Navigator(const std::vector<PtrType>& nodes,
-              const std::vector<igor::index_type>& indices)
+              const std::vector<igor::core::legacy::index_type>& indices)
               : m_nodes(nodes), m_indices(indices) {}
 
     // ── Range interface ───────────────────────────────────────────────────────
@@ -93,11 +93,11 @@ public:
     }
 
     /// Direct access to the raw index list (for engine parent resolution).
-    const std::vector<igor::index_type>& indices(void) const { return m_indices; }
+    const std::vector<igor::core::legacy::index_type>& indices(void) const { return m_indices; }
 
 private:
     const std::vector<PtrType>& m_nodes;
-    const std::vector<igor::index_type>&          m_indices;
+    const std::vector<igor::core::legacy::index_type>&          m_indices;
 };
 
 } // namespace igor::model

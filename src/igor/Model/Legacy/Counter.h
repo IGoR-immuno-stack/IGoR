@@ -26,6 +26,7 @@
 #pragma once
 
 #include <igor/Core/Legacy/Utils.h>
+#include <igor/Model/Legacy/EventTypedefs.h>
 #include <string>
 #include <memory>
 #include <fstream>
@@ -53,6 +54,11 @@
  * - New interface: initialize(ModelContext) and count_scenario(Scenario, QuerySequenceContext, ModelContext)
  * - Legacy interface: Preserved for compatibility, marked deprecated
  */
+
+namespace igor::model::legacy {
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+
 class MODEL_EXPORT Counter
 {
 public:
@@ -139,3 +145,5 @@ protected:
     bool fstreams_created;
     //TODO create a unique identifier of the counter? Make something up to prevent to have twice the same counter??
 };
+
+} // namespace igor::model::legacy

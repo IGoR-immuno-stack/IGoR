@@ -32,6 +32,11 @@
 
 #include <cassert>
 
+
+namespace igor::model::legacy {
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+
 using namespace std;
 
 namespace {
@@ -68,9 +73,9 @@ Dinucl_markov::Dinucl_markov(Seq_type seq_type) : Rec_Event(), total_nucl_count(
 }
 
 Dinucl_markov::Dinucl_markov(const nlohmann::json &node)
-    : Dinucl_markov(str2SeqType(igor::json_detail::require(node, "seq_type").get<Seq_type_String>()))
+    : Dinucl_markov(str2SeqType(igor::model::legacy::json_detail::require(node, "seq_type").get<Seq_type_String>()))
 {
-    using namespace igor::json_detail;
+    using namespace igor::model::legacy::json_detail;
     reject_unknown_keys(node, kEventKeys);
     expect_type(node, "DinucMarkov");
 
@@ -726,3 +731,5 @@ void Dinucl_markov::update_event_name()
                  + to_string(name_side(this->type, this->event_side))
                  + "_prio" + to_string(priority) + "_size" + to_string(this->size());
 }
+
+} // namespace igor::model::legacy

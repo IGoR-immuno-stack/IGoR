@@ -12,7 +12,10 @@
 #include <string>
 #include <vector>
 
-namespace EventUtils {
+
+namespace igor::core::legacy {
+
+namespace genetic_code {
 
 // ============================================================================
 // Phase 1: Genetic Code Utilities — Internal helpers
@@ -243,4 +246,6 @@ std::vector<CodonMask> parse_aa_motif(const std::string& motif) {
     return result;
 }
 
-} // namespace EventUtils
+} // namespace genetic_code
+
+} // namespace igor::core::legacy

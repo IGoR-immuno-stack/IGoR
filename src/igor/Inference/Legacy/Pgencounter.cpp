@@ -27,6 +27,12 @@
 #include <igor/Model/Legacy/EventUtils.h>
 #include <igor/Inference/Legacy/Pgencounter.h>
 
+
+namespace igor::inference::legacy {
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+using namespace igor::model::legacy;
+
 using namespace std;
 
 Pgen_counter::Pgen_counter() : Pgen_counter("/tmp/", false) { }
@@ -222,3 +228,5 @@ shared_ptr<Counter> Pgen_counter::copy() const
     }
     return counter_copy_ptr;
 }
+
+} // namespace igor::inference::legacy

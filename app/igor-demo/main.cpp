@@ -50,6 +50,12 @@
 #include <chrono>
 #include <string>
 
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+using namespace igor::model::legacy;
+using namespace igor::generation::legacy;
+using namespace igor::inference::legacy;
+
 using namespace std;
 
 std::string IGOR_DATA_DIR = "../..";

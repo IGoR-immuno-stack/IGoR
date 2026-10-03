@@ -41,7 +41,7 @@
 
 #include <igor/Generation/Export.h>
 
-namespace igor {
+namespace igor::generation::legacy {
 namespace fast {
 
 /**
@@ -571,4 +571,4 @@ using SequenceCallback = std::function<void(size_t seq_index, const std::string 
 using ProgressCallback = std::function<void(size_t completed, size_t total)>;
 
 } // namespace fast
-} // namespace igor
+} // namespace igor::generation::legacy

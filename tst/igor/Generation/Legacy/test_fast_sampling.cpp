@@ -23,7 +23,13 @@
 #include <map>
 #include <numeric>
 
-using namespace igor::fast;
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+using namespace igor::model::legacy;
+using namespace igor::generation::legacy;
+using namespace igor::generation;
+
+using namespace igor::generation::legacy::fast;
 using Catch::Matchers::WithinAbs;
 
 //==============================================================================

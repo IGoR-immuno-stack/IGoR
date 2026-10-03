@@ -22,7 +22,7 @@
 #include <string>
 #include <vector>
 
-namespace igor::json_detail {
+namespace igor::model::legacy::json_detail {
 
 /// Keys every event node may carry. "parents" is model-level, written and read by
 /// ModelJson, but it is listed here so that an event constructor does not reject it.
@@ -91,4 +91,4 @@ inline std::vector<const nlohmann::json *> realizations_in_index_order(const nlo
     return out;
 }
 
-}  // namespace igor::json_detail
+}  // namespace igor::model::legacy::json_detail

@@ -32,6 +32,10 @@
 
 /// A position in the 5'->3' ordering that the safety matrix cannot address: a seq_type the
 /// model registered but left out of the ordering, or a cell nobody resolved.
+
+namespace igor::model::legacy {
+using namespace igor::core::legacy;
+
 inline constexpr std::uint8_t kNoOrderingPosition = 0xFF;
 
 /**
@@ -274,3 +278,5 @@ private:
     /// SeqTypeId -> ordering position, kNoOrderingPosition for a type outside the ordering.
     std::vector<std::uint8_t> position_;
 };
+
+} // namespace igor::model::legacy

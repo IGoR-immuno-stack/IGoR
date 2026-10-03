@@ -6,7 +6,14 @@
 #include <vector>
 #include <string>
 
-namespace igor::model {
+#include <igor/Model/Forward.h>
+
+namespace igor::generation {
+using igor::model::RecombinationModel;
+using igor::model::Navigator;
+using igor::model::Topology;
+using igor::model::SampledScenario;
+using igor::model::SampledEvent;
 
 // ─── CategoricalSamplingHandler<T> ───────────────────────────────────────────
 //
@@ -27,7 +34,7 @@ template <typename T = double>
 class CategoricalSamplingHandler : public SamplingHandler<T>
 {
 public:
-    CategoricalSamplingHandler(std::string name, igor::index_type uid, const math::Tensor<T>& weights);
+    CategoricalSamplingHandler(std::string name, igor::core::legacy::index_type uid, const math::Tensor<T>& weights);
 
     ~CategoricalSamplingHandler(void) = default;
 
@@ -54,6 +61,6 @@ private:
     std::size_t parentSliceOffset(const std::vector<std::size_t>& parent_indices) const;
 };
 
-} // namespace igor::model
+} // namespace igor::generation
 
 #include <igor/Generation/CategoricalSamplingHandler.tpp>

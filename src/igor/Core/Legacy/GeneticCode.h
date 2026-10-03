@@ -25,9 +25,12 @@
 
 #include <igor/Core/Legacy/IntStr.h>
 #include <igor/Core/Legacy/Utils.h>
-#include <igorCoreExport.h>
+#include <igor/Core/Export.h>
 
-namespace EventUtils {
+
+namespace igor::core::legacy {
+
+namespace genetic_code {
 
 /**
  * @brief Codon index encoding: codon_index(n0, n1, n2) = n0*16 + n1*4 + n2
@@ -150,4 +153,6 @@ CORE_EXPORT std::vector<CodonMask> parse_aa_motif(const std::string& motif);
  */
 CORE_EXPORT int iupac_from_bits(int bits);
 
-} // namespace EventUtils
+} // namespace genetic_code
+
+} // namespace igor::core::legacy

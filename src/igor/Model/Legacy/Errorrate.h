@@ -26,6 +26,7 @@
 #pragma once
 
 #include <igor/Core/Legacy/Utils.h>
+#include <igor/Model/Legacy/EventTypedefs.h>
 #include <igor/Core/Legacy/IntStr.h>
 #include <unordered_map>
 #include <utility>
@@ -51,6 +52,11 @@
 #include <igor/Model/Export.h>
 
 //Forward declare Rec_event
+
+namespace igor::model::legacy {
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+
 class Rec_Event;
 
 /**
@@ -210,3 +216,5 @@ protected:
 };
 
 MODEL_EXPORT void add_to_err_rate(Error_rate *, Error_rate *);
+
+} // namespace igor::model::legacy

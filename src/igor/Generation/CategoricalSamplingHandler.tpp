@@ -4,13 +4,20 @@
 #include <stdexcept>
 #include <typeinfo>
 
-namespace igor::model {
+#include <igor/Model/Forward.h>
+
+namespace igor::generation {
+using igor::model::RecombinationModel;
+using igor::model::Navigator;
+using igor::model::Topology;
+using igor::model::SampledScenario;
+using igor::model::SampledEvent;
 
 // ─── Constructor (borrows tensor from RecombinationModel) ────────────────────
 
 template <typename T>
 CategoricalSamplingHandler<T>::CategoricalSamplingHandler(
-    std::string name, igor::index_type uid, const math::Tensor<T>& weights)
+    std::string name, igor::core::legacy::index_type uid, const math::Tensor<T>& weights)
     : SamplingHandler<T>(std::move(name), uid)
     , m_weights(weights)
     , m_realization_count(m_weights.shape().back())  // Last dimension is child
@@ -111,4 +118,4 @@ std::size_t CategoricalSamplingHandler<T>::sample(std::mt19937_64& generator, co
     return static_cast<std::size_t>(std::distance(cdf_row, it));
 }
 
-} // namespace igor::model
+} // namespace igor::generation

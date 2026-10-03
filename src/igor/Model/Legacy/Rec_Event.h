@@ -35,6 +35,7 @@
 #include <igor/Model/Legacy/UnfilledSegmentLengths.h>
 #include <igor/Model/Legacy/SpanProfile.h>
 #include <igor/Core/Legacy/Utils.h>
+#include <igor/Model/Legacy/EventTypedefs.h>
 #include <igor/Core/Legacy/Typedef.h>
 #include <igor/Model/Export.h>
 
@@ -63,6 +64,11 @@
 #include <tuple>
 #include <memory>
 #include <map>
+
+
+namespace igor::model::legacy {
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
 
 class Counter;
 
@@ -180,8 +186,8 @@ public:
     /// The Model layer keys its parallel vectors (one tensor, one handler per event) by this
     /// index, assigned by igor::model::Topology::addEvent(). Core never reads it.
     /// @{
-    igor::index_type uid() const { return m_uid; }
-    void setUid(igor::index_type uid) { m_uid = uid; }
+    igor::core::legacy::index_type uid() const { return m_uid; }
+    void setUid(igor::core::legacy::index_type uid) { m_uid = uid; }
 
     /// Shape of this event's own axes in a probability tensor, i.e. what the event
     /// contributes on top of its parents' axes. The default is the realization count, which
@@ -644,7 +650,7 @@ protected:
     std::array<JunctionBound, kJunctionSlotCount> junction_bounds_{};
 
     /// Index assigned by igor::model::Topology; -1 until setUid() is called. Model layer only.
-    igor::index_type m_uid = -1;
+    igor::core::legacy::index_type m_uid = -1;
 
     std::unordered_map<std::string, Event_realization> event_realizations;
     int priority;
@@ -698,3 +704,5 @@ struct Event_comparator
         return event_p1->get_priority() > event_p2->get_priority();
     }
 };
+
+} // namespace igor::model::legacy

@@ -25,6 +25,12 @@
 
 #include <igor/Inference/Legacy/Errorscounter.h>
 
+
+namespace igor::inference::legacy {
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+using namespace igor::model::legacy;
+
 using namespace std;
 
 Errors_counter::Errors_counter(size_t n_scenarios)
@@ -337,3 +343,5 @@ shared_ptr<Counter> Errors_counter::copy() const
     }
     return counter_copy_ptr;
 }
+
+} // namespace igor::inference::legacy

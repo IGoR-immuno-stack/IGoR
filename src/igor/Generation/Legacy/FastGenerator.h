@@ -42,7 +42,10 @@
 #include <chrono>
 #include <omp.h>
 
-namespace igor {
+namespace igor::generation::legacy {
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+using namespace igor::model::legacy;
 namespace fast {
 
 /**
@@ -276,4 +279,4 @@ inline uint64_t draw_random_seed()
 }
 
 } // namespace fast
-} // namespace igor
+} // namespace igor::generation::legacy

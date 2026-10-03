@@ -5,10 +5,17 @@
 #include <random>
 #include <stdexcept>
 
-namespace igor::model {
+#include <igor/Model/Forward.h>
+
+namespace igor::generation {
+using igor::model::RecombinationModel;
+using igor::model::Navigator;
+using igor::model::Topology;
+using igor::model::SampledScenario;
+using igor::model::SampledEvent;
 
 template <typename T>
-SamplingHandler<T>::SamplingHandler(std::string name, igor::index_type uid) : m_name(std::move(name)), m_uid(uid) 
+SamplingHandler<T>::SamplingHandler(std::string name, igor::core::legacy::index_type uid) : m_name(std::move(name)), m_uid(uid) 
 {
 
 }
@@ -20,13 +27,13 @@ const std::string& SamplingHandler<T>::name(void) const
 }
     
 template <typename T>
-igor::index_type  SamplingHandler<T>::uid(void) const 
+igor::core::legacy::index_type  SamplingHandler<T>::uid(void) const 
 {
      return m_uid; 
 }
 
 template <typename T>
-void  SamplingHandler<T>::setUid(igor::index_type id) 
+void  SamplingHandler<T>::setUid(igor::core::legacy::index_type id) 
 {
      m_uid = id;  
 }
@@ -44,4 +51,4 @@ std::vector<std::size_t> SamplingHandler<T>::sampleSequence(
         + m_name + " is not a Markov handler)");
 }
 
-} // namespace igor::model
+} // namespace igor::generation

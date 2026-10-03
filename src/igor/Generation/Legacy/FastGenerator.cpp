@@ -37,7 +37,10 @@
 #include <sstream>
 #include <iomanip>
 
-namespace igor {
+namespace igor::generation::legacy {
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+using namespace igor::model::legacy;
 namespace fast {
 
 void FastGenerator::initialize(const Model_Parms &model_parms, const Model_marginals &model_marginals)
@@ -283,7 +286,7 @@ void FastGenerator::apply_gene_choice(const FastEventSampler &sampler, size_t ch
                                       std::unordered_map<Seq_type, std::string> &sequences) const
 {
     Seq_type seq_type;
-    if (!igor::migration::try_gene_class_to_gene_seq_type(sampler.gene_class, seq_type)) {
+    if (!igor::model::legacy::migration::try_gene_class_to_gene_seq_type(sampler.gene_class, seq_type)) {
         return;
     }
 
@@ -302,7 +305,7 @@ void FastGenerator::apply_deletion(const FastEventSampler &sampler, size_t del_i
     int num_del = sampler.deletion_idx_to_value[del_idx];
 
     Seq_type seq_type;
-    if (!igor::migration::try_gene_class_to_gene_seq_type(sampler.gene_class, seq_type)) {
+    if (!igor::model::legacy::migration::try_gene_class_to_gene_seq_type(sampler.gene_class, seq_type)) {
         return;
     }
 
@@ -364,7 +367,7 @@ void FastGenerator::sample_event(const FastEventSampler &sampler, std::mt19937_6
         // For insertion, sampled index directly gives insertion length
         // Create placeholder for dinucleotide model
         Seq_type seq_type = VD_ins_seq;
-        if (!igor::migration::try_insertion_gene_class_to_seq_type(sampler.gene_class, seq_type)) {
+        if (!igor::model::legacy::migration::try_insertion_gene_class_to_seq_type(sampler.gene_class, seq_type)) {
             return;
         }
         sequences[seq_type] = std::string(choice_idx, 'I');
@@ -785,4 +788,4 @@ void FastGenerator::generate_to_files(size_t num_sequences, const std::string &s
 }
 
 } // namespace fast
-} // namespace igor
+} // namespace igor::generation::legacy

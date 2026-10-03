@@ -14,7 +14,7 @@
 
 namespace igor::model::event_factory {
 
-using EventPtr = std::shared_ptr<Rec_Event>;
+using EventPtr = std::shared_ptr<legacy::Rec_Event>;
 
 /// Builds one event from its serialized node. The creator receives the descriptor, so the
 /// event is complete as soon as it exists: no default construction, no window during which

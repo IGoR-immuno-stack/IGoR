@@ -63,6 +63,12 @@
 #include <utility>
 #include <vector>
 
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+using namespace igor::model::legacy;
+using namespace igor::generation::legacy;
+using namespace igor::generation;
+
 #ifndef IGOR_SOURCE_DIR
 #error "IGOR_SOURCE_DIR must be defined (set by CMake)"
 #endif
@@ -337,7 +343,7 @@ static void run_generation_convergence_test(const GenerationTestConfig& cfg)
     std::map<size_t, std::vector<double>> entropy_traces;
 
     // Initialize FastGenerator once, reuse across all sample sizes
-    igor::fast::FastGenerator fast_gen;
+    igor::generation::legacy::fast::FastGenerator fast_gen;
     fast_gen.initialize(model_parms, model_marginals);
     REQUIRE(fast_gen.is_initialized());
 
@@ -345,7 +351,7 @@ static void run_generation_convergence_test(const GenerationTestConfig& cfg)
         INFO("Generating " << N << " sequences");
 
         // Generate using FastGenerator (parallel, precomputed CDFs)
-        igor::fast::FastGeneratorConfig config;
+        igor::generation::legacy::fast::FastGeneratorConfig config;
         config.show_progress = false;
         auto sequences = fast_gen.generate(N, config);
 

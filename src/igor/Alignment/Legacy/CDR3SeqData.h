@@ -11,6 +11,9 @@
 #include <string>
 #include <igor/Alignment/Export.h>
 
+
+namespace igor::alignment::legacy {
+
 class ALIGNMENT_EXPORT CDR3SeqData
 {
 public:
@@ -26,3 +29,5 @@ public:
 
 private:
 };
+
+} // namespace igor::alignment::legacy

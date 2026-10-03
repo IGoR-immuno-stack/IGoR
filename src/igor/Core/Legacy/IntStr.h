@@ -29,12 +29,15 @@
 #include <vector>
 #include <ostream>
 
-#include <igorCoreExport.h>
+#include <igor/Core/Export.h>
 
 // Not a dllexport class on purpose: exporting a class that derives from an STL template makes
 // MSVC export the std::vector<int> instantiation from the DLL, and every consumer that
 // instantiates std::vector<int> on its own then fails to link (LNK2005). Only the members
 // defined in IntStr.cpp are exported.
+
+namespace igor::core::legacy {
+
 class Int_Str : public std::vector<int>
 {
 
@@ -110,12 +113,13 @@ public:
 	std::vector<int> int_vector;*/
 };
 
+} // namespace igor::core::legacy
 namespace std {
 
 template <>
-struct hash<Int_Str>
+struct hash<igor::core::legacy::Int_Str>
 {
-    std::size_t operator()(Int_Str const &int_str) const
+    std::size_t operator()(igor::core::legacy::Int_Str const &int_str) const
     {
         std::size_t seed = int_str.size();
         for (auto &i : int_str) {
@@ -126,3 +130,6 @@ struct hash<Int_Str>
 };
 
 } // namespace std
+namespace igor::core::legacy {
+
+} // namespace igor::core::legacy

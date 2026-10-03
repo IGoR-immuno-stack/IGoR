@@ -45,8 +45,8 @@ public:
 
     // ── Weight access by UID ─────────────────────────────────────────────────
 
-    math::Tensor<T>&       weight(igor::index_type uid);
-    const math::Tensor<T>& weight(igor::index_type uid) const;
+    math::Tensor<T>&       weight(igor::core::legacy::index_type uid);
+    const math::Tensor<T>& weight(igor::core::legacy::index_type uid) const;
 
     // ── Weight access by event nickname ──────────────────────────────────────
 
@@ -70,7 +70,7 @@ public:
 private:
     std::unique_ptr<Topology> m_topology;
     std::vector<math::Tensor<T>>     m_weights;         // indexed by topology UID
-    std::vector<igor::index_type>    m_execution_order;  // cached topological order
+    std::vector<igor::core::legacy::index_type>    m_execution_order;  // cached topological order
 };
 
 // ─── Free functions ──────────────────────────────────────────────────────────

@@ -13,9 +13,9 @@
 #include <string>
 #include <initializer_list>
 
-namespace igor::model::inference_handler_factory {
+namespace igor::inference::inference_handler_factory {
 
-using EventPtr = std::shared_ptr<Rec_Event>;
+using EventPtr = std::shared_ptr<model::legacy::Rec_Event>;
 
 template <typename T>
 using HandlerPtr = std::unique_ptr<InferenceHandler<T>>;
@@ -25,7 +25,7 @@ using Creator = std::function<HandlerPtr<T>(EventPtr, math::Tensor<T>&)>;
 
 namespace detail {
 template <typename T>
-INFERENCE_EXPORT std::unordered_map<Event_type, Creator<T>>& get_creators();
+INFERENCE_EXPORT std::unordered_map<core::legacy::Event_type, Creator<T>>& get_creators();
 }
 
 /**
@@ -34,7 +34,7 @@ INFERENCE_EXPORT std::unordered_map<Event_type, Creator<T>>& get_creators();
  * @param func Function that creates a handler borrowing a mutable tensor reference
  */
 template <typename T>
-void register_creator(Event_type type, Creator<T> func);
+void register_creator(core::legacy::Event_type type, Creator<T> func);
 
 /**
  * @brief Create a handler of the specified type
@@ -45,22 +45,28 @@ void register_creator(Event_type type, Creator<T> func);
  * @throws std::runtime_error if type not registered
  */
 template <typename T>
-HandlerPtr<T> create(Event_type type, EventPtr event, math::Tensor<T>& weights);
+HandlerPtr<T> create(core::legacy::Event_type type, EventPtr event, math::Tensor<T>& weights);
 
 /**
  * @brief Check if an event type has a registered creator
  * @param type The Event_type to check
  * @return true if registered, false otherwise
  */
-INFERENCE_EXPORT bool is_registered(Event_type type);
+INFERENCE_EXPORT bool is_registered(core::legacy::Event_type type);
 
-} // namespace igor::model::inference_handler_factory
+} // namespace igor::inference::inference_handler_factory
 
-namespace igor::model {
-    template <typename T> class RecombinationModel; // Forward declaration
+#include <igor/Model/Forward.h>
+
+namespace igor::inference {
+using igor::model::RecombinationModel;
+using igor::model::Navigator;
+using igor::model::Topology;
+using igor::model::SampledScenario;
+using igor::model::SampledEvent;
 }
 
-namespace igor::model::inference_handler_factory {
+namespace igor::inference::inference_handler_factory {
 
 /**
  * @brief Build a list of inference handlers borrowing tensors from a RecombinationModel
@@ -71,7 +77,7 @@ namespace igor::model::inference_handler_factory {
  * The model must outlive the returned handlers.
  */
 template <typename T>
-std::vector<HandlerPtr<T>> build(igor::model::RecombinationModel<T>& model);
+std::vector<HandlerPtr<T>> build(igor::inference::RecombinationModel<T>& model);
 
 /**
  * @brief Template for automatic event registration using static initialization
@@ -83,7 +89,7 @@ std::vector<HandlerPtr<T>> build(igor::model::RecombinationModel<T>& model);
  */
 template<typename T, typename HandlerClass>
 struct Registrar {
-    Registrar(std::initializer_list<Event_type> types) {
+    Registrar(std::initializer_list<core::legacy::Event_type> types) {
         for (auto type : types) {
             register_creator<T>(type, [](EventPtr event, math::Tensor<T>& weights) {
                 return std::make_unique<HandlerClass>(event->get_nickname(), event->uid(), weights);

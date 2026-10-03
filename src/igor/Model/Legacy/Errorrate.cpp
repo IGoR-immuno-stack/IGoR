@@ -26,6 +26,11 @@
 #include <igor/Model/Legacy/Errorrate.h>
 #include <igor/Model/Legacy/Rec_Event.h>
 
+
+namespace igor::model::legacy {
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+
 using namespace std;
 
 
@@ -118,3 +123,5 @@ double Error_rate::compute_scenario_error_probability(
         exploration.proba_threshold_factor
     );
 }
+
+} // namespace igor::model::legacy

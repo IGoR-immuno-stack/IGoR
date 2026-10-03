@@ -23,14 +23,17 @@
 
 #include <fstream>
 
-using namespace igor;
-using namespace igor::airr::rearrangement;
-using namespace igor::test;
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+
+using namespace igor::streaming;
+using namespace igor::streaming::airr::rearrangement;
+using namespace igor::streaming::test;
 using namespace Catch::Matchers;
 
 // Import shared utility functions from parent namespace
-using igor::airr::detect_delimiter;
-using igor::airr::delimiter_char;
+using igor::streaming::airr::detect_delimiter;
+using igor::streaming::airr::delimiter_char;
 
 //==============================================================================
 // Fixtures

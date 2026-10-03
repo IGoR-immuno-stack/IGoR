@@ -7,15 +7,13 @@ LANGUAGES
   CXX)
 
 ## #################################################################
-## Core Target Definition (add_library, export header, version, alias)
+## Target Definition (add_library, export header, version, alias)
 ## #################################################################
 
 add_library(${PROJECT_NAME} SHARED)
 
-# Step 1a keeps Core's flat export header (<igorCoreExport.h>); aligning it on the other
-# layers' <igor/<Layer>/Export.h> scheme is step 1b of doc/LAYER_REFACTORING_PROPOSAL.md.
 generate_export_header(${PROJECT_NAME}
-  EXPORT_FILE_NAME "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_PROJECT_NAME}${PROJECT_NAME}Export.h")
+  EXPORT_FILE_NAME "${CMAKE_CURRENT_BINARY_DIR}/Export.h")
 
 set_target_properties(${PROJECT_NAME}
   PROPERTIES
@@ -29,39 +27,37 @@ add_library(${CMAKE_PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 ## Sources, Headers, Includes, Linking, Install
 ## #################################################################
 
+set(LAYER_DIR ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME})
+set(LAYER_BINARY_DIR ${CMAKE_BINARY_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME})
+
+configure_file(
+  "${CMAKE_CURRENT_SOURCE_DIR}/Config.h.in"
+  "${CMAKE_CURRENT_BINARY_DIR}/Config.h")
+
 target_sources(${PROJECT_NAME}
   PRIVATE
     Legacy/GeneticCode.cpp
     Legacy/IntStr.cpp
     Legacy/Utils.cpp
-
   PUBLIC FILE_SET HEADERS
     BASE_DIRS
-      ${CMAKE_CURRENT_SOURCE_DIR}
-      ${CMAKE_CURRENT_BINARY_DIR}
+      ${CMAKE_SOURCE_DIR}/src
+      ${CMAKE_BINARY_DIR}/src
     FILES
-      Legacy/CoreEnums.h
-      Legacy/DynamicSequenceMap.h
-      Legacy/GeneticCode.h
-      Legacy/IntStr.h
-      Legacy/LayeredArray.h
-      Legacy/SegmentSpan.h
-      Legacy/SeqOffsetsMap.h
-      Legacy/SeqTypeRegistry.h
-      Legacy/StdTypedefs.h
-      Legacy/Typedef.h
-      Legacy/Utils.h
-      ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_PROJECT_NAME}${PROJECT_NAME}Export.h
-      ${CMAKE_CURRENT_BINARY_DIR}/Config
-      ${CMAKE_CURRENT_BINARY_DIR}/Config.h
+      ${LAYER_BINARY_DIR}/Export.h
+      ${LAYER_BINARY_DIR}/Config.h
+      ${LAYER_DIR}/Legacy/CoreEnums.h
+      ${LAYER_DIR}/Legacy/DynamicSequenceMap.h
+      ${LAYER_DIR}/Legacy/GeneticCode.h
+      ${LAYER_DIR}/Legacy/IntStr.h
+      ${LAYER_DIR}/Legacy/LayeredArray.h
+      ${LAYER_DIR}/Legacy/SegmentSpan.h
+      ${LAYER_DIR}/Legacy/SeqOffsetsMap.h
+      ${LAYER_DIR}/Legacy/SeqTypeRegistry.h
+      ${LAYER_DIR}/Legacy/StdTypedefs.h
+      ${LAYER_DIR}/Legacy/Typedef.h
+      ${LAYER_DIR}/Legacy/Utils.h
 )
-
-configure_file(
-  "${CMAKE_CURRENT_SOURCE_DIR}/Config.h.in"
-  "${CMAKE_CURRENT_BINARY_DIR}/Config.h")
-configure_file(
-  "${CMAKE_CURRENT_SOURCE_DIR}/Config.h.in"
-  "${CMAKE_CURRENT_BINARY_DIR}/Config")
 
 target_include_directories(${PROJECT_NAME} PUBLIC
   $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src>
@@ -88,7 +84,7 @@ install(
   RUNTIME
     DESTINATION ${CMAKE_INSTALL_BINDIR}
   FILE_SET HEADERS
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
   INCLUDES
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )

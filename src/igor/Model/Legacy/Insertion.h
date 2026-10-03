@@ -49,6 +49,11 @@
  *  The Insertion RecEvent models the distribution of junctional insertion length during the V(D)J recombination process.
  *
  */
+
+namespace igor::model::legacy {
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+
 class MODEL_EXPORT Insertion : public Rec_Event
 {
 public:
@@ -138,3 +143,5 @@ private:
     //std::pair<Seq_type,Seq_side> j_5_pair = std::make_pair (J_gene_seq,Five_prime);
     //std::pair<Seq_type,Seq_side> d_3_pair = std::make_pair (D_gene_seq,Three_prime);
 };
+
+} // namespace igor::model::legacy

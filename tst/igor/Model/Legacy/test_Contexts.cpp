@@ -20,6 +20,10 @@
 #include <string>
 #include <memory>
 
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+using namespace igor::model::legacy;
+
 using namespace std;
 using namespace IgorTestUtils;
 using Catch::Matchers::WithinRel;

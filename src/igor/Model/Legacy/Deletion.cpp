@@ -31,6 +31,11 @@
 #include <limits>
 #include <utility>
 
+
+namespace igor::model::legacy {
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+
 using namespace std;
 
 namespace {
@@ -153,10 +158,10 @@ Deletion::Deletion(Seq_type target_seq, Seq_side side, unordered_map<string, Eve
 }
 
 Deletion::Deletion(const nlohmann::json &node)
-    : Deletion(str2SeqType(igor::json_detail::require(node, "seq_type").get<Seq_type_String>()),
-               str2SeqSide(igor::json_detail::require(node, "side").get<string>()))
+    : Deletion(str2SeqType(igor::model::legacy::json_detail::require(node, "seq_type").get<Seq_type_String>()),
+               str2SeqSide(igor::model::legacy::json_detail::require(node, "side").get<string>()))
 {
-    using namespace igor::json_detail;
+    using namespace igor::model::legacy::json_detail;
     reject_unknown_keys(node, kEventKeys);
     expect_type(node, "Deletion");
 
@@ -1022,3 +1027,5 @@ void Deletion::resolve_junction(SegmentSpan span, SeqTypeId proba_key, int memor
     junction_bound(this->event_side == Five_prime ? kLeftJunction : kRightJunction)
             .resolve(span, proba_key, memory_layer, JunctionBound::Fold::Yes);
 }
+
+} // namespace igor::model::legacy

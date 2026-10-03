@@ -27,13 +27,20 @@
 #include <string>
 #include <vector>
 
-namespace igor::model {
+#include <igor/Model/Forward.h>
+
+namespace igor::inference {
+using igor::model::RecombinationModel;
+using igor::model::Navigator;
+using igor::model::Topology;
+using igor::model::SampledScenario;
+using igor::model::SampledEvent;
 
 template <typename T = double>
 class CategoricalInferenceHandler : public InferenceHandler<T> {
 public:
     /// Construct from name, uid, and a mutable reference to the model's weight tensor.
-    CategoricalInferenceHandler(std::string name, igor::index_type uid, math::Tensor<T>& weights);
+    CategoricalInferenceHandler(std::string name, igor::core::legacy::index_type uid, math::Tensor<T>& weights);
 
     // Tensor access
     const math::Tensor<T>& weights(void) const override;
@@ -55,6 +62,6 @@ private:
     math::Tensor<T>  m_accumulator;   // owned, same shape as m_weights
 };
 
-} // namespace igor::model
+} // namespace igor::inference
 
 #include <igor/Inference/CategoricalInferenceHandler.tpp>

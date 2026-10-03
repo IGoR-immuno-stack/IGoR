@@ -22,6 +22,11 @@
 #include <memory>
 #include <numeric>
 
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+using namespace igor::model::legacy;
+using namespace igor::generation;
+
 using namespace igor;
 using namespace igor::model;
 using Catch::Matchers::WithinAbs;
@@ -360,7 +365,7 @@ TEST_CASE("recombination_model_from_files loads a model in one step",
         // doors agree on uid order, tensor shapes and the flat-block copy.
         Model_Parms parms2;
         parms2.read_model_parms(parms_path);
-        auto topology2 = topology_from_json(igor::model_parms_to_json(parms2));
+        auto topology2 = topology_from_json(igor::model::legacy::model_parms_to_json(parms2));
         REQUIRE(topology2);
         RecombinationModel<double> model2(
             std::make_unique<Topology>(std::move(*topology2)));

@@ -55,6 +55,11 @@
  * Model_Marginals central component is a giant array containing all the marginal probabilities (or posterior frequencies during the inference) for each event realization.
  * The class supplies various methods to navigate into this array and as well methods handling normalization and other various transformation.
  */
+
+namespace igor::model::legacy {
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+
 class MODEL_EXPORT Model_marginals
 {
 public:
@@ -145,3 +150,5 @@ void swap_neighboring_events_order(
         std::pair<std::list<std::pair<Rec_Event_name, size_t>>, std::shared_ptr<long double>> &);
 void align_marginal_array(const std::list<std::pair<Rec_Event_name, size_t>> &,
                           std::pair<std::list<std::pair<Rec_Event_name, size_t>>, std::shared_ptr<long double>> &);
+
+} // namespace igor::model::legacy

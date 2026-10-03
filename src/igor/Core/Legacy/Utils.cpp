@@ -27,6 +27,9 @@
 
 #include <igor/Core/Legacy/Utils.h>
 
+
+namespace igor::core::legacy {
+
 using namespace std;
 
 /////Utilitaries
@@ -756,3 +759,5 @@ std::pair<SeqTypeId, Seq_side> first_unplaced_segment_end(const Seq_offsets_map 
     }
     return {kNoSeqType, Undefined_side};
 }
+
+} // namespace igor::core::legacy

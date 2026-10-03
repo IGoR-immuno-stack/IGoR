@@ -2,7 +2,8 @@
 
 using namespace std;
 
-namespace igor {
+namespace igor::model::legacy {
+using namespace igor::core::legacy;
 namespace migration {
 
 bool try_gene_class_to_gene_seq_type(Gene_class_legacy gene, Seq_type &seq_type)
@@ -63,4 +64,4 @@ bool try_insertion_gene_class_to_seq_type(Gene_class /*gene_pair*/, Seq_type & /
 }
 
 } // namespace migration
-} // namespace igor
+} // namespace igor::model::legacy

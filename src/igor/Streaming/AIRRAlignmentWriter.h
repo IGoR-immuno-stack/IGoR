@@ -72,7 +72,7 @@
 #include <string>
 #include <vector>
 
-namespace igor::airr::alignment {
+namespace igor::streaming::airr::alignment {
 
 // Use shared types from parent namespace
 using airr::Delimiter;
@@ -90,7 +90,7 @@ using airr::Delimiter;
  *
  * Example usage:
  * @code
- *   using namespace igor::airr::alignment;
+ *   using namespace igor::streaming::airr::alignment;
  *
  *   std::vector<SequenceData> seqs = ...;
  *   write_sequences("alignments.tsv", seqs);
@@ -134,6 +134,6 @@ void write_batch(
  * @return CIGAR string (e.g., "50M2I3D")
  */
 STREAMING_EXPORT
-std::string make_cigar(const Alignment_data& align);
+std::string make_cigar(const igor::alignment::legacy::Alignment_data& align);
 
-} // namespace igor::airr::alignment
+} // namespace igor::streaming::airr::alignment

@@ -22,9 +22,12 @@
 #include <fstream>
 #include <sstream>
 
-using namespace igor;
-using namespace igor::airr::alignment;
-using namespace igor::test;
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+
+using namespace igor::streaming;
+using namespace igor::streaming::airr::alignment;
+using namespace igor::streaming::test;
 using namespace Catch::Matchers;
 
 //==============================================================================

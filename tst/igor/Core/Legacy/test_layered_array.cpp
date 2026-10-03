@@ -16,6 +16,8 @@
 #include <stdexcept>
 #include <vector>
 
+using namespace igor::core::legacy;
+
 TEST_CASE("LayeredArray: unwritten keys are distinct from written-but-empty", "[layered_array]")
 {
     LayeredArray<int> a(4);

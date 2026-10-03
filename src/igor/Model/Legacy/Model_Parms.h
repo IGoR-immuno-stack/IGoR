@@ -59,6 +59,11 @@
  *
  * Contains a list of smart pointers pointing to an event parents and children (i.e adjacent nodes)
  */
+
+namespace igor::model::legacy {
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+
 struct Adjacency_list
 {
     std::list<std::shared_ptr<Rec_Event>> children;
@@ -170,3 +175,5 @@ private:
     /// the model is handed out.
     bool needs_finalize = true;
 };
+
+} // namespace igor::model::legacy

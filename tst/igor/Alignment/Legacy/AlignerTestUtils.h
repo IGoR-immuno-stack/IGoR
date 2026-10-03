@@ -39,6 +39,9 @@
 #include <utility>
 #include <vector>
 
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+
 namespace igor::test {
 namespace align {
 

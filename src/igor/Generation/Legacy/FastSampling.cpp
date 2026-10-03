@@ -29,7 +29,7 @@
 #include <cmath>
 #include <queue>
 
-namespace igor {
+namespace igor::generation::legacy {
 namespace fast {
 
 //==============================================================================
@@ -261,4 +261,4 @@ void DinucleotideMarkovSampler::initialize(const double *dinuc_probs, size_t siz
 }
 
 } // namespace fast
-} // namespace igor
+} // namespace igor::generation::legacy

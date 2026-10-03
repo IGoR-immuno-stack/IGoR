@@ -30,6 +30,10 @@
 #include <optional>
 #include <string>
 
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+using namespace igor::model::legacy;
+
 // Tests tagged [tandem_d][!mayfail] describe the intended tandem-D behaviour and are
 // expected to fail today: Seq_type is still the fixed 6-value enum, so str2SeqType()
 // throws on names like "D1_gene_seq" and no event can be constructed for a tandem-D
