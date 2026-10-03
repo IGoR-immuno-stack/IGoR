@@ -1,7 +1,7 @@
 # Layer refactoring proposal
 
 Status: proposal, 2026-10-02, revised the same day with the Legacy policy (§4) and the
-three-step stage 1 (§6).
+three-step stage 1 (§6). Steps 1a and 1b are merged; the first pass of 1c is recorded in §6.
 Based on `feature/model-on-tandemD` @ `5ac1972`.
 Related: `ARCHITECTURE_SYNTHESIS.md` (Q. Marcou, 2026-10-01, not yet in the repo),
 `docs/SEGMENT_DECOMPOSITION_PROPOSAL.md` (superseded), `doc/CORE_TO_MODEL_MIGRATION_PLAN.md`
@@ -57,7 +57,7 @@ Inference        Generation     Streaming       Alignment
 |---|---|---|---|---|
 | **Core** | `igor::core` | the vocabulary: event and segment enums, `SeqTypeRegistry`, `SegmentSpan`, `Int_Str`, genetic code, `Alignment_data`, the layered containers, string helpers, export and config headers | nothing | none |
 | **Math** | `igor::math` | numerics with no IGoR semantics: `Tensor`, `Linalg`, `HybridBuffer`, mdspan compat, `Matrix<T>`, categorical samplers (`FastSampling`) | nothing | mdspan |
-| **Alignment** | `igor::alignment` | algorithms on sequences: Smith-Waterman aligner, CDR3 and feature extraction, `JournaledQuery` and AA motifs | Core | OpenMP |
+| **Alignment** | `igor::alignment` | algorithms on sequences: Smith-Waterman aligner, CDR3 and feature extraction, `JournaledQuery` and AA motifs | Core, Math | OpenMP |
 | **Model** | `igor::model` | the probabilistic model and its persistence: `Rec_Event` and its four kinds, error-rate models, graph (`Model_Parms`/`Topology`), parameters (`Model_marginals`/`RecombinationModel<T>`), `EventFactory`, txt v1/v2 and JSON readers and writers | Core, Math | nlohmann_json, GSL |
 | **Inference** | `igor::inference` | computing with a model on observed sequences: EM driver, the inference engines (legacy DFS, tensor handlers, later the per-segment DP), the observers (counters: Pgen, best scenarios, coverage, errors) | Model, Math, Core | OpenMP |
 | **Generation** | `igor::generation` | sampling from a model: `FastGenerator`, `SamplingEngine` and its handlers, error injection | Model, Math, Core | none |
@@ -311,20 +311,47 @@ What executing 1b added to the rules above (2026-10-03, `scripts/migrate_layers/
 
 ### 1c. Case by case
 
-A queue of small PRs, one file or one coherent cluster each, applying the §5 tags. Suggested
-order, by value and by risk:
+A queue of small changes, one commit each, applying the §5 tags. First pass executed on
+2026-10-03 (branch `feature/layers-1c`), in this order:
 
-1. `AlignmentData.h` extraction (removes two transitional links).
-2. Quentin's 2026 headers: promote (rule 3 of §4).
-3. The `GenModel` split (removes the last transitional link).
-4. `Core/Types.h`, `IntStr`, `GeneticCode`, `SeqTypeRegistry`, `SegmentSpan`, the layered
-   containers: promote with `legacy::` aliases.
-5. `FastSampling`, `Aligner`, `ExtractFeatures`, `JournaledQuery`, `JsonDetail`, `ModelJson`:
-   promote.
-6. `LegacyBridge` → `MarginalsBridge`.
-7. Everything tagged replace waits for an owner and, for the event cluster, for stage 2.
+| # | Item | Result |
+|---|---|---|
+| 1 | `Alignment_data` → `igor::core::AlignmentData` (`Core/AlignmentData.{h,cpp}`), with its CIGAR writer (`parseCigar`, `toCoreCigar`, `toExtendedCigar`) | Streaming no longer links Alignment |
+| 2 | Quentin's 2026 headers promoted: `LayeredArray`, `SeqTypeRegistry`, `DynamicSequenceMap`, `SeqOffsetsMap`, `SegmentSpan` (Core); `SpanProfile`, `SafetyMatrix`, `UnfilledSegmentLengths`, `BoundTightness`, `JunctionGeometry` (Model) | ten headers out of `Legacy/`, ten stubs |
+| 3 | `GenModel` split: generation becomes `igor::generation::legacy::SequenceGenerator` | Inference no longer links Generation; generated sequences bitwise identical |
+| 4 | Core vocabulary: `Core/Types.h` (`EventType`, `SeqSide`, `SeqType`, `SeqTypeString`, `EventName`, `MarginalArrayPtr`, `SeqOffset`, `CodonTable`, `index_type`), `Core/IntStr`, `Core/GeneticCode`, `Core/Platform.h` | Core's only real legacy file left is `Utils`; nothing of IGoR at global scope |
+| 5 | `test_RecombinationModel` back in the Model tests; `Matrix<T>` → `Math/Legacy/Matrix.h`; last quoted include fixed | Core's `Utils.h` defines no container |
+| 6 | The events no longer befriend `Coverage_err_counter`: three public slot accessors | no upward reference left from Model to Inference |
 
-Each 1c PR carries the new `grep -rn "Legacy/" | wc -l` count. The number only goes down.
+How a promotion works (`scripts/migrate_layers/promote.py`): the header moves to the layer
+directory and namespace; a **stub** stays at the old `Legacy/` path, which includes the promoted
+header and re-declares its names in `igor::<layer>::legacy`, so legacy consumers keep their
+include line and their unqualified names. A stub goes when its last consumer switches.
+`check_directives.py` removes the using-directives that a promotion leaves without a target.
+
+Decisions taken while executing:
+
+- **`LegacyBridge` keeps its name.** The rename to `MarginalsBridge` was proposed before the
+  Legacy policy existed. Now that `igor::model::legacy` is a namespace, a bridge between
+  `legacy::Model_Parms` / `legacy::Model_marginals` and `Topology` / `RecombinationModel` is
+  exactly what the name says.
+- **`FastSampling` stays in `Generation/Legacy`.** The file mixes the samplers with buffered file
+  writers and thread pools; moving it whole would put I/O in Math, and splitting it is a
+  replace, not a promote.
+- **Alignment links Math**, for the substitution `Matrix`. The DAG gains Alignment → Math.
+- **Method and free-function names are unchanged** in the promoted headers (still snake_case).
+  Renaming them would touch the `iterate()` bodies; it goes with stage 2.
+- The promoted `AlignerInternal.h` question: kept, see §5.
+
+What remains transitional: Model → Alignment, for `JournaledQuery` held by
+`QuerySequenceContext` and the nucleotide helpers the events call. It goes with stage 2.
+
+What remains in `Legacy/` after this pass, by tag: **keep** (`Utils`, `Matrix`, `EventUtils`,
+`gene_to_seqtype_migr`, `Model_Parms`, `Model_marginals`, `FastGenerator`, `FastSampling`);
+**promote, not done yet** (`Aligner`, `ExtractFeatures`, `CDR3SeqData`, `JournaledQuery`,
+`JsonDetail`, `ModelJson`, and the `Gene_class` enums of `Utils.h`); **replace, stage 2** (the
+events, the contexts, the error rates, `Counter` and the four counters, `GenModel`,
+`SequenceGenerator`).
 
 ## 7. Stage 2: the DFS becomes an engine
 
