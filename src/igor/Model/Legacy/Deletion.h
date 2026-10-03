@@ -53,20 +53,22 @@
  * By construction the corresponding GeneChoice must have been explored first.
  */
 
-// Friend of the events below; see the friend declarations.
-namespace igor::inference::legacy { class Coverage_err_counter; }
 namespace igor::model::legacy {
 using namespace igor::core::legacy;
 using namespace igor::alignment::legacy;
 
 class MODEL_EXPORT Deletion : public Rec_Event
 {
-    friend class igor::inference::legacy::Coverage_err_counter; //Grant friendship to access the current number of deletion
     friend class Hypermutation_global_errorrate; //Grant friendship to access the current number of deletion
     friend class Hypermutation_full_Nmer_errorrate; //Same
     friend class DeletionTest; // For unit testing private members
 
 public:
+    /// Address of the slot holding the number of deletions of the current realization, for
+    /// observers that read it at every leaf. Public since step 1c: it replaces the friendship granted to Coverage_err_counter, so that
+    /// Model no longer names an Inference class.
+    const int *deletion_value_slot() const { return &deletion_value; }
+
         //Constructor
         Deletion();
         Deletion(Seq_type, Seq_side, std::pair<int, int>);

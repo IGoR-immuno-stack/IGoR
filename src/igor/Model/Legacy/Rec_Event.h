@@ -394,6 +394,10 @@ public:
     bool is_fixed() const { return fixed; }
     void set_viterbi_run(bool viterbi_like) { viterbi_run = viterbi_like; }
     const std::vector<int> &get_current_realizations_index_vec() const { return current_realizations_index_vec; };
+    /// Address of the slot holding the current realization index, for observers that read it at
+    /// every leaf. Public since step 1c: it replaces the friendship granted to Coverage_err_counter, so that
+    /// Model no longer names an Inference class.
+    const int *const *current_realization_index_slot() const { return &current_realization_index; }
 
     //Proba bound related computation methods
 

@@ -94,7 +94,7 @@ private:
     void recurs_coverage_count(double scenario_seq_joint_proba, size_t N, size_t begin_bound, size_t end_bound,
                                size_t gene_len);
     void recurs_errors_count(double scenario_seq_joint_proba, std::vector<size_t> &v_mismatch_list,
-                             const int **gene_offset_p, size_t N, size_t begin_bound, size_t end_bound,
+                             const int *const *gene_offset_p, size_t N, size_t begin_bound, size_t end_bound,
                              size_t gene_len);
     void symmetrize_counter_array(double *, size_t, size_t, size_t);
     void symmetrize_counter_array_recurs(size_t, size_t, size_t *, double *, size_t);
@@ -144,14 +144,14 @@ private:
     bool count_on_j;
 
     //Offset pointers
-    const int **vgene_offset_p;
-    const int **dgene_offset_p;
-    const int **jgene_offset_p;
+    const int *const *vgene_offset_p;
+    const int *const *dgene_offset_p;
+    const int *const *jgene_offset_p;
 
     //Realizations pointers
-    const int **vgene_real_index_p;
-    const int **dgene_real_index_p;
-    const int **jgene_real_index_p;
+    const int *const *vgene_real_index_p;
+    const int *const *dgene_real_index_p;
+    const int *const *jgene_real_index_p;
 
     //Get deletion values
     //TODO need to change this in order to handle multiple models(?)
