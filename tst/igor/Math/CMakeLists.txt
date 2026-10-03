@@ -1,6 +1,7 @@
 ### CMakeLists.txt ---
 
 set(MATH_TEST_SOURCES
+    Legacy/test_matrix.cpp
     test_HybridBuffer.cpp
     test_Linalg_AxisOps.cpp
     test_Linalg_Basic.cpp

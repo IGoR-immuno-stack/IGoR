@@ -54,9 +54,11 @@ target_include_directories(${PROJECT_NAME} PUBLIC
   $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/src>
 )
 
-# OpenMP is PUBLIC because Aligner.h includes <omp.h>.
+# OpenMP is PUBLIC because Aligner.h includes <omp.h>; Math because it includes Legacy/Matrix.h
+# for the substitution matrix.
 target_link_libraries(${PROJECT_NAME} PUBLIC
   ${CMAKE_PROJECT_NAME}::Core
+  ${CMAKE_PROJECT_NAME}::Math
   OpenMP::OpenMP_CXX
 )
 

@@ -3,7 +3,6 @@
 add_executable(core_tests
     test_dynamic_sequence_map.cpp
     test_layered_array.cpp
-    Legacy/test_matrix.cpp
     Legacy/test_sanity.cpp
 )
 

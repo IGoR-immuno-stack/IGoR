@@ -43,11 +43,13 @@
 
 #include <igor/Core/Legacy/IntStr.h>
 #include <igor/Core/Legacy/Utils.h>
+#include <igor/Math/Legacy/Matrix.h>
 #include <igor/Core/Legacy/AlignmentData.h>
 #include <igor/Alignment/Export.h>
 #include <igor/Alignment/Legacy/TestingExport.h>
 
 namespace igor::alignment::legacy {
+using namespace igor::math::legacy;
 using namespace igor::core::legacy;
 
 /**
