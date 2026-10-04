@@ -16,7 +16,7 @@ using igor::model::SampledEvent;
 // ─── Constructor ───────────────────────────────────────────────────────
 
 template <typename T>
-CategoricalInferenceHandler<T>::CategoricalInferenceHandler(std::string name, igor::core::legacy::index_type uid, math::Tensor<T>& weights)
+CategoricalInferenceHandler<T>::CategoricalInferenceHandler(std::string name, igor::core::index_type uid, math::Tensor<T>& weights)
     : InferenceHandler<T>(std::move(name), uid)
     , m_weights(weights)
     , m_accumulator(math::tensor::zeros_like(weights))

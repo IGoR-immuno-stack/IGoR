@@ -20,13 +20,13 @@
  *   along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <igor/Core/Legacy/Utils.h>
+#include <igor/Math/Legacy/Matrix.h>
 
 #include <catch2/catch_test_macros.hpp>
 
 #include <stdexcept>
 
-using namespace igor::core::legacy;
+using namespace igor::math::legacy;
 
 // ===========================================================================================
 // Matrix bounds (plan section 7.18, repair R0).

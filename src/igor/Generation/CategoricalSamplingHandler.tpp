@@ -17,7 +17,7 @@ using igor::model::SampledEvent;
 
 template <typename T>
 CategoricalSamplingHandler<T>::CategoricalSamplingHandler(
-    std::string name, igor::core::legacy::index_type uid, const math::Tensor<T>& weights)
+    std::string name, igor::core::index_type uid, const math::Tensor<T>& weights)
     : SamplingHandler<T>(std::move(name), uid)
     , m_weights(weights)
     , m_realization_count(m_weights.shape().back())  // Last dimension is child

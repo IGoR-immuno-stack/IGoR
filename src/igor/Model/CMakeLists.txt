@@ -33,6 +33,32 @@ target_sources(${PROJECT_NAME}
   PRIVATE
     EventFactory.cpp
     Topology.cpp
+  PUBLIC FILE_SET HEADERS
+    BASE_DIRS
+      ${CMAKE_SOURCE_DIR}/src
+      ${CMAKE_BINARY_DIR}/src
+    FILES
+      ${CMAKE_BINARY_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/Export.h
+      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}.h
+      ${LAYER_DIR}/EventFactory.h
+      ${LAYER_DIR}/Forward.h
+      ${LAYER_DIR}/LegacyBridge.h
+      ${LAYER_DIR}/LegacyBridge.tpp
+      ${LAYER_DIR}/Navigator.h
+      ${LAYER_DIR}/RecombinationModel.h
+      ${LAYER_DIR}/RecombinationModel.tpp
+      ${LAYER_DIR}/Scenario.h
+      ${LAYER_DIR}/Topology.h
+      ${LAYER_DIR}/BoundTightness.h
+      ${LAYER_DIR}/JunctionGeometry.h
+      ${LAYER_DIR}/SafetyMatrix.h
+      ${LAYER_DIR}/SpanProfile.h
+      ${LAYER_DIR}/UnfilledSegmentLengths.h
+)
+
+# Legacy files: everything under Legacy/, the stubs of promoted headers included.
+target_sources(${PROJECT_NAME}
+  PRIVATE
     Legacy/Counter.cpp
     Legacy/Deletion.cpp
     Legacy/Dinuclmarkov.cpp
@@ -53,17 +79,6 @@ target_sources(${PROJECT_NAME}
       ${CMAKE_SOURCE_DIR}/src
       ${CMAKE_BINARY_DIR}/src
     FILES
-      ${CMAKE_BINARY_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/Export.h
-      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}.h
-      ${LAYER_DIR}/EventFactory.h
-      ${LAYER_DIR}/Forward.h
-      ${LAYER_DIR}/LegacyBridge.h
-      ${LAYER_DIR}/LegacyBridge.tpp
-      ${LAYER_DIR}/Navigator.h
-      ${LAYER_DIR}/RecombinationModel.h
-      ${LAYER_DIR}/RecombinationModel.tpp
-      ${LAYER_DIR}/Scenario.h
-      ${LAYER_DIR}/Topology.h
       ${LAYER_DIR}/Legacy/AccumulationContext.h
       ${LAYER_DIR}/Legacy/BoundTightness.h
       ${LAYER_DIR}/Legacy/Counter.h
@@ -103,10 +118,9 @@ target_include_directories(${PROJECT_NAME} PUBLIC
 # GSL is PUBLIC because Hypermutationglobalerrorrate.h includes gsl headers; nlohmann_json
 # because Rec_Event.h names nlohmann::json in to_json()'s signature (headers only include
 # <nlohmann/json_fwd.hpp>; the full json.hpp stays in the .cpp files).
-# igor::Alignment is a transitional link (step 1a): Legacy/Rec_Event.h and
-# Legacy/QuerySequenceContext.h include Aligner.h for Alignment_data, and QuerySequenceContext
-# holds a JournaledQuery by value. The first goes away with the AlignmentData.h extraction of
-# step 1c, the second when the contexts leave Model (stage 2).
+# igor::Alignment is a transitional link: Legacy/QuerySequenceContext.h holds a JournaledQuery
+# by value, and the events call the Aligner's nucleotide helpers. It goes away when the contexts
+# leave Model (stage 2).
 target_link_libraries(${PROJECT_NAME} PUBLIC
   ${CMAKE_PROJECT_NAME}::Math
   ${CMAKE_PROJECT_NAME}::Core

@@ -39,7 +39,7 @@ template <typename T = double>
 class MarkovInferenceHandler : public InferenceHandler<T> {
 public:
     /// Construct from name, uid, and a mutable reference to the model's weight tensor.
-    MarkovInferenceHandler(std::string name, igor::core::legacy::index_type uid, math::Tensor<T>& weights);
+    MarkovInferenceHandler(std::string name, igor::core::index_type uid, math::Tensor<T>& weights);
 
     // Tensor access
     const math::Tensor<T>& weights(void) const override;

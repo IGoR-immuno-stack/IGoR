@@ -1,6 +1,6 @@
 ### CMakeLists.txt ---
 
-set(MATH_TEST_SOURCES
+add_executable(math_tests
     test_HybridBuffer.cpp
     test_Linalg_AxisOps.cpp
     test_Linalg_Basic.cpp
@@ -12,7 +12,11 @@ set(MATH_TEST_SOURCES
     test_Tensor_Slicing.cpp
 )
 
-add_executable(math_tests ${MATH_TEST_SOURCES})
+# Legacy tests: the tests of the code still under <Layer>/Legacy.
+target_sources(math_tests
+    PRIVATE
+        Legacy/test_matrix.cpp
+)
 
 set_target_properties(math_tests PROPERTIES CXX_STANDARD 23)
 

@@ -29,7 +29,6 @@
 #include <igor/Streaming/SequenceBatchHelpers.h>
 
 using namespace igor::core::legacy;
-using namespace igor::alignment::legacy;
 
 using namespace igor::streaming;
 using namespace igor::streaming::test;

@@ -281,7 +281,7 @@ std::vector<SequenceData> read_sequences(const std::string& filepath, Delimiter 
     }
 
     // Group alignments by sequence_id
-    std::unordered_map<std::string, std::vector<std::tuple<igor::core::legacy::Gene_class, igor::alignment::legacy::Alignment_data>>>
+    std::unordered_map<std::string, std::vector<std::tuple<igor::core::legacy::Gene_class, igor::core::AlignmentData>>>
         alignment_map;
 
     // Read all alignment rows
@@ -320,7 +320,7 @@ std::vector<SequenceData> read_sequences(const std::string& filepath, Delimiter 
         }
 
         // Create Alignment_data using simple constructor
-        igor::alignment::legacy::Alignment_data align(*call, offset);
+        igor::core::AlignmentData align(*call, offset);
 
         // Parse optional fields
         if (auto score = get_field(fields, col_index, "score")) {

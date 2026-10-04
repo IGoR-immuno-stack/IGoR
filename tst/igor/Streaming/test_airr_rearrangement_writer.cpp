@@ -23,7 +23,6 @@
 #include <sstream>
 
 using namespace igor::core::legacy;
-using namespace igor::alignment::legacy;
 
 using namespace igor::streaming;
 using namespace igor::streaming::airr::rearrangement;
@@ -55,7 +54,7 @@ struct AIRRWriterFixture
 
         // Sequence 1: Full V/D/J
         {
-            std::unordered_map<Gene_class, std::vector<Alignment_data>> aligns;
+            std::unordered_map<Gene_class, std::vector<igor::core::AlignmentData>> aligns;
 
             std::vector<size_t> insertions;
             std::vector<size_t> deletions;
@@ -73,7 +72,7 @@ struct AIRRWriterFixture
 
         // Sequence 2: V and J only (no D)
         {
-            std::unordered_map<Gene_class, std::vector<Alignment_data>> aligns;
+            std::unordered_map<Gene_class, std::vector<igor::core::AlignmentData>> aligns;
 
             std::vector<size_t> insertions;
             std::vector<size_t> deletions;
@@ -89,7 +88,7 @@ struct AIRRWriterFixture
 
         // Sequence 3: No alignments
         {
-            std::unordered_map<Gene_class, std::vector<Alignment_data>> aligns;
+            std::unordered_map<Gene_class, std::vector<igor::core::AlignmentData>> aligns;
             sequences.emplace_back(3, "TTAATTAATTAATTAA", aligns);
         }
 
@@ -103,7 +102,7 @@ struct AIRRWriterFixture
     {
         std::vector<SequenceData> sequences;
 
-        std::unordered_map<Gene_class, std::vector<Alignment_data>> aligns;
+        std::unordered_map<Gene_class, std::vector<igor::core::AlignmentData>> aligns;
 
         std::vector<size_t> insertions = {5, 10};  // 2 insertions
         std::vector<size_t> deletions = {15};       // 1 deletion
@@ -287,7 +286,7 @@ TEST_CASE("make_cigar", "[airr][writer][cigar]")
         std::vector<size_t> deletions;
         std::vector<size_t> mismatches;
 
-        Alignment_data align("IGHV1", 0, 0, 0, 50, insertions, deletions, mismatches, 100.0);
+        igor::core::AlignmentData align("IGHV1", 0, 0, 0, 50, insertions, deletions, mismatches, 100.0);
 
         REQUIRE(make_cigar(align) == "50M");
     }
@@ -298,7 +297,7 @@ TEST_CASE("make_cigar", "[airr][writer][cigar]")
         std::vector<size_t> deletions;
         std::vector<size_t> mismatches;
 
-        Alignment_data align("IGHV1", 0, 0, 0, 50, insertions, deletions, mismatches, 100.0);
+        igor::core::AlignmentData align("IGHV1", 0, 0, 0, 50, insertions, deletions, mismatches, 100.0);
 
         // With corrected logic: align_length is used directly (not reduced by insertions)
         REQUIRE(make_cigar(align) == "50M2I");
@@ -310,7 +309,7 @@ TEST_CASE("make_cigar", "[airr][writer][cigar]")
         std::vector<size_t> deletions = {15, 20, 25};
         std::vector<size_t> mismatches;
 
-        Alignment_data align("IGHV1", 0, 0, 0, 50, insertions, deletions, mismatches, 100.0);
+        igor::core::AlignmentData align("IGHV1", 0, 0, 0, 50, insertions, deletions, mismatches, 100.0);
 
         REQUIRE(make_cigar(align) == "50M3D");
     }
@@ -321,7 +320,7 @@ TEST_CASE("make_cigar", "[airr][writer][cigar]")
         std::vector<size_t> deletions = {10, 15};
         std::vector<size_t> mismatches;
 
-        Alignment_data align("IGHV1", 0, 0, 0, 50, insertions, deletions, mismatches, 100.0);
+        igor::core::AlignmentData align("IGHV1", 0, 0, 0, 50, insertions, deletions, mismatches, 100.0);
 
         REQUIRE(make_cigar(align) == "50M1I2D");
     }
@@ -332,7 +331,7 @@ TEST_CASE("make_cigar", "[airr][writer][cigar]")
         std::vector<size_t> deletions;
         std::vector<size_t> mismatches;
 
-        Alignment_data align("IGHV1", 0, 0, 0, 0, insertions, deletions, mismatches, 0.0);
+        igor::core::AlignmentData align("IGHV1", 0, 0, 0, 0, insertions, deletions, mismatches, 0.0);
 
         REQUIRE(make_cigar(align) == "");
     }
@@ -372,13 +371,13 @@ TEST_CASE_METHOD(AIRRWriterFixture, "write_legacy_tsv", "[airr][writer][legacy]"
 {
     // Create legacy format sequences
     std::vector<std::tuple<int, std::string,
-                           std::unordered_map<Gene_class, std::vector<Alignment_data>>>> legacy_seqs;
+                           std::unordered_map<Gene_class, std::vector<igor::core::AlignmentData>>>> legacy_seqs;
 
     std::vector<size_t> insertions;
     std::vector<size_t> deletions;
     std::vector<size_t> mismatches;
 
-    std::unordered_map<Gene_class, std::vector<Alignment_data>> aligns;
+    std::unordered_map<Gene_class, std::vector<igor::core::AlignmentData>> aligns;
     aligns[V_gene].emplace_back("IGHV1-2*01", 0, 0, 0, 50, insertions, deletions, mismatches, 150.0);
 
     legacy_seqs.emplace_back(1, "ATCGATCGATCG", aligns);

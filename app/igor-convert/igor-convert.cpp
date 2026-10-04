@@ -29,7 +29,6 @@
 #include <cstring>
 
 using namespace igor::core::legacy;
-using namespace igor::alignment::legacy;
 
 namespace fs = std::filesystem;
 
@@ -40,7 +39,7 @@ using namespace igor::streaming;
 using SequenceTuple = std::tuple<
     int,
     std::string,
-    std::unordered_map<Gene_class, std::vector<Alignment_data>>
+    std::unordered_map<Gene_class, std::vector<igor::core::AlignmentData>>
 >;
 
 

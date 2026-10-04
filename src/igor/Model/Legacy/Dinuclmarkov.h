@@ -30,6 +30,7 @@
 
 #include <igor/Model/Legacy/Rec_Event.h>
 #include <igor/Core/Legacy/Utils.h>
+#include <igor/Math/Legacy/Matrix.h>
 #include <forward_list>
 #include <unordered_map>
 #include <string>
@@ -53,6 +54,7 @@
  */
 
 namespace igor::model::legacy {
+using namespace igor::math::legacy;
 using namespace igor::core::legacy;
 using namespace igor::alignment::legacy;
 

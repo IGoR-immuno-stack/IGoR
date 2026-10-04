@@ -32,11 +32,6 @@ set(LAYER_DIR ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME})
 target_sources(${PROJECT_NAME}
   PRIVATE
     InferenceHandlerFactory.cpp
-    Legacy/Bestscenarioscounter.cpp
-    Legacy/Coverageerrcounter.cpp
-    Legacy/Errorscounter.cpp
-    Legacy/GenModel.cpp
-    Legacy/Pgencounter.cpp
   PUBLIC FILE_SET HEADERS
     BASE_DIRS
       ${CMAKE_SOURCE_DIR}/src
@@ -53,6 +48,21 @@ target_sources(${PROJECT_NAME}
       ${LAYER_DIR}/InferenceHandlerFactory.tpp
       ${LAYER_DIR}/MarkovInferenceHandler.h
       ${LAYER_DIR}/MarkovInferenceHandler.tpp
+)
+
+# Legacy files: everything under Legacy/, the stubs of promoted headers included.
+target_sources(${PROJECT_NAME}
+  PRIVATE
+    Legacy/Bestscenarioscounter.cpp
+    Legacy/Coverageerrcounter.cpp
+    Legacy/Errorscounter.cpp
+    Legacy/GenModel.cpp
+    Legacy/Pgencounter.cpp
+  PUBLIC FILE_SET HEADERS
+    BASE_DIRS
+      ${CMAKE_SOURCE_DIR}/src
+      ${CMAKE_BINARY_DIR}/src
+    FILES
       ${LAYER_DIR}/Legacy/Bestscenarioscounter.h
       ${LAYER_DIR}/Legacy/Coverageerrcounter.h
       ${LAYER_DIR}/Legacy/Errorscounter.h
@@ -66,11 +76,8 @@ target_include_directories(${PROJECT_NAME} PUBLIC
 )
 
 # OpenMP is PUBLIC because Legacy/GenModel.h includes <omp.h>.
-# igor::Generation is a transitional link (step 1a): Legacy/GenModel.h includes
-# FastGenerator.h for generate_sequences*(). It goes away with the GenModel split of step 1c.
 target_link_libraries(${PROJECT_NAME} PUBLIC
   ${CMAKE_PROJECT_NAME}::Model
-  ${CMAKE_PROJECT_NAME}::Generation
   OpenMP::OpenMP_CXX
 )
 

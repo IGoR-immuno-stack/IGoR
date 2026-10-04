@@ -27,6 +27,7 @@
 
 #include "LayerClaim.h"
 
+#include <igor/Alignment/Legacy/Aligner.h>
 #include <igor/Model/Legacy/AccumulationContext.h>
 #include <igor/Model/Legacy/Deletion.h>
 #include <igor/Model/Legacy/Dinuclmarkov.h>

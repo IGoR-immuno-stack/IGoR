@@ -24,6 +24,7 @@
  */
 
 #include <igor/Model/Legacy/EventUtils.h>
+#include <igor/Alignment/Legacy/Aligner.h>
 #include <igor/Model/Legacy/Genechoice.h>
 #include <igor/Model/Legacy/JsonDetail.h>
 

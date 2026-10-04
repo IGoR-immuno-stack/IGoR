@@ -1,7 +1,7 @@
 #pragma once
 
 #include <igor/Math/Tensor.h>
-#include <igor/Core/Legacy/Typedef.h>
+#include <igor/Core/Types.h>
 
 #include <string>
 #include <vector>
@@ -41,8 +41,8 @@ public:
 
     const std::string& name(void) const;
 
-    igor::core::legacy::index_type uid(void) const;
-    void setUid(igor::core::legacy::index_type id);
+    igor::core::index_type uid(void) const;
+    void setUid(igor::core::index_type id);
 
     // ── Weight access ─────────────────────────────────────────────────────────
     //
@@ -84,10 +84,10 @@ public:
         const std::vector<std::size_t>& parent_indices = {}) const;
 
 protected:
-    explicit SamplingHandler(std::string name, igor::core::legacy::index_type uid);
+    explicit SamplingHandler(std::string name, igor::core::index_type uid);
 
     std::string      m_name;
-    igor::core::legacy::index_type m_uid;
+    igor::core::index_type m_uid;
 };
 
 } // namespace igor::generation

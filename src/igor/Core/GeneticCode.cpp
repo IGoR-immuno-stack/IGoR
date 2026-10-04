@@ -3,7 +3,7 @@
  * @brief Implementation of the standard genetic code utilities declared in GeneticCode.h.
  */
 
-#include <igor/Core/Legacy/GeneticCode.h>
+#include <igor/Core/GeneticCode.h>
 
 #include <algorithm>
 #include <array>
@@ -13,7 +13,7 @@
 #include <vector>
 
 
-namespace igor::core::legacy {
+namespace igor::core {
 
 namespace genetic_code {
 
@@ -29,24 +29,24 @@ namespace {
  * @param bits Bitmask: bit 0 = A, bit 1 = C, bit 2 = G, bit 3 = T
  * @return IUPAC Int_nt code, or int_N if no clean mapping exists
  */
-constexpr Int_nt iupac_from_bits_impl(int bits) {
+constexpr legacy::Int_nt iupac_from_bits_impl(int bits) {
     switch (bits) {
-    case 0b0001: return int_A; // A
-    case 0b0010: return int_C; // C
-    case 0b0100: return int_G; // G
-    case 0b1000: return int_T; // T
-    case 0b0011: return int_M; // A|C
-    case 0b0101: return int_R; // A|G
-    case 0b1001: return int_W; // A|T
-    case 0b0110: return int_S; // C|G
-    case 0b1010: return int_Y; // C|T
-    case 0b1100: return int_K; // G|T
-    case 0b1101: return int_V; // A|C|G
-    case 0b1011: return int_H; // A|C|T
-    case 0b0111: return int_D; // A|G|T
-    case 0b1110: return int_B; // C|G|T
-    case 0b1111: return int_N; // A|C|G|T
-    default:     return int_N; // fallback
+    case 0b0001: return legacy::int_A; // A
+    case 0b0010: return legacy::int_C; // C
+    case 0b0100: return legacy::int_G; // G
+    case 0b1000: return legacy::int_T; // T
+    case 0b0011: return legacy::int_M; // A|C
+    case 0b0101: return legacy::int_R; // A|G
+    case 0b1001: return legacy::int_W; // A|T
+    case 0b0110: return legacy::int_S; // C|G
+    case 0b1010: return legacy::int_Y; // C|T
+    case 0b1100: return legacy::int_K; // G|T
+    case 0b1101: return legacy::int_V; // A|C|G
+    case 0b1011: return legacy::int_H; // A|C|T
+    case 0b0111: return legacy::int_D; // A|G|T
+    case 0b1110: return legacy::int_B; // C|G|T
+    case 0b1111: return legacy::int_N; // A|C|G|T
+    default:     return legacy::int_N; // fallback
     }
 }
 
@@ -145,7 +145,7 @@ CodonMask codon_mask_for_aa(char aa) {
     return mask;
 }
 
-std::string translate_int_seq(const Int_Str& seq, int frame_offset) {
+std::string translate_int_seq(const IntStr& seq, int frame_offset) {
     if (frame_offset < 0 || frame_offset >= static_cast<int>(seq.size())) {
         return {};
     }
@@ -248,4 +248,4 @@ std::vector<CodonMask> parse_aa_motif(const std::string& motif) {
 
 } // namespace genetic_code
 
-} // namespace igor::core::legacy
+} // namespace igor::core

@@ -1,10 +1,14 @@
 ### CMakeLists.txt ---
 
-add_executable(alignment_tests
-    Legacy/test_aligner.cpp
-    Legacy/test_aligner_benchmark.cpp
-    Legacy/test_alignment_cigar.cpp
-    Legacy/AlignerTestUtils.cpp
+add_executable(alignment_tests)
+
+# Legacy tests: the tests of the code still under <Layer>/Legacy.
+target_sources(alignment_tests
+    PRIVATE
+        Legacy/test_aligner.cpp
+        Legacy/test_aligner_benchmark.cpp
+        Legacy/test_alignment_cigar.cpp
+        Legacy/AlignerTestUtils.cpp
 )
 
 set_target_properties(alignment_tests PROPERTIES CXX_STANDARD 23)

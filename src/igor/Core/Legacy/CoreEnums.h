@@ -22,32 +22,36 @@
 
 #pragma once
 
-/**
- * \file CoreEnums.h
- * \brief The small dependency-free enums describing events and sequence segments.
- *
- * Split out of Utils.h so the container headers can name them without including Utils.h,
- * which now includes those containers in turn. Nothing here depends on any other IGoR
- * header, which is what makes the split possible; the Gene_class enums stay in Utils.h for
- * now because they carry export annotations and a cluster of conversion functions.
- */
+#include <igor/Core/Types.h>
 
-
+// CoreEnums.h was merged into igor/Core/Types.h (step 1c of doc/LAYER_REFACTORING_PROPOSAL.md).
+// This stub keeps the legacy include path and the legacy names for the code that has not
+// been promoted yet; it goes when its last consumer switches.
 namespace igor::core::legacy {
 
-enum Event_type { GeneChoice_t, Deletion_t, Insertion_t, Dinuclmarkov_t, Undefined_t };
+using Event_type = igor::core::EventType;
+using igor::core::GeneChoice_t;
+using igor::core::Deletion_t;
+using igor::core::Insertion_t;
+using igor::core::Dinuclmarkov_t;
+using igor::core::Undefined_t;
 
-/// Which end of a constructed sequence segment an offset or a deletion refers to.
-enum Seq_side { Five_prime = 0, Three_prime = 1, Undefined_side = 2 };
+using Seq_side = igor::core::SeqSide;
+using igor::core::Five_prime;
+using igor::core::Three_prime;
+using igor::core::Undefined_side;
 
-/**
- * \brief The six sequence segment kinds of a standard VDJ/VJ model.
- *
- * Superseded at runtime by SeqTypeId, which a SeqTypeRegistry allocates and which can
- * describe any topology. These values are pinned to the matching SeqTypeIds by
- * Model_Parms::read_model_parms(), so enum-keyed code still addresses the right slots
- * while it is migrated.
- */
-enum Seq_type { V_gene_seq = 0, VD_ins_seq = 1, D_gene_seq = 2, DJ_ins_seq = 3, J_gene_seq = 4, VJ_ins_seq = 5 };
+using Seq_type = igor::core::SeqType;
+using igor::core::V_gene_seq;
+using igor::core::VD_ins_seq;
+using igor::core::D_gene_seq;
+using igor::core::DJ_ins_seq;
+using igor::core::J_gene_seq;
+using igor::core::VJ_ins_seq;
+
+// The textual forms of these enums moved with them; legacy code calls them unqualified.
+using igor::core::to_string;
+using igor::core::operator<<;
+using igor::core::operator+;
 
 } // namespace igor::core::legacy

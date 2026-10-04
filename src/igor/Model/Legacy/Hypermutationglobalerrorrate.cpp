@@ -25,6 +25,7 @@
  */
 
 #include <igor/Core/Legacy/Utils.h>
+#include <igor/Alignment/Legacy/Aligner.h>
 #include <igor/Model/Legacy/EventUtils.h>
 #include <igor/Model/Legacy/Hypermutationglobalerrorrate.h>
 #include <igor/Model/Legacy/EventUtils.h>

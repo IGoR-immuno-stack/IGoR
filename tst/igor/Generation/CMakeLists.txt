@@ -1,11 +1,15 @@
 ### CMakeLists.txt ---
 
 add_executable(generation_tests
-    test_RecombinationModel.cpp
     test_SamplingEngine.cpp
     test_SamplingHandlers.cpp
-    Legacy/test_fast_sampling.cpp
-    Legacy/test_generation.cpp
+)
+
+# Legacy tests: the tests of the code still under <Layer>/Legacy.
+target_sources(generation_tests
+    PRIVATE
+        Legacy/test_fast_sampling.cpp
+        Legacy/test_generation.cpp
 )
 
 set_target_properties(generation_tests PROPERTIES CXX_STANDARD 23)

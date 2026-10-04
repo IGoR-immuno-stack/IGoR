@@ -35,10 +35,10 @@
  * See docs/ITERATE_GENERIC_REWRITE_PLAN.md sections 2.1 and 3.
  */
 
-#include "test_utils.h"
+#include "Legacy/test_utils.h"
 
 #include <igor/Model/Legacy/Dinuclmarkov.h>
-#include <igor/Model/Legacy/JunctionGeometry.h>
+#include <igor/Model/JunctionGeometry.h>
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -49,6 +49,8 @@
 #include <unordered_set>
 #include <vector>
 
+using namespace igor::core;
+using namespace igor::model;
 using namespace igor::core::legacy;
 using namespace igor::alignment::legacy;
 using namespace igor::model::legacy;
