@@ -747,7 +747,7 @@ TEST_CASE("Generation on a tandem-D layout: a deletion trims its own D slot",
 }
 
 TEST_CASE("Generation on a tandem-D layout: the D1-D2 chain seeds from D1's 3' end",
-          "[generation][tandem_d][!shouldfail]")
+          "[generation][tandem_d]")
 {
     const SeqTypeRegistry &registry = tandem_registry();
     Generator state(registry);
@@ -758,7 +758,7 @@ TEST_CASE("Generation on a tandem-D layout: the D1-D2 chain seeds from D1's 3' e
     CHECK(state.segment("D1D2_ins_seq") == "CG");
 }
 
-TEST_CASE("Generation on a tandem-D layout: one sequence, end to end", "[generation][tandem_d][!shouldfail]")
+TEST_CASE("Generation on a tandem-D layout: one sequence, end to end", "[generation][tandem_d]")
 {
     //Every event a milestone-1 model has, each with its mass on one realization, drawn in a
     //legacy queue order: genes, then deletions, then insertions, then the chains. Priorities

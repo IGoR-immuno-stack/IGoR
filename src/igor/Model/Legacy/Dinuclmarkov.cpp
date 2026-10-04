@@ -137,16 +137,6 @@ DinuclTraversalSpec Dinucl_markov::get_junction() const
         //neighbours are equally adjacent.
         return spec;
     }
-
-    //The generation path is still keyed by the Seq_type enum. Resolve the handles when the
-    //ids allow it and flag them otherwise, rather than leaving a plausible-looking default.
-    if (spec.anchor_id != kNoSeqType
-        && static_cast<std::size_t>(spec.target_id) < kLegacySeqTypeCount
-        && static_cast<std::size_t>(spec.anchor_id) < kLegacySeqTypeCount) {
-        spec.target_seq = static_cast<Seq_type>(spec.target_id);
-        spec.anchor_seq = static_cast<Seq_type>(spec.anchor_id);
-        spec.legacy_enums_valid = true;
-    }
     return spec;
 }
 
@@ -311,13 +301,13 @@ void Dinucl_markov::iterate(
 
 namespace {
 
-void require_legacy_enums(const DinuclTraversalSpec &spec, const string &name)
+void require_junction(const DinuclTraversalSpec &spec, const string &name)
 {
-    if (!spec.legacy_enums_valid) {
+    if (spec.target_id == kNoSeqType or spec.anchor_id == kNoSeqType) {
         throw invalid_argument("Dinucl_markov " + name
-                               + ": generation needs a junction and an anchor that the Seq_type "
-                                 "enum names. Model_Parms::finalize() must have run, and the "
-                                 "topology must be one of the legacy ones (see B9).");
+                               + ": generation needs the junction this chain fills and the segment "
+                                 "it seeds from. Model_Parms::finalize() resolves both, from the "
+                                 "model's ordering and the event's side.");
     }
 }
 
@@ -329,12 +319,12 @@ vector<int> Dinucl_markov::draw_realization(const Marginal_array_p &, const unor
     uniform_real_distribution<double> distribution(0.0, 1.0);
 
     const DinuclTraversalSpec spec = get_junction();
-    require_legacy_enums(spec, this->name);
+    require_junction(spec, this->name);
 
     //Copies: the draw reads what has been built and writes nothing. The chain runs away from
     //its anchor, so a chain seeded from the anchor's 5' end reads that anchor backwards.
-    string target_ins_seq = segments.read(legacy_segment(segments, spec.target_seq));
-    string anchor_seq = segments.read(legacy_segment(segments, spec.anchor_seq));
+    string target_ins_seq = segments.read(spec.target_id);
+    string anchor_seq = segments.read(spec.anchor_id);
     if (spec.anchor_side == Five_prime) {
         reverse(anchor_seq.begin(), anchor_seq.end());
     }
@@ -397,11 +387,11 @@ vector<int> Dinucl_markov::draw_chain(const string &previous_seq, string &insert
 void Dinucl_markov::construct_realization(const vector<int> &chain, GenerationState &segments) const
 {
     const DinuclTraversalSpec spec = get_junction();
-    require_legacy_enums(spec, this->name);
+    require_junction(spec, this->name);
 
     //One chain entry per placeholder, in chain order; the chain then reads 5'->3' once turned
     //around for a chain that ran from the right.
-    string &target_ins_seq = segments.modify(legacy_segment(segments, spec.target_seq));
+    string &target_ins_seq = segments.modify(spec.target_id);
     size_t next = 0;
     for (char &position : target_ins_seq) {
         if (position != 'I') {

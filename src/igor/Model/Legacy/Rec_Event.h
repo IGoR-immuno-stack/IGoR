@@ -372,11 +372,6 @@ public:
     /// The realization whose index is `index`. A scan: realizations are keyed by name, and an
     /// index-ordered domain is the minimal Event's (SEGMENT_DECOMPOSITION_REVIEW §7.1).
     const Event_realization &realization_at(int index) const;
-
-    /// The id the generator's registry gives a legacy segment. Transitional: what the
-    /// construction switches still address by V, D and J name, until G4 of
-    /// docs/GENERATION_REWRITE_PLAN.md takes the switches out.
-    static SeqTypeId legacy_segment(const GenerationState &, Seq_type);
     ///@}
     virtual void write2txt(std::ofstream &) = 0;
     virtual void write2txt_legacy(std::ofstream &) = 0;

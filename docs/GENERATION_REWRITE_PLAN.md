@@ -237,6 +237,35 @@ up front; `create` appending.
 - Gates: unit 480/480, integration 10/10, regression bitwise on all five tracks, convergence 2/2;
   the seeded TRA and TRB pins unchanged.
 
+### 5.6 G4, delivered
+
+Three commits, each bitwise on all five tracks, with the seeded TRA and TRB pins unchanged:
+
+| Commit | What went | Tandem cases turned green |
+|---|---|---|
+| **G4a** | `Gene_choice`'s three-arm `switch (event_class)`; `Insertion`'s `insertion_seq_type_str_to_enum()`, which had no caller left. Each creates the segment at its own `seq_type_id` | gene choice, insertion |
+| **G4b** | `Deletion`'s four-arm `switch (target_seq_type)`: one body on the segment at its `seq_type_id` and the end its side names, with D1 carried by position in the ordering (§5) | deletion |
+| **G4c** | `Dinucl_markov`'s enum handles: it reads and writes at `get_junction()`'s ids. `DinuclTraversalSpec::target_seq`, `anchor_seq` and `legacy_enums_valid`, `kLegacySeqTypeCount` and `Rec_Event::legacy_segment()` are deleted | the D1-D2 chain, end to end |
+
+- **One departure, in G4b.** A deletion of an internal segment that names neither side used to
+  write nothing; it now throws, with the message inference's `initialize_event()` gives the same
+  model.
+- **Two test adaptations.** G4b's trim helper places its deletion in a VDJ ordering, as
+  `finalize()` places every event, because anchoring is now read from the ordering. G4c deletes
+  `test_dinucl_markov_iterate.cpp`'s assertion on `legacy_enums_valid`, together with the field.
+- **The D1 cases are a live pin.** A mutation that drops the carried rule makes them pass, which
+  Catch reports as two failures.
+
+The generation path now names no gene. `draw_realization`, `pick_realization`, the four
+`construct_realization` overrides, `draw_chain` and `generate_unique_sequence` address segments
+only by `SeqTypeId`, and the milestone-1 layout generates end to end at unit level. Generating
+from a tandem model *file* still waits for T1, which makes such a file loadable.
+
+Left in this plan: the R phase (§5). `Deletion::target_seq_type`, `Insertion::ins_seq_type` and
+`Dinucl_markov::ins_seq_type` are no longer read by generation. Their readers left are the
+constructors, `copy()` and the generated names, which are T1's and T2's ground, as the parent
+plan anticipated ("T3 and T4 shrink T1").
+
 ## 6. Left for the SamplingEngine connection
 
 Recorded here, not done in this plan:

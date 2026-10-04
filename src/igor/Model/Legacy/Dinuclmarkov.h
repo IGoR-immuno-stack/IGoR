@@ -62,15 +62,6 @@ struct DinuclTraversalSpec {
     SeqTypeId target_id = kNoSeqType;
     SeqTypeId anchor_id = kNoSeqType;
     Seq_side anchor_side = Undefined_side;
-
-    ///@{ \name Legacy enum handles, for the generation path only
-    /// The generator still addresses this chain's segments by legacy name. Resolved when the
-    /// names allow it and unused otherwise; G4c of docs/GENERATION_REWRITE_PLAN.md removes them
-    /// with the rest of the generation path's enum dependency.
-    Seq_type target_seq = VD_ins_seq;
-    Seq_type anchor_seq = V_gene_seq;
-    bool legacy_enums_valid = false;
-    ///@}
 };
 
 /**

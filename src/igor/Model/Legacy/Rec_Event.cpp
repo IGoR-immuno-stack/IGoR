@@ -201,11 +201,6 @@ void Rec_Event::propagate_realization(
     }
 }
 
-SeqTypeId Rec_Event::legacy_segment(const GenerationState &segments, Seq_type seq_type)
-{
-    return segments.registry().id(EventUtils::seq_type_to_string(seq_type));
-}
-
 const Event_realization &Rec_Event::realization_at(int index) const
 {
     for (const auto &[name, realization] : this->event_realizations) {
