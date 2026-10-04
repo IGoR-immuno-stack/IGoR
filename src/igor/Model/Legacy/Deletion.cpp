@@ -549,72 +549,46 @@ void Deletion::construct_realization(const vector<int> &indices, GenerationState
         return;
     }
     const int deletions = this->realization_at(indices.front()).value_int;
-    string palindrome;
+    string &segment = segments.modify(this->seq_type_id);
 
-    switch (this->target_seq_type) {
+    //Which end this deletion trims. Plan D1, carried: the four arms this body replaces never
+    //read the side of a segment at an end of the ordering -- the V arm trimmed its 3' end and
+    //the J arm its 5' end, whatever the model said -- so a segment with nothing on its left is
+    //trimmed at 3', and one with nothing on its right at 5'. Inference trims the side the model
+    //names, and the R phase makes generation do the same.
+    bool trims_three_prime;
+    if (this->left_adjacent_id == kNoSeqType and this->right_adjacent_id != kNoSeqType) {
+        trims_three_prime = true;
+    } else if (this->right_adjacent_id == kNoSeqType and this->left_adjacent_id != kNoSeqType) {
+        trims_three_prime = false;
+    } else if (this->event_side == Three_prime or this->event_side == Five_prime) {
+        trims_three_prime = (this->event_side == Three_prime);
+    } else {
+        //The D arm did nothing here; inference refuses the model in initialize_event().
+        throw invalid_argument("Deletion " + this->get_name()
+                               + ": a deletion must trim the 5' or the 3' end of its segment, "
+                                 "and this one names neither");
+    }
 
-    case V_gene_seq:
-        if (deletions >= 0) {
-            string &v_gene_seq = segments.modify(legacy_segment(segments, V_gene_seq));
-            v_gene_seq.erase(v_gene_seq.size() - deletions);
+    if (deletions >= 0) {
+        //Plan D2, carried: past the segment's end, a 5' trim clamps and a 3' trim throws.
+        if (trims_three_prime) {
+            segment.erase(segment.size() - deletions);
         } else {
-            string &v_gene_seq = segments.modify(legacy_segment(segments, V_gene_seq));
-            palindrome = v_gene_seq.substr(v_gene_seq.size() + deletions, string::npos);
-            reverse(palindrome.begin(), palindrome.end());
-            make_transversions(palindrome);
-            v_gene_seq += palindrome;
+            segment.erase(0, deletions);
         }
-
-        break;
-
-    case D_gene_seq:
-        switch (this->event_side) {
-
-        case Five_prime:
-            if (deletions >= 0) {
-                segments.modify(legacy_segment(segments, D_gene_seq)).erase(0, deletions);
-            } else {
-                string &d_gene_seq = segments.modify(legacy_segment(segments, D_gene_seq));
-                palindrome = d_gene_seq.substr(0, -deletions);
-                reverse(palindrome.begin(), palindrome.end());
-                make_transversions(palindrome);
-                d_gene_seq = palindrome + d_gene_seq;
-            }
-
-            break;
-
-        case Three_prime:
-            if (deletions >= 0) {
-                string &d_gene_seq = segments.modify(legacy_segment(segments, D_gene_seq));
-                d_gene_seq.erase(d_gene_seq.size() - deletions);
-            } else {
-                string &d_gene_seq = segments.modify(legacy_segment(segments, D_gene_seq));
-                palindrome = d_gene_seq.substr(d_gene_seq.size() + deletions, string::npos);
-                reverse(palindrome.begin(), palindrome.end());
-                make_transversions(palindrome);
-                d_gene_seq += palindrome;
-            }
-
-            break;
-
-        default:
-            break;
-        }
-        break;
-    case J_gene_seq:
-        if (deletions >= 0) {
-            segments.modify(legacy_segment(segments, J_gene_seq)).erase(0, deletions);
+    } else {
+        //A palindrome: the |k| nucleotides at the trimmed end, reversed and complemented, put
+        //back beyond it.
+        string palindrome = trims_three_prime ? segment.substr(segment.size() + deletions, string::npos)
+                                              : segment.substr(0, -deletions);
+        reverse(palindrome.begin(), palindrome.end());
+        make_transversions(palindrome);
+        if (trims_three_prime) {
+            segment += palindrome;
         } else {
-            string &j_gene_seq = segments.modify(legacy_segment(segments, J_gene_seq));
-            palindrome = j_gene_seq.substr(0, -deletions);
-            reverse(palindrome.begin(), palindrome.end());
-            make_transversions(palindrome);
-            j_gene_seq = palindrome + j_gene_seq;
+            segment = palindrome + segment;
         }
-
-        break;
-    default:
-        break;
     }
 }
 

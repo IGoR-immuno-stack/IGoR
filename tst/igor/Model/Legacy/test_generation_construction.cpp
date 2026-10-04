@@ -187,12 +187,14 @@ std::shared_ptr<Event> place(std::shared_ptr<Event> event, const SeqTypeRegistry
     return event;
 }
 
-/// One-realization deletion of `value` on `seq_type`'s `side`, drawn on `content`.
+/// One-realization deletion of `value` on `seq_type`'s `side`, drawn on `content`. The event is
+/// placed in a VDJ ordering, as Model_Parms::finalize() places every event: where its segment
+/// sits is what generation reads its anchoring from.
 std::string generated_trim(Seq_type target, Seq_side side, int value, const std::string &content)
 {
     Generator state;
-    auto deletion = make_deletion(target, side, value, value, /*id=*/0);
     const std::string name = EventUtils::seq_type_to_string(target);
+    auto deletion = place(make_deletion(target, side, value, value, /*id=*/0), vdj_seq_type_registry(), name);
     state.preset(name, content);
     state.put_mass(*deletion, 0, 0);
     state.draw(*deletion);
@@ -731,7 +733,7 @@ TEST_CASE("Generation on a tandem-D layout: an insertion writes its own junction
 }
 
 TEST_CASE("Generation on a tandem-D layout: a deletion trims its own D slot",
-          "[generation][tandem_d][!shouldfail]")
+          "[generation][tandem_d]")
 {
     const SeqTypeRegistry &registry = tandem_registry();
     Generator state(registry);
