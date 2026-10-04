@@ -22,6 +22,7 @@ target_sources(model_tests
         Legacy/test_EventUtils.cpp
         Legacy/test_gene_choice_iterate.cpp
         Legacy/test_generation_construction.cpp
+        Legacy/test_generation_state.cpp
         Legacy/test_genetic_code.cpp
         Legacy/test_insertion_iterate.cpp
         Legacy/test_model_format_v2.cpp

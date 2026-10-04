@@ -97,6 +97,12 @@ second "segments by `SeqTypeId`" type.
 | Lifetime | per thread, reused across reads | a fresh map per generated sequence; the buffers can be reused |
 | "Not drawn" vs "empty" | `exists()` vs `occupied()` | every key's layer is requested when the map is built, so a segment nobody created does not `exist()`, and reading it throws, as `.at()` does today |
 
+The map and the buffers it points into travel together in `GenerationState`
+(Model/Legacy/GenerationState.h), the synthesis' "generation state" an event's `apply` writes into.
+It is a thin owner, not a second container: the segments are the `DynamicSequenceMap`. Its surface
+says what an event does to a segment: `create` (a constructing event), `modify` (in place;
+throws when nothing has created it), `read`, `built`, and `assemble` in `registry.ordering()`.
+
 Pointers keep the stored values small and trivially copyable (LayeredArray.h:158), and construction
 copies nothing. Copies would cost little today, because the legacy draw dominates: it re-sums the
 row and does a string hash on `index_map.at(get_name())` for every realization it visits. They
@@ -133,7 +139,7 @@ trip generates through this path (test_inference.cpp:513, test_ModelInference.cp
 |---|---|---|
 | **G0** | This document; characterization suites against the unmodified code (§5.1) | n/a: tests only |
 | **G1** | The split of §2. The test stubs that override `draw_random_realization` move to `construct_realization`. Container unchanged | **yes** |
-| **G2** | `Generated_seq_p_map` = `DynamicSequenceMap<std::string*>`, and assembly in `registry.ordering()` next to `build_scenario_sequence(registry, …)`. No caller | **yes** |
+| **G2** | `GenerationState`: a `DynamicSequenceMap<std::string*>` with the buffers it points into, and assembly in `registry.ordering()`. No caller | **yes** |
 | **G3** | The generator adopts the container. The remaining switches address it through the legacy ids pinned to `Seq_type`. Assembly by ordering, which gives the same string for VDJ and VJ, since no segment outside the ordering is ever written. An empty ordering throws | **yes** |
 | **G4a** | `Gene_choice` writes at `seq_type_id`; then `Insertion`. `insertion_seq_type_str_to_enum` goes if nothing else calls it | **yes** |
 | **G4b** | `Deletion`: one body on `event_side`. D1 is carried generically: a segment with no left neighbour is trimmed at its 3′ end and one with no right neighbour at its 5′ end, whatever the side. This is B11a's anchored-segment boolean. D2's clamp/throw asymmetry falls out of the shared body unchanged | **yes** |
@@ -204,6 +210,19 @@ All eight caught; the sources were restored and rebuilt after the run.
 - Tests: a case on the split itself (the draw writes nothing; the construction consumes no RNG,
   for each event type), and D4 as two `[!shouldfail]` cases through `pick_realization()`. Every
   G0 case passes unchanged.
+
+### 5.4 G2, delivered
+
+`GenerationState`, header-only, with 5 cases in tst/igor/Model/Legacy/test_generation_state.cpp:
+- not built: reading or modifying throws;
+- built and empty is distinct from not built;
+- a modifier edits in place;
+- assembly in the ordering: VDJ built out of order, a segment nobody built, a registered segment
+  outside the ordering, tandem D;
+- a registry that is not frozen is refused.
+
+Three mutations, all caught: assembly over every id instead of the ordering; every segment built
+up front; `create` appending.
 
 ## 6. Left for the SamplingEngine connection
 
