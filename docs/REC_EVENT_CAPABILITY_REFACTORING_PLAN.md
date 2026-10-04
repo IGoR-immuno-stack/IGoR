@@ -187,6 +187,12 @@ fold's build time on that layout.
 as B9 step 5 says, rather than being replaced by tk's `SamplingEngine` now. Generation stays on
 `Rec_Event` until synthesis step 1 retires `draw_random_realization()`.
 
+**Oct 4 2026:** the legacy-generator half is planned and tracked in
+[GENERATION_REWRITE_PLAN.md](GENERATION_REWRITE_PLAN.md). It adds one step to the table below:
+each event's draw is first split into a realization-index draw and a construction from those
+indices, which is the half a `SamplingEngine` will later drive. The construction defects found
+there are pinned by tests and fixed after the refactor, as in the iterate plan.
+
 **The legacy generator**, `GenModel::generate_unique_sequence()` and the four
 `draw_random_realization()` overrides. Bitwise.
 

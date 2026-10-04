@@ -10,6 +10,7 @@ target_sources(generation_tests
     PRIVATE
         Legacy/test_fast_sampling.cpp
         Legacy/test_generation.cpp
+        Legacy/test_sequence_generator.cpp
 )
 
 set_target_properties(generation_tests PROPERTIES CXX_STANDARD 23)
