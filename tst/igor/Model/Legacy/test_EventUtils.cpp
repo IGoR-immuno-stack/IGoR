@@ -34,13 +34,7 @@ public:
           ExplorationContext& exploration,
           AccumulationContext& accumulation) override {}
 
-  queue<int> draw_random_realization(
-      const Marginal_array_p &, unordered_map<Rec_Event_name, int> &,
-      const unordered_map<Rec_Event_name,
-                          vector<pair<shared_ptr<const Rec_Event>, int>>> &,
-      unordered_map<Seq_type, string> &, mt19937_64 &) const override {
-    return queue<int>();
-  }
+  void construct_realization(const vector<int> &, unordered_map<Seq_type, string> &) const override {}
   void write2txt(ofstream &) override {}
   void write2txt_legacy(ofstream &) override {}
   void write2txt_v2(ofstream &) override {}

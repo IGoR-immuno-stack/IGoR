@@ -23,9 +23,9 @@
  */
 
 /**
- * Written against the *unmodified* `draw_random_realization()` overrides, before they are split
- * into a draw and a construction (docs/GENERATION_REWRITE_PLAN.md, G1) and before the V/D/J
- * switches go (G4). Follows ITERATE_TEST_GUIDE.md's rules: one TEST_CASE per pattern, one
+ * Written against the *unmodified* `draw_random_realization()` overrides (G0), before they were
+ * split into a draw and a construction (docs/GENERATION_REWRITE_PLAN.md, G1) and before the
+ * V/D/J switches go (G4). The cases on the split itself were added with it. Follows ITERATE_TEST_GUIDE.md's rules: one TEST_CASE per pattern, one
  * SECTION per instance, numbers read off the running code, and a confirmed defect asserted at
  * its intended value under `[!shouldfail]`.
  *
@@ -118,6 +118,18 @@ public:
     std::queue<int> draw(const Rec_Event &event)
     {
         return event.draw_random_realization(marginals, index_map, offset_map, sequences_, rng);
+    }
+
+    /// The draw alone: indices, and nothing written.
+    std::vector<int> draw_indices(const Rec_Event &event)
+    {
+        return event.draw_realization(marginals, index_map, sequences_, rng);
+    }
+
+    /// The construction alone, from indices however they were obtained.
+    void construct(const Rec_Event &event, const std::vector<int> &indices)
+    {
+        event.construct_realization(indices, sequences_);
     }
 
 private:
@@ -331,6 +343,105 @@ TEST_CASE("Generation: a drawn realization moves its children's rows", "[generat
         state.draw(*j);
         CHECK(state.segment("J_gene_seq") == "GGTT");
     }
+}
+
+TEST_CASE("Generation: the draw writes nothing, and the construction draws nothing", "[generation]")
+{
+    //The split of G1. Each half is what a sampling engine and an event's `apply` will be: the
+    //draw reads the marginals, the index map, the RNG and (for a chain) what has been built;
+    //the construction reads the indices and nothing else.
+    SECTION("gene choice")
+    {
+        GenerationState state;
+        auto v = make_gene_choice(V_gene, {{"V1", "AAAA"}, {"V2", "CCCC"}}, /*id=*/0);
+        state.put_mass(*v, 0, index_of_name(*v, "V2"));
+        CHECK(state.draw_indices(*v) == std::vector<int>{index_of_name(*v, "V2")});
+        CHECK(state.written() == 0);
+        CHECK(state.rng == advanced_by(1));
+
+        //Indices from anywhere -- here, not the ones the marginals favour.
+        state.construct(*v, {index_of_name(*v, "V1")});
+        CHECK(state.segment("V_gene_seq") == "AAAA");
+        CHECK(state.rng == advanced_by(1));
+        CHECK(state.index_map.at(v->get_name()) == 0);
+    }
+
+    SECTION("deletion")
+    {
+        GenerationState state;
+        auto deletion = make_deletion(V_gene_seq, Three_prime, 0, 3, /*id=*/0);
+        state.preset("V_gene_seq", "AACCGG");
+        state.put_mass(*deletion, 0, index_of_value(*deletion, 2));
+        CHECK(state.draw_indices(*deletion) == std::vector<int>{index_of_value(*deletion, 2)});
+        CHECK(state.segment("V_gene_seq") == "AACCGG");
+        state.construct(*deletion, {index_of_value(*deletion, 3)});
+        CHECK(state.segment("V_gene_seq") == "AAC");
+    }
+
+    SECTION("insertion")
+    {
+        GenerationState state;
+        auto insertion = make_insertion(DJ_ins_seq, 0, 5, /*id=*/0);
+        state.put_mass(*insertion, 0, index_of_value(*insertion, 4));
+        CHECK(state.draw_indices(*insertion) == std::vector<int>{index_of_value(*insertion, 4)});
+        CHECK(state.written() == 0);
+        state.construct(*insertion, {index_of_value(*insertion, 1)});
+        CHECK(state.segment("DJ_ins_seq") == "I");
+    }
+
+    SECTION("Markov chain")
+    {
+        GenerationState state;
+        auto chain = cyclic_chain(state, DJ_ins_seq, vdj_seq_type_registry(), 0);
+        state.preset("J_gene_seq", "CAAA");
+        state.preset("DJ_ins_seq", "III");
+        CHECK(state.draw_indices(*chain) == std::vector<int>{2, 3, 0});
+        CHECK(state.segment("DJ_ins_seq") == "III");
+        CHECK(state.rng == advanced_by(3));
+
+        //A chain the table would never produce: construction writes what it is given.
+        state.construct(*chain, {0, 0, 1});
+        CHECK(state.segment("DJ_ins_seq") == "CAA");
+        CHECK(state.rng == advanced_by(3));
+    }
+
+    SECTION("no realization drawn builds nothing")
+    {
+        GenerationState state;
+        auto v = make_gene_choice(V_gene, {{"V1", "AAAA"}}, /*id=*/0);
+        state.construct(*v, {});
+        CHECK(state.written() == 0);
+    }
+}
+
+// Plan D4: the categorical walk stops at the first realization whose running sum is >= u.
+// Confirmed defects, both pinned through pick_realization(), the walk as a function of u.
+
+TEST_CASE("The categorical walk never draws a zero-mass realization", "[generation][!shouldfail]")
+{
+    //At u = 0 the first realization in walk order satisfies `0 >= 0`, whatever its mass. With
+    //the mass on each realization in turn, at least two of the three have a zero-mass one
+    //walked before them.
+    auto v = make_gene_choice(V_gene, {{"V1", "AAAA"}, {"V2", "CCCC"}, {"V3", "GGGG"}}, /*id=*/0);
+    for (const std::string name : {"V1", "V2", "V3"}) {
+        GenerationState state;
+        state.put_mass(*v, 0, index_of_name(*v, name));
+        INFO("mass on " << name);
+        CHECK(v->pick_realization(state.marginals, 0, 0.0) == index_of_name(*v, name));
+    }
+}
+
+TEST_CASE("A row a rounding error short of the uniform still draws", "[generation][!shouldfail]")
+{
+    //A normalized row can sum to just under 1, and a uniform in [0, 1) can exceed the sum.
+    //The walk then ends having chosen nothing: the event writes nothing, records "()", and the
+    //next event to read its segment throws (G0 met this for real, through a misordered
+    //marginals file).
+    auto v = make_gene_choice(V_gene, {{"V1", "AAAA"}, {"V2", "CCCC"}}, /*id=*/0);
+    GenerationState state;
+    state.put_mass(*v, 0, index_of_name(*v, "V2"));
+    state.marginals[index_of_name(*v, "V2")] = 1.0L - 1e-12L;
+    CHECK(v->pick_realization(state.marginals, 0, 1.0 - 1e-13) == index_of_name(*v, "V2"));
 }
 
 // =======================================================================================

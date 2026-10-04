@@ -70,11 +70,18 @@ On `Rec_Event`:
 |---|---|---|
 | `draw_random_realization(...)` | **non-virtual** | `draw_realization` → `propagate_realization` → `construct_realization`; returns the indices, as today |
 | `draw_realization(marginals, index_map, const segments&, rng)` | virtual | The base implements the categorical walk once. The walk is a pure function of the uniform, which makes D4 testable. `Dinucl_markov` overrides it to draw its chain |
-| `propagate_realization(indices, index_map, offset_map)` | non-virtual | The loop now copied in three places. `Dinucl_markov` has none, as today |
+| `propagate_realization(indices, index_map, offset_map)` | virtual | The default is the loop that was copied in three places. `Dinucl_markov` overrides it with nothing: a chain is sequence-valued and has no single index to condition a child on, and it never moved one |
 | `construct_realization(indices, segments)` | pure virtual | No RNG, marginals or `index_map`. The later `apply` |
 
 The indices are an index list shaped like `SampledEvent::indices`. Construction finds a realization
-by index through a lookup on `Rec_Event`, rebuilt when realizations change.
+by index with `realization_at()`, which scans the realizations. They are keyed by name, and a cache
+by index would have to stay coherent through `copy()` and through the two constructors that insert
+realizations directly. That is not worth it for a scan this size. An index-ordered domain is the
+minimal Event's (REVIEW §7.1).
+
+A chain's draw returns one entry per placeholder, with `kNoRealization` where the walk chose
+nothing, so that construction puts each nucleotide back at the position it was drawn for. The
+realizations file still records only the nucleotides drawn, as before.
 
 ## 3. The container
 
@@ -183,6 +190,20 @@ Eight mutations of the unmodified generator, each built and run against both sui
 | assembly with D before VD | three whole-sequence cases |
 
 All eight caught; the sources were restored and rebuilt after the run.
+
+### 5.3 G1, delivered
+
+- `draw_random_realization()` is non-virtual on `Rec_Event`: draw, then construct, then
+  propagate. The four overrides became `construct_realization()`. `Dinucl_markov` also overrides
+  the draw (its chain) and the propagation (none).
+- The categorical walk is written once, as `pick_realization(marginals, base, u)`. It keeps the
+  legacy arithmetic: a `double` running sum of `long double` entries, `>=`, and
+  `event_realizations` order. The uniform is drawn before the row is looked up, as each override
+  did.
+- `Deletion`'s `mutable` scratch strings are gone; the palindrome is a local.
+- Tests: a case on the split itself (the draw writes nothing; the construction consumes no RNG,
+  for each event type), and D4 as two `[!shouldfail]` cases through `pick_realization()`. Every
+  G0 case passes unchanged.
 
 ## 6. Left for the SamplingEngine connection
 

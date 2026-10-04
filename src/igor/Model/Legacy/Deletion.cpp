@@ -543,102 +543,78 @@ void Deletion::iterate_common(
         (*iter).index, base_index, base_index_map, model_parameters_point);
 }
 
-queue<int> Deletion::draw_random_realization(
-        const Marginal_array_p &model_marginals_p, unordered_map<Rec_Event_name, int> &index_map,
-        const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
-        unordered_map<Seq_type, string> &constructed_sequences, mt19937_64 &generator) const
+void Deletion::construct_realization(const vector<int> &indices,
+                                     unordered_map<Seq_type, string> &constructed_sequences) const
 {
+    if (indices.empty()) {
+        return;
+    }
+    const int deletions = this->realization_at(indices.front()).value_int;
+    string palindrome;
 
-    uniform_real_distribution<double> distribution(0.0, 1.0);
-    double rand = distribution(generator);
-    double prob_count = 0;
-    queue<int> realization_queue;
-    for (unordered_map<string, Event_realization>::const_iterator iter = this->event_realizations.begin();
-         iter != this->event_realizations.end(); ++iter) {
-        prob_count += model_marginals_p[index_map.at(this->get_name()) + (*iter).second.index];
-        if (prob_count >= rand) {
-            const Seq_type target_seq_type = this->target_seq_type;
+    switch (this->target_seq_type) {
 
-            switch (target_seq_type) {
+    case V_gene_seq:
+        if (deletions >= 0) {
+            constructed_sequences.at(V_gene_seq).erase(constructed_sequences.at(V_gene_seq).size() - deletions);
+        } else {
+            string &v_gene_seq = constructed_sequences.at(V_gene_seq);
+            palindrome = v_gene_seq.substr(v_gene_seq.size() + deletions, string::npos);
+            reverse(palindrome.begin(), palindrome.end());
+            make_transversions(palindrome);
+            v_gene_seq += palindrome;
+        }
 
-            case V_gene_seq:
-                if ((*iter).second.value_int >= 0) {
-                    constructed_sequences.at(V_gene_seq)
-                            .erase(constructed_sequences.at(V_gene_seq).size() - (*iter).second.value_int);
-                } else {
-                    string &v_gene_seq = constructed_sequences.at(V_gene_seq);
-                    gen_tmp_str = v_gene_seq.substr(v_gene_seq.size() + (*iter).second.value_int, string::npos);
-                    reverse(gen_tmp_str.begin(), gen_tmp_str.end());
-                    make_transversions(gen_tmp_str);
-                    v_gene_seq += gen_tmp_str;
-                }
+        break;
 
-                break;
+    case D_gene_seq:
+        switch (this->event_side) {
 
-            case D_gene_seq:
-                switch (this->event_side) {
-
-                case Five_prime:
-                    if ((*iter).second.value_int >= 0) {
-                        constructed_sequences.at(D_gene_seq).erase(0, (*iter).second.value_int);
-                    } else {
-                        string &d_gene_seq = constructed_sequences.at(D_gene_seq);
-                        gen_tmp_str = d_gene_seq.substr(0, -(*iter).second.value_int);
-                        reverse(gen_tmp_str.begin(), gen_tmp_str.end());
-                        make_transversions(gen_tmp_str);
-                        gen_new_str = gen_tmp_str + d_gene_seq;
-                        d_gene_seq = gen_new_str;
-                    }
-
-                    break;
-
-                case Three_prime:
-                    if ((*iter).second.value_int >= 0) {
-                        constructed_sequences.at(D_gene_seq)
-                                .erase(constructed_sequences.at(D_gene_seq).size() - (*iter).second.value_int);
-                    } else {
-                        string &d_gene_seq = constructed_sequences.at(D_gene_seq);
-                        gen_tmp_str = d_gene_seq.substr(d_gene_seq.size() + (*iter).second.value_int, string::npos);
-                        reverse(gen_tmp_str.begin(), gen_tmp_str.end());
-                        make_transversions(gen_tmp_str);
-                        d_gene_seq += gen_tmp_str;
-                    }
-
-                    break;
-
-                default:
-                    break;
-                }
-                break;
-            case J_gene_seq:
-                if ((*iter).second.value_int >= 0) {
-                    constructed_sequences.at(J_gene_seq).erase(0, (*iter).second.value_int);
-                } else {
-                    string &j_gene_seq = constructed_sequences.at(J_gene_seq);
-                    gen_tmp_str = j_gene_seq.substr(0, -(*iter).second.value_int);
-                    reverse(gen_tmp_str.begin(), gen_tmp_str.end());
-                    make_transversions(gen_tmp_str);
-                    gen_new_str = gen_tmp_str + j_gene_seq;
-                    j_gene_seq = gen_new_str;
-                }
-
-                break;
-            default:
-                break;
-            }
-            realization_queue.push((*iter).second.index);
-            if (offset_map.count(this->get_name()) != 0) {
-                for (vector<pair<shared_ptr<const Rec_Event>, int>>::const_iterator jiter =
-                             offset_map.at(this->get_name()).begin();
-                     jiter != offset_map.at(this->get_name()).end(); ++jiter) {
-                    index_map.at((*jiter).first->get_name()) += (*iter).second.index * (*jiter).second;
-                }
+        case Five_prime:
+            if (deletions >= 0) {
+                constructed_sequences.at(D_gene_seq).erase(0, deletions);
+            } else {
+                string &d_gene_seq = constructed_sequences.at(D_gene_seq);
+                palindrome = d_gene_seq.substr(0, -deletions);
+                reverse(palindrome.begin(), palindrome.end());
+                make_transversions(palindrome);
+                d_gene_seq = palindrome + d_gene_seq;
             }
 
             break;
+
+        case Three_prime:
+            if (deletions >= 0) {
+                constructed_sequences.at(D_gene_seq).erase(constructed_sequences.at(D_gene_seq).size() - deletions);
+            } else {
+                string &d_gene_seq = constructed_sequences.at(D_gene_seq);
+                palindrome = d_gene_seq.substr(d_gene_seq.size() + deletions, string::npos);
+                reverse(palindrome.begin(), palindrome.end());
+                make_transversions(palindrome);
+                d_gene_seq += palindrome;
+            }
+
+            break;
+
+        default:
+            break;
         }
+        break;
+    case J_gene_seq:
+        if (deletions >= 0) {
+            constructed_sequences.at(J_gene_seq).erase(0, deletions);
+        } else {
+            string &j_gene_seq = constructed_sequences.at(J_gene_seq);
+            palindrome = j_gene_seq.substr(0, -deletions);
+            reverse(palindrome.begin(), palindrome.end());
+            make_transversions(palindrome);
+            j_gene_seq = palindrome + j_gene_seq;
+        }
+
+        break;
+    default:
+        break;
     }
-    return realization_queue;
 }
 
 void Deletion::write2txt(ofstream &outfile)

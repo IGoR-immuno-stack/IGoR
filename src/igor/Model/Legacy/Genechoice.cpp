@@ -711,46 +711,26 @@ double Gene_choice::iterate_common(
                                                       model_parameters);
 }
 
-queue<int> Gene_choice::draw_random_realization(
-        const Marginal_array_p &model_marginals_p, unordered_map<Rec_Event_name, int> &index_map,
-        const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
-        unordered_map<Seq_type, string> &constructed_sequences, mt19937_64 &generator) const
+void Gene_choice::construct_realization(const vector<int> &indices,
+                                        unordered_map<Seq_type, string> &constructed_sequences) const
 {
-    uniform_real_distribution<double> distribution(0.0, 1.0);
-    double rand = distribution(generator);
-    double prob_count = 0;
-    queue<int> realization_queue;
-
-    for (unordered_map<string, Event_realization>::const_iterator iter = this->event_realizations.begin();
-         iter != this->event_realizations.end(); ++iter) {
-        prob_count += model_marginals_p[index_map.at(this->get_name()) + (*iter).second.index];
-        if (prob_count >= rand) {
-            switch (this->event_class) {
-            case V_gene:
-                constructed_sequences[V_gene_seq] = (*iter).second.value_str;
-                break;
-            case D_gene:
-                constructed_sequences[D_gene_seq] = (*iter).second.value_str;
-                break;
-            case J_gene:
-                constructed_sequences[J_gene_seq] = (*iter).second.value_str;
-                break;
-            default:
-                break;
-            }
-            realization_queue.push((*iter).second.index);
-            if (offset_map.count(this->get_name()) != 0) {
-                for (vector<pair<shared_ptr<const Rec_Event>, int>>::const_iterator jiter =
-                             offset_map.at(this->get_name()).begin();
-                     jiter != offset_map.at(this->get_name()).end(); ++jiter) {
-                    index_map.at((*jiter).first->get_name()) += (*iter).second.index * (*jiter).second;
-                }
-            }
-
-            break;
-        }
+    if (indices.empty()) {
+        return;
     }
-    return realization_queue;
+    const Event_realization &realization = this->realization_at(indices.front());
+    switch (this->event_class) {
+    case V_gene:
+        constructed_sequences[V_gene_seq] = realization.value_str;
+        break;
+    case D_gene:
+        constructed_sequences[D_gene_seq] = realization.value_str;
+        break;
+    case J_gene:
+        constructed_sequences[J_gene_seq] = realization.value_str;
+        break;
+    default:
+        break;
+    }
 }
 void Gene_choice::write2txt(ofstream &outfile)
 {

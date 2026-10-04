@@ -300,36 +300,16 @@ inline double Insertion::iterate_common(
     return scenario_proba * prob;
 }
 
-queue<int> Insertion::draw_random_realization(
-        const Marginal_array_p &model_marginals_p, unordered_map<Rec_Event_name, int> &index_map,
-        const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
-        unordered_map<Seq_type, string> &constructed_sequences, mt19937_64 &generator) const
+void Insertion::construct_realization(const vector<int> &indices,
+                                      unordered_map<Seq_type, string> &constructed_sequences) const
 {
-    uniform_real_distribution<double> distribution(0.0, 1.0);
-    double rand = distribution(generator);
-    double prob_count = 0;
-    queue<int> realization_queue;
-    for (unordered_map<string, Event_realization>::const_iterator iter = this->event_realizations.begin();
-         iter != this->event_realizations.end(); ++iter) {
-        prob_count += model_marginals_p[index_map.at(this->get_name()) + (*iter).second.index];
-        if (prob_count >= rand) {
-            Seq_type seq_type = VD_ins_seq;
-            if (insertion_seq_type_str_to_enum(this->seq_type, seq_type)) {
-                constructed_sequences[seq_type] = string((*iter).second.value_int, 'I');
-            }
-            realization_queue.push((*iter).second.index);
-            if (offset_map.count(this->get_name()) != 0) {
-                for (vector<pair<shared_ptr<const Rec_Event>, int>>::const_iterator jiter =
-                             offset_map.at(this->get_name()).begin();
-                     jiter != offset_map.at(this->get_name()).end(); ++jiter) {
-                    index_map.at((*jiter).first->get_name()) += (*iter).second.index * (*jiter).second;
-                }
-            }
-
-            break;
-        }
+    if (indices.empty()) {
+        return;
     }
-    return realization_queue;
+    Seq_type seq_type = VD_ins_seq;
+    if (insertion_seq_type_str_to_enum(this->seq_type, seq_type)) {
+        constructed_sequences[seq_type] = string(this->realization_at(indices.front()).value_int, 'I');
+    }
 }
 
 void Insertion::write2txt(ofstream &outfile)
