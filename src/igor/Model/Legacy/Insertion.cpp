@@ -42,23 +42,6 @@ using namespace igor::alignment::legacy;
 
 using namespace std;
 
-namespace {
-/// Convert the seq_type string (e.g. "VD_ins_seq") to a Seq_type enum value.
-/// Returns false when the string is not a recognised insertion seq_type.
-///
-/// Callers left are the ones feeding a genuinely Seq_type-keyed API: the generation path's
-/// `unordered_map<Seq_type, string>` (B9) and the Len_proba machinery (G5/S4). What no longer
-/// needs it is initialize_event(), which addresses the scenario maps -- those are keyed by
-/// SeqTypeId, the only identity a non-legacy seq_type can have at all.
-bool insertion_seq_type_str_to_enum(const Seq_type_String &seq_type_str, Seq_type &out)
-{
-    if (seq_type_str == "VD_ins_seq") { out = VD_ins_seq; return true; }
-    if (seq_type_str == "DJ_ins_seq") { out = DJ_ins_seq; return true; }
-    if (seq_type_str == "VJ_ins_seq") { out = VJ_ins_seq; return true; }
-    return false;
-}
-
-} // namespace
 
 
 
@@ -305,10 +288,8 @@ void Insertion::construct_realization(const vector<int> &indices, GenerationStat
     if (indices.empty()) {
         return;
     }
-    Seq_type seq_type = VD_ins_seq;
-    if (insertion_seq_type_str_to_enum(this->seq_type, seq_type)) {
-        segments.create(legacy_segment(segments, seq_type), string(this->realization_at(indices.front()).value_int, 'I'));
-    }
+    //Placeholders for the nucleotides: the Dinucl_markov that follows fills them.
+    segments.create(this->seq_type_id, string(this->realization_at(indices.front()).value_int, 'I'));
 }
 
 void Insertion::write2txt(ofstream &outfile)

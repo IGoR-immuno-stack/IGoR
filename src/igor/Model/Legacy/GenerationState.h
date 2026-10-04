@@ -27,6 +27,7 @@
 #include <igor/Core/Legacy/DynamicSequenceMap.h>
 #include <igor/Core/Legacy/SeqTypeRegistry.h>
 
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -70,9 +71,16 @@ public:
 
     /// Create the segment `id` with `content`, as an event that constructs it does. Replaces
     /// whatever was there.
+    /// \throws std::out_of_range if `id` is not one of the registry's, which is what an event
+    ///         whose seq_type Model_Parms::finalize() never resolved holds (kNoSeqType)
     std::string &create(SeqTypeId id, std::string content)
     {
-        std::string &buffer = buffers_.at(id);
+        if (id >= buffers_.size()) {
+            throw std::out_of_range("GenerationState::create(): seq_type id " + std::to_string(id)
+                                    + " is not in the model's registry; Model_Parms::finalize() resolves "
+                                      "each event's seq_type to one");
+        }
+        std::string &buffer = buffers_[id];
         buffer = std::move(content);
         segments_.set(id, &buffer, 0);
         return buffer;

@@ -698,13 +698,13 @@ TEST_CASE("Generation: a Markov chain fills its insertion from the anchor's end"
 }
 
 // =======================================================================================
-// Tandem D: what the generator should do on a V-D1-D2-J layout. None of it can today --
-// every case below fails on the Seq_type enum -- and each tag comes off in the commit that
-// makes its case pass (G4a, G4b, G4c).
+// Tandem D: what the generator should do on a V-D1-D2-J layout. Each case was written in G0,
+// failing on the Seq_type enum, and its tag came off in the commit that made it pass: gene
+// choice and insertion in G4a; deletion in G4b; the chain and the end-to-end case in G4c.
 // =======================================================================================
 
 TEST_CASE("Generation on a tandem-D layout: each D slot's gene choice writes its own segment",
-          "[generation][tandem_d][!shouldfail]")
+          "[generation][tandem_d]")
 {
     const SeqTypeRegistry &registry = tandem_registry();
     Generator state(registry);
@@ -720,7 +720,7 @@ TEST_CASE("Generation on a tandem-D layout: each D slot's gene choice writes its
 }
 
 TEST_CASE("Generation on a tandem-D layout: an insertion writes its own junction",
-          "[generation][tandem_d][!shouldfail]")
+          "[generation][tandem_d]")
 {
     const SeqTypeRegistry &registry = tandem_registry();
     Generator state(registry);

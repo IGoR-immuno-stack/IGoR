@@ -716,20 +716,7 @@ void Gene_choice::construct_realization(const vector<int> &indices, GenerationSt
     if (indices.empty()) {
         return;
     }
-    const Event_realization &realization = this->realization_at(indices.front());
-    switch (this->event_class) {
-    case V_gene:
-        segments.create(legacy_segment(segments, V_gene_seq), realization.value_str);
-        break;
-    case D_gene:
-        segments.create(legacy_segment(segments, D_gene_seq), realization.value_str);
-        break;
-    case J_gene:
-        segments.create(legacy_segment(segments, J_gene_seq), realization.value_str);
-        break;
-    default:
-        break;
-    }
+    segments.create(this->seq_type_id, this->realization_at(indices.front()).value_str);
 }
 void Gene_choice::write2txt(ofstream &outfile)
 {
