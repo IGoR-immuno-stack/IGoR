@@ -35,7 +35,7 @@
  * is pinned separately, by comparing the generator against a copy advanced by the number of
  * uniforms the step should have consumed: that count is part of what makes a seed reproduce.
  *
- * Segments are addressed by seq_type *name* through GenerationState, never by the Seq_type
+ * Segments are addressed by seq_type *name* through the Generator fixture, never by the Seq_type
  * enum, so that the bodies below survive the container change (G3) and so that the tandem-D
  * cases can state what they expect before the code can deliver it.
  */
@@ -66,14 +66,16 @@ using OffsetMap =
         std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>>;
 
 /**
- * What one generated sequence is built in, plus everything a draw reads.
+ * A GenerationState, plus everything a draw reads.
  *
- * The only place that knows the generator's container. Everything else goes through the
- * seq_type name, so a change of container changes this class and nothing below it.
+ * The only place that knows how the generator stores its segments. Everything else goes through
+ * the seq_type name, so a change of container changes this class and nothing below it (G3 did).
  */
-class GenerationState {
+class Generator {
 public:
-    explicit GenerationState(const SeqTypeRegistry &registry = vdj_seq_type_registry()) : registry_(registry) {}
+    explicit Generator(const SeqTypeRegistry &registry = vdj_seq_type_registry())
+        : registry_(registry), segments_(registry)
+    {}
 
     Marginal_array_p marginals{new long double[kMarginalSize]()};
     std::unordered_map<Rec_Event_name, int> index_map;
@@ -83,27 +85,25 @@ public:
     /// Write a segment as an upstream event would have left it.
     void preset(const std::string &seq_type, const std::string &content)
     {
-        sequences_[str2SeqType(seq_type)] = content;
+        segments_.create(registry_.id(seq_type), content);
     }
 
-    bool has(const std::string &seq_type) const { return sequences_.count(str2SeqType(seq_type)) != 0; }
+    bool has(const std::string &seq_type) const { return segments_.built(registry_.id(seq_type)); }
 
-    std::string segment(const std::string &seq_type) const { return sequences_.at(str2SeqType(seq_type)); }
+    std::string segment(const std::string &seq_type) const { return segments_.read(registry_.id(seq_type)); }
 
-    /// Number of segments written so far, whatever their names.
-    std::size_t written() const { return sequences_.size(); }
-
-    /// The segments in the registry's 5'->3' order, skipping those nobody wrote.
-    std::string assemble() const
+    /// Number of segments built so far, whatever their names.
+    std::size_t written() const
     {
-        std::string out;
-        for (const auto &name : registry_.get_ordered_types()) {
-            if (has(name)) {
-                out += segment(name);
-            }
+        std::size_t count = 0;
+        for (std::size_t id = 0; id != registry_.total_count(); ++id) {
+            count += segments_.built(static_cast<SeqTypeId>(id)) ? 1 : 0;
         }
-        return out;
+        return count;
     }
+
+    /// The segments in the registry's 5'->3' order, skipping those nobody built.
+    std::string assemble() const { return segments_.assemble(); }
 
     /// All of `event`'s mass on realization `index`, in a block starting at `base`.
     void put_mass(const Rec_Event &event, int base, int index)
@@ -117,24 +117,24 @@ public:
 
     std::queue<int> draw(const Rec_Event &event)
     {
-        return event.draw_random_realization(marginals, index_map, offset_map, sequences_, rng);
+        return event.draw_random_realization(marginals, index_map, offset_map, segments_, rng);
     }
 
     /// The draw alone: indices, and nothing written.
     std::vector<int> draw_indices(const Rec_Event &event)
     {
-        return event.draw_realization(marginals, index_map, sequences_, rng);
+        return event.draw_realization(marginals, index_map, segments_, rng);
     }
 
     /// The construction alone, from indices however they were obtained.
     void construct(const Rec_Event &event, const std::vector<int> &indices)
     {
-        event.construct_realization(indices, sequences_);
+        event.construct_realization(indices, segments_);
     }
 
 private:
     const SeqTypeRegistry &registry_;
-    std::unordered_map<Seq_type, std::string> sequences_;
+    GenerationState segments_;
 };
 
 std::vector<int> as_vector(std::queue<int> queue)
@@ -147,7 +147,7 @@ std::vector<int> as_vector(std::queue<int> queue)
     return out;
 }
 
-/// A generator in the state GenerationState's starts in, advanced by `uniforms` draws.
+/// A random generator in the state Generator's starts in, advanced by `uniforms` draws.
 std::mt19937_64 advanced_by(int uniforms)
 {
     std::mt19937_64 rng{kSeed};
@@ -190,7 +190,7 @@ std::shared_ptr<Event> place(std::shared_ptr<Event> event, const SeqTypeRegistry
 /// One-realization deletion of `value` on `seq_type`'s `side`, drawn on `content`.
 std::string generated_trim(Seq_type target, Seq_side side, int value, const std::string &content)
 {
-    GenerationState state;
+    Generator state;
     auto deletion = make_deletion(target, side, value, value, /*id=*/0);
     const std::string name = EventUtils::seq_type_to_string(target);
     state.preset(name, content);
@@ -201,7 +201,7 @@ std::string generated_trim(Seq_type target, Seq_side side, int value, const std:
 
 /// A Markov chain over A,C,G,T whose every transition is certain: A->C, C->G, G->T, T->A. Its
 /// ambiguous rows follow from update_event_internal_probas(), as in a real run.
-std::shared_ptr<Dinucl_markov> cyclic_chain(GenerationState &state, Seq_type target,
+std::shared_ptr<Dinucl_markov> cyclic_chain(Generator &state, Seq_type target,
                                             const SeqTypeRegistry &registry, int base,
                                             const std::string &seq_type = "")
 {
@@ -265,13 +265,13 @@ std::optional<std::string> inferred_trim(Seq_type target, Seq_side side, int val
 
 TEST_CASE("Generation: a categorical draw follows the event's marginal row", "[generation]")
 {
-    GenerationState state;
+    Generator state;
     auto v = make_gene_choice(V_gene, {{"V1", "AAAA"}, {"V2", "CCCC"}, {"V3", "GGGG"}}, /*id=*/0);
 
     SECTION("whichever realization holds the mass is the one drawn")
     {
         for (const std::string name : {"V1", "V2", "V3"}) {
-            GenerationState fresh;
+            Generator fresh;
             fresh.put_mass(*v, 0, index_of_name(*v, name));
             CHECK(as_vector(fresh.draw(*v)) == std::vector<int>{index_of_name(*v, name)});
         }
@@ -306,7 +306,7 @@ TEST_CASE("Generation: a categorical draw follows the event's marginal row", "[g
 
 TEST_CASE("Generation: a drawn realization moves its children's rows", "[generation]")
 {
-    GenerationState state;
+    Generator state;
     auto v = make_gene_choice(V_gene, {{"V1", "AAAA"}, {"V2", "CCCC"}, {"V3", "GGGG"}}, /*id=*/0);
     auto j = make_gene_choice(J_gene, {{"J1", "TTTT"}, {"J2", "GGTT"}}, /*id=*/1);
     auto v_del = make_deletion(V_gene_seq, Three_prime, 0, 4, /*id=*/2);
@@ -352,7 +352,7 @@ TEST_CASE("Generation: the draw writes nothing, and the construction draws nothi
     //the construction reads the indices and nothing else.
     SECTION("gene choice")
     {
-        GenerationState state;
+        Generator state;
         auto v = make_gene_choice(V_gene, {{"V1", "AAAA"}, {"V2", "CCCC"}}, /*id=*/0);
         state.put_mass(*v, 0, index_of_name(*v, "V2"));
         CHECK(state.draw_indices(*v) == std::vector<int>{index_of_name(*v, "V2")});
@@ -368,7 +368,7 @@ TEST_CASE("Generation: the draw writes nothing, and the construction draws nothi
 
     SECTION("deletion")
     {
-        GenerationState state;
+        Generator state;
         auto deletion = make_deletion(V_gene_seq, Three_prime, 0, 3, /*id=*/0);
         state.preset("V_gene_seq", "AACCGG");
         state.put_mass(*deletion, 0, index_of_value(*deletion, 2));
@@ -380,7 +380,7 @@ TEST_CASE("Generation: the draw writes nothing, and the construction draws nothi
 
     SECTION("insertion")
     {
-        GenerationState state;
+        Generator state;
         auto insertion = make_insertion(DJ_ins_seq, 0, 5, /*id=*/0);
         state.put_mass(*insertion, 0, index_of_value(*insertion, 4));
         CHECK(state.draw_indices(*insertion) == std::vector<int>{index_of_value(*insertion, 4)});
@@ -391,7 +391,7 @@ TEST_CASE("Generation: the draw writes nothing, and the construction draws nothi
 
     SECTION("Markov chain")
     {
-        GenerationState state;
+        Generator state;
         auto chain = cyclic_chain(state, DJ_ins_seq, vdj_seq_type_registry(), 0);
         state.preset("J_gene_seq", "CAAA");
         state.preset("DJ_ins_seq", "III");
@@ -407,7 +407,7 @@ TEST_CASE("Generation: the draw writes nothing, and the construction draws nothi
 
     SECTION("no realization drawn builds nothing")
     {
-        GenerationState state;
+        Generator state;
         auto v = make_gene_choice(V_gene, {{"V1", "AAAA"}}, /*id=*/0);
         state.construct(*v, {});
         CHECK(state.written() == 0);
@@ -424,7 +424,7 @@ TEST_CASE("The categorical walk never draws a zero-mass realization", "[generati
     //walked before them.
     auto v = make_gene_choice(V_gene, {{"V1", "AAAA"}, {"V2", "CCCC"}, {"V3", "GGGG"}}, /*id=*/0);
     for (const std::string name : {"V1", "V2", "V3"}) {
-        GenerationState state;
+        Generator state;
         state.put_mass(*v, 0, index_of_name(*v, name));
         INFO("mass on " << name);
         CHECK(v->pick_realization(state.marginals, 0, 0.0) == index_of_name(*v, name));
@@ -438,7 +438,7 @@ TEST_CASE("A row a rounding error short of the uniform still draws", "[generatio
     //next event to read its segment throws (G0 met this for real, through a misordered
     //marginals file).
     auto v = make_gene_choice(V_gene, {{"V1", "AAAA"}, {"V2", "CCCC"}}, /*id=*/0);
-    GenerationState state;
+    Generator state;
     state.put_mass(*v, 0, index_of_name(*v, "V2"));
     state.marginals[index_of_name(*v, "V2")] = 1.0L - 1e-12L;
     CHECK(v->pick_realization(state.marginals, 0, 1.0 - 1e-13) == index_of_name(*v, "V2"));
@@ -458,7 +458,7 @@ TEST_CASE("Generation: a gene choice writes its template on its segment", "[gene
                                     Instance{J_gene, "J_gene_seq"}}) {
         DYNAMIC_SECTION(instance.seq_type)
         {
-            GenerationState state;
+            Generator state;
             auto gene = make_gene_choice(instance.gene_class, {{"G1", "ACGTTGCA"}, {"G2", "TTTT"}}, /*id=*/0);
             state.put_mass(*gene, 0, index_of_name(*gene, "G1"));
             state.draw(*gene);
@@ -505,7 +505,7 @@ TEST_CASE("Generation: a deletion trims its segment", "[generation]")
     }
     SECTION("trimming a segment nobody drew throws")
     {
-        GenerationState state;
+        Generator state;
         auto deletion = make_deletion(D_gene_seq, Five_prime, 2, 2, /*id=*/0);
         state.put_mass(*deletion, 0, 0);
         CHECK_THROWS_AS(state.draw(*deletion), std::out_of_range);
@@ -598,7 +598,7 @@ TEST_CASE("Generation: an insertion writes one placeholder per inserted nucleoti
         const std::string name = EventUtils::seq_type_to_string(target);
         DYNAMIC_SECTION(name)
         {
-            GenerationState state;
+            Generator state;
             auto insertion = make_insertion(target, 0, 5, /*id=*/0);
             state.put_mass(*insertion, 0, index_of_value(*insertion, 3));
             CHECK(as_vector(state.draw(*insertion)) == std::vector<int>{index_of_value(*insertion, 3)});
@@ -608,7 +608,7 @@ TEST_CASE("Generation: an insertion writes one placeholder per inserted nucleoti
 
     SECTION("no insertion writes an empty segment, which is not the same as none")
     {
-        GenerationState state;
+        Generator state;
         auto insertion = make_insertion(VD_ins_seq, 0, 5, /*id=*/0);
         state.put_mass(*insertion, 0, index_of_value(*insertion, 0));
         state.draw(*insertion);
@@ -621,7 +621,7 @@ TEST_CASE("Generation: a Markov chain fills its insertion from the anchor's end"
 {
     SECTION("seeded from the 3' end of the segment on its left")
     {
-        GenerationState state;
+        Generator state;
         auto chain = cyclic_chain(state, VD_ins_seq, vdj_seq_type_registry(), 0);
         state.preset("V_gene_seq", "GGGA");
         state.preset("VD_ins_seq", "III");
@@ -634,7 +634,7 @@ TEST_CASE("Generation: a Markov chain fills its insertion from the anchor's end"
     {
         //The chain runs leftwards from J: C, then G, T, A. The draws are recorded in the order
         //they were made, and the segment is that chain read 5'->3'.
-        GenerationState state;
+        Generator state;
         auto chain = cyclic_chain(state, DJ_ins_seq, vdj_seq_type_registry(), 0);
         state.preset("J_gene_seq", "CAAA");
         state.preset("DJ_ins_seq", "III");
@@ -644,7 +644,7 @@ TEST_CASE("Generation: a Markov chain fills its insertion from the anchor's end"
 
     SECTION("a VJ junction, seeded from V")
     {
-        GenerationState state(vj_seq_type_registry());
+        Generator state(vj_seq_type_registry());
         auto chain = cyclic_chain(state, VJ_ins_seq, vj_seq_type_registry(), 0);
         state.preset("V_gene_seq", "TTTG");
         state.preset("VJ_ins_seq", "III");
@@ -654,7 +654,7 @@ TEST_CASE("Generation: a Markov chain fills its insertion from the anchor's end"
 
     SECTION("an empty insertion draws nothing and consumes nothing")
     {
-        GenerationState state;
+        Generator state;
         auto chain = cyclic_chain(state, VD_ins_seq, vdj_seq_type_registry(), 0);
         state.preset("V_gene_seq", "GGGA");
         state.preset("VD_ins_seq", "");
@@ -668,7 +668,7 @@ TEST_CASE("Generation: a Markov chain fills its insertion from the anchor's end"
         //Never produced by an Insertion, which writes nothing but placeholders. Pinned because
         //the split (G1) has to reproduce it: a draw that returned a plain chain and a
         //construction that overwrote every position would differ exactly here.
-        GenerationState state;
+        Generator state;
         auto chain = cyclic_chain(state, VD_ins_seq, vdj_seq_type_registry(), 0);
         state.preset("V_gene_seq", "GGGA");
         state.preset("VD_ins_seq", "IAI");
@@ -681,7 +681,7 @@ TEST_CASE("Generation: a Markov chain fills its insertion from the anchor's end"
     {
         //Plan D6: inference throws here too (§7.12, R2). What a chain should seed from when its
         //anchor is empty is B10's question, for both.
-        GenerationState state;
+        Generator state;
         auto chain = cyclic_chain(state, VD_ins_seq, vdj_seq_type_registry(), 0);
         state.preset("V_gene_seq", "");
         state.preset("VD_ins_seq", "II");
@@ -690,7 +690,7 @@ TEST_CASE("Generation: a Markov chain fills its insertion from the anchor's end"
 
     SECTION("a chain whose insertion was not drawn throws")
     {
-        GenerationState state;
+        Generator state;
         auto chain = cyclic_chain(state, VD_ins_seq, vdj_seq_type_registry(), 0);
         state.preset("V_gene_seq", "GGGA");
         CHECK_THROWS_AS(state.draw(*chain), std::out_of_range);
@@ -707,7 +707,7 @@ TEST_CASE("Generation on a tandem-D layout: each D slot's gene choice writes its
           "[generation][tandem_d][!shouldfail]")
 {
     const SeqTypeRegistry &registry = tandem_registry();
-    GenerationState state(registry);
+    Generator state(registry);
     auto d1 = place(make_gene_choice(D_gene, {{"D1", "GGGTTT"}}, /*id=*/0), registry, "D1_gene_seq");
     auto d2 = place(make_gene_choice(D_gene, {{"D1", "GGGTTT"}, {"D2", "CCCAAA"}}, /*id=*/1), registry,
                     "D2_gene_seq");
@@ -723,7 +723,7 @@ TEST_CASE("Generation on a tandem-D layout: an insertion writes its own junction
           "[generation][tandem_d][!shouldfail]")
 {
     const SeqTypeRegistry &registry = tandem_registry();
-    GenerationState state(registry);
+    Generator state(registry);
     auto insertion = place(make_insertion(VD_ins_seq, 0, 3, /*id=*/0), registry, "D1D2_ins_seq");
     state.put_mass(*insertion, 0, index_of_value(*insertion, 2));
     state.draw(*insertion);
@@ -734,7 +734,7 @@ TEST_CASE("Generation on a tandem-D layout: a deletion trims its own D slot",
           "[generation][tandem_d][!shouldfail]")
 {
     const SeqTypeRegistry &registry = tandem_registry();
-    GenerationState state(registry);
+    Generator state(registry);
     auto deletion = place(make_deletion(D_gene_seq, Five_prime, 2, 2, /*id=*/0), registry, "D2_gene_seq");
     state.preset("D1_gene_seq", "GGGTTT");
     state.preset("D2_gene_seq", "CCCAAA");
@@ -748,7 +748,7 @@ TEST_CASE("Generation on a tandem-D layout: the D1-D2 chain seeds from D1's 3' e
           "[generation][tandem_d][!shouldfail]")
 {
     const SeqTypeRegistry &registry = tandem_registry();
-    GenerationState state(registry);
+    Generator state(registry);
     auto chain = cyclic_chain(state, VD_ins_seq, registry, 0, "D1D2_ins_seq");
     state.preset("D1_gene_seq", "GGGTTA");
     state.preset("D1D2_ins_seq", "II");
@@ -762,7 +762,7 @@ TEST_CASE("Generation on a tandem-D layout: one sequence, end to end", "[generat
     //legacy queue order: genes, then deletions, then insertions, then the chains. Priorities
     //are distinct so that no two events share a generated name (T2).
     const SeqTypeRegistry &registry = tandem_registry();
-    GenerationState state(registry);
+    Generator state(registry);
     int base = 0;
     int priority = 30;
     std::vector<std::shared_ptr<Rec_Event>> queue;

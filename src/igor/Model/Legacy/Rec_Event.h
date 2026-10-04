@@ -34,6 +34,7 @@
 #include <igor/Core/Legacy/SeqTypeRegistry.h>
 #include <igor/Model/Legacy/UnfilledSegmentLengths.h>
 #include <igor/Model/Legacy/FoldFrontier.h>
+#include <igor/Model/Legacy/GenerationState.h>
 #include <igor/Model/Legacy/SpanProfile.h>
 #include <igor/Core/Legacy/Utils.h>
 #include <igor/Model/Legacy/EventTypedefs.h>
@@ -329,7 +330,7 @@ public:
     std::queue<int> draw_random_realization(
             const Marginal_array_p &, std::unordered_map<Rec_Event_name, int> &,
             const std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &,
-            std::unordered_map<Seq_type, std::string> &, std::mt19937_64 &) const;
+            GenerationState &, std::mt19937_64 &) const;
 
     /// What a draw records when the walk ends without choosing anything (plan D4).
     static constexpr int kNoRealization = -1;
@@ -345,8 +346,7 @@ public:
      */
     virtual std::vector<int> draw_realization(const Marginal_array_p &,
                                               const std::unordered_map<Rec_Event_name, int> &,
-                                              const std::unordered_map<Seq_type, std::string> &,
-                                              std::mt19937_64 &) const;
+                                              const GenerationState &, std::mt19937_64 &) const;
 
     /**
      * The realization the categorical walk stops at for the uniform `u`: realizations in
@@ -360,8 +360,7 @@ public:
      * no index map: this is the event's `apply` (ARCHITECTURE_SYNTHESIS §5), the half a
      * sampling engine drives with the indices it sampled.
      */
-    virtual void construct_realization(const std::vector<int> &indices,
-                                       std::unordered_map<Seq_type, std::string> &) const = 0;
+    virtual void construct_realization(const std::vector<int> &indices, GenerationState &) const = 0;
 
     /// Move each child's row in the index map by the realization drawn times the child's
     /// stride, so that the child draws from the row its parent selected.
@@ -373,6 +372,11 @@ public:
     /// The realization whose index is `index`. A scan: realizations are keyed by name, and an
     /// index-ordered domain is the minimal Event's (SEGMENT_DECOMPOSITION_REVIEW §7.1).
     const Event_realization &realization_at(int index) const;
+
+    /// The id the generator's registry gives a legacy segment. Transitional: what the
+    /// construction switches still address by V, D and J name, until G4 of
+    /// docs/GENERATION_REWRITE_PLAN.md takes the switches out.
+    static SeqTypeId legacy_segment(const GenerationState &, Seq_type);
     ///@}
     virtual void write2txt(std::ofstream &) = 0;
     virtual void write2txt_legacy(std::ofstream &) = 0;

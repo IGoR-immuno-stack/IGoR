@@ -300,15 +300,14 @@ inline double Insertion::iterate_common(
     return scenario_proba * prob;
 }
 
-void Insertion::construct_realization(const vector<int> &indices,
-                                      unordered_map<Seq_type, string> &constructed_sequences) const
+void Insertion::construct_realization(const vector<int> &indices, GenerationState &segments) const
 {
     if (indices.empty()) {
         return;
     }
     Seq_type seq_type = VD_ins_seq;
     if (insertion_seq_type_str_to_enum(this->seq_type, seq_type)) {
-        constructed_sequences[seq_type] = string(this->realization_at(indices.front()).value_int, 'I');
+        segments.create(legacy_segment(segments, seq_type), string(this->realization_at(indices.front()).value_int, 'I'));
     }
 }
 

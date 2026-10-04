@@ -628,7 +628,7 @@ public:
 
     //Unused surface, present only because Rec_Event declares it pure virtual.
     std::shared_ptr<Rec_Event> copy() override;
-    void construct_realization(const std::vector<int> &, std::unordered_map<Seq_type, std::string> &) const override {}
+    void construct_realization(const std::vector<int> &, GenerationState &) const override {}
     OffsetDelta get_offset_delta_bounds(SeqTypeId, Seq_side) const override { return {}; }
     LengthContribution get_length_contribution(SeqTypeId) const override { return {}; }
     SeqConstructionRole get_seq_construction_role(SeqTypeId) const override

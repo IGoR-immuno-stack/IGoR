@@ -324,8 +324,7 @@ void require_legacy_enums(const DinuclTraversalSpec &spec, const string &name)
 } // namespace
 
 vector<int> Dinucl_markov::draw_realization(const Marginal_array_p &, const unordered_map<Rec_Event_name, int> &,
-                                            const unordered_map<Seq_type, string> &constructed_sequences,
-                                            mt19937_64 &generator) const
+                                            const GenerationState &segments, mt19937_64 &generator) const
 {
     uniform_real_distribution<double> distribution(0.0, 1.0);
 
@@ -334,8 +333,8 @@ vector<int> Dinucl_markov::draw_realization(const Marginal_array_p &, const unor
 
     //Copies: the draw reads what has been built and writes nothing. The chain runs away from
     //its anchor, so a chain seeded from the anchor's 5' end reads that anchor backwards.
-    string target_ins_seq = constructed_sequences.at(spec.target_seq);
-    string anchor_seq = constructed_sequences.at(spec.anchor_seq);
+    string target_ins_seq = segments.read(legacy_segment(segments, spec.target_seq));
+    string anchor_seq = segments.read(legacy_segment(segments, spec.anchor_seq));
     if (spec.anchor_side == Five_prime) {
         reverse(anchor_seq.begin(), anchor_seq.end());
     }
@@ -395,15 +394,14 @@ vector<int> Dinucl_markov::draw_chain(const string &previous_seq, string &insert
     return chain;
 }
 
-void Dinucl_markov::construct_realization(const vector<int> &chain,
-                                          unordered_map<Seq_type, string> &constructed_sequences) const
+void Dinucl_markov::construct_realization(const vector<int> &chain, GenerationState &segments) const
 {
     const DinuclTraversalSpec spec = get_junction();
     require_legacy_enums(spec, this->name);
 
     //One chain entry per placeholder, in chain order; the chain then reads 5'->3' once turned
     //around for a chain that ran from the right.
-    string &target_ins_seq = constructed_sequences.at(spec.target_seq);
+    string &target_ins_seq = segments.modify(legacy_segment(segments, spec.target_seq));
     size_t next = 0;
     for (char &position : target_ins_seq) {
         if (position != 'I') {

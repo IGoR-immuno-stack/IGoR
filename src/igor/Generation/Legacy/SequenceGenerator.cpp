@@ -28,6 +28,7 @@
 
 #include <igor/Generation/Legacy/SequenceGenerator.h>
 #include <igor/Alignment/Legacy/Aligner.h>
+#include <igor/Model/Legacy/GenerationState.h>
 
 namespace igor::generation::legacy {
 using namespace igor::core::legacy;
@@ -201,21 +202,21 @@ pair<string, queue<queue<int>>> SequenceGenerator::generate_unique_sequence(
         }
     }
 
-    unordered_map<Seq_type, string> *constructed_sequences_p = new unordered_map<Seq_type, string>;
-    unordered_map<Seq_type, string> constructed_sequences = *constructed_sequences_p;
+    //The segments are assembled in the model's 5'->3' order, so a model without one cannot be
+    //generated from. Model_Parms::finalize() sets it, inferring VDJ or VJ for a legacy file.
+    const SeqTypeRegistry &registry = this->model_parms.get_seq_type_registry();
+    if (registry.ordering().empty()) {
+        throw runtime_error("SequenceGenerator::generate_unique_sequence(): the model has no segment order to "
+                            "assemble a sequence in; Model_Parms::finalize() sets it");
+    }
+    GenerationState segments(registry);
     queue<queue<int>> realizations;
     while (!model_queue.empty()) {
         realizations.push(model_queue.front()->draw_random_realization((this->model_marginals.marginal_array_smart_p),
-                                                                       index_map, offset_map, constructed_sequences,
-                                                                       generator));
+                                                                       index_map, offset_map, segments, generator));
         model_queue.pop();
     }
-    //CAT strings
-    string reconstructed_seq = constructed_sequences[V_gene_seq] + constructed_sequences[VJ_ins_seq]
-            + constructed_sequences[VD_ins_seq] + constructed_sequences[D_gene_seq] + constructed_sequences[DJ_ins_seq]
-            + constructed_sequences[J_gene_seq];
-    delete constructed_sequences_p;
-    return make_pair(reconstructed_seq, realizations);
+    return make_pair(segments.assemble(), realizations);
 }
 
 void SequenceGenerator::write_seq2txt(string filename, forward_list<string> sequences)

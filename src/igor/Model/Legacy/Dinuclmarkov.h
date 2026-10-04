@@ -64,10 +64,9 @@ struct DinuclTraversalSpec {
     Seq_side anchor_side = Undefined_side;
 
     ///@{ \name Legacy enum handles, for the generation path only
-    /// The generator's segments are an `unordered_map<Seq_type, string>`, which no non-legacy
-    /// seq_type can key. Resolved when the names allow it and unused otherwise; G4c of
-    /// docs/GENERATION_REWRITE_PLAN.md removes them with the rest of the generation path's enum
-    /// dependency.
+    /// The generator still addresses this chain's segments by legacy name. Resolved when the
+    /// names allow it and unused otherwise; G4c of docs/GENERATION_REWRITE_PLAN.md removes them
+    /// with the rest of the generation path's enum dependency.
     Seq_type target_seq = VD_ins_seq;
     Seq_type anchor_seq = V_gene_seq;
     bool legacy_enums_valid = false;
@@ -127,9 +126,8 @@ public:
 
     void add_realization(int);
     std::vector<int> draw_realization(const Marginal_array_p &, const std::unordered_map<Rec_Event_name, int> &,
-                                      const std::unordered_map<Seq_type, std::string> &,
-                                      std::mt19937_64 &) const override;
-    void construct_realization(const std::vector<int> &, std::unordered_map<Seq_type, std::string> &) const override;
+                                      const GenerationState &, std::mt19937_64 &) const override;
+    void construct_realization(const std::vector<int> &, GenerationState &) const override;
     /// A chain is sequence-valued: it has no single index to condition a child's row on, and it
     /// never moved one.
     void propagate_realization(

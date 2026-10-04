@@ -224,6 +224,19 @@ All eight caught; the sources were restored and rebuilt after the run.
 Three mutations, all caught: assembly over every id instead of the ordering; every segment built
 up front; `create` appending.
 
+### 5.5 G3, delivered
+
+- `GenModel::generate_unique_sequence()` builds each sequence in a `GenerationState` sized from
+  the model's registry, and assembles it in `registry.ordering()`. A model with no ordering is
+  refused. Both programmatic callers of `generate_sequences` (igor-demo, the legacy demo) load
+  from a file, so `finalize()` has set one.
+- The construction switches stayed. They address the state through
+  `Rec_Event::legacy_segment()`, which looks a legacy name up in the generator's registry rather
+  than casting the enum, so a v2 file is addressed correctly whatever its ordering.
+- The test fixture now holds a real `GenerationState`; no case changed.
+- Gates: unit 480/480, integration 10/10, regression bitwise on all five tracks, convergence 2/2;
+  the seeded TRA and TRB pins unchanged.
+
 ## 6. Left for the SamplingEngine connection
 
 Recorded here, not done in this plan:

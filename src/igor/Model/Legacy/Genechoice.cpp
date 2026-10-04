@@ -711,8 +711,7 @@ double Gene_choice::iterate_common(
                                                       model_parameters);
 }
 
-void Gene_choice::construct_realization(const vector<int> &indices,
-                                        unordered_map<Seq_type, string> &constructed_sequences) const
+void Gene_choice::construct_realization(const vector<int> &indices, GenerationState &segments) const
 {
     if (indices.empty()) {
         return;
@@ -720,13 +719,13 @@ void Gene_choice::construct_realization(const vector<int> &indices,
     const Event_realization &realization = this->realization_at(indices.front());
     switch (this->event_class) {
     case V_gene:
-        constructed_sequences[V_gene_seq] = realization.value_str;
+        segments.create(legacy_segment(segments, V_gene_seq), realization.value_str);
         break;
     case D_gene:
-        constructed_sequences[D_gene_seq] = realization.value_str;
+        segments.create(legacy_segment(segments, D_gene_seq), realization.value_str);
         break;
     case J_gene:
-        constructed_sequences[J_gene_seq] = realization.value_str;
+        segments.create(legacy_segment(segments, J_gene_seq), realization.value_str);
         break;
     default:
         break;

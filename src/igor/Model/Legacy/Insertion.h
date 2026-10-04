@@ -80,7 +80,7 @@ public:
             AccumulationContext& accumulation) override;
 
     bool add_realization(int);
-    void construct_realization(const std::vector<int> &, std::unordered_map<Seq_type, std::string> &) const override;
+    void construct_realization(const std::vector<int> &, GenerationState &) const override;
     void write2txt(std::ofstream &) override;
     void write2txt_legacy(std::ofstream &) override;
     void write2txt_v2(std::ofstream &) override;

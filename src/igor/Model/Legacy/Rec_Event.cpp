@@ -144,10 +144,10 @@ void Rec_Event::update_event_name()
 queue<int> Rec_Event::draw_random_realization(
         const Marginal_array_p &model_marginals_p, unordered_map<Rec_Event_name, int> &index_map,
         const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
-        unordered_map<Seq_type, string> &constructed_sequences, mt19937_64 &generator) const
+        GenerationState &segments, mt19937_64 &generator) const
 {
-    const vector<int> indices = this->draw_realization(model_marginals_p, index_map, constructed_sequences, generator);
-    this->construct_realization(indices, constructed_sequences);
+    const vector<int> indices = this->draw_realization(model_marginals_p, index_map, segments, generator);
+    this->construct_realization(indices, segments);
     this->propagate_realization(indices, index_map, offset_map);
 
     queue<int> realization_queue;
@@ -161,7 +161,7 @@ queue<int> Rec_Event::draw_random_realization(
 
 vector<int> Rec_Event::draw_realization(const Marginal_array_p &model_marginals_p,
                                         const unordered_map<Rec_Event_name, int> &index_map,
-                                        const unordered_map<Seq_type, string> &, mt19937_64 &generator) const
+                                        const GenerationState &, mt19937_64 &generator) const
 {
     uniform_real_distribution<double> distribution(0.0, 1.0);
     const double rand = distribution(generator);
@@ -199,6 +199,11 @@ void Rec_Event::propagate_realization(
     for (const auto &[child, stride] : offset_map.at(this->get_name())) {
         index_map.at(child->get_name()) += indices.front() * stride;
     }
+}
+
+SeqTypeId Rec_Event::legacy_segment(const GenerationState &segments, Seq_type seq_type)
+{
+    return segments.registry().id(EventUtils::seq_type_to_string(seq_type));
 }
 
 const Event_realization &Rec_Event::realization_at(int index) const

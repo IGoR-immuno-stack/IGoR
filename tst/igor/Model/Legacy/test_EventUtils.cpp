@@ -34,7 +34,7 @@ public:
           ExplorationContext& exploration,
           AccumulationContext& accumulation) override {}
 
-  void construct_realization(const vector<int> &, unordered_map<Seq_type, string> &) const override {}
+  void construct_realization(const vector<int> &, GenerationState &) const override {}
   void write2txt(ofstream &) override {}
   void write2txt_legacy(ofstream &) override {}
   void write2txt_v2(ofstream &) override {}

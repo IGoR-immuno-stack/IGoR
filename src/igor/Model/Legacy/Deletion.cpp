@@ -543,8 +543,7 @@ void Deletion::iterate_common(
         (*iter).index, base_index, base_index_map, model_parameters_point);
 }
 
-void Deletion::construct_realization(const vector<int> &indices,
-                                     unordered_map<Seq_type, string> &constructed_sequences) const
+void Deletion::construct_realization(const vector<int> &indices, GenerationState &segments) const
 {
     if (indices.empty()) {
         return;
@@ -556,9 +555,10 @@ void Deletion::construct_realization(const vector<int> &indices,
 
     case V_gene_seq:
         if (deletions >= 0) {
-            constructed_sequences.at(V_gene_seq).erase(constructed_sequences.at(V_gene_seq).size() - deletions);
+            string &v_gene_seq = segments.modify(legacy_segment(segments, V_gene_seq));
+            v_gene_seq.erase(v_gene_seq.size() - deletions);
         } else {
-            string &v_gene_seq = constructed_sequences.at(V_gene_seq);
+            string &v_gene_seq = segments.modify(legacy_segment(segments, V_gene_seq));
             palindrome = v_gene_seq.substr(v_gene_seq.size() + deletions, string::npos);
             reverse(palindrome.begin(), palindrome.end());
             make_transversions(palindrome);
@@ -572,9 +572,9 @@ void Deletion::construct_realization(const vector<int> &indices,
 
         case Five_prime:
             if (deletions >= 0) {
-                constructed_sequences.at(D_gene_seq).erase(0, deletions);
+                segments.modify(legacy_segment(segments, D_gene_seq)).erase(0, deletions);
             } else {
-                string &d_gene_seq = constructed_sequences.at(D_gene_seq);
+                string &d_gene_seq = segments.modify(legacy_segment(segments, D_gene_seq));
                 palindrome = d_gene_seq.substr(0, -deletions);
                 reverse(palindrome.begin(), palindrome.end());
                 make_transversions(palindrome);
@@ -585,9 +585,10 @@ void Deletion::construct_realization(const vector<int> &indices,
 
         case Three_prime:
             if (deletions >= 0) {
-                constructed_sequences.at(D_gene_seq).erase(constructed_sequences.at(D_gene_seq).size() - deletions);
+                string &d_gene_seq = segments.modify(legacy_segment(segments, D_gene_seq));
+                d_gene_seq.erase(d_gene_seq.size() - deletions);
             } else {
-                string &d_gene_seq = constructed_sequences.at(D_gene_seq);
+                string &d_gene_seq = segments.modify(legacy_segment(segments, D_gene_seq));
                 palindrome = d_gene_seq.substr(d_gene_seq.size() + deletions, string::npos);
                 reverse(palindrome.begin(), palindrome.end());
                 make_transversions(palindrome);
@@ -602,9 +603,9 @@ void Deletion::construct_realization(const vector<int> &indices,
         break;
     case J_gene_seq:
         if (deletions >= 0) {
-            constructed_sequences.at(J_gene_seq).erase(0, deletions);
+            segments.modify(legacy_segment(segments, J_gene_seq)).erase(0, deletions);
         } else {
-            string &j_gene_seq = constructed_sequences.at(J_gene_seq);
+            string &j_gene_seq = segments.modify(legacy_segment(segments, J_gene_seq));
             palindrome = j_gene_seq.substr(0, -deletions);
             reverse(palindrome.begin(), palindrome.end());
             make_transversions(palindrome);
