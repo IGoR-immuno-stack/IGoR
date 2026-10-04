@@ -112,7 +112,6 @@ public:
     OffsetRole get_offset_role(SeqTypeId, Seq_side) const override;
 
     //Proba bound related computation methods
-    bool affects_length_of(SegmentSpan) const override;
     int length_delta(const Event_realization &) const override;
 
 private:

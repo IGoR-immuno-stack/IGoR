@@ -347,6 +347,10 @@ TEST_CASE("A legacy junction seq_type names a span", "[capabilities][span]")
 
 TEST_CASE("Span effect queries", "[capabilities][span]")
 {
+    // One rule answers for every event, from the offset roles it declares and the ordering
+    // (R12): a realization changes a span's length when it creates or modifies an end of a
+    // segment strictly inside the span, or modifies one of the span's two ends.
+    const SeqTypeRegistry &registry = vdj_seq_type_registry();
     const SegmentSpan vd = legacy_span_of(VD_ins_seq);
     const SegmentSpan dj = legacy_span_of(DJ_ins_seq);
     const SegmentSpan vj = legacy_span_of(VJ_ins_seq);
@@ -360,33 +364,31 @@ TEST_CASE("Span effect queries", "[capabilities][span]")
         // V and J are anchors of every legacy span, never interior: the span is measured
         // *from* their boundaries, so their own template length is outside the frame.
         for (const SegmentSpan span : {vd, dj, vj}) {
-            CHECK_FALSE(v_choice->affects_length_of(span));
-            CHECK_FALSE(j_choice->affects_length_of(span));
+            CHECK_FALSE(v_choice->affects_length_of(span, registry));
+            CHECK_FALSE(j_choice->affects_length_of(span, registry));
         }
 
         // D is interior to V->J only; at either end of VD and DJ it is the anchor again.
-        CHECK(d_choice->affects_length_of(vj));
-        CHECK_FALSE(d_choice->affects_length_of(vd));
-        CHECK_FALSE(d_choice->affects_length_of(dj));
+        CHECK(d_choice->affects_length_of(vj, registry));
+        CHECK_FALSE(d_choice->affects_length_of(vd, registry));
+        CHECK_FALSE(d_choice->affects_length_of(dj, registry));
     }
 
     SECTION("An insertion contributes length to every span bracketing it")
     {
-        auto vd_ins = std::make_shared<Insertion>(VD_ins_seq, std::make_pair(0, 8));
-        vd_ins->set_seq_type("VD_ins_seq");
-        auto dj_ins = std::make_shared<Insertion>(DJ_ins_seq, std::make_pair(0, 8));
-        dj_ins->set_seq_type("DJ_ins_seq");
+        auto vd_ins = make_insertion(VD_ins_seq, 0, 8, 0);
+        auto dj_ins = make_insertion(DJ_ins_seq, 0, 8, 1);
 
-        CHECK(vd_ins->affects_length_of(vd));
-        CHECK(vd_ins->affects_length_of(vj));
-        CHECK_FALSE(vd_ins->affects_length_of(dj));
+        CHECK(vd_ins->affects_length_of(vd, registry));
+        CHECK(vd_ins->affects_length_of(vj, registry));
+        CHECK_FALSE(vd_ins->affects_length_of(dj, registry));
 
-        CHECK(dj_ins->affects_length_of(dj));
-        CHECK(dj_ins->affects_length_of(vj));
-        CHECK_FALSE(dj_ins->affects_length_of(vd));
+        CHECK(dj_ins->affects_length_of(dj, registry));
+        CHECK(dj_ins->affects_length_of(vj, registry));
+        CHECK_FALSE(dj_ins->affects_length_of(vd, registry));
     }
 
-    SECTION("A deletion widens the span whose anchor boundary it moves")
+    SECTION("A deletion changes the span whose end it moves, and any span its segment is inside")
     {
         auto v_del = make_deletion(V_gene_seq, Three_prime, 0, 4, 0);
         auto d5_del = make_deletion(D_gene_seq, Five_prime, 0, 4, 1);
@@ -394,60 +396,105 @@ TEST_CASE("Span effect queries", "[capabilities][span]")
         auto j_del = make_deletion(J_gene_seq, Five_prime, 0, 4, 3);
 
         // V's 3' end bounds both VD and VJ.
-        CHECK(v_del->affects_length_of(vd));
-        CHECK(v_del->affects_length_of(vj));
-        CHECK_FALSE(v_del->affects_length_of(dj));
+        CHECK(v_del->affects_length_of(vd, registry));
+        CHECK(v_del->affects_length_of(vj, registry));
+        CHECK_FALSE(v_del->affects_length_of(dj, registry));
 
-        // A D deletion moves a boundary interior to V->J, and V->J is measured between V's
-        // and J's *as-created* boundaries -- so it changes VD or DJ but never VJ.
-        CHECK(d5_del->affects_length_of(vd));
-        CHECK_FALSE(d5_del->affects_length_of(dj));
-        CHECK_FALSE(d5_del->affects_length_of(vj));
-        CHECK(d3_del->affects_length_of(dj));
-        CHECK_FALSE(d3_del->affects_length_of(vd));
-        CHECK_FALSE(d3_del->affects_length_of(vj));
+        // D sits inside V->J, so trimming either of its ends shortens the D a V->J path carries,
+        // and the length a V->J table keys on has to count it. The enum table this replaced said
+        // otherwise -- "V->J is measured between V's and J's as-created boundaries, so a D
+        // deletion never changes it" -- which is true of the boundaries and false of the length
+        // between them, since D's template is counted inside it. That was plan section 7.22.
+        CHECK(d5_del->affects_length_of(vd, registry));
+        CHECK_FALSE(d5_del->affects_length_of(dj, registry));
+        CHECK(d5_del->affects_length_of(vj, registry));
+        CHECK(d3_del->affects_length_of(dj, registry));
+        CHECK_FALSE(d3_del->affects_length_of(vd, registry));
+        CHECK(d3_del->affects_length_of(vj, registry));
 
-        CHECK(j_del->affects_length_of(dj));
-        CHECK(j_del->affects_length_of(vj));
-        CHECK_FALSE(j_del->affects_length_of(vd));
+        CHECK(j_del->affects_length_of(dj, registry));
+        CHECK(j_del->affects_length_of(vj, registry));
+        CHECK_FALSE(j_del->affects_length_of(vd, registry));
+    }
+
+    SECTION("A deletion at an end the span is not measured from changes nothing")
+    {
+        // The enum table ignored the side for V and J, so it would have put a V 5' deletion on
+        // VD and VJ. No shipped model has one; the rule reads the side.
+        auto v5_del = make_deletion(V_gene_seq, Five_prime, 0, 4, 0);
+        auto j3_del = make_deletion(J_gene_seq, Three_prime, 0, 4, 1);
+        for (const SegmentSpan span : {vd, dj, vj}) {
+            CHECK_FALSE(v5_del->affects_length_of(span, registry));
+            CHECK_FALSE(j3_del->affects_length_of(span, registry));
+        }
     }
 
     SECTION("Dinucl_markov contributes probability, never length")
     {
         // The distinction the predecessor has_effect_on() could not express: this event
         // returned true to gate a probability factor while contributing zero length.
-        auto vd_dinuc = std::make_shared<Dinucl_markov>(VD_ins_seq);
-        vd_dinuc->set_seq_type("VD_ins_seq");
+        auto vd_dinuc = make_dinucl_markov(VD_ins_seq, 0);
 
         for (const SegmentSpan span : {vd, dj, vj}) {
-            CHECK_FALSE(vd_dinuc->affects_length_of(span));
+            CHECK_FALSE(vd_dinuc->affects_length_of(span, registry));
         }
-        CHECK(vd_dinuc->affects_proba_of(vd));
-        CHECK(vd_dinuc->affects_proba_of(vj));
-        CHECK_FALSE(vd_dinuc->affects_proba_of(dj));
+        CHECK(vd_dinuc->affects_proba_of(vd, registry));
+        CHECK(vd_dinuc->affects_proba_of(vj, registry));
+        CHECK_FALSE(vd_dinuc->affects_proba_of(dj, registry));
 
         // ...and it is still visited by the traversal, which is what the disjunction is for.
-        CHECK(vd_dinuc->participates_in_span(vd));
-        CHECK_FALSE(vd_dinuc->participates_in_span(dj));
+        CHECK(vd_dinuc->participates_in_span(vd, registry));
+        CHECK_FALSE(vd_dinuc->participates_in_span(dj, registry));
     }
 
-    SECTION("An unrecognised Dinucl_markov seq_type is rejected, not silently ignored")
+    SECTION("A tandem pair needs no case of its own")
     {
-        // This is where the `correct_class` check that used to sit inside
-        // iterate_initialize_Len_proba() now lives: the traversal consults the predicate
-        // before entering the body, so the throw fires at the same moment as before.
-        auto stray = std::make_shared<Dinucl_markov>(VD_ins_seq);
-        stray->set_seq_type("D1D2_ins_seq");
-        CHECK_THROWS_AS(stray->affects_proba_of(vd), std::invalid_argument);
+        // A topology no enum names. The case that used to stand here asserted the opposite of
+        // this one -- that a Dinucl_markov on a D1D2 junction was rejected -- because the enum
+        // the rule replaced had no entry for it.
+        SeqTypeRegistry tandem;
+        tandem.register_legacy_seq_types();
+        tandem.set_ordered_types({"V_gene_seq", "VD_ins_seq", "D_gene_seq", "D1D2_ins_seq",
+                                  "D2_gene_seq", "DJ_ins_seq", "J_gene_seq"});
+        tandem.freeze();
+        const SeqTypeId d2 = tandem.id("D2_gene_seq");
+        const SeqTypeId d1d2 = tandem.id("D1D2_ins_seq");
+        const SegmentSpan v_to_j = SegmentSpan::gap(tandem.id("V_gene_seq"), tandem.id("J_gene_seq"));
+        const SegmentSpan d1_to_d2 = SegmentSpan::gap(tandem.id("D_gene_seq"), d2);
+        const SegmentSpan d2_to_j = SegmentSpan::gap(d2, tandem.id("J_gene_seq"));
+
+        auto d2_choice = make_gene_choice(D_gene, {{"D1", "ACGT"}}, 0);
+        d2_choice->set_seq_type_id(d2);
+        auto d2_five = make_deletion(D_gene_seq, Five_prime, 0, 4, 1);
+        d2_five->set_seq_type_id(d2);
+        auto d1d2_ins = make_insertion(VD_ins_seq, 0, 8, 2);
+        d1d2_ins->set_seq_type_id(d1d2);
+        auto d1d2_dinuc = make_dinucl_markov(VD_ins_seq, 3);
+        d1d2_dinuc->set_seq_type_id(d1d2);
+
+        CHECK(d2_choice->affects_length_of(v_to_j, tandem));
+        CHECK_FALSE(d2_choice->affects_length_of(d1_to_d2, tandem)); // an end: anchoring
+        CHECK_FALSE(d2_choice->affects_length_of(d2_to_j, tandem));
+
+        CHECK(d2_five->affects_length_of(d1_to_d2, tandem));        // moves the span's end
+        CHECK(d2_five->affects_length_of(v_to_j, tandem));          // trims a segment inside
+        CHECK_FALSE(d2_five->affects_length_of(d2_to_j, tandem));   // the wrong end of D2
+
+        CHECK(d1d2_ins->affects_length_of(d1_to_d2, tandem));
+        CHECK(d1d2_ins->affects_length_of(v_to_j, tandem));
+        CHECK_FALSE(d1d2_ins->affects_length_of(d2_to_j, tandem));
+
+        CHECK(d1d2_dinuc->affects_proba_of(d1_to_d2, tandem));
+        CHECK(d1d2_dinuc->affects_proba_of(v_to_j, tandem));
+        CHECK_FALSE(d1d2_dinuc->affects_proba_of(d2_to_j, tandem));
     }
 
     SECTION("Everything else participates through length alone")
     {
-        auto vd_ins = std::make_shared<Insertion>(VD_ins_seq, std::make_pair(0, 8));
-        vd_ins->set_seq_type("VD_ins_seq");
-        CHECK_FALSE(vd_ins->affects_proba_of(vd));
-        CHECK(vd_ins->participates_in_span(vd));
-        CHECK_FALSE(vd_ins->participates_in_span(dj));
+        auto vd_ins = make_insertion(VD_ins_seq, 0, 8, 0);
+        CHECK_FALSE(vd_ins->affects_proba_of(vd, registry));
+        CHECK(vd_ins->participates_in_span(vd, registry));
+        CHECK_FALSE(vd_ins->participates_in_span(dj, registry));
     }
 }
 

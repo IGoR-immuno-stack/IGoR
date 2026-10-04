@@ -110,7 +110,6 @@ public:
     SeqConstructionRole get_seq_construction_role(SeqTypeId) const override;
     OffsetRole get_offset_role(SeqTypeId, Seq_side) const override;
 
-    bool affects_length_of(SegmentSpan) const override;
     int length_delta(const Event_realization &) const override;
 
 private:

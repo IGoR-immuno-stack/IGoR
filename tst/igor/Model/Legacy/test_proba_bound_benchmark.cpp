@@ -151,7 +151,8 @@ public:
             }
             remaining.pop();
 
-            event->initialize_Len_proba_bound(remaining, marginals_.marginal_array_smart_p, index_map_);
+            event->initialize_Len_proba_bound(remaining, marginals_.marginal_array_smart_p, index_map_,
+                                              parms_.get_seq_type_registry());
         }
     }
 

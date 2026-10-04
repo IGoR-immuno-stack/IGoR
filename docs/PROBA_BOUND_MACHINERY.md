@@ -235,8 +235,8 @@ because `[a,b)` and `[b,c)` make `[a,c)`.
 
 | | |
 |---|---|
-| `affects_length_of(SegmentSpan)` | does a realization change the span's accumulated length? |
-| `affects_proba_of(SegmentSpan)` | does this event contribute a probability factor to it? |
+| `affects_length_of(SegmentSpan, registry)` | does a realization change the span's accumulated length? One rule since R12: the event creates or modifies an end of a segment strictly inside the span, or modifies one of the span's two ends -- read off its offset roles and the model's ordering |
+| `affects_proba_of(SegmentSpan, registry)` | does this event contribute a probability factor to it? `Dinucl_markov`: its segment lies strictly inside the span |
 | `participates_in_span(...)` | the disjunction the traversal filters on |
 
 The split was forced, not cosmetic: `Dinucl_markov` contributes **zero** length and answered `true`
@@ -246,18 +246,24 @@ that factor from every bound.
 ### The fold
 
 For one junction table, the fold computes the best probability the participating events can reach
-together at each total length. It is a depth-first enumeration in model order: each participant
-tries each of its realizations and passes the extended path to the next; when the last has chosen,
-the path's probability is recorded at its total length and the profile keeps the best per length.
+together at each total length. It takes the participants one at a time in model order and keeps
+the partial paths that have reached the current one merged by state -- one best probability per
+`FoldState`, the part of a path a later participant can read -- extending each state once per
+realization. When the last has chosen, each state's probability is recorded at its length and the
+profile keeps the best per length. Until R12/R16's first stage it enumerated every path instead,
+which costs the product of the participants' sizes; the result is the same bit for bit, because
+each kept value is still one path's left-to-right product and rounding never reverses the order of
+two non-negative values.
 
 | piece | role |
 |---|---|
-| `Rec_Event::SpanFold` | what is fixed during one fold — span, participants, their conditioning, marginals, base indices, the profile being filled — and the two pieces of path state, the `lengths` accumulator and `parent_offsets`, with one `from(cursor, proba, length)` (R15) |
-| `fold_step()` | one participant's part: per realization, multiply by `realization_bound()`, add `length_delta()`, move the marginals of the participants it conditions to that realization, pass on. An event with a factor but no length (`Dinucl_markov`) multiplies in `span_proba_factor()` once instead |
+| `Rec_Event::SpanFold` | what is fixed during one fold — span, participants, their conditioning, marginals, base indices, the profile being filled — with one `run(FoldState start)` (R15, then R12/R16 stage 1) |
+| `FoldState`, `FoldFrontier` | a partial path reduced to what a later participant reads -- its length, `parent_offsets` (R6), the published `lengths` -- and the best probability per state |
+| `fold_step()` | one participant's part: for one state, per realization, multiply by `realization_bound()`, add `length_delta()`, move the marginals of the participants it conditions to that realization, offer the result to the next frontier. An event with a factor but no length (`Dinucl_markov`) multiplies in `span_proba_factor()` once instead |
 | `SpanConditioning` | per participant, which later participants its realization indexes and by what stride, and which of its own parent configurations stay open — read off the parents' `memory_and_offsets`, the strides the walk itself applies (R6) |
 | `realization_bound()` | the realization's best probability over the parent configurations still open: every one for a parent the fold does not choose, only the path's own for one it does (R6) |
 | `length_delta(const Event_realization&)` | the scalar the four legacy bodies differed by |
-| `span_proba_factor(SegmentSpan, const UnfilledSegmentLengths&)` | the factor, defaulted to 1 |
+| `span_proba_factor(SegmentSpan, const UnfilledSegmentLengths&)` | the factor, defaulted to 1. `Dinucl_markov`'s is the best chain of `L` steps over the fifteen codes a read position can hold (R12/R16 stage 3a), precomputed by `prepare_span_proba_factor()` |
 
 `UnfilledSegmentLengths` carries, per segment, **how many nucleotides its offsets imply that nobody
 has chosen yet**, replacing the side channel. The publisher is whoever **creates the offsets but not
@@ -315,10 +321,13 @@ reader is, or on what follows it.
 | **R14** the crude bound's runtime half (`19c8f40`) | 188 lines deleted: the crude chain, `get_updated_ptr()`, the `updated` flag, a dead store per insertion hand-off | — | — | removes a latent double-free in `Dinucl_markov` — (bitwise) |
 | **R15** the fold as one object (`46e3291`) | `SpanFold`; one recursion step instead of two functions with ten arguments; `realization_bound()` written once; the fold no longer writes to the index map | — | — | — (bitwise) |
 | **R6** the joint max | — | a participant conditioned on an event the fold has already chosen — an earlier participant, or the reader of a conditioned table — is read at that realization rather than at the best of them, from the strides the walk uses; nothing in it names an event kind | the exhaustive position scan `break`s again, on the decomposition's own sort key (R7's re-check) | — (bitwise, and **inert on every model shipped**: no table holds a conditioned participant with its parent. Finding that out found §7.22 of the iterate plan) |
+| **R12/R16 stage 1**, the fold state by state | the recursion becomes a loop over a `FoldFrontier`; nothing else in the fold changes | — | the fold costs the number of states rather than of paths: BCR-heavy 1.66 s → 0.40 s a sweep, TRB unchanged; and with stage 2's participants 55 ms where walking every path takes 10 s | — (bitwise by construction: every table equal to the walk's in hex float, six model/marginal pairs) |
+| **R12/R16 stage 2**, the participation rule | four enum-written `affects_length_of()` overrides → one rule on `Rec_Event` | which events take part in a span is read off the offset roles and the ordering: a tandem pair or a flanking sequence needs no new case, and `UnfilledSegmentLengths` is sized by the model's registry | — | **J's V→J table counts D's deletions** (§7.22): it was not a bound, and pruned 1 708 scenarios above the threshold in one iteration of the corpus. Every inference output moves; the 3 unsound J nodes on the inferred model are 0 |
+| **R12/R16 stage 3a**, `Dinucl_markov`'s best chain | — | — | the factor of an `L`-nucleotide junction is the best chain over the fifteen codes, not `p^L`: 0.20 of it at `L` = 10 on IGK, the one shipped model whose best pair is not a self-transition | — (bitwise; inert on the corpus) |
 
 **Until R8, nothing delivered was a correctness fix**, by design — every step before it is
-bitwise on the regression corpus, and so are R13–R15 after it. R8 is the one row that moved results,
-and it was found by measuring (§9). What the S4a test infrastructure *did* do is **surface** a defect:
+bitwise on the regression corpus, and so are R13–R15 and R6 after it. R8 and R16 are the two rows
+that moved results, and both were found by measuring (§9; R16 by asking why R6 changed nothing). What the S4a test infrastructure *did* do is **surface** a defect:
 `Insertion` writes the segment it creates without ever requesting a layer for it, the only violation
 of "a written layer must have been requested" among 49 measured writes. It is repaired in **R3**, and
 **R3b** then hardens `LayeredArray::set()` so the rule holds at runtime rather than only under test.
@@ -348,8 +357,7 @@ and deserved to go; it was not the bottleneck. **The measured costs are `GeneCho
 | **R1** ✅ | — | — | — | **`Dinucl_markov` creates the insertion segment** (O12 (a′)) — no partially-constructed segment, `int_undefined` leaves constructed sequences, §7.13 dissolves. `SpanAccumulator` **kept and reinterpreted**, not deleted, and renamed `UnfilledSegmentLengths`: the line this row used to carry was written before that reversal |
 | **R3** ✅ | — | — | — | `Insertion` writes its offsets and **requests the layers it writes**; its mismatch-list defect is *dissolved* by R1's rescope rather than fixed. The leaf invariant's offsets half lands with it |
 | **R3b** ✅ | — | — | — | `LayeredArray::set()` requires a prior claim instead of raising it silently |
-| **R12** | — | `affects_length_of`'s enum switches become a rule — *a segment adds length to a span when it sits strictly between its two ends* — so V and J would take part in a span between flanking sequences without a new case | — | — (bitwise by construction) |
-| **§7.22** | — | — | the repair needs a fold that does not walk every path: put in as one line it costs 7× on the regression inference track | **the V→J table J reads leaves D's two deletions out**, so it is not a bound: on the corpus it pruned 1 708 scenarios above the threshold in one iteration. Not decided — see the iterate plan, §7.22 |
+| **the exhaustive scan's order** | — | — | — | the scan visits D's placements in the order of their decomposition bound, and a leaf is accepted against the best seen so far, so changing D's tables reorders it and moves `no_d_align`. That is what kept a gene choice's tables keyed by its own realization (R12/R16's stage 3b) out: about 1 % fewer nodes, not bitwise. A bound-independent sort would make every later tightening order-safe, at the cost of R6's `break`. **Not decided** |
 
 ---
 
@@ -487,17 +495,18 @@ Worth stating so the scope is not over-read:
   the reader, or the reader of a table not conditioned on it, as the D gene choice is for its own
   deletions — is still maximised over independently. On the models shipped that is every
   conditioning edge there is, so the slack §6.10 quantifies is untouched. Two levers would reach it:
-  conditioning a gene choice's table on its own realization when it conditions a participant, and
-  §6.10's cross-clique parent indexing.
+  conditioning a gene choice's table on its own realization when it conditions a participant --
+  built and dropped as R12/R16's stage 3b, for about 1 % of the nodes and a reordered exhaustive
+  scan -- and §6.10's cross-clique parent indexing.
 - **The bound is still query-independent.** It is built from the model alone and knows nothing about
   the read, which is what lets it be built once per EM iteration rather than per sequence.
 - **The tables are still built per consumer**, and redundantly: two events reading the same span
   each fold it. The cache-and-invalidate scheme that would remove that is recorded in the iterate
   plan §2.5 as a deferred optimisation, deliberately not scheduled — it is the *smaller* of the two
   redundancies. The larger one, every thread rebuilding the identical answer, was removed by S4e.
-- **Which events take part in a span is still decided by enum**, in `affects_length_of`'s switches
-  for `Gene_choice`, `Insertion` and `Deletion`. That is R12; nothing in the fold itself enumerates
-  VD / DJ / VJ any more.
+- **One enum-keyed step is left**: the downstream-bound key a `Gene_choice` or `Deletion` resolves
+  for a junction in `initialize_event()`, via `legacy_junction_of()`. Which events take part in a
+  span stopped being enum-decided with R12.
 
 ---
 
@@ -651,12 +660,14 @@ Three readings.
   sits on the gene choices and on two of the deletions (`D_5'` and `J_5'`, 10^3.00 each). *(R6 left
   all of it in place, because no shipped model gives its joint max a pair to act on — see the
   iterate plan's* R6 in more detail.*)*
-- **"No unsound node" is a statement about this run, not about the bound.** An evaluate from the
-  inferred `default_inference/final_*` finds **3 unsound nodes at depth 1**, all on the J gene
-  choice, whose V→J table leaves D's deletions out (iterate plan §7.22). And a prune leaves nothing
-  for the instrument to measure, so the uniform start's zero does not show the J table sound there
-  either: it prunes 1 708 scenarios above the threshold in this very run, found only by putting the
-  deletions in and comparing what is summed.
+- **"No unsound node" was a statement about this run, not about the bound.** An evaluate from the
+  inferred `default_inference/final_*` found **3 unsound nodes at depth 1**, all on the J gene
+  choice, whose V→J table left D's deletions out (iterate plan §7.22). And a prune leaves nothing
+  for the instrument to measure, so the uniform start's zero did not show the J table sound there
+  either: it pruned 1 708 scenarios above the threshold in this very run, found only by putting the
+  deletions in and comparing what is summed. *(Repaired by R12/R16, Oct 2 2026: no node is unsound
+  on either workload, and an unpruned evaluate agrees with the pruned one on every read compared.
+  The table above is still the right one for the uniform start, apart from the 1 708 scenarios.)*
 
 **The caveat.** This was run on `TRB_uniform_model_marginals.txt` at EM iteration 1. Under a
 uniform model every realization of an event is equiprobable, so `bound / realized` is close to the
@@ -672,8 +683,10 @@ It says how far the bound sits above the truth. It says nothing about **how much
 higher threshold would discard**, which is the other half of any decision to run faster. The two
 are the same lever on speed — a bound uniformly loose by a factor `c` is exactly a threshold
 loosened by `c`, since both sides of `should_prune` scale together — but they are opposite
-currencies on accuracy: tightening a sound bound changes no result, while raising the threshold
-drops scenarios that belong in it. Choosing `probability_ratio_threshold` on evidence needs a
+currencies on accuracy: tightening a sound bound changes no result -- wherever the order the walk
+visits leaves in does not depend on the bound, since a leaf is accepted against the best seen so
+far and the exhaustive position scan visits D's placements in bound order -- while raising the
+threshold drops scenarios that belong in it. Choosing `probability_ratio_threshold` on evidence needs a
 different measurement, at the same call site: the CDF of leaf probability relative to the
 per-sequence best. Not built.
 

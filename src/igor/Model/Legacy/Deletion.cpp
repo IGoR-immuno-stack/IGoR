@@ -69,26 +69,6 @@ Gene_class get_deletion_gene_class(Seq_type target_seq)
     }
 }
 
-vector<Seq_type> get_deletion_effective_junctions(Seq_type target_seq_type, Seq_side event_side)
-{
-    switch (target_seq_type) {
-    case V_gene_seq:
-        return { VD_ins_seq, VJ_ins_seq };
-    case D_gene_seq:
-        if (event_side == Five_prime) {
-            return { VD_ins_seq };
-        }
-        if (event_side == Three_prime) {
-            return { DJ_ins_seq };
-        }
-        return {};
-    case J_gene_seq:
-        return { VJ_ins_seq, DJ_ins_seq };
-    default:
-        return {};
-    }
-}
-
 } // namespace
 
 Deletion::Deletion() : Deletion(V_gene_seq, Undefined_side)
@@ -990,22 +970,6 @@ Int_Str &make_transversions(Int_Str &init_sequence)
 bool del_numb_compare(const Event_realization &real1, const Event_realization &real2)
 {
     return real1.value_int > real2.value_int;
-}
-
-bool Deletion::affects_length_of(SegmentSpan span) const
-{
-    //A deletion moves an anchor's boundary away from where it was created, so it widens the
-    //span that boundary bounds rather than shortening the anchor -- see the frame in section
-    //2.5 of docs/ITERATE_GENERIC_REWRITE_PLAN.md.
-    //
-    //The generic form of this table is "(target, side) is an inward-facing endpoint of the
-    //span", but get_deletion_effective_junctions() is side-insensitive for V and J, so the two
-    //differ for a hypothetical V 5' or J 3' deletion. Keeping the table verbatim here holds S4a
-    //bitwise; reconciling them is S4b's.
-    const Seq_type junction = legacy_junction_of(span);
-    const auto effective_junctions =
-            get_deletion_effective_junctions(this->target_seq_type, this->event_side);
-    return find(effective_junctions.begin(), effective_junctions.end(), junction) != effective_junctions.end();
 }
 
 int Deletion::length_delta(const Event_realization &realization) const

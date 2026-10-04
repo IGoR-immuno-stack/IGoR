@@ -19,7 +19,8 @@ IGORCALL="$IGORBIN -w $OUTDIR"
 "$IGORBIN" evaluate --help >/dev/null
 "$IGORBIN" generate --help >/dev/null
 "$IGORBIN" run --help >/dev/null
-"$IGORBIN" config list | grep -q '^model.source'
+# Not grep -q: it exits at the first match, and with pipefail igor's next write then dies of SIGPIPE.
+"$IGORBIN" config list | grep '^model.source' >/dev/null
 
 $IGORCALL init
 test -f "$OUTDIR/.igor/config.toml"

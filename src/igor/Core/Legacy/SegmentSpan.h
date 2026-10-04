@@ -33,6 +33,7 @@ namespace igor::core::legacy {
 using igor::core::SegmentBoundary;
 using igor::core::SegmentSpan;
 using igor::core::cut_position;
+using igor::core::lies_strictly_inside;
 using igor::core::legacy_span_of;
 using igor::core::legacy_junction_of;
 

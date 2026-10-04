@@ -56,6 +56,7 @@
 #include <algorithm>
 #include <cmath>
 #include <functional>
+#include <list>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -1604,6 +1605,84 @@ TEST_CASE("Deletion: a conditioned participant reads its parent at the realizati
             CHECK(bounds[i] == Approx(best_completion(gap_of(i), /*joint=*/false, unused, favours_d2)));
         }
     }
+}
+
+TEST_CASE("Deletion: an inserted junction is priced at the best chain over every code a read holds",
+          "[deletion][iterate][junction]")
+{
+    // The Dinucl_markov factor of a junction of L nucleotides used to be p^L, every nucleotide at
+    // the best pair's probability. It is now the best chain of L steps over the fifteen codes a
+    // read position can hold, each pair priced as iterate() prices it (stage 3a of R12/R16).
+    //
+    // The model is the one that shows why the codes are needed: P(A|G) = 1, P(T|C) = 1, rows A
+    // and T uniform. No chain of two bases does better than 0.25, but a junction reading M (A or
+    // C) then T after a G anchor is priced 0.5 x 0.625 = 0.3125 -- an average per ambiguous pair
+    // -- so a bound over bases alone would sit below what the scenario realizes.
+    double model[4][4] = {
+            {0.25, 0.25, 0.25, 0.25}, // from A
+            {0.0, 0.0, 0.0, 1.0},     // from C
+            {1.0, 0.0, 0.0, 0.0},     // from G
+            {0.25, 0.25, 0.25, 0.25}, // from T
+    };
+    const auto pair_price = [&model](int prev_code, int next_code) {
+        const std::list<Int_nt> prev = get_ambiguous_nt_list(static_cast<Int_nt>(prev_code));
+        const std::list<Int_nt> next = get_ambiguous_nt_list(static_cast<Int_nt>(next_code));
+        double sum = 0;
+        for (const Int_nt a : prev) {
+            for (const Int_nt b : next) {
+                sum += model[a][b];
+            }
+        }
+        return sum / static_cast<double>(prev.size() * next.size());
+    };
+    // Best chain of two steps from any seed, by brute force over codes and over bases.
+    double over_codes = 0, over_bases = 0;
+    for (int a = 0; a != static_cast<int>(kIntNtCount); ++a) {
+        for (int b = 0; b != static_cast<int>(kIntNtCount); ++b) {
+            for (int c = 0; c != static_cast<int>(kIntNtCount); ++c) {
+                const double chain = pair_price(a, b) * pair_price(b, c);
+                over_codes = std::max(over_codes, chain);
+                if (a < 4 and b < 4 and c < 4) {
+                    over_bases = std::max(over_bases, chain);
+                }
+            }
+        }
+    }
+    REQUIRE(over_bases == 0.25);
+    REQUIRE(pair_price(int_G, int_M) * pair_price(int_M, int_T) == 0.3125);
+    REQUIRE(over_codes >= 0.3125);
+
+    // A V 3' deletion that deletes nothing, reading a gap of 2 that only the insertion can fill.
+    IterateTestState state = create_iterate_state(kRead);
+    auto deletion = make_deletion(V_gene_seq, Three_prime, 0, 0, /*id=*/0);
+    state.preset_safety(V_gene_seq, D_gene_seq, false);
+    state.preset_segment(V_gene_seq, 0, 13, read_run(0, 13));
+    auto d_stub = make_gene_choice(D_gene, {{"D1", "ACGTA"}}, /*id=*/1);
+    state.add_event(d_stub);
+    state.mark_chosen(d_stub);
+    state.preset_segment(D_gene_seq, 16, 20, read_run(16, 20));
+    state.add_downstream_event(make_deletion(D_gene_seq, Five_prime, 0, 0, /*id=*/2));
+    state.add_downstream_event(make_insertion(VD_ins_seq, 0, 20, /*id=*/3));
+    state.add_downstream_event(make_dinucl_markov(VD_ins_seq, /*id=*/4));
+    for (std::size_t i = 0; i != 64; ++i) {
+        state.set_marginal(i, 0.5L);
+    }
+    state.set_base_index(/*event_id=*/4, /*base_index=*/200);
+    for (std::size_t prev = 0; prev != 4; ++prev) {
+        for (std::size_t next = 0; next != 4; ++next) {
+            state.set_marginal(200 + 4 * prev + next, model[prev][next]);
+        }
+    }
+
+    const auto handed = call_iterate_recording(deletion, state);
+    REQUIRE(handed->call_count() == 1);
+    // The D 5' deletion's marginal, the insertion length's, and the chain's two steps.
+    const double bound = handed->calls.front().downstream_bounds.at(VD_ins_seq);
+    CHECK(bound == Approx(0.5 * 0.5 * over_codes));
+    // Covers what an ambiguous junction realizes, which a chain over bases would not...
+    CHECK(bound >= 0.5 * 0.5 * 0.3125);
+    // ...and is tighter than p^L, the best pair's probability (1 here) squared.
+    CHECK(bound < 0.5 * 0.5 * 1.0);
 }
 
 TEST_CASE("Deletion: the segment's own error bound", "[deletion][iterate]")

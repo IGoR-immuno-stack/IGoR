@@ -27,6 +27,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <igor/Model/Legacy/FoldFrontier.h>
 #include <igor/Core/SegmentSpan.h>
 #include <igor/Model/SpanProfile.h>
 
@@ -34,6 +35,7 @@
 
 using namespace igor::core;
 using namespace igor::model;
+using namespace igor::model::legacy;
 
 TEST_CASE("SpanProfile keeps the best probability per distance", "[unit][span_profile]")
 {
@@ -166,4 +168,62 @@ TEST_CASE("JunctionBound starts unresolved", "[unit][span_profile]")
                       static_cast<SeqTypeId>(VJ_ins_seq), 1, JunctionBound::Fold::No);
     REQUIRE(enclosing.resolved());
     REQUIRE_FALSE(enclosing.folded());
+}
+
+namespace {
+
+FoldState fold_state(int length, std::vector<int> parent_offsets = {0, 0}, int published = -1)
+{
+    FoldState state{length, std::move(parent_offsets), UnfilledSegmentLengths(4)};
+    if (published >= 0) {
+        state.lengths.set(2, published);
+    }
+    return state;
+}
+
+double best_in(const FoldFrontier &frontier, const FoldState &state)
+{
+    for (const auto &[stored, proba] : frontier) {
+        if (stored == state) {
+            return proba;
+        }
+    }
+    return -1.0;
+}
+
+} // namespace
+
+TEST_CASE("FoldFrontier keeps the best probability per state", "[unit][span_profile]")
+{
+    // The junction-length fold keeps one partial path per state; this is what makes it cost the
+    // number of states instead of the number of paths, and what keeps it equal to the walk over
+    // every path -- the better of two paths in a state stays the better after any further factor.
+    FoldFrontier frontier;
+
+    SECTION("two paths in one state merge into the better")
+    {
+        frontier.offer(fold_state(3), 0.25);
+        frontier.offer(fold_state(3), 0.5);
+        frontier.offer(fold_state(3), 0.125);
+        CHECK(frontier.size() == 1);
+        CHECK(best_in(frontier, fold_state(3)) == 0.5);
+    }
+
+    SECTION("a probability of 0 still occupies its state")
+    {
+        // SpanProfile::record() marks a distance reachable at any probability, 0 included, so a
+        // frontier that dropped zeros would change which lengths a table holds.
+        frontier.offer(fold_state(3), 0.0);
+        CHECK(frontier.size() == 1);
+        CHECK(best_in(frontier, fold_state(3)) == 0.0);
+    }
+
+    SECTION("paths a later participant can tell apart stay apart")
+    {
+        frontier.offer(fold_state(3), 0.5);
+        frontier.offer(fold_state(4), 0.5);                       // another length
+        frontier.offer(fold_state(3, {0, 21}), 0.5);              // another parent realization
+        frontier.offer(fold_state(3, {0, 0}, /*published=*/2), 0.5); // another published length
+        CHECK(frontier.size() == 4);
+    }
 }

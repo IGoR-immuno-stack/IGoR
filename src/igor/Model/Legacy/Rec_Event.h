@@ -33,6 +33,7 @@
 #include <igor/Model/Legacy/SafetyMatrix.h>
 #include <igor/Core/Legacy/SeqTypeRegistry.h>
 #include <igor/Model/Legacy/UnfilledSegmentLengths.h>
+#include <igor/Model/Legacy/FoldFrontier.h>
 #include <igor/Model/Legacy/SpanProfile.h>
 #include <igor/Core/Legacy/Utils.h>
 #include <igor/Model/Legacy/EventTypedefs.h>
@@ -407,8 +408,21 @@ public:
      * **Length only** -- not offsets, not content, not probability. An event that contributes
      * a probability factor to a span while contributing no length answers affects_proba_of()
      * instead; conflating the two is what made the predecessor has_effect_on() misleading.
+     *
+     * One rule for every event, read off the offset roles it already declares and the model's
+     * ordering (R12): a realization changes the span's length when the event **creates or
+     * modifies an end of a segment strictly inside the span**, or **modifies one of the span's
+     * two ends**. Creating one of the two ends does not count -- that is anchoring, and the span
+     * is measured from it. So a gene inside the span adds its template, an insertion inside it
+     * adds its length, a deletion adds its trim whether it moves an end of the span or an end of
+     * a segment inside it, and V and J at the ends of every junction add nothing. Nothing here
+     * names an event kind, so a tandem pair or a flanking sequence needs no new case.
+     *
+     * The rule replaced four enum-written tables. They agreed with it everywhere but in one cell,
+     * D's deletions on V->J, which the tables left out and which made J's V->J table no bound
+     * (plan section 7.22, R16).
      */
-    virtual bool affects_length_of(SegmentSpan span) const = 0;
+    bool affects_length_of(SegmentSpan span, const SeqTypeRegistry &registry) const;
 
     /**
      * \brief Does this event contribute a probability factor to \a span?
@@ -417,16 +431,16 @@ public:
      * adding to it. Default false, so an event whose whole contribution is length need not
      * say anything.
      */
-    virtual bool affects_proba_of(SegmentSpan) const { return false; }
+    virtual bool affects_proba_of(SegmentSpan, const SeqTypeRegistry &) const { return false; }
 
     /**
      * \brief Whether the Len_proba traversal must visit this event for \a span at all.
      *
      * The filter the traversal applies, at the queue rather than inside each override.
      */
-    bool participates_in_span(SegmentSpan span) const
+    bool participates_in_span(SegmentSpan span, const SeqTypeRegistry &registry) const
     {
-        return this->affects_length_of(span) or this->affects_proba_of(span);
+        return this->affects_length_of(span, registry) or this->affects_proba_of(span, registry);
     }
 
     /**
@@ -455,6 +469,15 @@ public:
     virtual double span_proba_factor(SegmentSpan, const UnfilledSegmentLengths &) const { return 1.0; }
 
     /**
+     * \brief Precompute, from this iteration's marginals, what span_proba_factor() reads.
+     *
+     * Called by initialize_Len_proba_bound() before it folds anything. The sweep runs in reverse
+     * queue order, so an event is prepared before any table it takes part in is folded. Default:
+     * nothing to prepare.
+     */
+    virtual void prepare_span_proba_factor(const Marginal_array_p &, const Index_map &) {}
+
+    /**
      * \brief Fold the profile of every junction this event reads a bound from.
      *
      * No longer virtual, and no longer topology-aware: *which* junctions those are was decided
@@ -468,7 +491,7 @@ public:
      */
     void initialize_Len_proba_bound(std::queue<std::shared_ptr<Rec_Event>> &model_queue,
                                     const Marginal_array_p &model_parameters_point,
-                                    const Index_map &base_index_map);
+                                    const Index_map &base_index_map, const SeqTypeRegistry &registry);
 
     /**
      * \brief Take this iteration's folded bounds from \a source instead of folding them again.
@@ -542,6 +565,9 @@ protected:
             std::vector<int> free_parent_offsets;
         };
         std::vector<Participant> participants;
+        /// Per participant, whether it changes the span's length -- and so enumerates its
+        /// realizations -- or only contributes a factor. Asked once per table, not per state.
+        std::vector<bool> changes_length;
         /// The participants the reader's own realization indexes. Empty unless the table is
         /// conditioned on that realization: otherwise the reader is one of the free parents.
         std::vector<std::pair<std::size_t, int>> reader_children;
@@ -552,29 +578,25 @@ protected:
      *
      * The fold computes, for every total length the span can take, the best probability the
      * events in `participants` can reach together at that length, and writes it to `profile`.
-     * It does so by depth-first enumeration: each participant tries each of its realizations in
-     * turn and passes the extended path on to the next participant (see fold_step()). When the
-     * last participant has chosen, the path's probability is recorded at its total length, and
-     * the profile keeps the best value seen for each length.
+     * A path is one realization of each participant, its probability the product of their
+     * factors in queue order, and its length the sum of their `length_delta()`.
      *
-     * This struct holds what is the same at every step of that recursion. What changes from step
-     * to step is passed to from() instead: which participant is next, the probability of the path
-     * so far, and its length so far.
+     * It does not enumerate the paths. It takes the participants one at a time, and keeps the
+     * partial paths that have reached the current one in a FoldFrontier: one best probability per
+     * FoldState, the part of a path a later participant can read. Each participant extends every
+     * state once per realization (see fold_step()). Paths that end up in the same state are
+     * interchangeable for everything after them, so only the better is kept -- which is where
+     * the saving is, since two deletions that leave the same gap leave the same state once
+     * nothing still needs their realizations. When every participant has chosen, each state's
+     * probability is recorded at its length, and the profile keeps the best per length. The
+     * result is the walk over every path's, bit for bit (see FoldFrontier).
      *
      * initialize_Len_proba_bound() creates one SpanFold for each profile it fills. A table whose
      * reader does not change the span's length has one profile, so one fold. A table whose reader
      * does has one profile per reader realization, and one fold for each, starting from that
-     * realization's length (R13).
+     * realization's state (R13).
      *
-     * `lengths` and `parent_offsets` are the state the participants share during a fold. An
-     * event that places a segment's offsets without choosing its nucleotides -- an Insertion --
-     * writes that segment's length into `lengths`; a later event whose factor depends on it --
-     * the Dinucl_markov that fills the segment -- reads it. An event that conditions a later
-     * participant adds its realization's stride to that participant's entry of
-     * `parent_offsets`, which is where in its marginals the later one reads (see
-     * SpanConditioning). The driver resets both before each fold.
-     *
-     * The struct is nested in Rec_Event only so that from() can call each participant's
+     * The struct is nested in Rec_Event only so that run() can call each participant's
      * protected fold_step().
      */
     struct SpanFold {
@@ -583,28 +605,26 @@ protected:
         const SpanConditioning &conditioning;
         const Marginal_array_p &model_parameters;
         const Index_map &base_index_map;
-        UnfilledSegmentLengths &lengths;
-        std::vector<int> &parent_offsets;
         SpanProfile &profile;
 
-        /// Pass the path to participant `cursor`. If every participant has already chosen,
-        /// record `proba` at `length` in `profile` instead.
-        void from(std::size_t cursor, double proba, int length) const;
+        /// Fold every participant, from `start`, and record the result in `profile`.
+        void run(FoldState start) const;
     };
 
     /**
-     * \brief This event's part of a fold: extend the path once per realization.
+     * \brief This event's part of a fold: extend one state once per realization.
      *
-     * For each realization, multiply the path's probability by realization_bound(), add the
-     * realization's length_delta() to its length, move the marginals of the participants it
-     * conditions to that realization, and pass the path on to the next participant. An
-     * event that contributes a probability factor but no length -- Dinucl_markov -- does not
-     * enumerate: it multiplies in span_proba_factor() once and passes the path on.
+     * For each realization, multiply `proba` by realization_bound(), add the realization's
+     * length_delta() to the state's length, publish into its `lengths`, move the marginals of the
+     * participants it conditions to that realization, and offer the result to `next`. An event
+     * that contributes a probability factor but no length -- Dinucl_markov -- does not enumerate:
+     * it multiplies in span_proba_factor() once and offers the state on.
      *
      * Never called for the event whose table is being folded: initialize_Len_proba_bound()
      * handles that event itself, without its probability.
      */
-    void fold_step(const SpanFold &fold, std::size_t cursor, double proba, int length) const;
+    void fold_step(const SpanFold &fold, std::size_t cursor, const FoldState &state, double proba,
+                   FoldFrontier &next) const;
 
     /**
      * \brief The highest probability `realization` can have, whatever the parents not yet known.
@@ -626,7 +646,7 @@ protected:
     /// Which parents of each participant in `participants` the fold over `span` chooses itself.
     /// `reader_conditioned` says whether the table is conditioned on this event's realization.
     SpanConditioning conditioning_within(const SpanParticipants &participants, SegmentSpan span,
-                                         bool reader_conditioned) const;
+                                         const SeqTypeRegistry &registry, bool reader_conditioned) const;
 
     /// True for an event that positions its own segment -- an Insertion, a gene choice -- and
     /// false for one that only moves an end of a segment already placed -- a Deletion. Only the

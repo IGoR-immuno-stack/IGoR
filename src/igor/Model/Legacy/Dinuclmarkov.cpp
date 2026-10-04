@@ -49,14 +49,6 @@ namespace {
  * replaces the `correct_class` flag that used to do the same job inline in
  * Dinucl_markov::iterate_initialize_Len_proba().
  */
-Seq_type dinucl_ins_seq_type_or_throw(const Seq_type_String &seq_type_str, const char *where)
-{
-    if (seq_type_str == "VD_ins_seq") { return VD_ins_seq; }
-    if (seq_type_str == "DJ_ins_seq") { return DJ_ins_seq; }
-    if (seq_type_str == "VJ_ins_seq") { return VJ_ins_seq; }
-    throw invalid_argument(std::string("Unknown seq_type for DinuclMarkov model: ") + seq_type_str
-                           + " in " + where);
-}
 } // namespace
 
 Dinucl_markov::Dinucl_markov(Seq_type seq_type) : Rec_Event(), total_nucl_count(0), ins_seq_type(seq_type)
@@ -581,6 +573,7 @@ void Dinucl_markov::initialize_event(
     const int longest = EventUtils::get_insertion_len_max(
             constructed_sequences.registry().name(spec.target_id), events_map);
     realization_indices.reserve(static_cast<std::size_t>(std::max(longest, 0)));
+    longest_junction_ = std::max(longest, 0);
 
     index_map.set_current_layer(this->event_index, 0);
     unmutable_base_index = index_map.get(this->event_index);
@@ -666,33 +659,17 @@ OffsetRole Dinucl_markov::get_offset_role(SeqTypeId, Seq_side) const
     return OffsetRole::None;
 }
 
-bool Dinucl_markov::affects_length_of(SegmentSpan) const
-{
-    //Never. The dinucleotide model fills nucleotides the Insertion already counted; it adds no
-    //length of its own to any span. Its whole contribution to the bound is the p^L factor below.
-    return false;
-}
-
-bool Dinucl_markov::affects_proba_of(SegmentSpan span) const
+bool Dinucl_markov::affects_proba_of(SegmentSpan span, const SeqTypeRegistry &registry) const
 {
     //True exactly where the segment this model fills lies inside the span: the p^L factor scales
-    //with that segment's length, so it belongs to every span containing it.
+    //with that segment's length, so it belongs to every span containing it. The same ordering
+    //question affects_length_of() asks, on the segment this event creates the sequence of.
     //
-    //This also carries the seq_type validation that used to sit in iterate_initialize_Len_proba()
-    //as the `correct_class` check. It fires at the same moment -- when the traversal considers
-    //this event -- because the traversal now consults the predicate before entering the body.
-    const Seq_type ins_seq = dinucl_ins_seq_type_or_throw(this->seq_type, "affects_proba_of");
-    const Seq_type junction = legacy_junction_of(span);
-    switch (ins_seq) {
-    case VD_ins_seq:
-        return (junction == VJ_ins_seq || junction == VD_ins_seq);
-    case DJ_ins_seq:
-        return (junction == VJ_ins_seq || junction == DJ_ins_seq);
-    case VJ_ins_seq:
-        return (junction == VJ_ins_seq);
-    default:
-        return false;
-    }
+    //It used to validate the seq_type name as well, throwing on anything but the three legacy
+    //insertions. That check belonged to the enum it resolved to; a model's seq_types are
+    //validated where they are resolved, and initialize_event() refuses a Dinucl_markov with no
+    //junction to fill.
+    return lies_strictly_inside(registry, this->seq_type_id, span);
 }
 
 int Dinucl_markov::length_delta(const Event_realization &) const
@@ -708,12 +685,74 @@ double Dinucl_markov::span_proba_factor(SegmentSpan, const UnfilledSegmentLength
     //p^L over the segment this model creates, whose length was published by whoever placed its
     //offsets -- the Insertion, which under O12 (a') creates the offsets and not the sequence.
     //Absent means nobody placed them on this path, and the contribution is 1.
-    const Seq_type ins_seq = dinucl_ins_seq_type_or_throw(this->seq_type, "span_proba_factor");
-    const SeqTypeId filled = static_cast<SeqTypeId>(ins_seq);
+    const SeqTypeId filled = this->seq_type_id;
     if (not lengths.has(filled)) {
         return 1.0;
     }
-    return pow(this->get_upper_bound_proba(), lengths.length_of(filled));
+    const int length = lengths.length_of(filled);
+    if (length >= 0 and static_cast<std::size_t>(length) < chain_bound_.size()) {
+        return chain_bound_[static_cast<std::size_t>(length)];
+    }
+    //Longer than any junction this event's Insertion can place, or no sweep has prepared the
+    //chain: the cruder bound, every nucleotide at the best pair's probability, still holds.
+    return pow(this->get_upper_bound_proba(), length);
+}
+
+/*
+ * The best probability the chain can give L nucleotides it has not seen, for every L up to the
+ * longest junction: a Viterbi pass over the fifteen codes a read position can hold -- the four
+ * bases and the eleven ambiguity codes -- with each pair priced as iterate_common() prices it: the
+ * marginal for two bases, the average over the bases they stand for otherwise
+ * (update_event_internal_probas()). The seed is any code, since the anchor's nucleotide is not
+ * known when the table is built. It replaces p^L, every nucleotide at the best pair's probability,
+ * which it can only lower: every pair it multiplies is at most that best pair.
+ *
+ * Over the four bases alone it would not be a bound. An ambiguous position is priced by an
+ * average, and a chain of averages can beat every chain of bases: with P(A|G) = 1 and P(T|C) = 1,
+ * a junction reading M (A or C) then T after a G anchor is priced 0.5 x 0.625, where no chain of
+ * two bases reaches more than 0.25 once the other rows are uniform.
+ */
+void Dinucl_markov::prepare_span_proba_factor(const Marginal_array_p &model_parameters, const Index_map &base_index_map)
+{
+    Int_nt const all_nt_vals[] = { int_A, int_C, int_G, int_T, int_R, int_Y, int_K, int_M,
+                                   int_S, int_W, int_B, int_D, int_H, int_V, int_N };
+    const int base = base_index_map.get(this->event_index, 0);
+    const std::size_t nucleotides = event_realizations.size();
+    //One block of nucleotides x nucleotides per configuration of the parents -- one, in every
+    //model shipped -- and a pair has to be bounded whichever block the scenario reads.
+    const std::size_t blocks = std::max<std::size_t>(1, this->event_marginal_size / this->size());
+
+    double pair[kIntNtCount][kIntNtCount];
+    for (std::size_t i = 0; i != kIntNtCount; ++i) {
+        const list<Int_nt> previous_list = get_ambiguous_nt_list(all_nt_vals[i]);
+        for (std::size_t j = 0; j != kIntNtCount; ++j) {
+            const list<Int_nt> next_list = get_ambiguous_nt_list(all_nt_vals[j]);
+            double best = 0.0;
+            for (std::size_t block = 0; block != blocks; ++block) {
+                double sum = 0.0;
+                for (Int_nt prev_nt : previous_list) {
+                    for (Int_nt next_nt : next_list) {
+                        sum += model_parameters[base + block * this->size() + prev_nt * nucleotides + next_nt];
+                    }
+                }
+                best = std::max(best, sum / (double)(previous_list.size() * next_list.size()));
+            }
+            pair[i][j] = best;
+        }
+    }
+
+    chain_bound_.assign(1, 1.0);
+    std::vector<double> ending(kIntNtCount, 1.0); //best chain of the current length ending in each code
+    for (int length = 1; length <= longest_junction_; ++length) {
+        std::vector<double> next(kIntNtCount, 0.0);
+        for (std::size_t j = 0; j != kIntNtCount; ++j) {
+            for (std::size_t i = 0; i != kIntNtCount; ++i) {
+                next[j] = std::max(next[j], ending[i] * pair[i][j]);
+            }
+        }
+        ending = std::move(next);
+        chain_bound_.push_back(*std::max_element(ending.begin(), ending.end()));
+    }
 }
 
 void Dinucl_markov::update_event_name()

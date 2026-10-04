@@ -445,7 +445,8 @@ bool GenModel::infer_model(
                     tmp_init_proba_single_thread_model_queue.pop();
                     len_proba_init_event->initialize_Len_proba_bound(
                             tmp_init_proba_single_thread_model_queue,
-                            single_thread_model_marginals.marginal_array_smart_p, index_mapp);
+                            single_thread_model_marginals.marginal_array_smart_p, index_mapp,
+                            single_thread_model_parms.get_seq_type_registry());
                     len_proba_bound_source_events[len_proba_init_event->get_event_identifier()] = len_proba_init_event;
                 }
                 folded_len_proba_bounds = true;
