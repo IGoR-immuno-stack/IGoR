@@ -1,9 +1,13 @@
 # Legacy generator rewrite plan: draw, construct, and no V/D/J names
 
 **Created**: Oct 4 2026
-**Scope**: the legacy generator: `GenModel::generate_unique_sequence()` and the four
+**Scope**: the legacy generator: `SequenceGenerator::generate_unique_sequence()` and the four
 `Rec_Event::draw_random_realization()` overrides. `FastGenerator` (`generate.fast`) is out of scope,
 and so is T6b, which waits on it.
+**Rebased** (Oct 5 2026) onto `feature/tandemD` after layers step 1c, which moved generation out of
+`GenModel` into `igor::generation::legacy::SequenceGenerator` (Generation/Legacy). The
+whole-sequence suite moved with it, to tst/igor/Generation/Legacy/test_sequence_generator.cpp. The
+line numbers in §1 are those of the code before both.
 **Parent**: T4 in [REC_EVENT_CAPABILITY_REFACTORING_PLAN.md](REC_EVENT_CAPABILITY_REFACTORING_PLAN.md)
 (option (a): the legacy generator comes off the `Seq_type` enum, bitwise).
 **Counterpart of**: [ITERATE_GENERIC_REWRITE_PLAN.md](ITERATE_GENERIC_REWRITE_PLAN.md), whose method
@@ -170,8 +174,8 @@ Each G4 commit removes the `[!shouldfail]` tags of the tandem cases it makes pas
     - insertion placeholders;
     - the Markov fill: 3′ and 5′ anchors, VJ, empty insertion, placeholder mask, D6;
     - tandem V-D1-D2-J (`[!shouldfail]` ×5: gene choice, insertion, deletion, chain, end to end).
-- **`tst/igor/Inference/Legacy/test_generation.cpp`**: 5 `TEST_CASE`s through
-  `GenModel::generate_sequences`:
+- **`tst/igor/Generation/Legacy/test_sequence_generator.cpp`**: 5 `TEST_CASE`s through
+  `SequenceGenerator::generate_sequences`:
   - point-mass VDJ, with J conditioned on V, so the row a parent selects is pinned end to end;
   - point-mass VJ;
   - D5;
@@ -226,7 +230,7 @@ up front; `create` appending.
 
 ### 5.5 G3, delivered
 
-- `GenModel::generate_unique_sequence()` builds each sequence in a `GenerationState` sized from
+- `SequenceGenerator::generate_unique_sequence()` builds each sequence in a `GenerationState` sized from
   the model's registry, and assembles it in `registry.ordering()`. A model with no ordering is
   refused. Both programmatic callers of `generate_sequences` (igor-demo, the legacy demo) load
   from a file, so `finalize()` has set one.
