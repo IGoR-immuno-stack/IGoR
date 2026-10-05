@@ -87,9 +87,19 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS "ON")
 ## Build setup
 ## #################################################################
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
+
+if(WIN32)
+  # Prevent Windows.h min/max macros from breaking std::numeric_limits
+  add_compile_definitions(NOMINMAX)
+endif()
+
+if(MSVC)
+  # Ensure __cplusplus macro reports the correct C++ version instead of 199711L
+  add_compile_options(/Zc:__cplusplus)
+endif()
 
 ## ###################################################################
 ## Test setup
@@ -117,6 +127,19 @@ find_package(Parquet REQUIRED)
 find_package(sparrow REQUIRED)
 find_package(CLI11 REQUIRED)
 find_package(tomlplusplus REQUIRED)
+find_package(nlohmann_json REQUIRED)
+
+# OpenSSL (app/igor and tst/utils) must come from the pixi environment, like every other
+# dependency. Without this hint FindOpenSSL searches /usr before the environment and links
+# the system libcrypto, which on the Linux runner is built against a newer glibc than the
+# conda toolchain's sysroot. On Windows the conda-forge layout puts libraries under Library/.
+if(DEFINED ENV{CONDA_PREFIX} AND NOT DEFINED OPENSSL_ROOT_DIR)
+  if(WIN32)
+    set(OPENSSL_ROOT_DIR "$ENV{CONDA_PREFIX}/Library")
+  else()
+    set(OPENSSL_ROOT_DIR "$ENV{CONDA_PREFIX}")
+  endif()
+endif()
 
 find_package(Arrow REQUIRED)
 find_package(Parquet REQUIRED)
@@ -128,22 +151,33 @@ find_package(sparrow REQUIRED)
 
 option(BUILD_DOC_DOXYGEN "Build Doxygen Documentation." false)
 option(ENABLE_COVERAGE "Enable code coverage." false)
+# Measures how far the pruning bound sits above what each scenario realizes -- the baseline
+# R6 needs before deciding whether a conditioned bound is worth its storage. See
+# src/igor/Model/Legacy/BoundTightness.h. Off by default: the call site compiles to nothing.
+option(ENABLE_BOUND_INSTRUMENTATION "Measure bound / realized probability at scenario leaves." false)
+
+if(ENABLE_BOUND_INSTRUMENTATION)
+    add_compile_definitions(IGOR_BOUND_INSTRUMENTATION)
+endif(ENABLE_BOUND_INSTRUMENTATION)
 
 if(ENABLE_COVERAGE)
   if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
 #    add_compile_options(Wall -Wextra -pedantic-errors) # To activate once it compiles without -pedantic-errors
     add_compile_options(-Wall -Wextra)
   endif()
-  if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    add_compile_options(-fprofile-generate)
-    add_link_options(-fprofile-generate)
-  elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+  # Branch on the compiler, not the OS: a Linux clang build used to get GCC's flags.
+  # -fprofile-generate is PGO instrumentation, not coverage -- it emits .gcda arc counts but
+  # no .gcno notes, so gcov has nothing to map them onto and every report came out empty.
+  if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    add_compile_options(--coverage)
+    add_link_options(--coverage)
+  elseif (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     add_compile_options(-fprofile-instr-generate -fcoverage-mapping)
     add_link_options(-fprofile-instr-generate -fcoverage-mapping)
-  elseif(WIN32)
+  elseif(MSVC)
     add_compile_options(/FS)
   else()
-    message(FATAL_ERROR "Unsupported system: ${CMAKE_SYSTEM_NAME}")
+    message(FATAL_ERROR "Coverage not supported for compiler: ${CMAKE_CXX_COMPILER_ID}")
   endif()
 endif(ENABLE_COVERAGE)
 #add_subdirectory(tst)

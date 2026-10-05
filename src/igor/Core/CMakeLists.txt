@@ -7,13 +7,13 @@ LANGUAGES
   CXX)
 
 ## #################################################################
-## Core Target Definition (add_library, export header, version, alias)
+## Target Definition (add_library, export header, version, alias)
 ## #################################################################
 
 add_library(${PROJECT_NAME} SHARED)
 
 generate_export_header(${PROJECT_NAME}
-  EXPORT_FILE_NAME "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_PROJECT_NAME}${PROJECT_NAME}Export.h")
+  EXPORT_FILE_NAME "${CMAKE_CURRENT_BINARY_DIR}/Export.h")
 
 set_target_properties(${PROJECT_NAME}
   PROPERTIES
@@ -27,92 +27,66 @@ add_library(${CMAKE_PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 ## Sources, Headers, Includes, Linking, Install
 ## #################################################################
 
-target_sources(${PROJECT_NAME}
-  PRIVATE
-    Aligner.cpp
-    Bestscenarioscounter.cpp
-    CDR3SeqData.cpp
-    Counter.cpp
-    Coverageerrcounter.cpp
-    Deletion.cpp
-    Dinuclmarkov.cpp
-    Errorrate.cpp
-    Errorscounter.cpp
-    EventUtils.cpp
-    ExtractFeatures.cpp
-    FastGenerator.cpp
-    FastSampling.cpp
-    GenModel.cpp
-    Genechoice.cpp
-    gene_to_seqtype_migr.cpp
-    HypermutationfullNmererrorrate.cpp
-    Hypermutationglobalerrorrate.cpp
-    Insertion.cpp
-    IntStr.cpp
-    Model_Parms.cpp
-    Model_marginals.cpp
-    Pgencounter.cpp
-    Rec_Event.cpp
-    Singleerrorrate.cpp
-    Utils.cpp
-
-  PUBLIC FILE_SET HEADERS
-    BASE_DIRS
-      ${CMAKE_CURRENT_SOURCE_DIR}
-      ${CMAKE_CURRENT_BINARY_DIR}
-    FILES
-      AccumulationContext.h
-      Aligner.h
-      Bestscenarioscounter.h
-      CDR3SeqData.h
-      Counter.h
-      Coverageerrcounter.h
-      Deletion.h
-      Dinuclmarkov.h
-      Errorrate.h
-      Errorscounter.h
-      EventUtils.h
-      ExplorationContext.h
-      ExtractFeatures.h
-      FastGenerator.h
-      FastSampling.h
-      GenModel.h
-      Genechoice.h
-      gene_to_seqtype_migr.h
-      HypermutationfullNmererrorrate.h
-      Hypermutationglobalerrorrate.h
-      Insertion.h
-      IntStr.h
-      ModelContext.h
-      Model_Parms.h
-      Model_marginals.h
-      Pgencounter.h
-      QuerySequenceContext.h
-      Rec_Event.h
-      Scenario.h
-      ScenarioContext.h
-      SeqTypeRegistry.h
-      Singleerrorrate.h
-      Utils.h
-      ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_PROJECT_NAME}${PROJECT_NAME}Export.h
-      ${CMAKE_CURRENT_BINARY_DIR}/Config
-      ${CMAKE_CURRENT_BINARY_DIR}/Config.h
-)
+set(LAYER_DIR ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME})
+set(LAYER_BINARY_DIR ${CMAKE_BINARY_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME})
 
 configure_file(
   "${CMAKE_CURRENT_SOURCE_DIR}/Config.h.in"
   "${CMAKE_CURRENT_BINARY_DIR}/Config.h")
-configure_file(
-  "${CMAKE_CURRENT_SOURCE_DIR}/Config.h.in"
-  "${CMAKE_CURRENT_BINARY_DIR}/Config")
+
+target_sources(${PROJECT_NAME}
+  PRIVATE
+    AlignmentData.cpp
+    Types.cpp
+    GeneticCode.cpp
+    IntStr.cpp
+  PUBLIC FILE_SET HEADERS
+    BASE_DIRS
+      ${CMAKE_SOURCE_DIR}/src
+      ${CMAKE_BINARY_DIR}/src
+    FILES
+      ${LAYER_BINARY_DIR}/Export.h
+      ${LAYER_BINARY_DIR}/Config.h
+      ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}.h
+      ${LAYER_DIR}/AlignmentData.h
+      ${LAYER_DIR}/Platform.h
+      ${LAYER_DIR}/Types.h
+      ${LAYER_DIR}/DynamicSequenceMap.h
+      ${LAYER_DIR}/GeneticCode.h
+      ${LAYER_DIR}/IntStr.h
+      ${LAYER_DIR}/LayeredArray.h
+      ${LAYER_DIR}/SegmentSpan.h
+      ${LAYER_DIR}/SeqOffsetsMap.h
+      ${LAYER_DIR}/SeqTypeRegistry.h
+)
+
+# Legacy files: everything under Legacy/, the stubs of promoted headers included.
+target_sources(${PROJECT_NAME}
+  PRIVATE
+    Legacy/Utils.cpp
+  PUBLIC FILE_SET HEADERS
+    BASE_DIRS
+      ${CMAKE_SOURCE_DIR}/src
+      ${CMAKE_BINARY_DIR}/src
+    FILES
+      ${LAYER_DIR}/Legacy/AlignmentData.h
+      ${LAYER_DIR}/Legacy/CoreEnums.h
+      ${LAYER_DIR}/Legacy/DynamicSequenceMap.h
+      ${LAYER_DIR}/Legacy/GeneticCode.h
+      ${LAYER_DIR}/Legacy/IntStr.h
+      ${LAYER_DIR}/Legacy/LayeredArray.h
+      ${LAYER_DIR}/Legacy/SegmentSpan.h
+      ${LAYER_DIR}/Legacy/SeqOffsetsMap.h
+      ${LAYER_DIR}/Legacy/SeqTypeRegistry.h
+      ${LAYER_DIR}/Legacy/StdTypedefs.h
+      ${LAYER_DIR}/Legacy/Typedef.h
+      ${LAYER_DIR}/Legacy/Utils.h
+)
 
 target_include_directories(${PROJECT_NAME} PUBLIC
   $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src>
   $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/src>
 )
-
-target_link_libraries(${PROJECT_NAME} PUBLIC GSL::gsl)
-target_link_libraries(${PROJECT_NAME} PRIVATE OpenMP::OpenMP_CXX)
 
 if(WIN32)
   target_link_libraries(${PROJECT_NAME} PRIVATE ws2_32)
@@ -134,7 +108,7 @@ install(
   RUNTIME
     DESTINATION ${CMAKE_INSTALL_BINDIR}
   FILE_SET HEADERS
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
   INCLUDES
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )

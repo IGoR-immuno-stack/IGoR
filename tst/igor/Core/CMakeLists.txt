@@ -1,39 +1,29 @@
 ### CMakeLists.txt ---
 
-set(CORE_TEST_SOURCES
-    test_aligner.cpp
-    test_aligner_benchmark.cpp
-    test_alignment_cigar.cpp
-    test_Contexts.cpp
-    test_EventUtils.cpp
-    test_fast_sampling.cpp
-    test_generation.cpp
-    test_inference.cpp
-    test_sanity.cpp
-    test_utils.cpp
-    AlignerTestUtils.cpp
+add_executable(core_tests
+    test_dynamic_sequence_map.cpp
+    test_layered_array.cpp
 )
 
-add_executable(igor_tests ${CORE_TEST_SOURCES})
+# Legacy tests: the tests of the code still under <Layer>/Legacy.
+target_sources(core_tests
+    PRIVATE
+        Legacy/test_sanity.cpp
+)
 
-target_link_libraries(igor_tests
+set_target_properties(core_tests PROPERTIES CXX_STANDARD 23)
+
+target_link_libraries(core_tests
     PRIVATE
         igor::Core
         Catch2::Catch2WithMain)
 
-target_compile_definitions(igor_tests PRIVATE
+target_compile_definitions(core_tests PRIVATE
     IGOR_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 
-# Whitebox tests reach into Core-internal Smith-Waterman DP symbols (see AlignerInternal.h)
-# that aren't part of Core's normal public API. CORE_TESTING_ENABLED switches those symbols'
-# CORE_TESTING_EXPORT annotation to a real export/import (instead of hidden visibility) only
-# for this test build, on both sides of the Core shared library boundary: Core itself (so it
-# actually exports them) and igor_tests (so it declares them the same way when importing).
-target_compile_definitions(Core PRIVATE CORE_TESTING_ENABLED)
-target_compile_definitions(igor_tests PRIVATE CORE_TESTING_ENABLED)
-
 include(Catch)
-catch_discover_tests(igor_tests
+# CI's main job runs `ctest -L unit`; the other two groups are run by the nightly job.
+catch_discover_tests(core_tests
     TEST_SPEC "~[integration]~[slow]"
     TEST_PREFIX "unit::"
     PROPERTIES
@@ -41,7 +31,7 @@ catch_discover_tests(igor_tests
         LABELS "unit"
 )
 
-catch_discover_tests(igor_tests
+catch_discover_tests(core_tests
     TEST_SPEC "[integration]"
     TEST_PREFIX "integration::"
     PROPERTIES
@@ -49,7 +39,7 @@ catch_discover_tests(igor_tests
         LABELS "integration"
 )
 
-catch_discover_tests(igor_tests
+catch_discover_tests(core_tests
     TEST_SPEC "[convergence]"
     TEST_PREFIX "convergence::"
     PROPERTIES

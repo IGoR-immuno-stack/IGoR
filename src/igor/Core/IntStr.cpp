@@ -26,49 +26,52 @@
 
 #include <igor/Core/IntStr.h>
 
+
+namespace igor::core {
+
 using namespace std;
 
-Int_Str &Int_Str::operator+=(const Int_Str &other)
+IntStr &IntStr::operator+=(const IntStr &other)
 {
     this->insert(this->end(), other.begin(), other.end());
     return *this;
 }
 
-Int_Str &Int_Str::operator+=(const int &a)
+IntStr &IntStr::operator+=(const int &a)
 {
     this->push_back(a);
     return *this;
 }
 
-Int_Str &Int_Str::operator+=(int &&a)
+IntStr &IntStr::operator+=(int &&a)
 {
     this->push_back(a);
     return *this;
 }
 
-Int_Str &Int_Str::append(const Int_Str &other)
+IntStr &IntStr::append(const IntStr &other)
 {
     return (*this) += other;
 }
 
-Int_Str &Int_Str::append(const int &a)
+IntStr &IntStr::append(const int &a)
 {
     return (*this) += a;
 }
 
-Int_Str Int_Str::operator+(const Int_Str &other) const
+IntStr IntStr::operator+(const IntStr &other) const
 {
-    Int_Str new_int_str;
+    IntStr new_int_str;
     new_int_str.reserve(this->size() + other.size());
     new_int_str += (*this);
     new_int_str += other;
     return new_int_str;
 }
 
-void Int_Str::substr(Int_Str &new_int_str, size_t pos /*= 0*/, size_t len /*= 99999999999999*/) const
+void IntStr::substr(IntStr &new_int_str, size_t pos /*= 0*/, size_t len /*= 99999999999999*/) const
 {
-    Int_Str::const_iterator begin = this->begin() + pos;
-    Int_Str::const_iterator last;
+    IntStr::const_iterator begin = this->begin() + pos;
+    IntStr::const_iterator last;
     if (len == npos) {
         last = this->end();
     } else if (pos + len >= this->size()) {
@@ -79,10 +82,10 @@ void Int_Str::substr(Int_Str &new_int_str, size_t pos /*= 0*/, size_t len /*= 99
     new_int_str.assign(begin, last);
 }
 
-Int_Str Int_Str::substr(size_t pos /*= 0*/, size_t len /*= 99999999999999*/) const
+IntStr IntStr::substr(size_t pos /*= 0*/, size_t len /*= 99999999999999*/) const
 {
-    Int_Str::const_iterator begin = this->begin() + pos;
-    Int_Str::const_iterator last;
+    IntStr::const_iterator begin = this->begin() + pos;
+    IntStr::const_iterator last;
     if (len == npos) {
         last = this->end();
     } else if (pos + len >= this->size()) {
@@ -90,15 +93,15 @@ Int_Str Int_Str::substr(size_t pos /*= 0*/, size_t len /*= 99999999999999*/) con
     } else {
         last = begin + len;
     }
-    Int_Str new_int_str;
+    IntStr new_int_str;
     new_int_str.assign(begin, last);
     return new_int_str;
 }
 
-Int_Str &Int_Str::erase(size_t pos, size_t len)
+IntStr &IntStr::erase(size_t pos, size_t len)
 {
-    Int_Str::iterator begin = this->begin() + pos;
-    Int_Str::iterator last;
+    IntStr::iterator begin = this->begin() + pos;
+    IntStr::iterator last;
     if (len == npos) {
         last = this->end();
     } else if (pos + len >= this->size()) {
@@ -110,39 +113,41 @@ Int_Str &Int_Str::erase(size_t pos, size_t len)
     return *this;
 }
 
-ostream &operator<<(ostream &out, const Int_Str &int_str)
+ostream &operator<<(ostream &out, const IntStr &int_str)
 {
-    for (Int_Str::const_iterator iter = int_str.begin(); iter != int_str.end(); ++iter) {
+    for (IntStr::const_iterator iter = int_str.begin(); iter != int_str.end(); ++iter) {
         out << (*iter);
     }
     return out;
 }
 
 /*
-Int_Str::Int_Str(): int_vector() {
+IntStr::IntStr(): int_vector() {
 }
 
-Int_Str::Int_Str(const Int_Str& other){
+IntStr::IntStr(const IntStr& other){
 	this->int_vector = other.int_vector;
 }
 
-Int_Str::~Int_Str() {
+IntStr::~IntStr() {
 	// TODO Auto-generated destructor stub
 }
 
-Int_Str& Int_Str::operator=(const Int_Str& other){
+IntStr& IntStr::operator=(const IntStr& other){
 	this->int_vector = other.int_vector;
 	return this;
 }
 
-size_t Int_Str::max_size() const noexcept{
+size_t IntStr::max_size() const noexcept{
 	return this->int_vector.max_size();
 }
 
-size_t Int_Str::capacity() const noexcept{
+size_t IntStr::capacity() const noexcept{
 	return this->int_vector.capacity();
 }
 
-void Int_Str::clear(){
+void IntStr::clear(){
 
 }*/
+
+} // namespace igor::core

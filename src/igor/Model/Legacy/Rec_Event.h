@@ -1,0 +1,781 @@
+/*
+ * Rec_Event.h
+ *
+ *  Created on: 3 nov. 2014
+ *      Author: Quentin Marcou
+ *
+ *  This source code is distributed as part of the IGoR software.
+ *  IGoR (Inference and Generation of Repertoires) is a versatile software to analyze and model immune receptors
+ *  generation, selection, mutation and all other processes.
+ *   Copyright (C) 2017  Quentin Marcou
+ *
+ *   This program is free software: you can redistribute it and/or modify
+ *   it under the terms of the GNU General Public License as published by
+ *   the Free Software Foundation, either version 3 of the License, or
+ *   (at your option) any later version.
+ *
+ *   This program is distributed in the hope that it will be useful,
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *   GNU General Public License for more details.
+
+ *   You should have received a copy of the GNU General Public License
+ *   along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ *
+ */
+
+#pragma once
+
+#include <igor/Model/Legacy/Errorrate.h>
+#include <igor/Core/Legacy/IntStr.h>
+#include <igor/Core/Legacy/AlignmentData.h>
+#include <igor/Core/Legacy/SegmentSpan.h>
+#include <igor/Model/Legacy/SafetyMatrix.h>
+#include <igor/Core/Legacy/SeqTypeRegistry.h>
+#include <igor/Model/Legacy/UnfilledSegmentLengths.h>
+#include <igor/Model/Legacy/FoldFrontier.h>
+#include <igor/Model/Legacy/GenerationState.h>
+#include <igor/Model/Legacy/SpanProfile.h>
+#include <igor/Core/Legacy/Utils.h>
+#include <igor/Model/Legacy/EventTypedefs.h>
+#include <igor/Core/Legacy/Typedef.h>
+#include <igor/Model/Export.h>
+
+// Only the forward declaration here: json.hpp is 25k lines and belongs in the .cpp files.
+#include <nlohmann/json_fwd.hpp>
+
+// Context objects for refactored iterate()
+#include <igor/Model/Legacy/QuerySequenceContext.h>
+#include <igor/Model/Legacy/ModelContext.h>
+#include <igor/Model/Legacy/ScenarioContext.h>
+#include <igor/Model/Legacy/ExplorationContext.h>
+#include <igor/Model/Legacy/AccumulationContext.h>
+
+#include <array>
+#include <unordered_map>
+#include <unordered_set>
+#include <vector>
+#include <string>
+#include <list>
+#include <utility>
+#include <forward_list>
+#include <queue>
+#include <random>
+#include <fstream>
+#include <stdexcept>
+#include <tuple>
+#include <memory>
+#include <map>
+
+
+namespace igor::model::legacy {
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+
+class Counter;
+
+//class Model_marginals; //forward declare model marginals to avoid circular inclusion
+
+// value of event: struct: event identifier(name of Vgene), event value(sequence), event index(custom)
+/**
+ * \struct Event_realization Rec_Event.h
+ * \brief Unit that stores an event realization name, value and index.
+ * \author Q.Marcou
+ * \version 1.0
+ *
+ *	Depending on the RecEvent type to which it belongs, the Event_realization must supply either a string (both std::string and IntStr) or an integer value.
+ *	Integers values are e.g the number of deletions or insertions of Insertion or Deletion RecEvent
+ *	String values are e.g realization of a GeneChoice Rec_Event, and stands for the gene sequence.
+ *
+ */
+struct Event_realization
+{
+    std::string name;
+    int value_int; //union? template? inheritance and reference? just use a virtual class containing two types of events:str and int
+    std::string value_str;
+    Int_Str value_str_int;
+    int index; //Not defined by the user but at the creation of the event, not quite sure about the mutable
+
+    Event_realization(std::string real_name, int val_int, std::string val_str, Int_Str val_str_int, int index_val)
+        : name(real_name), value_int(val_int), value_str(val_str), value_str_int(val_str_int), index(index_val)
+    {
+    }
+};
+
+/**
+ * \class Rec_Event Rec_Event.h
+ * \brief Recombination event class (IGoR's graph nodes)
+ * \author Q.Marcou
+ * \version 1.0
+ *
+ * This class implements the recombination event object.
+ * Rec_Events are the nodes in IGoR's Bayesian Network structure.
+ * This is a purely abstract class and cannot be instanciated as is, only classes deriving from it and implementing the purely abstract methods can be.
+ *
+ * Rec_Events contain the different Event_realization associated to it in a hashmap.
+ *
+ * The RecEvents design is key to the way IGoR explore all possible scenarios (through the iterate method) and generate sequences (through the draw_random_realization)
+ *
+ */
+/**
+ * \brief Signed range by which an event shifts one end of a segment.
+ *
+ * A 3' end moves left as nucleotides are deleted, a 5' end moves right, so the sign is
+ * carried here rather than being re-derived at every call site. `{0, 0}` means the event
+ * cannot move that end at all.
+ *
+ * **Invariant: `min <= max`.** The pair is an ordered interval, not a (nearest, farthest)
+ * pair -- an implementer flipping the sign of one end must reorder the two. Consumers rely
+ * on this rather than re-sorting, so that a provider that gets it wrong surfaces as an error
+ * instead of being silently normalised; JunctionGeometry::PendingModifierBounds::rebuild()
+ * is where it is enforced.
+ */
+struct OffsetDelta {
+    int min = 0;
+    int max = 0;
+
+    bool operator==(const OffsetDelta &) const = default;
+};
+
+/**
+ * \brief Signed range of nucleotides an event contributes to a segment's length.
+ *
+ * Positive for an event that supplies sequence (a genomic template, an insertion), negative
+ * for one that removes it (a deletion), zero for one that only fills placeholders.
+ *
+ * **Invariant: `min <= max`**, as for OffsetDelta.
+ *
+ * This is a *contribution*, not a length: several events compose onto one segment, and the
+ * junction-length DP already sums them. It replaces `get_len_min()` / `get_len_max()`, whose
+ * meaning differs per subclass -- signed delta on Deletion, a length on Insertion and
+ * Gene_choice, never set on Dinucl_markov -- and whose value is accumulated by an
+ * order-dependent `if / else if` over an unordered map. See
+ * docs/ITERATE_GENERIC_REWRITE_PLAN.md sections 2.1 and 7.4.
+ */
+struct LengthContribution {
+    int min = 0;
+    int max = 0;
+
+    bool operator==(const LengthContribution &) const = default;
+};
+
+/// What an event does to a constructed sequence segment.
+enum class SeqConstructionRole {
+    None,     ///< does not touch this segment
+    Creates,  ///< allocates it (possibly containing placeholders)
+    Modifies, ///< truncates or extends an existing one
+    Fills     ///< fills placeholder values in an existing one
+};
+
+/// What an event does to one end of a segment.
+enum class OffsetRole {
+    None,
+    Creates, ///< sets the initial offset
+    Modifies ///< shifts an existing one
+};
+
+class MODEL_EXPORT Rec_Event
+{
+public:
+    Rec_Event();
+    Rec_Event(Gene_class, Seq_side);
+    Rec_Event(Gene_class, Seq_side, std::unordered_map<std::string, Event_realization> &);
+    virtual ~Rec_Event();
+    virtual std::shared_ptr<Rec_Event> copy() = 0; //TODO make it const somehow
+    virtual int size() const;
+
+    /// \name Hooks for the igor::Model layer
+    /// The Model layer keys its parallel vectors (one tensor, one handler per event) by this
+    /// index, assigned by igor::model::Topology::addEvent(). Core never reads it.
+    /// @{
+    igor::core::legacy::index_type uid() const { return m_uid; }
+    void setUid(igor::core::legacy::index_type uid) { m_uid = uid; }
+
+    /// Shape of this event's own axes in a probability tensor, i.e. what the event
+    /// contributes on top of its parents' axes. The default is the realization count, which
+    /// is right for every categorical event; Dinucl_markov overrides it with {4, 4} because
+    /// its size() counts the 16 transitions rather than the 4 states.
+    virtual std::vector<std::size_t> inherent_shape() const
+    {
+        return { static_cast<std::size_t>(this->size()) };
+    }
+    /// @}
+
+    //TODO get rid of deletion map and chosen gene map
+    /**
+     * @brief Context-based iterate() interface
+     *
+     * New signature using 5 context objects instead of 19 individual parameters.
+     * Subclasses implement semantic iteration logic using these contexts.
+     *
+     * Contexts encapsulate:
+     * - QuerySequenceContext: Input sequence and alignments
+     * - ModelContext: Read-only model configuration
+     * - ScenarioContext: Per-path mutable state
+     * - ExplorationContext: Tree exploration policy
+     * - AccumulationContext: Result accumulation
+     *
+     * This overload exists alongside the legacy signature during transition.
+     */
+    virtual void
+    iterate(QuerySequenceContext& query,
+            const ModelContext& model,
+            ScenarioContext& scenario,
+            ExplorationContext& exploration,
+            AccumulationContext& accumulation) = 0;
+
+    bool set_priority(int);
+
+    //Accessors
+    const Gene_class get_class() const { return event_class; };
+    const Seq_side get_side() const { return event_side; };
+    const std::unordered_map<std::string, Event_realization> get_realizations_map() const
+    {
+        return event_realizations;
+    };
+    const int get_priority() const { return priority; };
+    const Rec_Event_name get_name() const { return name; };
+    /// Returns the v2.0-format event name that includes seq_type between
+    /// gene_class and seq_side.  Used in @Edges sections of v2.0 files.
+    /// Falls back to get_name() when seq_type is empty.
+    Rec_Event_name get_v2_name() const;
+    /// Returns the legacy-format event name (without seq_type), even if the
+    /// internal name has been updated to include seq_type.
+    Rec_Event_name get_legacy_name() const;
+    const std::string get_nickname() const { return nickname; };
+    void set_nickname(std::string name) { nickname = name; }
+    Event_type get_type() const { return this->type; }
+    int get_len_max() const { return this->len_max; };
+    int get_len_min() const { return this->len_min; };
+
+    /**
+     * \name Capability queries (Phase A, reduced -- task A0)
+     *
+     * Declarative properties, answered from the event's own instance data. Called during
+     * model initialization, never inside the iterate hot loop, so the virtual dispatch is
+     * free. Pure virtual rather than base members because several answers depend on
+     * instance state a base constructor could not know: which seq_type an event targets,
+     * which end it acts on, and its realization set.
+     *
+     * They exist so that the generic iterate() bodies (B5, B6, B11) can ask "how far can
+     * this end still move" and "how long can what sits here still be" without knowing
+     * which subclass answers. See docs/ITERATE_GENERIC_REWRITE_PLAN.md section 2.1.
+     * @{
+     */
+
+    /// How far this event can still shift `(type_id, side)`. `{0, 0}` if it cannot.
+    virtual OffsetDelta get_offset_delta_bounds(SeqTypeId type_id, Seq_side side) const = 0;
+
+    /// How many nucleotides this event contributes to `type_id`. `{0, 0}` if none.
+    virtual LengthContribution get_length_contribution(SeqTypeId type_id) const = 0;
+
+    /// What this event does to the `type_id` segment.
+    virtual SeqConstructionRole get_seq_construction_role(SeqTypeId type_id) const = 0;
+
+    /// What this event does to one end of the `type_id` segment.
+    virtual OffsetRole get_offset_role(SeqTypeId type_id, Seq_side side) const = 0;
+
+    /**
+     * The segments immediately 5' and 3' of this event's own, in the registry ordering.
+     *
+     * Set by Model_Parms::finalize() for every event, once per model, and `kNoSeqType` where
+     * the ordering runs out or the event has no seq_type. **Topology is the model's fact, not
+     * the event's**: events are told what is next to them rather than asking a registry, so
+     * there is exactly one place that reads the ordering and one moment at which it is read.
+     *
+     * What an event *does* with its neighbours is its own business: an Insertion spans both,
+     * a Dinucl_markov seeds from whichever side its Markov chain runs from, a Gene_choice
+     * ignores them.
+     */
+    void set_adjacent_segments(SeqTypeId left, SeqTypeId right)
+    {
+        left_adjacent_id = left;
+        right_adjacent_id = right;
+    }
+    SeqTypeId get_left_adjacent_id() const { return left_adjacent_id; }
+    SeqTypeId get_right_adjacent_id() const { return right_adjacent_id; }
+
+    /** @} */
+    const Seq_type_String get_seq_type() const { return seq_type; };
+    void set_seq_type(const Seq_type_String &st) { seq_type = st; }
+    /// Runtime handle for seq_type, resolved against the model's frozen registry by
+    /// Model_Parms::finalize(). kNoSeqType until then. Used in place of the name
+    /// everywhere inside the scenario traversal, so the registry stays out of the hot path.
+    SeqTypeId get_seq_type_id() const { return seq_type_id; }
+    void set_seq_type_id(SeqTypeId id) { seq_type_id = id; }
+    /// Refreshes the generated name, like set_priority() and add_realization() do. It used not
+    /// to, which made the name depend on the order of the setters; see name_side() in
+    /// Rec_Event.cpp. A DinucMarkov's name is unaffected by the side, by design.
+    void set_event_side(Seq_side s)
+    {
+        event_side = s;
+        update_event_name();
+    }
+
+    bool operator==(const Rec_Event &) const;
+
+    /// The side token a generated name carries: the event's own side, except for DinucMarkov,
+    /// whose name always says Undefined_side because its side is a direction, not an identity.
+    /// See the definition in Rec_Event.cpp. It sits next to update_event_name(), which is public
+    /// too, because the subclasses that override it have to apply the same rule.
+    static Seq_side name_side(Event_type type, Seq_side side);
+
+    virtual void update_event_name();
+
+    ///@{ \name Generation (docs/GENERATION_REWRITE_PLAN.md)
+    /// The legacy generator's step for this event: draw_realization(), then
+    /// construct_realization(), then propagate_realization(). Returns the indices drawn, which
+    /// is what the realizations file records. Non-virtual: an event type says how it draws and
+    /// what a realization builds, and the order of the three is the same for all of them.
+    std::queue<int> draw_random_realization(
+            const Marginal_array_p &, std::unordered_map<Rec_Event_name, int> &,
+            const std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &,
+            GenerationState &, std::mt19937_64 &) const;
+
+    /// What a draw records when the walk ends without choosing anything (plan D4).
+    static constexpr int kNoRealization = -1;
+
+    /**
+     * Draw this event's realization indices; write nothing.
+     *
+     * The base draws one index from the event's marginal row (pick_realization()), which is
+     * what Gene_choice, Deletion and Insertion do. An event whose draw depends on what has been
+     * built so far reads it from the segments, which is why they are passed: Dinucl_markov's
+     * chain is seeded by its anchor and is as long as its insertion. Empty when the walk chose
+     * nothing.
+     */
+    virtual std::vector<int> draw_realization(const Marginal_array_p &,
+                                              const std::unordered_map<Rec_Event_name, int> &,
+                                              const GenerationState &, std::mt19937_64 &) const;
+
+    /**
+     * The realization the categorical walk stops at for the uniform `u`: realizations in
+     * `event_realizations` order, cumulating the marginal row that starts at `base`, until the
+     * running sum reaches `u`. kNoRealization when the row's mass stays below `u`.
+     */
+    int pick_realization(const Marginal_array_p &, int base, double u) const;
+
+    /**
+     * Build what the realizations `indices` stand for into the segments. No RNG, no marginals,
+     * no index map: this is the event's `apply` (ARCHITECTURE_SYNTHESIS §5), the half a
+     * sampling engine drives with the indices it sampled.
+     */
+    virtual void construct_realization(const std::vector<int> &indices, GenerationState &) const = 0;
+
+    /// Move each child's row in the index map by the realization drawn times the child's
+    /// stride, so that the child draws from the row its parent selected.
+    virtual void propagate_realization(
+            const std::vector<int> &indices, std::unordered_map<Rec_Event_name, int> &,
+            const std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &)
+            const;
+
+    /// The realization whose index is `index`. A scan: realizations are keyed by name, and an
+    /// index-ordered domain is the minimal Event's (SEGMENT_DECOMPOSITION_REVIEW §7.1).
+    const Event_realization &realization_at(int index) const;
+    ///@}
+    virtual void write2txt(std::ofstream &) = 0;
+    virtual void write2txt_legacy(std::ofstream &) = 0;
+    virtual void write2txt_v2(std::ofstream &) = 0;
+
+    /**
+     * \brief Serialized form of this event: its header fields plus its realizations.
+     *
+     * Non-pure on purpose. The body in Rec_Event.cpp is generic over the four subclasses,
+     * because everything it writes is already on the base: type, gene class, seq_type, side,
+     * priority, nickname, and the realization map. A subclass only needs to override it if it
+     * grows state that is not a realization.
+     *
+     * Realizations come out sorted by index, since event_realizations is an unordered_map and
+     * an unsorted dump would not be reproducible.
+     */
+    virtual nlohmann::json to_json() const;
+    virtual void ind_normalize(Marginal_array_p &, size_t) const;
+    virtual void initialize_event(
+            std::unordered_set<Rec_Event_name> &,
+            const Events_map &,
+            const std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &,
+            Downstream_scenario_proba_bound_map &, Seq_type_str_p_map &, SafetyMatrix &, std::shared_ptr<Error_rate>,
+            Mismatch_vectors_map &, Seq_offsets_map &, Index_map &);
+
+private:
+    void initialize_event_common(
+            std::unordered_set<Rec_Event_name> &,
+            const std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &,
+            Downstream_scenario_proba_bound_map &, Index_map &);
+
+public:
+    virtual void add_to_marginals(long double, Marginal_array_p &) const = 0;
+    virtual void set_crude_upper_bound_proba(size_t, size_t, Marginal_array_p &);
+    double iterate_common(int realization_index, int base_index,
+                          Index_map &base_index_map,
+                          const Marginal_array_p &model_parameters);
+
+    /**
+     * @brief Update parent realization tracking for marginal indexing
+     *
+     * Encapsulates the index_map update logic from iterate_common().
+     *
+     * Updates index_map based on this event's memory_and_offsets structure,
+     * which tracks dependencies on parent event realizations.
+     *
+     * @param realization_index Current realization index
+     * @param index_map Index map to update (from ExplorationContext)
+     */
+    void update_parent_tracking(int realization_index, Index_map& index_map) const {
+        for (auto jiter = memory_and_offsets.begin();
+             jiter != memory_and_offsets.end(); ++jiter) {
+            size_t previous_index =
+                index_map.get(std::get<0>(*jiter), std::get<1>(*jiter) - 1);
+            previous_index += realization_index * std::get<2>(*jiter);
+            index_map.set(std::get<0>(*jiter), previous_index,
+                          std::get<1>(*jiter));
+        }
+    }
+
+    void set_upper_bound_proba(double);
+    double get_upper_bound_proba() const { return event_upper_bound_proba; };
+    virtual void update_event_internal_probas(const Marginal_array_p &,
+                                              const std::unordered_map<Rec_Event_name, int> &);
+    //virtual double get_upper_bound_proba() const;
+    void set_event_identifier(size_t);
+    int get_event_identifier() const;
+    void set_event_marginal_size(size_t ev_size) { this->event_marginal_size = ev_size; };
+    void fix(bool fix_status) { fixed = fix_status; }
+    bool is_fixed() const { return fixed; }
+    void set_viterbi_run(bool viterbi_like) { viterbi_run = viterbi_like; }
+    const std::vector<int> &get_current_realizations_index_vec() const { return current_realizations_index_vec; };
+    /// Address of the slot holding the current realization index, for observers that read it at
+    /// every leaf. Public since step 1c: it replaces the friendship granted to Coverage_err_counter, so that
+    /// Model no longer names an Inference class.
+    const int *const *current_realization_index_slot() const { return &current_realization_index; }
+
+    //Proba bound related computation methods
+
+    /**
+     * \brief Does a realization of this event change the accumulated length of \a span?
+     *
+     * **Length only** -- not offsets, not content, not probability. An event that contributes
+     * a probability factor to a span while contributing no length answers affects_proba_of()
+     * instead; conflating the two is what made the predecessor has_effect_on() misleading.
+     *
+     * One rule for every event, read off the offset roles it already declares and the model's
+     * ordering (R12): a realization changes the span's length when the event **creates or
+     * modifies an end of a segment strictly inside the span**, or **modifies one of the span's
+     * two ends**. Creating one of the two ends does not count -- that is anchoring, and the span
+     * is measured from it. So a gene inside the span adds its template, an insertion inside it
+     * adds its length, a deletion adds its trim whether it moves an end of the span or an end of
+     * a segment inside it, and V and J at the ends of every junction add nothing. Nothing here
+     * names an event kind, so a tandem pair or a flanking sequence needs no new case.
+     *
+     * The rule replaced four enum-written tables. They agreed with it everywhere but in one cell,
+     * D's deletions on V->J, which the tables left out and which made J's V->J table no bound
+     * (plan section 7.22, R16).
+     */
+    bool affects_length_of(SegmentSpan span, const SeqTypeRegistry &registry) const;
+
+    /**
+     * \brief Does this event contribute a probability factor to \a span?
+     *
+     * Only Dinucl_markov does today: its p^L factor scales with the span's length without
+     * adding to it. Default false, so an event whose whole contribution is length need not
+     * say anything.
+     */
+    virtual bool affects_proba_of(SegmentSpan, const SeqTypeRegistry &) const { return false; }
+
+    /**
+     * \brief Whether the Len_proba traversal must visit this event for \a span at all.
+     *
+     * The filter the traversal applies, at the queue rather than inside each override.
+     */
+    bool participates_in_span(SegmentSpan span, const SeqTypeRegistry &registry) const
+    {
+        return this->affects_length_of(span, registry) or this->affects_proba_of(span, registry);
+    }
+
+    /**
+     * \brief The length one realization contributes to a span it affects, signed.
+     *
+     * A0's get_length_contribution() gives the `{min,max}` bound over *all* realizations, which
+     * is what the geometry needs; the fold needs the value for **one**. This single accessor is
+     * the whole difference between the four iterate_initialize_Len_proba() bodies this replaced:
+     * `+ value_str.length()` for a gene, `+ value_int` for an insertion, `- value_int` for a
+     * deletion. Only called for an event that answers affects_length_of(), so an event whose
+     * contribution is purely probabilistic never has to invent an answer.
+     *
+     * Group-composable, and deliberately so: a clique's delta is the **sum** of its members', so
+     * R6's within-clique joint max reuses this unchanged.
+     */
+    virtual int length_delta(const Event_realization &realization) const = 0;
+
+    /**
+     * \brief A probability factor this event contributes to \a span, given the lengths already
+     * decided along this path.
+     *
+     * Dinucl_markov's cell, and today its only one: `p^L` where `L` is the length of the segment
+     * it fills, which the segment's creator published into \a lengths. Group-composable like
+     * length_delta(): a clique's factor is the **product** of its members'.
+     */
+    virtual double span_proba_factor(SegmentSpan, const UnfilledSegmentLengths &) const { return 1.0; }
+
+    /**
+     * \brief Precompute, from this iteration's marginals, what span_proba_factor() reads.
+     *
+     * Called by initialize_Len_proba_bound() before it folds anything. The sweep runs in reverse
+     * queue order, so an event is prepared before any table it takes part in is folded. Default:
+     * nothing to prepare.
+     */
+    virtual void prepare_span_proba_factor(const Marginal_array_p &, const Index_map &) {}
+
+    /**
+     * \brief Fold the profile of every junction this event reads a bound from.
+     *
+     * No longer virtual, and no longer topology-aware: *which* junctions those are was decided
+     * in initialize_event(), so this walks junction_bounds_ and folds each one the same way.
+     * The four overrides it replaces differed only in the enum-to-member switch they opened
+     * with -- Deletion's ran over a two-entry table of which one entry was dead in every VDJ
+     * model, which is section 6.10's finding 3 and about a quarter of the sweep's cost.
+     *
+     * Runs once per event per thread per EM iteration, after every initialize_event(), over the
+     * queue of events that follow this one.
+     */
+    void initialize_Len_proba_bound(std::queue<std::shared_ptr<Rec_Event>> &model_queue,
+                                    const Marginal_array_p &model_parameters_point,
+                                    const Index_map &base_index_map, const SeqTypeRegistry &registry);
+
+    /**
+     * \brief Take this iteration's folded bounds from \a source instead of folding them again.
+     *
+     * The bound is a function of the marginals alone, so every thread's copy of an event folds
+     * the identical answer -- section 2.5's finding 7. One thread folds, the rest adopt.
+     *
+     * It copies the profiles rather than sharing a pointer to them, which is the cheaper of the
+     * two. A table is one profile, or one per reader realization when it is conditioned (R13) --
+     * a few dozen at most -- and each is a contiguous run of at most ~300 doubles, so the copy is
+     * far below the fold that produced it. A `shared_ptr` would instead put an indirection in
+     * front of best_for(), which is called at every one of the 10^8-10^10 scenario nodes and is
+     * what the dense rewrite was for. Copying also keeps the threads' profiles independent, so
+     * nothing has to reason about whether iterate() might write through one.
+     *
+     * \a source must be the same event in another thread's copy of the model: its junctions were
+     * resolved by the same initialize_event(), so only the profiles need to move.
+     */
+    void adopt_Len_proba_bound(const Rec_Event &source);
+
+protected:
+    /**
+     * \brief Build the `Retain` junction's decomposition, once the two halves are folded.
+     *
+     * The last thing in the initialization sweep that used to be a subclass hook. Its body was
+     * generic in disguise: the per-realization max it takes is the fold's own, the template
+     * length is `length_delta()`, and the rest is left profile (x) right profile. Everything
+     * that made it look `Gene_choice`-shaped -- which junction, whether to build it at all --
+     * is now the `JunctionBound::Fold` mode the event declared in initialize_event(), so the
+     * sweep has no virtuals left. Section 2.6.
+     */
+    void build_retained_decomposition(const Marginal_array_p &model_parameters_point,
+                                      const Index_map &base_index_map);
+
+    /**
+     * \brief The events after this one that contribute to the span being folded, in model order.
+     *
+     * Built once per junction and walked by index, replacing the std::queue the fold used to
+     * copy -- deque allocation, and a shared_ptr refcount per entry -- at every node. It is also
+     * **pre-filtered**: an event that neither changes the span's length nor contributes a factor
+     * to it is dropped once here, rather than skipped again below every node.
+     *
+     * Raw pointers, and const: the events outlive the fold (the model queue owns them for the
+     * whole EM iteration) and the fold only reads them.
+     */
+    using SpanParticipants = std::vector<const Rec_Event *>;
+
+    /**
+     * \brief Which of a participant's conditioning parents the fold chooses itself (R6).
+     *
+     * An event's marginals hold one probability per realization for each realization of its
+     * parents. Some of those parents are participants that come earlier in the same fold, or are
+     * the reader of a table conditioned on its realization: on any one path of the fold, their
+     * realization is known. Indexing by it, instead of taking the maximum over it, is the joint
+     * maximum over the group -- the D gene and its two deletions, in every VDJ model shipped --
+     * where the product of per-event maxima was looser.
+     *
+     * Built once per table from the strides each parent already applies to its children during
+     * the walk (`memory_and_offsets`, see update_parent_tracking()), so nothing here depends on
+     * what kind of event either side is.
+     */
+    struct SpanConditioning {
+        struct Participant {
+            /// The later participants whose marginals this one's realization indexes, by cursor,
+            /// with the stride it moves them by.
+            std::vector<std::pair<std::size_t, int>> children;
+            /// The offsets of the parent realizations the fold does not choose, which
+            /// realization_bound() takes its maximum over: parents upstream of the reader, the
+            /// reader of a table not conditioned on it, and events between the reader and this
+            /// one that do not take part in the span.
+            std::vector<int> free_parent_offsets;
+        };
+        std::vector<Participant> participants;
+        /// Per participant, whether it changes the span's length -- and so enumerates its
+        /// realizations -- or only contributes a factor. Asked once per table, not per state.
+        std::vector<bool> changes_length;
+        /// The participants the reader's own realization indexes. Empty unless the table is
+        /// conditioned on that realization: otherwise the reader is one of the free parents.
+        std::vector<std::pair<std::size_t, int>> reader_children;
+    };
+
+    /**
+     * \brief One run of the junction-length fold, filling one profile.
+     *
+     * The fold computes, for every total length the span can take, the best probability the
+     * events in `participants` can reach together at that length, and writes it to `profile`.
+     * A path is one realization of each participant, its probability the product of their
+     * factors in queue order, and its length the sum of their `length_delta()`.
+     *
+     * It does not enumerate the paths. It takes the participants one at a time, and keeps the
+     * partial paths that have reached the current one in a FoldFrontier: one best probability per
+     * FoldState, the part of a path a later participant can read. Each participant extends every
+     * state once per realization (see fold_step()). Paths that end up in the same state are
+     * interchangeable for everything after them, so only the better is kept -- which is where
+     * the saving is, since two deletions that leave the same gap leave the same state once
+     * nothing still needs their realizations. When every participant has chosen, each state's
+     * probability is recorded at its length, and the profile keeps the best per length. The
+     * result is the walk over every path's, bit for bit (see FoldFrontier).
+     *
+     * initialize_Len_proba_bound() creates one SpanFold for each profile it fills. A table whose
+     * reader does not change the span's length has one profile, so one fold. A table whose reader
+     * does has one profile per reader realization, and one fold for each, starting from that
+     * realization's state (R13).
+     *
+     * The struct is nested in Rec_Event only so that run() can call each participant's
+     * protected fold_step().
+     */
+    struct SpanFold {
+        SegmentSpan span;
+        const SpanParticipants &participants;
+        const SpanConditioning &conditioning;
+        const Marginal_array_p &model_parameters;
+        const Index_map &base_index_map;
+        SpanProfile &profile;
+
+        /// Fold every participant, from `start`, and record the result in `profile`.
+        void run(FoldState start) const;
+    };
+
+    /**
+     * \brief This event's part of a fold: extend one state once per realization.
+     *
+     * For each realization, multiply `proba` by realization_bound(), add the realization's
+     * length_delta() to the state's length, publish into its `lengths`, move the marginals of the
+     * participants it conditions to that realization, and offer the result to `next`. An event
+     * that contributes a probability factor but no length -- Dinucl_markov -- does not enumerate:
+     * it multiplies in span_proba_factor() once and offers the state on.
+     *
+     * Never called for the event whose table is being folded: initialize_Len_proba_bound()
+     * handles that event itself, without its probability.
+     */
+    void fold_step(const SpanFold &fold, std::size_t cursor, const FoldState &state, double proba,
+                   FoldFrontier &next) const;
+
+    /**
+     * \brief The highest probability `realization` can have, whatever the parents not yet known.
+     *
+     * An event's marginals hold one probability per realization for each realization of its
+     * parents. A bound must hold whichever parent realization the scenario ends up with, so this
+     * takes the maximum over `parent_offsets` -- every parent configuration for
+     * build_retained_decomposition(), and in the fold only those of the parents the fold does not
+     * choose itself (SpanConditioning, R6).
+     */
+    double realization_bound(const Event_realization &realization, const Marginal_array_p &model_parameters,
+                             int base_index, const std::vector<int> &parent_offsets) const;
+
+    /// The offsets into this event's marginals of its parents' configurations in which every
+    /// parent in `fixed` -- given as (stride, number of realizations) -- is at its first
+    /// realization. With `fixed` empty, every configuration.
+    std::vector<int> parent_offsets_free_of(const std::vector<std::pair<int, int>> &fixed) const;
+
+    /// Which parents of each participant in `participants` the fold over `span` chooses itself.
+    /// `reader_conditioned` says whether the table is conditioned on this event's realization.
+    SpanConditioning conditioning_within(const SpanParticipants &participants, SegmentSpan span,
+                                         const SeqTypeRegistry &registry, bool reader_conditioned) const;
+
+    /// True for an event that positions its own segment -- an Insertion, a gene choice -- and
+    /// false for one that only moves an end of a segment already placed -- a Deletion. Only the
+    /// first kind writes a length into a fold's `lengths`.
+    bool creates_own_offsets() const;
+
+    /**
+     * \brief Which junction a JunctionBound slot holds, relative to this event's own segment.
+     *
+     * Three is enough for every event in every topology, because an event's segment has two
+     * flanks and sits inside at most one junction. Tandem D needs no fourth: D1 measures
+     * `V->D1` and `D1->D2` and sits inside `V->J`, exactly like D does today.
+     */
+    enum JunctionSlot : std::size_t {
+        kLeftJunction = 0,      ///< the junction ending at this event's segment (its 5' flank)
+        kRightJunction = 1,     ///< the junction starting at this event's segment (its 3' flank)
+        kEnclosingJunction = 2, ///< the junction this event lies *within* and splits or fills
+        kJunctionSlotCount = 3
+    };
+
+    JunctionBound &junction_bound(JunctionSlot slot) { return junction_bounds_[slot]; }
+    const JunctionBound &junction_bound(JunctionSlot slot) const { return junction_bounds_[slot]; }
+
+    /// Resolved in initialize_event(); never consulted by span in iterate(). See JunctionBound.
+    std::array<JunctionBound, kJunctionSlotCount> junction_bounds_{};
+
+    /// Index assigned by igor::model::Topology; -1 until setUid() is called. Model layer only.
+    igor::core::legacy::index_type m_uid = -1;
+
+    std::unordered_map<std::string, Event_realization> event_realizations;
+    int priority;
+    Gene_class event_class;
+    Seq_side event_side;
+    Rec_Event_name name; //Construct the name in a smart way so that it is unique
+    std::string nickname;
+    Seq_type_String seq_type; // Seq_type for v2.0 format (e.g., "V_gene_seq", "VD_ins_seq")
+    SeqTypeId seq_type_id = kNoSeqType; // resolved from seq_type by Model_Parms::finalize()
+    /// Neighbours in the registry ordering, also resolved by Model_Parms::finalize().
+    SeqTypeId left_adjacent_id = kNoSeqType;
+    SeqTypeId right_adjacent_id = kNoSeqType;
+    int len_min;
+    int len_max;
+    Event_type type;
+    int event_index;
+    std::forward_list<std::tuple<int, int, int>> memory_and_offsets; //0: event identifier , 1: memory layer , 2: offset
+    bool viterbi_run;
+    bool initialized;
+    size_t event_marginal_size;
+    bool fixed;
+    double event_upper_bound_proba;
+    double scenario_upper_bound_proba; // Used at runtime to store the upper bound probability of the whole scenario
+    std::vector<int> current_realizations_index_vec;
+    const int *current_realization_index;
+    //Snapshot of the downstream proba map's per-key layers, taken at initialize_event().
+    std::vector<int> current_downstream_proba_memory_layers;
+
+    int compare_sequences(std::string, std::string); //TODO should probably not be a member functino
+    void add_realization(const Event_realization &);
+
+    /**
+     * @brief Context-based iterate_wrap_up() interface
+     *
+     * New signature using 5 context objects instead of 18 individual parameters.
+     * Called at leaf nodes to accumulate marginals and update error rate.
+     */
+    void iterate_wrap_up(
+            QuerySequenceContext& query,
+            const ModelContext& model,
+            ScenarioContext& scenario,
+            ExplorationContext& exploration,
+            AccumulationContext& accumulation);
+};
+
+//bool compare_events(const Rec_Event*&, const Rec_Event*&);
+struct Event_comparator
+{
+    bool operator()(std::shared_ptr<const Rec_Event> event_p1, std::shared_ptr<const Rec_Event> event_p2)
+    {
+        return event_p1->get_priority() > event_p2->get_priority();
+    }
+};
+
+} // namespace igor::model::legacy

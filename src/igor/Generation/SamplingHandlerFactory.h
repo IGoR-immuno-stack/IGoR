@@ -1,0 +1,107 @@
+// SamplingHandlerFactory.h ---
+
+#pragma once
+
+#include <igor/Generation/Export.h>
+#include <igor/Model/Legacy/Rec_Event.h>
+#include <igor/Generation/SamplingHandler.h>
+#include <igor/Math/Tensor.h>
+#include <igor/Core/Legacy/Utils.h>
+
+#include <memory>
+#include <functional>
+#include <string>
+
+#include <initializer_list>
+
+namespace igor::generation::sampling_handler_factory {
+
+using EventPtr = std::shared_ptr<model::legacy::Rec_Event>;
+
+template <typename T>
+using HandlerPtr = std::unique_ptr<SamplingHandler<T>>;
+
+template <typename T>
+using Creator = std::function<HandlerPtr<T>(EventPtr, const math::Tensor<T>&)>;
+
+namespace detail {
+template <typename T>
+GENERATION_EXPORT std::unordered_map<core::EventType, Creator<T>>& get_creators();
+}
+
+/**
+ * @brief Register a creator function for an event type
+ * @param type The Event_type enum value
+ * @param func Function that creates a handler borrowing a const tensor reference
+ */
+template <typename T>
+void register_creator(core::EventType type, Creator<T> func);
+
+/**
+ * @brief Create a handler of the specified type
+ * @param type The Event_type to create
+ * @param event The Rec_Event for metadata (name, uid)
+ * @param weights Const reference to the probability tensor from RecombinationModel
+ * @return Unique pointer to the new handler
+ * @throws std::runtime_error if type not registered
+ */
+template <typename T> 
+HandlerPtr<T> create(core::EventType type, EventPtr event, const math::Tensor<T>& weights);
+
+/**
+ * @brief Check if an event type has a registered creator
+ * @param type The Event_type to check
+ * @return true if registered, false otherwise
+ */
+GENERATION_EXPORT bool is_registered(core::EventType type);
+
+} // namespace igor::generation::sampling_handler_factory
+
+#include <igor/Model/Forward.h>
+
+namespace igor::generation {
+using igor::model::RecombinationModel;
+using igor::model::Navigator;
+using igor::model::Topology;
+using igor::model::SampledScenario;
+using igor::model::SampledEvent;
+}
+
+namespace igor::generation::sampling_handler_factory {
+
+/**
+ * @brief Build a list of sampling handlers borrowing tensors from a RecombinationModel
+ * @param model The RecombinationModel providing topology and weight tensors
+ * @return A vector of sampling handlers, one per topology node
+ *
+ * Each handler holds a const reference to its corresponding tensor in the model.
+ * The model must outlive the returned handlers.
+ */
+template <typename T>
+std::vector<HandlerPtr<T>> build(const igor::generation::RecombinationModel<T>& model);
+
+/**
+ * @brief Template for automatic event registration using static initialization
+ * @tparam T The scalar type (double, long double)
+ * @tparam HandlerClass The concrete handler class
+ *
+ * Usage:
+ *   static Registrar<double, CategoricalSamplingHandler<double>> cat{GeneChoice_t, Deletion_t};
+ */
+template<typename T, typename HandlerClass>
+struct Registrar {
+    Registrar(std::initializer_list<core::EventType> types) {
+        for (auto type : types) {
+            register_creator<T>(type, [](EventPtr event, const math::Tensor<T>& weights) { 
+                return std::make_unique<HandlerClass>(event->get_nickname(), event->uid(), weights); 
+            });
+        }
+    }
+};
+
+}
+
+#include <igor/Generation/SamplingHandlerFactory.tpp>
+
+//
+// SamplingHandlerFactory.h ends here
