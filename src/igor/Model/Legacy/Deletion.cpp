@@ -551,24 +551,13 @@ void Deletion::construct_realization(const vector<int> &indices, GenerationState
     const int deletions = this->realization_at(indices.front()).value_int;
     string &segment = segments.modify(this->seq_type_id);
 
-    //Which end this deletion trims. Plan D1, carried: the four arms this body replaces never
-    //read the side of a segment at an end of the ordering -- the V arm trimmed its 3' end and
-    //the J arm its 5' end, whatever the model said -- so a segment with nothing on its left is
-    //trimmed at 3', and one with nothing on its right at 5'. Inference trims the side the model
-    //names, and the R phase makes generation do the same.
-    bool trims_three_prime;
-    if (this->left_adjacent_id == kNoSeqType and this->right_adjacent_id != kNoSeqType) {
-        trims_three_prime = true;
-    } else if (this->right_adjacent_id == kNoSeqType and this->left_adjacent_id != kNoSeqType) {
-        trims_three_prime = false;
-    } else if (this->event_side == Three_prime or this->event_side == Five_prime) {
-        trims_three_prime = (this->event_side == Three_prime);
-    } else {
-        //The D arm did nothing here; inference refuses the model in initialize_event().
+    //The end the model names, as inference trims it.
+    if (this->event_side != Five_prime and this->event_side != Three_prime) {
         throw invalid_argument("Deletion " + this->get_name()
                                + ": a deletion must trim the 5' or the 3' end of its segment, "
                                  "and this one names neither");
     }
+    const bool trims_three_prime = (this->event_side == Three_prime);
 
     if (deletions >= 0) {
         //Plan D2, carried: past the segment's end, a 5' trim clamps and a 3' trim throws.

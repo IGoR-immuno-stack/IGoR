@@ -119,7 +119,7 @@ G0 compares the two directly.
 
 | # | Finding | Inference | Generation | Status |
 |---|---|---|---|---|
-| D1 | V 5′ / J 3′ deletion | trims the side the model names | the V arm always trims 3′, the J arm always 5′ | **confirmed defect**: two `[!shouldfail]` cases; fixed in R |
+| D1 | V 5′ / J 3′ deletion | trims the side the model names | the V arm always trims 3′, the J arm always 5′ | **fixed** (R): generation trims the side the model names. No model has either deletion, so nothing moved |
 | D2 | deletion past the segment's end; palindrome longer than its template | drops the realization | a 5′ trim clamps; a 3′ trim throws `std::out_of_range` | observed, intent undecided |
 | D3 | V or J deleted to empty | keeps one nucleotide: drops the realization | an empty segment | observed, intent undecided |
 | D4 | CDF walk boundaries | — | `>=` picks a zero-mass realization at u = 0. When the row's mass stays below u, nothing is written, `()` is recorded, and the next reader throws. G0's fixture hit the second case for real: a misordered marginals file gave an insertion an all-zero row, and its chain then threw on the missing segment | to pin once the walk is a function of u (G1) |
@@ -144,7 +144,7 @@ trip generates through this path (test_inference.cpp:513, test_ModelInference.cp
 | **G4a** | `Gene_choice` writes at `seq_type_id`; then `Insertion`. `insertion_seq_type_str_to_enum` goes if nothing else calls it | **yes** |
 | **G4b** | `Deletion`: one body on `event_side`. D1 is carried generically: a segment with no left neighbour is trimmed at its 3′ end and one with no right neighbour at its 5′ end, whatever the side. This is B11a's anchored-segment boolean. D2's clamp/throw asymmetry falls out of the shared body unchanged | **yes** |
 | **G4c** | `Dinucl_markov` reads at `get_junction()`'s ids. `legacy_enums_valid`, the spec's `Seq_type` fields and `kLegacySeqTypeCount` retire. The tandem end-to-end case turns green | **yes** |
-| **R** | D1 (trim by side); D4 (walk by `u < cdf`, with the tail mapped to the last realization with mass); then D2, D3 and D5 once their intent is decided. One commit each, each removing its tag | each names what it moves; bitwise expected on the corpus |
+| **R** | ✅ D1 (trim by side). D4 (walk by `u < cdf`, with the tail mapped to the last realization with mass); then D2, D3 and D5 once their intent is decided. One commit each, each removing its tag | each names what it moves; bitwise expected on the corpus |
 
 Each G4 commit removes the `[!shouldfail]` tags of the tandem cases it makes pass.
 
@@ -265,6 +265,14 @@ Left in this plan: the R phase (§5). `Deletion::target_seq_type`, `Insertion::i
 `Dinucl_markov::ins_seq_type` are no longer read by generation. Their readers left are the
 constructors, `copy()` and the generated names, which are T1's and T2's ground, as the parent
 plan anticipated ("T3 and T4 shrink T1").
+
+### 5.7 R, D1 delivered
+
+**Decision (Quentin, Oct 5 2026):** a deletion trims the end its event names, with no special case
+for the segments at the ends of the ordering. No model to date has a V 5′ or a J 3′ deletion, so
+carrying the legacy V and J behaviour kept, by hand, a rule no output could show. `Deletion`'s
+body reads `event_side` alone, and refuses a deletion that names neither end. The two D1 cases
+lost their tags.
 
 ## 6. Left for the SamplingEngine connection
 

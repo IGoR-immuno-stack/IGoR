@@ -579,17 +579,17 @@ TEST_CASE("Generation agrees with inference on a trimmed segment", "[generation]
     }
 }
 
-// Plan D1: the V and J arms of the generator never read the event's side. A confirmed defect --
-// inference trims the side the model names (the section above), so the generator builds a
-// sequence for a different scenario than the one it records. No shipped model has either
-// deletion, which is why no golden output can show it.
+// Plan D1: the V and J arms of the generator never read the event's side, so a V 5' or a J 3'
+// deletion was trimmed at the end inference does not trim (the premise above). Fixed: a
+// deletion trims the end its side names, whatever the segment. No model has either deletion,
+// so no output moved.
 
-TEST_CASE("Generation trims a V 5' deletion at the 5' end", "[generation][!shouldfail]")
+TEST_CASE("Generation trims a V 5' deletion at the 5' end", "[generation]")
 {
     CHECK(generated_trim(V_gene_seq, Five_prime, 2, "AACCGGTT") == "CCGGTT");
 }
 
-TEST_CASE("Generation trims a J 3' deletion at the 3' end", "[generation][!shouldfail]")
+TEST_CASE("Generation trims a J 3' deletion at the 3' end", "[generation]")
 {
     CHECK(generated_trim(J_gene_seq, Three_prime, 2, "AACCGGTT") == "AACCGG");
 }
