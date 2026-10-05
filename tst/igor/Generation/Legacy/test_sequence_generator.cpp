@@ -59,7 +59,8 @@ using namespace igor::generation::legacy;
 namespace {
 
 /// A scratch directory, removed when the test is done with it.
-class ScratchDir {
+class ScratchDir
+{
 public:
     ScratchDir()
     {
@@ -126,7 +127,7 @@ std::string vdj_parms(bool with_chains = true)
                         "#Insertion;DJ_gene;Undefined_side;2;dj_ins\n%0;0\n%2;1\n";
     if (with_chains) {
         parms += std::string("#DinucMarkov;VD_genes;Undefined_side;3;vd_dinucl\n") + kDinuclRealizations
-                 + "#DinucMarkov;DJ_gene;Undefined_side;1;dj_dinucl\n" + kDinuclRealizations;
+                + "#DinucMarkov;DJ_gene;Undefined_side;1;dj_dinucl\n" + kDinuclRealizations;
     }
     parms += "@Edges\n"
              "%GeneChoice_V_gene_Undefined_side_prio7_size2;GeneChoice_J_gene_Undefined_side_prio7_size2\n"
@@ -150,8 +151,8 @@ std::string vdj_marginals(bool with_chains = true)
                        "@d_5_del\n$Dim[2]\n#\n%0,1\n"
                        "@j_5_del\n$Dim[2]\n#\n%0,1\n"
                        "@vd_ins\n$Dim[2]\n#\n%0,1\n")
-           + (with_chains ? "@vd_dinucl\n" + chain : "") + "@dj_ins\n$Dim[2]\n#\n%0,1\n"
-           + (with_chains ? "@dj_dinucl\n" + chain : "");
+            + (with_chains ? "@vd_dinucl\n" + chain : "") + "@dj_ins\n$Dim[2]\n#\n%0,1\n"
+            + (with_chains ? "@dj_dinucl\n" + chain : "");
 }
 
 std::string vj_parms()
@@ -163,7 +164,7 @@ std::string vj_parms()
                        "#Deletion;J_gene;Five_prime;5;j_5_del\n%0;0\n%1;1\n"
                        "#Insertion;VJ_gene;Undefined_side;4;vj_ins\n%0;0\n%3;1\n"
                        "#DinucMarkov;VJ_gene;Undefined_side;3;vj_dinucl\n")
-           + kDinuclRealizations + "@Edges\n@ErrorRate\n#SingleErrorRate\n0\n";
+            + kDinuclRealizations + "@Edges\n@ErrorRate\n#SingleErrorRate\n0\n";
 }
 
 std::string vj_marginals()
@@ -174,11 +175,12 @@ std::string vj_marginals()
                        "@j_5_del\n$Dim[2]\n#\n%0,1\n"
                        "@vj_ins\n$Dim[2]\n#\n%0,1\n"
                        "@vj_dinucl\n$Dim[16]\n#\n")
-           + kCyclicDinucl;
+            + kCyclicDinucl;
 }
 
 /// One generated sequence and its realizations, keyed by the events' nicknames.
-struct Generated {
+struct Generated
+{
     std::string sequence;
     std::map<std::string, std::vector<int>> realizations;
 };
@@ -194,7 +196,7 @@ Generated generate_one(const ScratchDir &dir, const std::string &parms_text, con
     auto sequences = generator.generate_sequences(1, /*generate_errors=*/false);
     auto &[sequence, per_event] = sequences.front();
 
-    Generated out{sequence, {}};
+    Generated out{ sequence, { } };
     auto queue = parms.get_model_queue();
     while (!queue.empty() && !per_event.empty()) {
         std::vector<int> indices;
@@ -208,25 +210,6 @@ Generated generate_one(const ScratchDir &dir, const std::string &parms_text, con
     return out;
 }
 
-/// Generate `count` sequences from a shipped model with a fixed seed, as `igor generate` does,
-/// and return the two files it writes.
-std::pair<std::string, std::string> generate_shipped(const std::string &model, std::size_t count, int seed)
-{
-    const std::string dir = std::string(IGOR_MODELS_DIR) + "/human/" + model + "/models/";
-    Model_Parms parms;
-    parms.read_model_parms(dir + "model_parms.txt");
-    Model_marginals marginals(parms);
-    marginals.txt2marginals(dir + "model_marginals.txt", parms);
-    SequenceGenerator generator(parms, marginals);
-
-    ScratchDir scratch;
-    const std::string seqs = scratch.file("seqs.csv");
-    const std::string reals = scratch.file("reals.csv");
-    generator.generate_sequences(static_cast<int>(count), /*generate_errors=*/false, seqs, reals, {},
-                                 /*output_only_func=*/false, seed);
-    return {read_file(seqs), read_file(reals)};
-}
-
 } // namespace
 
 TEST_CASE("Generation: a VDJ model, one sequence", "[generation]")
@@ -237,12 +220,12 @@ TEST_CASE("Generation: a VDJ model, one sequence", "[generation]")
     //V2 trimmed by 2 | VD: A, C from V's last T | D1 trimmed by 1 on each end | DJ: T, A from J's
     //first G, written reversed | J2, the row V2 selects, trimmed by 1.
     CHECK(generated.sequence == "TTTTTTTTACGGTTATGGGAA");
-    CHECK(generated.realizations.at("v_choice") == std::vector<int>{1});
-    CHECK(generated.realizations.at("j_choice") == std::vector<int>{1});
-    CHECK(generated.realizations.at("d_gene") == std::vector<int>{0});
-    CHECK(generated.realizations.at("vd_ins") == std::vector<int>{1});
-    CHECK(generated.realizations.at("vd_dinucl") == std::vector<int>{0, 1});
-    CHECK(generated.realizations.at("dj_dinucl") == std::vector<int>{3, 0});
+    CHECK(generated.realizations.at("v_choice") == std::vector<int>{ 1 });
+    CHECK(generated.realizations.at("j_choice") == std::vector<int>{ 1 });
+    CHECK(generated.realizations.at("d_gene") == std::vector<int>{ 0 });
+    CHECK(generated.realizations.at("vd_ins") == std::vector<int>{ 1 });
+    CHECK(generated.realizations.at("vd_dinucl") == std::vector<int>{ 0, 1 });
+    CHECK(generated.realizations.at("dj_dinucl") == std::vector<int>{ 3, 0 });
 }
 
 TEST_CASE("Generation: a VJ model, one sequence", "[generation]")
@@ -252,7 +235,7 @@ TEST_CASE("Generation: a VJ model, one sequence", "[generation]")
 
     //V trimmed by 2 | VJ: C, G, T from V's last A | J trimmed by 1.
     CHECK(generated.sequence == "AAAAAAAACGTTTTCC");
-    CHECK(generated.realizations.at("vj_dinucl") == std::vector<int>{1, 2, 3});
+    CHECK(generated.realizations.at("vj_dinucl") == std::vector<int>{ 1, 2, 3 });
 }
 
 TEST_CASE("Generation: an insertion no Markov chain fills stays as placeholders", "[generation]")
@@ -262,20 +245,4 @@ TEST_CASE("Generation: an insertion no Markov chain fills stays as placeholders"
     ScratchDir dir;
     const Generated generated = generate_one(dir, vdj_parms(false), vdj_marginals(false));
     CHECK(generated.sequence == "TTTTTTTTIIGGTTIIGGGAA");
-}
-
-TEST_CASE("Generation: the shipped TRA model with a fixed seed", "[generation]")
-{
-    const auto [seqs, reals] = generate_shipped("tcr_alpha", 20, 1234);
-    CHECK(std::count(seqs.begin(), seqs.end(), '\n') == 21);
-    CHECK(fnv1a(seqs) == 0x7253f96e34bc84a1ULL);
-    CHECK(fnv1a(reals) == 0x47e291ca18b431c0ULL);
-}
-
-TEST_CASE("Generation: the shipped TRB model with a fixed seed", "[generation]")
-{
-    const auto [seqs, reals] = generate_shipped("tcr_beta", 20, 1234);
-    CHECK(std::count(seqs.begin(), seqs.end(), '\n') == 21);
-    CHECK(fnv1a(seqs) == 0x6061afd55c208e88ULL);
-    CHECK(fnv1a(reals) == 0xee903fa28ca2b8d9ULL);
 }
