@@ -339,7 +339,8 @@ vector<int> Dinucl_markov::draw_realization(const Marginal_array_p &, const unor
 vector<int> Dinucl_markov::draw_chain(const string &previous_seq, string &inserted_seq,
                                       uniform_real_distribution<double> &distribution, mt19937_64 &generator) const
 {
-
+    //FIXME (plan D4): each step walks its row with the `>=` of Rec_Event::pick_realization(),
+    //and has the same two boundary cases. Kept as is until the switch to sampling handlers.
     vector<int> chain;
     double prob_count;
     if (!inserted_seq.empty()) {

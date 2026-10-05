@@ -120,11 +120,11 @@ G0 compares the two directly.
 | # | Finding | Inference | Generation | Status |
 |---|---|---|---|---|
 | D1 | V 5′ / J 3′ deletion | trims the side the model names | the V arm always trims 3′, the J arm always 5′ | **fixed** (R): generation trims the side the model names. No model has either deletion, so nothing moved |
-| D2 | deletion past the segment's end; palindrome longer than its template | drops the realization | a 5′ trim clamps; a 3′ trim throws `std::out_of_range` | observed, intent undecided |
-| D3 | V or J deleted to empty | keeps one nucleotide: drops the realization | an empty segment | observed, intent undecided |
-| D4 | CDF walk boundaries | — | `>=` picks a zero-mass realization at u = 0. When the row's mass stays below u, nothing is written, `()` is recorded, and the next reader throws. G0's fixture hit the second case for real: a misordered marginals file gave an insertion an all-zero row, and its chain then threw on the missing segment | to pin once the walk is a function of u (G1) |
-| D5 | an insertion with no Markov chain | — | its `'I'` placeholders reach the output | observed, intent undecided |
-| D6 | an empty chain anchor (a fully deleted D1 anchoring D1D2) | throws (§7.12, R2) | throws `out_of_range` from `substr` | consistent; B10 decides for both |
+| D2 | deletion past the segment's end; palindrome longer than its template | drops the realization | a 5′ trim clamps; a 3′ trim throws `std::out_of_range` | **fixed** (R): refused on either side, as inference drops it. No trained model reaches it (§5.8) |
+| D3 | V or J deleted to empty | keeps one nucleotide: drops the realization | an empty segment | **fixed** with D2: a segment on an end of the sequence keeps one nucleotide, read off the ordering as inference reads it |
+| D4 | CDF walk boundaries | — | `>=` picks a zero-mass realization at u = 0. When the row's mass stays below u, nothing is written, `()` is recorded, and the next reader throws. G0's fixture hit the second case for real: a misordered marginals file gave an insertion an all-zero row, and its chain then threw on the missing segment | **left** to the sampling handlers: a `FIXME` in the code, the two `[!shouldfail]` cases stay (§5.8) |
+| D5 | an insertion with no Markov chain | — | its `'I'` placeholders reach the output | **kept**: sound as is; the parent plan's Phase C may refuse such a model at load |
+| D6 | an empty chain anchor (a fully deleted D1 anchoring D1D2) | throws (§7.12, R2) | throws `out_of_range` from `substr` | consistent; waits on B10, which decides for both |
 
 None of these can move the regression corpus. The `generate` track's model is inferred, so it puts
 no mass on scenarios inference drops, and no shipped model has a V 5′ or a J 3′ deletion.
@@ -144,7 +144,7 @@ trip generates through this path (test_inference.cpp:513, test_ModelInference.cp
 | **G4a** | `Gene_choice` writes at `seq_type_id`; then `Insertion`. `insertion_seq_type_str_to_enum` goes if nothing else calls it | **yes** |
 | **G4b** | `Deletion`: one body on `event_side`. D1 is carried generically: a segment with no left neighbour is trimmed at its 3′ end and one with no right neighbour at its 5′ end, whatever the side. This is B11a's anchored-segment boolean. D2's clamp/throw asymmetry falls out of the shared body unchanged | **yes** |
 | **G4c** | `Dinucl_markov` reads at `get_junction()`'s ids. `legacy_enums_valid`, the spec's `Seq_type` fields and `kLegacySeqTypeCount` retire. The tandem end-to-end case turns green | **yes** |
-| **R** | ✅ D1 (trim by side). D4 (walk by `u < cdf`, with the tail mapped to the last realization with mass); then D2, D3 and D5 once their intent is decided. One commit each, each removing its tag | each names what it moves; bitwise expected on the corpus |
+| **R** | ✅ D1 (trim by side). ✅ D2 and D3 (refused, as inference drops them). D4 left to the sampling handlers, D5 kept, D6 to B10 (§5.8). One commit each, each removing its tag | each names what it moves; bitwise expected on the corpus |
 
 Each G4 commit removes the `[!shouldfail]` tags of the tandem cases it makes pass.
 
@@ -273,6 +273,48 @@ for the segments at the ends of the ordering. No model to date has a V 5′ or a
 carrying the legacy V and J behaviour kept, by hand, a rule no output could show. `Deletion`'s
 body reads `event_side` alone, and refuses a deletion that names neither end. The two D1 cases
 lost their tags.
+
+### 5.8 R, D2 and D3 delivered; D4, D5 and D6 decided
+
+**Decisions (Quentin, Oct 5 2026):**
+- **D2: refuse what inference drops.** A deletion past its segment's end, or a palindrome longer
+  than the template it mirrors, now throws `std::out_of_range` on either side, naming the event
+  and the lengths. Before, a 5′ trim clamped and a 3′ trim threw from `erase()` or `substr()`.
+  The throw is what is coherent with the event's inference side. The fuller answer is a
+  neighbour-type question, left open: whether a deletion may run on into the next junction
+  (deleting insertions there), and whether a palindrome may use nucleotides past the gene it is
+  cut from.
+- **D3: solved by D2.** With D1 fixed, D3 is the keep-one case of the same refusal. A segment on
+  an end of the sequence (no neighbour on one side of the ordering, as `finalize()` sets it)
+  keeps at least one nucleotide, whichever side is trimmed. This is how inference resolves
+  `keep_one_nucleotide_`. An internal segment may still be deleted away, leaving it built and
+  empty.
+- **D4: left to the sampling handlers.** Fixing the walk changes which realization a given
+  uniform draws, a small behaviour change, and the walk itself goes away when the sampling
+  handlers take over the draw. `pick_realization()` and `Dinucl_markov::draw_chain()`, which has
+  the same `>=`, carry a `FIXME`, and the two `[!shouldfail]` cases stay.
+- **D5: kept.** The behaviour is sound. A load-time rule, the parent plan's Phase C, may refuse
+  such a model.
+- **D6: waits on B10.** Generation and inference behave the same, and B10 decides for both.
+
+**Tests.**
+- The trim and palindrome cases assert the refusal and its message, on both sides, for internal
+  and anchored segments.
+- The cross-check against inference now runs every value from a palindrome one longer than the
+  template to a deletion one past it, on the four shipped arms. Every value inference keeps comes
+  out of generation identical, and every value it drops is refused.
+- Three mutations, all caught: drop the keep-one clause, refuse an internal segment deleted to
+  empty, and drop the palindrome bound.
+
+**Does the refusal bite?** No. The legacy generator (`generate.fast false`) produced 2M sequences,
+seed 20261005, from each of nine models:
+- human IGH, IGK, IGL, TRA and TRB;
+- the two supplementary TRB models, `naive_1` and `naive_4`;
+- mouse TRB;
+- the `generate` track's inferred model.
+
+None threw. Every D model conditions `d_3_del` on `d_5_del`, so an inferred model puts no mass on
+a pair of D trims longer than its gene.
 
 ## 6. Left for the SamplingEngine connection
 

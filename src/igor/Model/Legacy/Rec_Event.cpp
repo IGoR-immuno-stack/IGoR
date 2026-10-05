@@ -179,6 +179,10 @@ vector<int> Rec_Event::draw_realization(const Marginal_array_p &model_marginals_
 
 int Rec_Event::pick_realization(const Marginal_array_p &model_marginals_p, int base, double u) const
 {
+    //FIXME (plan D4): `>=` lets u = 0 draw a zero-mass realization, and a row summing a rounding
+    //error short of u draws nothing. Kept as is: fixing it moves which realization a given u
+    //draws, and the walk goes away with the switch to sampling handlers. The two
+    //[!shouldfail] cases in test_generation_construction.cpp pin the intended behaviour.
     double prob_count = 0;
     for (const auto &[name, realization] : this->event_realizations) {
         prob_count += model_marginals_p[base + realization.index];

@@ -45,6 +45,7 @@
 #include <igor/Model/Legacy/EventUtils.h>
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_string.hpp>
 
 #include <memory>
 #include <optional>
@@ -486,24 +487,27 @@ TEST_CASE("Generation: a deletion trims its segment", "[generation]")
         CHECK(generated_trim(D_gene_seq, Five_prime, 8, "AACCGGTT").empty());
         CHECK(generated_trim(D_gene_seq, Three_prime, 8, "AACCGGTT").empty());
     }
-    SECTION("an anchored segment may be deleted away too")
+    SECTION("a segment on an end of the sequence keeps at least one nucleotide, on either side")
     {
-        //Observed, intent undecided (plan D3). Inference keeps at least one nucleotide of V and
-        //J -- "Generation agrees with inference" below shows it dropping the realization -- so
-        //a model whose marginals put mass here generates a sequence inference calls impossible.
-        //An inferred model never does: the scenario is never counted.
-        CHECK(generated_trim(V_gene_seq, Three_prime, 8, "AACCGGTT").empty());
-        CHECK(generated_trim(J_gene_seq, Five_prime, 8, "AACCGGTT").empty());
+        //Plan D3, through D2's refusal: inference keeps one nucleotide of a segment anchored on
+        //the read, and drops the realization that would delete it away.
+        CHECK(generated_trim(V_gene_seq, Three_prime, 7, "AACCGGTT") == "A");
+        CHECK(generated_trim(J_gene_seq, Five_prime, 7, "AACCGGTT") == "T");
+        for (const auto &[target, side] : {std::pair{V_gene_seq, Three_prime}, std::pair{V_gene_seq, Five_prime},
+                                           std::pair{J_gene_seq, Five_prime}, std::pair{J_gene_seq, Three_prime}}) {
+            CHECK_THROWS_WITH(generated_trim(target, side, 8, "AACCGGTT"),
+                              Catch::Matchers::ContainsSubstring("keeps at least one nucleotide"));
+        }
     }
-    SECTION("more than the segment holds")
+    SECTION("more than the segment holds is refused, on either side")
     {
-        //Observed, intent undecided (plan D2). Inference drops the realization; generation
-        //clamps a 5' trim (erase(0, n) stops at the end) and throws on a 3' trim (erase(size - n)
-        //wraps around). Which it does depends only on the side.
-        CHECK(generated_trim(D_gene_seq, Five_prime, 10, "AACCGGTT").empty());
-        CHECK(generated_trim(J_gene_seq, Five_prime, 10, "AACCGGTT").empty());
-        CHECK_THROWS_AS(generated_trim(D_gene_seq, Three_prime, 10, "AACCGGTT"), std::out_of_range);
-        CHECK_THROWS_AS(generated_trim(V_gene_seq, Three_prime, 10, "AACCGGTT"), std::out_of_range);
+        //Plan D2: inference drops the realization. Generation used to clamp a 5' trim
+        //(erase(0, n) stops at the end) and throw from erase() on a 3' one; both now refuse it.
+        for (const auto &[target, side] : {std::pair{D_gene_seq, Five_prime}, std::pair{D_gene_seq, Three_prime},
+                                           std::pair{V_gene_seq, Three_prime}, std::pair{J_gene_seq, Five_prime}}) {
+            CHECK_THROWS_WITH(generated_trim(target, side, 9, "AACCGGTT"),
+                              Catch::Matchers::ContainsSubstring("run past the end"));
+        }
     }
     SECTION("trimming a segment nobody drew throws")
     {
@@ -521,12 +525,19 @@ TEST_CASE("Generation: a negative deletion adds a palindrome", "[generation]")
     SECTION("J 5'") { CHECK(generated_trim(J_gene_seq, Five_prime, -2, "GTCCC") == "ACGTCCC"); }
     SECTION("D 5'") { CHECK(generated_trim(D_gene_seq, Five_prime, -3, "GACTTT") == "GTCGACTTT"); }
     SECTION("D 3'") { CHECK(generated_trim(D_gene_seq, Three_prime, -3, "TTTGAC") == "TTTGACGTC"); }
-    SECTION("longer than the template it mirrors")
+    SECTION("as long as the template it mirrors")
     {
-        //Observed, intent undecided (plan D2): inference drops it; generation mirrors the whole
-        //template on a 5' end (substr(0, n) stops at the end) and throws on a 3' end.
-        CHECK(generated_trim(D_gene_seq, Five_prime, -5, "GAC") == "GTCGAC");
-        CHECK_THROWS_AS(generated_trim(D_gene_seq, Three_prime, -5, "GAC"), std::out_of_range);
+        CHECK(generated_trim(D_gene_seq, Five_prime, -3, "GAC") == "GTCGAC");
+        CHECK(generated_trim(D_gene_seq, Three_prime, -3, "GAC") == "GACGTC");
+    }
+    SECTION("longer than the template it mirrors is refused, on either side")
+    {
+        //Plan D2: inference drops it. Generation used to mirror the whole template on a 5' end
+        //(substr(0, n) stops at the end) and throw from substr() on a 3' one.
+        CHECK_THROWS_WITH(generated_trim(D_gene_seq, Five_prime, -4, "GAC"),
+                          Catch::Matchers::ContainsSubstring("longer than the 3 nucleotides it mirrors"));
+        CHECK_THROWS_WITH(generated_trim(D_gene_seq, Three_prime, -4, "GAC"),
+                          Catch::Matchers::ContainsSubstring("longer than the 3 nucleotides it mirrors"));
     }
     SECTION("a template outside ACGT cannot be mirrored")
     {
@@ -536,9 +547,9 @@ TEST_CASE("Generation: a negative deletion adds a palindrome", "[generation]")
 
 TEST_CASE("Generation agrees with inference on a trimmed segment", "[generation]")
 {
-    //The arms a shipped model has, on segments placed as an aligner would place them. Every
-    //value inference keeps must come out of generation identical; the values it drops are the
-    //D2/D3 sections above.
+    //The arms a shipped model has, on segments placed as an aligner would place them, with no
+    //neighbour chosen. Every value inference keeps comes out of generation identical, and every
+    //value it drops -- here, only for want of template: plan D2 and D3 -- generation refuses.
     struct Arm {
         Seq_type target;
         Seq_side side;
@@ -550,23 +561,30 @@ TEST_CASE("Generation agrees with inference on a trimmed segment", "[generation]
                           Arm{D_gene_seq, Three_prime, 12, 17, "D 3'"}, Arm{J_gene_seq, Five_prime, 20, 27, "J 5'"}}) {
         DYNAMIC_SECTION(arm.label)
         {
-            int compared = 0;
-            for (int value = -2; value <= 3; ++value) {
-                const auto inferred = inferred_trim(arm.target, arm.side, value, arm.five, arm.three);
-                if (!inferred) {
-                    continue;
-                }
-                ++compared;
+            //Each arm runs from a palindrome one past its template to a deletion one past it.
+            const int length = arm.three - arm.five + 1;
+            const bool anchored = (arm.target != D_gene_seq);
+            int kept = 0;
+            for (int value = -(length + 1); value <= length + 1; ++value) {
                 INFO("deletion " << value);
-                CHECK(generated_trim(arm.target, arm.side, value, read_run(arm.five, arm.three)) == *inferred);
+                const auto inferred = inferred_trim(arm.target, arm.side, value, arm.five, arm.three);
+                const std::string template_run = read_run(arm.five, arm.three);
+                if (inferred) {
+                    ++kept;
+                    CHECK(generated_trim(arm.target, arm.side, value, template_run) == *inferred);
+                } else {
+                    CHECK_THROWS_AS(generated_trim(arm.target, arm.side, value, template_run), std::out_of_range);
+                }
             }
-            CHECK(compared == 6);
+            //Every palindrome up to the template's length, and every deletion up to it, but the
+            //last for a segment on an end of the sequence.
+            CHECK(kept == 2 * length + (anchored ? 0 : 1));
         }
     }
 
     SECTION("inference trims a V 5' deletion at the 5' end and a J 3' one at the 3' end")
     {
-        //The premise of the two [!shouldfail] cases below: the side the model names is the side
+        //The premise of the two D1 cases below: the side the model names is the side
         //inference trims, whichever gene it is.
         CHECK(inferred_trim(V_gene_seq, Five_prime, 2, 0, 9) == read_run(2, 9));
         CHECK(inferred_trim(J_gene_seq, Three_prime, 2, 20, 27) == read_run(20, 25));

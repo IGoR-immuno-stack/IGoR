@@ -559,8 +559,30 @@ void Deletion::construct_realization(const vector<int> &indices, GenerationState
     }
     const bool trims_three_prime = (this->event_side == Three_prime);
 
+    //Plan D2 and D3: what inference drops, generation refuses. Deletion::iterate never counts a
+    //deletion past its segment's end, a palindrome longer than the template it mirrors, or a
+    //segment on an end of the ordering deleted away (it keeps one nucleotide, §2.7), so a model
+    //that puts mass on one of these is not one inference produces. Whether a deletion may run on
+    //into the next junction, or a palindrome read past its gene, is a question for neighbour
+    //types, not something to settle here.
+    const int length = static_cast<int>(segment.size());
+    const bool anchored = (this->left_adjacent_id == kNoSeqType or this->right_adjacent_id == kNoSeqType);
+    if (deletions > length or (anchored and deletions == length) or -deletions > length) {
+        string what;
+        if (deletions > length) {
+            what = to_string(deletions) + " deletions run past the end of a segment of " + to_string(length);
+        } else if (deletions >= 0) {
+            what = to_string(deletions) + " deletions delete away a segment of " + to_string(length)
+                 + ", and a segment on an end of the sequence keeps at least one nucleotide";
+        } else {
+            what = "a palindrome of " + to_string(-deletions) + " is longer than the " + to_string(length)
+                 + " nucleotides it mirrors";
+        }
+        throw out_of_range("Deletion " + this->get_name() + ": " + what
+                           + "; inference never counts this scenario, so the model should give it no mass");
+    }
+
     if (deletions >= 0) {
-        //Plan D2, carried: past the segment's end, a 5' trim clamps and a 3' trim throws.
         if (trims_three_prime) {
             segment.erase(segment.size() - deletions);
         } else {
