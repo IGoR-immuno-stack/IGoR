@@ -110,7 +110,7 @@ bool Rec_Event::operator==(const Rec_Event &other) const
 
 /**
  * The side token a generated name carries. Shared, because Insertion and Dinucl_markov override
- * update_event_name() to derive the class token from their ins_seq_type.
+ * update_event_name() to derive the class token from their seq type (junction_class_token()).
  *
  * It is the event's own side, except for DinucMarkov, where it is always Undefined_side. Two
  * reasons, one of substance and one of robustness.
@@ -132,6 +132,27 @@ bool Rec_Event::operator==(const Rec_Event &other) const
 Seq_side Rec_Event::name_side(Event_type type, Seq_side side)
 {
     return (type == Event_type::Dinuclmarkov_t) ? Undefined_side : side;
+}
+
+/**
+ * The class token of an insertion or a Markov chain. Their gene class is Undefined_gene, so the
+ * token that tells a VD insertion's name from a DJ one's is the legacy junction class of the seq
+ * type, as the legacy file format writes it. It used to come from a member typed by the Seq_type
+ * enum, which no seq type outside the legacy six could fill (plan T1). Any other seq type gets
+ * Undefined_gene: the names of a tandem model's two insertions then collide, which is T2.
+ */
+string Rec_Event::junction_class_token(const Seq_type_String &seq_type)
+{
+    if (seq_type == "VD_ins_seq") {
+        return to_string(VD_genes);
+    }
+    if (seq_type == "DJ_ins_seq") {
+        return to_string(DJ_genes);
+    }
+    if (seq_type == "VJ_ins_seq") {
+        return to_string(VJ_genes);
+    }
+    return to_string(Undefined_gene);
 }
 
 void Rec_Event::update_event_name()

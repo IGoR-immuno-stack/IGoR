@@ -122,14 +122,13 @@ struct VdjModel {
     std::shared_ptr<Deletion> del_j_5 = make_deletion(J_gene_seq, Five_prime, 0, 8, 6);
     std::shared_ptr<Insertion> ins_vd = make_insertion(VD_ins_seq, 0, 6, 7);
     std::shared_ptr<Insertion> ins_dj = make_insertion(DJ_ins_seq, 0, 7, 8);
-    std::shared_ptr<Dinucl_markov> dinucl = std::make_shared<Dinucl_markov>(VD_ins_seq);
+    std::shared_ptr<Dinucl_markov> dinucl = std::make_shared<Dinucl_markov>(Seq_type_String("VD_ins_seq"));
 
     SeqTypeRegistry registry = make_registry({"V_gene_seq", "VD_ins_seq", "D_gene_seq", "DJ_ins_seq", "J_gene_seq"});
     Events_map events_map;
 
     VdjModel()
     {
-        dinucl->set_seq_type("VD_ins_seq");
         dinucl->set_seq_type_id(legacy_seq_type_registry().id("VD_ins_seq"));
         dinucl->update_event_name();
         for (const std::shared_ptr<Rec_Event> &event :

@@ -70,10 +70,9 @@ public:
     const int *deletion_value_slot() const { return &deletion_value; }
 
         //Constructor
-        Deletion();
-        Deletion(Seq_type, Seq_side, std::pair<int, int>);
-        Deletion(Seq_type, Seq_side);
-        Deletion(Seq_type, Seq_side, std::unordered_map<std::string, Event_realization> &);
+        Deletion(const Seq_type_String &, Seq_side, std::pair<int, int>);
+        Deletion(const Seq_type_String &, Seq_side);
+        Deletion(const Seq_type_String &, Seq_side, std::unordered_map<std::string, Event_realization> &);
         /// From one event node of the JSON model schema. See ModelJson.h.
         explicit Deletion(const nlohmann::json &);
         ~Deletion() override;
@@ -118,8 +117,6 @@ private:
 
     /// Keep the mismatches that survive the trim. See the definition for the direction.
     void trim_mismatches(const std::vector<std::size_t> &previous_mismatches);
-
-    Seq_type target_seq_type;
 
     inline void iterate_common(
             std::forward_list<Event_realization>::const_iterator &, Index_map &,

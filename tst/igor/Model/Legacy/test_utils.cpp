@@ -715,11 +715,10 @@ std::shared_ptr<Gene_choice> make_gene_choice(Gene_class gene_class,
 std::shared_ptr<Deletion> make_deletion(Seq_type target, Seq_side side, int min_del, int max_del,
                                         int event_id)
 {
-    auto event = std::make_shared<Deletion>(target, side, std::make_pair(min_del, max_del));
+    const Seq_type_String seq_type = EventUtils::seq_type_to_string(target);
+    auto event = std::make_shared<Deletion>(seq_type, side, std::make_pair(min_del, max_del));
     event->set_event_identifier(event_id);
     event->set_priority(1);
-    const Seq_type_String seq_type = EventUtils::seq_type_to_string(target);
-    event->set_seq_type(seq_type);
     event->set_seq_type_id(legacy_seq_type_registry().id(seq_type));
     event->update_event_name();
     event->fix(true);
@@ -728,11 +727,10 @@ std::shared_ptr<Deletion> make_deletion(Seq_type target, Seq_side side, int min_
 
 std::shared_ptr<Insertion> make_insertion(Seq_type target, int min_ins, int max_ins, int event_id)
 {
-    auto event = std::make_shared<Insertion>(target, std::make_pair(min_ins, max_ins));
+    const Seq_type_String seq_type = EventUtils::seq_type_to_string(target);
+    auto event = std::make_shared<Insertion>(seq_type, std::make_pair(min_ins, max_ins));
     event->set_event_identifier(event_id);
     event->set_priority(1);
-    const Seq_type_String seq_type = EventUtils::seq_type_to_string(target);
-    event->set_seq_type(seq_type);
     event->set_seq_type_id(legacy_seq_type_registry().id(seq_type));
     event->update_event_name();
     event->fix(true);
@@ -757,7 +755,8 @@ std::string segment_run(Seq_Offset five_prime, Seq_Offset three_prime)
 
 std::shared_ptr<Dinucl_markov> make_dinucl_markov(Seq_type target, int event_id, Seq_side chain_side)
 {
-    auto event = std::make_shared<Dinucl_markov>(target);
+    const Seq_type_String seq_type = EventUtils::seq_type_to_string(target);
+    auto event = std::make_shared<Dinucl_markov>(seq_type);
     if (chain_side == Undefined_side) {
         //As Model_Parms does for a legacy model file, which declares Undefined_side and lets
         //the reader derive the direction from the gene class.
@@ -766,8 +765,6 @@ std::shared_ptr<Dinucl_markov> make_dinucl_markov(Seq_type target, int event_id,
     event->set_event_side(chain_side);
     event->set_event_identifier(event_id);
     event->set_priority(1);
-    const Seq_type_String seq_type = EventUtils::seq_type_to_string(target);
-    event->set_seq_type(seq_type);
     event->set_seq_type_id(legacy_seq_type_registry().id(seq_type));
     event->update_event_name();
     event->fix(true);

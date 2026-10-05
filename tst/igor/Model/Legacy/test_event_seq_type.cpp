@@ -15,6 +15,7 @@
  */
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_string.hpp>
 
 #include <igor/Model/EventFactory.h>
 #include <igor/Model/Legacy/ModelJson.h>
@@ -23,7 +24,9 @@
 #include <nlohmann/json.hpp>
 
 #include <filesystem>
+#include <fstream>
 #include <map>
+#include <sstream>
 #include <string>
 
 using namespace igor::core::legacy;
@@ -124,6 +127,31 @@ const std::map<std::string, Identity> kTandemD = {
         {"dj_dinucl", {"", Undefined_gene, "DJ_ins_seq"}},
 };
 
+/// Reads the legacy VDJ fixture with one event line replaced, as a model file of its own. That
+/// fixture has no edges, so a line that changes an event's generated name still loads.
+void read_legacy_vdj_with(const std::string &line, const std::string &replacement)
+{
+    std::ifstream in(kTestDataDir + "test_legacy_vdj_model_parms.txt");
+    std::stringstream buffer;
+    buffer << in.rdbuf();
+    std::string text = buffer.str();
+    const auto at = text.find(line);
+    REQUIRE(at != std::string::npos);
+    text.replace(at, line.size(), replacement);
+
+    const std::filesystem::path file =
+            std::filesystem::temp_directory_path() / "igor_test_event_seq_type_legacy_parms.txt";
+    std::ofstream(file) << text;
+    Model_Parms parms;
+    try {
+        parms.read_model_parms(file.string());
+    } catch (...) {
+        std::filesystem::remove(file);
+        throw;
+    }
+    std::filesystem::remove(file);
+}
+
 }  // namespace
 
 TEST_CASE("The events of a legacy model keep their names, gene classes and seq types",
@@ -136,13 +164,13 @@ TEST_CASE("The events of a legacy model keep their names, gene classes and seq t
 }
 
 TEST_CASE("The events of a tandem-D model carry the seq types it names",
-          "[model_format][seq_type][tandem_d][!shouldfail]")
+          "[model_format][seq_type][tandem_d]")
 {
     require_identities("test_v2_tandem_d_parms.txt", kTandemD, false);
 }
 
 TEST_CASE("A tandem-D event resolves its seq type and its neighbours from the model's order",
-          "[model_format][seq_type][tandem_d][!shouldfail]")
+          "[model_format][seq_type][tandem_d]")
 {
     Model_Parms parms;
     REQUIRE_NOTHROW(parms.read_model_parms(kTestDataDir + "test_v2_tandem_d_parms.txt"));
@@ -167,7 +195,7 @@ TEST_CASE("A tandem-D event resolves its seq type and its neighbours from the mo
 }
 
 TEST_CASE("A tandem-D model written back reads the same seq types",
-          "[model_format][seq_type][tandem_d][!shouldfail]")
+          "[model_format][seq_type][tandem_d]")
 {
     Model_Parms parms;
     REQUIRE_NOTHROW(parms.read_model_parms(kTestDataDir + "test_v2_tandem_d_parms.txt"));
@@ -182,5 +210,24 @@ TEST_CASE("A tandem-D model written back reads the same seq types",
     REQUIRE(read_back.get_event_list().size() == kTandemD.size());
     for (const auto &event : read_back.get_event_list()) {
         require_identity(*event, kTandemD.at(event->get_nickname()), false);
+    }
+}
+
+TEST_CASE("A legacy model file is refused where its gene class names no segment for the event",
+          "[model_format][seq_type][legacy]")
+{
+    // The event constructors used to refuse these while turning the name back into a Seq_type.
+    // The legacy reader refuses them now, the one place a gene class still says something.
+    using Catch::Matchers::ContainsSubstring;
+    SECTION("a deletion on a junction") {
+        REQUIRE_THROWS_WITH(read_legacy_vdj_with("#Deletion;D_gene;Five_prime", "#Deletion;VD_genes;Five_prime"),
+                            ContainsSubstring("names no segment"));
+    }
+    SECTION("a gene class with no segment") {
+        REQUIRE_THROWS_WITH(read_legacy_vdj_with("#Insertion;VD_genes;", "#Insertion;VDJ_genes;"),
+                            ContainsSubstring("names no segment"));
+    }
+    SECTION("and nothing else: an insertion on a gene was never refused") {
+        REQUIRE_NOTHROW(read_legacy_vdj_with("#Insertion;VD_genes;", "#Insertion;V_gene;"));
     }
 }

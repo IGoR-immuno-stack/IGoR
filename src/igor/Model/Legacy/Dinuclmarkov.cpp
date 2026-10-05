@@ -51,9 +51,11 @@ namespace {
  */
 } // namespace
 
-Dinucl_markov::Dinucl_markov(Seq_type seq_type) : Rec_Event(), total_nucl_count(0), ins_seq_type(seq_type)
+Dinucl_markov::Dinucl_markov(const Seq_type_String &seq_type) : Rec_Event(), total_nucl_count(0)
 {
     this->type = Event_type::Dinuclmarkov_t;
+    //The one place the seq type is kept, as for an insertion: see Insertion(const Seq_type_String &).
+    this->seq_type = seq_type;
     //Same indexes as Aligner::nt2int
 
     event_realizations.emplace("A", Event_realization("A", INT16_MAX, "A", Int_Str(), 0));
@@ -66,13 +68,12 @@ Dinucl_markov::Dinucl_markov(Seq_type seq_type) : Rec_Event(), total_nucl_count(
 }
 
 Dinucl_markov::Dinucl_markov(const nlohmann::json &node)
-    : Dinucl_markov(str2SeqType(igor::model::legacy::json_detail::require(node, "seq_type").get<Seq_type_String>()))
+    : Dinucl_markov(igor::model::legacy::json_detail::require(node, "seq_type").get<Seq_type_String>())
 {
     using namespace igor::model::legacy::json_detail;
     reject_unknown_keys(node, kEventKeys);
     expect_type(node, "DinucMarkov");
 
-    this->set_seq_type(require(node, "seq_type").get<Seq_type_String>());
     this->set_priority(require(node, "priority").get<int>());
     this->set_nickname(require(node, "nickname").get<string>());
 
@@ -143,13 +144,12 @@ DinuclTraversalSpec Dinucl_markov::get_junction() const
 shared_ptr<Rec_Event> Dinucl_markov::copy()
 {
     //TODO rewrite this by invoking a copy constructor?
-    shared_ptr<Dinucl_markov> new_dinucl_markov_p = shared_ptr<Dinucl_markov>(new Dinucl_markov(this->ins_seq_type));
+    shared_ptr<Dinucl_markov> new_dinucl_markov_p = shared_ptr<Dinucl_markov>(new Dinucl_markov(this->seq_type));
     new_dinucl_markov_p->priority = this->priority;
     new_dinucl_markov_p->nickname = this->nickname;
     new_dinucl_markov_p->fixed = this->fixed;
     new_dinucl_markov_p->update_event_name();
     new_dinucl_markov_p->set_event_identifier(this->event_index);
-    new_dinucl_markov_p->set_seq_type(this->get_seq_type());
     new_dinucl_markov_p->set_seq_type_id(this->get_seq_type_id());
     new_dinucl_markov_p->set_event_side(this->get_side());
     //Adjacency is not carried here: Model_Parms' copy constructor re-runs finalize(), which
@@ -415,14 +415,8 @@ void Dinucl_markov::write2txt(ofstream &outfile)
 
 void Dinucl_markov::write2txt_legacy(ofstream &outfile)
 {
-    // Derive legacy gene_class from seq_type for backward compatibility
-    // Use to_string() to match the exact strings expected by str2GeneClass()
-    string legacy_gene_class;
-    if (seq_type == "VD_ins_seq") legacy_gene_class = to_string(VD_genes);
-    else if (seq_type == "DJ_ins_seq") legacy_gene_class = to_string(DJ_genes);
-    else if (seq_type == "VJ_ins_seq") legacy_gene_class = to_string(VJ_genes);
-    else legacy_gene_class = to_string(Undefined_gene);
-    outfile << "#DinucMarkov;" << legacy_gene_class << ";" << Undefined_side << ";" << priority << ";" << nickname << endl;
+    outfile << "#DinucMarkov;" << junction_class_token(seq_type) << ";" << Undefined_side << ";" << priority << ";"
+            << nickname << endl;
     for (unordered_map<string, Event_realization>::const_iterator iter = event_realizations.begin();
          iter != event_realizations.end(); ++iter) {
         outfile << "%" << (*iter).second.value_str << ";" << (*iter).second.index << endl;
@@ -747,17 +741,10 @@ void Dinucl_markov::prepare_span_proba_factor(const Marginal_array_p &model_para
 
 void Dinucl_markov::update_event_name()
 {
-    Seq_type_String seq_type_str;
-    switch (ins_seq_type) {
-    case VD_ins_seq: seq_type_str = "VD_genes"; break;
-    case DJ_ins_seq: seq_type_str = "DJ_gene"; break;
-    case VJ_ins_seq: seq_type_str = "VJ_gene"; break;
-    default: seq_type_str = to_string(this->event_class); break;
-    }
     // name_side() is what keeps this name on Undefined_side: the junction is already named by
-    // seq_type_str just above, so the side would add a direction, not an identity. This override
-    // exists for that class token, and it has to apply the base class's side rule.
-    this->name = string() + this->type + "_" + seq_type_str + "_"
+    // the class token, so the side would add a direction, not an identity. This override exists
+    // for that class token, and it has to apply the base class's side rule.
+    this->name = string() + this->type + "_" + junction_class_token(this->seq_type) + "_"
                  + to_string(name_side(this->type, this->event_side))
                  + "_prio" + to_string(priority) + "_size" + to_string(this->size());
 }
