@@ -710,9 +710,6 @@ TEST_CASE("Dinucl_markov: a junction no Seq_type enum names still resolves", "[d
     CHECK(forward.target_id == junction_id);
     CHECK(forward.anchor_id == tandem.id("D_gene_seq"));
     CHECK(forward.anchor_side == Three_prime);
-    // No Seq_type for either name, so the generation path's handles stay unset -- and are
-    // flagged as such rather than left at a plausible-looking default.
-    CHECK_FALSE(forward.legacy_enums_valid);
 
     SECTION("The same event seeded from the other side anchors on the other neighbour")
     {

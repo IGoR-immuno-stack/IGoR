@@ -141,6 +141,80 @@ void Rec_Event::update_event_name()
             + string("_prio") + to_string(priority) + string("_size") + to_string(this->size());
 }
 
+queue<int> Rec_Event::draw_random_realization(
+        const Marginal_array_p &model_marginals_p, unordered_map<Rec_Event_name, int> &index_map,
+        const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
+        GenerationState &segments, mt19937_64 &generator) const
+{
+    const vector<int> indices = this->draw_realization(model_marginals_p, index_map, segments, generator);
+    this->construct_realization(indices, segments);
+    this->propagate_realization(indices, index_map, offset_map);
+
+    queue<int> realization_queue;
+    for (const int index : indices) {
+        if (index != kNoRealization) {
+            realization_queue.push(index);
+        }
+    }
+    return realization_queue;
+}
+
+vector<int> Rec_Event::draw_realization(const Marginal_array_p &model_marginals_p,
+                                        const unordered_map<Rec_Event_name, int> &index_map,
+                                        const GenerationState &, mt19937_64 &generator) const
+{
+    uniform_real_distribution<double> distribution(0.0, 1.0);
+    const double rand = distribution(generator);
+    //The uniform is drawn even for an event with no realization, and its row is looked up only
+    //when there is one: both as the walk inside each override used to do it.
+    if (this->event_realizations.empty()) {
+        return {};
+    }
+    const int realization = this->pick_realization(model_marginals_p, index_map.at(this->get_name()), rand);
+    if (realization == kNoRealization) {
+        return {};
+    }
+    return {realization};
+}
+
+int Rec_Event::pick_realization(const Marginal_array_p &model_marginals_p, int base, double u) const
+{
+    //FIXME (plan D4): `>=` lets u = 0 draw a zero-mass realization, and a row summing a rounding
+    //error short of u draws nothing. Kept as is: fixing it moves which realization a given u
+    //draws, and the walk goes away with the switch to sampling handlers. The two
+    //[!shouldfail] cases in test_generation_construction.cpp pin the intended behaviour.
+    double prob_count = 0;
+    for (const auto &[name, realization] : this->event_realizations) {
+        prob_count += model_marginals_p[base + realization.index];
+        if (prob_count >= u) {
+            return realization.index;
+        }
+    }
+    return kNoRealization;
+}
+
+void Rec_Event::propagate_realization(
+        const vector<int> &indices, unordered_map<Rec_Event_name, int> &index_map,
+        const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map) const
+{
+    if (indices.empty() or offset_map.count(this->get_name()) == 0) {
+        return;
+    }
+    for (const auto &[child, stride] : offset_map.at(this->get_name())) {
+        index_map.at(child->get_name()) += indices.front() * stride;
+    }
+}
+
+const Event_realization &Rec_Event::realization_at(int index) const
+{
+    for (const auto &[name, realization] : this->event_realizations) {
+        if (realization.index == index) {
+            return realization;
+        }
+    }
+    throw out_of_range("Rec_Event " + this->name + ": no realization has index " + to_string(index));
+}
+
 nlohmann::json Rec_Event::to_json() const
 {
     nlohmann::json out;

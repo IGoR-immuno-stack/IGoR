@@ -90,10 +90,7 @@ public:
             AccumulationContext& accumulation) override;
 
     void add_realization(int);
-    std::queue<int> draw_random_realization(
-            const Marginal_array_p &, std::unordered_map<Rec_Event_name, int> &,
-            const std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &,
-            std::unordered_map<Seq_type, std::string> &, std::mt19937_64 &) const override;
+    void construct_realization(const std::vector<int> &, GenerationState &) const override;
     void write2txt(std::ofstream &) override;
     void write2txt_legacy(std::ofstream &) override;
     void write2txt_v2(std::ofstream &) override;
@@ -195,8 +192,6 @@ private:
     int new_index;
     mutable Int_Str new_str;
     mutable Int_Str tmp_str;
-    mutable std::string gen_new_str;
-    mutable std::string gen_tmp_str;
     std::vector<std::size_t> mismatches_vector;
     std::vector<std::size_t>::const_iterator mis_iter;
     bool end_reached;

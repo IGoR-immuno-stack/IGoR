@@ -543,102 +543,64 @@ void Deletion::iterate_common(
         (*iter).index, base_index, base_index_map, model_parameters_point);
 }
 
-queue<int> Deletion::draw_random_realization(
-        const Marginal_array_p &model_marginals_p, unordered_map<Rec_Event_name, int> &index_map,
-        const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
-        unordered_map<Seq_type, string> &constructed_sequences, mt19937_64 &generator) const
+void Deletion::construct_realization(const vector<int> &indices, GenerationState &segments) const
 {
+    if (indices.empty()) {
+        return;
+    }
+    const int deletions = this->realization_at(indices.front()).value_int;
+    string &segment = segments.modify(this->seq_type_id);
 
-    uniform_real_distribution<double> distribution(0.0, 1.0);
-    double rand = distribution(generator);
-    double prob_count = 0;
-    queue<int> realization_queue;
-    for (unordered_map<string, Event_realization>::const_iterator iter = this->event_realizations.begin();
-         iter != this->event_realizations.end(); ++iter) {
-        prob_count += model_marginals_p[index_map.at(this->get_name()) + (*iter).second.index];
-        if (prob_count >= rand) {
-            const Seq_type target_seq_type = this->target_seq_type;
+    //The end the model names, as inference trims it.
+    if (this->event_side != Five_prime and this->event_side != Three_prime) {
+        throw invalid_argument("Deletion " + this->get_name()
+                               + ": a deletion must trim the 5' or the 3' end of its segment, "
+                                 "and this one names neither");
+    }
+    const bool trims_three_prime = (this->event_side == Three_prime);
 
-            switch (target_seq_type) {
+    //Plan D2 and D3: what inference drops, generation refuses. Deletion::iterate never counts a
+    //deletion past its segment's end, a palindrome longer than the template it mirrors, or a
+    //segment on an end of the ordering deleted away (it keeps one nucleotide, §2.7), so a model
+    //that puts mass on one of these is not one inference produces. Whether a deletion may run on
+    //into the next junction, or a palindrome read past its gene, is a question for neighbour
+    //types, not something to settle here.
+    const int length = static_cast<int>(segment.size());
+    const bool anchored = (this->left_adjacent_id == kNoSeqType or this->right_adjacent_id == kNoSeqType);
+    if (deletions > length or (anchored and deletions == length) or -deletions > length) {
+        string what;
+        if (deletions > length) {
+            what = to_string(deletions) + " deletions run past the end of a segment of " + to_string(length);
+        } else if (deletions >= 0) {
+            what = to_string(deletions) + " deletions delete away a segment of " + to_string(length)
+                 + ", and a segment on an end of the sequence keeps at least one nucleotide";
+        } else {
+            what = "a palindrome of " + to_string(-deletions) + " is longer than the " + to_string(length)
+                 + " nucleotides it mirrors";
+        }
+        throw out_of_range("Deletion " + this->get_name() + ": " + what
+                           + "; inference never counts this scenario, so the model should give it no mass");
+    }
 
-            case V_gene_seq:
-                if ((*iter).second.value_int >= 0) {
-                    constructed_sequences.at(V_gene_seq)
-                            .erase(constructed_sequences.at(V_gene_seq).size() - (*iter).second.value_int);
-                } else {
-                    string &v_gene_seq = constructed_sequences.at(V_gene_seq);
-                    gen_tmp_str = v_gene_seq.substr(v_gene_seq.size() + (*iter).second.value_int, string::npos);
-                    reverse(gen_tmp_str.begin(), gen_tmp_str.end());
-                    make_transversions(gen_tmp_str);
-                    v_gene_seq += gen_tmp_str;
-                }
-
-                break;
-
-            case D_gene_seq:
-                switch (this->event_side) {
-
-                case Five_prime:
-                    if ((*iter).second.value_int >= 0) {
-                        constructed_sequences.at(D_gene_seq).erase(0, (*iter).second.value_int);
-                    } else {
-                        string &d_gene_seq = constructed_sequences.at(D_gene_seq);
-                        gen_tmp_str = d_gene_seq.substr(0, -(*iter).second.value_int);
-                        reverse(gen_tmp_str.begin(), gen_tmp_str.end());
-                        make_transversions(gen_tmp_str);
-                        gen_new_str = gen_tmp_str + d_gene_seq;
-                        d_gene_seq = gen_new_str;
-                    }
-
-                    break;
-
-                case Three_prime:
-                    if ((*iter).second.value_int >= 0) {
-                        constructed_sequences.at(D_gene_seq)
-                                .erase(constructed_sequences.at(D_gene_seq).size() - (*iter).second.value_int);
-                    } else {
-                        string &d_gene_seq = constructed_sequences.at(D_gene_seq);
-                        gen_tmp_str = d_gene_seq.substr(d_gene_seq.size() + (*iter).second.value_int, string::npos);
-                        reverse(gen_tmp_str.begin(), gen_tmp_str.end());
-                        make_transversions(gen_tmp_str);
-                        d_gene_seq += gen_tmp_str;
-                    }
-
-                    break;
-
-                default:
-                    break;
-                }
-                break;
-            case J_gene_seq:
-                if ((*iter).second.value_int >= 0) {
-                    constructed_sequences.at(J_gene_seq).erase(0, (*iter).second.value_int);
-                } else {
-                    string &j_gene_seq = constructed_sequences.at(J_gene_seq);
-                    gen_tmp_str = j_gene_seq.substr(0, -(*iter).second.value_int);
-                    reverse(gen_tmp_str.begin(), gen_tmp_str.end());
-                    make_transversions(gen_tmp_str);
-                    gen_new_str = gen_tmp_str + j_gene_seq;
-                    j_gene_seq = gen_new_str;
-                }
-
-                break;
-            default:
-                break;
-            }
-            realization_queue.push((*iter).second.index);
-            if (offset_map.count(this->get_name()) != 0) {
-                for (vector<pair<shared_ptr<const Rec_Event>, int>>::const_iterator jiter =
-                             offset_map.at(this->get_name()).begin();
-                     jiter != offset_map.at(this->get_name()).end(); ++jiter) {
-                    index_map.at((*jiter).first->get_name()) += (*iter).second.index * (*jiter).second;
-                }
-            }
-
-            break;
+    if (deletions >= 0) {
+        if (trims_three_prime) {
+            segment.erase(segment.size() - deletions);
+        } else {
+            segment.erase(0, deletions);
+        }
+    } else {
+        //A palindrome: the |k| nucleotides at the trimmed end, reversed and complemented, put
+        //back beyond it.
+        string palindrome = trims_three_prime ? segment.substr(segment.size() + deletions, string::npos)
+                                              : segment.substr(0, -deletions);
+        reverse(palindrome.begin(), palindrome.end());
+        make_transversions(palindrome);
+        if (trims_three_prime) {
+            segment += palindrome;
+        } else {
+            segment = palindrome + segment;
         }
     }
-    return realization_queue;
 }
 
 void Deletion::write2txt(ofstream &outfile)

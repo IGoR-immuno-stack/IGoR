@@ -62,15 +62,6 @@ struct DinuclTraversalSpec {
     SeqTypeId target_id = kNoSeqType;
     SeqTypeId anchor_id = kNoSeqType;
     Seq_side anchor_side = Undefined_side;
-
-    ///@{ \name Legacy enum handles, for the generation path only
-    /// draw_random_realization() writes into an `unordered_map<Seq_type, string>`, which no
-    /// non-legacy seq_type can key. Resolved when the names allow it and unused otherwise;
-    /// B9 removes them with the rest of the generation path's enum dependency.
-    Seq_type target_seq = VD_ins_seq;
-    Seq_type anchor_seq = V_gene_seq;
-    bool legacy_enums_valid = false;
-    ///@}
 };
 
 /**
@@ -125,10 +116,16 @@ public:
             AccumulationContext& accumulation) override;
 
     void add_realization(int);
-    std::queue<int> draw_random_realization(
-            const Marginal_array_p &, std::unordered_map<Rec_Event_name, int> &,
-            const std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &,
-            std::unordered_map<Seq_type, std::string> &, std::mt19937_64 &) const override;
+    std::vector<int> draw_realization(const Marginal_array_p &, const std::unordered_map<Rec_Event_name, int> &,
+                                      const GenerationState &, std::mt19937_64 &) const override;
+    void construct_realization(const std::vector<int> &, GenerationState &) const override;
+    /// A chain is sequence-valued: it has no single index to condition a child's row on, and it
+    /// never moved one.
+    void propagate_realization(
+            const std::vector<int> &, std::unordered_map<Rec_Event_name, int> &,
+            const std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &)
+            const override
+    {}
     void write2txt(std::ofstream &) override;
     void write2txt_legacy(std::ofstream &) override;
     void write2txt_v2(std::ofstream &) override;
@@ -203,8 +200,8 @@ private:
     int realization_final_index;
 
     inline void iterate_common(std::vector<int> &, int &, Int_Str &, const Marginal_array_p &);
-    inline std::queue<int> draw_random_common(const std::string &, std::string &, const Marginal_array_p &, int,
-                                              std::uniform_real_distribution<double> &, std::mt19937_64 &) const;
+    std::vector<int> draw_chain(const std::string &, std::string &, std::uniform_real_distribution<double> &,
+                                std::mt19937_64 &) const;
     inline double compute_nt_freq(int, const Marginal_array_p &) const;
 };
 

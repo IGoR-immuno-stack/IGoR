@@ -32,7 +32,6 @@ namespace igor::core::legacy {
 using igor::core::SeqTypeRegistry;
 using igor::core::SeqTypeId;
 using igor::core::kNoSeqType;
-using igor::core::kLegacySeqTypeCount;
 using igor::core::legacy_seq_type_registry;
 
 } // namespace igor::core::legacy

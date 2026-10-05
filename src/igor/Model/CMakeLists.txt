@@ -89,6 +89,7 @@ target_sources(${PROJECT_NAME}
       ${LAYER_DIR}/Legacy/EventTypedefs.h
       ${LAYER_DIR}/Legacy/ExplorationContext.h
       ${LAYER_DIR}/Legacy/Genechoice.h
+      ${LAYER_DIR}/Legacy/GenerationState.h
       ${LAYER_DIR}/Legacy/gene_to_seqtype_migr.h
       ${LAYER_DIR}/Legacy/HypermutationfullNmererrorrate.h
       ${LAYER_DIR}/Legacy/Hypermutationglobalerrorrate.h

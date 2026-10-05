@@ -210,15 +210,6 @@ std::shared_ptr<Rec_Event> RecordingEvent::copy()
     return std::make_shared<RecordingEvent>(this->get_event_identifier());
 }
 
-std::queue<int> RecordingEvent::draw_random_realization(
-        const Marginal_array_p &, std::unordered_map<Rec_Event_name, int> &,
-        const std::unordered_map<Rec_Event_name,
-                                 std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &,
-        std::unordered_map<Seq_type, std::string> &, std::mt19937_64 &) const
-{
-    return std::queue<int>();
-}
-
 void RecordingEvent::iterate(QuerySequenceContext &, const ModelContext &, ScenarioContext &scenario,
                              ExplorationContext &exploration, AccumulationContext &)
 {

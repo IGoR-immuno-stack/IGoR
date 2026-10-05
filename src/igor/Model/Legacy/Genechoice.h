@@ -88,10 +88,7 @@ public:
     void add_realization(int);
     bool add_realization(std::string gene_name, std::string gene_sequence);
     void set_genomic_templates(const std::vector<std::pair<std::string, std::string>> &);
-    std::queue<int> draw_random_realization(
-            const Marginal_array_p &, std::unordered_map<Rec_Event_name, int> &,
-            const std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &,
-            std::unordered_map<Seq_type, std::string> &, std::mt19937_64 &) const override;
+    void construct_realization(const std::vector<int> &, GenerationState &) const override;
     void write2txt(std::ofstream &) override;
     void write2txt_legacy(std::ofstream &) override;
     void write2txt_v2(std::ofstream &) override;

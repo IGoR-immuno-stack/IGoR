@@ -34,6 +34,7 @@
 #include <igor/Core/Legacy/SeqTypeRegistry.h>
 #include <igor/Model/Legacy/UnfilledSegmentLengths.h>
 #include <igor/Model/Legacy/FoldFrontier.h>
+#include <igor/Model/Legacy/GenerationState.h>
 #include <igor/Model/Legacy/SpanProfile.h>
 #include <igor/Core/Legacy/Utils.h>
 #include <igor/Model/Legacy/EventTypedefs.h>
@@ -320,10 +321,58 @@ public:
     static Seq_side name_side(Event_type type, Seq_side side);
 
     virtual void update_event_name();
-    virtual std::queue<int> draw_random_realization(
+
+    ///@{ \name Generation (docs/GENERATION_REWRITE_PLAN.md)
+    /// The legacy generator's step for this event: draw_realization(), then
+    /// construct_realization(), then propagate_realization(). Returns the indices drawn, which
+    /// is what the realizations file records. Non-virtual: an event type says how it draws and
+    /// what a realization builds, and the order of the three is the same for all of them.
+    std::queue<int> draw_random_realization(
             const Marginal_array_p &, std::unordered_map<Rec_Event_name, int> &,
             const std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &,
-            std::unordered_map<Seq_type, std::string> &, std::mt19937_64 &) const = 0;
+            GenerationState &, std::mt19937_64 &) const;
+
+    /// What a draw records when the walk ends without choosing anything (plan D4).
+    static constexpr int kNoRealization = -1;
+
+    /**
+     * Draw this event's realization indices; write nothing.
+     *
+     * The base draws one index from the event's marginal row (pick_realization()), which is
+     * what Gene_choice, Deletion and Insertion do. An event whose draw depends on what has been
+     * built so far reads it from the segments, which is why they are passed: Dinucl_markov's
+     * chain is seeded by its anchor and is as long as its insertion. Empty when the walk chose
+     * nothing.
+     */
+    virtual std::vector<int> draw_realization(const Marginal_array_p &,
+                                              const std::unordered_map<Rec_Event_name, int> &,
+                                              const GenerationState &, std::mt19937_64 &) const;
+
+    /**
+     * The realization the categorical walk stops at for the uniform `u`: realizations in
+     * `event_realizations` order, cumulating the marginal row that starts at `base`, until the
+     * running sum reaches `u`. kNoRealization when the row's mass stays below `u`.
+     */
+    int pick_realization(const Marginal_array_p &, int base, double u) const;
+
+    /**
+     * Build what the realizations `indices` stand for into the segments. No RNG, no marginals,
+     * no index map: this is the event's `apply` (ARCHITECTURE_SYNTHESIS §5), the half a
+     * sampling engine drives with the indices it sampled.
+     */
+    virtual void construct_realization(const std::vector<int> &indices, GenerationState &) const = 0;
+
+    /// Move each child's row in the index map by the realization drawn times the child's
+    /// stride, so that the child draws from the row its parent selected.
+    virtual void propagate_realization(
+            const std::vector<int> &indices, std::unordered_map<Rec_Event_name, int> &,
+            const std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &)
+            const;
+
+    /// The realization whose index is `index`. A scan: realizations are keyed by name, and an
+    /// index-ordered domain is the minimal Event's (SEGMENT_DECOMPOSITION_REVIEW §7.1).
+    const Event_realization &realization_at(int index) const;
+    ///@}
     virtual void write2txt(std::ofstream &) = 0;
     virtual void write2txt_legacy(std::ofstream &) = 0;
     virtual void write2txt_v2(std::ofstream &) = 0;

@@ -137,16 +137,6 @@ DinuclTraversalSpec Dinucl_markov::get_junction() const
         //neighbours are equally adjacent.
         return spec;
     }
-
-    //The generation path is still keyed by the Seq_type enum. Resolve the handles when the
-    //ids allow it and flag them otherwise, rather than leaving a plausible-looking default.
-    if (spec.anchor_id != kNoSeqType
-        && static_cast<std::size_t>(spec.target_id) < kLegacySeqTypeCount
-        && static_cast<std::size_t>(spec.anchor_id) < kLegacySeqTypeCount) {
-        spec.target_seq = static_cast<Seq_type>(spec.target_id);
-        spec.anchor_seq = static_cast<Seq_type>(spec.anchor_id);
-        spec.legacy_enums_valid = true;
-    }
     return spec;
 }
 
@@ -309,113 +299,113 @@ void Dinucl_markov::iterate(
     }
 }
 
-queue<int> Dinucl_markov::draw_random_realization(
-        const Marginal_array_p &model_marginals_p, unordered_map<Rec_Event_name, int> &index_map,
-        const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
-        unordered_map<Seq_type, string> &constructed_sequences, mt19937_64 &generator) const
+namespace {
+
+void require_junction(const DinuclTraversalSpec &spec, const string &name)
 {
-
-    uniform_real_distribution<double> distribution(0.0, 1.0);
-    int index = index_map.at(this->get_name());
-    queue<int> realization_queue;
-
-    const DinuclTraversalSpec spec = get_junction();
-    if (!spec.legacy_enums_valid) {
-        throw invalid_argument("Dinucl_markov " + this->name
-                               + ": generation needs a junction and an anchor that the Seq_type "
-                                 "enum names. Model_Parms::finalize() must have run, and the "
-                                 "topology must be one of the legacy ones (see B9).");
+    if (spec.target_id == kNoSeqType or spec.anchor_id == kNoSeqType) {
+        throw invalid_argument("Dinucl_markov " + name
+                               + ": generation needs the junction this chain fills and the segment "
+                                 "it seeds from. Model_Parms::finalize() resolves both, from the "
+                                 "model's ordering and the event's side.");
     }
-
-    {
-        string &target_ins_seq = constructed_sequences.at(spec.target_seq);
-        string anchor_seq = constructed_sequences.at(spec.anchor_seq);
-        bool reverse_traversal = (spec.anchor_side == Five_prime);
-        if (reverse_traversal) {
-            reverse(anchor_seq.begin(), anchor_seq.end());
-        }
-
-        queue<int> tmp = this->draw_random_common(anchor_seq, target_ins_seq, model_marginals_p, index, distribution,
-                                                  generator);
-        while (!tmp.empty()) {
-            realization_queue.push(tmp.front());
-            tmp.pop();
-        }
-
-        if (reverse_traversal) {
-            reverse(target_ins_seq.begin(), target_ins_seq.end());
-        }
-    }
-
-    return realization_queue;
 }
 
-queue<int> Dinucl_markov::draw_random_common(const string &previous_seq, string &inserted_seq,
-                                             const Marginal_array_p &model_marginals_p, int index,
-                                             uniform_real_distribution<double> &distribution,
-                                             mt19937_64 &generator) const
-{
+} // namespace
 
-    queue<int> realization_queue;
+vector<int> Dinucl_markov::draw_realization(const Marginal_array_p &, const unordered_map<Rec_Event_name, int> &,
+                                            const GenerationState &segments, mt19937_64 &generator) const
+{
+    uniform_real_distribution<double> distribution(0.0, 1.0);
+
+    const DinuclTraversalSpec spec = get_junction();
+    require_junction(spec, this->name);
+
+    //Copies: the draw reads what has been built and writes nothing. The chain runs away from
+    //its anchor, so a chain seeded from the anchor's 5' end reads that anchor backwards.
+    string target_ins_seq = segments.read(spec.target_id);
+    string anchor_seq = segments.read(spec.anchor_id);
+    if (spec.anchor_side == Five_prime) {
+        reverse(anchor_seq.begin(), anchor_seq.end());
+    }
+    return this->draw_chain(anchor_seq, target_ins_seq, distribution, generator);
+}
+
+/**
+ * The chain, drawn into a copy of the insertion: one entry per placeholder, in chain order,
+ * kNoRealization where the walk chose nothing. A position that is not a placeholder is not
+ * drawn, and it seeds the next one like a drawn nucleotide does.
+ */
+vector<int> Dinucl_markov::draw_chain(const string &previous_seq, string &inserted_seq,
+                                      uniform_real_distribution<double> &distribution, mt19937_64 &generator) const
+{
+    //FIXME (plan D4): each step walks its row with the `>=` of Rec_Event::pick_realization(),
+    //and has the same two boundary cases. Kept as is until the switch to sampling handlers.
+    vector<int> chain;
     double prob_count;
     if (!inserted_seq.empty()) {
         double rand;
         if (inserted_seq[0] == 'I') {
             rand = distribution(generator);
             prob_count = 0;
-            /*THIS WAS REMOVED WHEN INTRODUCING AMBIGUOUS NUCLEOTIDES SUPPORT
-			 * int offset;
-			try{
-				offset = event_realizations.at(previous_seq.substr(previous_seq.size()-1,1)).index*event_realizations.size();
-			}
-			catch(exception& except){
-				cout<<"exception caught in DinucMarkov draw random common, key used: "<<previous_seq.substr(previous_seq.size()-1,1);
-				throw except;
-			}
-			*/
+            int drawn = kNoRealization;
             int prev_nt = nt2int(previous_seq.substr(previous_seq.size() - 1, 1)).at(0);
             for (unordered_map<string, Event_realization>::const_iterator iter = event_realizations.begin();
                  iter != event_realizations.end(); ++iter) {
-                //prob_count += model_marginals_p[index + offset + (*iter).second.index];
                 prob_count += this->dinuc_proba_matrix(prev_nt, (*iter).second.index);
                 if (prob_count >= rand) {
                     inserted_seq[0] = (*iter).second.value_str[0];
-                    realization_queue.push((*iter).second.index);
+                    drawn = (*iter).second.index;
                     break;
                 }
             }
+            chain.push_back(drawn);
         }
         for (size_t i = 1; i != inserted_seq.size(); ++i) {
             if (inserted_seq[i] == 'I') {
-                /*THIS WAS REMOVED WHEN INTRODUCING AMBIGUOUS NUCLEOTIDES SUPPORT
-				int offset;
-				try{
-					offset = event_realizations.at(inserted_seq.substr(i-1,1)).index*event_realizations.size();
-				}
-				catch(exception& except){
-					cout<<"exception caught, key used: "<<inserted_seq.substr(i-1,1)<<",ins seq: "<<inserted_seq<<",i = "<<i<<", previous rand: "<<rand<<", previous prob_count: "<<prob_count<<endl;
-					throw except;
-				}
-				*/
                 int prev_nt = nt2int(inserted_seq.substr(i - 1, 1)).at(0);
 
                 rand = distribution(generator);
                 prob_count = 0;
+                int drawn = kNoRealization;
 
                 for (unordered_map<string, Event_realization>::const_iterator iter = event_realizations.begin();
                      iter != event_realizations.end(); ++iter) {
-                    //prob_count += model_marginals_p[index + offset + (*iter).second.index];
                     prob_count += this->dinuc_proba_matrix(prev_nt, (*iter).second.index);
                     if (prob_count >= rand) {
                         inserted_seq[i] = (*iter).second.value_str[0];
-                        realization_queue.push((*iter).second.index);
+                        drawn = (*iter).second.index;
                         break;
                     }
                 }
+                chain.push_back(drawn);
             }
         }
     }
-    return realization_queue;
+    return chain;
+}
+
+void Dinucl_markov::construct_realization(const vector<int> &chain, GenerationState &segments) const
+{
+    const DinuclTraversalSpec spec = get_junction();
+    require_junction(spec, this->name);
+
+    //One chain entry per placeholder, in chain order; the chain then reads 5'->3' once turned
+    //around for a chain that ran from the right.
+    string &target_ins_seq = segments.modify(spec.target_id);
+    size_t next = 0;
+    for (char &position : target_ins_seq) {
+        if (position != 'I') {
+            continue;
+        }
+        if (next < chain.size() and chain[next] != kNoRealization) {
+            position = this->realization_at(chain[next]).value_str[0];
+        }
+        ++next;
+    }
+    if (spec.anchor_side == Five_prime) {
+        reverse(target_ins_seq.begin(), target_ins_seq.end());
+    }
 }
 
 void Dinucl_markov::write2txt(ofstream &outfile)
