@@ -9,6 +9,7 @@ add_executable(model_tests
     test_junction_geometry.cpp
     test_safety_matrix.cpp
     test_span_profile.cpp
+    test_traversal_plan.cpp
 )
 
 # Legacy tests: the tests of the code still under <Layer>/Legacy.

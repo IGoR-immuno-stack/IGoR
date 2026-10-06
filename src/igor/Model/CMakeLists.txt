@@ -33,6 +33,7 @@ target_sources(${PROJECT_NAME}
   PRIVATE
     EventFactory.cpp
     Topology.cpp
+    TraversalPlan.cpp
   PUBLIC FILE_SET HEADERS
     BASE_DIRS
       ${CMAKE_SOURCE_DIR}/src
@@ -52,7 +53,9 @@ target_sources(${PROJECT_NAME}
       ${LAYER_DIR}/BoundTightness.h
       ${LAYER_DIR}/JunctionGeometry.h
       ${LAYER_DIR}/SafetyMatrix.h
+      ${LAYER_DIR}/SegmentIndex.h
       ${LAYER_DIR}/SpanProfile.h
+      ${LAYER_DIR}/TraversalPlan.h
       ${LAYER_DIR}/UnfilledSegmentLengths.h
 )
 
