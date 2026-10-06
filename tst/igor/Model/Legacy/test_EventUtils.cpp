@@ -441,21 +441,29 @@ public:
     // Force stale state in, to verify that initialize_event actually rebuilds it. The three
     // v_chosen / d_chosen / j_chosen booleans this used to poke went with B5's collapse; what
     // carries the same per-model state now is the flank-check list, and it is rebuilt rather
-    // than appended to -- which is the property worth a regression test.
-    del_event.flank_checks_.resize(7);
-    del_event.flank_checks_.front().partner_chosen = true;
+    // than appended to -- which is the property worth a regression test. The partners are the
+    // segments the engine's plan has placed before the deletion runs (TraversalPlan).
+    const auto initialize_after = [&](std::vector<const Rec_Event *> order) {
+      order.push_back(&del_event);
+      const igor::model::TraversalPlan plan(registry, order);
+      del_event.set_traversal_plan(plan);
+      del_event.flank_checks_.resize(7);
+      del_event.initialize_event(processed_events, events_map, offset_map, downstream_proba_map,
+                                 constructed_sequences, safety_set, error_rate_p, mismatches_list,
+                                 seq_offsets, index_map);
+    };
 
-    del_event.initialize_event(processed_events, events_map, offset_map, downstream_proba_map,
-                               constructed_sequences, safety_set, error_rate_p, mismatches_list,
-                               seq_offsets, index_map);
+    // Nothing placed before it: nothing to check against.
+    initialize_after({});
+    REQUIRE(del_event.flank_checks_.empty());
 
-    // A V 3' deletion is checked against the segments 3' of V: D and J, both in this registry.
+    // D and J placed: a V 3' deletion is checked against both, 5' to 3', and nothing 5' of V.
+    const auto d_choice = IgorTestUtils::make_gene_choice(D_gene, {{"D1", "ACGT"}}, 1);
+    const auto j_choice = IgorTestUtils::make_gene_choice(J_gene, {{"J1", "ACGT"}}, 2);
+    initialize_after({d_choice.get(), j_choice.get()});
     REQUIRE(del_event.flank_checks_.size() == 2);
-    // GeneChoiceStatus sets chosen only if the event is in processed_events.
-    // Since processed_events is empty, chosen will be false even though V exists.
-    for (const auto &check : del_event.flank_checks_) {
-        REQUIRE(check.partner_chosen == false);
-    }
+    CHECK(del_event.flank_checks_[0].partner_id == registry.id("D_gene_seq"));
+    CHECK(del_event.flank_checks_[1].partner_id == registry.id("J_gene_seq"));
   }
 };
 } // namespace igor::model::legacy

@@ -302,47 +302,14 @@ TEST_CASE("Capability queries agree across the subclasses that share a segment",
 // S4a -- span addressing and the two effect predicates
 // ============================================================================
 
-TEST_CASE("A legacy junction seq_type names a span", "[capabilities][span]")
+TEST_CASE("A gap runs between two segment ends", "[capabilities][span]")
 {
-    SECTION("Each junction resolves to the pair of anchors it sits between")
-    {
-        CHECK(legacy_span_of(VD_ins_seq) == SegmentSpan::gap(id_of(V_gene_seq), id_of(D_gene_seq)));
-        CHECK(legacy_span_of(DJ_ins_seq) == SegmentSpan::gap(id_of(D_gene_seq), id_of(J_gene_seq)));
-        // The ambiguity this type exists to resolve: as an argument to the Len_proba
-        // machinery VJ_ins_seq is the whole V->J span, not the VJ insertion segment.
-        CHECK(legacy_span_of(VJ_ins_seq) == SegmentSpan::gap(id_of(V_gene_seq), id_of(J_gene_seq)));
-    }
-
-    SECTION("A gap runs from the left segment's 3' end to the right segment's 5' end")
-    {
-        // The implicit convention the boundaries now state outright: an event trimming either
-        // of these two ends widens the span rather than shortening its own segment.
-        const SegmentSpan vd = legacy_span_of(VD_ins_seq);
-        CHECK(vd.left == SegmentBoundary{id_of(V_gene_seq), Three_prime});
-        CHECK(vd.right == SegmentBoundary{id_of(D_gene_seq), Five_prime});
-    }
-
-    SECTION("The mapping round-trips")
-    {
-        for (const Seq_type junction : {VD_ins_seq, DJ_ins_seq, VJ_ins_seq}) {
-            CHECK(legacy_junction_of(legacy_span_of(junction)) == junction);
-        }
-    }
-
-    SECTION("A seq_type that names no junction is rejected rather than guessed at")
-    {
-        CHECK_THROWS_AS(legacy_span_of(V_gene_seq), std::invalid_argument);
-        CHECK_THROWS_AS(legacy_span_of(D_gene_seq), std::invalid_argument);
-        CHECK_THROWS_AS(legacy_span_of(J_gene_seq), std::invalid_argument);
-        CHECK_THROWS_AS(legacy_junction_of(SegmentSpan::gap(id_of(V_gene_seq), id_of(V_gene_seq))),
-                        std::invalid_argument);
-        // A segment's own extent is representable but names no legacy junction: the general
-        // two-boundary form exists so Phase D needs no type migration, not because it has a
-        // consumer today (decision O11).
-        CHECK_THROWS_AS(legacy_junction_of(SegmentSpan{SegmentBoundary{id_of(V_gene_seq), Five_prime},
-                                                       SegmentBoundary{id_of(V_gene_seq), Three_prime}}),
-                        std::invalid_argument);
-    }
+    // The implicit convention the boundaries state outright: an event trimming either of these
+    // two ends widens the span rather than shortening its own segment. (The legacy junction
+    // seq_types used to name these spans; a gap's key is now the engine's plan's, T3.)
+    const SegmentSpan vd = SegmentSpan::gap(id_of(V_gene_seq), id_of(D_gene_seq));
+    CHECK(vd.left == SegmentBoundary{id_of(V_gene_seq), Three_prime});
+    CHECK(vd.right == SegmentBoundary{id_of(D_gene_seq), Five_prime});
 }
 
 TEST_CASE("Span effect queries", "[capabilities][span]")
@@ -351,9 +318,9 @@ TEST_CASE("Span effect queries", "[capabilities][span]")
     // (R12): a realization changes a span's length when it creates or modifies an end of a
     // segment strictly inside the span, or modifies one of the span's two ends.
     const SeqTypeRegistry &registry = vdj_seq_type_registry();
-    const SegmentSpan vd = legacy_span_of(VD_ins_seq);
-    const SegmentSpan dj = legacy_span_of(DJ_ins_seq);
-    const SegmentSpan vj = legacy_span_of(VJ_ins_seq);
+    const SegmentSpan vd = SegmentSpan::gap(id_of(V_gene_seq), id_of(D_gene_seq));
+    const SegmentSpan dj = SegmentSpan::gap(id_of(D_gene_seq), id_of(J_gene_seq));
+    const SegmentSpan vj = SegmentSpan::gap(id_of(V_gene_seq), id_of(J_gene_seq));
 
     SECTION("A gene contributes length only to a span it sits strictly inside")
     {

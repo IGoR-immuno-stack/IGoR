@@ -32,6 +32,7 @@
 #include <igor/Model/Legacy/ScenarioContext.h>
 #include <igor/Model/Legacy/ExplorationContext.h>
 #include <igor/Model/Legacy/AccumulationContext.h>
+#include <igor/Model/TraversalPlan.h>
 
 
 namespace igor::inference::legacy {
@@ -51,6 +52,16 @@ namespace {
  * of the inferred parameters.
  */
 constexpr size_t REDUCTION_MEMORY_BUDGET_BYTES = 64ull * 1024ull * 1024ull;
+
+/// The events of a queue, in the order it runs them: what a TraversalPlan is built from.
+vector<const Rec_Event *> in_queue_order(queue<shared_ptr<Rec_Event>> remaining)
+{
+    vector<const Rec_Event *> order;
+    for (; not remaining.empty(); remaining.pop()) {
+        order.push_back(remaining.front().get());
+    }
+    return order;
+}
 } // namespace
 
 GenModel::GenModel(const Model_Parms &parms, const Model_marginals &marginals,
@@ -120,6 +131,10 @@ bool GenModel::infer_model(
     likelihood_file << "iteration;mean_log_Likelihood;n_seq" << endl;
 
     queue<shared_ptr<Rec_Event>> model_queue = model_parms.get_model_queue();
+    //Refuse, once and before any thread starts, an order in which the events cannot be coherent:
+    //the engine checks the model's structure, not each event on itself. The threads build their
+    //own plans over their copies of the events, which have this one's structure.
+    igor::model::TraversalPlan(model_parms.get_seq_type_registry(), in_queue_order(model_queue)).check_admissible();
     unordered_map<Rec_Event_name, int> index_map = model_marginals.get_index_map(model_parms, model_queue);
     unordered_map<Rec_Event_name, list<pair<shared_ptr<const Rec_Event>, int>>> inv_offset_map =
             model_marginals.get_inverse_offset_map(model_parms, model_queue);
@@ -327,10 +342,19 @@ bool GenModel::infer_model(
                     single_thread_model_parms.get_seq_type_registry());
             Seq_offsets_map seq_offsets(single_thread_model_parms.get_seq_type_registry());
 
-            //Initialize downstream probas to 1. Sized from the thread-local model's frozen
-            //registry, which outlives the parallel region the map is used in.
+            //The plan for the order this thread runs its events in (TraversalPlan): what is placed
+            //and built when each one runs, and the key each gap's downstream bound is held at. Every
+            //event is told it before initialize_event(); it lives as long as this thread's maps.
+            const igor::model::TraversalPlan traversal_plan(single_thread_model_parms.get_seq_type_registry(),
+                                                            in_queue_order(single_thread_model_parms.get_model_queue()));
+            for (const shared_ptr<Rec_Event> &event : single_thread_model_parms.get_event_list()) {
+                event->set_traversal_plan(traversal_plan);
+            }
+
+            //Initialize downstream probas to 1. Sized from the plan: the thread-local model's
+            //frozen registry, plus the gaps that have keys of their own.
             Downstream_scenario_proba_bound_map downstream_proba_map(
-                    single_thread_model_parms.get_seq_type_registry());
+                    single_thread_model_parms.get_seq_type_registry(), 1, traversal_plan.bound_key_count());
             downstream_proba_map.init_first_layer(1.0);
 
             list<shared_ptr<Rec_Event>> events_list = single_thread_model_parms.get_event_list();

@@ -29,6 +29,7 @@ target_sources(model_tests
         Legacy/test_model_format_v2.cpp
         Legacy/test_model_json.cpp
         Legacy/test_proba_bound_benchmark.cpp
+        Legacy/test_tandem_junctions.cpp
         Legacy/test_utils.cpp
 )
 

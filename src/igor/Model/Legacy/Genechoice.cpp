@@ -27,6 +27,7 @@
 #include <igor/Alignment/Legacy/Aligner.h>
 #include <igor/Model/Legacy/Genechoice.h>
 #include <igor/Model/Legacy/JsonDetail.h>
+#include <igor/Model/TraversalPlan.h>
 
 
 namespace igor::model::legacy {
@@ -191,28 +192,14 @@ void Gene_choice::iterate(
     base_index = exploration.index_map.get(this->event_index);
     const double base_scenario_proba = scenario.scenario_proba;
 
-    //Where each checked neighbour sits, read once per scenario. A neighbour that has not been
-    //placed cannot be checked against, and the verdict recorded for it says only whether it will
-    //ever need checking -- which is what the six preambles this replaces each said.
-    for (FlankCheck &check : flank_checks_) {
-        if (check.partner_chosen) {
-            const Seq_Offset partner_offset =
-                    scenario.get_offset(static_cast<Seq_type>(check.partner_id), check.partner_side,
-                                        check.partner_offset_layer);
-            neighbour_offset_[check.partner_id] = partner_offset;
-            neighbour_reach_[check.partner_id] =
-                    pending_.reachable(check.partner_id, check.partner_side, partner_offset);
-            check.active = true;
-        } else {
-            check.active = false;
-            exploration.set_overlap_safety(check.safety_cell, not check.partner_exists, check.safety_layer);
-            if (exhaustive_position_fallback_ and check.this_is_left) {
-                //Nothing placed to the right, so the exhaustive scan's right wall is the end of
-                //the read. Read only by the no_alignment_survived path below, which is 5b's.
-                const Seq_Offset read_end = static_cast<Seq_Offset>(query.sequence.size()) - 1;
-                neighbour_reach_[check.partner_id] = {read_end, read_end};
-            }
-        }
+    //Where each checked neighbour sits, read once per scenario. Every one is placed: the engine's
+    //plan lists only the neighbours whose facing end is created before this event runs. A
+    //neighbour still to come checks against this one when it is placed itself.
+    for (const FlankCheck &check : flank_checks_) {
+        const Seq_Offset partner_offset = scenario.get_offset(static_cast<Seq_type>(check.partner_id),
+                                                              check.partner_side, check.partner_offset_layer);
+        neighbour_offset_[check.partner_id] = partner_offset;
+        neighbour_reach_[check.partner_id] = pending_.reachable(check.partner_id, check.partner_side, partner_offset);
     }
 
     no_alignment_survived = true;
@@ -241,9 +228,6 @@ void Gene_choice::iterate(
         //that can sit between two checked ends can also be empty (section 7.2).
         bool infeasible = false;
         for (const FlankCheck &check : flank_checks_) {
-            if (not check.active) {
-                continue;
-            }
             const JunctionGeometry::OffsetInterval mine =
                     pending_.reachable(this->seq_type_id, check.this_is_left ? Three_prime : Five_prime,
                                        check.this_is_left ? my_3_off : my_5_off);
@@ -349,9 +333,7 @@ void Gene_choice::iterate(
         //since both ends of the placement are known -- a tightening, and therefore not this
         //step's (§1).
         for (const FlankCheck &check : flank_checks_) {
-            if (check.partner_chosen) {
-                exploration.set_overlap_safety(check.safety_cell, false, check.safety_layer);
-            }
+            exploration.set_overlap_safety(check.safety_cell, false, check.safety_layer);
         }
 
         const JunctionBound &enclosing = junction_bound(kEnclosingJunction);
@@ -493,13 +475,16 @@ void Gene_choice::iterate(
 
                 Rec_Event::iterate_wrap_up(query, model, scenario, exploration, accumulation);
             }
-        } else if (nearest_left_check_ >= 0 and nearest_right_check_ >= 0) {
+        } else {
             //Fewer than two placed neighbours, so there is no span to decompose: slide the
-            //template through the window the read and whichever neighbour *is* placed leave.
-            //It needs a candidate on each side to bound the window, placed or not -- an
-            //unplaced one contributes the read's end, which the preamble already recorded.
-            const SeqTypeId left_id = flank_checks_[nearest_left_check_].partner_id;
-            const SeqTypeId right_id = flank_checks_[nearest_right_check_].partner_id;
+            //template through the window the read and whichever neighbour *is* placed leave. A
+            //side with no placed neighbour is bounded by the read's end.
+            const Seq_Offset read_end = static_cast<Seq_Offset>(query.sequence.size()) - 1;
+            const Seq_Offset left_reach_lo =
+                    nearest_left_check_ >= 0 ? neighbour_reach_[flank_checks_[nearest_left_check_].partner_id].lo : 0;
+            const Seq_Offset right_reach_lo = nearest_right_check_ >= 0
+                                                      ? neighbour_reach_[flank_checks_[nearest_right_check_].partner_id].lo
+                                                      : read_end;
             //Loop-invariant, and hoisted out of the scan because the two scalars this replaces
             //were member reads: how far this segment's own ends can still be trimmed.
             const int five_prime_max_travel = pending_.offset_delta(this->seq_type_id, Five_prime).max;
@@ -523,8 +508,8 @@ void Gene_choice::iterate(
                 //Start one nucleotide after the left neighbour's furthest reach, given maximum
                 //deletions on this segment's 5' end.
                 //FIXME left reach set to -1 when the neighbour is not placed
-                if (neighbour_reach_[left_id].lo > 0) {
-                    placement_5_off = neighbour_reach_[left_id].lo + five_prime_travel + 1;
+                if (left_reach_lo > 0) {
+                    placement_5_off = left_reach_lo + five_prime_travel + 1;
                 } else {
                     //Consider that the left neighbour cannot be absent from the read: at least
                     //one nucleotide of it is present
@@ -554,7 +539,7 @@ void Gene_choice::iterate(
                 //Slide one nucleotide at a time towards 3'. The advance is in the header, which
                 //is what makes §7.17 -- a `continue` that skipped the increments and hung --
                 //unexpressible rather than fixed.
-                for (; three_prime_floor < neighbour_reach_[right_id].lo;
+                for (; three_prime_floor < right_reach_lo;
                      ++placement_5_off, ++placement_3_off, ++three_prime_floor) {
 
                     const JunctionGeometry::OffsetInterval my_five_reach = own_five_prime_reach(placement_5_off);
@@ -768,32 +753,26 @@ void Gene_choice::initialize_event(
     exhaustive_position_fallback_ = not at_left_end and not at_right_end;
     publishes_alignment_state_ = at_left_end or at_right_end;
 
-    //The neighbours this placement is checked against: the other gene segments, 5' to 3', which
-    //is the order the two claimed safety layers were in. The candidate list is still the legacy
-    //three by name -- parent plan B9 step 3, which puts the whole topology in the registry, is
-    //what replaces this literal with registry.ordering(); until then a VJ model must still claim
-    //the VD safety slot it never uses, exactly as the preambles this replaces did.
-    static const std::array<Seq_type_String, 3> kGeneSegments = {"V_gene_seq", "D_gene_seq",
-                                                                 "J_gene_seq"};
-    const std::size_t my_position =
-            std::find(kGeneSegments.begin(), kGeneSegments.end(), registry.name(this->seq_type_id))
-            - kGeneSegments.begin();
+    //The neighbours this placement is checked against: every segment whose facing end is placed
+    //before this event runs, 5' to 3', which is the order the claimed safety layers were in. The
+    //engine's plan says which, from the order it runs the events in (TraversalPlan). They used to
+    //be the legacy V, D and J by name, placed or not, which left a tandem model's D1 and D2 out;
+    //a neighbour placed later checks against this one itself.
+    const EventPlacement &placed = this->placement();
     flank_checks_.clear();
-    for (std::size_t position = 0; position != kGeneSegments.size(); ++position) {
-        if (position == my_position or not registry.contains(kGeneSegments[position])) {
-            continue;
-        }
-        const Seq_type_String &partner_name = kGeneSegments[position];
-        const EventUtils::GeneChoiceStatus status =
-                EventUtils::check_gene_choice(partner_name, events_map, processed_events);
+    const auto check_against = [&](SeqTypeId partner, bool this_is_left) {
         FlankCheck check;
-        check.partner_id = registry.id(partner_name);
-        check.this_is_left = position > my_position;
-        check.partner_side = check.this_is_left ? Five_prime : Three_prime;
-        check.safety_cell = safety_set.cell(this->seq_type_id, check.partner_id);
-        check.partner_exists = status.exists;
-        check.partner_chosen = status.chosen;
+        check.partner_id = partner;
+        check.this_is_left = this_is_left;
+        check.partner_side = this_is_left ? Five_prime : Three_prime;
+        check.safety_cell = safety_set.cell(this->seq_type_id, partner);
         flank_checks_.push_back(check);
+    };
+    for (auto partner = placed.placed_left.rbegin(); partner != placed.placed_left.rend(); ++partner) {
+        check_against(*partner, /*this_is_left=*/false);
+    }
+    for (const SeqTypeId partner : placed.placed_right) {
+        check_against(partner, /*this_is_left=*/true);
     }
 
     seq_offsets.request_layer(this->seq_type_id, Three_prime);
@@ -805,9 +784,9 @@ void Gene_choice::initialize_event(
     constructed_sequences.request_layer(this->seq_type_id);
     this->memory_layer_cs = constructed_sequences.claimed_layer(this->seq_type_id);
 
-    //The nearest candidate on each side, placed or not: what bounds the sliding window when
-    //there is no span to decompose. flank_checks_ is in 5'->3' order, so the last partner to
-    //the 5' side and the first to the 3' side are the nearest ones.
+    //The nearest placed neighbour on each side: what bounds the sliding window when there is no
+    //span to decompose. flank_checks_ is in 5'->3' order, so the last partner to the 5' side and
+    //the first to the 3' side are the nearest ones.
     nearest_left_check_ = -1;
     nearest_right_check_ = -1;
     for (std::size_t i = 0; i != flank_checks_.size(); ++i) {
@@ -828,8 +807,7 @@ void Gene_choice::initialize_event(
         realizations_by_index_[realization.index] = &realization;
     }
 
-    //Claimed whether or not the neighbour is there, which is what the commented-out `if`s in the
-    //three arms this replaces were about: a downstream Deletion reads this layer unconditionally.
+    //A downstream Deletion checking the same pair reads this layer, as the one before its own.
     //One claim per *row*, not per check: two neighbours on the same side of this gene name two
     //cells of one row, which share a word and therefore a layer. Claiming twice would leave the
     //second layer unwritten, and an unwritten layer is unreadable by design (section 7.9).
@@ -850,58 +828,41 @@ void Gene_choice::initialize_event(
     downstream_proba_map.request_layer(this->seq_type_id);
     memory_layer_proba_map_seq = downstream_proba_map.claimed_layer(this->seq_type_id);
 
-    //The junctions this event's placement fixes: one against the nearest placed neighbour on
-    //each side, plus -- when there is one on both -- the junction it sits inside and splits.
-    //Three slots is enough in every topology (see JunctionBound), which is what removed the enum
-    //ceiling in S4c; here is where they are filled.
-    const FlankCheck *left_partner = nullptr;
-    const FlankCheck *right_partner = nullptr;
-    for (const FlankCheck &check : flank_checks_) {
-        if (not check.partner_chosen) {
-            continue;
-        }
-        if (check.this_is_left) {
-            if (right_partner == nullptr) {
-                right_partner = &check; //first placed neighbour to the 3' side
-            }
-        } else {
-            left_partner = &check;      //last placed neighbour to the 5' side
-        }
-    }
-
-    auto resolve_junction = [&](JunctionSlot slot, SeqTypeId left_id, SeqTypeId right_id,
-                                JunctionBound::Fold fold) {
-        const SegmentSpan span = SegmentSpan::gap(left_id, right_id);
-        const SeqTypeId junction_key = legacy_junction_of(span);
+    //The junctions this event's placement fixes: the gap to the nearest built content on each
+    //side, plus -- when there is some on both -- the gap it sits inside and splits. Three slots is
+    //enough in every topology (see JunctionBound), which is what removed the enum ceiling in S4c;
+    //here is where they are filled. Which gaps, and the key each is held at, are the engine's
+    //plan's: a gap is one factor, refined by every event that changes it.
+    const TraversalPlan &plan = this->traversal_plan();
+    auto resolve_junction = [&](JunctionSlot slot, SegmentSpan span, JunctionBound::Fold fold) {
+        const SeqTypeId junction_key = plan.gap_key(span);
         downstream_proba_map.request_layer(junction_key);
         junction_bound(slot).resolve(span, junction_key, downstream_proba_map.claimed_layer(junction_key),
                                      fold);
     };
 
-    if (left_partner != nullptr) {
-        resolve_junction(kLeftJunction, left_partner->partner_id, this->seq_type_id,
-                         JunctionBound::Fold::Yes);
+    const std::optional<SegmentSpan> left_gap = placed.gap_toward(Five_prime);
+    const std::optional<SegmentSpan> right_gap = placed.gap_toward(Three_prime);
+    if (left_gap) {
+        resolve_junction(kLeftJunction, *left_gap, JunctionBound::Fold::Yes);
     }
-    if (right_partner != nullptr) {
-        resolve_junction(kRightJunction, this->seq_type_id, right_partner->partner_id,
-                         JunctionBound::Fold::Yes);
+    if (right_gap) {
+        resolve_junction(kRightJunction, *right_gap, JunctionBound::Fold::Yes);
     }
-    if (left_partner != nullptr and right_partner != nullptr) {
+    if (left_gap and right_gap) {
         //Placing this segment refines the enclosing junction into the two halves above rather
         //than measuring it, so it carries no folded profile of its own: iterate() writes the
         //neutral 1.0 there. A gene that will scan positions when the aligner finds nothing needs
         //to know *which* composition reaches each total and not only the best one, so it asks
         //for the decomposition instead -- §2.5's `⊗ᵉⁿᵘᵐ`, and the last thing in the sweep that
         //used to be a subclass hook.
-        resolve_junction(kEnclosingJunction, left_partner->partner_id, right_partner->partner_id,
+        resolve_junction(kEnclosingJunction, *placed.enclosing_gap(),
                          exhaustive_position_fallback_ ? JunctionBound::Fold::Retain
                                                        : JunctionBound::Fold::No);
     }
 
     for (FlankCheck &check : flank_checks_) {
-        if (check.partner_chosen) {
-            check.partner_offset_layer = seq_offsets.claimed_layer(check.partner_id, check.partner_side);
-        }
+        check.partner_offset_layer = seq_offsets.claimed_layer(check.partner_id, check.partner_side);
     }
 
     //downstream_proba_map.get_all_current_memory_layer(current_downstream_proba_memory_layers);

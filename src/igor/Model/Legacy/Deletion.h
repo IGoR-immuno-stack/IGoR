@@ -142,7 +142,6 @@ private:
         SafetyCell safety_cell;               ///< the pair, by ordering position (S5)
         int safety_layer = -1;                ///< one per *row*, so same-row checks share it
         int partner_offset_layer = -1;
-        bool partner_chosen = false;          ///< the partner is placed before this event
 
         //Per scenario, filled by the preamble of iterate():
         Seq_Offset offset = 0;                            ///< where the partner's facing end is

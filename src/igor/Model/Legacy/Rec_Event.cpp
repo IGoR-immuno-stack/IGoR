@@ -29,6 +29,7 @@
 #include <igor/Model/Legacy/EventUtils.h>
 #include <igor/Model/Legacy/Scenario.h>  // For Scenario view construction
 #include <igor/Model/Legacy/BoundTightness.h>
+#include <igor/Model/TraversalPlan.h>
 
 #include <nlohmann/json.hpp>
 
@@ -132,6 +133,20 @@ bool Rec_Event::operator==(const Rec_Event &other) const
 Seq_side Rec_Event::name_side(Event_type type, Seq_side side)
 {
     return (type == Event_type::Dinuclmarkov_t) ? Undefined_side : side;
+}
+
+const igor::model::TraversalPlan &Rec_Event::traversal_plan() const
+{
+    if (traversal_plan_ == nullptr) {
+        throw logic_error("Rec_Event " + this->name
+                          + ": no traversal plan; the engine sets one before initialize_event()");
+    }
+    return *traversal_plan_;
+}
+
+const igor::model::EventPlacement &Rec_Event::placement() const
+{
+    return this->traversal_plan().placement(*this);
 }
 
 void Rec_Event::update_event_name()
