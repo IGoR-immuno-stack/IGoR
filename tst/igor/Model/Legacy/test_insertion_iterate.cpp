@@ -337,7 +337,7 @@ TEST_CASE("Insertion: downstream bound and memory layering", "[insertion][iterat
     }
 }
 
-TEST_CASE("Insertion: the junction bound covers the best completion (§7.19, R8)",
+TEST_CASE("Insertion: the junction bound covers the best completion (7.19, R8)",
           "[insertion][iterate]")
 {
     // Once the insertion has chosen its length L, all that is left of the junction is the

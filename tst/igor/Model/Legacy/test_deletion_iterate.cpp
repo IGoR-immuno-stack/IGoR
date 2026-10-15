@@ -1339,7 +1339,7 @@ void check_bound_covers_best_completion(Fixture &fixture, Seq_type junction)
 
 } // namespace
 
-TEST_CASE("Deletion: the junction bound covers the best completion (§7.19, R8)",
+TEST_CASE("Deletion: the junction bound covers the best completion (7.19, R8)",
           "[deletion][iterate][junction]")
 {
     // A deletion reads its junction at the gap its own choice leaves, so that gap already

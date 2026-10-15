@@ -12,6 +12,8 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
 
+#include "ScratchDir.h"
+
 #include <igor/Model/Legacy/Model_Parms.h>
 #include <igor/Model/Legacy/Model_marginals.h>
 #include <igor/Model/Legacy/Rec_Event.h>
@@ -115,8 +117,9 @@ TEST_CASE("Model format round-trip", "[model_format]")
     auto err_rate = std::make_shared<Single_error_rate>(0.001);
     original_parms.set_error_ratep(err_rate);
     
-    // Write to test_data directory and read back
-    std::string roundtrip_file = TEST_DATA_DIR + "test_roundtrip_parms.txt";
+    // Write to a scratch directory and read back
+    ScratchDir scratch;
+    std::string roundtrip_file = scratch.file("test_roundtrip_parms.txt");
     original_parms.write_model_parms(roundtrip_file);
     
     // Read back
@@ -127,9 +130,6 @@ TEST_CASE("Model format round-trip", "[model_format]")
     auto orig_events = original_parms.get_event_list();
     auto loaded_events = loaded_parms.get_event_list();
     REQUIRE(orig_events.size() == loaded_events.size());
-    
-    // Cleanup
-    std::filesystem::remove(roundtrip_file);
 }
 
 // Test format detection
@@ -671,7 +671,8 @@ TEST_CASE("v1/v2 parity: write_model_parms_v2 round-trip equals original",
           "[model_format][parity][v2.0]")
 {
     const std::string v1_path = TEST_DATA_DIR + "test_legacy_vdj_model_parms.txt";
-    const std::string tmp_v2  = TEST_DATA_DIR + "tmp_roundtrip_v2.txt";
+    ScratchDir scratch;
+    const std::string tmp_v2  = scratch.file("tmp_roundtrip_v2.txt");
 
     Model_Parms v1_parms;
     REQUIRE_NOTHROW(v1_parms.read_model_parms(v1_path));
@@ -685,8 +686,6 @@ TEST_CASE("v1/v2 parity: write_model_parms_v2 round-trip equals original",
 
     REQUIRE(v1_parms.get_seq_type_registry().get_ordered_types() ==
             v2_parms.get_seq_type_registry().get_ordered_types());
-
-    std::filesystem::remove(tmp_v2);
 }
 
 // Round-trip using the large inference model file (covers full V/D/J gene sets).
@@ -695,7 +694,8 @@ TEST_CASE("v1/v2 parity: write_model_parms_v2 round-trip for inference model",
 {
     const std::string INFER_DIR = std::string(IGOR_SOURCE_DIR) + "/tst/test_data/inference/";
     const std::string v1_path   = INFER_DIR + "fixed_VJ_TRB_model_parms.txt";
-    const std::string tmp_v2    = INFER_DIR + "tmp_inference_v2.txt";
+    ScratchDir scratch;
+    const std::string tmp_v2    = scratch.file("tmp_inference_v2.txt");
 
     Model_Parms v1_parms;
     REQUIRE_NOTHROW(v1_parms.read_model_parms(v1_path));
@@ -709,8 +709,6 @@ TEST_CASE("v1/v2 parity: write_model_parms_v2 round-trip for inference model",
 
     REQUIRE(v1_parms.get_seq_type_registry().get_ordered_types() ==
             v2_parms.get_seq_type_registry().get_ordered_types());
-
-    std::filesystem::remove(tmp_v2);
 }
 
 // ── Step 7: requires_extended_format() ─────────────────────────────────────
@@ -758,7 +756,8 @@ TEST_CASE("write_model_parms auto-selects legacy format for standard VDJ model",
           "[model_format][step7][auto_select]")
 {
     const std::string src  = TEST_DATA_DIR + "test_legacy_vdj_model_parms.txt";
-    const std::string dest = TEST_DATA_DIR + "tmp_auto_select_legacy.txt";
+    ScratchDir scratch;
+    const std::string dest = scratch.file("tmp_auto_select_legacy.txt");
 
     Model_Parms parms;
     REQUIRE_NOTHROW(parms.read_model_parms(src));
@@ -775,8 +774,6 @@ TEST_CASE("write_model_parms auto-selects legacy format for standard VDJ model",
     Model_Parms loaded;
     REQUIRE_NOTHROW(loaded.read_model_parms(dest));
     require_same_events(parms, loaded);
-
-    std::filesystem::remove(dest);
 }
 
 // For a tandem-D model with non-standard seq_types, write_model_parms() must
@@ -785,7 +782,8 @@ TEST_CASE("write_model_parms auto-selects v2 format for tandem-D model",
           "[model_format][step7][auto_select][tandem_d][!mayfail]")
 {
     const std::string src  = TEST_DATA_DIR + "test_v2_tandem_d_parms.txt";
-    const std::string dest = TEST_DATA_DIR + "tmp_auto_select_v2.txt";
+    ScratchDir scratch;
+    const std::string dest = scratch.file("tmp_auto_select_v2.txt");
 
     Model_Parms parms;
     REQUIRE_NOTHROW(parms.read_model_parms(src));
@@ -801,8 +799,6 @@ TEST_CASE("write_model_parms auto-selects v2 format for tandem-D model",
     Model_Parms loaded;
     REQUIRE_NOTHROW(loaded.read_model_parms(dest));
     require_same_events(parms, loaded);
-
-    std::filesystem::remove(dest);
 }
 
 // ── Step 7: write_model_parms_legacy() round-trip ──────────────────────────
@@ -813,7 +809,8 @@ TEST_CASE("write_model_parms_legacy: VDJ round-trip preserves events",
           "[model_format][step7][legacy_roundtrip]")
 {
     const std::string src  = TEST_DATA_DIR + "test_legacy_vdj_model_parms.txt";
-    const std::string dest = TEST_DATA_DIR + "tmp_legacy_roundtrip.txt";
+    ScratchDir scratch;
+    const std::string dest = scratch.file("tmp_legacy_roundtrip.txt");
 
     Model_Parms original;
     REQUIRE_NOTHROW(original.read_model_parms(src));
@@ -832,8 +829,6 @@ TEST_CASE("write_model_parms_legacy: VDJ round-trip preserves events",
 
     REQUIRE(original.get_seq_type_registry().get_ordered_types() ==
             loaded.get_seq_type_registry().get_ordered_types());
-
-    std::filesystem::remove(dest);
 }
 
 // ── Step 5: write2txt_v2() output format check ─────────────────────────────
@@ -844,7 +839,8 @@ TEST_CASE("write2txt_v2 output contains seq_type field in correct position",
           "[model_format][step5][write2txt_v2]")
 {
     const std::string src  = TEST_DATA_DIR + "test_legacy_vdj_model_parms.txt";
-    const std::string dest = TEST_DATA_DIR + "tmp_v2_format_check.txt";
+    ScratchDir scratch;
+    const std::string dest = scratch.file("tmp_v2_format_check.txt");
 
     Model_Parms parms;
     REQUIRE_NOTHROW(parms.read_model_parms(src));
@@ -886,8 +882,6 @@ TEST_CASE("write2txt_v2 output contains seq_type field in correct position",
     REQUIRE(found_deletion_v2_line);
     REQUIRE(found_insertion_v2_line);
     REQUIRE(found_genechoice_v2_line);
-
-    std::filesystem::remove(dest);
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -958,7 +952,8 @@ TEST_CASE("step8: write_model_parms_v2 edge names include seq_type",
 {
     // Use the VJ model (test_legacy_model_parms.txt) which has actual edges.
     const std::string src  = TEST_DATA_DIR + "test_legacy_model_parms.txt";
-    const std::string dest = TEST_DATA_DIR + "tmp_step8_edge_names.txt";
+    ScratchDir scratch;
+    const std::string dest = scratch.file("tmp_step8_edge_names.txt");
 
     Model_Parms parms;
     REQUIRE_NOTHROW(parms.read_model_parms(src));
@@ -980,8 +975,6 @@ TEST_CASE("step8: write_model_parms_v2 edge names include seq_type",
         }
     }
     REQUIRE(found_v2_edge);
-
-    std::filesystem::remove(dest);
 }
 
 // A v2 file that uses the new (seq_type-inclusive) edge name format must be
@@ -1188,7 +1181,8 @@ TEST_CASE("step11: DinucMarkov direction preserved through v2 round-trip",
           "[model_format][step11][dinucl_direction]")
 {
     const std::string src  = TEST_DATA_DIR + "test_legacy_vdj_model_parms.txt";
-    const std::string dest = TEST_DATA_DIR + "tmp_step11_dinucl.txt";
+    ScratchDir scratch;
+    const std::string dest = scratch.file("tmp_step11_dinucl.txt");
 
     Model_Parms original;
     REQUIRE_NOTHROW(original.read_model_parms(src));
@@ -1205,8 +1199,6 @@ TEST_CASE("step11: DinucMarkov direction preserved through v2 round-trip",
     auto dj_orig   = original.get_event_pointer("dj_dinucl", true);
     auto dj_loaded = loaded.get_event_pointer("dj_dinucl", true);
     REQUIRE(dj_loaded->get_side() == dj_orig->get_side());
-
-    std::filesystem::remove(dest);
 }
 
 // v2 file carries explicit seq_side for DinucMarkov; must be loaded verbatim.
