@@ -28,9 +28,10 @@
 
 #include <igor/Streaming/Export.h>
 
-#include <igor/Core/Utils.h>
-#include <igor/Core/Aligner.h>
+#include <igor/Core/Legacy/Utils.h>
+#include <igor/Core/AlignmentData.h>
 
+#include <exception>
 #include <sparrow/record_batch.hpp>
 
 #include <string>
@@ -38,7 +39,7 @@
 #include <tuple>
 #include <unordered_map>
 
-namespace igor {
+namespace igor::streaming {
 
 /**
  * @brief Reader for Parquet format files
@@ -99,8 +100,8 @@ public:
      * @throws std::runtime_error if file cannot be read or conversion fails
      */
     static std::vector<std::tuple<int, std::string,
-                                  std::unordered_map<Gene_class,
-                                                     std::vector<Alignment_data>>>>
+                                  std::unordered_map<igor::core::legacy::Gene_class,
+                                                     std::vector<igor::core::AlignmentData>>>>
     read_sequences(const std::string &input_path);
 
     /**
@@ -124,4 +125,4 @@ public:
                                               const std::vector<std::string> &column_names);
 };
 
-} // namespace igor
+} // namespace igor::streaming

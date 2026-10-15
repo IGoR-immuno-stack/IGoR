@@ -1,0 +1,792 @@
+/*
+ * test_utils.cpp
+ *
+ *  Created on: Jan 21, 2026
+ *      Author: IGoR Test Suite
+ *
+ *  This source code is distributed as part of the IGoR software.
+ *  IGoR (Inference and Generation of Repertoires) is a versatile software to analyze and model immune receptors
+ *  generation, selection, mutation and all other processes.
+ *   Copyright (C) 2017  Quentin Marcou
+ *
+ *   This program is free software: you can redistribute it and/or modify
+ *   it under the terms of the GNU General Public License as published by
+ *   the Free Software Foundation, either version 3 of the License, or
+ *   (at your option) any later version.
+ *
+ *   This program is distributed in the hope that it will be useful,
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *   GNU General Public License for more details.
+
+ *   You should have received a copy of the GNU General Public License
+ *   along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+#include "test_utils.h"
+
+#include <catch2/catch_test_macros.hpp>
+
+#include <igor/Model/Legacy/EventUtils.h>
+#include <igor/Model/Legacy/gene_to_seqtype_migr.h>
+#include <algorithm>
+#include <cmath>
+#include <forward_list>
+#include <functional>
+#include <numeric>
+#include <queue>
+#include <stack>
+#include <stdexcept>
+
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+using namespace igor::model::legacy;
+
+namespace IgorTestUtils {
+
+Alignment_data create_mock_alignment_data(
+    const std::string& gene_name,
+    int offset,
+    size_t five_p_offset,
+    size_t three_p_offset,
+    const std::vector<size_t>& mismatches,
+    double score
+) {
+    // Calculate alignment length
+    size_t align_length = three_p_offset - five_p_offset;
+    
+    // Create empty vectors for insertions and deletions
+    std::vector<size_t> empty_insertions;
+    std::vector<size_t> empty_deletions;
+    
+    // Use the appropriate constructor
+    Alignment_data align_data(
+        gene_name,
+        offset,
+        five_p_offset,
+        three_p_offset,
+        align_length,
+        empty_insertions,
+        empty_deletions,
+        mismatches,
+        score
+    );
+    
+    return align_data;
+}
+
+// ============================================================================
+// iterate() test harness
+// ============================================================================
+
+const SeqTypeRegistry &vdj_seq_type_registry()
+{
+    static const SeqTypeRegistry registry = [] {
+        SeqTypeRegistry built;
+        built.register_legacy_seq_types();
+        built.set_ordered_types({"V_gene_seq", "VD_ins_seq", "D_gene_seq", "DJ_ins_seq", "J_gene_seq"});
+        built.freeze();
+        return built;
+    }();
+    return registry;
+}
+
+const SeqTypeRegistry &vj_seq_type_registry()
+{
+    static const SeqTypeRegistry registry = [] {
+        SeqTypeRegistry built;
+        built.register_legacy_seq_types();
+        built.set_ordered_types({"V_gene_seq", "VJ_ins_seq", "J_gene_seq"});
+        built.freeze();
+        return built;
+    }();
+    return registry;
+}
+
+IterateTestState create_iterate_state(const std::string &sequence, std::size_t marginal_array_size,
+                                      std::size_t max_events, const SeqTypeRegistry &registry)
+{
+    return IterateTestState(sequence, marginal_array_size, max_events, registry);
+}
+
+std::string LayerViolation::describe() const
+{
+    return map_name + " key " + std::to_string(key) + ": claimed layer "
+           + std::to_string(claimed_layer) + " but its data stands at layer "
+           + std::to_string(current_layer)
+           + " -- a layer was requested and never written on this path";
+}
+
+std::string OwnershipViolation::describe() const
+{
+    return map_name + " key " + std::to_string(key) + ": written at layer "
+           + std::to_string(written_layer) + " but this event requested only up to layer "
+           + std::to_string(claimed_layer)
+           + " -- a layer was written and never requested";
+}
+
+std::string CapabilityViolation::describe() const
+{
+    return map_name + " " + EventUtils::seq_type_to_string(seq_type) + ": declared " + declared
+           + ", but " + observed;
+}
+
+namespace {
+
+template <typename Map>
+std::vector<int> claimed_layers_of(const Map &map)
+{
+    std::vector<int> layers;
+    layers.reserve(map.count());
+    for (std::size_t key = 0; key != map.count(); ++key) {
+        layers.push_back(map.claimed_layer(key));
+    }
+    return layers;
+}
+
+template <typename Map>
+std::vector<int> current_layers_of(const Map &map)
+{
+    std::vector<int> layers;
+    layers.reserve(map.count());
+    for (std::size_t key = 0; key != map.count(); ++key) {
+        layers.push_back(map.current_layer(key));
+    }
+    return layers;
+}
+
+} // namespace
+
+LayerSnapshot capture_layers(const IterateTestState &state)
+{
+    LayerSnapshot snapshot;
+    auto add = [&](const std::string &name, auto &&map) {
+        snapshot.claimed.emplace(name, claimed_layers_of(map));
+        snapshot.current.emplace(name, current_layers_of(map));
+    };
+    add("constructed_sequences", state.scenario.constructed_sequences);
+    add("seq_offsets.five_prime", state.scenario.seq_offsets.five_prime);
+    add("seq_offsets.three_prime", state.scenario.seq_offsets.three_prime);
+    add("mismatches_lists", state.scenario.mismatches_lists);
+    add("downstream_proba_map", state.exploration.downstream_proba_map);
+    add("safety_set", state.exploration.safety_set);
+    add("pruning_mismatch_floor", state.exploration.pruning_mismatch_floor);
+    //index_map is deliberately excluded: its layering is driven by parent-realization
+    //tracking through offset_map, which single-event tests do not populate, so it carries no
+    //contract here.
+    return snapshot;
+}
+
+std::string int_str_to_nt(const Int_Str &seq)
+{
+    static const char kBases[] = {'A', 'C', 'G', 'T'};
+    std::string out;
+    out.reserve(seq.size());
+    for (int value : seq) {
+        if (value >= 0 && value < 4) {
+            out.push_back(kBases[value]);
+        } else if (value == int_undefined) {
+            //Rendered apart from 'N' on purpose: "not filled yet" and "filled, but the read is
+            //ambiguous here" are different states, and a failure message that prints both the
+            //same way hides exactly the confusion this notation exists to prevent.
+            out.push_back('.');
+        } else {
+            out.push_back('N');
+        }
+    }
+    return out;
+}
+
+RecordingEvent::RecordingEvent(int event_id) : Rec_Event()
+{
+    this->type = Event_type::Undefined_t;
+    this->set_event_identifier(event_id);
+    this->set_seq_type("Undefined_seq");
+    this->fix(true);
+}
+
+std::shared_ptr<Rec_Event> RecordingEvent::copy()
+{
+    return std::make_shared<RecordingEvent>(this->get_event_identifier());
+}
+
+void RecordingEvent::iterate(QuerySequenceContext &, const ModelContext &, ScenarioContext &scenario,
+                             ExplorationContext &exploration, AccumulationContext &)
+{
+    //Record what the real next event would read, then stop. No recursion, no error rate.
+    static const Seq_type kAllSeqTypes[] = {V_gene_seq, VD_ins_seq,  D_gene_seq,
+                                            DJ_ins_seq, J_gene_seq,  VJ_ins_seq};
+
+    ScenarioSnapshot snapshot;
+    snapshot.scenario_proba = scenario.scenario_proba;
+
+    for (Seq_type seq_type : kAllSeqTypes) {
+        if (scenario.seq_offsets.exists(seq_type, Five_prime)
+            && scenario.seq_offsets.exists(seq_type, Three_prime)) {
+            snapshot.offsets.emplace(seq_type,
+                                     std::make_pair(scenario.get_offset(seq_type, Five_prime),
+                                                    scenario.get_offset(seq_type, Three_prime)));
+        }
+        if (scenario.constructed_sequences.exists(seq_type)) {
+            const Int_Str *segment = scenario.get_sequence_segment(seq_type);
+            snapshot.sequences.emplace(seq_type,
+                                       segment ? int_str_to_nt(*segment) : std::string());
+        }
+        if (scenario.mismatches_lists.exists(seq_type)) {
+            const std::vector<std::size_t> *mismatches = scenario.get_mismatches(seq_type);
+            snapshot.mismatches.emplace(seq_type, mismatches ? *mismatches
+                                                             : std::vector<std::size_t>{});
+        }
+        if (exploration.downstream_proba_map.exists(seq_type)) {
+            snapshot.downstream_bounds.emplace(seq_type,
+                                               exploration.downstream_proba_map.get(seq_type));
+        }
+    }
+
+    //The three gene pairs of a legacy model, in 5'->3' order. A pair whose left member's row
+    //nobody has written is left out; once a row is written its word answers for every cell,
+    //so the other two appear with the verdict the enclosing depth left them.
+    for (const auto &[left, right] : {std::pair<Seq_type, Seq_type>{V_gene_seq, D_gene_seq},
+                                      std::pair<Seq_type, Seq_type>{V_gene_seq, J_gene_seq},
+                                      std::pair<Seq_type, Seq_type>{D_gene_seq, J_gene_seq}}) {
+        if (not exploration.safety_set.addresses(static_cast<SeqTypeId>(left))
+            or not exploration.safety_set.addresses(static_cast<SeqTypeId>(right))) {
+            continue; //a VJ model has no D: the pair does not exist, rather than being unset
+        }
+        const SafetyCell cell = exploration.safety_set.cell(static_cast<SeqTypeId>(left),
+                                                            static_cast<SeqTypeId>(right));
+        if (exploration.safety_set.exists(cell)) {
+            snapshot.safety.emplace(std::make_pair(left, right), exploration.safety_set.get(cell));
+        }
+    }
+
+    //Layer contract: every layer this event requested must have been written before it
+    //hands off. Checked here rather than in each test, so all sections get it for free.
+    auto check_map = [&](const std::string &name, const std::vector<int> &current_now) {
+        const auto claimed = layer_baseline.claimed.find(name);
+        const auto before = layer_before_init.claimed.find(name);
+        if (claimed == layer_baseline.claimed.end() || before == layer_before_init.claimed.end()) {
+            return;
+        }
+        for (std::size_t key = 0; key != current_now.size(); ++key) {
+            if (key >= claimed->second.size() || key >= before->second.size()) {
+                break;
+            }
+            //Only keys this event claimed a layer for carry the promise.
+            if (claimed->second[key] <= before->second[key]) {
+                continue;
+            }
+            if (current_now[key] != claimed->second[key]) {
+                layer_violations.push_back(
+                        LayerViolation{calls.size(), name, key, claimed->second[key],
+                                       current_now[key]});
+            }
+        }
+    };
+    check_map("constructed_sequences", current_layers_of(scenario.constructed_sequences));
+    check_map("seq_offsets.five_prime", current_layers_of(scenario.seq_offsets.five_prime));
+    check_map("seq_offsets.three_prime", current_layers_of(scenario.seq_offsets.three_prime));
+    check_map("mismatches_lists", current_layers_of(scenario.mismatches_lists));
+    check_map("downstream_proba_map", current_layers_of(exploration.downstream_proba_map));
+    check_map("safety_set", current_layers_of(exploration.safety_set));
+    check_map("pruning_mismatch_floor", current_layers_of(exploration.pruning_mismatch_floor));
+
+    //Layer ownership: the complement of the contract above. Every key whose data moved during
+    //this event's iterate() must stand at a layer this event requested. Applies to every map,
+    //including the two no capability query describes.
+    auto check_ownership = [&](const std::string &map_name, const std::vector<int> &current_now) {
+        const auto claimed = layer_baseline.claimed.find(map_name);
+        const auto before = layer_baseline.current.find(map_name);
+        if (claimed == layer_baseline.claimed.end() || before == layer_baseline.current.end()) {
+            return;
+        }
+        for (std::size_t key = 0; key != current_now.size(); ++key) {
+            if (key >= claimed->second.size() || key >= before->second.size()) {
+                break;
+            }
+            //Only keys this event actually moved; an untouched key carries no promise here.
+            if (current_now[key] == before->second[key]) {
+                continue;
+            }
+            if (current_now[key] > claimed->second[key]) {
+                ownership_violations.push_back(OwnershipViolation{
+                        calls.size(), map_name, key, claimed->second[key], current_now[key]});
+            }
+        }
+    };
+    check_ownership("constructed_sequences", current_layers_of(scenario.constructed_sequences));
+    check_ownership("seq_offsets.five_prime", current_layers_of(scenario.seq_offsets.five_prime));
+    check_ownership("seq_offsets.three_prime", current_layers_of(scenario.seq_offsets.three_prime));
+    check_ownership("mismatches_lists", current_layers_of(scenario.mismatches_lists));
+    check_ownership("downstream_proba_map", current_layers_of(exploration.downstream_proba_map));
+    check_ownership("safety_set", current_layers_of(exploration.safety_set));
+    check_ownership("pruning_mismatch_floor", current_layers_of(exploration.pruning_mismatch_floor));
+
+    //Capability contract (tier 3): what this event *declared* through its A0 queries, it must
+    //have *done* by the time it hands off. Consistency, not correctness -- an event declaring
+    //None everywhere passes trivially; tier 1 is what makes the declarations non-vacuous.
+    if (declarations.active) {
+        const auto note = [&](const std::string &map_name, Seq_type seq_type,
+                              const std::string &declared, const std::string &observed) {
+            capability_violations.push_back(
+                    CapabilityViolation{calls.size(), map_name, seq_type, declared, observed});
+        };
+        //Reference point for "this event did not touch that key": the layers as they stood
+        //once the event under test had requested its own and before it iterated.
+        const auto current_before = [&](const std::string &map_name, std::size_t key) -> int {
+            const auto found = layer_baseline.current.find(map_name);
+            if (found == layer_baseline.current.end() || key >= found->second.size()) {
+                return -1;
+            }
+            return found->second[key];
+        };
+        //"Written at its own layer" cannot be phrased as "it raised a claim": only Deletion
+        //ever requests a constructed_sequences layer. A creator -- Gene_choice, Insertion --
+        //writes at layer 0, which it owns implicitly because nothing stands beneath it, so its
+        //claimed mark is still -1 when the baseline is taken. The checkable statement is that
+        //the event *touched* the key, which is the exact complement of the None clause below.
+        const auto touched = [&](const std::string &map_name, std::size_t key,
+                                 const std::vector<int> &current_now) {
+            return key >= current_now.size()
+                   || current_now[key] != current_before(map_name, key);
+        };
+
+        const std::vector<int> seq_layers = current_layers_of(scenario.constructed_sequences);
+        for (const auto &[seq_type, role] : declarations.construction) {
+            const std::size_t key = static_cast<std::size_t>(seq_type);
+            const bool exists = scenario.constructed_sequences.exists(seq_type);
+            switch (role) {
+            case SeqConstructionRole::Creates:
+                if (!exists) {
+                    note("constructed_sequences", seq_type, "Creates", "no segment was written");
+                } else if (!touched("constructed_sequences", key, seq_layers)) {
+                    note("constructed_sequences", seq_type, "Creates",
+                         "the segment was already standing where it stands now -- this event "
+                         "did not write it");
+                }
+                break;
+            case SeqConstructionRole::Fills:
+                //The layer clause is here now. It used to be left out because Dinucl_markov
+                //wrote through the pointer Insertion stored and claimed nothing (section
+                //7.13); under O12 (a') it creates the segment instead, so nothing declares
+                //Fills any more and the exemption has no subject. Stated for whatever
+                //declares it next: a filler owns its write like every other writer.
+                if (!exists) {
+                    note("constructed_sequences", seq_type, "Fills", "no segment was written");
+                } else if (!touched("constructed_sequences", key, seq_layers)) {
+                    note("constructed_sequences", seq_type, "Fills",
+                         "the segment was already standing where it stands now -- this event "
+                         "did not write it");
+                } else if (const Int_Str *segment = scenario.get_sequence_segment(seq_type);
+                           segment != nullptr
+                           && std::find(segment->begin(), segment->end(), int_undefined)
+                                      != segment->end()) {
+                    note("constructed_sequences", seq_type, "Fills",
+                         "the segment still holds an undetermined nucleotide");
+                }
+                break;
+            case SeqConstructionRole::Modifies:
+                //Not that the value changed -- a zero deletion is legal -- only that it was
+                //written at this event's own layer.
+                if (!touched("constructed_sequences", key, seq_layers)) {
+                    note("constructed_sequences", seq_type, "Modifies",
+                         "this event did not write that segment");
+                }
+                break;
+            case SeqConstructionRole::None:
+                //The converse, and the one that catches an event touching a segment it never
+                //declared -- section 7.13's shape exactly.
+                if (key < seq_layers.size() && seq_layers[key] != current_before("constructed_sequences", key)) {
+                    note("constructed_sequences", seq_type, "None",
+                         "it advanced that segment's layer to "
+                                 + std::to_string(seq_layers[key]));
+                }
+                break;
+            }
+        }
+
+        const std::vector<int> five_layers = current_layers_of(scenario.seq_offsets.five_prime);
+        const std::vector<int> three_layers = current_layers_of(scenario.seq_offsets.three_prime);
+        for (const auto &[key_pair, role] : declarations.offsets) {
+            const auto [seq_type, side] = key_pair;
+            const std::size_t key = static_cast<std::size_t>(seq_type);
+            const std::string map_name = side == Five_prime ? "seq_offsets.five_prime"
+                                                            : "seq_offsets.three_prime";
+            const std::vector<int> &layers = side == Five_prime ? five_layers : three_layers;
+            switch (role) {
+            case OffsetRole::Creates:
+                if (!scenario.seq_offsets.exists(seq_type, side)) {
+                    note(map_name, seq_type, "OffsetRole::Creates", "that end was never written");
+                } else if (!touched(map_name, key, layers)) {
+                    note(map_name, seq_type, "OffsetRole::Creates",
+                         "that end was already standing where it stands now -- this event did "
+                         "not write it");
+                }
+                break;
+            case OffsetRole::Modifies:
+                if (!touched(map_name, key, layers)) {
+                    note(map_name, seq_type, "OffsetRole::Modifies",
+                         "this event did not write that end");
+                }
+                break;
+            case OffsetRole::None:
+                if (key < layers.size() && layers[key] != current_before(map_name, key)) {
+                    note(map_name, seq_type, "OffsetRole::None",
+                         "it advanced that end's layer to " + std::to_string(layers[key]));
+                }
+                break;
+            }
+        }
+    }
+
+    calls.push_back(std::move(snapshot));
+}
+
+std::shared_ptr<RecordingEvent> call_iterate_recording(const std::shared_ptr<Rec_Event> &event,
+                                                       IterateTestState &state)
+{
+    auto recorder = std::make_shared<RecordingEvent>(31);
+
+    //Read the event's own A0 declarations before it runs, so the recorder can check them at
+    //the hand-off. Every test going through this function inherits the check; a new event's
+    //sections get it without writing anything.
+    static const Seq_type kAllSeqTypes[] = {V_gene_seq, VD_ins_seq, D_gene_seq,
+                                            DJ_ins_seq, J_gene_seq, VJ_ins_seq};
+    recorder->declarations.active = true;
+    for (Seq_type seq_type : kAllSeqTypes) {
+        const SeqTypeId id = static_cast<SeqTypeId>(seq_type);
+        recorder->declarations.construction.emplace(seq_type, event->get_seq_construction_role(id));
+        for (Seq_side side : {Five_prime, Three_prime}) {
+            recorder->declarations.offsets.emplace(std::make_pair(seq_type, side),
+                                                   event->get_offset_role(id, side));
+        }
+    }
+
+    call_iterate(event, state, recorder);
+
+    //Every section gets the layer contract checked, without asking for it.
+    for (const LayerViolation &violation : recorder->layer_violations) {
+        UNSCOPED_INFO("layer contract violated at hand-off " << violation.call_index << ": "
+                                                             << violation.describe());
+    }
+    CHECK(recorder->layer_violations.empty());
+
+    //...and the capability contract likewise.
+    for (const CapabilityViolation &violation : recorder->capability_violations) {
+        UNSCOPED_INFO("capability declaration broken at hand-off " << violation.call_index << ": "
+                                                                   << violation.describe());
+    }
+    CHECK(recorder->capability_violations.empty());
+
+    //...and layer ownership, with no exemption left. This carried one: Insertion wrote the
+    //segment it created without ever requesting a layer for it. R1 moved that write to
+    //Dinucl_markov, which claims the layer, so the rule now applies to all four events
+    //unconditionally.
+    for (const OwnershipViolation &violation : recorder->ownership_violations) {
+        UNSCOPED_INFO("layer ownership violated at hand-off " << violation.call_index << ": "
+                                                              << violation.describe());
+    }
+    CHECK(recorder->ownership_violations.empty());
+
+    return recorder;
+}
+
+void call_iterate(const std::shared_ptr<Rec_Event> &event, IterateTestState &state,
+                  const std::shared_ptr<RecordingEvent> &next)
+{
+    //The order below mirrors GenModel's setup. It is not incidental: the length-proba
+    //bounds are built by a reverse pass over the queue *after* every event is initialized,
+    //and omitting it leaves the *_length_best_proba_map members empty, which makes the
+    //junction-length guard discard every scenario. That is the single easiest way to write
+    //a test that passes for the wrong reason.
+
+    if (next) {
+        next->layer_before_init = capture_layers(state);
+    }
+
+    auto &events_map = const_cast<Events_map &>(state.model.events_map);
+    auto &offset_map = const_cast<std::unordered_map<
+            Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &>(
+            state.model.offset_map);
+
+    //The event under test must be reachable through events_map like any other.
+    events_map[IterateTestState::events_map_key(event)] = event;
+
+    //Step 1: every event gets a base index of 0 at layer 0, plus a marginal size, a crude
+    //upper bound, and the neighbours the ordering gives it. iterate_common() and
+    //add_to_marginals() read the first two; anything generic reads the third. The marginal
+    //size is one block per configuration of the parents condition_on() gave the event, and
+    //one block for an event with none.
+    //
+    //The adjacency pass is this harness standing in for Model_Parms::finalize(), which is
+    //where production resolves it. These fixtures build an events_map directly and never
+    //construct a Model_Parms, so the improvising belongs here -- not in an event method
+    //compensating for a model that was never finalized.
+    const SeqTypeRegistry &registry = state.scenario.constructed_sequences.registry();
+    for (const auto &[key, ev] : events_map) {
+        (void)key;
+        const SeqTypeId type_id = ev->get_seq_type_id();
+        if (type_id != kNoSeqType && static_cast<std::size_t>(type_id) < registry.total_count()) {
+            ev->set_adjacent_segments(registry.left_neighbor(type_id), registry.right_neighbor(type_id));
+        } else {
+            ev->set_adjacent_segments(kNoSeqType, kNoSeqType);
+        }
+        const int event_index = ev->get_event_identifier();
+        state.exploration.index_map.request_layer(event_index);
+        state.exploration.index_map.set(event_index, state.base_index_for(event_index), 0);
+        ev->set_event_marginal_size(ev->size() * state.parent_configurations_for(event_index));
+        ev->set_crude_upper_bound_proba(0, ev->size(),
+                                        const_cast<Marginal_array_p &>(state.model.model_parameters));
+        ev->set_viterbi_run(false);
+    }
+
+    //Step 2: the queue holds the event under test alone. Neighbours marked with
+    //mark_chosen() are deliberately *not* initialized: initialize_event() requests a memory
+    //layer per seq_type it touches, so running it on a neighbour would shift that
+    //neighbour's current layer to 1 while preset_segment() writes at 0, and the event under
+    //test would read an unwritten layer. Registering them in events_map and in
+    //processed_events reproduces everything the code under test actually queries about them
+    //-- existence, chosen-ness, and their offsets -- with the layer numbering pinned.
+    std::queue<std::shared_ptr<Rec_Event>> queue;
+    std::stack<std::shared_ptr<Rec_Event>> init_stack;
+    queue.push(event);
+    for (const auto &downstream : state.downstream_events()) {
+        queue.push(downstream);
+    }
+    state.model_queue() = queue;
+
+    //Step 3: initialize_event() in queue order. Note the aliasing: processed_events is the
+    //state's own set, so the chosen events stay marked while the event under test
+    //initializes, which is exactly what drives its *_chosen flags.
+    {
+        std::queue<std::shared_ptr<Rec_Event>> init_queue = queue;
+        while (!init_queue.empty()) {
+            std::shared_ptr<Rec_Event> ev = init_queue.front();
+            init_queue.pop();
+            init_stack.push(ev);
+            ev->initialize_event(state.processed_events(), events_map, offset_map,
+                                 state.exploration.downstream_proba_map,
+                                 state.scenario.constructed_sequences, state.exploration.safety_set,
+                                 state.accumulation.error_rate, state.scenario.mismatches_lists,
+                                 state.scenario.seq_offsets, state.exploration.index_map);
+
+            //The layer contract baseline, captured the instant the event under test has
+            //requested its layers and before any downstream event requests more. Downstream
+            //events are initialized but never iterate -- the recorder intercepts first -- so
+            //their requested layers are legitimately unwritten and must not be in the
+            //baseline. See LayerContract in test_utils.h.
+            if (next && ev == event) {
+                next->layer_baseline = capture_layers(state);
+            }
+        }
+    }
+
+    //Step 4: next-event chain. With a recorder, the event under test hands off to it and
+    //stops; without one, iterate_wrap_up() takes the leaf path, which pulls in Error_rate
+    //and therefore needs a *complete* scenario (V, D and J all constructed).
+    for (const auto &[key, ev] : events_map) {
+        (void)key;
+        state.exploration.next_event_ptr_arr.get()[ev->get_event_identifier()] = nullptr;
+    }
+    if (next) {
+        state.exploration.next_event_ptr_arr.get()[event->get_event_identifier()] = next.get();
+    }
+
+    //Step 5: probability bounds, reverse queue order.
+    {
+        while (!init_stack.empty()) {
+            std::shared_ptr<Rec_Event> ev = init_stack.top();
+            init_stack.pop();
+
+            std::queue<std::shared_ptr<Rec_Event>> remaining = queue;
+            while (!remaining.empty() && remaining.front() != ev) {
+                remaining.pop();
+            }
+            if (!remaining.empty()) {
+                remaining.pop();
+            }
+
+            ev->initialize_Len_proba_bound(remaining,
+                                           const_cast<Marginal_array_p &>(state.model.model_parameters),
+                                           state.exploration.index_map,
+                                           state.scenario.constructed_sequences.registry());
+        }
+    }
+
+    event->iterate(state.query, state.model, state.scenario, state.exploration, state.accumulation);
+}
+
+// ============================================================================
+// State inspection
+// ============================================================================
+
+Seq_Offset get_seq_offset(const IterateTestState &state, Seq_type seq_type, Seq_side side,
+                          std::size_t layer)
+{
+    return state.scenario.seq_offsets.get(seq_type, side, layer);
+}
+
+bool has_seq_offset(const IterateTestState &state, Seq_type seq_type, Seq_side side)
+{
+    return state.scenario.seq_offsets.exists(seq_type, side);
+}
+
+const Int_Str *get_constructed_sequence(const IterateTestState &state, Seq_type seq_type,
+                                        std::size_t layer)
+{
+    return state.scenario.constructed_sequences.get(seq_type, layer);
+}
+
+bool has_constructed_sequence(const IterateTestState &state, Seq_type seq_type)
+{
+    return state.scenario.constructed_sequences.exists(seq_type);
+}
+
+std::vector<std::size_t> get_mismatches(const IterateTestState &state, Seq_type seq_type,
+                                        std::size_t layer)
+{
+    const std::vector<std::size_t> *v = state.scenario.mismatches_lists.get(seq_type, layer);
+    return v ? *v : std::vector<std::size_t>{};
+}
+
+namespace {
+SafetyCell safety_cell_of(const IterateTestState &state, Seq_type left, Seq_type right)
+{
+    return state.exploration.safety_set.cell(static_cast<SeqTypeId>(left),
+                                             static_cast<SeqTypeId>(right));
+}
+} // namespace
+
+bool is_safe(const IterateTestState &state, Seq_type left, Seq_type right, std::size_t layer)
+{
+    return state.exploration.safety_set.get(safety_cell_of(state, left, right), layer);
+}
+
+bool has_safety(const IterateTestState &state, Seq_type left, Seq_type right)
+{
+    return state.exploration.safety_set.exists(safety_cell_of(state, left, right));
+}
+
+int safety_current_layer(const IterateTestState &state, Seq_type left, Seq_type right)
+{
+    return state.exploration.safety_set.claimed_layer(safety_cell_of(state, left, right));
+}
+
+double get_downstream_bound(const IterateTestState &state, Seq_type seq_type, std::size_t layer)
+{
+    return state.exploration.downstream_proba_map.get(seq_type, layer);
+}
+
+long double total_marginal_mass(const IterateTestState &state, std::size_t marginal_array_size)
+{
+    long double total = 0.0;
+    for (std::size_t i = 0; i != marginal_array_size; ++i) {
+        total += state.accumulation.updated_marginals[i];
+    }
+    return total;
+}
+
+// ============================================================================
+// Event builders
+// ============================================================================
+
+std::shared_ptr<Gene_choice> make_gene_choice(Gene_class gene_class,
+                                              const std::vector<std::pair<std::string, std::string>> &genes,
+                                              int event_id, bool fixed)
+{
+    auto event = std::make_shared<Gene_choice>(gene_class);
+    for (const auto &[name, sequence] : genes) {
+        event->add_realization(name, sequence);
+    }
+    event->set_event_identifier(event_id);
+    event->set_priority(1);
+    Seq_type target = V_gene_seq;
+    if (!igor::model::legacy::migration::try_gene_class_to_gene_seq_type(gene_class, target)) {
+        throw std::invalid_argument("make_gene_choice: gene class has no gene seq_type");
+    }
+    const Seq_type_String seq_type = EventUtils::seq_type_to_string(target);
+    event->set_seq_type(seq_type);
+    event->set_seq_type_id(legacy_seq_type_registry().id(seq_type));
+    event->update_event_name();
+    event->fix(fixed);
+    return event;
+}
+
+std::shared_ptr<Deletion> make_deletion(Seq_type target, Seq_side side, int min_del, int max_del,
+                                        int event_id)
+{
+    auto event = std::make_shared<Deletion>(target, side, std::make_pair(min_del, max_del));
+    event->set_event_identifier(event_id);
+    event->set_priority(1);
+    const Seq_type_String seq_type = EventUtils::seq_type_to_string(target);
+    event->set_seq_type(seq_type);
+    event->set_seq_type_id(legacy_seq_type_registry().id(seq_type));
+    event->update_event_name();
+    event->fix(true);
+    return event;
+}
+
+std::shared_ptr<Insertion> make_insertion(Seq_type target, int min_ins, int max_ins, int event_id)
+{
+    auto event = std::make_shared<Insertion>(target, std::make_pair(min_ins, max_ins));
+    event->set_event_identifier(event_id);
+    event->set_priority(1);
+    const Seq_type_String seq_type = EventUtils::seq_type_to_string(target);
+    event->set_seq_type(seq_type);
+    event->set_seq_type_id(legacy_seq_type_registry().id(seq_type));
+    event->update_event_name();
+    event->fix(true);
+    return event;
+}
+
+std::string segment_run(Seq_Offset five_prime, Seq_Offset three_prime)
+{
+    if (three_prime < five_prime - 1) {
+        throw std::invalid_argument("segment_run: three_prime is more than one before five_prime; "
+                                    "the empty-segment convention is off(3') == off(5') - 1");
+    }
+    static const std::string kPattern = "ACGT";
+    const auto length = static_cast<std::size_t>(three_prime - five_prime + 1);
+    std::string run;
+    run.reserve(length);
+    for (std::size_t i = 0; i != length; ++i) {
+        run += kPattern[i % kPattern.size()];
+    }
+    return run;
+}
+
+std::shared_ptr<Dinucl_markov> make_dinucl_markov(Seq_type target, int event_id, Seq_side chain_side)
+{
+    auto event = std::make_shared<Dinucl_markov>(target);
+    if (chain_side == Undefined_side) {
+        //As Model_Parms does for a legacy model file, which declares Undefined_side and lets
+        //the reader derive the direction from the gene class.
+        chain_side = (target == DJ_ins_seq) ? Five_prime : Three_prime;
+    }
+    event->set_event_side(chain_side);
+    event->set_event_identifier(event_id);
+    event->set_priority(1);
+    const Seq_type_String seq_type = EventUtils::seq_type_to_string(target);
+    event->set_seq_type(seq_type);
+    event->set_seq_type_id(legacy_seq_type_registry().id(seq_type));
+    event->update_event_name();
+    event->fix(true);
+    return event;
+}
+
+Alignment_data create_perfect_alignment(const std::string &gene_name, int offset, int gene_length)
+{
+    return create_mock_alignment_data(gene_name, offset, offset >= 0 ? offset : 0,
+                                      offset + gene_length - 1, {}, 100.0);
+}
+
+Alignment_data create_alignment_with_mismatches(const std::string &gene_name, int offset,
+                                                int gene_length,
+                                                const std::vector<std::size_t> &mismatch_positions)
+{
+    return create_mock_alignment_data(gene_name, offset, offset >= 0 ? offset : 0,
+                                      offset + gene_length - 1, mismatch_positions,
+                                      100.0 - 5.0 * static_cast<double>(mismatch_positions.size()));
+}
+
+} // namespace IgorTestUtils

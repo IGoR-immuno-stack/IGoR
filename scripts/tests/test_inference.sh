@@ -81,7 +81,7 @@ do
 
     assert_regression "$TESTREF/${batch}_inference" "$OUTDIR/${batch}_inference" "$LOGFILE"
 
-    # Drop not always reproducible scenario ranks (possible likelihood ties)
+    # Drop the scenario rank: the golden data is stored without it
     tmp="$(mktemp)"                                   # create a safe temp name
     cut -d';' -f 1,3-  "$OUTDIR/${batch}_output/best_scenarios_counts.csv" >"$tmp"
     mv "$tmp" "$OUTDIR/${batch}_output/best_scenarios_counts.csv"

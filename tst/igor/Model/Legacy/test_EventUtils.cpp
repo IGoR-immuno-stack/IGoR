@@ -1,0 +1,465 @@
+#include <catch2/catch_test_macros.hpp>
+#include <fstream> // Added for ofstream in MockEvent
+#include <igor/Model/Legacy/Deletion.h>
+#include "test_utils.h"
+#include <igor/Model/Legacy/Dinuclmarkov.h>
+#include <igor/Model/Legacy/EventUtils.h>
+#include <igor/Model/Legacy/gene_to_seqtype_migr.h>
+#include <igor/Model/Legacy/Genechoice.h>
+#include <igor/Model/Legacy/Insertion.h>
+#include <igor/Model/Legacy/Rec_Event.h>
+#include <memory>
+#include <queue>  // Added for queue in MockEvent
+#include <random> // Added for mt19937_64 in MockEvent
+#include <tuple>
+#include <unordered_map>
+#include <unordered_set>
+
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+using namespace igor::model::legacy;
+
+using namespace std;
+using namespace igor::alignment::legacy::journaled_query;
+using namespace igor::model::legacy::EventUtils;
+
+// Mock Rec_Event for testing
+class MockEvent : public Rec_Event {
+public:
+  MockEvent(string name) : Rec_Event() { this->name = name; }
+  void
+  iterate(QuerySequenceContext& query,
+          const ModelContext& model,
+          ScenarioContext& scenario,
+          ExplorationContext& exploration,
+          AccumulationContext& accumulation) override {}
+
+  void construct_realization(const vector<int> &, GenerationState &) const override {}
+  void write2txt(ofstream &) override {}
+  void write2txt_legacy(ofstream &) override {}
+  void write2txt_v2(ofstream &) override {}
+  void initialize_event(
+      unordered_set<Rec_Event_name> &,
+      const Events_map &,
+      const unordered_map<Rec_Event_name,
+                          vector<pair<shared_ptr<const Rec_Event>, int>>> &,
+      Downstream_scenario_proba_bound_map &, Seq_type_str_p_map &,
+      SafetyMatrix &, shared_ptr<Error_rate>, Mismatch_vectors_map &,
+      Seq_offsets_map &, Index_map &) override {}
+  void add_to_marginals(long double, Marginal_array_p &) const override {}
+  shared_ptr<Rec_Event> copy() override { return nullptr; }
+  OffsetDelta get_offset_delta_bounds(SeqTypeId, Seq_side) const override { return {}; }
+  LengthContribution get_length_contribution(SeqTypeId) const override { return {}; }
+  SeqConstructionRole get_seq_construction_role(SeqTypeId) const override {
+    return SeqConstructionRole::None;
+  }
+  OffsetRole get_offset_role(SeqTypeId, Seq_side) const override {
+    return OffsetRole::None;
+  }
+  int length_delta(const Event_realization &) const override { return 0; }
+};
+
+TEST_CASE("EventUtils CheckGeneChoice", "[EventUtils]") {
+  Events_map events_map;
+  unordered_set<Rec_Event_name> processed_events;
+
+  SECTION("Event does not exist") {
+    auto status = check_gene_choice("V_gene_seq", events_map, processed_events);
+    REQUIRE_FALSE(status.exists);
+    REQUIRE_FALSE(status.chosen);
+    REQUIRE(status.event_ptr == nullptr);
+  }
+
+  SECTION("Event exists but not processed") {
+    auto v_event = make_shared<MockEvent>("V_choice");
+    events_map[make_tuple(GeneChoice_t, string("V_gene_seq"), Undefined_side)] = v_event;
+
+    auto status = check_gene_choice("V_gene_seq", events_map, processed_events);
+    REQUIRE(status.exists);
+    REQUIRE_FALSE(status.chosen);
+    REQUIRE(status.event_ptr == v_event);
+  }
+
+  SECTION("Event exists and processed") {
+    auto v_event = make_shared<MockEvent>("V_choice");
+    events_map[make_tuple(GeneChoice_t, string("V_gene_seq"), Undefined_side)] = v_event;
+
+    processed_events.insert(v_event->get_name());
+    auto status = check_gene_choice("V_gene_seq", events_map, processed_events);
+    REQUIRE(status.exists);
+    REQUIRE(status.chosen);
+    REQUIRE(status.event_ptr == v_event);
+  }
+}
+
+TEST_CASE("EventUtils BuildScenarioSequence", "[EventUtils]") {
+  Seq_type_str_p_map constructed_sequences(legacy_seq_type_registry());
+
+  Int_Str v_seq = {0, 1, 2}; // A C G
+  Int_Str d_seq = {3, 0};    // T A
+  Int_Str j_seq = {1, 2};    // C G
+  Int_Str vd_ins = {3};      // T
+  Int_Str dj_ins = {0};      // A
+  Int_Str vj_ins = {1};      // C
+
+  for (const Seq_type type : {V_gene_seq, D_gene_seq, J_gene_seq, VD_ins_seq, DJ_ins_seq,
+                              VJ_ins_seq}) {
+    claim_layer_zero(constructed_sequences, type);
+  }
+  constructed_sequences.set(V_gene_seq, &v_seq, 0);
+  constructed_sequences.set(D_gene_seq, &d_seq, 0);
+  constructed_sequences.set(J_gene_seq, &j_seq, 0);
+  constructed_sequences.set(VD_ins_seq, &vd_ins, 0);
+  constructed_sequences.set(DJ_ins_seq, &dj_ins, 0);
+  constructed_sequences.set(VJ_ins_seq, &vj_ins, 0);
+
+  SECTION("V-D-J with insertions") {
+    Int_Str result = build_scenario_sequence(constructed_sequences, true, true,
+                                             true, true, true, false);
+    Int_Str expected = {0, 1, 2, 3, 3, 0, 0, 1, 2}; // V + VD + D + DJ + J
+    REQUIRE(static_cast<std::vector<int>>(result) ==
+            static_cast<std::vector<int>>(expected));
+  }
+
+  SECTION("V-J with insertion") {
+    Int_Str result = build_scenario_sequence(constructed_sequences, true, false,
+                                             true, false, false, true);
+    Int_Str expected = {0, 1, 2, 1, 1, 2}; // V + VJ + J
+    REQUIRE(static_cast<std::vector<int>>(result) ==
+            static_cast<std::vector<int>>(expected));
+  }
+}
+
+// Step 9: build_scenario_sequence must eventually use SeqTypeRegistry order
+// rather than hardcoded boolean flags.  These tests document both the current
+// (working) standard behaviour and the desired (not yet implemented) registry-
+// based behaviour.
+TEST_CASE("step9: build_scenario_sequence VJ produces V+VJ_ins+J",
+          "[EventUtils][step9][seq_order]") {
+    Seq_type_str_p_map constructed_sequences(legacy_seq_type_registry());
+    Int_Str v_seq = {0, 1};   // A C
+    Int_Str j_seq = {2, 3};   // G T
+    Int_Str vj_ins = {0};     // A
+    for (const Seq_type type : {V_gene_seq, J_gene_seq, VJ_ins_seq}) {
+        claim_layer_zero(constructed_sequences, type);
+    }
+    constructed_sequences.set(V_gene_seq,  &v_seq,  0);
+    constructed_sequences.set(J_gene_seq,  &j_seq,  0);
+    constructed_sequences.set(VJ_ins_seq,  &vj_ins, 0);
+
+    Int_Str result = build_scenario_sequence(
+            constructed_sequences, true, false, true, false, false, true);
+    Int_Str expected = {0, 1, 0, 2, 3};  // V + VJ_ins + J
+    REQUIRE(static_cast<std::vector<int>>(result) ==
+            static_cast<std::vector<int>>(expected));
+}
+
+TEST_CASE("step9: build_scenario_sequence VDJ order is V+VD+D+DJ+J",
+          "[EventUtils][step9][seq_order]") {
+    Seq_type_str_p_map constructed_sequences(legacy_seq_type_registry());
+    Int_Str v_seq  = {0};   Int_Str vd_ins = {1};
+    Int_Str d_seq  = {2};   Int_Str dj_ins = {3};
+    Int_Str j_seq  = {0};
+    for (const Seq_type type : {V_gene_seq, VD_ins_seq, D_gene_seq, DJ_ins_seq, J_gene_seq}) {
+        claim_layer_zero(constructed_sequences, type);
+    }
+    constructed_sequences.set(V_gene_seq,  &v_seq,  0);
+    constructed_sequences.set(VD_ins_seq,  &vd_ins, 0);
+    constructed_sequences.set(D_gene_seq,  &d_seq,  0);
+    constructed_sequences.set(DJ_ins_seq,  &dj_ins, 0);
+    constructed_sequences.set(J_gene_seq,  &j_seq,  0);
+
+    Int_Str result = build_scenario_sequence(
+            constructed_sequences, true, true, true, true, true, false);
+    Int_Str expected = {0, 1, 2, 3, 0};  // V + VD + D + DJ + J
+    REQUIRE(static_cast<std::vector<int>>(result) ==
+            static_cast<std::vector<int>>(expected));
+}
+
+// Tandem-D ordering (V→VD1ins→D1→D1D2ins→D2→DJins→J) cannot be expressed
+TEST_CASE("step9: build_scenario_sequence tandem-D uses registry-based API",
+          "[EventUtils][step9][seq_order]")
+{
+    // The registry-based overload supports arbitrary orderings, including 7-segment
+    // tandem D:   V → VD1_ins → D1 → D1D2_ins → D2 → DJ_ins → J
+    SeqTypeRegistry registry;
+    registry.set_ordered_types({"V_gene_seq", "VD1_ins_seq", "D1_gene_seq",
+                                 "D1D2_ins_seq", "D2_gene_seq", "DJ_ins_seq", "J_gene_seq"});
+
+    Int_Str v    = {0, 0, 0};    // length 3
+    Int_Str vd1  = {1};          // length 1
+    Int_Str d1   = {2, 2};       // length 2
+    Int_Str d1d2 = {3};          // length 1
+    Int_Str d2   = {4, 4};       // length 2
+    Int_Str dj   = {5};          // length 1
+    Int_Str j    = {6, 6, 6};    // length 3
+
+    std::unordered_map<std::string, const Int_Str *> seqs;
+    seqs["V_gene_seq"]   = &v;
+    seqs["VD1_ins_seq"]  = &vd1;
+    seqs["D1_gene_seq"]  = &d1;
+    seqs["D1D2_ins_seq"] = &d1d2;
+    seqs["D2_gene_seq"]  = &d2;
+    seqs["DJ_ins_seq"]   = &dj;
+    seqs["J_gene_seq"]   = &j;
+
+    Int_Str result = EventUtils::build_scenario_sequence(registry, seqs);
+
+    // Expected: v + vd1 + d1 + d1d2 + d2 + dj + j (13 elements total)
+    Int_Str expected;
+    expected.insert(expected.end(), v.begin(),    v.end());
+    expected.insert(expected.end(), vd1.begin(),  vd1.end());
+    expected.insert(expected.end(), d1.begin(),   d1.end());
+    expected.insert(expected.end(), d1d2.begin(), d1d2.end());
+    expected.insert(expected.end(), d2.begin(),   d2.end());
+    expected.insert(expected.end(), dj.begin(),   dj.end());
+    expected.insert(expected.end(), j.begin(),    j.end());
+
+    REQUIRE(result == expected);
+}
+
+TEST_CASE("EventUtils GetInsertionLenMax", "[EventUtils]") {
+  Events_map events_map;
+
+  // Create a mock event with specific len_max
+  class MockInsertionEvent : public MockEvent {
+  public:
+    MockInsertionEvent(string name, int max_len) : MockEvent(name) {
+      this->len_max = max_len;
+    }
+  };
+
+  auto vd_ins = make_shared<MockInsertionEvent>("VD_ins", 10);
+  auto dj_ins = make_shared<MockInsertionEvent>("DJ_ins", 15);
+  auto vj_ins = make_shared<MockInsertionEvent>("VJ_ins", 20);
+
+  events_map[make_tuple(Insertion_t, string("VD_ins_seq"), Undefined_side)] = vd_ins;
+  events_map[make_tuple(Insertion_t, string("DJ_ins_seq"), Undefined_side)] = dj_ins;
+  events_map[make_tuple(Insertion_t, string("VJ_ins_seq"), Undefined_side)] = vj_ins;
+
+  SECTION("VD insertion") {
+    REQUIRE(get_insertion_len_max("VD_ins_seq", events_map) == 10);
+  }
+
+  SECTION("DJ insertion") {
+    REQUIRE(get_insertion_len_max("DJ_ins_seq", events_map) == 15);
+  }
+
+  SECTION("VJ insertion") {
+    REQUIRE(get_insertion_len_max("VJ_ins_seq", events_map) == 20);
+  }
+}
+
+TEST_CASE("EventUtils GeneClassToSeqType mapping", "[EventUtils]") {
+  Seq_type seq_type;
+
+  SECTION("Valid mappings") {
+    REQUIRE(igor::model::legacy::migration::try_gene_class_to_gene_seq_type(V_gene, seq_type));
+    REQUIRE(seq_type == V_gene_seq);
+
+    REQUIRE(igor::model::legacy::migration::try_gene_class_to_gene_seq_type(D_gene, seq_type));
+    REQUIRE(seq_type == D_gene_seq);
+
+    REQUIRE(igor::model::legacy::migration::try_gene_class_to_gene_seq_type(J_gene, seq_type));
+    REQUIRE(seq_type == J_gene_seq);
+  }
+
+  SECTION("Invalid mappings") {
+    REQUIRE_FALSE(igor::model::legacy::migration::try_gene_class_to_gene_seq_type(VD_genes, seq_type));
+    REQUIRE_FALSE(igor::model::legacy::migration::try_gene_class_to_gene_seq_type(Undefined_gene, seq_type));
+  }
+}
+
+TEST_CASE("EventUtils InsertionGeneClassToSeqType mapping", "[EventUtils]") {
+  Seq_type seq_type = VD_ins_seq;
+
+  SECTION("Valid mappings") {
+    REQUIRE(igor::model::legacy::migration::try_insertion_gene_class_to_seq_type(VD_genes, seq_type));
+    REQUIRE(seq_type == VD_ins_seq);
+
+    REQUIRE(igor::model::legacy::migration::try_insertion_gene_class_to_seq_type(DJ_genes, seq_type));
+    REQUIRE(seq_type == DJ_ins_seq);
+
+    REQUIRE(igor::model::legacy::migration::try_insertion_gene_class_to_seq_type(VJ_genes, seq_type));
+    REQUIRE(seq_type == VJ_ins_seq);
+  }
+
+  SECTION("Invalid mappings") {
+    REQUIRE_FALSE(igor::model::legacy::migration::try_insertion_gene_class_to_seq_type(V_gene, seq_type));
+    REQUIRE_FALSE(igor::model::legacy::migration::try_insertion_gene_class_to_seq_type(Undefined_gene, seq_type));
+  }
+}
+
+TEST_CASE("EventUtils HasInsertionSeqType", "[EventUtils]") {
+  Events_map events_map;
+
+  class MockInsertionEvent : public MockEvent {
+  public:
+    MockInsertionEvent(string name) : MockEvent(name) {}
+  };
+
+  auto vd_ins = make_shared<MockInsertionEvent>("VD_ins");
+  auto vj_ins = make_shared<MockInsertionEvent>("VJ_ins");
+  events_map[make_tuple(Insertion_t, string("VD_ins_seq"), Undefined_side)] = vd_ins;
+
+  SECTION("Finds present insertion segments") {
+    REQUIRE(has_insertion_seq_type(events_map, VD_ins_seq));
+    REQUIRE_FALSE(has_insertion_seq_type(events_map, DJ_ins_seq));
+    REQUIRE_FALSE(has_insertion_seq_type(events_map, VJ_ins_seq));
+  }
+
+  SECTION("Tracks a different insertion segment independently") {
+    events_map[make_tuple(Insertion_t, string("VJ_ins_seq"), Undefined_side)] = vj_ins;
+    REQUIRE(has_insertion_seq_type(events_map, VD_ins_seq));
+    REQUIRE(has_insertion_seq_type(events_map, VJ_ins_seq));
+    REQUIRE_FALSE(has_insertion_seq_type(events_map, DJ_ins_seq));
+  }
+}
+
+TEST_CASE("EventUtils TryGetEvent", "[EventUtils]") {
+  Events_map events_map;
+
+  auto v_event = make_shared<MockEvent>("V_choice");
+  events_map[make_tuple(GeneChoice_t, string("V_gene_seq"), Undefined_side)] = v_event;
+
+  SECTION("Returns a present event") {
+    shared_ptr<Rec_Event> event_ptr;
+    REQUIRE(try_get_event(events_map, GeneChoice_t, V_gene_seq, Undefined_side, event_ptr));
+    REQUIRE(event_ptr == v_event);
+  }
+
+  SECTION("Returns false for a missing event") {
+    shared_ptr<Rec_Event> event_ptr;
+    REQUIRE_FALSE(try_get_event(events_map, GeneChoice_t, J_gene_seq, Undefined_side, event_ptr));
+    REQUIRE(event_ptr == nullptr);
+  }
+
+  SECTION("Supports direct lookup") {
+    auto vd_event = make_shared<MockEvent>("VD_dinuc");
+    events_map[make_tuple(Dinuclmarkov_t, string("VD_ins_seq"), Undefined_side)] = vd_event;
+
+    shared_ptr<Rec_Event> event_ptr;
+    REQUIRE(try_get_event(events_map, Dinuclmarkov_t, VD_ins_seq, Undefined_side, event_ptr));
+    REQUIRE(event_ptr == vd_event);
+  }
+}
+
+TEST_CASE("EventUtils InsertionPriorityBridge - specific VD key found", "[EventUtils]") {
+  // Validates that try_get_event resolves VD_ins_seq via the string-keyed Events_map.
+  Events_map events_map;
+
+  auto specific_vd = make_shared<MockEvent>("specific_VD_dinuc");
+  auto vdj_shared  = make_shared<MockEvent>("VDJ_dinuc_shared");
+
+  events_map[make_tuple(Dinuclmarkov_t, string("VD_ins_seq"), Undefined_side)] = specific_vd;
+  events_map[make_tuple(Dinuclmarkov_t, string("DJ_ins_seq"), Undefined_side)] = vdj_shared;
+
+  shared_ptr<Rec_Event> result;
+  REQUIRE(EventUtils::try_get_event(events_map, Dinuclmarkov_t, VD_ins_seq, Undefined_side, result));
+  REQUIRE(result == specific_vd);
+
+  REQUIRE(EventUtils::try_get_event(events_map, Dinuclmarkov_t, DJ_ins_seq, Undefined_side, result));
+  REQUIRE(result == vdj_shared);
+}
+
+TEST_CASE("EventUtils InsertionPriorityBridge - missing key returns false", "[EventUtils]") {
+  // Validates that try_get_event returns false when the key is absent.
+  Events_map events_map;
+
+  auto vdj_shared = make_shared<MockEvent>("VDJ_dinuc_shared");
+  events_map[make_tuple(Dinuclmarkov_t, string("VD_ins_seq"), Undefined_side)] = vdj_shared;
+
+  shared_ptr<Rec_Event> result;
+  REQUIRE(EventUtils::try_get_event(events_map, Dinuclmarkov_t, VD_ins_seq, Undefined_side, result));
+  REQUIRE(result == vdj_shared);
+
+  // DJ is absent
+  REQUIRE_FALSE(EventUtils::try_get_event(events_map, Dinuclmarkov_t, DJ_ins_seq, Undefined_side, result));
+}
+
+
+class MockDinucEvent : public MockEvent {
+public:
+  MockDinucEvent(string name) : MockEvent(name) {}
+};
+
+TEST_CASE("Insertion Bridge Integration", "[Insertion]") {
+  Insertion ins_vd(VD_ins_seq, std::make_pair(0, 10));
+
+  SECTION("VD dinuc event found via string key") {
+    Events_map events_map;
+    auto vd_shared = make_shared<MockDinucEvent>("VD_dinuc");
+    events_map[make_tuple(Dinuclmarkov_t, string("VD_ins_seq"), Undefined_side)] = vd_shared;
+
+    REQUIRE_NOTHROW(ins_vd.require_dinucl_markov(events_map));
+  }
+
+  SECTION("Throws if no compatible dinuc event found") {
+    Events_map events_map;
+    // Add a J dinuc — not compatible with VD insertion
+    events_map[make_tuple(Dinuclmarkov_t, string("J_gene_seq"), Undefined_side)] = make_shared<MockDinucEvent>("J_dinuc");
+
+    // VD_genes Insertion shouldn't find anything and will throw
+    REQUIRE_THROWS_AS(ins_vd.require_dinucl_markov(events_map), runtime_error);
+  }
+}
+
+namespace igor::model::legacy {
+class DeletionTest {
+public:
+  static void test_initialization() {
+    //A side is required since B5: it is what the generic body reads instead of switching on
+    //the gene, and initialize_event() rejects a deletion that names neither end.
+    Deletion del_event(V_gene_seq, Three_prime);
+    del_event.event_class = V_gene;
+    //B5 addresses the scenario maps by seq_type id rather than by the legacy enum, so an event
+    //assembled by hand has to carry one -- exactly as IgorTestUtils::make_deletion() does.
+    del_event.set_seq_type("V_gene_seq");
+    del_event.set_seq_type_id(IgorTestUtils::vdj_seq_type_registry().id("V_gene_seq"));
+
+    // Create mock objects for initialize_event — use string-keyed Events_map
+    std::unordered_set<Rec_Event_name> processed_events;
+    Events_map events_map;
+
+    // Create a mock gene choice in the map to simulate it being present
+    std::shared_ptr<Rec_Event> mock_v = std::make_shared<MockEvent>("V_choice");
+    events_map[std::make_tuple(GeneChoice_t, std::string("V_gene_seq"), Undefined_side)] = mock_v;
+
+    //A registry with an *ordering*, not the bare legacy one: since B5 initialize_event() reads
+    //the topology off it -- which neighbours to check, and whether the segment is anchored on
+    //an end of the read -- exactly as Gene_choice has since B11a.
+    const SeqTypeRegistry &registry = IgorTestUtils::vdj_seq_type_registry();
+    std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> offset_map;
+    Downstream_scenario_proba_bound_map downstream_proba_map(registry);
+    Seq_type_str_p_map constructed_sequences(registry);
+    SafetyMatrix safety_set(registry);
+    std::shared_ptr<Error_rate> error_rate_p;
+    Mismatch_vectors_map mismatches_list(registry);
+    Seq_offsets_map seq_offsets(registry);
+    Index_map index_map(6);
+
+    // Force stale state in, to verify that initialize_event actually rebuilds it. The three
+    // v_chosen / d_chosen / j_chosen booleans this used to poke went with B5's collapse; what
+    // carries the same per-model state now is the flank-check list, and it is rebuilt rather
+    // than appended to -- which is the property worth a regression test.
+    del_event.flank_checks_.resize(7);
+    del_event.flank_checks_.front().partner_chosen = true;
+
+    del_event.initialize_event(processed_events, events_map, offset_map, downstream_proba_map,
+                               constructed_sequences, safety_set, error_rate_p, mismatches_list,
+                               seq_offsets, index_map);
+
+    // A V 3' deletion is checked against the segments 3' of V: D and J, both in this registry.
+    REQUIRE(del_event.flank_checks_.size() == 2);
+    // GeneChoiceStatus sets chosen only if the event is in processed_events.
+    // Since processed_events is empty, chosen will be false even though V exists.
+    for (const auto &check : del_event.flank_checks_) {
+        REQUIRE(check.partner_chosen == false);
+    }
+  }
+};
+} // namespace igor::model::legacy
+
+TEST_CASE("Deletion Member Initialization Regression", "[Deletion]") {
+  DeletionTest::test_initialization();
+}

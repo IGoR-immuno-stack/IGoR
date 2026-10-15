@@ -5,7 +5,7 @@
       "name": "(gdb) Launch",
       "type": "cppdbg",
       "request": "launch",
-      "program": "${workspaceFolder}/build/bin/igor_tests",
+      "program": "${workspaceFolder}/build/bin/model_tests",
       "args": [],
       "stopAtEntry": false,
       "cwd": "${workspaceFolder}",

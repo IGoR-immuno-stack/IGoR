@@ -26,24 +26,25 @@
 
 //#include "../config.h"
 
-#include <igor/Core/Deletion.h>
-#include <igor/Core/Insertion.h>
-#include <igor/Core/Genechoice.h>
-#include <igor/Core/Model_Parms.h>
-#include <igor/Core/Rec_Event.h>
-#include <igor/Core/Singleerrorrate.h>
-#include <igor/Core/Model_marginals.h>
-#include <igor/Core/Aligner.h>
-#include <igor/Core/GenModel.h>
-#include <igor/Core/Dinuclmarkov.h>
-#include <igor/Core/Counter.h>
-#include <igor/Core/Coverageerrcounter.h>
-#include <igor/Core/Bestscenarioscounter.h>
-#include <igor/Core/Pgencounter.h>
-#include <igor/Core/Errorscounter.h>
-#include <igor/Core/Utils.h>
-#include <igor/Core/CDR3SeqData.h>
-#include <igor/Core/ExtractFeatures.h>
+#include <igor/Model/Legacy/Deletion.h>
+#include <igor/Model/Legacy/Insertion.h>
+#include <igor/Model/Legacy/Genechoice.h>
+#include <igor/Model/Legacy/Model_Parms.h>
+#include <igor/Model/Legacy/Rec_Event.h>
+#include <igor/Model/Legacy/Singleerrorrate.h>
+#include <igor/Model/Legacy/Model_marginals.h>
+#include <igor/Alignment/Legacy/Aligner.h>
+#include <igor/Inference/Legacy/GenModel.h>
+#include <igor/Generation/Legacy/SequenceGenerator.h>
+#include <igor/Model/Legacy/Dinuclmarkov.h>
+#include <igor/Model/Legacy/Counter.h>
+#include <igor/Inference/Legacy/Coverageerrcounter.h>
+#include <igor/Inference/Legacy/Bestscenarioscounter.h>
+#include <igor/Inference/Legacy/Pgencounter.h>
+#include <igor/Inference/Legacy/Errorscounter.h>
+#include <igor/Core/Legacy/Utils.h>
+#include <igor/Alignment/Legacy/CDR3SeqData.h>
+#include <igor/Alignment/Legacy/ExtractFeatures.h>
 
 #include <igor/Core/Config.h>
 
@@ -52,6 +53,12 @@
 #include <set>
 #include <string>
 #include <filesystem>
+
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+using namespace igor::model::legacy;
+using namespace igor::generation::legacy;
+using namespace igor::inference::legacy;
 
 using namespace std;
 
@@ -1801,8 +1808,9 @@ int igor_legacy_main(int argc, char *argv[])
 
         //Generate sequences
         clog << "Generate sequences" << endl;
-        auto generated_seq = gen_model.generate_sequences(100, false); //Without errors
-        gen_model.write_seq_real2txt(string(cl_path + "/generated_seqs_indexed_demo.csv"),
+        SequenceGenerator generator(gen_model.get_model_parms(), gen_model.get_marginals());
+        auto generated_seq = generator.generate_sequences(100, false); //Without errors
+        generator.write_seq_real2txt(string(cl_path + "/generated_seqs_indexed_demo.csv"),
                                      string(cl_path + "/generated_seqs_realizations_demo.csv"),
                                      generated_seq); //Member function will be changed
 
@@ -2240,7 +2248,7 @@ int igor_legacy_main(int argc, char *argv[])
 
             std::filesystem::create_directories(cl_path + batchname + "generated");
 
-            GenModel genmodel(cl_model_parms, cl_model_marginals, cl_counters_list);
+            SequenceGenerator genmodel(cl_model_parms, cl_model_marginals);
 
             //TODO create generated folder
             string w_err_str;

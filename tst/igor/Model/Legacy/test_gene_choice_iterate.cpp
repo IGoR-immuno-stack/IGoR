@@ -1,0 +1,1739 @@
+/*
+ * test_gene_choice_iterate.cpp
+ *
+ *  Characterization tests for Gene_choice::iterate().
+ *
+ *  This source code is distributed as part of the IGoR software.
+ *  IGoR (Inference and Generation of Repertoires) is a versatile software to analyze and model immune receptors
+ *  generation, selection, mutation and all other processes.
+ *   Copyright (C) 2017  Quentin Marcou
+ *
+ *   This program is free software: you can redistribute it and/or modify
+ *   it under the terms of the GNU General Public License as published by
+ *   the Free Software Foundation, either version 3 of the License, or
+ *   (at your option) any later version.
+ *
+ *   This program is distributed in the hope that it will be useful,
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *   GNU General Public License for more details.
+
+ *   You should have received a copy of the GNU General Public License
+ *   along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+/**
+ * These are **characterization** tests: every expected value was read off the current
+ * implementation, not derived from what it ought to compute. Where a pinned value is known
+ * to be wrong, the section name says so and points at the plan.
+ *
+ * The file is organised by the generic pattern each branch belongs to rather than by
+ * V/D/J, because V/D/J is the axis B11 removes -- see
+ * docs/ITERATE_GENERIC_REWRITE_PLAN.md sections 6.1 and 4.
+ */
+
+#include "test_utils.h"
+
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
+
+#include <algorithm>
+#include <cmath>
+#include <string>
+#include <vector>
+
+using namespace IgorTestUtils;
+
+namespace {
+
+/// Dump a recorder's observations. Used while deriving expected values; kept because the
+/// next person to add a section will want it too.
+void dump(const std::shared_ptr<RecordingEvent> &rec, const char *label)
+{
+    UNSCOPED_INFO(label << ": " << rec->call_count() << " call(s)");
+    for (std::size_t i = 0; i != rec->calls.size(); ++i) {
+        const ScenarioSnapshot &s = rec->calls[i];
+        UNSCOPED_INFO("  [" << i << "] proba=" << s.scenario_proba);
+        for (const auto &[seq_type, off] : s.offsets) {
+            UNSCOPED_INFO("      offsets[" << seq_type << "] = (" << off.first << ", " << off.second
+                                           << ")");
+        }
+        for (const auto &[seq_type, seq] : s.sequences) {
+            UNSCOPED_INFO("      seq[" << seq_type << "] = \"" << seq << "\"");
+        }
+        for (const auto &[pair, value] : s.safety) {
+            UNSCOPED_INFO("      safety[" << pair.first << ", " << pair.second << "] = " << value);
+        }
+        for (const auto &[seq_type, bound] : s.downstream_bounds) {
+            UNSCOPED_INFO("      bound[" << seq_type << "] = " << bound);
+        }
+    }
+}
+
+} // namespace
+
+TEST_CASE("Gene_choice::iterate baseline writes (G4)", "[gene_choice][iterate][baseline]")
+{
+    SECTION("V: one alignment writes offsets, sequence and mismatches")
+    {
+        const std::string gene = "ACGTACGTACGT";
+        const std::string read = gene + "TTTTTT";
+
+        auto state = create_iterate_state(read);
+        auto v_event = make_gene_choice(V_gene, {{"V1", gene}}, 0, /*fixed=*/false);
+        state.set_alignments(V_gene, {create_perfect_alignment("V1", 0, gene.size())});
+        state.set_marginal(0, 1.0L);
+
+        auto rec = call_iterate_recording(v_event, state);
+        dump(rec, "V baseline");
+
+        REQUIRE(rec->call_count() == 1);
+        const ScenarioSnapshot &s = rec->calls.at(0);
+        CHECK(s.five_prime(V_gene_seq) == 0);
+        CHECK(s.three_prime(V_gene_seq) == static_cast<Seq_Offset>(gene.size()) - 1);
+        CHECK(s.sequences.at(V_gene_seq) == gene);
+        CHECK(s.mismatches.at(V_gene_seq).empty());
+        CHECK(s.scenario_proba == 1.0);
+    }
+
+    SECTION("D: one alignment writes offsets from the alignment, not from the read")
+    {
+        const std::string d_gene = "TTTTAAAA";
+        auto state = create_iterate_state("ACGTACGTTTTTAAAAGGGGCCCC");
+        auto d_event = make_gene_choice(D_gene, {{"D1", d_gene}}, 0, /*fixed=*/false);
+        state.set_alignments(D_gene, {create_perfect_alignment("D1", 8, d_gene.size())});
+        state.set_marginal(0, 1.0L);
+
+        auto rec = call_iterate_recording(d_event, state);
+        dump(rec, "D baseline");
+
+        REQUIRE(rec->call_count() == 1);
+        const ScenarioSnapshot &s = rec->calls.at(0);
+        CHECK(s.five_prime(D_gene_seq) == 8);
+        CHECK(s.three_prime(D_gene_seq) == 15);
+        CHECK(s.sequences.at(D_gene_seq) == d_gene);
+        CHECK(s.mismatches.at(D_gene_seq).empty());
+        CHECK(s.scenario_proba == 1.0);
+    }
+
+    SECTION("J: one alignment writes offsets, sequence and mismatches")
+    {
+        const std::string j_gene = "GGGGCCCC";
+        auto state = create_iterate_state("ACGTACGTACGTGGGGCCCC");
+        auto j_event = make_gene_choice(J_gene, {{"J1", j_gene}}, 0, /*fixed=*/false);
+        state.set_alignments(J_gene, {create_perfect_alignment("J1", 12, j_gene.size())});
+        state.set_marginal(0, 1.0L);
+
+        auto rec = call_iterate_recording(j_event, state);
+        dump(rec, "J baseline");
+
+        REQUIRE(rec->call_count() == 1);
+        const ScenarioSnapshot &s = rec->calls.at(0);
+        CHECK(s.five_prime(J_gene_seq) == 12);
+        CHECK(s.three_prime(J_gene_seq) == 19);
+        CHECK(s.sequences.at(J_gene_seq) == j_gene);
+        CHECK(s.mismatches.at(J_gene_seq).empty());
+        CHECK(s.scenario_proba == 1.0);
+    }
+}
+
+TEST_CASE("Gene_choice::iterate carries alignment mismatches into the scenario",
+          "[gene_choice][iterate][mismatches]")
+{
+    // set_mismatches() stores a *pointer* to the alignment's own vector
+    // (Genechoice.cpp:317 and its D and J counterparts), so what the next event reads is
+    // the aligner's list verbatim: no filtering, no re-sorting, no truncation to the part
+    // of the gene that survives deletion. The endogenous count computed for the error
+    // bound is a separate quantity and does not touch this list.
+    const std::vector<std::size_t> mismatches{2, 5, 9};
+
+    SECTION("V: the alignment's list arrives unchanged")
+    {
+        const std::string v_gene = "ACGTACGTACGT";
+        auto state = create_iterate_state("ACGTACGTACGTTTTTTTT");
+        auto v_event = make_gene_choice(V_gene, {{"V1", v_gene}}, 0, /*fixed=*/false);
+        state.set_alignments(
+                V_gene, {create_alignment_with_mismatches("V1", 0, v_gene.size(), mismatches)});
+        state.set_marginal(0, 1.0L);
+
+        auto rec = call_iterate_recording(v_event, state);
+        dump(rec, "V mismatches");
+
+        REQUIRE(rec->call_count() == 1);
+        CHECK(rec->calls.at(0).mismatches.at(V_gene_seq) == mismatches);
+    }
+
+    SECTION("D: the alignment path carries the list, unlike the sliding path which rebuilds it")
+    {
+        const std::string d_gene = "TTTTAAAA";
+        auto state = create_iterate_state("ACGTACGTTTTTAAAAGGGGCCCC");
+        auto d_event = make_gene_choice(D_gene, {{"D1", d_gene}}, 0, /*fixed=*/false);
+        state.set_alignments(
+                D_gene, {create_alignment_with_mismatches("D1", 8, d_gene.size(), mismatches)});
+        state.set_marginal(0, 1.0L);
+
+        auto rec = call_iterate_recording(d_event, state);
+        REQUIRE(rec->call_count() == 1);
+        CHECK(rec->calls.at(0).mismatches.at(D_gene_seq) == mismatches);
+    }
+
+    SECTION("J: the alignment's list arrives unchanged")
+    {
+        const std::string j_gene = "GGGGCCCC";
+        auto state = create_iterate_state("ACGTACGTACGTGGGGCCCC");
+        auto j_event = make_gene_choice(J_gene, {{"J1", j_gene}}, 0, /*fixed=*/false);
+        state.set_alignments(
+                J_gene, {create_alignment_with_mismatches("J1", 12, j_gene.size(), {13, 17})});
+        state.set_marginal(0, 1.0L);
+
+        auto rec = call_iterate_recording(j_event, state);
+        REQUIRE(rec->call_count() == 1);
+        CHECK(rec->calls.at(0).mismatches.at(J_gene_seq) == std::vector<std::size_t>{13, 17});
+    }
+
+    SECTION("Mismatches outside the surviving core are still carried")
+    {
+        // With V 3' deletions [0,4] the core is [0,7], so the mismatch at 9 is not
+        // endogenous and does not enter the error bound -- but it stays in the list,
+        // because a later Deletion is what decides whether it survives. Trimming it here
+        // would double-count the deletion.
+        const std::string v_gene = "ACGTACGTACGT";
+        auto state = create_iterate_state("ACGTACGTACGTTTTTTTT");
+        auto v_event = make_gene_choice(V_gene, {{"V1", v_gene}}, 0, /*fixed=*/false);
+        state.add_downstream_event(make_deletion(V_gene_seq, Three_prime, 0, 4, 2));
+        state.set_alignments(V_gene,
+                             {create_alignment_with_mismatches("V1", 0, v_gene.size(), {2, 9})});
+        state.set_marginal(0, 1.0L);
+
+        auto rec = call_iterate_recording(v_event, state);
+        REQUIRE(rec->call_count() == 1);
+        CHECK(rec->calls.at(0).mismatches.at(V_gene_seq) == std::vector<std::size_t>{2, 9});
+    }
+
+    SECTION("Each realization carries its own alignment's list")
+    {
+        // The stored value is a pointer into query.gene_alignments, so a rewrite that
+        // reused one buffer across realizations -- or that let the pointer outlive the
+        // alignment -- would show up here as two calls sharing one list.
+        const std::string gene_a = "ACGTACGTACGT";
+        const std::string gene_b = "TTTTAAAACCCC";
+        auto state = create_iterate_state("ACGTACGTACGTTTTTTTT");
+        auto v_event =
+                make_gene_choice(V_gene, {{"V1", gene_a}, {"V2", gene_b}}, 0, /*fixed=*/false);
+        state.set_alignments(V_gene,
+                             {create_alignment_with_mismatches("V1", 0, gene_a.size(), {1}),
+                              create_alignment_with_mismatches("V2", 0, gene_b.size(), {5, 6})});
+        state.set_marginal(0, 0.5L);
+        state.set_marginal(1, 0.5L);
+
+        auto rec = call_iterate_recording(v_event, state);
+        dump(rec, "per-realization mismatches");
+
+        REQUIRE(rec->call_count() == 2);
+        CHECK(rec->calls.at(0).mismatches.at(V_gene_seq) == std::vector<std::size_t>{1});
+        CHECK(rec->calls.at(1).mismatches.at(V_gene_seq) == std::vector<std::size_t>{5, 6});
+    }
+
+    SECTION("An alignment with no mismatches yields an empty list, not an absent one")
+    {
+        // exists() true, contents empty -- the distinction DynamicSequenceMap keeps and
+        // that B10 depends on. An absent entry would mean "this event has not run yet".
+        const std::string v_gene = "ACGTACGTACGT";
+        auto state = create_iterate_state("ACGTACGTACGTTTTTTTT");
+        auto v_event = make_gene_choice(V_gene, {{"V1", v_gene}}, 0, /*fixed=*/false);
+        state.set_alignments(V_gene, {create_perfect_alignment("V1", 0, v_gene.size())});
+        state.set_marginal(0, 1.0L);
+
+        auto rec = call_iterate_recording(v_event, state);
+        REQUIRE(rec->call_count() == 1);
+        REQUIRE(rec->calls.at(0).mismatches.count(V_gene_seq) == 1);
+        CHECK(rec->calls.at(0).mismatches.at(V_gene_seq).empty());
+    }
+}
+
+TEST_CASE("Gene_choice::iterate template overhangs are trimmed away (G4, feeds B3)",
+          "[gene_choice][iterate][baseline][flank]")
+{
+    // The two branches that clip a genomic template to the part the read can see. They are
+    // mirror images and each handles exactly one side -- the side that faces outward:
+    // V clips a 5' overhang (negative alignment offset), J clips a 3' overhang (alignment
+    // running past the read end). Neither handles the other side.
+    //
+    // The clipped nucleotides are DISCARDED today. Task B3 of the parent plan turns them
+    // into left_flank_seq / right_flank_seq instead, so these two sections are exactly the
+    // ones that must change when B3 lands -- and until then they pin what is being lost.
+
+    SECTION("V: a negative alignment offset drops the pre-alignment strip")
+    {
+        // Genechoice.cpp:253 -- gene_seq = value_str_int.substr(-offset), v_5_off = 0.
+        const std::string v_gene = "ACGTACGTACGT"; // 12 nt
+        auto state = create_iterate_state("TACGTACGTTTTTTT");
+        auto v_event = make_gene_choice(V_gene, {{"V1", v_gene}}, 0, /*fixed=*/false);
+        state.set_alignments(V_gene, {create_perfect_alignment("V1", -3, v_gene.size())});
+        state.set_marginal(0, 1.0L);
+
+        auto rec = call_iterate_recording(v_event, state);
+        dump(rec, "V negative offset");
+
+        REQUIRE(rec->call_count() == 1);
+        const ScenarioSnapshot &s = rec->calls.at(0);
+        // The first three template nucleotides ("ACG") are gone, not stored anywhere.
+        CHECK(s.sequences.at(V_gene_seq) == "TACGTACGT");
+        CHECK(s.sequences.at(V_gene_seq).size() == v_gene.size() - 3);
+        // The 5' offset is clamped to the start of the read rather than going negative.
+        CHECK(s.five_prime(V_gene_seq) == 0);
+        CHECK(s.three_prime(V_gene_seq) == 8);
+        // B3: the strip "ACG" becomes left_flank_seq here, and this section gains an
+        // assertion on it rather than losing the ones above.
+    }
+
+    SECTION("J: an alignment running past the read end drops the tail")
+    {
+        // Genechoice.cpp:941 -- gene_seq = value_str_int.substr(0, sequence.size() - offset).
+        const std::string j_gene = "GGGGCCCCTTTT"; // 12 nt
+        const std::string read = "ACGTACGTACGTAAGGGGCC"; // 20 nt
+        auto state = create_iterate_state(read);
+        auto j_event = make_gene_choice(J_gene, {{"J1", j_gene}}, 0, /*fixed=*/false);
+        state.set_alignments(J_gene, {create_perfect_alignment("J1", 14, j_gene.size())});
+        state.set_marginal(0, 1.0L);
+
+        auto rec = call_iterate_recording(j_event, state);
+        dump(rec, "J past read end");
+
+        REQUIRE(rec->call_count() == 1);
+        const ScenarioSnapshot &s = rec->calls.at(0);
+        // Only the 6 nucleotides that fit in the read survive; "CCTTTT" is discarded.
+        CHECK(s.sequences.at(J_gene_seq) == "GGGGCC");
+        CHECK(s.sequences.at(J_gene_seq).size() == read.size() - 14);
+        CHECK(s.five_prime(J_gene_seq) == 14);
+        // The 3' offset lands on the last read position, never past it.
+        CHECK(s.three_prime(J_gene_seq) == static_cast<Seq_Offset>(read.size()) - 1);
+        // B3: the tail "CCTTTT" becomes right_flank_seq here.
+    }
+
+    SECTION("V does not clip a 3' overhang, and J does not clip a 5' one")
+    {
+        // FIXME
+        // The asymmetry is deliberate in the sense that each gene only ever overhangs the
+        // side it faces -- but nothing enforces it, and the generic B11 body will have one
+        // clip path rather than two. Pinning it here so that unifying them is a visible
+        // change rather than a silent one.
+        const std::string v_gene = "ACGTACGTACGT";
+        const std::string read = "ACGTACG"; // 7 nt: V runs 5 nt past the end
+        auto state = create_iterate_state(read);
+        auto v_event = make_gene_choice(V_gene, {{"V1", v_gene}}, 0, /*fixed=*/false);
+        state.set_alignments(V_gene, {create_perfect_alignment("V1", 0, v_gene.size())});
+        state.set_marginal(0, 1.0L);
+
+        auto rec = call_iterate_recording(v_event, state);
+        dump(rec, "V past read end (not clipped)");
+
+        REQUIRE(rec->call_count() == 1);
+        const ScenarioSnapshot &s = rec->calls.at(0);
+        // The full 12 nt template is stored even though the read holds only 7, and the 3'
+        // offset points past the last read position.
+        CHECK(s.sequences.at(V_gene_seq) == v_gene);
+        CHECK(s.three_prime(V_gene_seq) == 11);
+        CHECK(s.three_prime(V_gene_seq) > static_cast<Seq_Offset>(read.size()) - 1);
+    }
+}
+
+TEST_CASE("Gene_choice::iterate overlap verdicts (G2/G3)", "[gene_choice][iterate][safety]")
+{
+    // V occupies read positions [0, 11]. Which verdict the V-D pair gets turns on where
+    // D's 5' end sits and how far each end can still travel under its pending deletions:
+    //
+    //   Infeasible : v_3_off + v_3_max_del  >= d_5_off - d_5_max_del
+    //   Safe       : v_3_off + v_3_min_del  <  d_5_off - d_5_min_del
+    //   otherwise  : Undetermined
+    //
+    // *_max_del / *_min_del are Deletion::len_min / len_max, i.e. *negated* deletion
+    // counts. That sign convention is what section 2.2 of the plan collapses into
+    // reachable().
+    //
+    // Both deletion events and a VD insertion are registered downstream, so the
+    // junction-length map spans a range of lengths rather than {0}. Without that, every
+    // non-adjacent geometry is discarded by the junction guard before the safety verdict
+    // can matter -- and the section would pass no matter what the safety check did.
+    const std::string v_gene = "ACGTACGTACGT"; // 12 nt, 3' end at 11
+    const std::string d_gene = "TTTT";
+    const std::string read = "ACGTACGTACGTTTTTTTTTTTTTTTTTTTTT";
+
+    struct Fixture {
+        std::shared_ptr<Gene_choice> v_event;
+        std::shared_ptr<Gene_choice> d_stub;
+    };
+
+    auto build = [&](IterateTestState &state, Seq_Offset d_five_prime, int d5_min_del,
+                     int d5_max_del, int v3_min_del, int v3_max_del) {
+        auto v_event = make_gene_choice(V_gene, {{"V1", v_gene}}, 0, /*fixed=*/false);
+        auto d_stub = make_gene_choice(D_gene, {{"D1", d_gene}}, 1);
+
+        state.add_event(d_stub);
+        state.mark_chosen(d_stub);
+        state.preset_segment(D_gene_seq, d_five_prime,
+                             d_five_prime + static_cast<Seq_Offset>(d_gene.size()) - 1, d_gene);
+
+        state.add_downstream_event(make_deletion(V_gene_seq, Three_prime, v3_min_del, v3_max_del, 2));
+        state.add_downstream_event(make_deletion(D_gene_seq, Five_prime, d5_min_del, d5_max_del, 3));
+
+        state.set_alignments(V_gene, {create_perfect_alignment("V1", 0, v_gene.size())});
+        state.set_marginal(0, 1.0L);
+        return v_event;
+    };
+
+    SECTION("Infeasible: V 3' still overruns D 5' when both are maximally deleted")
+    {
+        // v_3_off + v_3_max_del = 11 - 4 = 7 ; d_5_off - d_5_max_del = 3 + 4 = 7 ; 7 >= 7.
+        //
+        // This section pins the *outcome*, not the overlap check specifically, and cannot
+        // do better: the overlap early-out and the junction-length guard reject exactly the
+        // same geometries. Writing L for the pre-deletion gap d_5_off - v_3_off - 1,
+        //
+        //   overlap rejects iff  L <= -max_del_V - max_del_D5 - 1
+        //   guard   accepts iff  L >= min_ins - max_del_V - max_del_D5   (and L achievable)
+        //
+        // -- adjacent, mutually exclusive intervals when min_ins == 0, and the guard is
+        // strictly stronger when min_ins > 0. Verified by mutation: deleting either check
+        // on its own leaves every section here green. The overlap check is a pure early-out
+        // in Gene_choice, worth keeping for the work it skips but carrying no semantics the
+        // guard does not already enforce. See plan section 7.6.
+        auto state = create_iterate_state(read);
+        auto v_event = build(state, /*d_five_prime=*/3, 0, 4, 0, 4);
+
+        auto rec = call_iterate_recording(v_event, state);
+        dump(rec, "VD infeasible");
+        REQUIRE(rec->call_count() == 0);
+    }
+
+    SECTION("Positive control: one nucleotide more clearance and the same geometry survives")
+    {
+        // Only d_five_prime changes, 3 -> 4. This is the boundary on both checks at once:
+        // the overlap comparison becomes 7 >= 8 (false) and L becomes -8, the smallest
+        // achievable gap. Together with the section above it pins the boundary position,
+        // though not which of the two checks enforces it.
+        auto state = create_iterate_state(read);
+        auto v_event = build(state, /*d_five_prime=*/4, 0, 4, 0, 4);
+
+        auto rec = call_iterate_recording(v_event, state);
+        dump(rec, "VD feasible (boundary)");
+        REQUIRE(rec->call_count() == 1);
+    }
+
+    SECTION("Safe: D 5' cannot travel left, so no deletion can create an overlap")
+    {
+        // D 5' deletions [0,4] move D's 5' end rightward only, so its leftmost reachable
+        // position is 12 -- already clear of V's 3' end at 11.
+        auto state = create_iterate_state(read);
+        auto v_event = build(state, /*d_five_prime=*/12, 0, 4, 0, 4);
+
+        auto rec = call_iterate_recording(v_event, state);
+        dump(rec, "VD safe");
+        REQUIRE(rec->call_count() == 1);
+        CHECK(rec->calls.at(0).safety.at({V_gene_seq, D_gene_seq}) == true);
+    }
+
+    SECTION("Undetermined: palindromic D 5' insertions could still reach V")
+    {
+        // D 5' range [-4,4]: the palindromic end reaches offset 8, left of V's 3' end at
+        // 11, so the verdict cannot be settled until the deletion is actually drawn.
+        auto state = create_iterate_state(read);
+        auto v_event = build(state, /*d_five_prime=*/12, -4, 4, 0, 4);
+
+        auto rec = call_iterate_recording(v_event, state);
+        dump(rec, "VD undetermined");
+        REQUIRE(rec->call_count() == 1);
+        CHECK(rec->calls.at(0).safety.at({V_gene_seq, D_gene_seq}) == false);
+    }
+
+    SECTION("Counterpart not chosen: no check is performed and the pair is marked unsafe")
+    {
+        // D exists in the model but has not been chosen, so its offset is unknown and
+        // there is nothing to compare against.
+        auto state = create_iterate_state(read);
+        auto v_event = make_gene_choice(V_gene, {{"V1", v_gene}}, 0, /*fixed=*/false);
+        state.add_event(make_gene_choice(D_gene, {{"D1", d_gene}}, 1));
+        state.set_alignments(V_gene, {create_perfect_alignment("V1", 0, v_gene.size())});
+        state.set_marginal(0, 1.0L);
+
+        auto rec = call_iterate_recording(v_event, state);
+        dump(rec, "VD not chosen");
+        REQUIRE(rec->call_count() == 1);
+        CHECK(rec->calls.at(0).safety.at({V_gene_seq, D_gene_seq}) == false);
+    }
+
+    SECTION("No counterpart in the model at all: the pair is marked safe")
+    {
+        auto state = create_iterate_state(read);
+        auto v_event = make_gene_choice(V_gene, {{"V1", v_gene}}, 0, /*fixed=*/false);
+        state.set_alignments(V_gene, {create_perfect_alignment("V1", 0, v_gene.size())});
+        state.set_marginal(0, 1.0L);
+
+        auto rec = call_iterate_recording(v_event, state);
+        REQUIRE(rec->call_count() == 1);
+        CHECK(rec->calls.at(0).safety.at({V_gene_seq, D_gene_seq}) == true);
+        CHECK(rec->calls.at(0).safety.at({V_gene_seq, J_gene_seq}) == true);
+    }
+}
+
+TEST_CASE("Gene_choice::iterate realization branching and probability",
+          "[gene_choice][iterate][branching]")
+{
+    // Gene_choice is is_branching: one alignment in, one call to the next event out, each
+    // carrying its own realization probability. The probability the next event sees is
+    //
+    //     incoming scenario probability  x  model_parameters[base_index + realization index]
+    //
+    // and -- the part a careless rewrite loses -- each realization restarts from the
+    // *incoming* probability, not from the previous realization's result. Genechoice.cpp
+    // captures base_scenario_proba once at entry and assigns scenario.scenario_proba only
+    // just before handing off.
+    const std::string gene_a = "ACGTACGTACGT";
+    const std::string gene_b = "TTTTAAAACCCC";
+    const std::string gene_c = "GGGGTTTTAAAA";
+    const std::string read = "ACGTACGTACGTTTTTTTT";
+
+    SECTION("One call per alignment, in alignment order, each with its own probability")
+    {
+        auto state = create_iterate_state(read);
+        auto v_event = make_gene_choice(
+                V_gene, {{"V1", gene_a}, {"V2", gene_b}, {"V3", gene_c}}, 0, /*fixed=*/false);
+        state.set_alignments(V_gene, {create_perfect_alignment("V1", 0, gene_a.size()),
+                                      create_perfect_alignment("V2", 0, gene_b.size()),
+                                      create_perfect_alignment("V3", 0, gene_c.size())});
+        // add_realization() numbers realizations in insertion order, so V1/V2/V3 read
+        // marginals 0/1/2. Pick numbers that guarantee resetting to income scenario 
+        // probability in between realizations.
+        state.set_marginal(0, 0.5L);
+        state.set_marginal(1, 0.333L);
+        state.set_marginal(2, 0.125L);
+
+        auto rec = call_iterate_recording(v_event, state);
+        dump(rec, "branching");
+
+        REQUIRE(rec->call_count() == 3);
+        CHECK(rec->calls.at(0).scenario_proba == 0.5);
+        CHECK(rec->calls.at(1).scenario_proba == 0.333);
+        CHECK(rec->calls.at(2).scenario_proba == 0.125);
+        // Each call carries its own gene, not the last one written.
+        CHECK(rec->calls.at(0).sequences.at(V_gene_seq) == gene_a);
+        CHECK(rec->calls.at(1).sequences.at(V_gene_seq) == gene_b);
+        CHECK(rec->calls.at(2).sequences.at(V_gene_seq) == gene_c);
+    }
+
+    SECTION("The incoming scenario probability multiplies through")
+    {
+        auto state = create_iterate_state(read);
+        state.set_scenario_proba(0.4);
+        auto v_event =
+                make_gene_choice(V_gene, {{"V1", gene_a}, {"V2", gene_b}}, 0, /*fixed=*/false);
+        state.set_alignments(V_gene, {create_perfect_alignment("V1", 0, gene_a.size()),
+                                      create_perfect_alignment("V2", 0, gene_b.size())});
+        state.set_marginal(0, 0.5L);
+        state.set_marginal(1, 0.333L);
+
+        auto rec = call_iterate_recording(v_event, state);
+        REQUIRE(rec->call_count() == 2);
+        CHECK_THAT(rec->calls.at(0).scenario_proba, Catch::Matchers::WithinRel(0.4 * 0.5, 1e-12));
+        CHECK_THAT(rec->calls.at(1).scenario_proba, Catch::Matchers::WithinRel(0.4 * 0.333, 1e-12));
+    }
+
+    SECTION("The marginal read is base_index + realization index, not the index alone")
+    {
+        auto state = create_iterate_state(read);
+        auto v_event =
+                make_gene_choice(V_gene, {{"V1", gene_a}, {"V2", gene_b}}, 0, /*fixed=*/false);
+        state.set_alignments(V_gene, {create_perfect_alignment("V1", 0, gene_a.size()),
+                                      create_perfect_alignment("V2", 0, gene_b.size())});
+        state.set_base_index(0, 10);
+        // Values at 0 and 1 are decoys: reading them would mean base_index was ignored.
+        state.set_marginal(0, 0.9L);
+        state.set_marginal(1, 0.8L);
+        state.set_marginal(10, 0.5L);
+        state.set_marginal(11, 0.25L);
+
+        auto rec = call_iterate_recording(v_event, state);
+        REQUIRE(rec->call_count() == 2);
+        CHECK(rec->calls.at(0).scenario_proba == 0.5);
+        CHECK(rec->calls.at(1).scenario_proba == 0.25);
+    }
+
+    SECTION("Two alignments of one gene branch separately at the same probability")
+    {
+        // Realization identity and placement are independent: the same template aligned at
+        // two positions is two scenarios drawing on one marginal entry. This is the shape
+        // tandem D needs -- one alignment set, several placements.
+        auto state = create_iterate_state("ACGTACGTACGTACGTACGT");
+        auto d_event = make_gene_choice(D_gene, {{"D1", "ACGT"}}, 0, /*fixed=*/false);
+        state.set_alignments(D_gene, {create_perfect_alignment("D1", 4, 4),
+                                      create_perfect_alignment("D1", 12, 4)});
+        state.set_marginal(0, 0.6L);
+
+        auto rec = call_iterate_recording(d_event, state);
+        dump(rec, "same gene, two placements");
+
+        REQUIRE(rec->call_count() == 2);
+        CHECK(rec->calls.at(0).scenario_proba == 0.6);
+        CHECK(rec->calls.at(1).scenario_proba == 0.6);
+        CHECK(rec->calls.at(0).five_prime(D_gene_seq) == 4);
+        CHECK(rec->calls.at(1).five_prime(D_gene_seq) == 12);
+    }
+
+    SECTION("A realization with zero probability still branches")
+    {
+        // This is not a necessary behavior, should_prune() with non zero threshold would
+        // get rid of such cases.
+        // Genechoice has no `if (proba == 0) continue`, unlike Insertion. Pinned because
+        // the generic B11 body is an obvious place to add one, and doing so would change
+        // which scenarios reach the next event.
+        auto state = create_iterate_state(read);
+        auto v_event =
+                make_gene_choice(V_gene, {{"V1", gene_a}, {"V2", gene_b}}, 0, /*fixed=*/false);
+        state.set_alignments(V_gene, {create_perfect_alignment("V1", 0, gene_a.size()),
+                                      create_perfect_alignment("V2", 0, gene_b.size())});
+        state.set_marginal(0, 0.5L);
+        state.set_marginal(1, 0.0L);
+
+        auto rec = call_iterate_recording(v_event, state);
+        REQUIRE(rec->call_count() == 2);
+        CHECK(rec->calls.at(1).scenario_proba == 0.0);
+    }
+}
+
+TEST_CASE("Gene_choice::iterate junction-length bound (G5)", "[gene_choice][iterate][junction]")
+{
+    // The guard at Genechoice.cpp:322: the gap between V's 3' end and the chosen D's 5'
+    // end, measured *before* either pending deletion, must be a gap the downstream chain
+    // can actually produce. The map is keyed by that pre-deletion gap, which is why
+    // Deletion contributes -value_int and Insertion +value_int -- the identity enumerated
+    // is  ins = gap + del_V + del_D5.
+    //
+    // Isolating this from the overlap early-out (section 7.6 of the plan) needs a gap that
+    // is *too large*: the overlap check only ever fires on gaps that are too small, so a
+    // positive out-of-range gap is rejected by the junction-length guard alone.
+    const std::string v_gene = "ACGTACGTACGT"; // 12 nt, 3' end at 11
+    const std::string d_gene = "TTTT";
+    const std::string read = "ACGTACGTACGTTTTTTTTTTTTTTTTTTTTT";
+
+    auto build = [&](IterateTestState &state, Seq_Offset d_five_prime) {
+        auto v_event = make_gene_choice(V_gene, {{"V1", v_gene}}, 0, /*fixed=*/false);
+        auto d_stub = make_gene_choice(D_gene, {{"D1", d_gene}}, 1);
+        state.add_event(d_stub);
+        state.mark_chosen(d_stub);
+        state.preset_segment(D_gene_seq, d_five_prime,
+                             d_five_prime + static_cast<Seq_Offset>(d_gene.size()) - 1, d_gene);
+        state.add_downstream_event(make_deletion(V_gene_seq, Three_prime, 0, 4, 2));
+        state.add_downstream_event(make_deletion(D_gene_seq, Five_prime, 0, 4, 3));
+        state.set_alignments(V_gene, {create_perfect_alignment("V1", 0, v_gene.size())});
+        state.set_marginal(0, 1.0L);
+        return v_event;
+    };
+
+    SECTION("Achievable gap: the scenario survives and the VD bound is set")
+    {
+        // D at 12 leaves a gap of 0, reachable with zero deletions on both ends.
+        auto state = create_iterate_state(read);
+        auto v_event = build(state, 12);
+
+        auto rec = call_iterate_recording(v_event, state);
+        dump(rec, "junction achievable");
+
+        REQUIRE(rec->call_count() == 1);
+        // The bound written for VD_ins_seq is the best probability the chain can reach at
+        // this gap, not 1.0 by default.
+        CHECK(rec->calls.at(0).downstream_bounds.count(VD_ins_seq) == 1);
+    }
+
+    SECTION("Unachievable gap: the scenario is discarded by the guard alone")
+    {
+        // D at 13 leaves a gap of 1. Deletions only ever widen the post-deletion gap, so a
+        // pre-deletion gap of 1 needs at least one insertion, and no Insertion event is in
+        // the chain. The overlap check passes here (7 >= 17 is false), so the guard is the
+        // only thing rejecting this.
+        auto state = create_iterate_state(read);
+        auto v_event = build(state, 13);
+
+        auto rec = call_iterate_recording(v_event, state);
+        dump(rec, "junction unachievable");
+
+        REQUIRE(rec->call_count() == 0);
+    }
+}
+
+TEST_CASE("Gene_choice::iterate J's V->J bound counts what D's deletions trim (R16)",
+          "[gene_choice][iterate][junction]")
+{
+    // J is chosen before D in every VDJ model shipped, so it reads the V->J table, which holds D
+    // with its whole template. Here V's 3' end and J's 5' end leave a 4-nt gap and D's template
+    // is 8 nt, so no completion fills the gap unless D is trimmed by at least 4.
+    //
+    // Until R16 D's deletions were not in that table: it reached no gap below D's template
+    // length, and J discarded this scenario outright although it has completions, each one
+    // trimming D (plan section 7.22). With the deletions in, J hands off, and the bound is the
+    // best completion: D, 4 nucleotides trimmed, no insertion.
+    const std::string v_gene = "ACGTACGTACGT"; // 12 nt, 3' end at 11
+    const std::string j_gene = "GGGGCCCC";     // 8 nt, 5' end at 16
+    const std::string d_gene = "ACGTACGT";     // 8 nt
+    auto state = create_iterate_state(v_gene + "AAAA" + j_gene);
+
+    auto j_event = make_gene_choice(J_gene, {{"J1", j_gene}}, 0, /*fixed=*/false);
+    auto v_stub = make_gene_choice(V_gene, {{"V1", v_gene}}, 1);
+    state.add_event(v_stub);
+    state.mark_chosen(v_stub);
+    state.preset_segment(V_gene_seq, 0, 11, v_gene);
+    state.add_downstream_event(make_gene_choice(D_gene, {{"D1", d_gene}}, 2));
+    state.add_downstream_event(make_deletion(D_gene_seq, Five_prime, 0, 4, 3));
+    state.add_downstream_event(make_deletion(D_gene_seq, Three_prime, 0, 4, 4));
+    state.add_downstream_event(make_insertion(VD_ins_seq, 0, 10, 5));
+    state.add_downstream_event(make_dinucl_markov(VD_ins_seq, 6));
+    state.add_downstream_event(make_insertion(DJ_ins_seq, 0, 10, 7));
+    state.add_downstream_event(make_dinucl_markov(DJ_ins_seq, 8));
+    state.set_alignments(J_gene, {create_perfect_alignment("J1", 16, j_gene.size())});
+    for (std::size_t i = 0; i != 64; ++i) {
+        state.set_marginal(i, 0.5L);
+    }
+
+    // Every factor is 0.5: D's choice, each deletion, each insertion length, and each inserted
+    // nucleotide. A path trimming d5 + d3 from D and inserting l1 + l2 fills the gap when
+    // 8 - d5 - d3 + l1 + l2 == 4.
+    double best = 0.0;
+    for (int d5 = 0; d5 <= 4; ++d5) {
+        for (int d3 = 0; d3 <= 4; ++d3) {
+            for (int l1 = 0; l1 <= 10; ++l1) {
+                for (int l2 = 0; l2 <= 10; ++l2) {
+                    if (8 - d5 - d3 + l1 + l2 == 4) {
+                        best = std::max(best, std::pow(0.5, 5 + l1 + l2));
+                    }
+                }
+            }
+        }
+    }
+    REQUIRE(best == 1.0 / 32);
+
+    auto rec = call_iterate_recording(j_event, state);
+    dump(rec, "J over a gap only a trimmed D fills");
+    REQUIRE(rec->call_count() == 1);
+    REQUIRE(rec->calls.at(0).downstream_bounds.count(VJ_ins_seq) == 1);
+    CHECK_THAT(rec->calls.at(0).downstream_bounds.at(VJ_ins_seq), Catch::Matchers::WithinRel(best, 1e-12));
+}
+
+TEST_CASE("Gene_choice::iterate endogenous-mismatch counting (G8)",
+          "[gene_choice][iterate][endogenous]")
+{
+    // Mismatches that survive the maximum remaining deletion cannot be explained away, so
+    // they set a floor on the error probability. This TEST_CASE covers the *counting* --
+    // which mismatches fall inside the surviving core. The credited length, per branch, is the
+    // cases that follow.
+    const double kRate = 0.1;
+    const std::string v_gene = "ACGTACGTACGT"; // 12 nt, 3' end at 11
+
+    // V 3' deletions [0,4] => the surviving core is [0, 7]; a mismatch at 2 is endogenous,
+    // one at 9 is not.
+    auto bound_with_mismatch_at = [&](std::size_t position) {
+        auto state = create_iterate_state("ACGTACGTACGTTTTTTTT");
+        state.set_error_rate(kRate);
+        auto v_event = make_gene_choice(V_gene, {{"V1", v_gene}}, 0, /*fixed=*/false);
+        state.add_downstream_event(make_deletion(V_gene_seq, Three_prime, 0, 4, 2));
+        state.set_alignments(
+                V_gene, {create_alignment_with_mismatches("V1", 0, v_gene.size(), {position})});
+        state.set_marginal(0, 1.0L);
+
+        auto rec = call_iterate_recording(v_event, state);
+        REQUIRE(rec->call_count() == 1);
+        return rec->calls.at(0).downstream_bounds.at(V_gene_seq);
+    };
+
+    SECTION("A mismatch inside the core costs an error factor; one outside costs nothing")
+    {
+        // Asserting the *ratio* rather than either bound keeps this independent of the
+        // credited length: the two differ by exactly one endogenous mismatch, so
+        // swapping an error-free position for an errored one multiplies by (r/3)/(1-r)
+        // whatever the credited length happens to be.
+        const double inside = bound_with_mismatch_at(2);
+        const double outside = bound_with_mismatch_at(9);
+        CHECK_THAT(inside / outside,
+                   Catch::Matchers::WithinRel((kRate / 3.0) / (1.0 - kRate), 1e-9));
+        CHECK(inside < outside);
+    }
+}
+
+TEST_CASE("Gene_choice::iterate V credits the error-free length of its surviving core",
+          "[gene_choice][iterate][endogenous]")
+{
+    // The core that survives the maximum 3' deletion is [v_5_off, v_3_off + v_3_max_del]
+    // = [0, 7]: 8 positions, one of them mismatched, so 7 are error-free.
+    //
+    // Until R5a this credited gene_seq.size() - v_3_max_del - endo, with v_3_max_del being
+    // Deletion::len_min (negative): 12 + 4 - 1 = 15, the sign inverted (plan 7.1). The bound
+    // came out too small by (1-r)^8, so the branch was pruned harder than the model justified
+    // and scenarios that should have contributed could be discarded.
+    const double kRate = 0.1;
+    const std::string v_gene = "ACGTACGTACGT";
+
+    auto state = create_iterate_state("ACGTACGTACGTTTTTTTT");
+    state.set_error_rate(kRate);
+    auto v_event = make_gene_choice(V_gene, {{"V1", v_gene}}, 0, /*fixed=*/false);
+    state.add_downstream_event(make_deletion(V_gene_seq, Three_prime, 0, 4, 2));
+    state.set_alignments(V_gene,
+                         {create_alignment_with_mismatches("V1", 0, v_gene.size(), {2, 9})});
+    state.set_marginal(0, 1.0L);
+
+    auto rec = call_iterate_recording(v_event, state);
+    REQUIRE(rec->call_count() == 1);
+
+    const double correct = std::pow(kRate / 3.0, 1) * std::pow(1.0 - kRate, 7);
+    CHECK_THAT(rec->calls.at(0).downstream_bounds.at(V_gene_seq),
+               Catch::Matchers::WithinRel(correct, 1e-9));
+}
+
+TEST_CASE("Gene_choice::iterate J credits the error-free length of its surviving core",
+          "[gene_choice][iterate][endogenous]")
+{
+    // Mirror of the V case. Core is [j_5_off - j_5_max_del, j_3_off] = [16, 19], 4
+    // positions, one of them mismatched, so 3 are error-free. Until R5a:
+    // gene_seq.size() - j_5_max_del - endo = 8 + 4 - 1 = 11.
+    const double kRate = 0.1;
+    const std::string j_gene = "GGGGCCCC"; // 8 nt, aligned at 12 in a 20 nt read
+
+    auto state = create_iterate_state("ACGTACGTACGTGGGGCCCC");
+    state.set_error_rate(kRate);
+    auto j_event = make_gene_choice(J_gene, {{"J1", j_gene}}, 0, /*fixed=*/false);
+    state.add_downstream_event(make_deletion(J_gene_seq, Five_prime, 0, 4, 2));
+    state.set_alignments(J_gene,
+                         {create_alignment_with_mismatches("J1", 12, j_gene.size(), {13, 17})});
+    state.set_marginal(0, 1.0L);
+
+    auto rec = call_iterate_recording(j_event, state);
+    REQUIRE(rec->call_count() == 1);
+
+    const double correct = std::pow(kRate / 3.0, 1) * std::pow(1.0 - kRate, 3);
+    CHECK_THAT(rec->calls.at(0).downstream_bounds.at(J_gene_seq),
+               Catch::Matchers::WithinRel(correct, 1e-9));
+}
+
+TEST_CASE("Gene_choice::iterate D credits every position of its surviving core",
+          "[gene_choice][iterate][endogenous]")
+{
+    // D is the only branch with deletions pending on both sides, so its core is a genuine
+    // intersection: [d_5_off - d_5_max_del, d_3_off + d_3_max_del] = [10, 13] here, four
+    // inclusive positions.
+    //
+    // Until R5a it credited the *difference* of the two bounds, 13 - 10 = 3: the sign right,
+    // one position short. A different defect from V and J and the opposite direction -- the
+    // bound came out too large, so it under-pruned.
+    const double kRate = 0.1;
+    const std::string d_gene = "TTTTTTTT"; // 8 nt, aligned at 8 => [8, 15]
+
+    auto state = create_iterate_state("ACGTACGTTTTATTTTACGT");
+    state.set_error_rate(kRate);
+    auto d_event = make_gene_choice(D_gene, {{"D1", d_gene}}, 0, /*fixed=*/false);
+    state.add_downstream_event(make_deletion(D_gene_seq, Five_prime, 0, 2, 2));
+    state.add_downstream_event(make_deletion(D_gene_seq, Three_prime, 0, 2, 3));
+    state.set_alignments(D_gene,
+                         {create_alignment_with_mismatches("D1", 8, d_gene.size(), {9, 11})});
+    state.set_marginal(0, 1.0L);
+
+    auto rec = call_iterate_recording(d_event, state);
+    REQUIRE(rec->call_count() == 1);
+
+    const double correct = std::pow(kRate / 3.0, 1) * std::pow(1.0 - kRate, 3); // 4 - 1
+    CHECK_THAT(rec->calls.at(0).downstream_bounds.at(D_gene_seq),
+               Catch::Matchers::WithinRel(correct, 1e-9));
+}
+
+TEST_CASE("Gene_choice::iterate a V the pending deletion can erase from the read is not charged",
+          "[gene_choice][iterate][endogenous]")
+{
+    // The empty-core rule D always had, which V and J did not: their arm credited a length
+    // without asking whether anything survives. Aligned at -9, this V keeps three nucleotides
+    // in the read, and up to four 3' deletions are still to come, so none of it is guaranteed
+    // to stay and its mismatch is not unavoidable. Until R5a it credited 3 + 4 - 0 = 7
+    // error-free positions -- more than it has in the read at all -- and returned 0.9^7.
+    const std::string v_gene = "ACGTACGTACGT"; // 12 nt; its last three, "CGT", land on [0, 2]
+
+    auto state = create_iterate_state("CATTTTTTTTTTTTTTTTTT");
+    state.set_error_rate(0.1);
+    auto v_event = make_gene_choice(V_gene, {{"V1", v_gene}}, 0, /*fixed=*/false);
+    state.add_downstream_event(make_deletion(V_gene_seq, Three_prime, 0, 4, 2));
+    state.set_alignments(V_gene,
+                         {create_alignment_with_mismatches("V1", -9, v_gene.size(), {1})});
+    state.set_marginal(0, 1.0L);
+
+    auto rec = call_iterate_recording(v_event, state);
+    REQUIRE(rec->call_count() == 1);
+    REQUIRE(rec->calls.at(0).three_prime(V_gene_seq) == 2);
+
+    CHECK(rec->calls.at(0).downstream_bounds.at(V_gene_seq) == 1.0);
+}
+
+TEST_CASE("Gene_choice::iterate the no_d_align position map places D immediately after V",
+          "[gene_choice][iterate][exhaustive]")
+{
+    // The two D realization paths read one junction length under one convention. A placement
+    // `left_distance` nucleotides past V puts D's 5' end at v_3_off + L + 1 -- what the
+    // alignment path's write_junction_bounds() inverts as L = d_5_off - v_3_off - 1, and what
+    // the decomposition's key L + template + R == span_len assumes. The position path used to
+    // place it at v_3_off + L, so a zero-length junction overlapped V's last nucleotide and
+    // the gap left to J was one longer than the R it was charged for (§7.8, fixed by R5b).
+    //
+    // Fixture: V over [0,11], J over [16,19], vj_len = 4, reachable only by
+    // (vd_len, dj_len) = (0, 0). A zero-length VD junction should put D at 12.
+    const std::string d_gene = "TTTT";
+    auto state = create_iterate_state("ACGTACGTACGTTTAATTTT");
+
+    auto d_event = make_gene_choice(D_gene, {{"D1", d_gene}}, 0, /*fixed=*/false);
+    auto v_stub = make_gene_choice(V_gene, {{"V1", "ACGTACGTACGT"}}, 1);
+    auto j_stub = make_gene_choice(J_gene, {{"J1", "TTTT"}}, 2);
+    state.add_event(v_stub);
+    state.add_event(j_stub);
+    state.mark_chosen(v_stub);
+    state.mark_chosen(j_stub);
+    state.preset_segment(V_gene_seq, 0, 11, "ACGTACGTACGT");
+    state.preset_segment(J_gene_seq, 16, 19, "TTTT");
+    state.add_downstream_event(make_deletion(V_gene_seq, Three_prime, 0, 2, 3));
+    state.add_downstream_event(make_deletion(D_gene_seq, Five_prime, 0, 2, 4));
+    state.add_downstream_event(make_deletion(D_gene_seq, Three_prime, 0, 2, 5));
+    state.add_downstream_event(make_deletion(J_gene_seq, Five_prime, 0, 2, 6));
+    state.set_alignments(D_gene, {});
+    state.set_marginal(0, 1.0L);
+
+    auto rec = call_iterate_recording(d_event, state);
+    REQUIRE(rec->call_count() == 1);
+
+    // D starts immediately after V's 3' end, not on it, and ends immediately before J.
+    CHECK(rec->calls.at(0).five_prime(D_gene_seq) == 12);
+    CHECK(rec->calls.at(0).three_prime(D_gene_seq) == 15);
+}
+
+TEST_CASE("Gene_choice::iterate pruning", "[gene_choice][iterate][pruning]")
+{
+    // should_prune(bound) is bound < seq_max_prob * proba_threshold_factor. Every other
+    // section runs with the threshold at 0 so that nothing is dropped incidentally; this
+    // one turns it on.
+    const std::string v_gene_a = "ACGTACGTACGT";
+    const std::string v_gene_b = "ACGTACGTACGT";
+
+    SECTION("A realization below the threshold is skipped, one above is not")
+    {
+        auto state = create_iterate_state("ACGTACGTACGTTTTTTTT");
+        auto v_event =
+                make_gene_choice(V_gene, {{"V1", v_gene_a}, {"V2", v_gene_b}}, 0, /*fixed=*/false);
+        state.set_alignments(V_gene, {create_perfect_alignment("V1", 0, v_gene_a.size()),
+                                      create_perfect_alignment("V2", 0, v_gene_b.size())});
+        // With no mismatches and rate 0 every downstream bound is 1, so the upper bound is
+        // just the realization probability.
+        state.set_marginal(0, 0.9L);
+        state.set_marginal(1, 0.1L);
+        state.set_pruning_threshold(0.5);
+
+        auto rec = call_iterate_recording(v_event, state);
+        dump(rec, "pruning");
+
+        REQUIRE(rec->call_count() == 1);
+        CHECK(rec->calls.at(0).scenario_proba == 0.9);
+    }
+
+    SECTION("Positive control: both survive with pruning off")
+    {
+        auto state = create_iterate_state("ACGTACGTACGTTTTTTTT");
+        auto v_event =
+                make_gene_choice(V_gene, {{"V1", v_gene_a}, {"V2", v_gene_b}}, 0, /*fixed=*/false);
+        state.set_alignments(V_gene, {create_perfect_alignment("V1", 0, v_gene_a.size()),
+                                      create_perfect_alignment("V2", 0, v_gene_b.size())});
+        state.set_marginal(0, 0.9L);
+        state.set_marginal(1, 0.1L);
+
+        auto rec = call_iterate_recording(v_event, state);
+        REQUIRE(rec->call_count() == 2);
+    }
+}
+
+TEST_CASE("Gene_choice::iterate exhaustive position fallback (G6)",
+          "[gene_choice][iterate][exhaustive]")
+{
+    // When the aligner returns nothing for a D gene, Gene_choice falls back to trying the
+    // template at every plausible position. The fallback lives inside `case D_gene`, so V
+    // and J never reach it -- an accident of the switch rather than a stated policy, and
+    // exactly what B11 must turn into an explicit per-event switch before the generic body
+    // extends it to every gene class.
+
+    SECTION("V with no alignments enumerates nothing")
+    {
+        // Contrast with the D section below: same empty-alignment situation, opposite
+        // outcome, and the only thing that differs is the gene class.
+        auto state = create_iterate_state("ACGTACGTACGTTTTTTTT");
+        auto v_event = make_gene_choice(V_gene, {{"V1", "ACGTACGTACGT"}}, 0, /*fixed=*/false);
+        state.set_alignments(V_gene, {});
+        state.set_marginal(0, 1.0L);
+
+        auto rec = call_iterate_recording(v_event, state);
+        REQUIRE(rec->call_count() == 0);
+    }
+
+    SECTION("J with no alignments enumerates nothing")
+    {
+        auto state = create_iterate_state("ACGTACGTACGTTTTTTTT");
+        auto j_event = make_gene_choice(J_gene, {{"J1", "GGGGCCCC"}}, 0, /*fixed=*/false);
+        state.set_alignments(J_gene, {});
+        state.set_marginal(0, 1.0L);
+
+        auto rec = call_iterate_recording(j_event, state);
+        REQUIRE(rec->call_count() == 0);
+    }
+
+    SECTION("D with no alignments and no chosen neighbours slides the template")
+    {
+        // The `else` branch at Genechoice.cpp:681. With neither V nor J chosen the window
+        // runs from just inside the read to the last read position, one nucleotide at a
+        // time, and every position is emitted because no junction guard applies.
+        const std::string d_gene = "TTTT";
+        const std::string read = "ACGTACGTACGTTTTTTTTT"; // 20 nt
+        auto state = create_iterate_state(read);
+        auto d_event = make_gene_choice(D_gene, {{"D1", d_gene}}, 0, /*fixed=*/false);
+        state.set_alignments(D_gene, {});
+        state.set_marginal(0, 1.0L);
+
+        auto rec = call_iterate_recording(d_event, state);
+        dump(rec, "D sliding");
+
+        // 14 positions, 5' offsets 2 through 15. The window starts at 2 -- "V cannot be
+        // absent from the read, at least one nucleotide is present" plus one -- and runs
+        // while the D 3' end is left of j_5_min_offset, which with no J chosen is the last
+        // read position (19).
+        // FIXME: those mandatory V and J NTs may go away with B11.
+        REQUIRE(rec->call_count() == 14);
+        CHECK(rec->calls.front().five_prime(D_gene_seq) == 2);
+        CHECK(rec->calls.back().five_prime(D_gene_seq) == 15);
+        CHECK(rec->calls.back().three_prime(D_gene_seq)
+              == static_cast<Seq_Offset>(read.size()) - 2);
+        // Positions are contiguous and advance by one.
+        for (std::size_t i = 1; i < rec->calls.size(); ++i) {
+            CHECK(rec->calls.at(i).five_prime(D_gene_seq)
+                  == rec->calls.at(i - 1).five_prime(D_gene_seq) + 1);
+        }
+        // The template is placed whole at every position: 3' = 5' + len - 1.
+        for (const ScenarioSnapshot &snapshot : rec->calls) {
+            CHECK(snapshot.three_prime(D_gene_seq)
+                  == snapshot.five_prime(D_gene_seq) + static_cast<Seq_Offset>(d_gene.size()) - 1);
+            CHECK(snapshot.sequences.at(D_gene_seq) == d_gene);
+        }
+    }
+
+    SECTION("D sliding: 5' deletions extend the window leftward")
+    {
+        // The start position is  1 + d_5_real_max_del + 1  when no V is chosen, and
+        // d_5_max_del is Deletion::len_min, i.e. minus the largest 5' deletion. So allowing
+        // 5' deletions lets the template start further left: the nucleotides that would
+        // overlap whatever precedes it can be deleted away. Nothing else in the window
+        // changes, so the count grows by exactly the deletion budget.
+        const std::string d_gene = "TTTT";
+        const std::string read = "ACGTACGTACGTTTTTTTTT"; // 20 nt
+        auto state = create_iterate_state(read);
+        auto d_event = make_gene_choice(D_gene, {{"D1", d_gene}}, 0, /*fixed=*/false);
+        state.add_downstream_event(make_deletion(D_gene_seq, Five_prime, 0, 3, 1));
+        state.set_alignments(D_gene, {});
+        state.set_marginal(0, 1.0L);
+
+        auto rec = call_iterate_recording(d_event, state);
+        dump(rec, "D sliding, 5' deletions");
+
+        // Baseline is 14 positions starting at 2; three allowed 5' deletions move the start
+        // to -1 and add three positions.
+        REQUIRE(rec->call_count() == 17);
+        CHECK(rec->calls.front().five_prime(D_gene_seq) == -1);
+        CHECK(rec->calls.back().five_prime(D_gene_seq) == 15);
+        // The template is still placed whole; the deletion has not been applied yet, it
+        // only widened the set of placements worth trying.
+        CHECK(rec->calls.front().sequences.at(D_gene_seq) == d_gene);
+        CHECK(rec->calls.front().three_prime(D_gene_seq)
+              == rec->calls.front().five_prime(D_gene_seq)
+                         + static_cast<Seq_Offset>(d_gene.size()) - 1);
+    }
+
+    SECTION("D sliding: a 5' deletion budget larger than the template is clamped")
+    {
+        // (-d_5_max_del) > d_size => d_5_real_max_del = -d_size. Deleting more than the
+        // whole template cannot buy further leftward reach, so the start clamps at
+        // 2 - d_size rather than running off with the budget.
+        const std::string d_gene = "TTTT";
+        auto state = create_iterate_state("ACGTACGTACGTTTTTTTTT");
+        auto d_event = make_gene_choice(D_gene, {{"D1", d_gene}}, 0, /*fixed=*/false);
+        state.add_downstream_event(make_deletion(D_gene_seq, Five_prime, 0, 10, 1));
+        state.set_alignments(D_gene, {});
+        state.set_marginal(0, 1.0L);
+
+        auto rec = call_iterate_recording(d_event, state);
+        dump(rec, "D sliding, oversized 5' budget");
+
+        // Clamped to one full template length of extra reach: start at 2 - 4 = -2, not
+        // 2 - 10 = -8.
+        CHECK(rec->calls.front().five_prime(D_gene_seq) == -2);
+        REQUIRE(rec->call_count() == 18);
+    }
+
+    SECTION("D sliding: 3' deletions extend the window rightward")
+    {
+        // The loop runs while d_3_min_offset < j_5_min_offset, and d_3_min_offset is the
+        // 3' end after the largest 3' deletion. Allowing 3' deletions lowers it, so the
+        // template can start later and still have a deletable overhang.
+        const std::string d_gene = "TTTT";
+        auto state = create_iterate_state("ACGTACGTACGTTTTTTTTT");
+        auto d_event = make_gene_choice(D_gene, {{"D1", d_gene}}, 0, /*fixed=*/false);
+        state.add_downstream_event(make_deletion(D_gene_seq, Three_prime, 0, 2, 1));
+        state.set_alignments(D_gene, {});
+        state.set_marginal(0, 1.0L);
+
+        auto rec = call_iterate_recording(d_event, state);
+        dump(rec, "D sliding, 3' deletions");
+
+        // Start is unchanged at 2 -- 3' deletions say nothing about the left edge -- and
+        // two extra positions appear on the right.
+        REQUIRE(rec->call_count() == 16);
+        CHECK(rec->calls.front().five_prime(D_gene_seq) == 2);
+        CHECK(rec->calls.back().five_prime(D_gene_seq) == 17);
+    }
+
+    SECTION("D sliding: a 3' deletion budget reaching the template length is clamped")
+    {
+        // abs(d_3_max_del) < d_size fails, so d_3_min_offset collapses to d_5_off: the
+        // whole template is deletable, and the loop bound stops depending on its length.
+        const std::string d_gene = "TTTT";
+        auto state = create_iterate_state("ACGTACGTACGTTTTTTTTT");
+        auto d_event = make_gene_choice(D_gene, {{"D1", d_gene}}, 0, /*fixed=*/false);
+        state.add_downstream_event(make_deletion(D_gene_seq, Three_prime, 0, 4, 1));
+        state.set_alignments(D_gene, {});
+        state.set_marginal(0, 1.0L);
+
+        auto rec = call_iterate_recording(d_event, state);
+        dump(rec, "D sliding, oversized 3' budget");
+
+        REQUIRE(rec->call_count() == 17);
+        CHECK(rec->calls.front().five_prime(D_gene_seq) == 2);
+        CHECK(rec->calls.back().five_prime(D_gene_seq) == 18);
+    }
+
+    SECTION("D with no alignments and both neighbours chosen uses the position map")
+    {
+        // The other sub-branch, at Genechoice.cpp:546: instead of sliding, positions come
+        // from vj_length_d_position_proba, built at :1444 by composing the VD and DJ length
+        // maps with the D template length. This is the structure B11 has to generalise --
+        // the identity is junction_len = d_gene.size() + vd_len + dj_len, with vd/dj taken
+        // from VD_ins_seq and DJ_ins_seq by name.
+        //
+        //   V occupies [0, 11], J occupies [16, 19], so vj_len = 16 - 11 - 1 = 4.
+        //   Deletions of at most 2 per end give VD and DJ length maps over [-4, 0], hence
+        //   junction keys 4 + vd + dj over [-4, 4]. Key 4 is reachable only by (0, 0).
+        const std::string d_gene = "TTTT";
+        const std::string read = "ACGTACGTACGTTTAATTTT"; // 20 nt
+        auto state = create_iterate_state(read);
+
+        auto d_event = make_gene_choice(D_gene, {{"D1", d_gene}}, 0, /*fixed=*/false);
+        auto v_stub = make_gene_choice(V_gene, {{"V1", "ACGTACGTACGT"}}, 1);
+        auto j_stub = make_gene_choice(J_gene, {{"J1", "TTTT"}}, 2);
+        state.add_event(v_stub);
+        state.add_event(j_stub);
+        state.mark_chosen(v_stub);
+        state.mark_chosen(j_stub);
+        state.preset_segment(V_gene_seq, 0, 11, "ACGTACGTACGT");
+        state.preset_segment(J_gene_seq, 16, 19, "TTTT");
+
+        state.add_downstream_event(make_deletion(V_gene_seq, Three_prime, 0, 2, 3));
+        state.add_downstream_event(make_deletion(D_gene_seq, Five_prime, 0, 2, 4));
+        state.add_downstream_event(make_deletion(D_gene_seq, Three_prime, 0, 2, 5));
+        state.add_downstream_event(make_deletion(J_gene_seq, Five_prime, 0, 2, 6));
+
+        state.set_alignments(D_gene, {});
+        state.set_marginal(0, 1.0L);
+
+        auto rec = call_iterate_recording(d_event, state);
+        dump(rec, "D position map");
+
+        REQUIRE(rec->call_count() == 1);
+        const ScenarioSnapshot &s = rec->calls.at(0);
+        // The template is placed whole, 5' to 3'. Where it is placed is asserted by the §7.8
+        // case above.
+        CHECK(s.three_prime(D_gene_seq) == s.five_prime(D_gene_seq) + 3);
+        CHECK(s.sequences.at(D_gene_seq) == d_gene);
+    }
+
+    SECTION("Mismatches are recomputed per position against the read")
+    {
+        // Same fixture. The template TTTT sits over read[12..15] = "TTAA", so two positions
+        // mismatch -- and the mismatch list is rebuilt from the read at each
+        // position rather than carried from an alignment, which is the tier-1 computation
+        // section 2.10 of the plan wants lifted out of the scenario loop.
+        const std::string d_gene = "TTTT";
+        const std::string read = "ACGTACGTACGTTTAATTTT";
+        auto state = create_iterate_state(read);
+
+        auto d_event = make_gene_choice(D_gene, {{"D1", d_gene}}, 0, /*fixed=*/false);
+        auto v_stub = make_gene_choice(V_gene, {{"V1", "ACGTACGTACGT"}}, 1);
+        auto j_stub = make_gene_choice(J_gene, {{"J1", "TTTT"}}, 2);
+        state.add_event(v_stub);
+        state.add_event(j_stub);
+        state.mark_chosen(v_stub);
+        state.mark_chosen(j_stub);
+        state.preset_segment(V_gene_seq, 0, 11, "ACGTACGTACGT");
+        state.preset_segment(J_gene_seq, 16, 19, "TTTT");
+        state.add_downstream_event(make_deletion(V_gene_seq, Three_prime, 0, 2, 3));
+        state.add_downstream_event(make_deletion(D_gene_seq, Five_prime, 0, 2, 4));
+        state.add_downstream_event(make_deletion(D_gene_seq, Three_prime, 0, 2, 5));
+        state.add_downstream_event(make_deletion(J_gene_seq, Five_prime, 0, 2, 6));
+        state.set_alignments(D_gene, {});
+        state.set_marginal(0, 1.0L);
+
+        auto rec = call_iterate_recording(d_event, state);
+        dump(rec, "D position mismatches");
+
+        REQUIRE(rec->call_count() == 1);
+        // read[14] and read[15] are 'A' where the template has 'T'; 12 and 13 match. It was
+        // {14} alone until R5b, with §7.8 placing the template over read[11..14] = "TTTA".
+        CHECK(rec->calls.at(0).mismatches.at(D_gene_seq) == std::vector<std::size_t>{14, 15});
+    }
+}
+
+// ===========================================================================================
+// Plan step 5a: the `no_d_align` exhaustive path, per branch.
+//
+// T0 established that the path is reached and that the two sub-branches place the template
+// differently. What it did not reach is the *inside* of either: the two feasibility guards of
+// the position-map branch, its endogenous-mismatch count and second prune stage, the slide's
+// left anchor when one neighbour is chosen, and the degenerate core of the alignment path.
+// Those are the sections below.
+//
+// Two defects fell out of writing them and were recorded rather than repaired -- plan sections
+// 7.16 (the probability compounds across positions) and 7.17 (the slide loop does not
+// terminate when a placement is discarded). Both are now fixed: 7.17 structurally by 5b, and
+// 7.16 by R7, which took the `[!shouldfail]` tags off the two cases at the bottom of this
+// block.
+// ===========================================================================================
+
+namespace {
+
+/// The read every section below uses: 20 nt, ACGT-periodic, so a "TTTT" template disagrees
+/// with it at three positions out of four wherever it is placed.
+const std::string kExhaustiveRead = "ACGTACGTACGTACGTACGT";
+
+/**
+ * D with no alignment, between a chosen V and a chosen J: the position-map branch.
+ *
+ * The junctions on both flanks need something to fold, or every placement is discarded at the
+ * profile lookup before the branch under test runs (test guide trap 4, and trap 8 for why the
+ * insertion ranges are generous).
+ */
+struct PositionMapFixture {
+    IterateTestState state = create_iterate_state(kExhaustiveRead);
+    std::shared_ptr<Gene_choice> d_event;
+
+    /// `tmpl` is a knob for one section only. A template whose length is a multiple of four
+    /// scores the same against the ACGT-periodic read wherever it lands, which is what makes
+    /// the default fixture's five placements interchangeable; a five-nucleotide one does not,
+    /// and that is what the prune-stage section needs to tell the two stages apart.
+    PositionMapFixture(int d5_max = -1, int d3_max = -1, const std::string &tmpl = "TTTT")
+    {
+        d_event = make_gene_choice(D_gene, {{"D1", tmpl}}, 0, /*fixed=*/false);
+        state.set_alignments(D_gene, {});
+        auto v_stub = make_gene_choice(V_gene, {{"V1", "A"}}, 1);
+        state.add_event(v_stub);
+        state.mark_chosen(v_stub);
+        state.preset_segment(V_gene_seq, 0, 6, kExhaustiveRead.substr(0, 7));
+        auto j_stub = make_gene_choice(J_gene, {{"J1", "A"}}, 2);
+        state.add_event(j_stub);
+        state.mark_chosen(j_stub);
+        state.preset_segment(J_gene_seq, 15, 19, kExhaustiveRead.substr(15, 5));
+        if (d5_max >= 0) {
+            state.add_downstream_event(make_deletion(D_gene_seq, Five_prime, 0, d5_max, 7));
+        }
+        if (d3_max >= 0) {
+            state.add_downstream_event(make_deletion(D_gene_seq, Three_prime, 0, d3_max, 8));
+        }
+        state.add_downstream_event(make_insertion(VD_ins_seq, 0, 10, 3));
+        state.add_downstream_event(make_dinucl_markov(VD_ins_seq, 4));
+        state.add_downstream_event(make_insertion(DJ_ins_seq, 0, 10, 5));
+        state.add_downstream_event(make_dinucl_markov(DJ_ins_seq, 6));
+        for (std::size_t i = 0; i != 64; ++i) {
+            state.set_marginal(i, 0.5L);
+        }
+    }
+};
+
+/// The 5' offsets a recorder saw, in the order they were handed off.
+std::vector<Seq_Offset> five_prime_order(const std::shared_ptr<RecordingEvent> &rec,
+                                         Seq_type seq_type)
+{
+    std::vector<Seq_Offset> offsets;
+    offsets.reserve(rec->calls.size());
+    for (const ScenarioSnapshot &snapshot : rec->calls) {
+        offsets.push_back(snapshot.five_prime(seq_type));
+    }
+    return offsets;
+}
+
+} // namespace
+
+TEST_CASE("Gene_choice::iterate position map: which placements the guards reject",
+          "[gene_choice][iterate][exhaustive]")
+{
+    // Each placement in the map is a (vd_len, dj_len) decomposition of the V->J gap. The two
+    // guards ask whether the D that decomposition implies is still inside the interval its
+    // neighbours' *pending* deletions leave it -- the same question the alignment path asks,
+    // with the placement standing in for the alignment.
+
+    SECTION("With no D deletions every decomposition of the gap survives")
+    {
+        // The baseline the two sections below are read against: V 3' at 6, J 5' at 15, so the
+        // gap is 8 and the 4-nucleotide template leaves 4 to split between the two junctions.
+        // VD length 0 puts D immediately after V at 7, VD length 4 immediately before J at 11.
+        // Until R5b they ran 6..10, the first overlapping V's last nucleotide (§7.8).
+        PositionMapFixture fixture;
+        const auto rec = call_iterate_recording(fixture.d_event, fixture.state);
+
+        CHECK(five_prime_order(rec, D_gene_seq) == std::vector<Seq_Offset>{7, 8, 9, 10, 11});
+    }
+
+    SECTION("A placement at or past J's furthest reach is rejected")
+    {
+        // A D 3' deletion lets the DJ junction take a *negative* length in the fold, which is
+        // what pushes placements rightward past J. The guard stops them at J's 5' offset: 14
+        // is the last one emitted, and nothing at 15 or beyond appears. VD lengths 0..9 place
+        // D at 7..16 and the guard drops the two at 15 and 16. (Nine survived before R5b, when
+        // §7.8 placed them at 6..15 and only 15 was dropped.)
+        PositionMapFixture fixture(/*d5_max=*/-1, /*d3_max=*/5);
+        const auto rec = call_iterate_recording(fixture.d_event, fixture.state);
+
+        const std::vector<Seq_Offset> offsets = five_prime_order(rec, D_gene_seq);
+        REQUIRE(offsets.size() == 8);
+        CHECK(*std::max_element(offsets.begin(), offsets.end()) == 14); // J's 5' offset is 15
+    }
+
+    SECTION("A placement whose 3' end is at or before V's furthest reach is rejected")
+    {
+        // The mirror: a D 5' deletion pushes placements leftward, and the guard stops them
+        // where the D's 3' end would no longer clear V. VD lengths -5..4 place D at 2..11 and
+        // the guard drops the two whose 3' end is at 5 or 6, leaving eight from 4.
+        //
+        // The floor is geometry, so it did not move with R5b -- but the count did, from seven.
+        // §7.8 put VD length -3 at 3, whose 3' end at 6 the guard rejected, when that length
+        // means three D nucleotides deleted and D resuming immediately after V: feasible.
+        PositionMapFixture fixture(/*d5_max=*/5, /*d3_max=*/-1);
+        const auto rec = call_iterate_recording(fixture.d_event, fixture.state);
+
+        const std::vector<Seq_Offset> offsets = five_prime_order(rec, D_gene_seq);
+        REQUIRE(offsets.size() == 8);
+        CHECK(*std::min_element(offsets.begin(), offsets.end()) == 4); // V's 3' offset is 6
+    }
+
+    SECTION("The enumeration is ordered by decreasing probability, not by position")
+    {
+        // This is what licenses the `break` in the prune below: the map is sorted when it is
+        // built, so the first placement that falls under the threshold is the last one worth
+        // trying. Positions 6, 5 and 4 come *after* 11 here, which a position-ordered walk
+        // could not produce.
+        PositionMapFixture fixture(/*d5_max=*/5, /*d3_max=*/-1);
+        const auto rec = call_iterate_recording(fixture.d_event, fixture.state);
+
+        CHECK(five_prime_order(rec, D_gene_seq)
+              == std::vector<Seq_Offset>{7, 8, 9, 10, 11, 6, 5, 4});
+    }
+}
+
+TEST_CASE("Gene_choice::iterate position map: the endogenous-mismatch count",
+          "[gene_choice][iterate][exhaustive][endogenous]")
+{
+    // The alignment path counts mismatches the aligner found; this path has no alignment, so
+    // it recomputes them against the read at every placement and then charges only those that
+    // survive the maximum deletion on both sides.
+
+    SECTION("With no deletions pending, every mismatch under the template is endogenous")
+    {
+        PositionMapFixture fixture;
+        fixture.state.set_error_rate(0.1);
+        const auto rec = call_iterate_recording(fixture.d_event, fixture.state);
+        REQUIRE(rec->call_count() == 5);
+
+        // "TTTT" against an ACGT-periodic read: three mismatches wherever it lands, and the one
+        // matching position is credited error-free. Until R5a this path had the alignment
+        // path's off-by-one too, crediting (d_3 - d_5) - 3 == 0 of the four positions.
+        const double expected = std::pow(0.1 / 3.0, 3) * 0.9;
+        for (const ScenarioSnapshot &snapshot : rec->calls) {
+            CHECK_THAT(snapshot.downstream_bounds.at(D_gene_seq),
+                       Catch::Matchers::WithinRel(expected, 1e-9));
+        }
+    }
+
+    SECTION("Deletions that can consume the whole template lift the penalty entirely")
+    {
+        // The `else` arm: when the 5' end can travel past the 3' end, no mismatch is
+        // unavoidable and the segment is not charged at all.
+        PositionMapFixture fixture(/*d5_max=*/5, /*d3_max=*/5);
+        fixture.state.set_error_rate(0.1);
+        const auto rec = call_iterate_recording(fixture.d_event, fixture.state);
+        REQUIRE(rec->call_count() == 11);
+
+        for (const ScenarioSnapshot &snapshot : rec->calls) {
+            CHECK(snapshot.downstream_bounds.at(D_gene_seq) == 1.0);
+        }
+    }
+}
+
+TEST_CASE("Gene_choice::iterate position map: the scan respects the read's edges",
+          "[gene_choice][iterate][exhaustive]")
+{
+    // The placements a wide deletion budget produces are not all inside the read: the map is
+    // built from junction lengths, and a long enough template with enough deletion to give back
+    // can start before position 0 or end past the read's last position. The mismatch scan tests
+    // every template position against the read before reading it, so such a placement is scored
+    // over the part that overlaps.
+    //
+    // Both halves of that test are exercised, one placement each, and only their *effect* is
+    // observable. Removing either does not change any assertion here, because what it prevents
+    // is an out-of-bounds read whose value happens to compare equal -- undefined behaviour, not
+    // a branch a test can pin.
+    //
+    // Until R5b this case exercised the lower half only, and recorded the upper as unreachable
+    // on the grounds that the guard rejecting a placement at or past J's furthest reach bounds
+    // every placement by a read position. It bounds the 5' end only: a D 3' deletion budget can
+    // carry the 3' end past a J that ends the read, which is what the second placement below is.
+    // The old fixture missed it because §7.8 held every 3' end one short.
+    //
+    // V's 3' end at 3 and J's 5' end at 17 leave a 13-nucleotide span for an 8-nucleotide
+    // template, so L + R == 5 with both in [-5, 10]: L runs over all sixteen values, from -5
+    // (5' end at -1) to 10 (5' end at 14, 3' end at 21).
+
+    IterateTestState state = create_iterate_state(kExhaustiveRead);
+    auto d_event = make_gene_choice(D_gene, {{"D1", "ACGTACGT"}}, 0, /*fixed=*/false);
+    state.set_alignments(D_gene, {});
+    auto v_stub = make_gene_choice(V_gene, {{"V1", "A"}}, 1);
+    state.add_event(v_stub);
+    state.mark_chosen(v_stub);
+    state.preset_segment(V_gene_seq, 0, 3, kExhaustiveRead.substr(0, 4));
+    auto j_stub = make_gene_choice(J_gene, {{"J1", "A"}}, 2);
+    state.add_event(j_stub);
+    state.mark_chosen(j_stub);
+    state.preset_segment(J_gene_seq, 17, 19, kExhaustiveRead.substr(17, 3));
+    state.add_downstream_event(make_deletion(D_gene_seq, Five_prime, 0, 5, 7));
+    state.add_downstream_event(make_deletion(D_gene_seq, Three_prime, 0, 5, 8));
+    state.add_downstream_event(make_insertion(VD_ins_seq, 0, 10, 3));
+    state.add_downstream_event(make_dinucl_markov(VD_ins_seq, 4));
+    state.add_downstream_event(make_insertion(DJ_ins_seq, 0, 10, 5));
+    state.add_downstream_event(make_dinucl_markov(DJ_ins_seq, 6));
+    for (std::size_t i = 0; i != 64; ++i) {
+        state.set_marginal(i, 0.5L);
+    }
+
+    const auto rec = call_iterate_recording(d_event, state);
+    dump(rec, "read edges");
+    const std::vector<Seq_Offset> offsets = five_prime_order(rec, D_gene_seq);
+    REQUIRE(offsets.size() == 16);
+    CHECK(*std::min_element(offsets.begin(), offsets.end()) == -1);
+    CHECK(*std::max_element(offsets.begin(), offsets.end()) == 14);
+
+    // One placement starts one nucleotide before the read. The *offsets* record it as such --
+    // nothing clips them -- but the mismatch list holds only read positions.
+    const auto before_read = std::find(offsets.begin(), offsets.end(), -1);
+    REQUIRE(before_read != offsets.end());
+    const ScenarioSnapshot &first =
+            rec->calls.at(static_cast<std::size_t>(before_read - offsets.begin()));
+    CHECK(first.three_prime(D_gene_seq) == 6);
+    // The template is the read's own alphabet shifted by one, so every position it *does*
+    // cover disagrees: seven entries for the seven read positions 0..6, and no entry -- and no
+    // read -- for the eighth, which sits at -1.
+    CHECK(first.mismatches.at(D_gene_seq) == std::vector<std::size_t>{0, 1, 2, 3, 4, 5, 6});
+
+    // And one ends two past the read's last position, 19. Shifted by two against the read this
+    // time, so again every covered position disagrees: six entries for 14..19, none for 20, 21.
+    const auto past_read = std::find(offsets.begin(), offsets.end(), 14);
+    REQUIRE(past_read != offsets.end());
+    const ScenarioSnapshot &last = rec->calls.at(static_cast<std::size_t>(past_read - offsets.begin()));
+    CHECK(last.three_prime(D_gene_seq) == 21);
+    CHECK(last.mismatches.at(D_gene_seq) == std::vector<std::size_t>{14, 15, 16, 17, 18, 19});
+}
+
+TEST_CASE("Gene_choice::iterate position map: the endogenous window is the maximally deleted span",
+          "[gene_choice][iterate][exhaustive][endogenous]")
+{
+    // Which positions count as unavoidable depends on how far the two deletions can eat in, and
+    // the code uses the *maximum* budget on each side -- the narrowest the segment can become.
+    // Reading the minimum instead would widen the window and change the count, which is what
+    // this section separates. The deletion budgets are asymmetric (0..1, so min and max differ)
+    // and the template is long enough that the window is a strict subset of it.
+    IterateTestState state = create_iterate_state(kExhaustiveRead);
+    auto d_event = make_gene_choice(D_gene, {{"D1", "TTTTTTTT"}}, 0, /*fixed=*/false);
+    state.set_alignments(D_gene, {});
+    auto v_stub = make_gene_choice(V_gene, {{"V1", "A"}}, 1);
+    state.add_event(v_stub);
+    state.mark_chosen(v_stub);
+    state.preset_segment(V_gene_seq, 0, 2, kExhaustiveRead.substr(0, 3));
+    auto j_stub = make_gene_choice(J_gene, {{"J1", "A"}}, 2);
+    state.add_event(j_stub);
+    state.mark_chosen(j_stub);
+    state.preset_segment(J_gene_seq, 19, 19, kExhaustiveRead.substr(19, 1));
+    state.add_downstream_event(make_deletion(D_gene_seq, Five_prime, 0, 1, 7));
+    state.add_downstream_event(make_deletion(D_gene_seq, Three_prime, 0, 1, 8));
+    state.add_downstream_event(make_insertion(VD_ins_seq, 0, 10, 3));
+    state.add_downstream_event(make_dinucl_markov(VD_ins_seq, 4));
+    state.add_downstream_event(make_insertion(DJ_ins_seq, 0, 10, 5));
+    state.add_downstream_event(make_dinucl_markov(DJ_ins_seq, 6));
+    state.set_error_rate(0.1);
+    for (std::size_t i = 0; i != 64; ++i) {
+        state.set_marginal(i, 0.5L);
+    }
+
+    const auto rec = call_iterate_recording(d_event, state);
+    dump(rec, "endogenous window");
+    REQUIRE(rec->call_count() == 11);
+
+    // The first four placements are VD lengths 0..3, so 5' offsets 3..6: one past V's 3' end
+    // plus the junction (§7.8, R5b -- 2..5 before it).
+    const std::vector<Seq_Offset> offsets = five_prime_order(rec, D_gene_seq);
+    CHECK(std::vector<Seq_Offset>(offsets.begin(), offsets.begin() + 4) == std::vector<Seq_Offset>{3, 4, 5, 6});
+
+    // The window spans six of the template's eight positions, [5' + 1, 3' - 1]. "TTTTTTTT"
+    // against an ACGT-periodic read leaves one or two matches inside it depending on the phase,
+    // so the credited error-free length runs 1, 1, 2, 2 over those four placements.
+    const double five_errors_one_free = std::pow(0.1 / 3.0, 5) * 0.9;
+    const double four_errors_two_free = std::pow(0.1 / 3.0, 4) * 0.81;
+    CHECK_THAT(rec->calls.at(0).downstream_bounds.at(D_gene_seq),
+               Catch::Matchers::WithinRel(five_errors_one_free, 1e-9));
+    CHECK_THAT(rec->calls.at(1).downstream_bounds.at(D_gene_seq),
+               Catch::Matchers::WithinRel(five_errors_one_free, 1e-9));
+    CHECK_THAT(rec->calls.at(2).downstream_bounds.at(D_gene_seq),
+               Catch::Matchers::WithinRel(four_errors_two_free, 1e-9));
+    CHECK_THAT(rec->calls.at(3).downstream_bounds.at(D_gene_seq),
+               Catch::Matchers::WithinRel(four_errors_two_free, 1e-9));
+}
+
+TEST_CASE("Gene_choice::iterate position map: two prune stages",
+          "[gene_choice][iterate][exhaustive][pruning]")
+{
+    // The first stage runs before the segment's error bound is known; the second runs after it.
+    // The two measure different things -- disabling the second changes what is handed off --
+    // but the *first* is not separately observable, exactly as in Deletion (plan 6.14): its
+    // bound is the second's with the segment's layer still holding 1.0, so it can only fire
+    // where the second fires too. Disabling it changes no assertion below. It is an
+    // optimisation -- it skips building the mismatch list -- and 5b treated it as one.
+    //
+    // 5a wrote that it was also indifferent to whether the first stage `break`s or `continue`s.
+    // That held only while §7.16's compounding damped every successive placement, and R7
+    // removed it; the first stage is a `continue` since, because the decomposition is sorted by
+    // a max over the conditioning parent while the bound tested here carries the parent the
+    // scenario actually holds. No case here pins that, and none can: it needs a Gene_choice
+    // with a conditioning edge, which this file's harness does not build. The evidence is a
+    // corpus measurement, recorded under R7 in the plan.
+
+    SECTION("No threshold: every placement is handed off")
+    {
+        PositionMapFixture fixture;
+        fixture.state.set_error_rate(0.1);
+        CHECK(call_iterate_recording(fixture.d_event, fixture.state)->call_count() == 5);
+    }
+
+    SECTION("A threshold above the junction bound stops the enumeration at the first placement")
+    {
+        PositionMapFixture fixture;
+        fixture.state.set_error_rate(0.1);
+        fixture.state.set_pruning_threshold(0.008);
+        CHECK(call_iterate_recording(fixture.d_event, fixture.state)->call_count() == 0);
+    }
+
+    SECTION("A threshold only the error bound crosses drops the placements that score worst")
+    {
+        // Between the two stages: every placement passes the first check and reaches the
+        // mismatch count, and the ones whose surviving core scores worst are dropped by the
+        // second -- which a `break` could not do, since the survivor is not the first.
+        //
+        // It takes a five-nucleotide template to show this at all. The default fixture's
+        // "TTTT" is a whole period of the ACGT-periodic read, so all five of its placements
+        // carry the same core score and no threshold separates them; before R7 they were
+        // separated only by the probability compounding across placements (§7.16), which is
+        // what this section used to be reading. Five nucleotides make the score depend on
+        // phase: over the 5' offsets 7..10 the gap leaves, "ATTTT" matches the read twice at 8
+        // (its A, and a T at 11) and once everywhere else, so that placement is worth
+        // 0.9^2 * (0.1/3)^3 and the other three 0.9 * (0.1/3)^4, twenty-seven times less.
+        //
+        // The template was "TTTTT" until R5b, whose two-T phase fell at 7 while §7.8 placed the
+        // four at 6..9. Placed correctly that phase is the first one enumerated, and a
+        // second-stage `break` would then have kept the same survivor -- so the template moved
+        // with the placements to keep the survivor second.
+        const double four_errors_one_free = std::pow(0.1 / 3.0, 4) * 0.9;
+        const double three_errors_two_free = std::pow(0.1 / 3.0, 3) * 0.81;
+
+        PositionMapFixture unpruned(/*d5_max=*/-1, /*d3_max=*/-1, "ATTTT");
+        unpruned.state.set_error_rate(0.1);
+        const auto all = call_iterate_recording(unpruned.d_event, unpruned.state);
+        REQUIRE(five_prime_order(all, D_gene_seq) == std::vector<Seq_Offset>{7, 8, 9, 10});
+        CHECK_THAT(all->calls.at(0).downstream_bounds.at(D_gene_seq),
+                   Catch::Matchers::WithinRel(four_errors_one_free, 1e-9));
+        CHECK_THAT(all->calls.at(1).downstream_bounds.at(D_gene_seq),
+                   Catch::Matchers::WithinRel(three_errors_two_free, 1e-9));
+
+        PositionMapFixture fixture(/*d5_max=*/-1, /*d3_max=*/-1, "ATTTT");
+        fixture.state.set_error_rate(0.1);
+        fixture.state.set_pruning_threshold(1e-7);
+        const auto rec = call_iterate_recording(fixture.d_event, fixture.state);
+        // Only the placement the second stage keeps, and it is the *second* one enumerated:
+        // the first was dropped and the scan carried on to it, so the first stage's `break`
+        // demonstrably did not fire here.
+        CHECK(five_prime_order(rec, D_gene_seq) == std::vector<Seq_Offset>{8});
+    }
+}
+
+TEST_CASE("Gene_choice::iterate the sliding window anchors on a chosen neighbour",
+          "[gene_choice][iterate][exhaustive]")
+{
+    // The sliding branch runs whenever *either* neighbour is unchosen, not only when both
+    // are. With V chosen the window starts from V's furthest 3' reach rather than from the
+    // start of the read -- a branch T0's sections, which chose neither neighbour, never took.
+
+    SECTION("V chosen, J not: the window starts where V can no longer reach")
+    {
+        IterateTestState state = create_iterate_state(kExhaustiveRead);
+        auto d_event = make_gene_choice(D_gene, {{"D1", "TTTT"}}, 0, /*fixed=*/false);
+        state.set_alignments(D_gene, {});
+        auto v_stub = make_gene_choice(V_gene, {{"V1", "A"}}, 1);
+        state.add_event(v_stub);
+        state.mark_chosen(v_stub);
+        state.preset_segment(V_gene_seq, 0, 6, kExhaustiveRead.substr(0, 7));
+        state.add_downstream_event(make_deletion(D_gene_seq, Five_prime, 0, 2, 7));
+        state.add_downstream_event(make_insertion(VD_ins_seq, 0, 10, 3));
+        state.add_downstream_event(make_dinucl_markov(VD_ins_seq, 4));
+        for (std::size_t i = 0; i != 64; ++i) {
+            state.set_marginal(i, 0.5L);
+        }
+
+        const auto rec = call_iterate_recording(d_event, state);
+
+        // V's 3' end is at 6 and nothing pending moves it, so the window opens at
+        // 6 - 2 + 1 == 5: two nucleotides of overlap are allowed because the D's own 5'
+        // deletion can give them back.
+        REQUIRE(rec->call_count() == 11);
+        CHECK(rec->calls.front().five_prime(D_gene_seq) == 5);
+        CHECK(rec->calls.back().five_prime(D_gene_seq) == 15);
+    }
+}
+
+TEST_CASE("Gene_choice::iterate a D whose surviving core is empty is not charged",
+          "[gene_choice][iterate][endogenous]")
+{
+    // The alignment path, not the exhaustive one, but it is the last uncovered branch of the
+    // body and it is the same question the position map's `else` arm asks: when the two
+    // deletion budgets overlap, no position of the template is unavoidable.
+    //
+    // One knob across the cases: the budget on each side.
+    // The template is five nucleotides, not four, so that a budget of two makes the two ends
+    // land on the *same* position rather than crossing it -- which is the boundary between
+    // `core_5 >= core_3` and `core_5 > core_3`, and the only value that separates them.
+    const auto bound_with_budget = [](int budget, const std::vector<std::size_t> &mismatches = {}) {
+        IterateTestState state = create_iterate_state(kExhaustiveRead);
+        auto d_event = make_gene_choice(D_gene, {{"D1", "TTTTT"}}, 0, /*fixed=*/false);
+        state.set_alignments(D_gene,
+                             {create_alignment_with_mismatches("D1", 8, 5, mismatches)});
+        state.add_downstream_event(make_deletion(D_gene_seq, Five_prime, 0, budget, 7));
+        state.add_downstream_event(make_deletion(D_gene_seq, Three_prime, 0, budget, 8));
+        state.set_error_rate(0.1);
+        for (std::size_t i = 0; i != 64; ++i) {
+            state.set_marginal(i, 0.5L);
+        }
+        const auto rec = call_iterate_recording(d_event, state);
+        REQUIRE(rec->call_count() == 1);
+        return rec->calls.front().downstream_bounds.at(D_gene_seq);
+    };
+
+    // Budget 0: the core is [8, 12], five error-free positions.
+    CHECK_THAT(bound_with_budget(0), Catch::Matchers::WithinRel(std::pow(0.9, 5), 1e-9));
+    // Budget 1: the core shrinks to [9, 11], three.
+    CHECK_THAT(bound_with_budget(1), Catch::Matchers::WithinRel(std::pow(0.9, 3), 1e-9));
+    // Budget 2: the two ends meet on position 10, and that one position survives every
+    // deletion, so it is charged -- error-free, or an error when it carries a mismatch. The
+    // test is `>`, not `>=`. Until R5a it was `>=`, the off-by-one of plan 7.1 in its other
+    // guise: a single surviving position counted as no core at all.
+    CHECK_THAT(bound_with_budget(2), Catch::Matchers::WithinRel(0.9, 1e-9));
+    CHECK_THAT(bound_with_budget(2, {10}), Catch::Matchers::WithinRel(0.1 / 3.0, 1e-9));
+    // Budget 3: the ends can cross, nothing is unavoidable, and even a mismatch on the middle
+    // position is not charged.
+    CHECK(bound_with_budget(3) == 1.0);
+    CHECK(bound_with_budget(3, {10}) == 1.0);
+}
+
+TEST_CASE("The position map hands every placement the probability this event inherited",
+          "[gene_choice][iterate][exhaustive]")
+{
+    // Every placement is the *same* realization of the same event, so every hand-off carries
+    // the same probability: the incoming one times that realization's marginal. The alignment
+    // loop restarts from `base_scenario_proba` at each realization, and since R7 this path
+    // does too. It used to read the live `scenario.scenario_proba`, which the previous
+    // placement had already overwritten, so placement k came out at `incoming * p^k`
+    // (§7.16, written as `[!shouldfail]` by 5a and un-tagged by R7).
+    //
+    // Nothing else in the file catches it: T0's sections on this path assert offsets and
+    // sequences, never probabilities.
+    PositionMapFixture fixture;
+    const auto rec = call_iterate_recording(fixture.d_event, fixture.state);
+    REQUIRE(rec->call_count() == 5);
+
+    for (const ScenarioSnapshot &snapshot : rec->calls) {
+        CHECK_THAT(snapshot.scenario_proba, Catch::Matchers::WithinRel(0.5, 1e-9));
+    }
+}
+
+TEST_CASE("The sliding window hands every position the same inherited probability",
+          "[gene_choice][iterate][exhaustive]")
+{
+    // The other half of §7.16, and the same claim: eleven positions of one template, all
+    // eleven at 0.5.
+    IterateTestState state = create_iterate_state(kExhaustiveRead);
+    auto d_event = make_gene_choice(D_gene, {{"D1", "TTTT"}}, 0, /*fixed=*/false);
+    state.set_alignments(D_gene, {});
+    auto v_stub = make_gene_choice(V_gene, {{"V1", "A"}}, 1);
+    state.add_event(v_stub);
+    state.mark_chosen(v_stub);
+    state.preset_segment(V_gene_seq, 0, 6, kExhaustiveRead.substr(0, 7));
+    state.add_downstream_event(make_deletion(D_gene_seq, Five_prime, 0, 2, 7));
+    state.add_downstream_event(make_insertion(VD_ins_seq, 0, 10, 3));
+    state.add_downstream_event(make_dinucl_markov(VD_ins_seq, 4));
+    for (std::size_t i = 0; i != 64; ++i) {
+        state.set_marginal(i, 0.5L);
+    }
+
+    const auto rec = call_iterate_recording(d_event, state);
+    REQUIRE(rec->call_count() == 11);
+
+    for (const ScenarioSnapshot &snapshot : rec->calls) {
+        CHECK_THAT(snapshot.scenario_proba, Catch::Matchers::WithinRel(0.5, 1e-9));
+    }
+}
+
+// ===========================================================================================
+// The slide advances past a placement it cannot score (plan 7.17).
+//
+// Written by 5a as a hidden `[.]` case, because under the body it was written against both
+// `continue`s inside the slide's `while` skipped the four increments at the bottom of the loop
+// and the next pass recomputed the same placement from the same state: it did not fail, it
+// hung, which no `[!shouldfail]` expresses and CI cannot survive.
+//
+// 5b put the advance in the loop header, so the shape is no longer expressible, and the case
+// runs with the rest.
+// ===========================================================================================
+TEST_CASE("Gene_choice: a placement with no junction bound does not stop the slide advancing",
+          "[gene_choice][iterate][exhaustive][sliding_hang]")
+{
+    // J chosen, V not: the DJ junction is resolved, so `write_junction_bounds` has something
+    // to look up -- and the first placement it tries leaves a gap wider than any completion
+    // can fill, which returns false.
+    IterateTestState state = create_iterate_state(kExhaustiveRead);
+    auto d_event = make_gene_choice(D_gene, {{"D1", "TTTT"}}, 0, /*fixed=*/false);
+    state.set_alignments(D_gene, {});
+    auto j_stub = make_gene_choice(J_gene, {{"J1", "A"}}, 2);
+    state.add_event(j_stub);
+    state.mark_chosen(j_stub);
+    state.preset_segment(J_gene_seq, 15, 19, kExhaustiveRead.substr(15, 5));
+    state.add_downstream_event(make_deletion(D_gene_seq, Five_prime, 0, 2, 7));
+    state.add_downstream_event(make_insertion(DJ_ins_seq, 0, 10, 5));
+    state.add_downstream_event(make_dinucl_markov(DJ_ins_seq, 6));
+    for (std::size_t i = 0; i != 64; ++i) {
+        state.set_marginal(i, 0.5L);
+    }
+
+    const auto rec = call_iterate_recording(d_event, state);
+    CHECK(rec->call_count() > 0);
+}

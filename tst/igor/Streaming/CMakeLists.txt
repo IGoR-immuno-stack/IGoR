@@ -25,7 +25,14 @@ target_compile_definitions(streaming_tests PRIVATE
     IGOR_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test_data")
 
 include(Catch)
-catch_discover_tests(streaming_tests)
+# Labelled like tst/igor/Core so that CI's `ctest -L unit` runs this suite. Self-contained:
+# temporary files written by the tests, plus the fixtures under IGOR_TEST_DATA_DIR.
+catch_discover_tests(streaming_tests
+    TEST_PREFIX "unit::"
+    PROPERTIES
+        TIMEOUT 3600
+        LABELS "unit"
+)
 
 ######################################################################
 ### CMakeLists.txt ends here

@@ -75,7 +75,7 @@ Full support for the AIRR Community standards for data sharing.
 
 #### AIRR Rearrangement Schema
 
-**AIRRRearrangementReader** and **AIRRRearrangementWriter** (`namespace igor::airr::rearrangement`)
+**AIRRRearrangementReader** and **AIRRRearrangementWriter** (`namespace igor::streaming::airr::rearrangement`)
 
 - One row per sequence
 - V/D/J calls inlined as columns
@@ -87,7 +87,7 @@ Full support for the AIRR Community standards for data sharing.
 #include <igor/Streaming/AIRRRearrangementReader.h>
 #include <igor/Streaming/AIRRRearrangementWriter.h>
 
-using namespace igor::airr::rearrangement;
+using namespace igor::streaming::airr::rearrangement;
 
 // Read AIRR Rearrangement file
 auto sequences = read_sequences("input.tsv");
@@ -98,7 +98,7 @@ write_sequences("output.tsv", sequences, Delimiter::TAB);
 
 #### AIRR Alignment Schema
 
-**AIRRAlignmentReader** and **AIRRAlignmentWriter** (`namespace igor::airr::alignment`)
+**AIRRAlignmentReader** and **AIRRAlignmentWriter** (`namespace igor::streaming::airr::alignment`)
 
 - One row per alignment (multiple rows per sequence)
 - Supports ranked alignments (primary, secondary, etc.)
@@ -110,7 +110,7 @@ write_sequences("output.tsv", sequences, Delimiter::TAB);
 #include <igor/Streaming/AIRRAlignmentReader.h>
 #include <igor/Streaming/AIRRAlignmentWriter.h>
 
-using namespace igor::airr::alignment;
+using namespace igor::streaming::airr::alignment;
 
 // Read AIRR Alignment file
 auto sequences = read_sequences("alignments.tsv");
