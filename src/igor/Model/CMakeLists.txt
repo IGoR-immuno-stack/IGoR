@@ -32,6 +32,7 @@ set(LAYER_DIR ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME})
 target_sources(${PROJECT_NAME}
   PRIVATE
     EventFactory.cpp
+    FlankCheck.cpp
     Topology.cpp
     TraversalPlan.cpp
   PUBLIC FILE_SET HEADERS
@@ -42,6 +43,7 @@ target_sources(${PROJECT_NAME}
       ${CMAKE_BINARY_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}/Export.h
       ${CMAKE_SOURCE_DIR}/src/${CMAKE_PROJECT_NAME}/${PROJECT_NAME}.h
       ${LAYER_DIR}/EventFactory.h
+      ${LAYER_DIR}/FlankCheck.h
       ${LAYER_DIR}/Forward.h
       ${LAYER_DIR}/LegacyBridge.h
       ${LAYER_DIR}/LegacyBridge.tpp

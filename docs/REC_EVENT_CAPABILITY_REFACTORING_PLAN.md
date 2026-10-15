@@ -246,6 +246,10 @@ Nothing names a gene or a junction.
   - VJ keeps V→J at `VJ_ins_seq`.
 - **The events.**
   - `Gene_choice` and `Deletion` take their partners from the placement.
+  - Both build their overlap checks with one function, `resolve_flank_checks()`
+    (`Model/FlankCheck.h`). It takes the partners on one side or both, claims one safety layer per
+    row, and records each partner's offset layer. Only what `Deletion` reads per scenario stays its
+    own.
   - All four events take their gap and its key from the plan.
   - The unplaced-partner paths (`partner_exists`, `partner_chosen`), `check_gene_choice()` and the
     two legacy span helpers are gone.
@@ -285,14 +289,17 @@ outside the corpus:
   - placements in a VDJ order, including a slot placed but not yet built;
   - the keys for VDJ, VJ and both tandem-D orders;
   - each refusal;
-  - a deletion on a junction after its chain, which no model has yet.
+  - a deletion on a junction after its chain, which no model has yet;
+  - `resolve_flank_checks()` on a tandem order: the sides, the 5' to 3' order, the shared safety
+    layer of one row, and the orientation of the overlap verdict.
 - `test_tandem_junctions.cpp`: on V-D1-D2-J, D2's gene choice is checked against D1 and bounds
   D1→D2, D2→J and D1→J; D1's 3′ deletion refuses the palindrome that reaches D2.
 - Existing cases that pinned the removed behaviour now pin the new one: the unplaced-partner
   verdicts, the deletion's own ordering check, and the Insertion's unplaced neighbour.
 
-Seven mutations of the plan were all caught. Gate:
-- unit 486/486 and integration 10/10;
+Seven mutations of the plan were all caught. So were seven of the shared flank checks; the one
+that first survived (the 5' side not walked 5' to 3') is caught by the direct case above. Gate:
+- unit 488/488 and integration 10/10;
 - regression bitwise on all five tracks;
 - convergence 2/2.
 

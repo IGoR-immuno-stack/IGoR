@@ -224,17 +224,14 @@ void Gene_choice::iterate(
 
         //Can this placement still avoid colliding with each placed neighbour? One predicate
         //(section 2.2) for what was twelve hand-written comparisons, differing only in which
-        //side of the pair this event sits on. The gap is 0 at every site today: every segment
-        //that can sit between two checked ends can also be empty (section 7.2).
+        //side of the pair this event sits on. The gap FlankCheck::overlap() passes is 0: every
+        //segment that can sit between two checked ends can also be empty (section 7.2).
         bool infeasible = false;
         for (const FlankCheck &check : flank_checks_) {
             const JunctionGeometry::OffsetInterval mine =
                     pending_.reachable(this->seq_type_id, check.this_is_left ? Three_prime : Five_prime,
                                        check.this_is_left ? my_3_off : my_5_off);
-            const JunctionGeometry::OffsetInterval &theirs = neighbour_reach_[check.partner_id];
-            const JunctionGeometry::Overlap verdict =
-                    check.this_is_left ? JunctionGeometry::check_overlap(mine, theirs, 0)
-                                       : JunctionGeometry::check_overlap(theirs, mine, 0);
+            const JunctionGeometry::Overlap verdict = check.overlap(mine, neighbour_reach_[check.partner_id]);
             if (verdict == JunctionGeometry::Overlap::Infeasible) {
                 //No combination of the pending deletions separates them: a bad alignment.
                 infeasible = true;
@@ -759,21 +756,7 @@ void Gene_choice::initialize_event(
     //be the legacy V, D and J by name, placed or not, which left a tandem model's D1 and D2 out;
     //a neighbour placed later checks against this one itself.
     const EventPlacement &placed = this->placement();
-    flank_checks_.clear();
-    const auto check_against = [&](SeqTypeId partner, bool this_is_left) {
-        FlankCheck check;
-        check.partner_id = partner;
-        check.this_is_left = this_is_left;
-        check.partner_side = this_is_left ? Five_prime : Three_prime;
-        check.safety_cell = safety_set.cell(this->seq_type_id, partner);
-        flank_checks_.push_back(check);
-    };
-    for (auto partner = placed.placed_left.rbegin(); partner != placed.placed_left.rend(); ++partner) {
-        check_against(*partner, /*this_is_left=*/false);
-    }
-    for (const SeqTypeId partner : placed.placed_right) {
-        check_against(partner, /*this_is_left=*/true);
-    }
+    flank_checks_ = resolve_flank_checks(placed, /*both sides*/ Undefined_side, safety_set, seq_offsets);
 
     seq_offsets.request_layer(this->seq_type_id, Three_prime);
     this->memory_layer_off_threep = seq_offsets.claimed_layer(this->seq_type_id, Three_prime);
@@ -805,24 +788,6 @@ void Gene_choice::initialize_event(
     for (const auto &[realization_name, realization] : this->event_realizations) {
         (void)realization_name;
         realizations_by_index_[realization.index] = &realization;
-    }
-
-    //A downstream Deletion checking the same pair reads this layer, as the one before its own.
-    //One claim per *row*, not per check: two neighbours on the same side of this gene name two
-    //cells of one row, which share a word and therefore a layer. Claiming twice would leave the
-    //second layer unwritten, and an unwritten layer is unreadable by design (section 7.9).
-    for (std::size_t i = 0; i != flank_checks_.size(); ++i) {
-        FlankCheck &check = flank_checks_[i];
-        std::size_t earlier = 0;
-        while (earlier != i and flank_checks_[earlier].safety_cell.row != check.safety_cell.row) {
-            ++earlier;
-        }
-        if (earlier != i) {
-            check.safety_layer = flank_checks_[earlier].safety_layer;
-            continue;
-        }
-        safety_set.request_layer(check.safety_cell);
-        check.safety_layer = safety_set.claimed_layer(check.safety_cell);
     }
 
     downstream_proba_map.request_layer(this->seq_type_id);
@@ -859,10 +824,6 @@ void Gene_choice::initialize_event(
         resolve_junction(kEnclosingJunction, *placed.enclosing_gap(),
                          exhaustive_position_fallback_ ? JunctionBound::Fold::Retain
                                                        : JunctionBound::Fold::No);
-    }
-
-    for (FlankCheck &check : flank_checks_) {
-        check.partner_offset_layer = seq_offsets.claimed_layer(check.partner_id, check.partner_side);
     }
 
     //downstream_proba_map.get_all_current_memory_layer(current_downstream_proba_memory_layers);

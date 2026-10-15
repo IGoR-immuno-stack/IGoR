@@ -26,6 +26,7 @@
 #pragma once
 
 #include <igor/Model/Legacy/JunctionGeometry.h>
+#include <igor/Model/FlankCheck.h>
 #include <igor/Model/Legacy/Rec_Event.h>
 #include <igor/Core/Legacy/Utils.h>
 #include <igor/Model/Legacy/Errorrate.h>
@@ -128,28 +129,20 @@ private:
 
     std::forward_list<Event_realization> int_value_and_index;
 
-    /**
-     * \brief One neighbouring gene segment this deletion's moving end is checked against.
-     *
-     * Resolved in initialize_event(), ordered 5'->3' by the partner's position -- the order the
-     * four arms this replaces performed their comparisons in. A deletion is checked only
-     * against the partners on the side it trims: the other side of its segment is not moving,
-     * so nothing there can newly collide.
-     */
-    struct FlankCheck {
-        SeqTypeId partner_id = kNoSeqType;
-        Seq_side partner_side = Five_prime;   ///< the partner end facing this deletion
-        SafetyCell safety_cell;               ///< the pair, by ordering position (S5)
-        int safety_layer = -1;                ///< one per *row*, so same-row checks share it
-        int partner_offset_layer = -1;
+    /// The neighbours this deletion's moving end is checked against, 5' to 3' -- the order the
+    /// four arms this replaces performed their comparisons in. Only those on the side it trims:
+    /// the other side of its segment is not moving, so nothing there can newly collide.
+    std::vector<FlankCheck> flank_checks_;
 
-        //Per scenario, filled by the preamble of iterate():
-        Seq_Offset offset = 0;                            ///< where the partner's facing end is
-        JunctionGeometry::OffsetInterval reach{};         ///< ...and where it can still go
-        bool active = false;                  ///< placed, and not already established safe
+    /// Where one checked neighbour stands in the current scenario. Filled by the preamble of
+    /// iterate(), one per entry of flank_checks_, at the same index.
+    struct FlankState {
+        Seq_Offset offset = 0;                     ///< where the partner's facing end is
+        JunctionGeometry::OffsetInterval reach{};  ///< ...and where it can still go
+        bool active = false;                       ///< not already established safe
     };
 
-    std::vector<FlankCheck> flank_checks_;
+    std::vector<FlankState> flank_states_;
 
     /// How far every end can still travel once the undecided events have played out. Read in
     /// the preamble of iterate() for each checked partner's facing end, and the same object

@@ -27,6 +27,7 @@
 
 #include <igor/Model/Legacy/Rec_Event.h>
 #include <igor/Model/Legacy/JunctionGeometry.h>
+#include <igor/Model/FlankCheck.h>
 #include <igor/Core/Legacy/Utils.h>
 #include <array>
 #include <forward_list>
@@ -134,22 +135,6 @@ private:
     static double surviving_core_bound(Error_rate &error_rate, const std::vector<std::size_t> &mismatches,
                                        Seq_Offset core_5, Seq_Offset core_3);
 
-    /**
-     * \brief One neighbouring segment end this gene's placement is checked against.
-     *
-     * Resolved in initialize_event(); iterate() reads it. The two entries a VDJ model produces
-     * are the former memory_layer_safety_1 / _2 pair, in the same order -- the neighbour that
-     * sits further 5' first -- which is what keeps the claimed layers where they were.
-     */
-    struct FlankCheck {
-        SeqTypeId partner_id = kNoSeqType;
-        Seq_side partner_side = Five_prime;   ///< the partner end facing this gene
-        bool this_is_left = true;             ///< the partner sits 3' of this gene
-        SafetyCell safety_cell;               ///< the pair, by ordering position (S5)
-        int safety_layer = -1;                ///< one per *row*, so same-row checks share it
-        int partner_offset_layer = -1;
-    };
-
     /// Score one exhaustive placement against the read and write its error bound. Shared by
     /// the two sub-branches of the position scan; see the definition.
     void score_placement_against_read(const QuerySequenceContext &query,
@@ -169,6 +154,7 @@ private:
         return pending_.reachable(this->seq_type_id, Three_prime, three_off);
     }
 
+    /// The neighbours on both sides this placement is checked against, 5' to 3'.
     std::vector<FlankCheck> flank_checks_;
 
     /// What each checked neighbour's facing end can still reach, and where it sits. Indexed by
