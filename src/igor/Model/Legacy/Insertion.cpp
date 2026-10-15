@@ -27,6 +27,7 @@
 #include <igor/Model/Legacy/Insertion.h>
 #include <igor/Model/Legacy/EventUtils.h>
 #include <igor/Model/Legacy/JsonDetail.h>
+#include <igor/Model/TraversalPlan.h>
 #include <igor/Model/Legacy/gene_to_seqtype_migr.h>
 
 #include <algorithm>
@@ -342,8 +343,6 @@ void Insertion::initialize_event(
                             + "\" does not match the registry entry for its id");
     }
 
-    downstream_proba_map.request_layer(this->seq_type_id);
-
     //Both ends of the junction, because this event places both (O12 (a'), R3). Nothing stands
     //beneath them today -- no other event writes an insertion's offsets -- so the claimed
     //layer is 0 and the write lands where a set_current() would have. Requesting it anyway is
@@ -362,12 +361,20 @@ void Insertion::initialize_event(
                             "Model_Parms::finalize() must have resolved them");
     }
 
-    //The junction this insertion fills -- the gap between the two segments it sits between, which
-    //is the same pair iterate() measures the observed distance across. Resolved here and never
-    //again: the profile is reached through the handle, not by asking which span this is.
+    //The junction this insertion fills: the gap it sits in, between the nearest built content on
+    //each side -- in every model today the two segments it sits between, the pair iterate()
+    //measures the observed distance across. Which gap, and the key it is held at, are the
+    //engine's plan's; the key is this slot's own id when nothing else factors on it. Resolved here
+    //and never again: the profile is reached through the handle, not by asking which span this is.
+    const std::optional<SegmentSpan> gap = this->placement().enclosing_gap();
+    if (not gap) {
+        throw runtime_error("Insertion " + this->name + " sits in no gap: nothing is built on one side "
+                            "of it when it runs");
+    }
+    const SeqTypeId junction_key = this->traversal_plan().gap_key(*gap);
+    downstream_proba_map.request_layer(junction_key);
     junction_bound(kEnclosingJunction)
-            .resolve(SegmentSpan::gap(get_left_adjacent_id(), get_right_adjacent_id()), this->seq_type_id,
-                     downstream_proba_map.claimed_layer(this->seq_type_id), JunctionBound::Fold::Yes);
+            .resolve(*gap, junction_key, downstream_proba_map.claimed_layer(junction_key), JunctionBound::Fold::Yes);
 
     require_dinucl_markov(events_map);
 

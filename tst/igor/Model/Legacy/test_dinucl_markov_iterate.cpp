@@ -267,11 +267,15 @@ TEST_CASE("Dinucl_markov: an empty junction is filled with nothing, not skipped"
 
 TEST_CASE("Dinucl_markov: downstream bound and memory layering", "[dinucl][iterate]")
 {
+    // The bound it settles is the gap's, between the content built on either side of the
+    // junction (TraversalPlan). VdFill writes only the anchor, so each section places D past the
+    // junction, as every model's order has it by then.
     SECTION("The junction's bound is reset to 1")
     {
         // Dinucl_markov is the last event on its junction, so it has nothing left to bound:
         // it writes the neutral value rather than leaving the Insertion's estimate in place.
         VdFill fixture;
+        fixture.state.preset_segment(D_gene_seq, 13, 17, segment_run(13, 17));
         const auto next = call_iterate_recording(fixture.dinucl, fixture.state);
         REQUIRE(next->call_count() == 1);
         CHECK(next->calls.front().downstream_bounds.at(VD_ins_seq) == Approx(1.0));
@@ -280,6 +284,7 @@ TEST_CASE("Dinucl_markov: downstream bound and memory layering", "[dinucl][itera
     SECTION("The write lands at the requested layer, leaving the layer below intact")
     {
         VdFill fixture;
+        fixture.state.preset_segment(D_gene_seq, 13, 17, segment_run(13, 17));
         fixture.state.exploration.downstream_proba_map.set(VD_ins_seq, 0.125, 0);
         const auto next = call_iterate_recording(fixture.dinucl, fixture.state);
         REQUIRE(next->call_count() == 1);

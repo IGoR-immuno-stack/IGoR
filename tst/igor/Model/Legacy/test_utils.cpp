@@ -237,9 +237,11 @@ void RecordingEvent::iterate(QuerySequenceContext &, const ModelContext &, Scena
             snapshot.mismatches.emplace(seq_type, mismatches ? *mismatches
                                                              : std::vector<std::size_t>{});
         }
-        if (exploration.downstream_proba_map.exists(seq_type)) {
-            snapshot.downstream_bounds.emplace(seq_type,
-                                               exploration.downstream_proba_map.get(seq_type));
+    }
+    for (std::size_t key = 0; key != exploration.downstream_proba_map.count(); ++key) {
+        const auto type_id = static_cast<SeqTypeId>(key);
+        if (exploration.downstream_proba_map.exists(type_id)) {
+            snapshot.downstream_bounds.emplace(type_id, exploration.downstream_proba_map.get(type_id));
         }
     }
 
@@ -554,6 +556,45 @@ void call_iterate(const std::shared_ptr<Rec_Event> &event, IterateTestState &sta
         queue.push(downstream);
     }
     state.model_queue() = queue;
+
+    //Step 2b: the plan, over the order the events run in as far as the code under test can tell
+    //-- the chosen ones, the event under test, the downstream ones -- as GenModel builds it from
+    //its queue. An event in events_map that is none of those is still to come, so it goes last.
+    //Ties go by event id, so the plan, and the keys it allocates, do not depend on hash order.
+    {
+        const auto by_id = [](const std::shared_ptr<Rec_Event> &a, const std::shared_ptr<Rec_Event> &b) {
+            return a->get_event_identifier() < b->get_event_identifier();
+        };
+        std::vector<std::shared_ptr<Rec_Event>> ordered = state.chosen_events();
+        std::sort(ordered.begin(), ordered.end(), by_id);
+        ordered.push_back(event);
+        for (const auto &downstream : state.downstream_events()) {
+            ordered.push_back(downstream);
+        }
+        std::vector<std::shared_ptr<Rec_Event>> rest;
+        for (const auto &[key, ev] : events_map) {
+            (void)key;
+            if (std::find(ordered.begin(), ordered.end(), ev) == ordered.end()) {
+                rest.push_back(ev);
+            }
+        }
+        std::sort(rest.begin(), rest.end(), by_id);
+        ordered.insert(ordered.end(), rest.begin(), rest.end());
+
+        std::vector<const Rec_Event *> order;
+        for (const auto &ev : ordered) {
+            order.push_back(ev.get());
+        }
+        auto plan = std::make_unique<igor::model::TraversalPlan>(registry, order, state.preset_state());
+        if (plan->bound_key_count() > state.exploration.downstream_proba_map.count()) {
+            throw std::logic_error("call_iterate(): the plan needs more bound keys than the harness map has; "
+                                   "raise ExplorationStorage::kSpareBoundKeys");
+        }
+        for (const auto &ev : ordered) {
+            ev->set_traversal_plan(*plan);
+        }
+        state.set_plan(std::move(plan));
+    }
 
     //Step 3: initialize_event() in queue order. Note the aliasing: processed_events is the
     //state's own set, so the chosen events stay marked while the event under test

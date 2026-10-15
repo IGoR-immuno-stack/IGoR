@@ -446,10 +446,12 @@ TEST_CASE("Gene_choice::iterate overlap verdicts (G2/G3)", "[gene_choice][iterat
         CHECK(rec->calls.at(0).safety.at({V_gene_seq, D_gene_seq}) == false);
     }
 
-    SECTION("Counterpart not chosen: no check is performed and the pair is marked unsafe")
+    // A neighbour placed after this event is not a partner of it: the later of two placements
+    // checks the pair, against a neighbour whose offset is known (T3: the partners are the
+    // engine's plan's placed segments). So nothing is recorded for one still to come, nor for
+    // one the model does not have. They used to be candidates, written unsafe and safe.
+    SECTION("Counterpart still to come: nothing is checked and nothing is recorded")
     {
-        // D exists in the model but has not been chosen, so its offset is unknown and
-        // there is nothing to compare against.
         auto state = create_iterate_state(read);
         auto v_event = make_gene_choice(V_gene, {{"V1", v_gene}}, 0, /*fixed=*/false);
         state.add_event(make_gene_choice(D_gene, {{"D1", d_gene}}, 1));
@@ -459,10 +461,10 @@ TEST_CASE("Gene_choice::iterate overlap verdicts (G2/G3)", "[gene_choice][iterat
         auto rec = call_iterate_recording(v_event, state);
         dump(rec, "VD not chosen");
         REQUIRE(rec->call_count() == 1);
-        CHECK(rec->calls.at(0).safety.at({V_gene_seq, D_gene_seq}) == false);
+        CHECK(rec->calls.at(0).safety.count({V_gene_seq, D_gene_seq}) == 0);
     }
 
-    SECTION("No counterpart in the model at all: the pair is marked safe")
+    SECTION("No counterpart in the model at all: nothing is recorded either")
     {
         auto state = create_iterate_state(read);
         auto v_event = make_gene_choice(V_gene, {{"V1", v_gene}}, 0, /*fixed=*/false);
@@ -471,8 +473,8 @@ TEST_CASE("Gene_choice::iterate overlap verdicts (G2/G3)", "[gene_choice][iterat
 
         auto rec = call_iterate_recording(v_event, state);
         REQUIRE(rec->call_count() == 1);
-        CHECK(rec->calls.at(0).safety.at({V_gene_seq, D_gene_seq}) == true);
-        CHECK(rec->calls.at(0).safety.at({V_gene_seq, J_gene_seq}) == true);
+        CHECK(rec->calls.at(0).safety.count({V_gene_seq, D_gene_seq}) == 0);
+        CHECK(rec->calls.at(0).safety.count({V_gene_seq, J_gene_seq}) == 0);
     }
 }
 
@@ -713,8 +715,10 @@ TEST_CASE("Gene_choice::iterate J's V->J bound counts what D's deletions trim (R
     auto rec = call_iterate_recording(j_event, state);
     dump(rec, "J over a gap only a trimmed D fills");
     REQUIRE(rec->call_count() == 1);
-    REQUIRE(rec->calls.at(0).downstream_bounds.count(VJ_ins_seq) == 1);
-    CHECK_THAT(rec->calls.at(0).downstream_bounds.at(VJ_ins_seq), Catch::Matchers::WithinRel(best, 1e-12));
+    // V->J has a key of its own in a VDJ model; VJ_ins_seq's is a VJ model's junction (plan T3).
+    const SeqTypeId v_to_j = state.plan().gap_key(SegmentSpan::gap(V_gene_seq, J_gene_seq));
+    REQUIRE(rec->calls.at(0).downstream_bounds.count(v_to_j) == 1);
+    CHECK_THAT(rec->calls.at(0).downstream_bounds.at(v_to_j), Catch::Matchers::WithinRel(best, 1e-12));
 }
 
 TEST_CASE("Gene_choice::iterate endogenous-mismatch counting (G8)",

@@ -93,7 +93,9 @@ public:
     /// \param initial_layers  layers to allocate up front; grows on demand
     /// \param count           number of keys, defaulting to the whole id space. Pass a
     ///                        smaller value for maps that must not address the tail of the
-    ///                        id space (planned use: excluding flank types, task B3).
+    ///                        id space (planned use: excluding flank types, task B3), or a
+    ///                        larger one for keys past it (the downstream bound map's gaps,
+    ///                        TraversalPlan::bound_key_count()).
     explicit DynamicSequenceMap(const SeqTypeRegistry &registry,
                                 std::size_t initial_layers = 1,
                                 std::size_t count = 0)

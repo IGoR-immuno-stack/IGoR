@@ -27,6 +27,7 @@
 
 #include <igor/Model/Legacy/Rec_Event.h>
 #include <igor/Model/Legacy/JunctionGeometry.h>
+#include <igor/Model/FlankCheck.h>
 #include <igor/Core/Legacy/Utils.h>
 #include <array>
 #include <forward_list>
@@ -134,25 +135,6 @@ private:
     static double surviving_core_bound(Error_rate &error_rate, const std::vector<std::size_t> &mismatches,
                                        Seq_Offset core_5, Seq_Offset core_3);
 
-    /**
-     * \brief One neighbouring segment end this gene's placement is checked against.
-     *
-     * Resolved in initialize_event(); iterate() reads it. The two entries a VDJ model produces
-     * are the former memory_layer_safety_1 / _2 pair, in the same order -- the neighbour that
-     * sits further 5' first -- which is what keeps the claimed layers where they were.
-     */
-    struct FlankCheck {
-        SeqTypeId partner_id = kNoSeqType;
-        Seq_side partner_side = Five_prime;   ///< the partner end facing this gene
-        bool this_is_left = true;             ///< the partner sits 3' of this gene
-        SafetyCell safety_cell;               ///< the pair, by ordering position (S5)
-        int safety_layer = -1;                ///< one per *row*, so same-row checks share it
-        int partner_offset_layer = -1;
-        bool partner_exists = false;          ///< the model has a gene choice for that segment
-        bool partner_chosen = false;          ///< ...and it is placed before this one
-        bool active = false;                  ///< per scenario: the partner is placed, so check
-    };
-
     /// Score one exhaustive placement against the read and write its error bound. Shared by
     /// the two sub-branches of the position scan; see the definition.
     void score_placement_against_read(const QuerySequenceContext &query,
@@ -172,6 +154,7 @@ private:
         return pending_.reachable(this->seq_type_id, Three_prime, three_off);
     }
 
+    /// The neighbours on both sides this placement is checked against, 5' to 3'.
     std::vector<FlankCheck> flank_checks_;
 
     /// What each checked neighbour's facing end can still reach, and where it sits. Indexed by
@@ -235,10 +218,9 @@ private:
     /// event_realizations, which nothing mutates after initialize_event().
     std::vector<const Event_realization *> realizations_by_index_;
 
-    /// The nearest *candidate* neighbour on each side -- placed or not -- as indices into
-    /// flank_checks_, or -1. Distinct from the junction's endpoints, which are the nearest
-    /// *placed* ones: the sliding window is bounded by a neighbour that has not been placed
-    /// just as much as by one that has, through the read end the preamble records for it.
+    /// The nearest placed neighbour on each side, as indices into flank_checks_, or -1: what
+    /// bounds the sliding window when there is no span to decompose. A side with none is bounded
+    /// by the read's end, which is what an unplaced candidate used to contribute.
     int nearest_left_check_ = -1;
     int nearest_right_check_ = -1;
 };

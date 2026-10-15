@@ -9,6 +9,7 @@ add_executable(model_tests
     test_junction_geometry.cpp
     test_safety_matrix.cpp
     test_span_profile.cpp
+    test_traversal_plan.cpp
 )
 
 # Legacy tests: the tests of the code still under <Layer>/Legacy.
@@ -28,6 +29,7 @@ target_sources(model_tests
         Legacy/test_model_format_v2.cpp
         Legacy/test_model_json.cpp
         Legacy/test_proba_bound_benchmark.cpp
+        Legacy/test_tandem_junctions.cpp
         Legacy/test_utils.cpp
 )
 

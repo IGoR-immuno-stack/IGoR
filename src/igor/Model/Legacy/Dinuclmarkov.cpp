@@ -27,6 +27,7 @@
 #include <igor/Alignment/Legacy/Aligner.h>
 #include <igor/Model/Legacy/EventUtils.h>
 #include <igor/Model/Legacy/JsonDetail.h>
+#include <igor/Model/TraversalPlan.h>
 
 #include <algorithm>
 #include <vector>
@@ -283,7 +284,9 @@ void Dinucl_markov::iterate(
                            model.model_parameters);
         }
 
-        exploration.downstream_proba_map.set(spec.target_id, 1.0, memory_layer_junction);
+        if (junction_key_ != kNoSeqType) {
+            exploration.downstream_proba_map.set(junction_key_, 1.0, memory_layer_junction);
+        }
     }
 
     scenario.scenario_proba *= proba_contribution;
@@ -548,8 +551,17 @@ void Dinucl_markov::initialize_event(
                                  "side its chain runs from, and that side must have a neighbour.");
     }
 
-    downstream_proba_map.request_layer(spec.target_id);
-    memory_layer_junction = downstream_proba_map.claimed_layer(spec.target_id);
+    //The gap this chain fills, bounded until now by the Insertion that sized it: filling it is the
+    //chain's own factor, so the gap's is settled to 1. Which gap and its key are the engine's
+    //plan's -- the slot's own id when nothing else factors on it, as in every model today. With
+    //nothing built on one side there is no gap, so no factor to settle; an engine's order always
+    //has one (TraversalPlan::check_admissible()), a fixture writing only the anchor need not.
+    const std::optional<SegmentSpan> gap = this->placement().enclosing_gap();
+    junction_key_ = gap ? this->traversal_plan().gap_key(*gap) : kNoSeqType;
+    if (junction_key_ != kNoSeqType) {
+        downstream_proba_map.request_layer(junction_key_);
+        memory_layer_junction = downstream_proba_map.claimed_layer(junction_key_);
+    }
 
     //The segment itself, now that this event creates it (O12 (a')). Nothing else writes an
     //insertion's sequence, so the claimed layer is 0 and the write lands exactly where the

@@ -16,11 +16,11 @@ Legend: ✅ done · 🟡 partial · ⬜ not started
 | B2 | ✅ | `SeqTypeId` handle layer added to `SeqTypeRegistry` (`1038c5d`), `LayeredArray` (`f6f0101`) and `DynamicSequenceMap` (`f1d26a4`) added as separate headers, legacy ids pinned to the `Seq_type` enum (`7549a4d`). Split into a pure container + a registry-aware view rather than one class; `standard_count()` and `LegacySequenceRegistry` dropped (see below). Flank types await B3. |
 | B3 | ⬜ | No flank seq types. `Gene_choice` friend declarations for `Hypermutation_*` still present. |
 | B4 | ✅ | `Events_map = unordered_map<tuple<Event_type, Seq_type_String, Seq_side>, shared_ptr<Rec_Event>>`, threaded through every `iterate`/`initialize_event`/counter/error-rate signature. Key built from `get_seq_type()`. Tandem-D uniqueness achieved. |
-| B5 | ✅ | Iterate plan step 4b (Sep 21 2026): `Deletion::iterate()` is generic, 981 → 246 lines, bitwise. The flank checks still list V, D and J by name (`kGeneSegments`); T3 replaces that. |
+| B5 | ✅ | Iterate plan step 4b (Sep 21 2026): `Deletion::iterate()` is generic, 981 → 246 lines, bitwise. The flank checks still list V, D and J by name (`kGeneSegments`); T3 replaces that. **Oct 6 2026:** replaced by the engine's plan, see *T3*. |
 | B6 | ✅ | `96ed833` (Sep 7 2026), iterate plan step 1b. One generic body driven by the adjacency ids; `initialize_crude_scenario_proba_bound`'s switch is one `events_map` lookup; `initialize_event` addresses `seq_type_id` directly. `Insertion::iterate` at 100 % lines, branches and blocks. Bitwise-exact. |
 | B7 | ✅ | `7104c91` (Sep 8 2026), iterate plan step 2b. The hardcoded spec table, both residual `switch`es in `iterate()`, the one in `add_to_marginals()`, three raw `new int[]` buffers and nine named members are gone; the junction is derived from the registry-resolved adjacency plus the event's own `event_side`. `Dinucl_markov::iterate` at 100 % lines and blocks. Bitwise-exact. **The skip-empty walk is deliberately not part of B7** — it differs from the ordering neighbour exactly when the anchor is empty, which is a live segfault, so it is a fix (throw) scheduled in the iterate plan's phase R (repairs), not a refactor. |
 | B8 | ✅ | All five maps migrated and sized from the frozen registry: downstream proba bounds (`13fcdec`), the two mismatch maps (`1abd908`), constructed sequences (`c86d34e`), offsets split per sequence end (`fe8c5d1`), overlap safety to `LayeredArray<bool>` (`a58808b`). `Enum_fast_memory_map`, `Enum_fast_memory_dual_key_map` and `Str_Dual_key_memory_map` are deleted. Measured cost +9.4 % inference wall clock; accepted for the refactoring's duration, see D4 step 3. |
-| B11 *(new)* | ✅ | Both paths generic: the alignment path (iterate plan step 3, Sep 16 2026) and the `no_d_align` position scan (step 5b, Sep 21 2026). `Gene_choice::iterate` names no gene. Its flank-check set-up and `affects_length_of` still do (T3). |
+| B11 *(new)* | ✅ | Both paths generic: the alignment path (iterate plan step 3, Sep 16 2026) and the `no_d_align` position scan (step 5b, Sep 21 2026). `Gene_choice::iterate` names no gene. Its flank-check set-up and `affects_length_of` still do (T3). **Oct 6 2026:** neither does now, see *T3*. |
 | B10 *(new)* | ⬜ | Absent-segment semantics. **Off the tandem-D critical path** — milestone 1 has both D genes always present. Carries a real modelling decision (chain-with-conflation vs. DAG ordering) deferred to milestone 2. **Oct 2 2026:** the synthesis sets the direction, a layout DAG with existence guards in the model (synthesis step 5); that is option (b) below, generalised. |
 | B9 | 🟡 | Legacy→seq_type inference, registry inference (VDJ/VJ), `write_model_parms_legacy` / `write_model_parms_v2` split, v2 `@Version` / `@Seq_type_order` parsing and per-event `write2txt_v2()` are all implemented. `VDJ_genes` `Dinucl_markov` expansion (B9 step 3) and junction safety adjacency generation (step 4) are not. **Oct 2 2026:** step 3's replacement of the V/D/J literal is part of T3, and its `VDJ_genes` split becomes a shared handler (synthesis); step 4 is superseded by S5's `SafetyMatrix`; step 5 is T4. |
 | Phase C | ⬜ | **Out of this plan (Oct 2 2026).** Engine work, carried on a later branch once legacy inference has moved into a `LegacyDfsEngine` (synthesis step 6). See *Remaining work*. |
@@ -100,6 +100,28 @@ What follows from it:
   - the two context queries become the "reads" part of the event's footprint.
 
   Handler selection depends on none of them: a handler is declared per node.
+- **Footprint design (Oct 6 2026, Quentin).**
+  - **No bound-specific capability.** T3's engine plan derives everything a bound needs from the
+    two A0 roles, the order, and R12's participation rule:
+    - the overlap partners come from the offset roles;
+    - the gaps come from the content roles;
+    - the events that write a gap are those that take part in it by R12's rule;
+    - "a factor of its own" comes from the two roles together.
+  - **What an event reads** is the remaining Phase A item, and it takes a relative form:
+    `context_reads()` returns `{toward, anchor, width, codon_frame}`, where `anchor` is either
+    the nearest built content or all content. It replaces the absolute
+    `get_context_dependency()` and `get_context_seq_types()`:
+    - `LeftNt`/`RightNt` become width 1;
+    - the windows become width N;
+    - `SingleNtAll` becomes "all content";
+    - `CodonFrame` becomes a flag;
+    - the resolution to segments is the engine's.
+
+    It lands with Phase C/D and B10: B10 decides what "nearest" means when a segment can be
+    absent.
+  - **Where facts live.** Facts that do not depend on the order (`SegmentIndex`, roles, reads)
+    belong to the model and serve every engine. Facts that do (`TraversalPlan`) belong to
+    `LegacyDfsEngine`.
 - **Phase E is replaced by synthesis step 8:** the three error models become one Probe event with
   Categorical, Logistic or Bernoulli handlers.
 - **No load-time validation for milestone 1.** Without Phase C items 1 and 1b, a malformed tandem-D
@@ -180,6 +202,117 @@ constructors, `copy()` and the generated names.
 
 Gate: the five regression tracks; unit cases on a V-D1-D2-J layout for each of the three; the
 fold's build time on that layout.
+
+**Items 2 and 3, delivered (Oct 6 2026): the engine's plan.**
+
+**The problem.** `Gene_choice::initialize_event()` and `Deletion::initialize_event()` made two
+decisions with V/D/J names:
+- which segments a placement or a deletion is checked against for overlap (the `kGeneSegments`
+  literal);
+- which key of the downstream bound map holds each junction's factor (`legacy_junction_of()`,
+  which knows three spans).
+
+On a V-D1-D2-J layout the first left D1 and D2 out, and the second threw. The two are linked: the
+junctions an event bounds run to its nearest placed neighbours.
+
+**The design.** Both answers depend on the order the engine runs the events in, so the engine
+works them out once, from the events' A0 roles, and tells each event before `initialize_event()`.
+Nothing names a gene or a junction.
+- **`SegmentIndex`** (`Model/SegmentIndex.h`). It records which events create and which modify
+  each segment end and each segment content, from `get_offset_role()` and
+  `get_seq_construction_role()`. It does not depend on the order, so every engine can read it:
+  this is the synthesis' "SegmentIndex".
+- **`TraversalPlan`** (`Model/TraversalPlan.h`). It walks the engine's order once and records,
+  for each event:
+  - the segments whose facing end is already created (*placed*). These are its overlap partners,
+    nearest first.
+  - the nearest segment on each side whose content is already built (*built*).
+
+  A gap is the stretch between two consecutive built segments. Its bound is one factor, which
+  every event that changes it refines. In every shipped model, placed and built coincide for the
+  gene choices and deletions. An insertion places a slot without building it, so the gap stays one
+  until the chain fills the slot.
+- **Keys.**
+  - A gap needs a key while it has an unbuilt segment inside, or an event still to run that takes
+    part in it by R12's rule.
+  - It takes the id of the one segment inside it when there is exactly one and that segment has no
+    factor of its own. Otherwise it gets a key past the registry's ids.
+  - "A factor of its own" means the content is modified, or is created by the event that also
+    places it (templated content).
+
+  The bound is a product in key order, and a VJ model pins `VJ_ins_seq` at id 5, after J. So this
+  layout is what keeps every shipped model's product, and its pruning, unchanged:
+  - VDJ keeps V→D and D→J at their insertions' ids and moves V→J to a key of its own;
+  - VJ keeps V→J at `VJ_ins_seq`.
+- **The events.**
+  - `Gene_choice` and `Deletion` take their partners from the placement.
+  - Both build their overlap checks with one function, `resolve_flank_checks()`
+    (`Model/FlankCheck.h`). It takes the partners on one side or both, claims one safety layer per
+    row, and records each partner's offset layer. Only what `Deletion` reads per scenario stays its
+    own.
+  - All four events take their gap and its key from the plan.
+  - The unplaced-partner paths (`partner_exists`, `partner_chosen`), `check_gene_choice()` and the
+    two legacy span helpers are gone.
+  - A neighbour placed later checks the pair itself.
+- **The engine checks coherence**, in `TraversalPlan::check_admissible()`, in place of the
+  events' own checks:
+  - every target is in the ordering;
+  - each end and each content is created exactly once;
+  - nothing is modified before it is created;
+  - a slot is filled only after its ends are placed;
+  - a slot comes after its neighbours' facing ends, inside a gap;
+  - every segment is complete by the end.
+
+  `GenModel` builds the plan and checks it once, before its iteration loop and parallel region,
+  and every thread's copy of the events reads that one plan in every iteration. The plan files
+  placements by event identifier, which `copy()` keeps, and is never modified after construction.
+  That is where the plan lives until `LegacyDfsEngine` exists. (A first version rebuilt it per
+  thread per iteration, keyed by event address, for no reason beyond the per-thread copies.)
+- **`InitialState`.** It lists the segments that exist before the first event: a Phase D cluster
+  with its neighbours' boundary given, or a test fixture that presets segments.
+
+**The warning above about `registry.contains()` was wrong.** `contains()` tests the ordering, so a VJ
+model never had a phantom D partner.
+
+**Behaviour.** No shipped model changes: the regression is bitwise on all five tracks. Changes
+outside the corpus:
+- A partner still to come is no longer written into the overlap matrix. Before, it was written
+  unsafe, or safe when the model had no such gene choice at all.
+- A deletion on a segment outside the ordering is refused by the engine, not by the event.
+- A deletion on content not yet built bounds no gap. The gap keeps the bound folded before it,
+  which counted the deletion among the events still to run, so the bound is still sound.
+- A chain with nothing built on one side settles no gap.
+
+**Tests.**
+- `tst/igor/Model/test_traversal_plan.cpp`:
+  - the index;
+  - placements in a VDJ order, including a slot placed but not yet built;
+  - the keys for VDJ, VJ and both tandem-D orders;
+  - each refusal;
+  - a deletion on a junction after its chain, which no model has yet;
+  - `resolve_flank_checks()` on a tandem order: the sides, the 5' to 3' order, the shared safety
+    layer of one row, and the orientation of the overlap verdict.
+- `test_tandem_junctions.cpp`: on V-D1-D2-J, D2's gene choice is checked against D1 and bounds
+  D1→D2, D2→J and D1→J; D1's 3′ deletion refuses the palindrome that reaches D2.
+- Existing cases that pinned the removed behaviour now pin the new one: the unplaced-partner
+  verdicts, the deletion's own ordering check, and the Insertion's unplaced neighbour.
+
+Seven mutations of the plan were all caught. So were seven of the shared flank checks; the one
+that first survived (the 5' side not walked 5' to 3') is caught by the direct case above. Gate:
+- unit 488/488 and integration 10/10;
+- regression bitwise on all five tracks;
+- convergence 2/2.
+
+**Not done.**
+- The fold's build time on V-D1-D2-J needs a tandem model that loads with distinct names (T1, T2),
+  so it moves to T5.
+- `Insertion::iterate()` and the chain's anchor still read ordering adjacency. That is B10's
+  question.
+
+**Superseded.** A first version kept a list of gene segments and junction slots in the registry
+(branch `feature/tandemD-T3-slots`, not merged). It wrote the gene/junction split into the model.
+The plan derives the same answers from roles and order, and handles shapes such as a deletion on
+a junction.
 
 ### T4: generation keyed by `SeqTypeId` (option (a))
 
@@ -2142,6 +2275,12 @@ These figures are compatible with per-sequence inference in a multi-threaded env
 - `get_context_dependency()` determines the dimensionality of the nucleotide component of the interface variable: `LeftNt` / `RightNt` → 4-valued dimension; `LeftWindow(N)` → $4^N$-valued dimension. Also determines Phase E error separability (see D.7).
 - `is_branching()` governs the number of subscenarios a subgraph emits per event level.
 - `is_multi_realization()` means the event contributes a sum of paths to a single subscenario (e.g. `Dinucl_markov`); its probability contribution is already marginalised within the subscenario, so no additional fan-out.
+- **Oct 6 2026:** read with the footprint design above. A cluster is a segment's content creator
+  and its modifiers, from `SegmentIndex`. D.3's interface variables come from the resolved
+  `context_reads()` crossing a boundary: the offset always, `width` nucleotides per crossing read,
+  and the frame phase for `codon_frame`. The gaps of T3's plan, with their participants, are the
+  junction clusters the chain DP combines. The legacy fold (`SpanFold`) is the same recursion
+  with max in place of sum.
 - The registry `ordering()` provides the left-to-right sequence of SeqTypeIds, which defines the valid partitioning into contiguous subgraph clusters.
 
 ---
