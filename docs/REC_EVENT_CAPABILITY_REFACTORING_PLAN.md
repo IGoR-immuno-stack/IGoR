@@ -1,6 +1,6 @@
 # Rec_Event Capability Attributes & Gene_class Correction: Architectural Refactoring Plan
 
-**Last Updated**: October 5, 2026
+**Last Updated**: October 15, 2026
 
 ---
 
@@ -13,7 +13,7 @@ Legend: ✅ done · 🟡 partial · ⬜ not started
 | Phase A | 🟡 | **Oct 2 2026: what tandem D needs from Phase A has landed; the rest leaves this plan** (see *Remaining work*). Landed: the four A0 queries, `affects_length_of` / `affects_proba_of`, `length_delta`, `span_proba_factor`. Still to do on the tandem-D path: R12, which takes `affects_length_of` off the enum (T3). Moved out with Phases C and D: `is_branching`, `is_multi_realization`, `SeqContextDependency`, `get_context_seq_types`. <br><br>**Two span-addressed capabilities delivered** *(Sep 10 2026, iterate plan S4a, `b432247`)*: `affects_length_of(SegmentSpan)` and `affects_proba_of(SegmentSpan)`, replacing `has_effect_on(Seq_type)`. They occupy the *span* column of the capability surface — `SegmentSpan` being the addressing unit shared with G5's junction bounds and D.3's cluster boundaries — where the four A0 queries all address a *segment*. The split was forced rather than cosmetic: `Dinucl_markov` contributes no length at all and answered `true` purely to gate a probability factor, so a length-only predicate had to gain a probability sibling in the same commit or the bound would have lost that factor. **Tier 3 of the segment-completeness invariant also landed** (`43b3efd`, test-only): the unit harness now asserts at every hand-off that what an event declared through its A0 queries, it did — which makes R3 self-verifying, since flipping `Insertion::get_offset_role` to `Creates` without also writing the offsets now fails immediately. A **complementary, non-capability rule** landed with it (`f568bd4`): *a written layer must have been requested*, the converse of the existing layer contract, covering every layered map including the two no query describes. It found one violation across 49 measured writes — `Insertion` writes the segment it creates without requesting a layer for it, the same under-declaration as its missing offsets, repaired together in R3. Its runtime home is `LayeredArray::set()`, which used to raise the claim implicitly rather than requiring it; that flip is iterate-plan O10 and **landed as R3b on Sep 26 2026**, bitwise on all five regression tracks and with no production violation to repair behind it — the 80 failures it produced were all fixtures that had been writing a map at layer 0 without claiming it. **Two further capabilities identified as missing** *(Sep 9 2026, iterate plan §6.10)*: a **per-realization** length delta (A0 supplies only the `{min,max}` bound over all realizations, but the junction-length fold needs the value for one realization — this is the hook that collapses four `iterate_initialize_Len_proba` bodies into one) and a **probability hook for non-enumerating events**, whose shape D.9 already reserves as `is_multi_realization()`. A *modifier-type* enum was considered and rejected: the four length deltas differ by sign and by which `Event_realization` field they read, which a per-realization accessor states directly, and the qualitative taxonomy already exists as `SeqConstructionRole`. **One delivered A0 query is also wrong** *(Sep 10 2026)*: `Insertion::get_offset_role()` returns `None`, encoding as contract the defect that `Insertion::iterate` records no offsets for the segment it creates — so a query whose purpose is to spare consumers from knowing implementations instead propagates that coupling. Fixed with iterate-plan R3 by reporting plain `Creates`; the enum needs no new value — whether an event can be scheduled before its neighbours is a *context dependency* (D.9's `get_context_seq_types()`), not an offset role, and that is what would differ for an `Insertion` implemented by enumeration rather than by deriving its span. `SeqConstructionRole::Creates` and `OffsetRole::Creates` coincide for every event today but are **not** to be collapsed: an event could construct content and leave placement downstream. The invariant tying them is that **every registry seq_type must have both its sequence and its offsets created by the time a scenario reaches a leaf**, not necessarily by the same event; the content half is already asserted (`1794b5f`), the offsets half becomes assertable with R3. See that plan's §2.5. <br><br>**Partially delivered as A0** *(`db8d960`, Sep 2 2026 — this is decision O2's amendment, recorded here)*. `SeqConstructionRole` and `OffsetRole` exist at [Rec_Event.h:146,154](src/igor/Core/Rec_Event.h#L146), alongside `OffsetDelta` and `LengthContribution` (quantitative bounds the original Phase A did not specify), as four pure virtuals implemented on all four subclasses. Still absent: `is_branching`, `SeqContextDependency`. **No production consumer yet** — the only caller is `JunctionGeometry::PendingModifierBounds::rebuild()`, itself uncalled until step 3 of the iterate plan. |
 | B0 | 🟡 | `Rec_Event` gained a `Seq_type_String seq_type` **string** member; `event_class` was **kept** on the base. No `seq_type_ids` vector, no `primary_seq_type_id()`. Subclasses gained typed members (`Deletion::target_seq_type`, `Insertion::ins_seq_type`, `Dinucl_markov::ins_seq_type`). `Dinucl_markov::start_side` realised as `event_side`, from which `DinuclTraversalSpec::anchor_side` is now **derived** rather than stored (`7104c91`). Adjacency moved onto the base as `left_adjacent_id` / `right_adjacent_id` with a non-virtual `set_adjacent_segments()`, resolved once by `Model_Parms::finalize()` (`4a6dfee`) — topology is told to events, not asked for by them. <br><br>**Oct 2 2026: this is what stops a tandem-D model from loading (T1).** The three subclass members are still typed `Seq_type`, so every constructor, from text or from JSON, goes through `str2SeqType()` and throws on `D1_gene_seq`. <br><br>**Oct 5 2026, T1:** the three members are gone, and so is `str2SeqType()`. Every event keeps its seq type once, in `Rec_Event::seq_type`; a tandem-D model loads. `event_class` is still on the base (see *T1* below). |
 | B1 | ✅ | `Gene_class` = `{V_gene, D_gene, J_gene, Undefined_gene}`. Junction values moved to a new `Gene_class_legacy` enum confined to file I/O + `gene_to_seqtype_migr` module. |
-| B2 | ✅ | `SeqTypeId` handle layer added to `SeqTypeRegistry` (`1038c5d`), `LayeredArray` (`f6f0101`) and `DynamicSequenceMap` (`f1d26a4`) added as separate headers, legacy ids pinned to the `Seq_type` enum (`7549a4d`). Split into a pure container + a registry-aware view rather than one class; `standard_count()` and `LegacySequenceRegistry` dropped (see below). Flank types await B3. |
+| B2 | ✅ | `SeqTypeId` handle layer added to `SeqTypeRegistry` (`1038c5d`), `LayeredArray` (`f6f0101`) and `DynamicSequenceMap` (`f1d26a4`) added as separate headers, legacy ids pinned to the `Seq_type` enum (`7549a4d`). Split into a pure container + a registry-aware view rather than one class; `standard_count()` and `LegacySequenceRegistry` dropped (see below). Flank types await B3. <br><br>**Oct 15 2026:** the pinning retires with T7. |
 | B3 | ⬜ | No flank seq types. `Gene_choice` friend declarations for `Hypermutation_*` still present. |
 | B4 | ✅ | `Events_map = unordered_map<tuple<Event_type, Seq_type_String, Seq_side>, shared_ptr<Rec_Event>>`, threaded through every `iterate`/`initialize_event`/counter/error-rate signature. Key built from `get_seq_type()`. Tandem-D uniqueness achieved. |
 | B5 | ✅ | Iterate plan step 4b (Sep 21 2026): `Deletion::iterate()` is generic, 981 → 246 lines, bitwise. The flank checks still list V, D and J by name (`kGeneSegments`); T3 replaces that. **Oct 6 2026:** replaced by the engine's plan, see *T3*. |
@@ -142,6 +142,7 @@ constructors call `str2SeqType()` too.
 | **T4** | **Tandem-D sequences cannot be generated** for the round-trip test. `draw_random_realization()` writes an `unordered_map<Seq_type, string>`, `Dinucl_markov` throws "see B9", `FastGenerator` names `D_gene_seq` | read from the code | **B9 step 5**: option (a), decided; see *T4* below |
 | **T5** | **Milestone 1 itself:** the dummy tandem-D model, a generate-then-infer round trip, the cost ratio against a matched VDJ model, `[!mayfail]` off the `[tandem_d]` cases | — | Step 1 of the execution plan below |
 | **T6** | **`gene_to_seqtype_migr` is still built**, a temporary bridge from #59 | GCC 15 rejected it until T6a, and most of it had no caller | B1's leftovers; see *T6* below |
+| **T7** | **Segment ids are pinned to the `Seq_type` enum, and the error model reads V, D and J through it.** `register_legacy_seq_types()` gives the six legacy names ids 0 to 5 in every model, whatever its ordering | Found Oct 15 2026. `Single_error_rate` counts mismatches at ids 0, 2 and 4 only. The tandem fixture writes nothing at id 2, so neither D's mismatches count | B2's pinning (`7549a4d`); see *T7* below |
 
 **R12's shape decides §7.22 (R16) for tandem D.** The junction fold enumerates every path, and in a
 tandem model J's V→J table holds both D blocks. Rough path counts, with TRB's library sizes and
@@ -165,7 +166,8 @@ become polynomial first (§7.22, option A). Recorded for R12; not decided.
 | 3 | 🟡 **T4**: generation keyed by `SeqTypeId`, legacy generator first, then `FastGenerator`; **T6b** deletes the rest of the module. The legacy generator is done (#74, Oct 5 2026, [GENERATION_REWRITE_PLAN.md](GENERATION_REWRITE_PLAN.md)); `FastGenerator` and T6b are not | `feature/tandemD` | the legacy generator yes; `FastGenerator` no (see T4) |
 | 4 | ✅ **T0**: merge `integration/model-on-tandemD` into `feature/tandemD`; the Linux gate (#70, Oct 2 2026) | `feature/tandemD` | the gate itself |
 | 5 | ✅ **T1** (Oct 5 2026), then **T2** | the merged branch | yes |
-| 6 | **T5**: milestone 1 | the merged branch | new tests |
+| 6 | **T7**: segment ids follow the ordering, and the enum pinning goes. After T1 and T3 are merged | the merged branch | yes on the five tracks; a VJ model is measured (see *T7*) |
+| 7 | **T5**: milestone 1 | the merged branch | new tests |
 
 **Testing tandem layouts before T1.** Until T1, no tandem `Deletion`, `Insertion` or
 `Dinucl_markov` can be built. Unit tests build one the way `test_dinucl_markov_iterate.cpp` already
@@ -485,6 +487,89 @@ The review's two commits (Oct 20 2026) pass the same gate, each on its own, with
 after the T3 merge. Eight mutations were all caught: the DJ and VJ classes swapped, the event type
 ignored, `VD_genes` read as `DJ_ins_seq`, a deletion's class or v1 line taken from the junction
 half, a gene choice writing no `gene_class`, every event writing one, and every event allowed one.
+
+### T7: segment ids follow the ordering, not the `Seq_type` enum (planned Oct 15 2026)
+
+`register_legacy_seq_types()` (B2, `7549a4d`) gives the six legacy names ids 0 to 5 in every
+model, whatever its ordering. That lets code that reads a segment by an enumerator, such as
+`get(J_gene_seq)`, find it. It was a scaffold for the migration to `SeqTypeId`.
+
+The events no longer need it. Since T3, T4 and T1, they address their segments by the ids that
+`finalize()` resolves from their names. A legacy file needs no other translator than the one it
+has:
+- the v1 reader maps each gene class to a name (`VD_genes` to `VD_ins_seq`);
+- `finalize()` infers the VDJ or VJ ordering.
+
+**What still reads a segment by enumerator** (measured Oct 15 2026, on T1 and T3):
+
+| Reader | What it reads | When it runs |
+|---|---|---|
+| `Single_error_rate` ([Singleerrorrate.cpp:130](../src/igor/Model/Legacy/Singleerrorrate.cpp#L130)) | nucleotides and mismatches at ids 0, 2 and 4 | every inference |
+| The two hypermutation error models | the same, plus offsets, plus the enum version of `build_scenario_sequence()` | hypermutation models |
+| The `Scenario` snapshot ([Scenario.h:57](../src/igor/Model/Legacy/Scenario.h#L57)) | six slots, filled from ids 0 to 5 | the errors, coverage, best-scenarios and Pgen counters; coverage runs on the inference and no_d_align tracks |
+| `build_scenario_sequence()`, enum version ([EventUtils.cpp:70](../src/igor/Model/Legacy/EventUtils.cpp#L70)) | V, VD, D, DJ, J, by enumerator | the Pgen counter, the global hypermutation model |
+| `Best_scenarios_counter` ([Bestscenarioscounter.cpp:193](../src/igor/Inference/Legacy/Bestscenarioscounter.cpp#L193)) | the mismatches of V, D and J | the best-scenarios output |
+| 13 test files | call the pinning, or the test-only `legacy_seq_type_registry()` | tests |
+
+Without the pinning, J gets id 2 in a VJ model, and `get(J_gene_seq)` reads id 4.
+
+**What the pinning costs today.**
+- **Mismatches in a tandem model's D segments are free.** The tandem fixture names them
+  `D1_gene_seq` and `D2_gene_seq`, so nothing writes id 2, and `Single_error_rate` counts
+  neither D. The T5 round trip would infer from a wrong likelihood. The best-scenarios output
+  leaves both Ds' mismatches out for the same reason. This is why T7 comes before T5.
+- **Ids that no event places.** A VJ model carries `D_gene_seq`, `VD_ins_seq` and `DJ_ins_seq`,
+  and a VDJ model carries `VJ_ins_seq`.
+  - T3's bound map keeps a key for each. In VDJ, key 5 is always 1.0.
+  - The leaf check sweeps `registry.ordering()` rather than every id because of them (iterate
+    plan §2.5).
+- **Only a comment keeps the pinning correct:** "Order matters: it must match the `Seq_type`
+  enum".
+
+**Steps**, one commit each:
+1. **`Single_error_rate`** counts over every segment that has a mismatch list, in
+   `registry.ordering()`. The counts are integers, so their order does not matter: the result is
+   bitwise on every model. A `[tandem_d]` case pins that both Ds' mismatches count. It is tagged
+   `[!shouldfail]` until this step.
+2. **The `Scenario` snapshot** is sized from the registry and indexed by id.
+   - `Best_scenarios_counter` collects mismatches in ordering order. In a VDJ model that is V, D, J,
+     the same order as today.
+   - The errors and coverage counters and the two hypermutation models look up the V, D and J ids
+     by name, once, at initialisation. A name the model lacks reads as absent, as `exists()` does
+     for D in a VJ model today.
+   - Their outputs stay shaped by V, D and J. **Proposed:** on a tandem model they refuse at
+     initialisation, rather than leave out both Ds without saying so.
+3. **The enum version of `build_scenario_sequence()`** goes. Its two callers assemble the
+   sequence in `registry.ordering()`, as the registry version does. For VDJ and VJ the order is
+   the same.
+4. **The pinning goes.** The two calls in `Model_Parms` (`finalize()` and `read_model_parms()`)
+   are removed, and so are `register_legacy_seq_types()` and `legacy_seq_type_registry()`. Ids
+   follow the ordering. The tests look ids up by name.
+
+**Effect on T3's bound keys.**
+- **VDJ:** the registry has five ids, and V→J takes key 5. The bound is multiplied in the same
+  order, so results stay bitwise.
+- **VJ:** V, `VJ_ins_seq` and J take ids 0, 1 and 2, and V→J takes the insertion's id. The
+  product then runs V·(V→J)·J instead of V·J·(V→J), and rounding can move pruning. No bitwise
+  track runs a VJ model, so one is measured before and after.
+
+**Gate:**
+- the five regression tracks, bitwise;
+- convergence;
+- unit cases: in a VJ model, the ids follow the ordering (J at 2) and every reader of steps 1 to
+  3 finds J; the tandem mismatch count.
+
+**What stays.** The `Seq_type` enum itself stays:
+- `FastGenerator` keeps a map keyed by it (the second half of T4).
+- `ScenarioContext`'s methods take a `Seq_type`, and the events cast their id to it. Retyping them
+  to `SeqTypeId` changes only types. It can land with T7 or later.
+- The counters' event lookups by enumerator (`try_get_event(events_map, GeneChoice_t, V_gene_seq,
+  …)`) go through the name, so they do not depend on the pinning.
+
+The enum goes with `FastGenerator` and T6b.
+
+**Branch:** `feature/tandemD-T7-pinning`. The code waits until T1 and T3 are merged into
+`feature/tandemD`: T3's tests call the pinning, and its bound keys are the ones that move.
 
 ### Not on the milestone-1 path
 
@@ -2132,6 +2217,11 @@ addressing the right id — around twenty files still read the enum (`Deletion`,
 One thing to add when B9 lands: the pinning's correctness is currently a comment ("Order matters: it
 must match the `Seq_type` enum declared in Utils.h") with nothing enforcing it. A check that
 `register_type("D_gene_seq") == D_gene_seq` for all six costs nothing and catches a reordered enum.
+
+**Oct 15 2026: T7 retires the pinning.** The pinning matters only to code that reads a segment by
+an enumerator, not to every reader of the enum. The events now resolve their ids by name. What is
+left is the error models, the counters and the `Scenario` snapshot, which T7 moves to ids. The
+check above is not needed once the pinning is gone.
 
 ---
 
