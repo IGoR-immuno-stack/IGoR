@@ -36,6 +36,8 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include "ScratchDir.h"
+
 #include <igor/Generation/Legacy/SequenceGenerator.h>
 #include <igor/Model/Legacy/Model_Parms.h>
 #include <igor/Model/Legacy/Model_marginals.h>
@@ -43,11 +45,9 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <filesystem>
 #include <fstream>
 #include <map>
 #include <queue>
-#include <random>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -57,37 +57,6 @@ using namespace igor::model::legacy;
 using namespace igor::generation::legacy;
 
 namespace {
-
-/// A scratch directory, removed when the test is done with it.
-class ScratchDir
-{
-public:
-    ScratchDir()
-    {
-        std::random_device device;
-        path_ = std::filesystem::temp_directory_path() / ("igor_generation_" + std::to_string(device()));
-        std::filesystem::create_directories(path_);
-    }
-    ~ScratchDir()
-    {
-        std::error_code ignored;
-        std::filesystem::remove_all(path_, ignored);
-    }
-    ScratchDir(const ScratchDir &) = delete;
-    ScratchDir &operator=(const ScratchDir &) = delete;
-
-    std::string file(const std::string &name, const std::string &content = "") const
-    {
-        const std::string full = (path_ / name).string();
-        if (!content.empty()) {
-            std::ofstream(full) << content;
-        }
-        return full;
-    }
-
-private:
-    std::filesystem::path path_;
-};
 
 std::string read_file(const std::string &path)
 {
