@@ -139,11 +139,10 @@ TEST_CASE("Deletion capability queries", "[capabilities][deletion]")
         // This is exactly why A0 re-derives from the realization set: get_len_max() is read
         // as a *minimum* deletion count by every overlap check, and a sentinel there makes
         // the reachable interval absurdly wide, marking every pair safe.
-        Deletion del(V_gene_seq, Three_prime);
+        Deletion del("V_gene_seq", Three_prime);
         del.add_realization(0);
         del.add_realization(1);
         del.add_realization(2);
-        del.set_seq_type("V_gene_seq");
         del.set_seq_type_id(legacy_seq_type_registry().id("V_gene_seq"));
 
         // The legacy accessor is left at its sentinel.
@@ -191,8 +190,7 @@ TEST_CASE("Gene_choice capability queries", "[capabilities][gene_choice]")
 
 TEST_CASE("Insertion capability queries", "[capabilities][insertion]")
 {
-    auto ins = std::make_shared<Insertion>(VD_ins_seq, std::make_pair(0, 8));
-    ins->set_seq_type("VD_ins_seq");
+    auto ins = std::make_shared<Insertion>("VD_ins_seq", std::make_pair(0, 8));
     ins->set_seq_type_id(legacy_seq_type_registry().id("VD_ins_seq"));
 
     SECTION("Places the junction and constructs nothing")
@@ -225,8 +223,7 @@ TEST_CASE("Insertion capability queries", "[capabilities][insertion]")
 
 TEST_CASE("Dinucl_markov capability queries", "[capabilities][dinuclmarkov]")
 {
-    auto dinuc = std::make_shared<Dinucl_markov>(VD_ins_seq);
-    dinuc->set_seq_type("VD_ins_seq");
+    auto dinuc = std::make_shared<Dinucl_markov>(Seq_type_String("VD_ins_seq"));
     dinuc->set_seq_type_id(legacy_seq_type_registry().id("VD_ins_seq"));
 
     SECTION("Creates the segment it fills, at a length it did not choose")
@@ -262,8 +259,7 @@ TEST_CASE("Capability queries agree across the subclasses that share a segment",
     // compose without the caller knowing which subclass gave them.
     auto v_choice = make_gene_choice(V_gene, {{"V1", "ACGTACGTACGT"}}, 0);
     auto v_del = make_deletion(V_gene_seq, Three_prime, 0, 4, 1);
-    auto vd_ins = std::make_shared<Insertion>(VD_ins_seq, std::make_pair(0, 6));
-    vd_ins->set_seq_type("VD_ins_seq");
+    auto vd_ins = std::make_shared<Insertion>("VD_ins_seq", std::make_pair(0, 6));
     vd_ins->set_seq_type_id(legacy_seq_type_registry().id("VD_ins_seq"));
 
     SECTION("Exactly one event reports a role for each segment and end")

@@ -19,6 +19,7 @@ target_sources(model_tests
         Legacy/test_dinucl_markov_iterate.cpp
         Legacy/test_error_rate_bound.cpp
         Legacy/test_event_capabilities.cpp
+        Legacy/test_event_seq_type.cpp
         Legacy/test_EventUtils.cpp
         Legacy/test_gene_choice_iterate.cpp
         Legacy/test_generation_construction.cpp

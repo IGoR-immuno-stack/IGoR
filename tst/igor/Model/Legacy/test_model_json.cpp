@@ -218,7 +218,7 @@ TEST_CASE("model json: a rebuilt DinucMarkov gets the same name as the text read
 
     SECTION("the three name accessors agree on the side token") {
         // Only on the side. They disagree on the class token for a DinucMarkov, and that is a
-        // separate matter: Dinucl_markov::update_event_name() derives it from ins_seq_type
+        // separate matter: Dinucl_markov::update_event_name() derives it from the seq type
         // ("VD_genes") while the two accessors read event_class, which the reader leaves
         // Undefined_gene. Worth fixing, not here.
         for (const auto &name : { rebuilt->get_name(), rebuilt->get_legacy_name(),

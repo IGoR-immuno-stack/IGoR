@@ -700,8 +700,7 @@ TEST_CASE("Dinucl_markov: a junction no Seq_type enum names still resolves", "[d
     tandem.freeze();
 
     const SeqTypeId junction_id = tandem.id("D1D2_ins_seq");
-    Dinucl_markov dinucl(VD_ins_seq);
-    dinucl.set_seq_type("D1D2_ins_seq");
+    Dinucl_markov dinucl(Seq_type_String("D1D2_ins_seq"));
     dinucl.set_seq_type_id(junction_id);
     dinucl.set_adjacent_segments(tandem.left_neighbor(junction_id), tandem.right_neighbor(junction_id));
     dinucl.set_event_side(Three_prime);
@@ -728,8 +727,7 @@ TEST_CASE("Dinucl_markov: a junction no Seq_type enum names still resolves", "[d
     SECTION("Without adjacency there is no junction")
     {
         // What an event holds before Model_Parms::finalize() has run.
-        Dinucl_markov unresolved(VD_ins_seq);
-        unresolved.set_seq_type("D1D2_ins_seq");
+        Dinucl_markov unresolved(Seq_type_String("D1D2_ins_seq"));
         unresolved.set_seq_type_id(junction_id);
         unresolved.set_event_side(Three_prime);
         CHECK(unresolved.get_junction().anchor_id == kNoSeqType);

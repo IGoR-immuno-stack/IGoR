@@ -186,7 +186,6 @@ enum Int_nt {
 /// the placeholder cannot index into.
 constexpr std::size_t kIntNtCount = static_cast<std::size_t>(int_undefined);
 
-CORE_EXPORT Seq_type str2SeqType(const Seq_type_String &);
 CORE_EXPORT Gene_class_legacy str2GeneClass(const std::string &);
 CORE_EXPORT std::string to_string(const Gene_class_legacy);
 CORE_EXPORT Seq_side str2SeqSide(const std::string &);

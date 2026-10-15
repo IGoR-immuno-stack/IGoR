@@ -384,7 +384,7 @@ public:
 };
 
 TEST_CASE("Insertion Bridge Integration", "[Insertion]") {
-  Insertion ins_vd(VD_ins_seq, std::make_pair(0, 10));
+  Insertion ins_vd("VD_ins_seq", std::make_pair(0, 10));
 
   SECTION("VD dinuc event found via string key") {
     Events_map events_map;
@@ -410,11 +410,10 @@ public:
   static void test_initialization() {
     //A side is required since B5: it is what the generic body reads instead of switching on
     //the gene, and initialize_event() rejects a deletion that names neither end.
-    Deletion del_event(V_gene_seq, Three_prime);
+    Deletion del_event("V_gene_seq", Three_prime);
     del_event.event_class = V_gene;
     //B5 addresses the scenario maps by seq_type id rather than by the legacy enum, so an event
     //assembled by hand has to carry one -- exactly as IgorTestUtils::make_deletion() does.
-    del_event.set_seq_type("V_gene_seq");
     del_event.set_seq_type_id(IgorTestUtils::vdj_seq_type_registry().id("V_gene_seq"));
 
     // Create mock objects for initialize_event — use string-keyed Events_map
