@@ -131,10 +131,14 @@ bool GenModel::infer_model(
     likelihood_file << "iteration;mean_log_Likelihood;n_seq" << endl;
 
     queue<shared_ptr<Rec_Event>> model_queue = model_parms.get_model_queue();
-    //Refuse, once and before any thread starts, an order in which the events cannot be coherent:
-    //the engine checks the model's structure, not each event on itself. The threads build their
-    //own plans over their copies of the events, which have this one's structure.
-    igor::model::TraversalPlan(model_parms.get_seq_type_registry(), in_queue_order(model_queue)).check_admissible();
+    //The plan for the order the events run in (TraversalPlan): what is placed and built when each
+    //one runs, and the key each gap's downstream bound is held at. It depends on the model's
+    //structure only, so it is built once, here, and shared read-only by every thread in every
+    //iteration: it finds each thread's copy of an event by its identifier. Built here too so that
+    //an order the events cannot run in is refused before any thread starts -- the engine checks
+    //the model's structure, not each event on itself.
+    const igor::model::TraversalPlan traversal_plan(model_parms.get_seq_type_registry(), in_queue_order(model_queue));
+    traversal_plan.check_admissible();
     unordered_map<Rec_Event_name, int> index_map = model_marginals.get_index_map(model_parms, model_queue);
     unordered_map<Rec_Event_name, list<pair<shared_ptr<const Rec_Event>, int>>> inv_offset_map =
             model_marginals.get_inverse_offset_map(model_parms, model_queue);
@@ -307,7 +311,7 @@ bool GenModel::infer_model(
 
 //Declare variables to use OpenMP 3.1 standards
 #pragma omp parallel shared(new_marginals, error_rate_copy, sequences_processed, sequence_util_ptr, sequences, \
-        len_proba_bound_source_events) \
+        len_proba_bound_source_events, traversal_plan) \
         firstprivate(model_queue, proba_threshold_factor) //num_threads(1)
         {
             //Make single thread copies of objects for thread safety
@@ -342,17 +346,13 @@ bool GenModel::infer_model(
                     single_thread_model_parms.get_seq_type_registry());
             Seq_offsets_map seq_offsets(single_thread_model_parms.get_seq_type_registry());
 
-            //The plan for the order this thread runs its events in (TraversalPlan): what is placed
-            //and built when each one runs, and the key each gap's downstream bound is held at. Every
-            //event is told it before initialize_event(); it lives as long as this thread's maps.
-            const igor::model::TraversalPlan traversal_plan(single_thread_model_parms.get_seq_type_registry(),
-                                                            in_queue_order(single_thread_model_parms.get_model_queue()));
+            //This thread's copies of the events read the shared plan, before initialize_event().
             for (const shared_ptr<Rec_Event> &event : single_thread_model_parms.get_event_list()) {
                 event->set_traversal_plan(traversal_plan);
             }
 
-            //Initialize downstream probas to 1. Sized from the plan: the thread-local model's
-            //frozen registry, plus the gaps that have keys of their own.
+            //Initialize downstream probas to 1. Sized from the plan: the model's frozen registry,
+            //plus the gaps that have keys of their own.
             Downstream_scenario_proba_bound_map downstream_proba_map(
                     single_thread_model_parms.get_seq_type_registry(), 1, traversal_plan.bound_key_count());
             downstream_proba_map.init_first_layer(1.0);

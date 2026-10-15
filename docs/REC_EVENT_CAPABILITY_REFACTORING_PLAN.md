@@ -259,8 +259,11 @@ Nothing names a gene or a junction.
   - a slot comes after its neighbours' facing ends, inside a gap;
   - every segment is complete by the end.
 
-  `GenModel` checks once, before its parallel region, and each thread builds its own plan. That is
-  where the plan lives until `LegacyDfsEngine` exists.
+  `GenModel` builds the plan and checks it once, before its iteration loop and parallel region,
+  and every thread's copy of the events reads that one plan in every iteration. The plan files
+  placements by event identifier, which `copy()` keeps, and is never modified after construction.
+  That is where the plan lives until `LegacyDfsEngine` exists. (A first version rebuilt it per
+  thread per iteration, keyed by event address, for no reason beyond the per-thread copies.)
 - **`InitialState`.** It lists the segments that exist before the first event: a Phase D cluster
   with its neighbours' boundary given, or a test fixture that presets segments.
 

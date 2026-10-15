@@ -198,7 +198,12 @@ TraversalPlan::TraversalPlan(const core::SeqTypeRegistry &registry,
 
         record(i + 1); //the gaps it opens: a placed gene splits the one it sat in into two
 
-        placements_.emplace(&event, std::move(placed));
+        //By identifier, not by address: a copy of the model has other events with the same ones.
+        if (not placements_.emplace(event.get_event_identifier(), std::move(placed)).second) {
+            throw std::invalid_argument("TraversalPlan: event " + event_label(event) + " shares its identifier "
+                                        + std::to_string(event.get_event_identifier())
+                                        + " with an earlier event of the order");
+        }
     }
 
     //Keys, now that every gap is known. See the class comment for why a gap may take the id of
@@ -223,10 +228,11 @@ TraversalPlan::TraversalPlan(const core::SeqTypeRegistry &registry,
 
 const EventPlacement &TraversalPlan::placement(const legacy::Rec_Event &event) const
 {
-    const auto it = placements_.find(&event);
+    const auto it = placements_.find(event.get_event_identifier());
     if (it == placements_.end()) {
-        throw std::out_of_range("TraversalPlan::placement(): event " + event_label(event)
-                                + " is not in the order this plan was built for");
+        throw std::out_of_range("TraversalPlan::placement(): event " + event_label(event) + " (identifier "
+                                + std::to_string(event.get_event_identifier())
+                                + ") is not in the order this plan was built for");
     }
     return it->second;
 }

@@ -304,7 +304,8 @@ public:
      * built when this event runs, and the key each gap's bound is held at. The order-dependent
      * counterpart of set_adjacent_segments(): the engine tells, the event does not search the
      * model. Set before initialize_event(), which is its only reader; the engine keeps the plan
-     * alive for as long as it uses the event.
+     * alive for as long as it uses the event. One plan serves every copy of a model: it finds an
+     * event by its identifier.
      */
     void set_traversal_plan(const igor::model::TraversalPlan &plan) { traversal_plan_ = &plan; }
 

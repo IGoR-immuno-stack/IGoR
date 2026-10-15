@@ -332,3 +332,29 @@ TEST_CASE("TraversalPlan: a deletion on a junction, after the chain filled it", 
                           ContainsSubstring("modifies the content of VD_ins_seq before any event builds it"));
     }
 }
+
+TEST_CASE("TraversalPlan: one plan serves every copy of the model", "[traversal_plan]")
+{
+    // GenModel builds the plan once and shares it with every thread, whose events are copies.
+    // copy() keeps an event's identifier, and the plan files placements by identifier.
+    const Vdj model;
+    const TraversalPlan plan(vdj_seq_type_registry(), model.order());
+
+    const std::shared_ptr<Rec_Event> d_copy = model.d->copy();
+    const std::shared_ptr<Rec_Event> v_3_copy = model.v_3->copy();
+    REQUIRE(d_copy.get() != model.d.get());
+    CHECK(plan.placement(*d_copy).placed_left == plan.placement(*model.d).placed_left);
+    CHECK(plan.placement(*d_copy).enclosing_gap() == gap(V_gene_seq, J_gene_seq));
+    CHECK(plan.placement(*v_3_copy).placed_right == std::vector<SeqTypeId>{D_gene_seq, J_gene_seq});
+
+    SECTION("an event whose identifier is not in the order has no placement") {
+        const auto stranger = make_gene_choice(V_gene, {{"V9", "ACGT"}}, 42);
+        CHECK_THROWS_AS(plan.placement(*stranger), std::out_of_range);
+    }
+    SECTION("two events of one order may not share an identifier") {
+        const auto twin = make_gene_choice(V_gene, {{"V2", "ACGT"}}, model.v->get_event_identifier());
+        auto order = model.order();
+        order.push_back(twin.get());
+        CHECK_THROWS_WITH(TraversalPlan(vdj_seq_type_registry(), order), ContainsSubstring("shares its identifier"));
+    }
+}

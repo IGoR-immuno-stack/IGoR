@@ -93,6 +93,12 @@ struct MODEL_EXPORT InitialState {
  * them their neighbours; they no longer search the model for them. Owned by GenModel's set-up
  * until LegacyDfsEngine exists.
  *
+ * Placements are filed by event identifier, which Rec_Event::copy() keeps, so one plan serves
+ * every copy of the model it was built from: GenModel builds it once, and the events of every
+ * thread, in every EM iteration, read the same plan. It is never modified after construction, so
+ * concurrent reads are safe. It keeps pointers to the events it was built from, which must outlive
+ * it; only check_admissible() and index() use them.
+ *
  * ### Keys
  *
  * A segment's own factor is held at its SeqTypeId, as before. A gap is held at the id of the one
@@ -110,7 +116,8 @@ public:
 
     const SegmentIndex &index() const { return index_; }
 
-    /// \throws std::out_of_range for an event that is not in this plan's order.
+    /// The placement of `event`, or of the event with its identifier in the model the plan was
+    /// built from. \throws std::out_of_range for an identifier not in this plan's order.
     const EventPlacement &placement(const legacy::Rec_Event &event) const;
 
     /// \throws std::out_of_range for a span that is never an open gap needing a bound in this
@@ -142,7 +149,7 @@ private:
     std::vector<const legacy::Rec_Event *> order_;
     InitialState initial_;
     SegmentIndex index_;
-    std::unordered_map<const legacy::Rec_Event *, EventPlacement> placements_;
+    std::unordered_map<int, EventPlacement> placements_; ///< by event identifier
     std::vector<core::SegmentSpan> gaps_;
     std::map<std::pair<core::SeqTypeId, core::SeqTypeId>, core::SeqTypeId> gap_keys_;
     std::size_t bound_key_count_ = 0;
