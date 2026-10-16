@@ -1,6 +1,6 @@
 # Rec_Event Capability Attributes & Gene_class Correction: Architectural Refactoring Plan
 
-**Last Updated**: October 15, 2026
+**Last Updated**: October 16, 2026
 
 ---
 
@@ -14,7 +14,7 @@ Legend: ✅ done · 🟡 partial · ⬜ not started
 | B0 | 🟡 | `Rec_Event` gained a `Seq_type_String seq_type` **string** member; `event_class` was **kept** on the base. No `seq_type_ids` vector, no `primary_seq_type_id()`. Subclasses gained typed members (`Deletion::target_seq_type`, `Insertion::ins_seq_type`, `Dinucl_markov::ins_seq_type`). `Dinucl_markov::start_side` realised as `event_side`, from which `DinuclTraversalSpec::anchor_side` is now **derived** rather than stored (`7104c91`). Adjacency moved onto the base as `left_adjacent_id` / `right_adjacent_id` with a non-virtual `set_adjacent_segments()`, resolved once by `Model_Parms::finalize()` (`4a6dfee`) — topology is told to events, not asked for by them. <br><br>**Oct 2 2026: this is what stops a tandem-D model from loading (T1).** The three subclass members are still typed `Seq_type`, so every constructor, from text or from JSON, goes through `str2SeqType()` and throws on `D1_gene_seq`. <br><br>**Oct 5 2026, T1:** the three members are gone, and so is `str2SeqType()`. Every event keeps its seq type once, in `Rec_Event::seq_type`; a tandem-D model loads. `event_class` is still on the base (see *T1* below). |
 | B1 | ✅ | `Gene_class` = `{V_gene, D_gene, J_gene, Undefined_gene}`. Junction values moved to a new `Gene_class_legacy` enum confined to file I/O + `gene_to_seqtype_migr` module. |
 | B2 | ✅ | `SeqTypeId` handle layer added to `SeqTypeRegistry` (`1038c5d`), `LayeredArray` (`f6f0101`) and `DynamicSequenceMap` (`f1d26a4`) added as separate headers, legacy ids pinned to the `Seq_type` enum (`7549a4d`). Split into a pure container + a registry-aware view rather than one class; `standard_count()` and `LegacySequenceRegistry` dropped (see below). Flank types await B3. <br><br>**Oct 15 2026:** the pinning retires with T7. |
-| B3 | ⬜ | No flank seq types. `Gene_choice` friend declarations for `Hypermutation_*` still present. |
+| B3 | ⬜ | No flank seq types. `Gene_choice` friend declarations for `Hypermutation_*` still present. <br><br>**Oct 16 2026:** the flank segments are how the hypermutation models will read their context outside the read, replacing the friend access: step H3 of [ERROR_MODEL_REWRITE_PLAN.md](ERROR_MODEL_REWRITE_PLAN.md). |
 | B4 | ✅ | `Events_map = unordered_map<tuple<Event_type, Seq_type_String, Seq_side>, shared_ptr<Rec_Event>>`, threaded through every `iterate`/`initialize_event`/counter/error-rate signature. Key built from `get_seq_type()`. Tandem-D uniqueness achieved. |
 | B5 | ✅ | Iterate plan step 4b (Sep 21 2026): `Deletion::iterate()` is generic, 981 → 246 lines, bitwise. The flank checks still list V, D and J by name (`kGeneSegments`); T3 replaces that. **Oct 6 2026:** replaced by the engine's plan, see *T3*. |
 | B6 | ✅ | `96ed833` (Sep 7 2026), iterate plan step 1b. One generic body driven by the adjacency ids; `initialize_crude_scenario_proba_bound`'s switch is one `events_map` lookup; `initialize_event` addresses `seq_type_id` directly. `Insertion::iterate` at 100 % lines, branches and blocks. Bitwise-exact. |
@@ -25,7 +25,7 @@ Legend: ✅ done · 🟡 partial · ⬜ not started
 | B9 | 🟡 | Legacy→seq_type inference, registry inference (VDJ/VJ), `write_model_parms_legacy` / `write_model_parms_v2` split, v2 `@Version` / `@Seq_type_order` parsing and per-event `write2txt_v2()` are all implemented. `VDJ_genes` `Dinucl_markov` expansion (B9 step 3) and junction safety adjacency generation (step 4) are not. **Oct 2 2026:** step 3's replacement of the V/D/J literal is part of T3, and its `VDJ_genes` split becomes a shared handler (synthesis); step 4 is superseded by S5's `SafetyMatrix`; step 5 is T4. |
 | Phase C | ⬜ | **Out of this plan (Oct 2 2026).** Engine work, carried on a later branch once legacy inference has moved into a `LegacyDfsEngine` (synthesis step 6). See *Remaining work*. |
 | Phase D | ⬜ | **Out of this plan (Oct 2 2026)**, with Phase C. In the synthesis it is the `ChainDPEngine` (step 9). |
-| Phase E | ⬜ | **Replaced by synthesis step 8 (Oct 2 2026):** the error models become one Probe event with its own handlers. |
+| Phase E | ⬜ | **Replaced by synthesis step 8 (Oct 2 2026):** the error models become one Probe event with its own handlers. <br><br>**Oct 16 2026:** carried by [ERROR_MODEL_REWRITE_PLAN.md](ERROR_MODEL_REWRITE_PLAN.md), after milestone 1: `Single_error_rate` first, through an engine-agnostic core that the legacy class and a new-architecture node both call (Part I); then the hypermutation models (Part II). Tandem D needs only T7a from it. |
 
 ## Remaining work for tandem D (Oct 2 2026)
 
@@ -142,7 +142,7 @@ constructors call `str2SeqType()` too.
 | **T4** | **Tandem-D sequences cannot be generated** for the round-trip test. `draw_random_realization()` writes an `unordered_map<Seq_type, string>`, `Dinucl_markov` throws "see B9", `FastGenerator` names `D_gene_seq` | read from the code | **B9 step 5**: option (a), decided; see *T4* below |
 | **T5** | **Milestone 1 itself:** the dummy tandem-D model, a generate-then-infer round trip, the cost ratio against a matched VDJ model, `[!mayfail]` off the `[tandem_d]` cases | — | Step 1 of the execution plan below |
 | **T6** | **`gene_to_seqtype_migr` is still built**, a temporary bridge from #59 | GCC 15 rejected it until T6a, and most of it had no caller | B1's leftovers; see *T6* below |
-| **T7** | **Segment ids are pinned to the `Seq_type` enum, and the error model reads V, D and J through it.** `register_legacy_seq_types()` gives the six legacy names ids 0 to 5 in every model, whatever its ordering | Found Oct 15 2026. `Single_error_rate` counts mismatches at ids 0, 2 and 4 only. The tandem fixture writes nothing at id 2, so neither D's mismatches count | B2's pinning (`7549a4d`); see *T7* below |
+| **T7** | **Segment ids are pinned to the `Seq_type` enum, and the error model reads V, D and J through it.** `register_legacy_seq_types()` gives the six legacy names ids 0 to 5 in every model, whatever its ordering | Found Oct 15 2026. `Single_error_rate` counts mismatches at ids 0, 2 and 4 only. The tandem fixture writes nothing at id 2, so neither D's mismatches count, and pruning is unsound (X2) | B2's pinning (`7549a4d`); see *T7* below. **Split Oct 16 2026:** T7a blocks T5; T7b does not |
 
 **R12's shape decides §7.22 (R16) for tandem D.** The junction fold enumerates every path, and in a
 tandem model J's V→J table holds both D blocks. Rough path counts, with TRB's library sizes and
@@ -166,8 +166,10 @@ become polynomial first (§7.22, option A). Recorded for R12; not decided.
 | 3 | 🟡 **T4**: generation keyed by `SeqTypeId`, legacy generator first, then `FastGenerator`; **T6b** deletes the rest of the module. The legacy generator is done (#74, Oct 5 2026, [GENERATION_REWRITE_PLAN.md](GENERATION_REWRITE_PLAN.md)); `FastGenerator` and T6b are not | `feature/tandemD` | the legacy generator yes; `FastGenerator` no (see T4) |
 | 4 | ✅ **T0**: merge `integration/model-on-tandemD` into `feature/tandemD`; the Linux gate (#70, Oct 2 2026) | `feature/tandemD` | the gate itself |
 | 5 | ✅ **T1** (Oct 5 2026), then **T2** | the merged branch | yes |
-| 6 | **T7**: segment ids follow the ordering, and the enum pinning goes. After T1 and T3 are merged | the merged branch | yes on the five tracks; a VJ model is measured (see *T7*) |
-| 7 | **T5**: milestone 1 | the merged branch | new tests |
+| 6 | **T7a**: `Single_error_rate` counts every segment with a mismatch list, over the ordering; the hypermutation models and the V/D/J-shaped counters refuse a tandem model (see *T7*) | the merged branch | yes |
+| 7 | **T5**: milestone 1, on the legacy DFS | the merged branch | new tests |
+| 8 | **Part I** of [ERROR_MODEL_REWRITE_PLAN.md](ERROR_MODEL_REWRITE_PLAN.md) (E0–E4): `Single_error_rate` through a shared core, called by the legacy class and by a new-architecture node | its own feature branch, after milestone 1 | yes, except ER1 (X13), which moves every inference golden once |
+| 9 | **T7b** and **Part II** of the error-model plan: the hypermutation models, the unpinning | after milestone 1 | yes on the five tracks and the new hypermutation track; a VJ model is measured (see *T7*) |
 
 **Testing tandem layouts before T1.** Until T1, no tandem `Deletion`, `Insertion` or
 `Dinucl_markov` can be built. Unit tests build one the way `test_dinucl_markov_iterate.cpp` already
@@ -490,6 +492,18 @@ half, a gene choice writing no `gene_class`, every event writing one, and every 
 
 ### T7: segment ids follow the ordering, not the `Seq_type` enum (planned Oct 15 2026)
 
+**Split (Quentin, Oct 16 2026).**
+- **T7a** is step 1 below: `Single_error_rate` counts every segment with a mismatch list. With it
+  come two guards: the two hypermutation models and the four V/D/J-shaped counters refuse, at
+  initialisation, a model whose ordering is neither V-D-J nor V-J, instead of answering wrongly. It
+  comes before T5. It also fixes a pruning defect found while planning the error-model rewrite
+  ([ERROR_MODEL_REWRITE_PLAN.md](ERROR_MODEL_REWRITE_PLAN.md), X2): in a tandem model, D1's and D2's
+  bound slots hold error bounds below 1 while the leaf charges no D, so the product of the bounds
+  can fall below the leaf value and a subtree above the threshold can be pruned.
+- **T7b** is steps 2 to 4. It edits the two hypermutation models, which nothing tests, so it waits
+  for their regression track and unit suite (H0, H1 of the error-model plan) and moves after
+  milestone 1, with that plan's Part II.
+
 `register_legacy_seq_types()` (B2, `7549a4d`) gives the six legacy names ids 0 to 5 in every
 model, whatever its ordering. That lets code that reads a segment by an enumerator, such as
 `get(J_gene_seq)`, find it. It was a scaffold for the migration to `SeqTypeId`.
@@ -505,7 +519,7 @@ has:
 | Reader | What it reads | When it runs |
 |---|---|---|
 | `Single_error_rate` ([Singleerrorrate.cpp:130](../src/igor/Model/Legacy/Singleerrorrate.cpp#L130)) | nucleotides and mismatches at ids 0, 2 and 4 | every inference |
-| The two hypermutation error models | the same, plus offsets, plus the enum version of `build_scenario_sequence()` | hypermutation models |
+| The two hypermutation error models | the same, plus offsets, plus the enum version of `build_scenario_sequence()`; their rewrite is Part II of [ERROR_MODEL_REWRITE_PLAN.md](ERROR_MODEL_REWRITE_PLAN.md) | hypermutation models |
 | The `Scenario` snapshot ([Scenario.h:57](../src/igor/Model/Legacy/Scenario.h#L57)) | six slots, filled from ids 0 to 5 | the errors, coverage, best-scenarios and Pgen counters; coverage runs on the inference and no_d_align tracks |
 | `build_scenario_sequence()`, enum version ([EventUtils.cpp:70](../src/igor/Model/Legacy/EventUtils.cpp#L70)) | V, VD, D, DJ, J, by enumerator | the Pgen counter, the global hypermutation model |
 | `Best_scenarios_counter` ([Bestscenarioscounter.cpp:193](../src/igor/Inference/Legacy/Bestscenarioscounter.cpp#L193)) | the mismatches of V, D and J | the best-scenarios output |
@@ -517,7 +531,7 @@ Without the pinning, J gets id 2 in a VJ model, and `get(J_gene_seq)` reads id 4
 - **Mismatches in a tandem model's D segments are free.** The tandem fixture names them
   `D1_gene_seq` and `D2_gene_seq`, so nothing writes id 2, and `Single_error_rate` counts
   neither D. The T5 round trip would infer from a wrong likelihood. The best-scenarios output
-  leaves both Ds' mismatches out for the same reason. This is why T7 comes before T5.
+  leaves both Ds' mismatches out for the same reason. This is why T7a comes before T5.
 - **Ids that no event places.** A VJ model carries `D_gene_seq`, `VD_ins_seq` and `DJ_ins_seq`,
   and a VDJ model carries `VJ_ins_seq`.
   - T3's bound map keeps a key for each. In VDJ, key 5 is always 1.0.
@@ -526,7 +540,7 @@ Without the pinning, J gets id 2 in a VJ model, and `get(J_gene_seq)` reads id 4
 - **Only a comment keeps the pinning correct:** "Order matters: it must match the `Seq_type`
   enum".
 
-**Steps**, one commit each:
+**Steps**, one commit each (step 1 is T7a, steps 2 to 4 are T7b):
 1. **`Single_error_rate`** counts over every segment that has a mismatch list, in
    `registry.ordering()`. The counts are integers, so their order does not matter: the result is
    bitwise on every model. A `[tandem_d]` case pins that both Ds' mismatches count. It is tagged
@@ -537,8 +551,8 @@ Without the pinning, J gets id 2 in a VJ model, and `get(J_gene_seq)` reads id 4
    - The errors and coverage counters and the two hypermutation models look up the V, D and J ids
      by name, once, at initialisation. A name the model lacks reads as absent, as `exists()` does
      for D in a VJ model today.
-   - Their outputs stay shaped by V, D and J. **Proposed:** on a tandem model they refuse at
-     initialisation, rather than leave out both Ds without saying so.
+   - Their outputs stay shaped by V, D and J, so the refusal of a tandem model that T7a adds stays
+     in place.
 3. **The enum version of `build_scenario_sequence()`** goes. Its two callers assemble the
    sequence in `registry.ordering()`, as the registry version does. For VDJ and VJ the order is
    the same.
@@ -569,7 +583,8 @@ Without the pinning, J gets id 2 in a VJ model, and `get(J_gene_seq)` reads id 4
 The enum goes with `FastGenerator` and T6b.
 
 **Branch:** `feature/tandemD-T7-pinning`. The code waits until T1 and T3 are merged into
-`feature/tandemD`: T3's tests call the pinning, and its bound keys are the ones that move.
+`feature/tandemD`: T3's tests call the pinning, and its bound keys are the ones that move. T7b
+comes later, after milestone 1.
 
 ### Not on the milestone-1 path
 
@@ -1283,6 +1298,11 @@ Both are wrong for any non-VDJ topology.
 > `Single_error_rate`, `Hypermutation_global_errorrate` and `Pgencounter` to it, and replace the
 > `0..5` loop with `for (SeqTypeId t : registry.ordering())`. Do this as part of B8 — it is the change
 > that makes the registry overload live, and it removes a hardcoding both plans object to.
+>
+> **Oct 16 2026:** `Single_error_rate` is T7a's; the hypermutation models and the Pgen counter are
+> T7b's. [ERROR_MODEL_REWRITE_PLAN.md](ERROR_MODEL_REWRITE_PLAN.md) §1.6 and §3.3 record what an
+> error-model interface must take from AA Pgen's two mismatch tracks, and three inconsistencies of
+> the AA branch's patch mode that it must not inherit.
 
 #### H8 — Reading frame is a dependency neither Phase A, D nor E currently models
 
