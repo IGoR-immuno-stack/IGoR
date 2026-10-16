@@ -3,7 +3,7 @@
 **Created**: Oct 16 2026
 **Scope**: the legacy error models, `Error_rate` and its three subclasses in `src/igor/Model/Legacy/`;
 their call sites (the leaf in `Rec_Event.cpp`, the bounds written by `Gene_choice` and `Deletion`,
-the EM loop in `GenModel`); their file formats. The counters' V/D/J-shaped outputs are T7's, and
+the EM loop in `GenModel`); their file formats. The counters are the migration plan's (its §2), and
 `FastGenerator` is out of scope.
 **Parent**: T7 and Phase E in
 [REC_EVENT_CAPABILITY_REFACTORING_PLAN.md](REC_EVENT_CAPABILITY_REFACTORING_PLAN.md).
@@ -11,6 +11,8 @@ the EM loop in `GenModel`); their file formats. The counters' V/D/J-shaped outpu
 [GENERATION_REWRITE_PLAN.md](GENERATION_REWRITE_PLAN.md), whose method it follows.
 **Toward**: synthesis step 8 ([ARCHITECTURE_SYNTHESIS.md](ARCHITECTURE_SYNTHESIS.md)): the error
 model as a Probe event with handlers.
+**Scheduled by**: [ENGINE_MIGRATION_PLAN.md](ENGINE_MIGRATION_PLAN.md), which places Part I's steps against the
+migration's (its §3) and lists what each needs from the other (its §6).
 **Line numbers** are those of `feature/tandemD-T7-pinning` (T1 merged in, T3 not). "On T3" marks
 `feature/tandemD-T3-plan`; "AA branch" marks `origin/feature/AA_PGEN`, which is not merged.
 
@@ -447,7 +449,7 @@ Occurrences outside comments and string literals, measured Oct 16 2026:
 | `Singleerrorrate.cpp` | 14 | 0 | T7a (the leaf), E1 (the dead path) |
 | `Hypermutationglobalerrorrate.cpp` | 39 | 27 | T7b, H2–H4 |
 | `HypermutationfullNmererrorrate.cpp` | 45 | 27 | T7b, H2–H4 |
-| the four counters, `Scenario.h`, `EventUtils.cpp` | 89 | 3 | T7b |
+| the four counters, `Scenario.h`, `EventUtils.cpp` | 89 | 3 | CT2a and CT3 of the migration plan; T7b for the enum `build_scenario_sequence()` |
 
 End state: `Gene_class_legacy` only in the v1 reader and writer.
 
@@ -468,7 +470,7 @@ might, stand in the way:
 | Correctness | nothing known once T7a and T2 are in | no |
 | Cost: scenarios explored, and the fold's build time on V-D1-D2-J | unmeasured; T5 measures the ratio against VDJ. The fold is state by state since R12, so it is polynomial | only if the DFS itself is too slow: a DP engine (synthesis step 9), milestone 2 |
 | An absent D (B10) | needs a layout DAG and adjacency per scenario | **yes** — the one real blocker, and it is milestone 2 |
-| The V/D/J-shaped counters | degraded, so refused on a tandem model (§4.1) | T7b, not the new architecture |
+| The V/D/J-shaped counters | degraded, so refused on a tandem model (§4.1) | CT2a and CT3 of the migration plan, on the legacy DFS, for best scenarios, errors and Pgen; coverage waits for the scenario record (its L3) |
 
 ### 3.9 Running both architectures at once
 
@@ -492,6 +494,10 @@ The tension is real:
 - A parity test compares the two paths wherever both run (as `test_NormalizationCompareLegacy`
   does for the categorical M-step).
 - New-architecture code never includes `GenModel` or a legacy event's DFS internals.
+
+The migration plan adds its own rules for the steps that move the runtime — no runtime flag, a
+full-precision A/B oracle — in its §5, and the order in which this plan's steps and its own meet
+in its §3 and §6.
 
 ### 3.10 The same pattern for the other events
 
@@ -549,7 +555,7 @@ Candidates the port will need next:
 |---|---|---|
 | H0 | Hypermutation regression track (below) | creates goldens |
 | H1 | Unit suite: the leaf (an independent Python oracle for the factors; global(3) = full(3) at the leaf), `update` (Newton, ratio/median), merge order, `copy`, round trip, seeded `generate_errors`, the bound, viterbi, `fix_err`; confirmed defects `[!shouldfail]`; coverage and mutations | tests only |
-| T7b | The hypermutation models read by name, a tandem model is refused, the sequence is assembled in ordering order, the pinning goes (capability plan) | yes, TRB + hypermutation |
+| T7b | The hypermutation models read by name, a tandem model is refused, the sequence is assembled in ordering order, the pinning goes (capability plan). The counters' half is CT2a of the migration plan | yes, TRB + hypermutation |
 | H2 | One context model with two parameterizations (§3.6): `std::vector` storage (X7), `operator+=` by const reference, no `mutable` scratch (X19), tags (X12), cache invalidation (X14), iterators (X16) | yes |
 | H3 | Flank segments (B3) replace the friend access | yes |
 | H4 | Scope sets (§3.2); `apply_to` applied (X10, a no-op on shipped files, which all say `VDJ_genes`) | yes on shipped files |
@@ -601,7 +607,8 @@ models generate, so the track seeds itself:
 
 ## 7. Out of scope
 
-- The counters' V/D/J-shaped outputs, beyond iterating the resolved set (T7).
+- The counters: their tests, their move off the enum and their generalisation are
+  [ENGINE_MIGRATION_PLAN.md](ENGINE_MIGRATION_PLAN.md) §2.
 - B10, the absent-segment semantics.
 - `FastGenerator`, beyond noting X18 and X19.
 - `SamplingEngine`'s error step: it waits for the engine's construction stage, which

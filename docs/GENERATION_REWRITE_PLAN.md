@@ -329,7 +329,12 @@ Recorded here, not done in this plan:
 - `Dinucl_markov` drawn after construction, through
   `sampleSequence(first_state = anchor nucleotide, n_steps = length)`;
 - the RNG order changes there, so the goldens move once (synthesis step 1);
-- the `MarkovSamplingHandler` row-index defect (REVIEW §11).
+- the Markov sampler. Its row-index defect (REVIEW §11) was fixed by `72a66fc` (parents first).
+  Still open: a root draw from the row sums is uniform, where the legacy chain starts from the
+  anchor nucleotide; and `SamplingEngine::run()` passes the parents' indices where `sample()`
+  expects the from-state.
+
+These are step L7 of [ENGINE_MIGRATION_PLAN.md](ENGINE_MIGRATION_PLAN.md).
 
 **`FastGenerator` gets its speed from the draw**:
 - CDFs precomputed per condition, sampled by binary search or the alias method (FastSampling.h);

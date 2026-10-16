@@ -23,9 +23,9 @@ Legend: ✅ done · 🟡 partial · ⬜ not started
 | B11 *(new)* | ✅ | Both paths generic: the alignment path (iterate plan step 3, Sep 16 2026) and the `no_d_align` position scan (step 5b, Sep 21 2026). `Gene_choice::iterate` names no gene. Its flank-check set-up and `affects_length_of` still do (T3). **Oct 6 2026:** neither does now, see *T3*. |
 | B10 *(new)* | ⬜ | Absent-segment semantics. **Off the tandem-D critical path** — milestone 1 has both D genes always present. Carries a real modelling decision (chain-with-conflation vs. DAG ordering) deferred to milestone 2. **Oct 2 2026:** the synthesis sets the direction, a layout DAG with existence guards in the model (synthesis step 5); that is option (b) below, generalised. |
 | B9 | 🟡 | Legacy→seq_type inference, registry inference (VDJ/VJ), `write_model_parms_legacy` / `write_model_parms_v2` split, v2 `@Version` / `@Seq_type_order` parsing and per-event `write2txt_v2()` are all implemented. `VDJ_genes` `Dinucl_markov` expansion (B9 step 3) and junction safety adjacency generation (step 4) are not. **Oct 2 2026:** step 3's replacement of the V/D/J literal is part of T3, and its `VDJ_genes` split becomes a shared handler (synthesis); step 4 is superseded by S5's `SafetyMatrix`; step 5 is T4. |
-| Phase C | ⬜ | **Out of this plan (Oct 2 2026).** Engine work, carried on a later branch once legacy inference has moved into a `LegacyDfsEngine` (synthesis step 6). See *Remaining work*. |
-| Phase D | ⬜ | **Out of this plan (Oct 2 2026)**, with Phase C. In the synthesis it is the `ChainDPEngine` (step 9). |
-| Phase E | ⬜ | **Replaced by synthesis step 8 (Oct 2 2026):** the error models become one Probe event with its own handlers. <br><br>**Oct 16 2026:** carried by [ERROR_MODEL_REWRITE_PLAN.md](ERROR_MODEL_REWRITE_PLAN.md), after milestone 1: `Single_error_rate` first, through an engine-agnostic core that the legacy class and a new-architecture node both call (Part I); then the hypermutation models (Part II). Tandem D needs only T7a from it. |
+| Phase C | ⬜ | **Out of this plan (Oct 2 2026).** Engine work, carried on a later branch once legacy inference has moved into a `LegacyDfsEngine` (synthesis step 6). See *Remaining work*. <br><br>**Oct 16 2026:** [ENGINE_MIGRATION_PLAN.md](ENGINE_MIGRATION_PLAN.md) places it: its step L1 gives the engine a `check_admissible`, and L5 moves the model's validation into `RecombinationModel`. |
+| Phase D | ⬜ | **Out of this plan (Oct 2 2026)**, with Phase C. In the synthesis it is the `ChainDPEngine` (step 9). <br><br>**Oct 16 2026:** it waits for the migration ([ENGINE_MIGRATION_PLAN.md](ENGINE_MIGRATION_PLAN.md) §7): the engine reading `RecombinationModel` (L5), then the synthesis' step 7. |
+| Phase E | ⬜ | **Replaced by synthesis step 8 (Oct 2 2026):** the error models become one Probe event with its own handlers. <br><br>**Oct 16 2026:** carried by [ERROR_MODEL_REWRITE_PLAN.md](ERROR_MODEL_REWRITE_PLAN.md), after milestone 1: `Single_error_rate` first, through an engine-agnostic core that the legacy class and a new-architecture node both call (Part I); then the hypermutation models (Part II). Tandem D needs only T7a from it. The error node enters the engine at steps L4 and L5 of [ENGINE_MIGRATION_PLAN.md](ENGINE_MIGRATION_PLAN.md). |
 
 ## Remaining work for tandem D (Oct 2 2026)
 
@@ -127,6 +127,10 @@ What follows from it:
 - **No load-time validation for milestone 1.** Without Phase C items 1 and 1b, a malformed tandem-D
   model is not rejected at load and returns plausible wrong numbers (decision D2). The milestone-1
   fixture is checked by hand.
+- **The migration itself has a plan of its own (Oct 16 2026):** [ENGINE_MIGRATION_PLAN.md](ENGINE_MIGRATION_PLAN.md). It moves the runtime
+  after milestone 1 — the EM driver and `LegacyDfsEngine`, the scenario record, the parameters in
+  `RecombinationModel`, generation, the counters — and lists what it needs from this plan (its §6)
+  and what of this plan waits for it (its §7).
 
 ### What still blocks a tandem-D model
 
@@ -135,12 +139,12 @@ constructors call `str2SeqType()` too.
 
 | # | Blocker | Evidence | Plan item |
 |---|---|---|---|
-| **T0** | **Merging `integration/model-on-tandemD` into `feature/tandemD`**, and showing on Linux that the merge is mechanical (see above) | GCC 15.3 and C++23 in the integration branch's build; the `test_generate.sh` data rows | merge |
+| **T0** ✅ | **Merging `integration/model-on-tandemD` into `feature/tandemD`**, and showing on Linux that the merge is mechanical (see above). Delivered Oct 2 2026 (#70) | GCC 15.3 and C++23 in the integration branch's build; the `test_generate.sh` data rows | merge |
 | **T1** ✅ | **A tandem-D model does not load.** Delivered Oct 5 2026, see *T1* below. `Deletion::target_seq_type`, `Insertion::ins_seq_type` and `Dinucl_markov::ins_seq_type` are typed `Seq_type`, so the text reader ([Model_Parms.cpp:904](../src/igor/Core/Model_Parms.cpp#L904), 923, 953) and the JSON constructors go through `str2SeqType()` | 5 of the 7 `[tandem_d]` cases fail, all with `Unknown Seq_type string in str2SeqType: D1_gene_seq` | **B0**, unfinished |
 | **T2** | **Generated names collide.** The name is type + gene class + side + priority + size ([Rec_Event.cpp:104](../src/igor/Core/Rec_Event.cpp#L104)), and it keys `Model_Parms::edges`, `Index_map`, `processed_events` and `offset_map` | In the fixture, `d1_choice` and `d2_choice` are both D, priority 6, size 1; `d1_5_del` and `d2_5_del` collide the same way | synthesis step 2 |
 | **T3** | **V, D and J are still named in the span and safety set-up.** `affects_length_of` on `Gene_choice`, `Insertion` and `Deletion`, and `Dinucl_markov`'s `affects_proba_of` and `span_proba_factor`, go through `legacy_junction_of()` or a VD/DJ/VJ switch; the flank checks list the gene segments in `kGeneSegments` ([Deletion.cpp:746](../src/igor/Core/Deletion.cpp#L746), [Genechoice.cpp:785](../src/igor/Core/Genechoice.cpp#L785)) | `legacy_junction_of()` throws on any span other than VD, DJ and VJ ([SegmentSpan.h:184](../src/igor/Core/SegmentSpan.h#L184)), and so does `Dinucl_markov` on any other insertion ([Dinuclmarkov.cpp:634](../src/igor/Core/Dinuclmarkov.cpp#L634), 661). On V→J the `Insertion` table leaves out `VD1_ins` and `D1D2_ins`. D1 and D2 are never checked against each other for overlap. The junction slots of the downstream bound map are addressed by an insertion's seq type id, with `VJ_ins_seq` standing in for V→J ([Genechoice.cpp:884](../src/igor/Core/Genechoice.cpp#L884), [Deletion.cpp:817](../src/igor/Core/Deletion.cpp#L817)), so a span such as D1→J has no slot | **R12**, and the literal B9 step 3 was to replace |
 | **T4** | **Tandem-D sequences cannot be generated** for the round-trip test. `draw_random_realization()` writes an `unordered_map<Seq_type, string>`, `Dinucl_markov` throws "see B9", `FastGenerator` names `D_gene_seq` | read from the code | **B9 step 5**: option (a), decided; see *T4* below |
-| **T5** | **Milestone 1 itself:** the dummy tandem-D model, a generate-then-infer round trip, the cost ratio against a matched VDJ model, `[!mayfail]` off the `[tandem_d]` cases | — | Step 1 of the execution plan below |
+| **T5** | **Milestone 1 itself:** a synthetic V-D1-D2-J model built from human TRB by duplicating its D block (see *T5* below), a generate-then-infer round trip, the cost against the source TRB model, `[!mayfail]` off the `[tandem_d]` cases | — | *T5* below; step 1 of the execution plan below |
 | **T6** | **`gene_to_seqtype_migr` is still built**, a temporary bridge from #59 | GCC 15 rejected it until T6a, and most of it had no caller | B1's leftovers; see *T6* below |
 | **T7** | **Segment ids are pinned to the `Seq_type` enum, and the error model reads V, D and J through it.** `register_legacy_seq_types()` gives the six legacy names ids 0 to 5 in every model, whatever its ordering | Found Oct 15 2026. `Single_error_rate` counts mismatches at ids 0, 2 and 4 only. The tandem fixture writes nothing at id 2, so neither D's mismatches count, and pruning is unsound (X2) | B2's pinning (`7549a4d`); see *T7* below. **Split Oct 16 2026:** T7a blocks T5; T7b does not |
 
@@ -169,7 +173,8 @@ become polynomial first (§7.22, option A). Recorded for R12; not decided.
 | 6 | **T7a**: `Single_error_rate` counts every segment with a mismatch list, over the ordering; the hypermutation models and the V/D/J-shaped counters refuse a tandem model (see *T7*) | the merged branch | yes |
 | 7 | **T5**: milestone 1, on the legacy DFS | the merged branch | new tests |
 | 8 | **Part I** of [ERROR_MODEL_REWRITE_PLAN.md](ERROR_MODEL_REWRITE_PLAN.md) (E0–E4): `Single_error_rate` through a shared core, called by the legacy class and by a new-architecture node | its own feature branch, after milestone 1 | yes, except ER1 (X13), which moves every inference golden once |
-| 9 | **T7b** and **Part II** of the error-model plan: the hypermutation models, the unpinning | after milestone 1 | yes on the five tracks and the new hypermutation track; a VJ model is measured (see *T7*) |
+| 9 | **T7b** and **Part II** of the error-model plan: the hypermutation models, the unpinning. T7b's counter half is CT2a of [ENGINE_MIGRATION_PLAN.md](ENGINE_MIGRATION_PLAN.md) | after milestone 1 | yes on the five tracks and the new hypermutation track; a VJ model is measured (see *T7*) |
+| 10 | **The migration** to drivers and engines, [ENGINE_MIGRATION_PLAN.md](ENGINE_MIGRATION_PLAN.md): the EM driver and `LegacyDfsEngine`, the scenario record, the parameters in `RecombinationModel`, generation; with it the counters' steps CT0–CT5 | `feature/engine-migration`, after milestone 1 | yes at every step, against a full-precision oracle; the golden moves are placed outside it |
 
 **Testing tandem layouts before T1.** Until T1, no tandem `Deletion`, `Insertion` or
 `Dinucl_markov` can be built. Unit tests build one the way `test_dinucl_markov_iterate.cpp` already
@@ -503,6 +508,10 @@ half, a gene choice writing no `gene_class`, every event writing one, and every 
 - **T7b** is steps 2 to 4. It edits the two hypermutation models, which nothing tests, so it waits
   for their regression track and unit suite (H0, H1 of the error-model plan) and moves after
   milestone 1, with that plan's Part II.
+- **The counters' half of step 2 leaves T7b (Oct 16 2026)** for step CT2a of
+  [ENGINE_MIGRATION_PLAN.md](ENGINE_MIGRATION_PLAN.md): the snapshot by id, the counters' event lookups, best scenarios in ordering
+  order. The counter suite CT0 tests it, so it need not wait for the hypermutation suites. T7b keeps
+  the hypermutation models' half of steps 2 and 3, and step 4.
 
 `register_legacy_seq_types()` (B2, `7549a4d`) gives the six legacy names ids 0 to 5 in every
 model, whatever its ordering. That lets code that reads a segment by an enumerator, such as
@@ -540,7 +549,8 @@ Without the pinning, J gets id 2 in a VJ model, and `get(J_gene_seq)` reads id 4
 - **Only a comment keeps the pinning correct:** "Order matters: it must match the `Seq_type`
   enum".
 
-**Steps**, one commit each (step 1 is T7a, steps 2 to 4 are T7b):
+**Steps**, one commit each (step 1 is T7a, steps 2 to 4 are T7b, less step 2's counter half, which is
+CT2a of the migration plan):
 1. **`Single_error_rate`** counts over every segment that has a mismatch list, in
    `registry.ordering()`. The counts are integers, so their order does not matter: the result is
    bitwise on every model. A `[tandem_d]` case pins that both Ds' mismatches count. It is tagged
@@ -585,6 +595,50 @@ The enum goes with `FastGenerator` and T6b.
 **Branch:** `feature/tandemD-T7-pinning`. The code waits until T1 and T3 are merged into
 `feature/tandemD`: T3's tests call the pinning, and its bound keys are the ones that move. T7b
 comes later, after milestone 1.
+
+### T5: milestone 1 on a synthetic V-D1-D2-J model (decided Oct 16 2026)
+
+Milestone 1 and its runtime are measured on a model derived from a shipped one, not on the small
+dummy fixture (`tst/test_data/format_v2/test_v2_tandem_d_parms.txt`, which stays for the unit
+cases). The model is a computation test and biologically implausible by construction: a fixed
+VDDJ layout cannot explain the VDJ reads a real repertoire also holds. Biological use waits for
+milestone 2 (B10), whose place relative to the migration is decision Q14 of
+[ENGINE_MIGRATION_PLAN.md](ENGINE_MIGRATION_PLAN.md).
+
+**The model.** Human TRB (`models/human/tcr_beta/models/`), its D block duplicated through the JSON
+format:
+- `d_gene` becomes two gene choices on `D1_gene_seq` and `D2_gene_seq`, both drawing from TRB's D
+  library, both conditioned on V and J as `d_gene` is;
+- each D gets its two deletions, the 3′ one conditioned on its own gene and 5′ deletion, as in TRB;
+- the insertions and their Dinucl chains become VD1, D1D2 and D2J. D1D2's copy one of TRB's two
+  junctions, a choice recorded with the fixture;
+- the segment order `[V, VD1_ins, D1, D1D2_ins, D2, D2J_ins, J]`, and the edges;
+- the parameters copied by event name.
+
+**The reads.** Generated from that model by the legacy generator (T4), seeded, on one thread, then
+frozen with their alignments. The same number of reads, of the same length, are generated from the
+source TRB model, for the comparison.
+
+**What it measures.**
+- The round trip: the inferred marginals converge back to the generating ones (the smoke and
+  convergence cases).
+- The cost against the source TRB model on matched reads: scenarios explored, wall time, the fold's
+  build time.
+- The removal of `[!mayfail]` from the `[tandem_d]` cases.
+
+**What it needs that does not exist yet.**
+- **A JSON → `Model_Parms` load.**
+  - What exists: `model_parms_to_json()` writes the structure and is called only from tests;
+    `topology_from_json()` feeds `Topology` only; `export_to_legacy()` drops the segment order and
+    the error rate and calls no `finalize()` (merge analysis §4.3).
+  - The shortest path is a `model_parms_from_json()`: build the events with the JSON constructors
+    they already have, through `EventFactory`, then add the edges by nickname, set the order and
+    Single's rate, and call `finalize()`.
+  - The migration's importer (its step L5) reuses it.
+- **Parameters for the duplicated events.** The JSON document carries no parameters yet (synthesis
+  step 4b), so until then the marginals file is written by event name, D2's block copied from D1's.
+- **The duplication script**, working on the JSON document.
+- **A JSON export reachable outside the tests**, such as a converter subcommand.
 
 ### Not on the milestone-1 path
 
