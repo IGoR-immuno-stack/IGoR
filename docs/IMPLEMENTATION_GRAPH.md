@@ -6,6 +6,7 @@
   tandem D);
 - [ERROR_MODEL_REWRITE_PLAN.md](ERROR_MODEL_REWRITE_PLAN.md) (ERR);
 - [ENGINE_MIGRATION_PLAN.md](ENGINE_MIGRATION_PLAN.md) (MIG);
+- [COUNTER_REWRITE_PLAN.md](COUNTER_REWRITE_PLAN.md) (CNT);
 - [GENERATION_REWRITE_PLAN.md](GENERATION_REWRITE_PLAN.md) (GEN): only its §6 is left;
 - [ITERATE_GENERIC_REWRITE_PLAN.md](ITERATE_GENERIC_REWRITE_PLAN.md) (ITER): R4, the optional
   S4d, the tier work and its §9;
@@ -100,13 +101,15 @@ flowchart LR
     H5["H5 · hypermutation handlers"]
   end
 
-  subgraph LC["Counters · lane C · MIG §2"]
+  subgraph LC["Counters · lane C · CNT"]
     CR3["CR · CX3, J coverage past its array"]
     CT1["CT1 · dead code out"]
+    QC1{"CNT QC1: where the per-read<br/>error summary is written"}
+    CT1b["CT1b · Errors_counter dropped;<br/>per-read E n_gen, E n_mis/n_gen"]
     CR["CR · counter repairs"]
-    CT2a["CT2a · snapshot by id; lookups by role"]
-    CT3a["CT3a · tandem: best scenarios, errors, Pgen"]
-    CT2b["CT2b · scenario record and provenance"]
+    CT2a["CT2a · snapshot by id; lookups by role;<br/>requirements checked at initialize"]
+    CT3a["CT3a · tandem: best scenarios, Pgen"]
+    CT2b["CT2b · scenario record and<br/>segment provenance"]
     CT3b["CT3b · tandem: coverage, D included"]
     CRP["CR-P · palindromes at the mirrored position"]
     CT4["CT4 · counter lifecycle in the driver"]
@@ -233,6 +236,10 @@ flowchart LR
   %% Counters
   CT0 ==> CR3
   CT0 ==> CT1
+  CT0 ==> CT1b
+  QC1 ==> CT1b
+  E1 --> CT1b
+  L1 -. "ReadSummary" .-> CT1b
   CT0 ==> CR
   E2 -. "CX13" .-> CR
   CT0 ==> CT2a
@@ -348,10 +355,10 @@ flowchart LR
   classDef milestone fill:#fde7c8,stroke:#c26100,stroke-width:2px,color:#000
   classDef decision fill:#fbdcdc,stroke:#b42318,color:#000
   class PRT1,PRT3,PRDOC review
-  class ER1,HR,CR3,CR,CRP,L7,SYN4b golden
+  class ER1,HR,CR3,CR,CT1b,CRP,L7,SYN4b golden
   class S4d,PERF,NC optional
   class M1,M2,CP2,CP5,CP8 milestone
-  class DT5,QE7,QE5,QD,Q7,Q1516,QPR,QFG,QB10,INTU,Q13 decision
+  class DT5,QE7,QE5,QD,Q7,Q1516,QPR,QFG,QB10,INTU,Q13,QC1 decision
 ```
 
 ---
@@ -413,7 +420,7 @@ blocks land · **gated** — waits on a decision or on a step of another plan ·
 | Node | Source | Hard blocks | Soft | Status |
 |---|---|---|---|---|
 | L0 | MIG §3 | — | milestone 1 (priority) | pending |
-| CT0 | MIG §2.6 | — | milestone 1 | pending |
+| CT0 | CNT §8 | — | milestone 1 | pending |
 | E0 | ERR §4.2 | — | milestone 1 | pending |
 | H0 | ERR §4.3 | — | milestone 1 | pending |
 | H1 | ERR §4.3 | — | H0 | pending |
@@ -436,15 +443,16 @@ blocks land · **gated** — waits on a decision or on a step of another plan ·
 ### Lane C, counters
 | Node | Source | Hard blocks | Soft | Status |
 |---|---|---|---|---|
-| CR, CX3 | MIG §2.3 | CT0 | — | pending; repair early |
-| CT1 | MIG §2.6 | CT0 | — | pending |
-| CR | MIG §2.6 | CT0 | E2 (CX13) | pending; each repair names the outputs it moves |
-| CT2a | MIG §2.6, T7b's counter half | CT0, T3 | after T7a | pending |
-| CT3a | MIG §2.5 | CT2a, E3 | — | pending |
-| CT2b | MIG §2.6 | CT2a, L3 | — | gated on L3 |
-| CT3b | MIG §2.5 | CT2b | after CT3a | gated on L3 |
-| CR-P | MIG §2.5 | CT3b | — | moves the coverage goldens once |
-| CT4 | MIG §2.6 | L1, L4a | — | gated on L4a |
+| CR, CX3 | CNT §5 | CT0 | — | pending; repair early |
+| CT1 | CNT §8 | CT0 | — | pending |
+| CT1b | CNT §2.3 | CT0, QC1 | L1's `ReadSummary`; after E1 | gated on QC1; the per-read output moves once |
+| CR | CNT §8 | CT0 | E2 (CX13) | pending; each repair names the outputs it moves |
+| CT2a | CNT §8, §4.3; T7b's counter half | CT0, T3 | after T7a | pending |
+| CT3a | CNT §7 | CT2a, E3 | — | pending |
+| CT2b | CNT §3.3, §4.2 | CT2a, L3 | — | gated on L3 |
+| CT3b | CNT §7 | CT2b | after CT3a | gated on L3 |
+| CR-P | CNT §7 | CT3b | — | moves the coverage goldens once |
+| CT4 | CNT §8 | L1, L4a | — | gated on L4a |
 
 ### Lane D, driver and engine
 | Node | Source | Hard blocks | Soft | Status |
@@ -492,7 +500,7 @@ blocks land · **gated** — waits on a decision or on a step of another plan ·
 | SYN 9, Phase D | SYN step 9, CAP | SYN 7 | — | gated |
 | DpBoundedDfs, FFBS | REV §5.3 | SYN 9 | — | gated |
 | k-best on the DP | REV §5.1 | SYN 9 | — | gated |
-| CT5 | MIG §2.6 | SYN 9 | — | gated |
+| CT5 | CNT §8 | SYN 9 | — | gated |
 | D1/D2 tying, B9 step 3 | CAP, SYN §4 | L4b | — | gated |
 | Covariates | SYN, REV §6 | L4b, L5 | — | gated |
 | Per-parent error rate | ERR §3.4 | L5, E4 | — | gated |

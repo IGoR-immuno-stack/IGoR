@@ -18,8 +18,8 @@ it builds on are the synthesis (SYN), [SEGMENT_DECOMPOSITION_REVIEW.md](SEGMENT_
 proposal (LAYER).
 **Line numbers** are those of `feature/tandemD-T7-pinning` (T1 merged in, T3 not). "On T3" marks
 `feature/tandemD-T3-plan`.
-**Prefixes**: L (migration steps), CT (counter steps), CX (counter defects), CR (counter repairs),
-Q (decisions). E, ER, H, HR and X are ERR's; T and B are CAP's.
+**Prefixes**: L (migration steps), Q (decisions). CT, CX and CR are the counter plan's; E, ER, H,
+HR and X are ERR's; T and B are CAP's.
 **Ordering across all the plans**: [IMPLEMENTATION_GRAPH.md](IMPLEMENTATION_GRAPH.md).
 
 ---
@@ -128,141 +128,31 @@ The event order is `get_model_queue()`: priority first, then the order of the ev
 - No VJ model is run by any track.
 - No track pins viterbi (`--MLSO`), fixed events (`--fix_err`, fixed marginals), or the
   `fast_iter` data policy on its own; the mean-error read threshold has no CLI option.
-- Marginals are independent of the thread count since #68; counter summaries are not (§2.4, CX4).
+- Marginals are independent of the thread count since #68; counter summaries are not (CNT, CX4).
 
 ---
 
 ## 2. The counters
 
-### 2.1 Inventory
+The counters have a plan of their own, [COUNTER_REWRITE_PLAN.md](COUNTER_REWRITE_PLAN.md) (CNT), which is lane C of §4. What it covers:
+- the inventory, and the patterns by which the counters reach into events;
+- why `Errors_counter` goes;
+- the scenario record and the segment provenance that replace those patterns;
+- the requirements a counter checks at initialisation;
+- its defects (CX), the tandem-D generalisation, and its steps (CT, CR).
 
-None of the four has a unit test.
+Where it meets the migration:
 
-| Counter | Reached by | Reads | V/D/J hard-coding (code tokens) | On a tandem model | Output | Tests |
-|---|---|---|---|---|---|---|
-| `Best_scenarios_counter` | `--scenarios N` ([legacy_main.cpp:913](../app/igor/legacy_main.cpp#L913)) | P(s, read); every event's `get_current_realizations_index_vec()` in queue order ([Bestscenarioscounter.cpp:104](../src/igor/Inference/Legacy/Bestscenarioscounter.cpp#L104)); the V, D, J mismatch lists (193) | 6 `Seq_type` | D1/D2 mismatches silently left out; duplicate column names until T2 | `best_scenarios_counts.csv`, once per read, shared stream | goldens: `inference`, `no_d_align` (sorted, rank dropped); `tie_digits = 12`, `keep_ties` only |
-| `Errors_counter` | `-run_demo` and `igor-demo` only; no CLI flag | sizes of the V, D, J sequences and mismatch lists (Errorscounter.cpp:117-140) | 24 `Seq_type` | silently undercounts | `scenarios_background_and_errors.csv`, `sequence_mutation_frequency.csv`, per read, every iteration | none (its sort rules in `test_inference.sh` have no golden) |
-| `Pgen_counter` | `--Pgen` (estimator mode only) | `build_full_sequence` (Scenario.h:145-174); P(s) and P(s, read) | 12 `Seq_type`, all without effect on the live path; the snapshot's VDJ/VJ branch | σ assembled as V+J: wrong, silently | `Pgen_counts.csv`, per read | goldens in estimator mode; the per-σ and sequence modes untested |
-| `Coverage_err_counter` | `--coverage {V_gene, …, VDJ_genes}` | events by enum, raw slots, the gene choice's realizations map (§2.2) | 24 `Seq_type`, 3 gene class | V and J work while they keep their legacy names; D terminates the process | `{V,D,J}_genes_cov_and_err.csv`, summary per iteration | goldens for V and J; D, `Npoint > 1` and per-read mode untested |
-
-Totals: 89 `Seq_type` and 3 gene-class tokens across the four counters, `Scenario.h` and
-`EventUtils.cpp`, as ERR §3.7 counts. The T7a guards that would refuse a tandem model are not in the
-code yet.
-
-### 2.2 Event knowledge and direct member access: the patterns, and how to break them
-
-The counters, coverage above all, do not just read the scenario: they know which events exist,
-which member holds what, and how the events lay a segment out on the read. Each pattern, what it
-is used for, and what replaces it:
-
-| # | Pattern | Where | What it actually needs | Replacement |
-|---|---|---|---|---|
-| A1 | "The V, D or J gene choice" and "the V 3′, D 5′/3′, J 5′ deletion", found by (event type, `Seq_type` enum, side) | [Coverageerrcounter.cpp:163-265](../src/igor/Inference/Legacy/Coverageerrcounter.cpp#L163); Pgencounter.cpp:93-99 | the event that creates segment s, and the one that modifies each of its ends | `SegmentIndex::content_creators(s)` and `end_modifiers(s, side)` (on T3), resolved once at `initialize` from the segment names the counter is configured with |
-| A2 | Raw pointers into live event members, dereferenced at every leaf: `alignment_offset_slot` (→ `&alignment.offset` of the current read's alignment), `current_realization_index_slot`, `deletion_value_slot`. Correct only because each thread owns its events and the DFS has just written them; D publishes neither of the first two | Coverageerrcounter.cpp:164-267; Genechoice.cpp:272-277; Deletion.cpp:325 | which gene, where its template sits on the read, how many nucleotides each end lost or gained | the scenario record (L3): `{uid → realization index, payload}`. A deletion's value is the domain's value at the recorded index, read from the const model, so it needs no payload. A gene choice's payload is the read offset of its template, published for every placement, D's exhaustive scan included |
-| A3 | Per-event scratch read through a public accessor, in queue order | Bestscenarioscounter.cpp:104 | every event's realization, Dinucl chains included | the record, in the model's order |
-| A4 | A copy of the gene choice's realization map, to size the arrays | Coverageerrcounter.cpp:168-174 | the template lengths | the event's domain in the const model |
-| A5 | Geometry by assumption: V is left of the read and J right (296-303, 339-351); template position = read position − alignment offset; P nucleotides told apart by where their mismatches fall (V: `pos − off ≥ len`, J: `pos < off`); end bound `len − max(0, del)` | Coverageerrcounter.cpp:296-351 | for each read position of the segment, the template position it shows, and whether directly or mirrored | the **segment provenance** view, below |
-| A6 | What "genomic" means, implied: the V, D and J sequences with their P nucleotides, and their mismatch lists | Errorscounter.cpp:117-140; Bestscenarioscounter.cpp:193 | the segments whose content is compared with the read | the mismatch role (ERR §3.3) and Single's resolved `apply_to` (ERR §3.2): one set, shared with the likelihood, so the counter and the error model agree on what an error is |
-| A7 | The snapshot's six fixed slots, filled from ids 0 to 5, and the VDJ/VJ branch of `build_full_sequence` | [Scenario.h:57-90](../src/igor/Model/Legacy/Scenario.h#L57), 145-174 | the constructed segments, in layout order | a snapshot sized from the registry and indexed by `SeqTypeId`; the sequence assembled over `registry.ordering()` |
-| A8 | Timing implied by the DFS: a counter runs at the leaf because every layer is written by then; `count_sequence` runs before the error model resets its per-read state | Rec_Event.cpp:435-439; GenModel.cpp:586-605 | a completed scenario; a per-read summary | the engine's sink contract (§2.4) and a `ReadSummary` |
-| A9 | The read likelihood taken from the error model | GenModel.cpp:588 | L | `ReadSummary` |
-
-**The segment provenance view.** One engine-agnostic helper in `src/igor/Model/`, under the rules
-of ERR §3.9: it depends on neither architecture. From the record, `SegmentIndex` and the const
-model, it gives, for one segment of one scenario:
-- the template: library and realization index;
-- the template interval kept, [t5, t3], after both ends' modifiers;
-- the palindromic extension at each end, p5 and p3;
-- the read interval the segment occupies;
-- for each read position of the segment: (template position, direct or mirrored), or "not
-  templated".
-
-One helper then serves every consumer that today re-derives the geometry:
-- coverage counts template positions from it;
-- errors, best scenarios and the error model select segments by mismatch role and count within them;
-- the hypermutation models later read their context through it and the flank segments (ERR H3).
-
-Today's counts are the provenance with the mirrored positions dropped, so moving onto it is
-bitwise. The slots and the `friend`s go once their last reader uses it.
-
-### 2.3 Defects and oddities
-
-Categories follow ITER §6.1: *confirmed* defects are pinned at their intended value under
-`[!shouldfail]` and fixed once, in a CR commit; *odd* behaviour is pinned as observed.
-
-| # | Finding | Category | Owner |
-|---|---|---|---|
-| CX1 | D coverage throws a `const char*` ([Coverageerrcounter.cpp:321](../src/igor/Inference/Legacy/Coverageerrcounter.cpp#L321)); `GenModel`'s `catch (exception&)` does not catch it, it leaves the OpenMP region, and the process calls `std::terminate` | confirmed | CR, then CT3 implements D |
-| CX2 | `try_get_event`'s result is ignored (163, 198, 242): D coverage on a VJ or tandem model dereferences null | confirmed | CR |
-| CX3 | J coverage with a palindromic J (`j5del < 0`): the end bound `max(0, j5del) + (J3′ − J5′ + 1)` (347-351) includes the \|d\| P nucleotides, so it over-counts \|d\| positions at the 3′ end and, when the read covers the whole J, writes past the array. The TRB goldens do not reach it (their reads cover about 13 nt of J) | suspected; confirm in CT0 | CR, early, independently of the migration: it can corrupt memory on long reads |
-| CX4 | The coverage summary is merged in thread order (GenModel.cpp:640-657, its FIXME): its last bits depend on the schedule; the 6-digit output hides it | confirmed | CT4 |
-| CX5 | `initialize` re-allocates without freeing; a destructor over raw arrays with the implicit copy left in (rule of three); `throw except;` slices; messages copied from the hypermutation model | confirmed | CR |
-| CX6 | Pgen's sequence mode writes a header and no rows; its per-σ mode does not print σ (Pgencounter.cpp:181-211) | confirmed | CR, Q12 |
-| CX7 | Pgen's V/D/J flags are computed and read only by the dead path | dead | CT1 |
-| CX8 | Unguarded divisions: by n_gen (Errorscounter.cpp:176), by L (267-269; best scenarios' `count_sequence`) | confirmed | CR |
-| CX9 | `Errors_counter` has no CLI flag and no golden; its top-k breaks ties by enumeration order | gap | CT0, Q11 |
-| CX10 | Per-read outputs carry no iteration column: with `last_iter_only = false` (errors, in the demo), rows of every iteration are indistinguishable | odd | CT4 |
-| CX11 | Counters run before the mean-error rejection (GenModel.cpp:586-605), so rejected reads are counted | odd | Q10 |
-| CX12 | Counters see the scenarios above the *running* maximum, so the set depends on the order the DFS explores | inherent to the DFS | documented; a DP engine differs (REV §5.3, check 1 at threshold 0) |
-| CX13 | Viterbi: counters accumulate every successive running maximum, so coverage weights exceed 1 | confirmed | CR, with ERR E2 |
-| CX14 | Best scenarios: `initialize` is not idempotent (columns duplicate); P is truncated from `long double` to `double` | confirmed | CR |
-| CX15 | The deprecated interface (`initialize_counter`, the 7-argument `count_scenario`) and the four legacy bodies have no caller | dead | CT1 |
-| CX16 | A `Scenario` snapshot (three vectors) is allocated at every accepted leaf, counters or not | perf | CT2b |
-| CX17 | Thread copies share one stream; rows come in thread-finish order, which the tests sort away | odd | CT4 |
-| CX18 | Coverage discards the palindromic nucleotides instead of counting them at their mirrored template position | improvement | CR-P |
-
-### 2.4 What each counter needs from an engine
-
-**Statistic class**, after REV §5.3:
-
-| Counter | Class | An engine other than the DFS would serve it by |
+| Counter step | Needs from the migration | The migration needs it for |
 |---|---|---|
-| Coverage | posterior expectation over one segment's state (gene, placement, end trims) | forward–backward marginals |
-| Errors (a) Σ P·n_gen, (b) Σ P·n_mis | additive | the expectation semiring |
-| Errors (c) Σ P·n_mis/n_gen; its top-k | non-linear; k-best | state augmentation; k-best |
-| Best scenarios | k-best, with its canonical tie order (40-bit mantissa, then lexicographic on realizations, then mismatches; Bestscenarioscounter.cpp:68-98) | k-best (max, ×) with backtracking |
-| Pgen | an arbitrary function of the whole sequence | enumeration or posterior sampling |
+| CT0, the characterization suite | — | L1: the counters are pinned before the driver split |
+| CT1b, `Errors_counter` dropped | L1's `ReadSummary`, softly | — |
+| CT2b, the record and the provenance | L3, which adds the record to `ScenarioContext` | — |
+| CT4, the lifecycle in the driver | L1, L4a | — |
+| CT3, CT4 | — | L8: `Counter` becomes `Observer` |
 
-**The contract a counter needs**, whatever the engine:
-- `initialize` once per worker, against a const model;
-- a per-scenario sink receiving P(s), P(s, read), the record, the provenance and the mismatch lists;
-- the threshold semantics: it sees exactly the scenarios that make up L;
-- a per-read hook with the read index, the iteration, L and whether the read was accepted;
-- per-chunk accumulation with an ordered merge, for summaries;
-- a summary hook per iteration, honouring `last_iter_only`;
-- an output sink that writes rows in read order.
-
-### 2.5 Generalisation for tandem D
-
-Each counter moves from V, D and J to sets resolved from the ordering. VDJ outputs stay unchanged
-until CR-P.
-- **Best scenarios**: the mismatches of every segment with a mismatch writer, in ordering order (in
-  VDJ: V, D, J, as today).
-- **Errors**: n_gen and n_mis over Single's `apply_to` set.
-- **Pgen**: σ assembled over `registry.ordering()`.
-- **Coverage**:
-  - keyed by segment, not gene class: `--coverage` accepts segment names, and `D_gene` keeps
-    meaning every D segment (Q8);
-  - D implemented;
-  - geometry from the provenance, for any segment, whichever end anchors it;
-  - **palindromic nucleotides counted at their mirrored template position (CX18, CR-P).** A
-    template position seen directly and again through its palindrome is counted twice; a mismatch on
-    a P nucleotide is an error at the mirrored position. Coverage then reads "expected observations
-    per template position", not "probability of being observed", and the output header says so.
-
-### 2.6 Steps
-
-| Step | Needs | Content | Bitwise |
-|---|---|---|---|
-| CT0 | milestone 1 | Characterization suite at the counter API: `Scenario` and contexts built by hand, no DFS needed. One tiny end-to-end model per counter. VJ and tandem fixtures. Best scenarios: tie settings, viterbi. Pgen: all three modes. Coverage: D (`[!shouldfail]`), `Npoint > 1`, per-read mode, palindromic V and J (CX3). An Errors golden. Thread-count determinism at full precision (`[!shouldfail]` until CT4). Coverage report and mutations (ITER's ITERATE_TEST_GUIDE §7) | tests only |
-| CT1 | CT0 | Dead code out (CX7, CX15) | yes |
-| CT2a | CT0 | T7b's counter half, on the legacy DFS: the snapshot sized from the registry and indexed by `SeqTypeId` (A7); the events a counter reads resolved once, at `initialize`, through `SegmentIndex` rather than by enum (A1); best scenarios' mismatches in ordering order | yes |
-| CT2b | CT2a, L3 | The record and the provenance replace the slots, the scratch reads, the copied realization map and the assumed geometry (A2–A5). The slots go | yes |
-| CT3 | CT2a and ERR E3 for best scenarios, errors and Pgen; CT2b for coverage | §2.5, which lifts T7a's guard counter by counter | yes on VDJ; new tandem cases |
-| CT4 | L1, L4a | The lifecycle in the driver: the per-read hook takes a `ReadSummary`; an output sink ordered by read index; summing counters in `AccumulatorSet` chunk slots, sparse (Q9); `last_iter_only` applied by the driver | yes, except the coverage summary's last bits (CX4), measured |
-| CR | CT0 | One repair per commit: CX1, CX2, CX3, CX5, CX6, CX8, CX13 (with ERR E2), CX14 | the outputs each moves, named |
-| CR-P | CT3 | Palindromic positions counted (CX18) | the coverage goldens move once, named |
-| CT5 | a second engine | Each counter declares its statistic class and what it reads, for the engine's admissibility check; `Counter` becomes `Observer` (LAYER §5) | §7 |
+The segment provenance (CNT §4.2) is written by `Gene_choice` and `Deletion` at their layers, as
+part of L3's record. The hypermutation models read it too (ERR H3).
 
 ---
 
@@ -273,7 +163,7 @@ until CR-P.
 | L0 | milestone 1 | **The oracle.** (a) An A/B dump at full precision (marginals, likelihoods, error rate, at `max_digits10`) of the base and the candidate on every track: a script, not new goldens. (b) A VJ track (a shipped TRA or IGK model, inference, evaluate, counters). (c) Pins for fixed events, MLSO/viterbi, `fast_iter`, and 1 vs N threads. (d) Bridge parity on every shipped model: each multi-parent tensor's axes against the legacy strides, and the round trip with order and error rate (`[!shouldfail]` until L5). (e) CT0. (f) ERR H0 brought forward, so that the hypermutation models are pinned before L1 touches the leaf | tests only |
 | L1 | L0, T3 merged, T7a | **The EM driver and `LegacyDfsEngine`** (SYN step 6, first half). The driver takes §1.2's G steps: iterations, data policy, chunk plan, threads, read loop, `ReadSummary`, per-read normalisation, read policy, ordered merge, the M-step call, outputs, the counter lifecycle. The engine is concrete, with no abstract base while it is the only engine. It implements `check_admissible` (the TraversalPlan and T7a's guards), `prepare_iteration`, `make_workspace` and `process_read`, by calling today's code. An `AccumulatorSet` interface, first implemented over `Model_marginals`, `Error_rate` and the counters. `GenModel::infer_model` becomes a shim. New: driver unit tests against a fake engine (rejection, fixed events, ordered merge, data policy) | yes |
 | L2 | L1; ERR E2 | **The leaf and the dispatch to the engine** (REV §10.3, DFS-A). An engine continuation `next(p, bound_facts)` replaces `iterate_wrap_up` and `next_event_ptr_arr`. The leaf — error factor, threshold, running maximum, counter sink, accumulation — is the engine's, and so is the viterbi policy. The unit harness's `RecordingEvent` gives way to a lambda continuation | yes |
-| L3 | L2, T2, Q3–Q5 | **The uid and the scenario record** (SYN steps 2–3). uids on the legacy events, in nickname order. `edges`, `Index_map`, `processed_events` and `offset_map` keyed by uid. `ScenarioContext` gains `{uid → index, payload}`, written at each event's layer; the leaf accumulation reads it, with the flat marginal index as payload, so the arithmetic is unchanged. The provenance helper (§2.2). CT2b lands here. The hypermutation `friend`s stay until ERR H3 | yes |
+| L3 | L2, T2, Q3–Q5 | **The uid and the scenario record** (SYN steps 2–3). uids on the legacy events, in nickname order. `edges`, `Index_map`, `processed_events` and `offset_map` keyed by uid. `ScenarioContext` gains `{uid → index, payload}`, written at each event's layer; the leaf accumulation reads it, with the flat marginal index as payload, so the arithmetic is unchanged. The provenance record and its reader (CNT §4.2). CT2b lands here. The hypermutation `friend`s stay until ERR H3 | yes |
 | L4 | L3; ERR E1, E4; Q7 | **Parameters and accumulators in the new model** (SYN step 8, in MERGE §6.2's order). **L4a**: tensor accumulators in the legacy layout, `long double`, chunk slots, the ordered merge; the counters' slots (CT4). **L4b**: the M-step by the handlers' `maximize`, with the `!= 0` cut-off and the legacy summation order; a `fixed` flag per node; the error node (Single's core, an adapter for the hypermutation models); the bound table rebuilt after the M-step; parity tests at exact equality. **L4c**: the DFS reads its parameters from the tensors, and `update_event_internal_probas` from them too: the flat index it computes over one array becomes an offset into the event's own tensor, and since the layouts are the same, the values and the arithmetic are unchanged. `Model_marginals` keeps file I/O only. The Model module's `InferenceEngine<T>` container dissolves — reset into `AccumulatorSet::empty_copy`, combine into its ordered `+=`, update into the driver's `maximize` loop — and the name becomes the strategy interface `LegacyDfsEngine` implements (Q1) | yes |
 | L5 | L4; the registry, the ordering and the linear layout owned by `RecombinationModel`, with `finalize()`'s work there (MERGE §4.2); T7b; an error-model JSON reader (ERR X20); Q4 | **The engine reads `RecombinationModel`.** Its plan — queue, layers, adjacency, TraversalPlan — comes from `Topology` and the registry. The model is const, and the engine copies the events into its workspace. `Model_Parms` is left as the v1/v2 importer, and `export_to_legacy` goes | yes |
 | L6 | L5 | **Tiers** (REV §13.3): 0a work (copies, `initialize_event`, the plan) once per run, 0b (the fold, the dinucleotide matrix, the bound tables) once per iteration, shared and const. Each move is benchmarked | yes |
@@ -312,7 +202,7 @@ share files run in sequence.
 | T, tests | L0, CT0, ERR E0, H0, H1 | `tst/`, `scripts/tests/` | in parallel with everything |
 | D, driver and engine | L1 → L2 → L3 → L4 → L5 → L6 → L8 | `GenModel.*`, `Rec_Event.*`, the contexts, the new `Inference/Dfs/` | strictly in sequence, one open PR at a time |
 | E, error model | E1, ER1, E2, E3, E4; H2–H5 | `Errorrate*`, `Singleerrorrate*`, `Hypermutation*`, the new core in `src/igor/Model/` | E2 merged before L2 opens; E3 between two D steps; the rest in parallel |
-| C, counters | CT1, CT2a, CR, CT3, CR-P | `Inference/Legacy/*counter*`, `Scenario.h` | in parallel with D, except CT2b (with L3) and CT4 (after L4a) |
+| C, counters ([COUNTER_REWRITE_PLAN.md](COUNTER_REWRITE_PLAN.md)) | CT1, CT1b, CT2a, CR, CT3, CR-P | `Inference/Legacy/*counter*`, `Scenario.h` | in parallel with D, except CT2b (with L3) and CT4 (after L4a) |
 | M, Model module | registry ownership, labelled axes (Q3), handler cut-offs, `fixed`, the container's dissolution | `src/igor/Model/`, `src/igor/Inference/` outside `Legacy/` | each as its own PR, ahead of the D step that uses it |
 | G, generation | L7, R4 | `src/igor/Generation/`, the sampling handlers; R4 also edits `Dinuclmarkov.cpp`, a lane-D file | in parallel with D; R4 scheduled between two D steps |
 
@@ -325,7 +215,7 @@ feature/engine-migration ────────●────●────�
    lane T  ───(L0, CT0, E0, H0, H1)──▶ merged as they land
    lane D  ───L1──L2──L3──L4──L5──L6──L8   (one open PR at a time)
    lane E  ───E1/ER1──E2──E3──E4──H2…H5
-   lane C  ───CT1, CT2a, CR──CT3 (best, errors, Pgen)──CT2b (with L3)──CT3 (coverage)──CT4 (after L4a)──CR-P
+   lane C  ───CT1, CT1b, CT2a, CR──CT3 (best scenarios, Pgen)──CT2b (with L3)──CT3 (coverage)──CT4 (after L4a)──CR-P
    lane M  ───PRs ahead of L4, L5
    lane G  ───────────L7, R4
 ```
@@ -386,7 +276,7 @@ at the cost of redoing work.
 | L7 | The error node's sampling registrar; `double` or `long double` sampling | ERR §3.5, SYN §5 | pending | hard | `SamplingEngine` throws on an unregistered type |
 | L7 | FastGenerator, T4's second half | CAP T4 | pending | soft | — |
 | L8 | H2–H5, or the Q7 adapter kept | ERR §4.3 | after milestone 1 | hard | `Error_rate` cannot go before |
-| L8 | CT3, CT4 | here | — | hard | the counters cannot become observers before |
+| L8 | CT3, CT4 | CNT §8 | — | hard | the counters cannot become observers before |
 | L8 | T6b, the enum's removal | CAP T6 | pending | soft | — |
 
 ---
@@ -425,7 +315,7 @@ at the cost of redoing work.
 | HR, the hypermutation repairs | ERR | Part II, its own track |
 | The indexed CDF sampler, with the new RNG order | SYN step 1, GEN §6 | L7 |
 | The `max_digits10` writer (SYN 4b) | SYN | after L5 |
-| CR and CR-P | here | lane C, each named |
+| CR, CR-P, CT1b | CNT §8 | lane C, each named |
 | R16 | ITER, CAP T3 | undecided |
 
 None sits inside L1–L6, which is what lets every lane-D step stay bitwise.
@@ -443,11 +333,7 @@ None sits inside L1–L6, which is what lets every lane-D step stay bitwise.
 | Q5 | The uid order | nickname order, as SYN says; safe once Q3 and Q4 hold |
 | Q6 | How production switches | no runtime flag (§5) |
 | Q7 | Hypermutation models before ERR Part II ends | an adapter node over the legacy object, its `update()` as the handler's M-step, so that they ride through L1–L5; rather than refusing them and keeping `GenModel` alive for them |
-| Q8 | Coverage on a tandem model | per segment, one output per segment; `D_gene` means every D segment |
-| Q9 | Summing counters under the chunked reduction | chunk slots with sparse per-gene arrays, allocated on first touch: the FIXME's objection is the size of a dense copy per chunk |
-| Q10 | Counters and rejected reads (CX11) | per-read outputs for every read, summaries over accepted reads only; to decide |
-| Q11 | `Errors_counter` | keep it, with a CLI flag and a golden |
-| Q12 | Pgen's two broken modes (CX6) | fix the sequence mode (rows, with σ); drop the per-σ mode that omits σ |
+| Q8–Q12 | *Moved to the counter plan*: coverage on tandem (CNT QC3), summing counters (QC4), rejected reads (QC5), `Errors_counter` (now dropped, CNT §2), Pgen's modes (QC6) | — |
 | Q13 | When AA Pgen lands | not during L2–L5, which rewrite the code it edits; either on the legacy DFS before L2, or onto the engine after L5 |
 | Q14 | Where B10 goes | **Re-evaluated once T5's timings are in.** If the legacy DFS is prohibitive on V-D1-D2-J — the expected outcome — real data gains nothing from B10 before the DP engine (SYN step 9, after the migration), and B10 is placed with it. If the DFS suffices, B10 can follow L3, where adjacency per scenario has a home; before L3 it would put the guards and that adjacency into `Model_Parms` and event members, which L3–L5 then move. Either way, B10's representation (CAP B10, its options (b) vs (c)) is decided with its placement |
 | Q15 | LAYER tags the events "replace" (copy, rework, delete the original) | promote after extraction instead: the `iterate()` bodies move to kernels and the remaining class is the definition. `Topology` already shares the class with the legacy runtime, so a copy would give it two event types (ERR §3.10) |
@@ -461,7 +347,7 @@ Fixed in the commit that adds this plan:
 - **GEN §6**: the `MarkovSamplingHandler` row-index defect was fixed by `72a66fc`; what remains open
   is the anchor nucleotide and the from-state passed by `run()`.
 - **CAP**: the T0 blocker row is ticked (#70); T5 gains its synthetic fixture; T7b's counter half
-  moves to CT2a; the Phase C, D and E rows point here.
+  moves to the counter plan's CT2a; the Phase C, D and E rows point here.
 - **ERR**: pointers to this plan (header, §3.9, §7, the T7b row).
 
 Stale statements in the untracked design documents, listed for their next revision:
@@ -487,7 +373,7 @@ Stale statements in the untracked design documents, listed for their next revisi
   bits of an accumulator passes unseen.
 - **Layout coincidence.** The legacy strides follow the queue; the tensors' parent axes follow the
   uid. They agree on TRB by inspection only (L0d, Q3).
-- **CX3** may write past an array on long reads with a palindromic J: repair it early, whatever the
+- **CX3** (counter plan) may write past an array on long reads with a palindromic J: repair it early, whatever the
   migration's pace.
 - **T3's line numbers** move when it merges.
 - **AA Pgen** (`origin/feature/AA_PGEN`) edits the leaf, the error model and `iterate()`: Q13.

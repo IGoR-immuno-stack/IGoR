@@ -129,8 +129,8 @@ What follows from it:
   fixture is checked by hand.
 - **The migration itself has a plan of its own (Oct 16 2026):** [ENGINE_MIGRATION_PLAN.md](ENGINE_MIGRATION_PLAN.md). It moves the runtime
   after milestone 1 — the EM driver and `LegacyDfsEngine`, the scenario record, the parameters in
-  `RecombinationModel`, generation, the counters — and lists what it needs from this plan (its §6)
-  and what of this plan waits for it (its §7).
+  `RecombinationModel`, generation — and lists what it needs from this plan (its §6) and what of
+  this plan waits for it (its §7). The counters have theirs: [COUNTER_REWRITE_PLAN.md](COUNTER_REWRITE_PLAN.md) (Oct 19 2026).
 
 ### What still blocks a tandem-D model
 
@@ -176,8 +176,8 @@ The order across every plan, with hard and soft blocks told apart, is drawn in
 | 6 | **T7a**: `Single_error_rate` counts every segment with a mismatch list, over the ordering; the hypermutation models and the V/D/J-shaped counters refuse a tandem model (see *T7*) | the merged branch | yes |
 | 7 | **T5**: milestone 1, on the legacy DFS | the merged branch | new tests |
 | 8 | **Part I** of [ERROR_MODEL_REWRITE_PLAN.md](ERROR_MODEL_REWRITE_PLAN.md) (E0–E4): `Single_error_rate` through a shared core, called by the legacy class and by a new-architecture node | its own feature branch, after milestone 1 | yes, except ER1 (X13), which moves every inference golden once |
-| 9 | **T7b** and **Part II** of the error-model plan: the hypermutation models, the unpinning. T7b's counter half is CT2a of [ENGINE_MIGRATION_PLAN.md](ENGINE_MIGRATION_PLAN.md) | after milestone 1 | yes on the five tracks and the new hypermutation track; a VJ model is measured (see *T7*) |
-| 10 | **The migration** to drivers and engines, [ENGINE_MIGRATION_PLAN.md](ENGINE_MIGRATION_PLAN.md): the EM driver and `LegacyDfsEngine`, the scenario record, the parameters in `RecombinationModel`, generation; with it the counters' steps CT0–CT5 | `feature/engine-migration`, after milestone 1 | yes at every step, against a full-precision oracle; the golden moves are placed outside it |
+| 9 | **T7b** and **Part II** of the error-model plan: the hypermutation models, the unpinning. T7b's counter half is CT2a of [COUNTER_REWRITE_PLAN.md](COUNTER_REWRITE_PLAN.md) | after milestone 1 | yes on the five tracks and the new hypermutation track; a VJ model is measured (see *T7*) |
+| 10 | **The migration** to drivers and engines, [ENGINE_MIGRATION_PLAN.md](ENGINE_MIGRATION_PLAN.md): the EM driver and `LegacyDfsEngine`, the scenario record, the parameters in `RecombinationModel`, generation; beside it the counters' steps CT0–CT5 of [COUNTER_REWRITE_PLAN.md](COUNTER_REWRITE_PLAN.md) | `feature/engine-migration`, after milestone 1 | yes at every step, against a full-precision oracle; the golden moves are placed outside it |
 
 **Testing tandem layouts before T1.** Until T1, no tandem `Deletion`, `Insertion` or
 `Dinucl_markov` can be built. Unit tests build one the way `test_dinucl_markov_iterate.cpp` already
@@ -512,7 +512,7 @@ half, a gene choice writing no `gene_class`, every event writing one, and every 
   for their regression track and unit suite (H0, H1 of the error-model plan) and moves after
   milestone 1, with that plan's Part II.
 - **The counters' half of step 2 leaves T7b (Oct 16 2026)** for step CT2a of
-  [ENGINE_MIGRATION_PLAN.md](ENGINE_MIGRATION_PLAN.md): the snapshot by id, the counters' event lookups, best scenarios in ordering
+  [COUNTER_REWRITE_PLAN.md](COUNTER_REWRITE_PLAN.md): the snapshot by id, the counters' event lookups, best scenarios in ordering
   order. The counter suite CT0 tests it, so it need not wait for the hypermutation suites. T7b keeps
   the hypermutation models' half of steps 2 and 3, and step 4.
 
@@ -553,7 +553,7 @@ Without the pinning, J gets id 2 in a VJ model, and `get(J_gene_seq)` reads id 4
   enum".
 
 **Steps**, one commit each (step 1 is T7a, steps 2 to 4 are T7b, less step 2's counter half, which is
-CT2a of the migration plan):
+CT2a of the counter plan):
 1. **`Single_error_rate`** counts over every segment that has a mismatch list, in
    `registry.ordering()`. The counts are integers, so their order does not matter: the result is
    bitwise on every model. A `[tandem_d]` case pins that both Ds' mismatches count. It is tagged
