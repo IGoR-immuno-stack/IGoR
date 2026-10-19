@@ -113,6 +113,8 @@ flowchart LR
     CT3b["CT3b · tandem: coverage, D included"]
     CRP["CR-P · palindromes at the mirrored position"]
     CT4["CT4 · counter lifecycle in the driver"]
+    CT6["CT6 · row sinks: text byte for byte,<br/>Parquet row group per chunk"]
+    CT7["CT7 · best scenarios as<br/>AIRR rearrangements"]
   end
 
   subgraph LD["Driver and engine · lane D · one open PR at a time"]
@@ -254,6 +256,10 @@ flowchart LR
   CT3b ==> CRP
   L1 ==> CT4
   L4a ==> CT4
+  CT4 ==> CT6
+  CT6 ==> CT7
+  CT2b ==> CT7
+  CT3b ==> CT7
 
   %% Driver and engine
   L0 ==> L1
@@ -453,6 +459,8 @@ blocks land · **gated** — waits on a decision or on a step of another plan ·
 | CT3b | CNT §7 | CT2b | after CT3a | gated on L3 |
 | CR-P | CNT §7 | CT3b | — | moves the coverage goldens once |
 | CT4 | CNT §8 | L1, L4a | — | gated on L4a |
+| CT6 | CNT §9.2 | CT4 | — | gated on CT4; text output unchanged |
+| CT7 | CNT §9.3 | CT2b, CT3, CT6 | — | gated; a new, optional output |
 
 ### Lane D, driver and engine
 | Node | Source | Hard blocks | Soft | Status |

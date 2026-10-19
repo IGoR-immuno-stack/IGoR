@@ -139,7 +139,8 @@ The counters have a plan of their own, [COUNTER_REWRITE_PLAN.md](COUNTER_REWRITE
 - why `Errors_counter` goes;
 - the scenario record and the segment provenance that replace those patterns;
 - the requirements a counter checks at initialisation;
-- its defects (CX), the tandem-D generalisation, and its steps (CT, CR).
+- its defects (CX), the tandem-D generalisation, and its steps (CT, CR);
+- the output: buffered row sinks, a Parquet backend, the best scenarios as AIRR rearrangements.
 
 Where it meets the migration:
 
@@ -150,6 +151,7 @@ Where it meets the migration:
 | CT2b, the record and the provenance | L3, which adds the record to `ScenarioContext` | — |
 | CT4, the lifecycle in the driver | L1, L4a | — |
 | CT3, CT4 | — | L8: `Counter` becomes `Observer` |
+| CT6, CT7, the sinks and the AIRR output | CT4, so L4a | — |
 
 The segment provenance (CNT §4.2) is written by `Gene_choice` and `Deletion` at their layers, as
 part of L3's record. The hypermutation models read it too (ERR H3).
@@ -202,7 +204,7 @@ share files run in sequence.
 | T, tests | L0, CT0, ERR E0, H0, H1 | `tst/`, `scripts/tests/` | in parallel with everything |
 | D, driver and engine | L1 → L2 → L3 → L4 → L5 → L6 → L8 | `GenModel.*`, `Rec_Event.*`, the contexts, the new `Inference/Dfs/` | strictly in sequence, one open PR at a time |
 | E, error model | E1, ER1, E2, E3, E4; H2–H5 | `Errorrate*`, `Singleerrorrate*`, `Hypermutation*`, the new core in `src/igor/Model/` | E2 merged before L2 opens; E3 between two D steps; the rest in parallel |
-| C, counters ([COUNTER_REWRITE_PLAN.md](COUNTER_REWRITE_PLAN.md)) | CT1, CT1b, CT2a, CR, CT3, CR-P | `Inference/Legacy/*counter*`, `Scenario.h` | in parallel with D, except CT2b (with L3) and CT4 (after L4a) |
+| C, counters ([COUNTER_REWRITE_PLAN.md](COUNTER_REWRITE_PLAN.md)) | CT1, CT1b, CT2a, CR, CT3, CR-P, CT6, CT7 | `Inference/Legacy/*counter*`, `Scenario.h` | in parallel with D, except CT2b (with L3) and CT4 (after L4a) |
 | M, Model module | registry ownership, labelled axes (Q3), handler cut-offs, `fixed`, the container's dissolution | `src/igor/Model/`, `src/igor/Inference/` outside `Legacy/` | each as its own PR, ahead of the D step that uses it |
 | G, generation | L7, R4 | `src/igor/Generation/`, the sampling handlers; R4 also edits `Dinuclmarkov.cpp`, a lane-D file | in parallel with D; R4 scheduled between two D steps |
 

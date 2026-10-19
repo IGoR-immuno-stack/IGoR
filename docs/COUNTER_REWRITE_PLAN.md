@@ -26,13 +26,15 @@ record, the driver). The order across all plans is in
   of it is already computed elsewhere: by the error model per read, and by the best-scenarios
   counter per scenario. What remains moves into the per-read summary.
 - **The coverage counter's coupling is to a segment's template, not to `Gene_choice`** (§3). Its
-  direct reads of event members give way to a scenario record: a small self-describing integer
-  record per event, written at the event's layer as offsets are today, with no strings in the hot
-  loop.
+  direct reads of event members give way to two records: the realization index of every event,
+  and a provenance record per segment, both written at the writer's layer as offsets are today,
+  with no strings in the hot loop and only when something reads them.
 - **The duplicated `Deletion` semantics can be removed** (§4). The events that build a segment write
   what they did in segment terms, as a provenance record; coverage and the hypermutation models
   read that instead of re-deriving trims and palindromes from deletion values. What assumptions
   remain are declared by each counter as requirements, checked when it is initialised.
+- **The outputs move to buffered sinks** (§9): the text files stay byte for byte, a Parquet backend
+  writes one row group per chunk, and the best scenarios can also be written as AIRR rearrangements.
 
 ---
 
@@ -160,7 +162,7 @@ What survives: coverage *is* about genomic templates. A segment with no template
 so a requirement that the segment have a templated creator is legitimate (§4.3). That is a
 coupling to a capability, not to a class or its members.
 
-### 3.3 A generic record, without strings in the hot loop
+### 3.3 What a generic record can hold, and what stays typed
 
 The idea: each event dumps its state for the scenario into something counters read generically.
 The requirements are:
@@ -168,33 +170,74 @@ The requirements are:
 - read at the leaf;
 - no allocation per realization: the DFS visits about 1,200 complete scenarios per TRB read and
   many more partial ones (REV §13.5), each with about ten events;
-- introspectable, so a counter can address a field by name and a dump can print it.
+- introspectable, so a dump can print it.
 
-| Option | Cost in the hot loop | Generic for readers | Verdict |
+| Option | Cost in the hot loop | Who interprets it | Verdict |
 |---|---|---|---|
-| (a) A JSON string per event per realization | an allocation and formatting per realization, parsing per read | yes | rejected for the transport; JSON is the right format for a *dump* |
-| (b) `std::any` per event | an allocation for anything larger than the small buffer | no: readers cast to a type they must know | rejected |
-| (c) A typed struct per event type in a `std::variant` | none | partly: readers switch on the event type, which is the coupling being removed | rejected |
-| (d) **A self-describing integer record** | one or two integer writes per realization, like the offsets written today | yes | **recommended** (QC2) |
+| (a) A JSON string per event per realization | an allocation and formatting per realization, parsing per read | the reader, by key | rejected for the transport; JSON is the right format for a *dump* |
+| (b) `std::any` per event | an allocation for anything larger than the small buffer | the reader, by casting to a type it must know | rejected |
+| (c) A typed struct per event type | none | the reader, which names the event type | the honest form for a reader that really is about one event type |
+| (d) Named integer fields that each event declares (`template_offset`, …) | one or two stores per realization | the reader, by field name | rejected: see below |
+| (e) **One universal field per event, and a typed record per segment** | one store per realization; a few for the events that build a segment | the event writes, in a vocabulary fixed by the segment | **recommended** (QC2) |
 
-**Option (d):**
-- **Schema.** At initialisation each event declares its fields by name: `Gene_choice`
-  `{realization, template_offset}`; `Deletion`, `Insertion` `{realization}`; `Dinucl_markov`
-  none, since its content is the segment's sequence.
-- **Storage.** The scenario record of MIG L3: one layered integer slot per (event, field), claimed
-  like any other layer.
-- **Writes.** Each event writes its fields at its own layer, in place, as it writes its offsets.
-- **Reads.** A reader resolves the fields it wants once, at `initialize` — `field(uid, "realization")`
-  gives an index — and reads integers at the leaf.
-- **Dumps.** Schema plus values, formatted off the hot path: JSON, or the best-scenarios columns.
-- **What it replaces.** It generalises `current_realizations_index_vec`, which the best-scenarios
-  counter already reads for every event without knowing its type (A3).
-- **Deletion values.** A deletion's value is not a field: the reader gets the realization index
-  from the record and the value from the event's domain in the const model.
+**Why (d) adds nothing over (c).** A named field is a contract: the reader asking the creator of a
+segment for `template_offset` must know that this creator has a field of that name, and what it
+means. If two events that can create a segment name or define it differently, the reader must
+know each event's names, which is (c) with strings for keys. (d) is generic only if the names form
+a vocabulary every event shares, with one meaning each. Such a vocabulary exists, but it belongs to
+the segment, not to the events, and that is (e).
 
-A record per event is not enough for coverage, though. The reader would still have to know that a
-deletion value of −2 at a 3′ end means a two-nucleotide palindrome mirrored from the last two
-template positions. That is §4.
+**(e), what a reader actually needs.** None of today's readers needs event-specific state beyond
+two things:
+- **The realization record.** One integer per event, the realization index: universal, since every
+  event has one.
+  - It is MIG L3's scenario record, and the engine's own accumulation reads it at the leaf in place
+    of `add_to_marginals` reading event members.
+  - A sequence-valued event (`Dinucl_markov`) needs no separate value: its chain of dinucleotide
+    indices follows from the content of the segment it fills and the anchor nucleotide.
+  - A deletion's number of nucleotides, or a gene's name, is not stored: the reader takes the index
+    from the record and the value from the event's domain in the const model.
+  - It generalises `current_realizations_index_vec`, which the best-scenarios counter already reads
+    for every event without knowing its type (A3).
+- **The segment provenance** (§4.2). A fixed struct per segment: template, kept interval,
+  palindromic extensions, read interval. Its fields mean the same whichever event wrote them,
+  because they describe the segment.
+
+Coverage needs the provenance. Best scenarios needs the realization record. Pgen needs the
+constructed sequence. The hypermutation models need the provenance and the flank segments.
+
+**A dump** — the best scenarios with gene names and deletion values, a debug trace — is rendered
+off the hot path. Each event type turns a realization index into a description from its domain
+(`describe(index) → json`). No event state is copied for it.
+
+**When (c) is right.** If a future counter really is about one event type's internals, it uses a
+typed struct that event writes, and it declares the event type as a requirement (§4.3). The
+coupling is then explicit and checked, instead of a slot read in passing.
+
+### 3.4 Emitted on demand
+
+Neither record allocates. Their slots are claimed when the model is initialised, in layered
+arrays like the offsets, and a realization writes integers at its own layer. What a record costs
+is the stores. And the `Scenario` snapshot built at every accepted leaf costs three vectors,
+counters or not (CX16).
+
+Emitting only what someone reads removes even that:
+- **Declared reads.** At initialisation, every consumer declares what it reads:
+  - the counters, through `check_admissible` (§4.3) and later their declared classes (CT5);
+  - the error model, its mismatch lists;
+  - the engine, the realization record.
+- **Resolution.** The model resolves, per event and per segment, whether anything reads each
+  record. An event writes a record only if something does, behind a flag set once at
+  initialisation, as `publishes_alignment_state_` is today (Genechoice.cpp:769). An unread record
+  claims no layer.
+- **The realization record is always on.** The engine's accumulation reads it, so it replaces reads
+  of event members rather than adding work.
+- **The provenance is on only when read:** by coverage, by the hypermutation models (ERR H3), by
+  the AIRR output (§9.3) or by a debug dump.
+- **The snapshot** is built only when a counter is attached, as a view over the registry-sized maps
+  (CT2a), not as three vectors per leaf.
+- **Measured.** The cost is measured as CAP D4 measures containers: the five tracks, with and
+  without a provenance reader.
 
 ---
 
@@ -247,7 +290,8 @@ its layer, what it did in segment terms**. Readers consume that and never see a 
   the provenance update together, so `iterate()` and `construct_realization()` cannot disagree.
 - **Bitwise.** The values are the same. Today's coverage is the provenance with the mirrored
   positions dropped, and CR-P then adds them, deliberately.
-- **Cost.** A few integer writes per realization of the events that build a segment.
+- **Cost.** A few integer writes per realization of the events that build a segment, and none when
+  nothing reads the provenance (§3.4).
 
 With it, the five copies become one owner and one reader, CX3, X8 and X9 disappear with their
 copies, and several modifiers on one end compose, each updating the record in turn.
@@ -378,20 +422,137 @@ until CR-P.
 | CT4 | MIG L1, L4a | The lifecycle in the driver: the per-read hook takes a `ReadSummary`; an output sink ordered by read index; summing counters in `AccumulatorSet` chunk slots, sparse (QC4); `last_iter_only` applied by the driver | yes, except the coverage summary's last bits (CX4), measured |
 | CR | CT0 | One repair per commit: CX1, CX3, CX5, CX6, the best-scenarios half of CX8, CX13 (with ERR E2), CX14 | the outputs each moves, named |
 | CR-P | CT2b, CT3 | Palindromic positions counted (CX18) | the coverage goldens move once, named |
+| CT6 | CT4 | The row sinks (§9.2): schemas per output, per-chunk buffers flushed in chunk order, the text backend byte for byte, the Parquet backend in Streaming, `output.format` | yes for text; Parquet new tests |
+| CT7 | CT2b, CT3, CT6 | The best scenarios as AIRR rearrangements (§9.3), optional, in TSV or Parquet; the Streaming AIRR writer gains the missing columns | new output, new tests |
 | CT5 | a second engine | Each counter declares its statistic class and what it reads, for the engine's admissibility check; `Counter` becomes `Observer` (LAYER §5) | MIG §7 |
 
 What the migration needs from these steps, and the reverse: CT0 before MIG L1; CT2b with L3; CT4
-after L4a; CT3 and CT4 before L8.
+after L4a; CT3 and CT4 before L8. CT6 and CT7 follow CT4 and need nothing else from the migration.
 
 ---
 
-## 9. Decisions
+## 9. Output: buffered sinks, Parquet, and AIRR
+
+### 9.1 Today
+
+- **The files.** Each counter opens its own `ofstream`, shared by every thread's copy, and writes
+  semicolon-separated text in a critical section, once per read.
+- **What follows from that:**
+  - rows come in the order threads finish, which the tests sort away (CX17);
+  - numbers carry the default 6 significant digits;
+  - per-read files have no iteration column (CX10);
+  - lists are packed into strings such as `(c0,c1,…)` and `(m1,m2,…)`;
+  - one mode writes a header and no rows (CX6).
+- **What exists to build on.**
+  - Arrow, Parquet and sparrow are already required dependencies
+    ([CMakeLists.txt:125-127](../CMakeLists.txt#L125)).
+  - `ParquetWriter::write_batch` writes one record batch to a whole file through
+    `parquet::arrow::FileWriter` ([ParquetWriter.cpp:79-121](../src/igor/Streaming/ParquetWriter.cpp#L79)).
+  - The AIRR writer serialises the aligner's alignments, not scenarios, with 18 of the schema's
+    columns and nothing for a second D (AIRRRearrangementWriter.h, AIRRCommon.cpp).
+
+### 9.2 Sinks
+
+**A row sink per output.**
+- At initialisation, a counter declares the schema of each file it writes: column names and types
+  (integer, double, string, list of integers or doubles).
+- Rows are appended into a per-chunk buffer, and the driver flushes the buffers in chunk order.
+  This is the ordered output sink of CT4.
+  - Rows come in read order, whatever the schedule (CX17).
+  - There is no critical section per read.
+  - Every per-read row carries the iteration (CX10).
+
+**Two backends behind the sink.**
+- **Text, the default**: byte for byte today's files, so no golden moves. The header-only mode is
+  fixed by CR (CX6).
+- **Parquet**: one file per output, one row group per chunk, written in chunk order, so the file
+  is deterministic.
+  - Doubles are stored in full precision.
+  - Lists are native, for example `list<int32>` for mismatch positions and for each event's
+    realization.
+  - Columns compress well, and polars, pandas and arrow read them directly.
+  - It needs an incremental writer: a `FileWriter` kept open, with one `WriteRecordBatch` per row
+    group, beside the whole-file one.
+
+**Where the code lives** (QC8).
+- The sink interface and the text backend live with the counters, in Inference.
+- The Parquet backend lives in Streaming, and the application chooses it. Inference links only
+  Model today ([src/igor/Inference/CMakeLists.txt:79-82](../src/igor/Inference/CMakeLists.txt#L79));
+  injecting the backend avoids an Inference → Streaming dependency, and lets the unit tests use an
+  in-memory sink.
+
+**The CLI.** One `output.format` key (`text`, `parquet`) beside the existing `output.*` keys
+([app/igor/main.cpp:258-264](../app/igor/main.cpp#L258)).
+
+**Schemas.**
+
+| Output | Columns |
+|---|---|
+| Best scenarios | `seq_index`, `iteration`, `rank`, `proba_cond_seq` (double), one `list<int32>` column per event named by its nickname, `mismatches` (`list<int32>`) |
+| Pgen | `seq_index`, `iteration`, `pgen_estimate`; in the sequence mode `sequence`, `pgen`, `p_joint` (QC6) |
+| Coverage | `iteration`, `segment`, `gene_index`, `gene_name`, `coverage` and `errors` as `list<double>` over positions (QC10) |
+| The per-read summary (CT1b) | `seq_index`, `iteration`, the likelihood, E[n_gen], E[n_mis], E[n_mis/n_gen] |
+
+### 9.3 The best scenarios as AIRR rearrangements
+
+A second, optional output of the best-scenarios counter: one AIRR Rearrangement row per recorded
+scenario, in TSV, or in Parquet with the same column names. The difficulty is that every column has
+to be read off the model, not off the counter's own state.
+
+**Which segment is which.** The AIRR roles come from the ordering:
+- the templated segment at the left end is V, the one at the right end J;
+- the internal templated segments, in order, fill `d_call` and `d2_call`;
+- the junctions, in order, fill `np1`, `np2` and `np3`.
+
+In a VJ model `d_call` is null and `np1` runs from V to J. The schema has exactly two D slots, so a
+model with a third templated internal segment is refused (§4.3).
+
+**From the record and the provenance (CT2b):**
+
+| AIRR fields | Source |
+|---|---|
+| `v_call`, `d_call`, `d2_call`, `j_call` | the gene name: the realization index in the record, the name from the event's domain |
+| `*_sequence_start`, `*_sequence_end` (1-based, closed) | the provenance's read interval, without the palindromic extensions |
+| `*_germline_start`, `*_germline_end` | the provenance's kept template interval |
+| `p3v_length`, `p5d_length`, `p3d_length`, `p5d2_length`, `p3d2_length`, `p5j_length` | the provenance's palindromic extensions |
+| `np1`, `np2`, `np3` and their lengths | the junction's inserted sequence plus the flanking P nucleotides: AIRR counts them in the combined N/P region, where IGoR's segments carry them inside the gene segment, so they are moved across |
+| `n1_length`, `n2_length`, `n3_length` | the junction's inserted length alone |
+| `sequence_alignment`, `germline_alignment` | the read from V's start to J's end; the germline assembled from the kept templates and the palindromes, with `N` at untemplated positions. A scenario places each template at one offset and the events read no alignment indels, so the two have equal length |
+| `v_cigar`, `d_cigar`, `d2_cigar`, `j_cigar` | ungapped, from the provenance, following the schema's CIGAR conventions (the scenario's alignment, not the aligner's) |
+| `junction`, `junction_aa`, `productive` | the CDR3 anchors (`CDR3SeqData::v_anchor`, `j_anchor`, loaded with `-set_CDR3_anchors`) mapped through V's and J's provenance; null when no anchors are loaded |
+| `sequence_id`, `sequence`, `rev_comp` | the read; `rev_comp` false |
+
+**Several scenarios per read.**
+- The schema has no rank or probability field, and identifies a rearrangement by its
+  `sequence_id`.
+- Each recorded scenario is a row with the read's `sequence_id`, plus two extra columns:
+  `igor_scenario_rank` and `igor_scenario_proba` (P(s | read)). The schema allows extra columns
+  whose names collide with none of its fields.
+- Tools that expect one row per sequence take rank 1, and a `top 1` option writes only those rows
+  (QC9).
+
+**What it needs.**
+- The provenance, so the output is reachable only from CT2b on.
+- The tandem generalisation (CT3), for `d2_call` and `np3`.
+- The sinks (§9.2).
+- The Streaming AIRR writer extended with the missing columns.
+
+**Tests.** Read back with the repository's `AIRRRearrangementReader`, plus a check of the
+required columns. Then a VDJ, a VJ and a tandem fixture, each pinned against hand-computed rows.
+
+---
+
+## 10. Decisions
 
 | # | Question | Recommendation |
 |---|---|---|
 | QC1 | Where the per-read summary's new values go | appended to `inference_logs.txt`, after the existing columns, with `test_inference.sh` extended to keep them: one per-read file instead of two, and one named golden move. The alternative is an opt-in per-read file, which moves nothing |
-| QC2 | How events expose their state per scenario | the self-describing integer record, §3.3 (d) |
+| QC2 | How events expose their state per scenario | §3.3 (e): the realization index of every event, and the provenance per segment, emitted only when read (§3.4); a typed struct (c) for a reader genuinely about one event type, with its requirement declared |
 | QC3 | Coverage on a tandem model | per segment, one output per segment; `D_gene` means every D segment |
 | QC4 | Summing counters under the chunked reduction | chunk slots with sparse per-gene arrays, allocated on first touch: the FIXME's objection is the size of a dense copy per chunk |
 | QC5 | Counters and rejected reads (CX11) | per-read outputs for every read, summaries over accepted reads only; to decide |
 | QC6 | Pgen's two broken modes (CX6) | fix the sequence mode (rows, with σ); drop the per-σ mode that omits σ |
+| QC7 | The default output format | text, so that no golden moves; Parquet by `output.format` |
+| QC8 | Where the Parquet backend lives | in Streaming, injected by the application; the sink interface and the text backend in Inference |
+| QC9 | Several scenarios per read in the AIRR output | one row per scenario, with `igor_scenario_rank` and `igor_scenario_proba`; a `top 1` option for tools that expect one row per sequence |
+| QC10 | Coverage in Parquet | one row per (iteration, segment, gene), positions as list columns; a long format (one row per position) is the alternative, at about 300 times the rows for V |
