@@ -20,6 +20,7 @@ proposal (LAYER).
 `feature/tandemD-T3-plan`.
 **Prefixes**: L (migration steps), CT (counter steps), CX (counter defects), CR (counter repairs),
 Q (decisions). E, ER, H, HR and X are ERR's; T and B are CAP's.
+**Ordering across all the plans**: [IMPLEMENTATION_GRAPH.md](IMPLEMENTATION_GRAPH.md).
 
 ---
 
@@ -49,8 +50,9 @@ the DP-bounded DFS, posterior sampling), B10, covariates, D1/D2 parameter tying.
 
 **Real tandem data.** Milestone 1 is a runtime and computation test on a synthetic V-D1-D2-J model
 (CAP T5). A fixed VDDJ layout cannot explain the VDJ reads a real repertoire also holds, so
-biological use needs milestone 2 (B10). Where B10 sits relative to the migration (Q14) decides
-whether the migration is on that critical path.
+biological use needs milestone 2 (B10). T5's timings decide where B10 goes (Q14): if the legacy DFS
+is prohibitive on V-D1-D2-J, as expected, real tandem data waits for the DP engine (SYN step 9),
+which comes after the migration, and B10 is placed with it.
 
 ---
 
@@ -272,7 +274,7 @@ until CR-P.
 | L1 | L0, T3 merged, T7a | **The EM driver and `LegacyDfsEngine`** (SYN step 6, first half). The driver takes §1.2's G steps: iterations, data policy, chunk plan, threads, read loop, `ReadSummary`, per-read normalisation, read policy, ordered merge, the M-step call, outputs, the counter lifecycle. The engine is concrete, with no abstract base while it is the only engine. It implements `check_admissible` (the TraversalPlan and T7a's guards), `prepare_iteration`, `make_workspace` and `process_read`, by calling today's code. An `AccumulatorSet` interface, first implemented over `Model_marginals`, `Error_rate` and the counters. `GenModel::infer_model` becomes a shim. New: driver unit tests against a fake engine (rejection, fixed events, ordered merge, data policy) | yes |
 | L2 | L1; ERR E2 | **The leaf and the dispatch to the engine** (REV §10.3, DFS-A). An engine continuation `next(p, bound_facts)` replaces `iterate_wrap_up` and `next_event_ptr_arr`. The leaf — error factor, threshold, running maximum, counter sink, accumulation — is the engine's, and so is the viterbi policy. The unit harness's `RecordingEvent` gives way to a lambda continuation | yes |
 | L3 | L2, T2, Q3–Q5 | **The uid and the scenario record** (SYN steps 2–3). uids on the legacy events, in nickname order. `edges`, `Index_map`, `processed_events` and `offset_map` keyed by uid. `ScenarioContext` gains `{uid → index, payload}`, written at each event's layer; the leaf accumulation reads it, with the flat marginal index as payload, so the arithmetic is unchanged. The provenance helper (§2.2). CT2b lands here. The hypermutation `friend`s stay until ERR H3 | yes |
-| L4 | L3; ERR E1, E4; Q2, Q7 | **Parameters and accumulators in the new model** (SYN step 8, in MERGE §6.2's order). **L4a**: tensor accumulators in the legacy layout, `long double`, chunk slots, the ordered merge; the counters' slots (CT4). **L4b**: the M-step by the handlers' `maximize`, with the `!= 0` cut-off and the legacy summation order; a `fixed` flag per node; the error node (Single's core, an adapter for the hypermutation models); the bound table rebuilt after the M-step; parity tests at exact equality. **L4c**: the DFS reads its parameters from the tensors, and `update_event_internal_probas` from them too. `Model_marginals` keeps file I/O only. The Model module's `InferenceEngine<T>` container dissolves — reset into `AccumulatorSet::empty_copy`, combine into its ordered `+=`, update into the driver's `maximize` loop — and the name becomes the strategy interface `LegacyDfsEngine` implements (Q1) | yes |
+| L4 | L3; ERR E1, E4; Q7 | **Parameters and accumulators in the new model** (SYN step 8, in MERGE §6.2's order). **L4a**: tensor accumulators in the legacy layout, `long double`, chunk slots, the ordered merge; the counters' slots (CT4). **L4b**: the M-step by the handlers' `maximize`, with the `!= 0` cut-off and the legacy summation order; a `fixed` flag per node; the error node (Single's core, an adapter for the hypermutation models); the bound table rebuilt after the M-step; parity tests at exact equality. **L4c**: the DFS reads its parameters from the tensors, and `update_event_internal_probas` from them too: the flat index it computes over one array becomes an offset into the event's own tensor, and since the layouts are the same, the values and the arithmetic are unchanged. `Model_marginals` keeps file I/O only. The Model module's `InferenceEngine<T>` container dissolves — reset into `AccumulatorSet::empty_copy`, combine into its ordered `+=`, update into the driver's `maximize` loop — and the name becomes the strategy interface `LegacyDfsEngine` implements (Q1) | yes |
 | L5 | L4; the registry, the ordering and the linear layout owned by `RecombinationModel`, with `finalize()`'s work there (MERGE §4.2); T7b; an error-model JSON reader (ERR X20); Q4 | **The engine reads `RecombinationModel`.** Its plan — queue, layers, adjacency, TraversalPlan — comes from `Topology` and the registry. The model is const, and the engine copies the events into its workspace. `Model_Parms` is left as the v1/v2 importer, and `export_to_legacy` goes | yes |
 | L6 | L5 | **Tiers** (REV §13.3): 0a work (copies, `initialize_event`, the plan) once per run, 0b (the fold, the dinucleotide matrix, the bound tables) once per iteration, shared and const. Each move is benchmarked | yes |
 | L7 | L0; ERR E1, E4; GEN §6 | **Generation.** A `SamplingDriver`: RNG streams per `(seed, chunk)`, the same output files. `SamplingEngine` gains: the indexed CDF draw; construction by role through `construct_realization`; Dinucl through `sampleSequence(anchor, length)`; errors through the error node. `SequenceGenerator` retires; FastGenerator's fate is decided (T4's second half). It runs in parallel with L1–L5: `SamplingEngine` already reads `RecombinationModel` | the `generate` track moves once (SYN step 1) |
@@ -376,10 +378,9 @@ at the cost of redoing work.
 | L3 | Q3–Q5 | here | open | hard | the uid order must drive neither the layout nor the queue |
 | L4 | E1 (the core) and E4 (the node, the bridge carrying r, registrars, the zero-row guard); X20 | ERR §4.2 | after milestone 1 | hard | the error model has no handler otherwise; `maximize` runs on every node |
 | L4 | Handler cut-offs at `!= 0`, the legacy summation order, `fixed`, an ordered merge, `long double` | SYN step 8, MERGE §6.2 | not started | hard | bitwise |
-| L4 | The marginal-storage contract (Q2) | LAYER §8.3 | open | hard | decides what L4c reads |
 | L5 | The registry, ordering and layout owned by `RecombinationModel`, `finalize()` there | MERGE §4.2, SYN §5 | partial: `Topology::seqTypeOrder()` | hard | the engine's plan needs adjacency |
 | L5 | T7b: the hypermutation models by name, the pinning gone | CAP T7, ERR Part II (needs H0, H1) | after milestone 1 | soft for L5, hard for L8 | the registry could carry the pinning a while longer, not past L8 |
-| L5 | The importer: JSON constructors (done via T0), a JSON → `Model_Parms` load (T5 builds it), the error-model JSON reader (X20), label-matched parameters | SYN step 4, CAP T5 | partial | hard (error model), soft (labels) | the engine loads its model through it |
+| L5 | The importer: v1/v2 → `RecombinationModel` with no `Model_Parms` at runtime; the JSON constructors (done via T0); a `topology_to_json` writer (LAYER §6, hand-over); the error-model JSON reader (X20); label-matched parameters | SYN step 4, LAYER | partial | hard (error model), soft (labels) | the engine loads its model through it |
 | L7 | The SamplingEngine connection: uid ↔ event, construction by role, Dinucl by `sampleSequence`, the RNG order | GEN §6 | pending | hard | — |
 | L7 | The Markov sampler: the anchor nucleotide; parent indices vs the from-state in `run()` | GEN §6 | pending | hard | wrong sequences otherwise |
 | L7 | The error node's sampling registrar; `double` or `long double` sampling | ERR §3.5, SYN §5 | pending | hard | `SamplingEngine` throws on an unregistered type |
@@ -397,7 +398,7 @@ at the cost of redoing work.
 | Phase C: structural rules as model validation and engine admissibility | CAP | L1 (`check_admissible`), completed at L5 | `TraversalPlan::check_admissible` (on T3) is its first piece |
 | Phase D: `ChainDPEngine` | CAP, SYN step 9 | L5 + SYN step 7 | also the fallback if T5 measures the DFS as too slow on tandem D |
 | The rest of Phase A (footprint reads, `candidates`, domain arity) | CAP | their engine consumers, after L5 | — |
-| **B10, milestone 2**: an optional D2, which real repertoires need | CAP B10 | L3 at the earliest (Q14) | the guards are model data, adjacency per scenario goes in the record, the layer scopes in the engine |
+| **B10, milestone 2**: an optional D2, which real repertoires need | CAP B10 | after T5's timings (Q14): L3 at the earliest if the DFS suffices, `ChainDPEngine` otherwise | the guards are model data, adjacency per scenario goes in the record, the layer scopes in the engine |
 | B9 step 3 (`VDJ_genes` split) and D1/D2 parameter tying, as a shared handler | CAP, SYN §4 | L4b | — |
 | The error node inside the engine; X4 and X5 by construction | ERR | L4b, L5 | — |
 | H5's Logistic handler | ERR | L4b | — |
@@ -436,7 +437,7 @@ None sits inside L1–L6, which is what lets every lane-D step stay bitwise.
 | # | Question | Recommendation |
 |---|---|---|
 | Q1 | What `InferenceEngine` names | **Follow the synthesis** (§5, row `InferenceEngine`): the name becomes the strategy with the four calls; the container's jobs go to `AccumulatorSet` (row 4), the driver's `maximize` (row 2) and the parameterizations (row 4). The swap happens at L4, when the container dissolves; the aliases `LegacyEngine` and `Engine` ([InferenceEngine.h:134, 137](../src/igor/Inference/InferenceEngine.h#L134)) go with it. Until then `LegacyDfsEngine` is concrete |
-| Q2 | The marginal-storage contract (LAYER §8.3) | `RecombinationModel`'s tensors from L4; `Model_marginals` keeps legacy file I/O |
+| Q2 | *Settled.* LAYER §8.3 left open which of two parameter stores the DFS engine reads after stage 2: `Model_marginals` (one flat `long double` array addressed through `Index_map`, what the DFS reads and fills today) or `RecombinationModel`'s tensors. The synthesis already answers it (§5, row 1: one store) | the tensors, from L4c; `Model_marginals` keeps the legacy file I/O |
 | Q3 | The order of a tensor's parent axes | labelled and stored per node (REV §15.4), the importer keeping the legacy strides; not derived from the uid order. Today they coincide on TRB by inspection, untested elsewhere (L0d) |
 | Q4 | `LegacyDfsEngine`'s event order | the legacy rule — priority, then the event list's order (§1.2) — recorded by the importer as an engine hint; JSON-native models break ties by nickname (SYN §4) |
 | Q5 | The uid order | nickname order, as SYN says; safe once Q3 and Q4 hold |
@@ -448,7 +449,7 @@ None sits inside L1–L6, which is what lets every lane-D step stay bitwise.
 | Q11 | `Errors_counter` | keep it, with a CLI flag and a golden |
 | Q12 | Pgen's two broken modes (CX6) | fix the sequence mode (rows, with σ); drop the per-σ mode that omits σ |
 | Q13 | When AA Pgen lands | not during L2–L5, which rewrite the code it edits; either on the legacy DFS before L2, or onto the engine after L5 |
-| Q14 | Where B10 goes: (a) on the legacy DFS before the migration; (b) after L3; (c) after L5 | **(b)**. Decide B10's representation (CAP B10, its options (b) vs (c)) as soon as milestone 1 is reached. (a) puts the guards and the per-scenario adjacency into `Model_Parms` and event members, which L3–L5 then move; (c) makes real tandem data wait for L5 |
+| Q14 | Where B10 goes | **Re-evaluated once T5's timings are in.** If the legacy DFS is prohibitive on V-D1-D2-J — the expected outcome — real data gains nothing from B10 before the DP engine (SYN step 9, after the migration), and B10 is placed with it. If the DFS suffices, B10 can follow L3, where adjacency per scenario has a home; before L3 it would put the guards and that adjacency into `Model_Parms` and event members, which L3–L5 then move. Either way, B10's representation (CAP B10, its options (b) vs (c)) is decided with its placement |
 | Q15 | LAYER tags the events "replace" (copy, rework, delete the original) | promote after extraction instead: the `iterate()` bodies move to kernels and the remaining class is the definition. `Topology` already shares the class with the legacy runtime, so a copy would give it two event types (ERR §3.10) |
 | Q16 | Where the contexts go | REV §9.1 — `QuerySequenceContext`, `ModelContext`, `ScenarioContext` and `AccumulationContext` shared by every engine, `ExplorationContext` the DFS's — over LAYER §5, which moves all five into the DFS engine |
 

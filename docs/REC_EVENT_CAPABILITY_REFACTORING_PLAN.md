@@ -163,6 +163,9 @@ become polynomial first (§7.22, option A). Recorded for R12; not decided.
 
 ### Order of work
 
+The order across every plan, with hard and soft blocks told apart, is drawn in
+[IMPLEMENTATION_GRAPH.md](IMPLEMENTATION_GRAPH.md).
+
 | Step | Item | Branch | Bitwise |
 |---|---|---|---|
 | 1 | ✅ **T6a** (Oct 2 2026): delete the dead half of `gene_to_seqtype_migr`, which was the code GCC 15 rejects | `feature/tandemD` | yes, measured |
@@ -596,24 +599,51 @@ The enum goes with `FastGenerator` and T6b.
 `feature/tandemD`: T3's tests call the pinning, and its bound keys are the ones that move. T7b
 comes later, after milestone 1.
 
-### T5: milestone 1 on a synthetic V-D1-D2-J model (decided Oct 16 2026)
+### T5: milestone 1 on a synthetic V-D1-D2-J model (decided Oct 16 2026; v2 route Oct 19 2026)
 
 Milestone 1 and its runtime are measured on a model derived from a shipped one, not on the small
 dummy fixture (`tst/test_data/format_v2/test_v2_tandem_d_parms.txt`, which stays for the unit
 cases). The model is a computation test and biologically implausible by construction: a fixed
 VDDJ layout cannot explain the VDJ reads a real repertoire also holds. Biological use waits for
-milestone 2 (B10), whose place relative to the migration is decision Q14 of
+milestone 2 (B10). Where B10 goes is decided once T5's timings are in: decision Q14 of
 [ENGINE_MIGRATION_PLAN.md](ENGINE_MIGRATION_PLAN.md).
 
-**The model.** Human TRB (`models/human/tcr_beta/models/`), its D block duplicated through the JSON
-format:
+**The model.** Human TRB (`models/human/tcr_beta/models/`, the full v1 model; the v2 file next to it
+is a reduced one with 4 V genes and no marginals), its D block duplicated by a script that writes
+the result in the v2 format:
 - `d_gene` becomes two gene choices on `D1_gene_seq` and `D2_gene_seq`, both drawing from TRB's D
   library, both conditioned on V and J as `d_gene` is;
 - each D gets its two deletions, the 3′ one conditioned on its own gene and 5′ deletion, as in TRB;
 - the insertions and their Dinucl chains become VD1, D1D2 and D2J. D1D2's copy one of TRB's two
   junctions, a choice recorded with the fixture;
 - the segment order `[V, VD1_ins, D1, D1D2_ins, D2, D2J_ins, J]`, and the edges;
-- the parameters copied by event name.
+- the parameters copied block by block (below).
+
+**Why v2, not JSON.**
+- v2 already expresses a tandem model: the dummy fixture is v2, and T1 loads it.
+- Nothing reads JSON into `Model_Parms`: `model_parms_to_json()` writes the structure only and is
+  called only from tests, `topology_from_json()` feeds `Topology` only, and `export_to_legacy()`
+  drops the segment order and the error rate and calls no `finalize()` (merge analysis §4.3). A JSON
+  route would need a `model_parms_from_json()` that stops having a consumer once the engine reads
+  `RecombinationModel` (the migration's L5).
+- The JSON document carries no parameters yet (synthesis step 4b), so a JSON route would still
+  write the marginals as text.
+- When a JSON form of the model is wanted, `model_parms_to_json()` writes it from the v2 one.
+
+**What it needs.**
+- **T2.** `write_model_parms_v2()` writes the edges with the seq type in the name (`get_v2_name()`,
+  [Rec_Event.cpp:271](../src/igor/Model/Legacy/Rec_Event.cpp#L271)), but the reader resolves them
+  by generated name (`get_event_pointer()`,
+  [Model_Parms.cpp:978](../src/igor/Model/Legacy/Model_Parms.cpp#L978)), and D1's and D2's generated
+  names collide. The script writes the edges under the names T2 settles.
+- **The marginals in the new model's layout.** `txt2marginals()` reads the values by position and
+  ignores the headers ([Model_marginals.cpp:1224-1236](../src/igor/Model/Legacy/Model_marginals.cpp#L1224)),
+  so the values must follow the tandem model's own layout. IGoR writes that layout itself:
+  `-set_custom_model` without a marginals file starts from uniform marginals
+  ([legacy_main.cpp:415-418](../app/igor/legacy_main.cpp#L415)), and the run writes them to
+  `initial_marginals.txt`. The script fills that template block by block from TRB's marginals,
+  matching each `#[parent,index]` line, D1's and D2's blocks from `d_gene`'s and its deletions'.
+- **The duplication script**, in `scripts/`, with the choice of the D1D2 junction recorded in it.
 
 **The reads.** Generated from that model by the legacy generator (T4), seeded, on one thread, then
 frozen with their alignments. The same number of reads, of the same length, are generated from the
@@ -623,22 +653,9 @@ source TRB model, for the comparison.
 - The round trip: the inferred marginals converge back to the generating ones (the smoke and
   convergence cases).
 - The cost against the source TRB model on matched reads: scenarios explored, wall time, the fold's
-  build time.
+  build time. If the legacy DFS turns out prohibitive on this layout, real tandem data waits for the
+  DP engine (synthesis step 9), and B10 is placed with it (Q14).
 - The removal of `[!mayfail]` from the `[tandem_d]` cases.
-
-**What it needs that does not exist yet.**
-- **A JSON → `Model_Parms` load.**
-  - What exists: `model_parms_to_json()` writes the structure and is called only from tests;
-    `topology_from_json()` feeds `Topology` only; `export_to_legacy()` drops the segment order and
-    the error rate and calls no `finalize()` (merge analysis §4.3).
-  - The shortest path is a `model_parms_from_json()`: build the events with the JSON constructors
-    they already have, through `EventFactory`, then add the edges by nickname, set the order and
-    Single's rate, and call `finalize()`.
-  - The migration's importer (its step L5) reuses it.
-- **Parameters for the duplicated events.** The JSON document carries no parameters yet (synthesis
-  step 4b), so until then the marginals file is written by event name, D2's block copied from D1's.
-- **The duplication script**, working on the JSON document.
-- **A JSON export reachable outside the tests**, such as a converter subcommand.
 
 ### Not on the milestone-1 path
 

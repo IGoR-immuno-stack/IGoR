@@ -12,7 +12,8 @@ the EM loop in `GenModel`); their file formats. The counters are the migration p
 **Toward**: synthesis step 8 ([ARCHITECTURE_SYNTHESIS.md](ARCHITECTURE_SYNTHESIS.md)): the error
 model as a Probe event with handlers.
 **Scheduled by**: [ENGINE_MIGRATION_PLAN.md](ENGINE_MIGRATION_PLAN.md), which places Part I's steps against the
-migration's (its §3) and lists what each needs from the other (its §6).
+migration's (its §3) and lists what each needs from the other (its §6). The order across every
+plan: [IMPLEMENTATION_GRAPH.md](IMPLEMENTATION_GRAPH.md).
 **Line numbers** are those of `feature/tandemD-T7-pinning` (T1 merged in, T3 not). "On T3" marks
 `feature/tandemD-T3-plan`; "AA branch" marks `origin/feature/AA_PGEN`, which is not merged.
 
