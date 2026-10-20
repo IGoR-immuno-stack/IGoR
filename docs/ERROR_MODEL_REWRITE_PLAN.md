@@ -14,8 +14,8 @@ model as a Probe event with handlers.
 **Scheduled by**: [ENGINE_MIGRATION_PLAN.md](ENGINE_MIGRATION_PLAN.md), which places Part I's steps against the
 migration's (its §3) and lists what each needs from the other (its §6). The order across every
 plan: [IMPLEMENTATION_GRAPH.md](IMPLEMENTATION_GRAPH.md).
-**Line numbers** are those of `feature/tandemD-T7-pinning` (T1 merged in, T3 not). "On T3" marks
-`feature/tandemD-T3-plan`; "AA branch" marks `origin/feature/AA_PGEN`, which is not merged.
+**Line numbers** are those of `feature/tandemD` at `8435f98`, where T1 and T3 are merged. "AA
+branch" marks `origin/feature/AA_PGEN`, which is not merged.
 
 ---
 
@@ -70,7 +70,7 @@ commit, once, with the outputs it moves named.
 
 | Job | Methods |
 |---|---|
-| The leaf factor | `compute_scenario_error_probability(query, model, scenario, exploration)`, called at [Rec_Event.cpp:406](../src/igor/Model/Legacy/Rec_Event.cpp#L406); the deprecated `compare_sequences_error_prob` |
+| The leaf factor | `compute_scenario_error_probability(query, model, scenario, exploration)`, called at [Rec_Event.cpp:399](../src/igor/Model/Legacy/Rec_Event.cpp#L399); the deprecated `compare_sequences_error_prob` |
 | EM | `update()`; `add_to_norm_counter()`, `clean_seq_counters()` (end of a read); `clear_accumulators()` (end of a chunk); `copy()`, `add_checked()`, `add_to_err_rate()` (ordered merge); `norm_weights_by_seq_likelihood()`; `is_updated()` / `update_value()` (the "fixed" flag) |
 | Read summaries | `get_seq_likelihood()`, `get_seq_probability()`, `get_seq_mean_error_number()`, `get_number_non_zero_likelihood_seqs()`, `model_log_likelihood` |
 | The pruning bound | `get_err_rate_upper_bound(k, m)` ([Errorrate.h:196](../src/igor/Model/Legacy/Errorrate.h#L196)) over a lazily grown matrix (`upper_bound_entry`, `build_upper_bound_matrix`) |
@@ -79,15 +79,15 @@ commit, once, with the outputs it moves named.
 ### 1.2 Lifecycle in one EM iteration
 
 [GenModel.cpp](../src/igor/Inference/Legacy/GenModel.cpp):
-- 218-221: a master copy of the error model, initialised against the master events; only a merge
+- 237-240: a master copy of the error model, initialised against the master events; only a merge
   target.
-- 299-303, 401: per thread, per iteration, the `Model_Parms` copy carries an error-model copy;
+- 318-322, 425: per thread, per iteration, the `Model_Parms` copy carries an error-model copy;
   `initialize(events_map)` binds it to this thread's events.
-- 548-605, per read: the leaf calls the error model; 571 normalises the read's marginals by
-  `seq_likelihood`; 596-604 keeps the read (`add_to_norm_counter`) or drops it
+- 572-629, per read: the leaf calls the error model; 595 normalises the read's marginals by
+  `seq_likelihood`; 620-628 keeps the read (`add_to_norm_counter`) or drops it
   (`clean_seq_counters`) on the mean error count.
-- 609-638: each chunk drains into a fresh copy; chunks merge in slot order.
-- 668: `update()`.
+- 633-662: each chunk drains into a fresh copy; chunks merge in slot order.
+- 692: `update()`.
 
 ### 1.3 `Single_error_rate`
 
@@ -118,17 +118,17 @@ counts; `apply_to` is never read. Details, duplication and bounds: §3.6.
 ### 1.5 Mismatch lists and the bound slots
 
 - `Gene_choice` points the segment's mismatch list at the alignment's
-  ([Genechoice.cpp:289](../src/igor/Model/Legacy/Genechoice.cpp#L289)) and writes
-  `surviving_core_bound` into the segment's own key of the downstream bound map (304-307, the
-  bound at 680-699).
+  ([Genechoice.cpp:277](../src/igor/Model/Legacy/Genechoice.cpp#L277)) and writes
+  `surviving_core_bound` into the segment's own key of the downstream bound map (292-295, the
+  bound at 669-688).
 - `Deletion` trims the list and rewrites the key once the opposite end is settled, 1.0 before
-  ([Deletion.cpp:412-424](../src/igor/Model/Legacy/Deletion.cpp#L412)).
+  ([Deletion.cpp:382-394](../src/igor/Model/Legacy/Deletion.cpp#L382)).
 - `Insertion` and `Dinucl_markov` write no list; they write the junction's key
-  ([Insertion.cpp:225](../src/igor/Model/Legacy/Insertion.cpp#L225),
-  [Dinuclmarkov.cpp:286](../src/igor/Model/Legacy/Dinuclmarkov.cpp#L286)).
+  ([Insertion.cpp:227](../src/igor/Model/Legacy/Insertion.cpp#L227),
+  [Dinuclmarkov.cpp:288-290](../src/igor/Model/Legacy/Dinuclmarkov.cpp#L288)).
 - The error model reads the lists at the leaf; the counters read them through the `Scenario`
   snapshot.
-- `pruning_mismatch_floor` is built ([GenModel.cpp:326](../src/igor/Inference/Legacy/GenModel.cpp#L326))
+- `pruning_mismatch_floor` is built ([GenModel.cpp:345](../src/igor/Inference/Legacy/GenModel.cpp#L345))
   and never written or read.
 
 ### 1.6 What a mismatch is in AA Pgen
@@ -255,7 +255,7 @@ factor. In a VDJ model, with T3's layout:
 A gap reuses its single interior segment's id only when that segment has no error factor of its
 own: VD and DJ do, V→J encloses D and gets a fresh key.
 
-**Why `SegmentIndex::has_own_factor` matches by coincidence** (on T3, `SegmentIndex.h:90-112`). It
+**Why `SegmentIndex::has_own_factor` matches by coincidence** (`SegmentIndex.h:90-112`). It
 decides "has an error factor" from the A0 roles: the content is modified, or it is created by the
 event that also places the ends. Its own comment states the intent: "its content can still change
 against the read". That is a proxy. It is right for the genes (an aligned template can mismatch the
@@ -316,7 +316,7 @@ parameter, not a constant.
 - Upstream events pre-evaluate its bound segment by segment: the error key of a segment *is* the
   error model's partial evaluation on it. Dinucl_markov is bounded the same way per gap, through
   `affects_proba_of` and `span_proba_factor`
-  ([Rec_Event.h:488, 523](../src/igor/Model/Legacy/Rec_Event.h#L488)). The error model's
+  ([Rec_Event.h:497, 532](../src/igor/Model/Legacy/Rec_Event.h#L497)). The error model's
   counterpart takes (floor mismatches, positions) instead of lengths.
 
 **Not in the code.** The per-segment queries this needs — "is this segment charged", "how wide is
@@ -518,8 +518,8 @@ a parallel class per event:
 
 Candidates the port will need next:
 - **The deletion of a template.** `Deletion` builds a trimmed or palindromic segment twice: in
-  `iterate()` on `Int_Str` ([Deletion.cpp:334-391](../src/igor/Model/Legacy/Deletion.cpp#L334)) and in
-  `construct_realization()` on `std::string` (536-590). One function, generic over the alphabet,
+  `iterate()` on `Int_Str` ([Deletion.cpp:304-361](../src/igor/Model/Legacy/Deletion.cpp#L304)) and in
+  `construct_realization()` on `std::string` (506-560). One function, generic over the alphabet,
   serves both and any new engine.
 - **The mismatch recomputation** that goes with it (`trim_mismatches`, the palindrome's new
   positions), which belongs with the mismatch role (§3.3).
@@ -543,7 +543,7 @@ Candidates the port will need next:
 
 | Step | Content | Bitwise |
 |---|---|---|
-| E0 | Characterization suite for Single. Harness: `set_error_rate(std::shared_ptr<Error_rate>)` (today `set_error_rate(double)` only, test_utils.h:434-439). Cases: the leaf factor (VDJ, VJ, tandem); gating; viterbi; per-read and cross-read accumulators; the M-step (observed value, and X13's intended value under `[!shouldfail]`); merge order; `copy`; the round trip (v1, v2, JSON export); the bound; seeded `generate_errors`. Coverage report and mutations; ITERATE_TEST_GUIDE.md §7 has the recipe | tests only |
+| E0 | Characterization suite for Single. Harness: `set_error_rate(std::shared_ptr<Error_rate>)` (today `set_error_rate(double)` only, test_utils.h:467-472). Cases: the leaf factor (VDJ, VJ, tandem); gating; viterbi; per-read and cross-read accumulators; the M-step (observed value, and X13's intended value under `[!shouldfail]`); merge order; `copy`; the round trip (v1, v2, JSON export); the bound; seeded `generate_errors`. Coverage report and mutations; ITERATE_TEST_GUIDE.md §7 has the recipe | tests only |
 | E1 | The core `SingleErrorModel` in `src/igor/Model/` (§3.5): scope, factor, contribution, M-step (still the observed formula), bound, generation. `Single_error_rate` becomes its adapter; `surviving_core_bound` moves into it; dead code out (X22) | yes |
 | ER1 | X13 in the core: Σ errors / Σ positions, normalised per read | every inference golden moves, measured once |
 | E2 | Gating and viterbi leave the error model: the leaf evaluates the factor, tests the threshold, then asks the error model to accumulate; viterbi is the engine's (X4, X5, X15). The hypermutation models keep their current behaviour behind a legacy policy flag until Part II | yes |
@@ -601,8 +601,6 @@ models generate, so the track seeds itself:
   ids 0..5 (AA branch `Singleerrorrate.cpp:137`), another reader of the pinning; it treats the
   upper track as confirmed and counts the bound and the leaf in different units (§1.6). Reconcile
   when AA Pgen resumes, against §3.3.
-- **T3 and T1**: E3 needs `SegmentIndex` and the TraversalPlan, which are on T3; this document's
-  line numbers move when T3 is merged.
 - **Two architectures at once** (§3.9): every step of Parts I and II keeps the legacy DFS as the
   regression oracle, so a port is bitwise against it or names what it moves.
 

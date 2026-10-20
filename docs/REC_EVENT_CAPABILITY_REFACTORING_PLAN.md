@@ -595,8 +595,9 @@ CT2a of the counter plan):
 
 The enum goes with `FastGenerator` and T6b.
 
-**Branch:** `feature/tandemD-T7-pinning`. The code waits until T1 and T3 are merged into
-`feature/tandemD`: T3's tests call the pinning, and its bound keys are the ones that move. T7b
+**Branch:** `feature/tandemD-T7-pinning`. The code needed T1 and T3 merged into
+`feature/tandemD`, as they are since Oct 20 2026: T3's tests call the pinning, and its bound
+keys are the ones that move. T7b
 comes later, after milestone 1.
 
 ### T5: milestone 1 on a synthetic V-D1-D2-J model (decided Oct 16 2026; v2 route Oct 19 2026)
@@ -632,9 +633,9 @@ the result in the v2 format:
 
 **What it needs.**
 - **T2.** `write_model_parms_v2()` writes the edges with the seq type in the name (`get_v2_name()`,
-  [Rec_Event.cpp:271](../src/igor/Model/Legacy/Rec_Event.cpp#L271)), but the reader resolves them
+  [Rec_Event.cpp:264](../src/igor/Model/Legacy/Rec_Event.cpp#L264)), but the reader resolves them
   by generated name (`get_event_pointer()`,
-  [Model_Parms.cpp:978](../src/igor/Model/Legacy/Model_Parms.cpp#L978)), and D1's and D2's generated
+  [Model_Parms.cpp:956](../src/igor/Model/Legacy/Model_Parms.cpp#L956)), and D1's and D2's generated
   names collide. The script writes the edges under the names T2 settles.
 - **The marginals in the new model's layout.** `txt2marginals()` reads the values by position and
   ignores the headers ([Model_marginals.cpp:1224-1236](../src/igor/Model/Legacy/Model_marginals.cpp#L1224)),

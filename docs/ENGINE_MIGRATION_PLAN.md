@@ -16,8 +16,7 @@ becomes an engine").
 it builds on are the synthesis (SYN), [SEGMENT_DECOMPOSITION_REVIEW.md](SEGMENT_DECOMPOSITION_REVIEW.md)
 (REV), [TK_REFACTORING_MERGE_ANALYSIS.md](TK_REFACTORING_MERGE_ANALYSIS.md) (MERGE) and the layer
 proposal (LAYER).
-**Line numbers** are those of `feature/tandemD-T7-pinning` (T1 merged in, T3 not). "On T3" marks
-`feature/tandemD-T3-plan`.
+**Line numbers** are those of `feature/tandemD` at `8435f98`, where T1 and T3 are merged.
 **Prefixes**: L (migration steps), Q (decisions). CT, CX and CR are the counter plan's; E, ER, H,
 HR and X are ERR's; T and B are CAP's.
 **Ordering across all the plans**: [IMPLEMENTATION_GRAPH.md](IMPLEMENTATION_GRAPH.md).
@@ -43,7 +42,7 @@ the goldens print 6 significant digits. **There is no runtime switch**: `GenMode
 becomes a shim that each step hollows further, and the CLI changes only at L8.
 
 **The first step needs no other plan.** L1 is code motion over the legacy types: it needs
-milestone 1 and T3 merged, nothing else (§6).
+milestone 1, nothing else (§6). T3, which it builds on, is merged.
 
 **What the migration unblocks rather than includes** (§7): second engines (DFS-B, `ChainDPEngine`,
 the DP-bounded DFS, posterior sampling), B10, covariates, D1/D2 parameter tying.
@@ -67,10 +66,10 @@ Nothing in production uses it: `app/igor` and `app/igor-demo` call `GenModel` an
 |---|---|---|
 | `RecombinationModel` ([RecombinationModel.h:70-73](../src/igor/Model/RecombinationModel.h#L70)) | owns a `Topology` and one tensor per event, indexed by uid, parents first and own axis last | no error model, no registry, no fixed flags; `recombination_model_from_files` goes through the bridge, not JSON |
 | `Topology` ([Topology.h:72-76](../src/igor/Model/Topology.h#L72)) | holds `legacy::Rec_Event`s, edges sorted by uid, a segment-order vector; `topologicalOrder()` by priority, ties to the smaller uid | no registry, release builds check nothing (asserts only); `topology_from_json` ignores the document's `error_rate` |
-| `LegacyBridge` ([LegacyBridge.tpp](../src/igor/Model/LegacyBridge.tpp)) | `Model_Parms` → `Topology` (event copies, edges, order); `Model_marginals` → tensors | `export_to_legacy` (48-63) carries no order, no error rate and calls no `finalize()`, so the exported model cannot even be copied ([Model_Parms.cpp:105](../src/igor/Model/Legacy/Model_Parms.cpp#L105) dereferences the null error rate) and cannot reach `GenModel`; no tensors → marginals direction; lookups by generated name, which collide for D1/D2 until T2 |
+| `LegacyBridge` ([LegacyBridge.tpp](../src/igor/Model/LegacyBridge.tpp)) | `Model_Parms` → `Topology` (event copies, edges, order); `Model_marginals` → tensors | `export_to_legacy` (48-63) carries no order, no error rate and calls no `finalize()`, so the exported model cannot even be copied ([Model_Parms.cpp:106](../src/igor/Model/Legacy/Model_Parms.cpp#L106) dereferences the null error rate) and cannot reach `GenModel`; no tensors → marginals direction; lookups by generated name, which collide for D1/D2 until T2 |
 | `EventFactory` | builds the four events from a JSON node, keyed by type string | the handler factories key by `EventType` instead |
 | `InferenceEngine<T>` ([InferenceEngine.tpp:98-158](../src/igor/Inference/InferenceEngine.tpp#L98)) | a container of handlers: `run(eStep)` = reset, the caller's callback, normalise; `combineAccumulators` by name | no E-step, read loop, threads, likelihood, error model, fixed events or outputs; the merge is unordered; it normalises fixed events too |
-| Inference handlers | Categorical and Markov M-steps over the last axis, `double` and `long double` | the zero cut-offs differ from the legacy `sum != 0` ([Rec_Event.cpp:497](../src/igor/Model/Legacy/Rec_Event.cpp#L497)): ≤ 10ε on the 1-D path ([CategoricalInferenceHandler.tpp:83](../src/igor/Inference/CategoricalInferenceHandler.tpp#L83)), 1e-15 for Markov rows ([MarkovInferenceHandler.tpp:86](../src/igor/Inference/MarkovInferenceHandler.tpp#L86)); no `fixed`, no `empty_copy` |
+| Inference handlers | Categorical and Markov M-steps over the last axis, `double` and `long double` | the zero cut-offs differ from the legacy `sum != 0` ([Rec_Event.cpp:490](../src/igor/Model/Legacy/Rec_Event.cpp#L490)): ≤ 10ε on the 1-D path ([CategoricalInferenceHandler.tpp:83](../src/igor/Inference/CategoricalInferenceHandler.tpp#L83)), 1e-15 for Markov rows ([MarkovInferenceHandler.tpp:86](../src/igor/Inference/MarkovInferenceHandler.tpp#L86)); no `fixed`, no `empty_copy` |
 | `SamplingEngine` ([SamplingEngine.tpp:105-146](../src/igor/Generation/SamplingEngine.tpp#L105)) | one index per node, in topological order | no sequence, no `sampleSequence`, no errors, no output; a root Markov draw from row sums is uniform, not anchored; `run()` passes parent indices where `sample()` expects the from-state; `double` only ([SamplingHandlerFactory.cpp:31-36](../src/igor/Generation/SamplingHandlerFactory.cpp#L31)) |
 | Tests | `test_ModelInference` runs `GenModel` inside the callback (a hybrid) and discards the inferred error rate; `test_NormalizationCompareLegacy` is the only legacy-vs-new numeric comparison, of the M-step only | no test compares the new engines to a legacy run |
 
@@ -82,42 +81,43 @@ stands; its line numbers predate the step 1c move. Today
 
 | Step | Lines | G/D |
 |---|---|---|
-| Option checks; viterbi forces the ratio to 1 | 103-117 | G + D |
-| The queue: event order, marginal layout, parent strides | 122 | D (order), G (layout) |
-| Log and info files, initial dumps | 127-184 | G |
-| Counters' master `initialize` (file streams) | 191-204 | G |
-| Fresh accumulators; `fast_iter` (best alignments, iteration 0); the chunk plan (#68) | 218-277 | G |
-| Per thread: copies of the model, marginals, error rate and counters | 299-313 | G (counters), D (copies exist because events hold state) |
-| DFS buffers, index map, crude bounds, queue, `initialize_event`, `next_event_ptr_arr` | 320-398 | D |
-| Error model and counters bound to the thread's events | 401-416 | G made D by raw pointers |
-| The junction-length fold on one thread, adopted by the others; `update_event_internal_probas` | 425-472 | D |
-| Per read: slot, contexts, **`first_event->iterate`** | 481-555 | G, and D at 555 |
-| Per-read normalisation, log line, counters, mean-error rejection, chunk drain | 571-613 | G |
-| Ordered merge (marginals, error rate); counters merged in thread order | 633-657 | G |
-| M-step: `error_rate->update()`, `normalize`, `copy_fixed_events_marginals` | 664-672 | G |
-| Per-iteration and final files | 675-685 | G |
+| Option checks; viterbi forces the ratio to 1 | 114-128 | G + D |
+| The queue: event order, marginal layout, parent strides | 133 | D (order), G (layout) |
+| The traversal plan, built once for every thread, and its admissibility check | 134-141 | D |
+| Log and info files, initial dumps | 146-203 | G |
+| Counters' master `initialize` (file streams) | 210-223 | G |
+| Fresh accumulators; `fast_iter` (best alignments, iteration 0); the chunk plan (#68) | 237-296 | G |
+| Per thread: copies of the model, marginals, error rate and counters | 318-332 | G (counters), D (copies exist because events hold state) |
+| DFS buffers, index map, crude bounds, queue, `initialize_event`, `next_event_ptr_arr` | 339-422 | D |
+| Error model and counters bound to the thread's events | 425-440 | G made D by raw pointers |
+| The junction-length fold on one thread, adopted by the others; `update_event_internal_probas` | 449-496 | D |
+| Per read: slot, contexts, **`first_event->iterate`** | 505-579 | G, and D at 579 |
+| Per-read normalisation, log line, counters, mean-error rejection, chunk drain | 595-637 | G |
+| Ordered merge (marginals, error rate); counters merged in thread order | 657-681 | G |
+| M-step: `error_rate->update()`, `normalize`, `copy_fixed_events_marginals` | 688-696 | G |
+| Per-iteration and final files | 699-709 | G |
 
 The leaf is `Rec_Event::iterate_wrap_up`
-([Rec_Event.cpp:335-449](../src/igor/Model/Legacy/Rec_Event.cpp#L335)): the error factor (406),
-the threshold and the running maximum (430-432), the `Scenario` snapshot and every counter
-(435-439), then `add_to_marginals` on every non-fixed event (442-446).
+([Rec_Event.cpp:328-442](../src/igor/Model/Legacy/Rec_Event.cpp#L328)): the error factor (399),
+the threshold and the running maximum (423-425), the `Scenario` snapshot and every counter
+(428-432), then `add_to_marginals` on every non-fixed event (435-439).
 
 The event order is `get_model_queue()`: priority first, then the order of the event list, since
-`std::list::sort` is stable ([Model_Parms.cpp:481](../src/igor/Model/Legacy/Model_Parms.cpp#L481),
-[Rec_Event.h:778-784](../src/igor/Model/Legacy/Rec_Event.h#L778)).
+`std::list::sort` is stable ([Model_Parms.cpp:482](../src/igor/Model/Legacy/Model_Parms.cpp#L482),
+[Rec_Event.h:794-800](../src/igor/Model/Legacy/Rec_Event.h#L794)).
 
 ### 1.3 Event state read from outside the event
 
 - The slot accessors, raw pointers into live members:
-  `Gene_choice::alignment_offset_slot()` ([Genechoice.h:66](../src/igor/Model/Legacy/Genechoice.h#L66)),
-  `Rec_Event::current_realization_index_slot()` ([Rec_Event.h:455](../src/igor/Model/Legacy/Rec_Event.h#L455)),
-  `Deletion::deletion_value_slot()` ([Deletion.h:70](../src/igor/Model/Legacy/Deletion.h#L70)).
+  `Gene_choice::alignment_offset_slot()` ([Genechoice.h:67](../src/igor/Model/Legacy/Genechoice.h#L67)),
+  `Rec_Event::current_realization_index_slot()` ([Rec_Event.h:464](../src/igor/Model/Legacy/Rec_Event.h#L464)),
+  `Deletion::deletion_value_slot()` ([Deletion.h:71](../src/igor/Model/Legacy/Deletion.h#L71)).
   `Gene_choice` publishes the first two only for a gene at an end of the ordering
-  ([Genechoice.cpp:272](../src/igor/Model/Legacy/Genechoice.cpp#L272), 769).
-- `get_current_realizations_index_vec()` ([Rec_Event.h:451](../src/igor/Model/Legacy/Rec_Event.h#L451)),
+  ([Genechoice.cpp:260](../src/igor/Model/Legacy/Genechoice.cpp#L260), 758).
+- `get_current_realizations_index_vec()` ([Rec_Event.h:460](../src/igor/Model/Legacy/Rec_Event.h#L460)),
   the per-event scratch the best-scenarios counter reads.
-- The hypermutation models' `friend` access ([Genechoice.h:59-60](../src/igor/Model/Legacy/Genechoice.h#L59),
-  [Deletion.h:62-63](../src/igor/Model/Legacy/Deletion.h#L62)); ERR H3 removes it.
+- The hypermutation models' `friend` access ([Genechoice.h:60-61](../src/igor/Model/Legacy/Genechoice.h#L60),
+  [Deletion.h:63-64](../src/igor/Model/Legacy/Deletion.h#L63)); ERR H3 removes it.
 
 ### 1.4 What the gate pins
 
@@ -163,7 +163,7 @@ part of L3's record. The hypermutation models read it too (ERR H3).
 | Step | Needs | Content | Bitwise |
 |---|---|---|---|
 | L0 | milestone 1 | **The oracle.** (a) An A/B dump at full precision (marginals, likelihoods, error rate, at `max_digits10`) of the base and the candidate on every track: a script, not new goldens. (b) A VJ track (a shipped TRA or IGK model, inference, evaluate, counters). (c) Pins for fixed events, MLSO/viterbi, `fast_iter`, and 1 vs N threads. (d) Bridge parity on every shipped model: each multi-parent tensor's axes against the legacy strides, and the round trip with order and error rate (`[!shouldfail]` until L5). (e) CT0. (f) ERR H0 brought forward, so that the hypermutation models are pinned before L1 touches the leaf | tests only |
-| L1 | L0, T3 merged, T7a | **The EM driver and `LegacyDfsEngine`** (SYN step 6, first half). The driver takes §1.2's G steps: iterations, data policy, chunk plan, threads, read loop, `ReadSummary`, per-read normalisation, read policy, ordered merge, the M-step call, outputs, the counter lifecycle. The engine is concrete, with no abstract base while it is the only engine. It implements `check_admissible` (the TraversalPlan and T7a's guards), `prepare_iteration`, `make_workspace` and `process_read`, by calling today's code. An `AccumulatorSet` interface, first implemented over `Model_marginals`, `Error_rate` and the counters. `GenModel::infer_model` becomes a shim. New: driver unit tests against a fake engine (rejection, fixed events, ordered merge, data policy) | yes |
+| L1 | L0, T7a | **The EM driver and `LegacyDfsEngine`** (SYN step 6, first half). The driver takes §1.2's G steps: iterations, data policy, chunk plan, threads, read loop, `ReadSummary`, per-read normalisation, read policy, ordered merge, the M-step call, outputs, the counter lifecycle. The engine is concrete, with no abstract base while it is the only engine. It implements `check_admissible` (the TraversalPlan and T7a's guards), `prepare_iteration`, `make_workspace` and `process_read`, by calling today's code. An `AccumulatorSet` interface, first implemented over `Model_marginals`, `Error_rate` and the counters. `GenModel::infer_model` becomes a shim. New: driver unit tests against a fake engine (rejection, fixed events, ordered merge, data policy) | yes |
 | L2 | L1; ERR E2 | **The leaf and the dispatch to the engine** (REV §10.3, DFS-A). An engine continuation `next(p, bound_facts)` replaces `iterate_wrap_up` and `next_event_ptr_arr`. The leaf — error factor, threshold, running maximum, counter sink, accumulation — is the engine's, and so is the viterbi policy. The unit harness's `RecordingEvent` gives way to a lambda continuation | yes |
 | L3 | L2, T2, Q3–Q5 | **The uid and the scenario record** (SYN steps 2–3). uids on the legacy events, in nickname order. `edges`, `Index_map`, `processed_events` and `offset_map` keyed by uid. `ScenarioContext` gains `{uid → index, payload}`, written at each event's layer; the leaf accumulation reads it, with the flat marginal index as payload, so the arithmetic is unchanged. The provenance record and its reader (CNT §4.2). CT2b lands here. The hypermutation `friend`s stay until ERR H3 | yes |
 | L4 | L3; ERR E1, E4; Q7 | **Parameters and accumulators in the new model** (SYN step 8, in MERGE §6.2's order). **L4a**: tensor accumulators in the legacy layout, `long double`, chunk slots, the ordered merge; the counters' slots (CT4). **L4b**: the M-step by the handlers' `maximize`, with the `!= 0` cut-off and the legacy summation order; a `fixed` flag per node; the error node (Single's core, an adapter for the hypermutation models); the bound table rebuilt after the M-step; parity tests at exact equality. **L4c**: the DFS reads its parameters from the tensors, and `update_event_internal_probas` from them too: the flat index it computes over one array becomes an offset into the event's own tensor, and since the layouts are the same, the values and the arithmetic are unchanged. `Model_marginals` keeps file I/O only. The Model module's `InferenceEngine<T>` container dissolves — reset into `AccumulatorSet::empty_copy`, combine into its ordered `+=`, update into the driver's `maximize` loop — and the name becomes the strategy interface `LegacyDfsEngine` implements (Q1) | yes |
@@ -260,7 +260,7 @@ at the cost of redoing work.
 | Blocks | Item | Plan | Status (Oct 16 2026) | Hard/soft | Why |
 |---|---|---|---|---|---|
 | L0 | Milestone 1, on the synthetic V-D1-D2-J model | CAP T5 | pending | hard | the migration starts after it |
-| L1 | T3 merged (`SegmentIndex`, `TraversalPlan`, `FlankCheck`) | CAP T3 | delivered on `feature/tandemD-T3-plan`, not merged | hard | the TraversalPlan is the engine's `check_admissible`; without it L1 splits code that T3 replaces |
+| L1 | T3 merged (`SegmentIndex`, `TraversalPlan`, `FlankCheck`) | CAP T3 | merged Oct 20 2026 (#76) | hard | the TraversalPlan is the engine's `check_admissible`; without it L1 splits code that T3 replaces |
 | L1 | T7a and its two guards | CAP T7, ERR §4.1 | planned | hard | the guards are admissibility conditions; without T7a pruning is unsound on tandem (X2) |
 | L1 | ER1 placed before L1 | ERR §4.2 | after milestone 1 | soft | keeps every golden move outside the migration |
 | L1, hypermutation | H0, the hypermutation track | ERR §4.3 | not started | hard for those models | the split of the leaf would be unverified on them |
@@ -287,7 +287,7 @@ at the cost of redoing work.
 
 | Item | Plan | Unblocked by | Note |
 |---|---|---|---|
-| Phase C: structural rules as model validation and engine admissibility | CAP | L1 (`check_admissible`), completed at L5 | `TraversalPlan::check_admissible` (on T3) is its first piece |
+| Phase C: structural rules as model validation and engine admissibility | CAP | L1 (`check_admissible`), completed at L5 | `TraversalPlan::check_admissible` is its first piece |
 | Phase D: `ChainDPEngine` | CAP, SYN step 9 | L5 + SYN step 7 | also the fallback if T5 measures the DFS as too slow on tandem D |
 | The rest of Phase A (footprint reads, `candidates`, domain arity) | CAP | their engine consumers, after L5 | — |
 | **B10, milestone 2**: an optional D2, which real repertoires need | CAP B10 | after T5's timings (Q14): L3 at the earliest if the DFS suffices, `ChainDPEngine` otherwise | the guards are model data, adjacency per scenario goes in the record, the layer scopes in the engine |
@@ -377,7 +377,6 @@ Stale statements in the untracked design documents, listed for their next revisi
   uid. They agree on TRB by inspection only (L0d, Q3).
 - **CX3** (counter plan) may write past an array on long reads with a palindromic J: repair it early, whatever the
   migration's pace.
-- **T3's line numbers** move when it merges.
 - **AA Pgen** (`origin/feature/AA_PGEN`) edits the leaf, the error model and `iterate()`: Q13.
 - **The synthetic tandem model** exercises the computation only: it says nothing about the aligner
   on real tandem reads, nor about repertoires that mix VDJ and VDDJ.
