@@ -409,15 +409,23 @@ that member with three readers: the constructors, `copy()` and the generated nam
   one-argument constructors are `explicit`.
 - **The readers pass the name through.** The text reader and the three JSON constructors no longer
   call `str2SeqType()`, which had no other caller and is deleted.
-- **Names.** `Rec_Event::junction_class_token()` gives an insertion's or a chain's class token
-  from its seq type: the legacy junction class (`VD_genes`, `DJ_gene`, `VJ_gene`), or
-  `Undefined_gene` for any other seq type. It replaces the enum switches in the two
-  `update_event_name()` overrides and the string tests in the two `write2txt_legacy()`. Every
-  legacy name is unchanged.
+- **Names.** `legacy_gene_class_of()` ([LegacyFormat.h](../src/igor/Model/Legacy/LegacyFormat.h))
+  gives the v1 class token of an event's seq type: V, D or J for a gene choice or a deletion, the
+  junction class (`VD_genes`, `DJ_gene`, `VJ_gene`) for an insertion or a chain, `Undefined_gene`
+  for any other seq type. It replaces the enum switches in the deletion constructor and the two
+  `update_event_name()` overrides, and the string tests in the `write2txt_legacy()`. Every legacy
+  name is unchanged. With its inverse, `legacy_gene_class_to_seq_type()`, moved out of
+  `Model_Parms.cpp`, it is the v1 format's whole translation of gene classes; `Rec_Event` no
+  longer names the junction classes (review, Oct 20 2026).
 - **A deletion's gene class** is V, D or J for the three legacy gene segments, and
   `Undefined_gene` for any other seq type, as for an insertion. A gene class belongs to the gene
   choice that creates the segment, and a deletion cannot ask it when it is built. `event_class`
   stays on the base; pushing it into `Gene_choice` (B0) moves names, so it goes with T2.
+- **Only a gene choice's JSON node carries `gene_class`** (review, Oct 20 2026). A deletion's was
+  derived from its seq type and checked against it, and an insertion's or a chain's was always
+  `Undefined_gene`. A node of another type that carries one is refused as an unknown key. No
+  document is stored: the JSON is built from a `Model_Parms` and read by `topology_from_json()`,
+  so the schema version stays 1.
 - **The refusals the constructors made move to the legacy reader.** `str2SeqType()` refused a
   line whose gene class names no segment, and the deletion constructor refused a deletion on a
   junction. The v1 reader now refuses both, where the gene class still means something. A v2 file
@@ -440,6 +448,7 @@ Tests: `test_event_seq_type.cpp`.
   carry the seq types it names, read those three ways. They resolve their ids and neighbours from
   the order. The model written back reads the same seq types.
 - **The two legacy refusals,** and the case still accepted (an insertion on a gene).
+- **The translation** on the six legacy seq types, both ways, and its `Undefined_gene` cases.
 
 The five `[tandem_d][!mayfail]` cases of `test_model_format_v2.cpp` now pass and lose the tag. The
 test sites that built a legacy event and re-pointed it with `set_seq_type()` now build it on its
@@ -456,11 +465,26 @@ Left for T2, seen while doing T1:
   check, so the two events of a pair share one `edges` entry.
 - **`Rec_Event::operator==` ignores the seq type.** `Model_Parms`' copy constructor rebuilds the
   edges with it, so in a copy an edge to `d2_choice` can land on `d1_choice`.
+- **What still reads a deletion's gene class.** The generated name, the v1 event line and
+  `get_legacy_name()`, all through the translator, which stays as long as v1 does.
+  `FastGenerator::apply_deletion()` finds the segment it trims from the class
+  ([FastGenerator.cpp:308](../src/igor/Generation/Legacy/FastGenerator.cpp#L308)): it must read
+  `sampler.seq_type` before the class leaves the deletion, or it silently stops deleting. That is
+  the `FastGenerator` half of T4.
+- **`FastGenerator` generates no insertion**, read from the code and not run, and before T1 too.
+  `try_insertion_gene_class_to_seq_type(Gene_class, …)` always returns false, and an insertion's
+  class is `Undefined_gene`, so no placeholder is written and `sample_dinucl_markov()` has nothing
+  to fill. T4.
 
 Gate:
 - unit 483/483 and integration 10/10;
 - regression bitwise on cli, align, inference, no_d_align and generate;
 - convergence 2/2.
+
+The review's two commits (Oct 20 2026) pass the same gate, each on its own, with unit at 494/494
+after the T3 merge. Eight mutations were all caught: the DJ and VJ classes swapped, the event type
+ignored, `VD_genes` read as `DJ_ins_seq`, a deletion's class or v1 line taken from the junction
+half, a gene choice writing no `gene_class`, every event writing one, and every event allowed one.
 
 ### Not on the milestone-1 path
 
