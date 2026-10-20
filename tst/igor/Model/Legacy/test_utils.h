@@ -44,6 +44,7 @@
 #include <igor/Core/Legacy/SeqTypeRegistry.h>
 #include <igor/Model/Legacy/Singleerrorrate.h>
 #include <igor/Core/Legacy/Utils.h>
+#include <igor/Model/TraversalPlan.h>
 
 #include <deque>
 #include <map>
@@ -173,8 +174,13 @@ struct ExplorationStorage {
     SafetyMatrix safety_set;
     Pruning_mismatch_floor_map pruning_mismatch_floor;
 
+    /// The bound map has a key per registry id plus one per gap that has a key of its own, which
+    /// only the plan built at call time knows. The fixtures' layouts need at most a few; the
+    /// harness refuses a plan that needs more than this.
+    static constexpr std::size_t kSpareBoundKeys = 8;
+
     ExplorationStorage(std::size_t max_events, const SeqTypeRegistry &registry)
-        : downstream_proba_map(registry, kTestLayers),
+        : downstream_proba_map(registry, kTestLayers, registry.total_count() + kSpareBoundKeys),
           //ExplorationContext copies proba_threshold_factor by value, so it can only be set
           //here. Fixing it at 1 makes seq_max_prob itself the pruning threshold, and it is a
           //reference, so set_pruning_threshold() can move it afterwards. Starting at 0 means
@@ -233,6 +239,16 @@ private:
 
     /// Events after the event under test in the model queue, in order.
     std::vector<std::shared_ptr<Rec_Event>> downstream_;
+
+    /// The events mark_chosen() named, which run before the event under test.
+    std::vector<std::shared_ptr<Rec_Event>> chosen_;
+
+    /// What preset_segment() and preset_junction() wrote: segments that exist before the order
+    /// starts, though no event in it creates them.
+    igor::model::InitialState preset_;
+
+    /// Built by call_iterate() over the order it runs the events in, as GenModel builds one.
+    std::unique_ptr<igor::model::TraversalPlan> plan_;
 
     std::unordered_map<int, std::size_t> base_index_overrides_;
 
@@ -308,7 +324,22 @@ public:
     void mark_chosen(const std::shared_ptr<Rec_Event> &event)
     {
         processed_events_.insert(event->get_name());
+        chosen_.push_back(event);
     }
+
+    const std::vector<std::shared_ptr<Rec_Event>> &chosen_events() const { return chosen_; }
+    const igor::model::InitialState &preset_state() const { return preset_; }
+
+    /// The plan the last call_iterate() built and handed to the events: what each saw as placed
+    /// and built, and the key of each gap's bound. \throws std::logic_error before the first call.
+    const igor::model::TraversalPlan &plan() const
+    {
+        if (not plan_) {
+            throw std::logic_error("IterateTestState::plan(): call_iterate() has not built one yet");
+        }
+        return *plan_;
+    }
+    void set_plan(std::unique_ptr<igor::model::TraversalPlan> plan) { plan_ = std::move(plan); }
 
     /**
      * Write a segment as an upstream event would have left it: offsets on both ends, a
@@ -317,10 +348,11 @@ public:
      * Pair this with mark_chosen() on the corresponding Gene_choice; mark_chosen() alone
      * makes the code *look* for the offsets, and they have to be there.
      */
-    void preset_segment(Seq_type seq_type, Seq_Offset five_prime, Seq_Offset three_prime,
+    void preset_segment(SeqTypeId seq_type, Seq_Offset five_prime, Seq_Offset three_prime,
                         const std::string &segment = "",
                         const std::vector<std::size_t> &mismatches = {})
     {
+        preset_.built.push_back(seq_type);
         claim_layer_zero(scenario_storage.seq_offsets, seq_type, Five_prime);
         claim_layer_zero(scenario_storage.seq_offsets, seq_type, Three_prime);
         claim_layer_zero(scenario_storage.constructed_sequences, seq_type);
@@ -345,8 +377,9 @@ public:
      *
      * An empty junction is `3' == 5' - 1`, which is what `length == 0` writes.
      */
-    void preset_junction(Seq_type seq_type, Seq_Offset five_prime, std::size_t length)
+    void preset_junction(SeqTypeId seq_type, Seq_Offset five_prime, std::size_t length)
     {
+        preset_.placed.push_back(seq_type);
         claim_layer_zero(scenario_storage.seq_offsets, seq_type, Five_prime);
         claim_layer_zero(scenario_storage.seq_offsets, seq_type, Three_prime);
         scenario_storage.seq_offsets.set(seq_type, Five_prime, five_prime, 0);
@@ -423,7 +456,7 @@ public:
     ///
     /// A `true` verdict propagates along the row -- see SafetyMatrix -- so presetting a
     /// near pair safe also presets everything further 3' of the same left segment.
-    void preset_safety(Seq_type left, Seq_type right, bool value)
+    void preset_safety(SeqTypeId left, SeqTypeId right, bool value)
     {
         const SafetyCell cell = exploration_storage.safety_set.cell(
                 static_cast<SeqTypeId>(left), static_cast<SeqTypeId>(right));
@@ -562,7 +595,9 @@ struct ScenarioSnapshot {
     /// has written: the row word carries a verdict for each of its cells, so "absent" means
     /// nothing touched that left segment at all, not that this one pair went unrecorded.
     std::map<std::pair<Seq_type, Seq_type>, bool> safety;
-    std::map<Seq_type, double> downstream_bounds;
+    /// Every key of the downstream map, so a gap's own key past the registry ids is there too
+    /// (TraversalPlan). A Seq_type converts to its key.
+    std::map<SeqTypeId, double> downstream_bounds;
 
     /// Convenience: the 5' offset of a segment, or throws if it was never written.
     Seq_Offset five_prime(Seq_type seq_type) const { return offsets.at(seq_type).first; }

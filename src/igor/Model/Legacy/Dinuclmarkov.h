@@ -186,6 +186,9 @@ private:
     std::vector<double> chain_bound_;
     /// Layer claimed in the downstream-proba map for the junction this event fills.
     int memory_layer_junction = -1;
+    /// Where the gap this chain fills is bounded, from the engine's plan: the gap's factor, which
+    /// filling it settles to 1.
+    SeqTypeId junction_key_ = kNoSeqType;
     /// Layer claimed in the constructed-sequence map for that same junction, which this event
     /// now creates rather than filling in place.
     int memory_layer_seq = -1;

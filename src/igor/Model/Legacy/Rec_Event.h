@@ -67,6 +67,10 @@
 #include <memory>
 #include <map>
 
+namespace igor::model {
+class TraversalPlan;
+struct EventPlacement;
+} // namespace igor::model
 
 namespace igor::model::legacy {
 using namespace igor::core::legacy;
@@ -294,6 +298,16 @@ public:
     }
     SeqTypeId get_left_adjacent_id() const { return left_adjacent_id; }
     SeqTypeId get_right_adjacent_id() const { return right_adjacent_id; }
+
+    /**
+     * The engine's plan for the order it runs the events in (TraversalPlan.h): what is placed and
+     * built when this event runs, and the key each gap's bound is held at. The order-dependent
+     * counterpart of set_adjacent_segments(): the engine tells, the event does not search the
+     * model. Set before initialize_event(), which is its only reader; the engine keeps the plan
+     * alive for as long as it uses the event. One plan serves every copy of a model: it finds an
+     * event by its identifier.
+     */
+    void set_traversal_plan(const igor::model::TraversalPlan &plan) { traversal_plan_ = &plan; }
 
     /** @} */
     const Seq_type_String get_seq_type() const { return seq_type; };
@@ -722,6 +736,11 @@ protected:
     /// Resolved in initialize_event(); never consulted by span in iterate(). See JunctionBound.
     std::array<JunctionBound, kJunctionSlotCount> junction_bounds_{};
 
+    /// \throws std::logic_error if the engine set no plan before initialize_event().
+    const igor::model::TraversalPlan &traversal_plan() const;
+    /// This event's entry in the plan.
+    const igor::model::EventPlacement &placement() const;
+
     /// Index assigned by igor::model::Topology; -1 until setUid() is called. Model layer only.
     igor::core::legacy::index_type m_uid = -1;
 
@@ -736,6 +755,8 @@ protected:
     /// Neighbours in the registry ordering, also resolved by Model_Parms::finalize().
     SeqTypeId left_adjacent_id = kNoSeqType;
     SeqTypeId right_adjacent_id = kNoSeqType;
+    /// Not owned, and not carried by copy(): an engine sets its own, per thread.
+    const igor::model::TraversalPlan *traversal_plan_ = nullptr;
     int len_min;
     int len_max;
     Event_type type;

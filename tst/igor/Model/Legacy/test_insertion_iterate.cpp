@@ -177,8 +177,10 @@ TEST_CASE("Insertion: the length is derived from the neighbours (G9)", "[inserti
     SECTION("A neighbour that was never placed is an error, not an empty junction")
     {
         // Insertion assumes both its neighbours are already constructed; it has no
-        // "not yet processed" branch. LayeredArray turns the assumption into a throw
-        // rather than a read of uninitialized storage.
+        // "not yet processed" branch. With nothing built on one side, it sits in no gap and
+        // has no junction to bound, which it refuses at initialization -- before iterate()
+        // could read the missing offsets (T3). An engine's order never gets there:
+        // TraversalPlan::check_admissible() refuses a slot placed outside a gap.
         IterateTestState state = create_iterate_state("ACGTACGTACGTACGTACGT");
         auto insertion = make_insertion(VD_ins_seq, 0, 6, 0);
         state.preset_segment(V_gene_seq, 0, 10, segment_run(0, 10));
@@ -186,7 +188,7 @@ TEST_CASE("Insertion: the length is derived from the neighbours (G9)", "[inserti
         for (std::size_t i = 0; i != 16; ++i) {
             state.set_marginal(i, 0.5L);
         }
-        CHECK_THROWS_AS(call_iterate(insertion, state), std::out_of_range);
+        CHECK_THROWS_AS(call_iterate(insertion, state), std::runtime_error);
     }
 }
 

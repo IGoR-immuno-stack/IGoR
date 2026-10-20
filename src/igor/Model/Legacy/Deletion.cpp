@@ -27,9 +27,11 @@
 #include <igor/Alignment/Legacy/Aligner.h>
 #include <igor/Model/Legacy/EventUtils.h>
 #include <igor/Model/Legacy/JsonDetail.h>
+#include <igor/Model/TraversalPlan.h>
 
 #include <algorithm>
 #include <limits>
+#include <optional>
 #include <utility>
 
 
@@ -242,22 +244,21 @@ void Deletion::iterate(
     //compared against at all. A pair the enclosing depth already established as separated needs
     //no comparison here; re-asserting the verdict at this event's layer is what carries it
     //down to the next reader, and is what the four `else { check = false; set safe }` arms did.
-    for (FlankCheck &check : flank_checks_) {
-        check.active = false;
-        if (not check.partner_chosen) {
-            continue;
-        }
+    for (std::size_t i = 0; i != flank_checks_.size(); ++i) {
+        const FlankCheck &check = flank_checks_[i];
+        FlankState &state = flank_states_[i];
+        state.active = false;
         //Read whether or not the comparison runs. The V arm this replaces read it only when it
         //did, and then used it to measure the junction -- so a V deletion in a model with no D
         //measured the V->J junction against a stale, and on the first scenario uninitialized,
         //offset. See §7.21.
-        check.offset = scenario.get_offset(static_cast<Seq_type>(check.partner_id),
+        state.offset = scenario.get_offset(static_cast<Seq_type>(check.partner_id),
                                            check.partner_side, check.partner_offset_layer);
         if (exploration.is_overlap_safe(check.safety_cell, check.safety_layer - 1)) {
             exploration.set_overlap_safety(check.safety_cell, true, check.safety_layer);
         } else {
-            check.reach = pending_.reachable(check.partner_id, check.partner_side, check.offset);
-            check.active = true;
+            state.reach = pending_.reachable(check.partner_id, check.partner_side, state.offset);
+            state.active = true;
         }
     }
 
@@ -276,7 +277,7 @@ void Deletion::iterate(
     //realization, and is measured once.
     int junction_length_before = 0;
     if (junction.resolved()) {
-        const Seq_Offset partner_offset = flank_checks_[junction_partner_].offset;
+        const Seq_Offset partner_offset = flank_states_[junction_partner_].offset;
         junction_length_before = trims_three_prime_ ? partner_offset - my_offset - 1
                                                     : my_offset - partner_offset - 1;
     }
@@ -309,14 +310,13 @@ void Deletion::iterate(
         //pair this segment sits on. The moving end is a point here -- the realization pins it --
         //which is the difference §2.3's `reachable()` absorbs.
         bool infeasible = false;
-        for (const FlankCheck &check : flank_checks_) {
-            if (not check.active) {
+        for (std::size_t i = 0; i != flank_checks_.size(); ++i) {
+            const FlankCheck &check = flank_checks_[i];
+            if (not flank_states_[i].active) {
                 continue;
             }
             const JunctionGeometry::OffsetInterval mine{my_new_offset, my_new_offset};
-            const JunctionGeometry::Overlap verdict =
-                    trims_three_prime_ ? JunctionGeometry::check_overlap(mine, check.reach, 0)
-                                       : JunctionGeometry::check_overlap(check.reach, mine, 0);
+            const JunctionGeometry::Overlap verdict = check.overlap(mine, flank_states_[i].reach);
             if (verdict == JunctionGeometry::Overlap::Infeasible) {
                 //No combination of the pending deletions separates them: a bad alignment.
                 infeasible = true;
@@ -653,17 +653,8 @@ void Deletion::initialize_event(
     int_value_and_index.sort(del_numb_compare);
 
     //Everything topological is settled here, so iterate() reads answers instead of switching on
-    //the gene again. The topology has to be there to be read: a segment the model registered
-    //but left out of the ordering has no neighbours, no read ends and no pairs, so every flag
-    //below would be answered by silence rather than by the model.
-    if (not constructed_sequences.registry().contains(
-                constructed_sequences.registry().name(this->seq_type_id))) {
-        throw invalid_argument("Deletion " + this->get_name() + ": its segment "
-                               + constructed_sequences.registry().name(this->seq_type_id)
-                               + " is not in the model's 5'->3' ordering, so there is no side "
-                                 "for it to trim towards");
-    }
-
+    //the gene again. That the topology is there to be read -- the segment in the ordering, an end
+    //created before it is trimmed -- is the engine's to check (TraversalPlan::check_admissible()).
     //The eight `*_min_del` / `*_max_del` scalars and the sixty lines that filled them by
     //looking up the V 3', D 5', D 3' and J 5' deletion events by hand collapse to this one
     //object (§2.1); a topology with more than one deletion per end needs no new code for it,
@@ -713,86 +704,46 @@ void Deletion::initialize_event(
     constructed_sequences.request_layer(this->seq_type_id);
     this->memory_layer_cs = constructed_sequences.claimed_layer(this->seq_type_id);
 
-    //The neighbours this deletion is checked against: the other gene segments **on the side it
+    //The neighbours this deletion is checked against: the segments placed **on the side it
     //trims**, 5' to 3'. The other side of the segment is not moving, so nothing there can newly
     //collide -- which is why each of the four arms checked one or two partners and never all
-    //three. The candidate list is still the legacy three by name; parent plan B9 step 3, which
-    //puts the whole topology in the registry, is what replaces this literal with
-    //registry.ordering().
-    static const std::array<Seq_type_String, 3> kGeneSegments = {"V_gene_seq", "D_gene_seq",
-                                                                 "J_gene_seq"};
-    const std::size_t my_position =
-            std::find(kGeneSegments.begin(), kGeneSegments.end(), registry.name(this->seq_type_id))
-            - kGeneSegments.begin();
-    flank_checks_.clear();
-    for (std::size_t position = 0; position != kGeneSegments.size(); ++position) {
-        if (position == my_position or not registry.contains(kGeneSegments[position])) {
-            continue;
-        }
-        if ((position > my_position) != trims_three_prime_) {
-            continue;
-        }
-        const Seq_type_String &partner_name = kGeneSegments[position];
-        FlankCheck check;
-        check.partner_id = registry.id(partner_name);
-        check.partner_side = trims_three_prime_ ? Five_prime : Three_prime;
-        check.safety_cell = safety_set.cell(this->seq_type_id, check.partner_id);
-        check.partner_chosen =
-                EventUtils::check_gene_choice(partner_name, events_map, processed_events).chosen;
-        flank_checks_.push_back(check);
-    }
-
-    //Claimed only for a neighbour that has been placed, which is what the four arms' `if
-    //(x_chosen)` guards said: an unplaced neighbour has no offset to compare against and no
-    //verdict to record. One claim per *row*, not per check -- a 3' deletion's partners all sit
-    //in the row of its own segment and share a word, so a second claim would leave a layer
-    //unwritten, and an unwritten layer is unreadable by design (§7.9).
-    for (std::size_t i = 0; i != flank_checks_.size(); ++i) {
-        FlankCheck &check = flank_checks_[i];
-        if (not check.partner_chosen) {
-            continue;
-        }
-        std::size_t earlier = 0;
-        while (earlier != i
-               and (not flank_checks_[earlier].partner_chosen
-                    or flank_checks_[earlier].safety_cell.row != check.safety_cell.row)) {
-            ++earlier;
-        }
-        if (earlier != i) {
-            check.safety_layer = flank_checks_[earlier].safety_layer;
-        } else {
-            safety_set.request_layer(check.safety_cell);
-            check.safety_layer = safety_set.claimed_layer(check.safety_cell);
-        }
-        check.partner_offset_layer = seq_offsets.claimed_layer(check.partner_id, check.partner_side);
-    }
+    //three. The engine's plan says which are placed when this event runs (TraversalPlan); they
+    //used to be the legacy V, D and J by name, which left a tandem model's D1 and D2 out.
+    //A 3' deletion's partners all sit in the row of its own segment, so they share one safety
+    //layer (resolve_flank_checks()).
+    const EventPlacement &placed = this->placement();
+    flank_checks_ = resolve_flank_checks(placed, trims_three_prime_ ? Three_prime : Five_prime, safety_set,
+                                         seq_offsets);
+    flank_states_.assign(flank_checks_.size(), FlankState{});
 
     downstream_proba_map.request_layer(this->seq_type_id);
     memory_layer_proba_map_seq = downstream_proba_map.claimed_layer(this->seq_type_id);
 
-    //The junction this deletion widens: the one between its trimmed end and the **nearest
-    //placed** neighbour on that side. Nearest, because a nearer placed segment makes the
-    //further junction somebody else's to bound -- which is what the `if (d_chosen) … else if
-    //(j_chosen)` pairs said, once per arm.
+    //The junction this deletion widens: the gap between its trimmed end and the nearest built
+    //content on that side, which the plan holds a key for. Nearest, because a nearer built segment
+    //makes the further gap somebody else's to bound -- which is what the `if (d_chosen) … else if
+    //(j_chosen)` pairs said, once per arm. A segment whose own content is not built yet is no end
+    //of a gap; its deletion leaves the gap it sits in to the bound folded before it, which counted
+    //it among the events still to come.
     junction_partner_ = -1;
-    for (std::size_t i = 0; i != flank_checks_.size(); ++i) {
-        if (not flank_checks_[i].partner_chosen) {
-            continue;
+    const std::optional<SegmentSpan> gap =
+            placed.target_built ? placed.gap_toward(trims_three_prime_ ? Three_prime : Five_prime) : std::nullopt;
+    if (gap) {
+        const SeqTypeId far_end = trims_three_prime_ ? gap->right.id : gap->left.id;
+        for (std::size_t i = 0; i != flank_checks_.size(); ++i) {
+            if (flank_checks_[i].partner_id == far_end) {
+                junction_partner_ = static_cast<int>(i);
+            }
         }
-        junction_partner_ = static_cast<int>(i);
-        if (trims_three_prime_) {
-            break; //the first placed neighbour to the 3' side
+        //Built content has its ends placed, so the far end is one of the checks; iterate() reads
+        //its offset to measure the gap.
+        if (junction_partner_ < 0) {
+            throw logic_error("Deletion " + this->get_name() + ": the gap it widens ends at "
+                              + registry.name(far_end) + ", which the plan does not list as placed");
         }
-        //...and to the 5' side the last one, which the loop reaches by not breaking.
-    }
-    if (junction_partner_ >= 0) {
-        const SeqTypeId partner_id = flank_checks_[junction_partner_].partner_id;
-        const SegmentSpan span = trims_three_prime_
-                                         ? SegmentSpan::gap(this->seq_type_id, partner_id)
-                                         : SegmentSpan::gap(partner_id, this->seq_type_id);
-        const SeqTypeId junction_key = legacy_junction_of(span);
+        const SeqTypeId junction_key = this->traversal_plan().gap_key(*gap);
         downstream_proba_map.request_layer(junction_key);
-        resolve_junction(span, junction_key, downstream_proba_map.claimed_layer(junction_key));
+        resolve_junction(*gap, junction_key, downstream_proba_map.claimed_layer(junction_key));
     }
 
     this->Rec_Event::initialize_event(processed_events, events_map, offset_map, downstream_proba_map,
