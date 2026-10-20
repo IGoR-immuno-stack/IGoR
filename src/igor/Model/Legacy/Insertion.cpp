@@ -25,7 +25,6 @@
  */
 
 #include <igor/Model/Legacy/Insertion.h>
-#include <igor/Model/Legacy/EventUtils.h>
 #include <igor/Model/Legacy/JsonDetail.h>
 #include <igor/Model/TraversalPlan.h>
 #include <igor/Model/Legacy/gene_to_seqtype_migr.h>
@@ -46,13 +45,7 @@ using namespace std;
 
 
 
-Insertion::Insertion() : Insertion(VD_ins_seq)
-{
-    this->type = Event_type::Insertion_t;
-    this->update_event_name();
-}
-
-Insertion::Insertion(Seq_type seq_type, pair<int, int> ins_range) : Insertion(seq_type)
+Insertion::Insertion(const Seq_type_String &seq_type, pair<int, int> ins_range) : Insertion(seq_type)
 { //FIXME nonsense new
 
     int min_ins = std::min(ins_range.first, ins_range.second);
@@ -68,9 +61,8 @@ Insertion::Insertion(Seq_type seq_type, pair<int, int> ins_range) : Insertion(se
     this->update_event_name();
 }
 
-Insertion::Insertion(Seq_type seq_type)
+Insertion::Insertion(const Seq_type_String &seq_type)
     : Rec_Event(Undefined_gene, Undefined_side),
-      ins_seq_type(seq_type),
       proba_contribution(-1),
       previous_index(-1),
       insertions(-1),
@@ -80,11 +72,9 @@ Insertion::Insertion(Seq_type seq_type)
       realization_index(-1)
 {
     this->type = Event_type::Insertion_t;
-    //Keep the name and the enum in step from construction. An Insertion built directly from a
-    //Seq_type used to carry an empty seq_type string until a caller happened to set one, which
-    //left the two identities of the same fact disagreeing -- and the events_map is keyed by the
-    //string.
-    this->seq_type = EventUtils::seq_type_to_string(seq_type);
+    //The one place the seq type is kept: the name the model gives. It used to be kept twice, here
+    //and in a member typed by the Seq_type enum, which refused any name outside the legacy six.
+    this->seq_type = seq_type;
     for (unordered_map<string, Event_realization>::const_iterator iter = this->event_realizations.begin();
          iter != this->event_realizations.end(); ++iter) {
         if ((*iter).second.value_int > this->len_max) {
@@ -96,7 +86,8 @@ Insertion::Insertion(Seq_type seq_type)
     this->update_event_name();
 }
 
-Insertion::Insertion(Seq_type seq_type, unordered_map<string, Event_realization> &realizations) : Insertion(seq_type)
+Insertion::Insertion(const Seq_type_String &seq_type, unordered_map<string, Event_realization> &realizations)
+    : Insertion(seq_type)
 {
     this->event_realizations = realizations;
 
@@ -113,13 +104,12 @@ Insertion::Insertion(Seq_type seq_type, unordered_map<string, Event_realization>
 }
 
 Insertion::Insertion(const nlohmann::json &node)
-    : Insertion(str2SeqType(igor::model::legacy::json_detail::require(node, "seq_type").get<Seq_type_String>()))
+    : Insertion(igor::model::legacy::json_detail::require(node, "seq_type").get<Seq_type_String>())
 {
     using namespace igor::model::legacy::json_detail;
     reject_unknown_keys(node, kEventKeys);
     expect_type(node, "Insertion");
 
-    this->set_seq_type(require(node, "seq_type").get<Seq_type_String>());
     this->set_event_side(str2SeqSide(require(node, "side").get<string>()));
     this->set_priority(require(node, "priority").get<int>());
     this->set_nickname(require(node, "nickname").get<string>());
@@ -139,13 +129,12 @@ shared_ptr<Rec_Event> Insertion::copy()
 {
     //TODO check this kind of copy for memory leak
     shared_ptr<Insertion> new_insertion_p =
-            shared_ptr<Insertion>(new Insertion(this->ins_seq_type, this->event_realizations));
+            shared_ptr<Insertion>(new Insertion(this->seq_type, this->event_realizations));
     new_insertion_p->priority = this->priority;
     new_insertion_p->nickname = this->nickname;
     new_insertion_p->fixed = this->fixed;
     new_insertion_p->update_event_name();
     new_insertion_p->set_event_identifier(this->event_index);
-    new_insertion_p->set_seq_type(this->get_seq_type());
     new_insertion_p->set_seq_type_id(this->get_seq_type_id());
     return new_insertion_p;
 }
@@ -300,14 +289,8 @@ void Insertion::write2txt(ofstream &outfile)
 
 void Insertion::write2txt_legacy(ofstream &outfile)
 {
-    // Derive legacy gene_class from seq_type for backward compatibility
-    // Use to_string() to match the exact strings expected by str2GeneClass()
-    string legacy_gene_class;
-    if (seq_type == "VD_ins_seq") legacy_gene_class = to_string(VD_genes);
-    else if (seq_type == "DJ_ins_seq") legacy_gene_class = to_string(DJ_genes);
-    else if (seq_type == "VJ_ins_seq") legacy_gene_class = to_string(VJ_genes);
-    else legacy_gene_class = to_string(Undefined_gene);
-    outfile << "#Insertion;" << legacy_gene_class << ";" << event_side << ";" << priority << ";" << nickname << endl;
+    outfile << "#Insertion;" << junction_class_token(seq_type) << ";" << event_side << ";" << priority << ";"
+            << nickname << endl;
     for (unordered_map<string, Event_realization>::const_iterator iter = event_realizations.begin();
          iter != event_realizations.end(); ++iter) {
         outfile << "%" << (*iter).second.value_int << ";" << (*iter).second.index << endl;
@@ -460,15 +443,8 @@ int Insertion::length_delta(const Event_realization &realization) const
 
 void Insertion::update_event_name()
 {
-    Seq_type_String seq_type_str;
-    switch (ins_seq_type) {
-    case VD_ins_seq: seq_type_str = "VD_genes"; break;
-    case DJ_ins_seq: seq_type_str = "DJ_gene"; break;
-    case VJ_ins_seq: seq_type_str = "VJ_gene"; break;
-    default: seq_type_str = to_string(this->event_class); break;
-    }
-    this->name = string() + this->type + "_" + seq_type_str + "_" + to_string(this->event_side)
-                 + "_prio" + to_string(priority) + "_size" + to_string(this->size());
+    this->name = string() + this->type + "_" + junction_class_token(this->seq_type) + "_"
+                 + to_string(this->event_side) + "_prio" + to_string(priority) + "_size" + to_string(this->size());
 }
 
 } // namespace igor::model::legacy

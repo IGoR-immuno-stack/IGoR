@@ -1676,31 +1676,31 @@ int igor_legacy_main(int argc, char *argv[])
         j_choice.set_nickname("j_choice");
         j_choice.set_priority(7);
 
-        Deletion v_3_del(V_gene_seq, Three_prime, make_pair(-4, 16)); //16
+        Deletion v_3_del("V_gene_seq", Three_prime, make_pair(-4, 16)); //16
         v_3_del.set_nickname("v_3_del");
         v_3_del.set_priority(5);
-        Deletion d_5_del(D_gene_seq, Five_prime, make_pair(-4, 16));
+        Deletion d_5_del("D_gene_seq", Five_prime, make_pair(-4, 16));
         d_5_del.set_nickname("d_5_del");
         d_5_del.set_priority(5);
-        Deletion d_3_del(D_gene_seq, Three_prime, make_pair(-4, 16));
+        Deletion d_3_del("D_gene_seq", Three_prime, make_pair(-4, 16));
         d_3_del.set_nickname("d_3_del");
         d_3_del.set_priority(5);
-        Deletion j_5_del(J_gene_seq, Five_prime, make_pair(-4, 18));
+        Deletion j_5_del("J_gene_seq", Five_prime, make_pair(-4, 18));
         j_5_del.set_nickname("j_5_del");
         j_5_del.set_priority(5);
 
-        Insertion vd_ins(VD_ins_seq, make_pair(0, 30));
+        Insertion vd_ins("VD_ins_seq", make_pair(0, 30));
         vd_ins.set_nickname("vd_ins");
         vd_ins.set_priority(4);
-        Insertion dj_ins(DJ_ins_seq, make_pair(0, 30));
+        Insertion dj_ins("DJ_ins_seq", make_pair(0, 30));
         dj_ins.set_nickname("dj_ins");
         dj_ins.set_priority(2);
 
-        Dinucl_markov markov_model_vd(VD_ins_seq);
+        Dinucl_markov markov_model_vd(string("VD_ins_seq"));
         markov_model_vd.set_nickname("vd_dinucl");
         markov_model_vd.set_priority(3);
 
-        Dinucl_markov markov_model_dj(DJ_ins_seq);
+        Dinucl_markov markov_model_dj(string("DJ_ins_seq"));
         markov_model_dj.set_nickname("dj_dinucl");
         markov_model_dj.set_priority(1);
 

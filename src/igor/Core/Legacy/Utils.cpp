@@ -204,17 +204,6 @@ Gene_class gene_class_legacy_to_new(Gene_class_legacy gc)
     }
 }
 
-Seq_type str2SeqType(const string &str)
-{
-    if (str == "V_gene_seq") return V_gene_seq;
-    if (str == "VD_ins_seq") return VD_ins_seq;
-    if (str == "D_gene_seq") return D_gene_seq;
-    if (str == "DJ_ins_seq") return DJ_ins_seq;
-    if (str == "J_gene_seq") return J_gene_seq;
-    if (str == "VJ_ins_seq") return VJ_ins_seq;
-    throw runtime_error("Unknown Seq_type string in str2SeqType: " + str);
-}
-
 
 /**
  * \brief Creates a Seq_side object from a string.
