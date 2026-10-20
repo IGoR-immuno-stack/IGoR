@@ -105,7 +105,7 @@ Gene_choice::Gene_choice(const nlohmann::json &node)
     : Gene_choice(str2GeneClassNew(igor::model::legacy::json_detail::require(node, "gene_class").get<string>()))
 {
     using namespace igor::model::legacy::json_detail;
-    reject_unknown_keys(node, kEventKeys);
+    reject_unknown_keys(node, kGeneChoiceKeys);
     expect_type(node, "GeneChoice");
 
     this->set_seq_type(require(node, "seq_type").get<Seq_type_String>());
@@ -118,6 +118,13 @@ Gene_choice::Gene_choice(const nlohmann::json &node)
                               require(*realization, "value_str").get<string>());
 
     this->update_event_name();
+}
+
+nlohmann::json Gene_choice::to_json() const
+{
+    nlohmann::json out = Rec_Event::to_json();
+    out["gene_class"] = to_string(this->event_class);
+    return out;
 }
 
 Gene_choice::~Gene_choice()

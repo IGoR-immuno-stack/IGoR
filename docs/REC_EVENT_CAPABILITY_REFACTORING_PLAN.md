@@ -1,6 +1,6 @@
 # Rec_Event Capability Attributes & Gene_class Correction: Architectural Refactoring Plan
 
-**Last Updated**: October 2, 2026
+**Last Updated**: October 5, 2026
 
 ---
 
@@ -11,7 +11,7 @@ Legend: ✅ done · 🟡 partial · ⬜ not started
 | Task | Status | Notes |
 |------|:------:|-------|
 | Phase A | 🟡 | **Oct 2 2026: what tandem D needs from Phase A has landed; the rest leaves this plan** (see *Remaining work*). Landed: the four A0 queries, `affects_length_of` / `affects_proba_of`, `length_delta`, `span_proba_factor`. Still to do on the tandem-D path: R12, which takes `affects_length_of` off the enum (T3). Moved out with Phases C and D: `is_branching`, `is_multi_realization`, `SeqContextDependency`, `get_context_seq_types`. <br><br>**Two span-addressed capabilities delivered** *(Sep 10 2026, iterate plan S4a, `b432247`)*: `affects_length_of(SegmentSpan)` and `affects_proba_of(SegmentSpan)`, replacing `has_effect_on(Seq_type)`. They occupy the *span* column of the capability surface — `SegmentSpan` being the addressing unit shared with G5's junction bounds and D.3's cluster boundaries — where the four A0 queries all address a *segment*. The split was forced rather than cosmetic: `Dinucl_markov` contributes no length at all and answered `true` purely to gate a probability factor, so a length-only predicate had to gain a probability sibling in the same commit or the bound would have lost that factor. **Tier 3 of the segment-completeness invariant also landed** (`43b3efd`, test-only): the unit harness now asserts at every hand-off that what an event declared through its A0 queries, it did — which makes R3 self-verifying, since flipping `Insertion::get_offset_role` to `Creates` without also writing the offsets now fails immediately. A **complementary, non-capability rule** landed with it (`f568bd4`): *a written layer must have been requested*, the converse of the existing layer contract, covering every layered map including the two no query describes. It found one violation across 49 measured writes — `Insertion` writes the segment it creates without requesting a layer for it, the same under-declaration as its missing offsets, repaired together in R3. Its runtime home is `LayeredArray::set()`, which used to raise the claim implicitly rather than requiring it; that flip is iterate-plan O10 and **landed as R3b on Sep 26 2026**, bitwise on all five regression tracks and with no production violation to repair behind it — the 80 failures it produced were all fixtures that had been writing a map at layer 0 without claiming it. **Two further capabilities identified as missing** *(Sep 9 2026, iterate plan §6.10)*: a **per-realization** length delta (A0 supplies only the `{min,max}` bound over all realizations, but the junction-length fold needs the value for one realization — this is the hook that collapses four `iterate_initialize_Len_proba` bodies into one) and a **probability hook for non-enumerating events**, whose shape D.9 already reserves as `is_multi_realization()`. A *modifier-type* enum was considered and rejected: the four length deltas differ by sign and by which `Event_realization` field they read, which a per-realization accessor states directly, and the qualitative taxonomy already exists as `SeqConstructionRole`. **One delivered A0 query is also wrong** *(Sep 10 2026)*: `Insertion::get_offset_role()` returns `None`, encoding as contract the defect that `Insertion::iterate` records no offsets for the segment it creates — so a query whose purpose is to spare consumers from knowing implementations instead propagates that coupling. Fixed with iterate-plan R3 by reporting plain `Creates`; the enum needs no new value — whether an event can be scheduled before its neighbours is a *context dependency* (D.9's `get_context_seq_types()`), not an offset role, and that is what would differ for an `Insertion` implemented by enumeration rather than by deriving its span. `SeqConstructionRole::Creates` and `OffsetRole::Creates` coincide for every event today but are **not** to be collapsed: an event could construct content and leave placement downstream. The invariant tying them is that **every registry seq_type must have both its sequence and its offsets created by the time a scenario reaches a leaf**, not necessarily by the same event; the content half is already asserted (`1794b5f`), the offsets half becomes assertable with R3. See that plan's §2.5. <br><br>**Partially delivered as A0** *(`db8d960`, Sep 2 2026 — this is decision O2's amendment, recorded here)*. `SeqConstructionRole` and `OffsetRole` exist at [Rec_Event.h:146,154](src/igor/Core/Rec_Event.h#L146), alongside `OffsetDelta` and `LengthContribution` (quantitative bounds the original Phase A did not specify), as four pure virtuals implemented on all four subclasses. Still absent: `is_branching`, `SeqContextDependency`. **No production consumer yet** — the only caller is `JunctionGeometry::PendingModifierBounds::rebuild()`, itself uncalled until step 3 of the iterate plan. |
-| B0 | 🟡 | `Rec_Event` gained a `Seq_type_String seq_type` **string** member; `event_class` was **kept** on the base. No `seq_type_ids` vector, no `primary_seq_type_id()`. Subclasses gained typed members (`Deletion::target_seq_type`, `Insertion::ins_seq_type`, `Dinucl_markov::ins_seq_type`). `Dinucl_markov::start_side` realised as `event_side`, from which `DinuclTraversalSpec::anchor_side` is now **derived** rather than stored (`7104c91`). Adjacency moved onto the base as `left_adjacent_id` / `right_adjacent_id` with a non-virtual `set_adjacent_segments()`, resolved once by `Model_Parms::finalize()` (`4a6dfee`) — topology is told to events, not asked for by them. <br><br>**Oct 2 2026: this is what stops a tandem-D model from loading (T1).** The three subclass members are still typed `Seq_type`, so every constructor, from text or from JSON, goes through `str2SeqType()` and throws on `D1_gene_seq`. |
+| B0 | 🟡 | `Rec_Event` gained a `Seq_type_String seq_type` **string** member; `event_class` was **kept** on the base. No `seq_type_ids` vector, no `primary_seq_type_id()`. Subclasses gained typed members (`Deletion::target_seq_type`, `Insertion::ins_seq_type`, `Dinucl_markov::ins_seq_type`). `Dinucl_markov::start_side` realised as `event_side`, from which `DinuclTraversalSpec::anchor_side` is now **derived** rather than stored (`7104c91`). Adjacency moved onto the base as `left_adjacent_id` / `right_adjacent_id` with a non-virtual `set_adjacent_segments()`, resolved once by `Model_Parms::finalize()` (`4a6dfee`) — topology is told to events, not asked for by them. <br><br>**Oct 2 2026: this is what stops a tandem-D model from loading (T1).** The three subclass members are still typed `Seq_type`, so every constructor, from text or from JSON, goes through `str2SeqType()` and throws on `D1_gene_seq`. <br><br>**Oct 5 2026, T1:** the three members are gone, and so is `str2SeqType()`. Every event keeps its seq type once, in `Rec_Event::seq_type`; a tandem-D model loads. `event_class` is still on the base (see *T1* below). |
 | B1 | ✅ | `Gene_class` = `{V_gene, D_gene, J_gene, Undefined_gene}`. Junction values moved to a new `Gene_class_legacy` enum confined to file I/O + `gene_to_seqtype_migr` module. |
 | B2 | ✅ | `SeqTypeId` handle layer added to `SeqTypeRegistry` (`1038c5d`), `LayeredArray` (`f6f0101`) and `DynamicSequenceMap` (`f1d26a4`) added as separate headers, legacy ids pinned to the `Seq_type` enum (`7549a4d`). Split into a pure container + a registry-aware view rather than one class; `standard_count()` and `LegacySequenceRegistry` dropped (see below). Flank types await B3. |
 | B3 | ⬜ | No flank seq types. `Gene_choice` friend declarations for `Hypermutation_*` still present. |
@@ -136,7 +136,7 @@ constructors call `str2SeqType()` too.
 | # | Blocker | Evidence | Plan item |
 |---|---|---|---|
 | **T0** | **Merging `integration/model-on-tandemD` into `feature/tandemD`**, and showing on Linux that the merge is mechanical (see above) | GCC 15.3 and C++23 in the integration branch's build; the `test_generate.sh` data rows | merge |
-| **T1** | **A tandem-D model does not load.** `Deletion::target_seq_type`, `Insertion::ins_seq_type` and `Dinucl_markov::ins_seq_type` are typed `Seq_type`, so the text reader ([Model_Parms.cpp:904](../src/igor/Core/Model_Parms.cpp#L904), 923, 953) and the JSON constructors go through `str2SeqType()` | 5 of the 7 `[tandem_d]` cases fail, all with `Unknown Seq_type string in str2SeqType: D1_gene_seq` | **B0**, unfinished |
+| **T1** ✅ | **A tandem-D model does not load.** Delivered Oct 5 2026, see *T1* below. `Deletion::target_seq_type`, `Insertion::ins_seq_type` and `Dinucl_markov::ins_seq_type` are typed `Seq_type`, so the text reader ([Model_Parms.cpp:904](../src/igor/Core/Model_Parms.cpp#L904), 923, 953) and the JSON constructors go through `str2SeqType()` | 5 of the 7 `[tandem_d]` cases fail, all with `Unknown Seq_type string in str2SeqType: D1_gene_seq` | **B0**, unfinished |
 | **T2** | **Generated names collide.** The name is type + gene class + side + priority + size ([Rec_Event.cpp:104](../src/igor/Core/Rec_Event.cpp#L104)), and it keys `Model_Parms::edges`, `Index_map`, `processed_events` and `offset_map` | In the fixture, `d1_choice` and `d2_choice` are both D, priority 6, size 1; `d1_5_del` and `d2_5_del` collide the same way | synthesis step 2 |
 | **T3** | **V, D and J are still named in the span and safety set-up.** `affects_length_of` on `Gene_choice`, `Insertion` and `Deletion`, and `Dinucl_markov`'s `affects_proba_of` and `span_proba_factor`, go through `legacy_junction_of()` or a VD/DJ/VJ switch; the flank checks list the gene segments in `kGeneSegments` ([Deletion.cpp:746](../src/igor/Core/Deletion.cpp#L746), [Genechoice.cpp:785](../src/igor/Core/Genechoice.cpp#L785)) | `legacy_junction_of()` throws on any span other than VD, DJ and VJ ([SegmentSpan.h:184](../src/igor/Core/SegmentSpan.h#L184)), and so does `Dinucl_markov` on any other insertion ([Dinuclmarkov.cpp:634](../src/igor/Core/Dinuclmarkov.cpp#L634), 661). On V→J the `Insertion` table leaves out `VD1_ins` and `D1D2_ins`. D1 and D2 are never checked against each other for overlap. The junction slots of the downstream bound map are addressed by an insertion's seq type id, with `VJ_ins_seq` standing in for V→J ([Genechoice.cpp:884](../src/igor/Core/Genechoice.cpp#L884), [Deletion.cpp:817](../src/igor/Core/Deletion.cpp#L817)), so a span such as D1→J has no slot | **R12**, and the literal B9 step 3 was to replace |
 | **T4** | **Tandem-D sequences cannot be generated** for the round-trip test. `draw_random_realization()` writes an `unordered_map<Seq_type, string>`, `Dinucl_markov` throws "see B9", `FastGenerator` names `D_gene_seq` | read from the code | **B9 step 5**: option (a), decided; see *T4* below |
@@ -161,10 +161,10 @@ become polynomial first (§7.22, option A). Recorded for R12; not decided.
 | Step | Item | Branch | Bitwise |
 |---|---|---|---|
 | 1 | ✅ **T6a** (Oct 2 2026): delete the dead half of `gene_to_seqtype_migr`, which was the code GCC 15 rejects | `feature/tandemD` | yes, measured |
-| 2 | **T3**: ordering positions instead of V/D/J names | `feature/tandemD` | yes on shipped models, if R12 keeps the legacy deletion rule; R16 moves every output |
-| 3 | **T4**: generation keyed by `SeqTypeId`, legacy generator first, then `FastGenerator`; **T6b** deletes the rest of the module | `feature/tandemD` | the legacy generator yes; `FastGenerator` no (see T4) |
-| 4 | **T0**: merge `integration/model-on-tandemD` into `feature/tandemD`; the Linux gate | `feature/tandemD` | the gate itself |
-| 5 | **T1**, then **T2** | the merged branch | yes |
+| 2 | 🟡 **T3**: ordering positions instead of V/D/J names. **R12** (item 1) landed Oct 2 2026, with R16. Items 2 and 3 remain, both in `Gene_choice::initialize_event()`: the flank checks' `kGeneSegments` literal, and junction slots keyed by `legacy_junction_of()` | `feature/tandemD` | yes on shipped models, if R12 keeps the legacy deletion rule; R16 moves every output |
+| 3 | 🟡 **T4**: generation keyed by `SeqTypeId`, legacy generator first, then `FastGenerator`; **T6b** deletes the rest of the module. The legacy generator is done (#74, Oct 5 2026, [GENERATION_REWRITE_PLAN.md](GENERATION_REWRITE_PLAN.md)); `FastGenerator` and T6b are not | `feature/tandemD` | the legacy generator yes; `FastGenerator` no (see T4) |
+| 4 | ✅ **T0**: merge `integration/model-on-tandemD` into `feature/tandemD`; the Linux gate (#70, Oct 2 2026) | `feature/tandemD` | the gate itself |
+| 5 | ✅ **T1** (Oct 5 2026), then **T2** | the merged branch | yes |
 | 6 | **T5**: milestone 1 | the merged branch | new tests |
 
 **Testing tandem layouts before T1.** Until T1, no tandem `Deletion`, `Insertion` or
@@ -396,6 +396,95 @@ the two `try_*` families; `make_gene_choice()` takes its seq type from a table o
 translator and the enum's only home. The reader never used it: the v1 reader translates with
 `legacy_gene_class_to_seq_type()` in `Model_Parms.cpp`. With the module gone, the end state is
 `Gene_class_legacy` in the v1 reader and writer only. Its other residents move as §5.3's table says.
+
+### T1: an event keeps the seq type its model names (delivered Oct 5 2026)
+
+A deletion, an insertion and a Markov chain kept their seq type twice: as the name, on
+`Rec_Event::seq_type`, and in a member of their own typed by the `Seq_type` enum. T3 and T4 left
+that member with three readers: the constructors, `copy()` and the generated names. T1 deletes it.
+
+- **One copy of the seq type.** `Deletion::target_seq_type`, `Insertion::ins_seq_type` and
+  `Dinucl_markov::ins_seq_type` are gone. The constructors take a `Seq_type_String` and set
+  `Rec_Event::seq_type`, which a deletion and a chain built in code used to leave empty. The
+  one-argument constructors are `explicit`.
+- **The readers pass the name through.** The text reader and the three JSON constructors no longer
+  call `str2SeqType()`, which had no other caller and is deleted.
+- **Names.** `legacy_gene_class_of()` ([LegacyFormat.h](../src/igor/Model/Legacy/LegacyFormat.h))
+  gives the v1 class token of an event's seq type: V, D or J for a gene choice or a deletion, the
+  junction class (`VD_genes`, `DJ_gene`, `VJ_gene`) for an insertion or a chain, `Undefined_gene`
+  for any other seq type. It replaces the enum switches in the deletion constructor and the two
+  `update_event_name()` overrides, and the string tests in the `write2txt_legacy()`. Every legacy
+  name is unchanged. With its inverse, `legacy_gene_class_to_seq_type()`, moved out of
+  `Model_Parms.cpp`, it is the v1 format's whole translation of gene classes; `Rec_Event` no
+  longer names the junction classes (review, Oct 20 2026).
+- **A deletion's gene class** is V, D or J for the three legacy gene segments, and
+  `Undefined_gene` for any other seq type, as for an insertion. A gene class belongs to the gene
+  choice that creates the segment, and a deletion cannot ask it when it is built. `event_class`
+  stays on the base; pushing it into `Gene_choice` (B0) moves names, so it goes with T2.
+- **Only a gene choice's JSON node carries `gene_class`** (review, Oct 20 2026). A deletion's was
+  derived from its seq type and checked against it, and an insertion's or a chain's was always
+  `Undefined_gene`. A node of another type that carries one is refused as an unknown key. No
+  document is stored: the JSON is built from a `Model_Parms` and read by `topology_from_json()`,
+  so the schema version stays 1.
+- **The refusals the constructors made move to the legacy reader.** `str2SeqType()` refused a
+  line whose gene class names no segment, and the deletion constructor refused a deletion on a
+  junction. The v1 reader now refuses both, where the gene class still means something. A v2 file
+  naming a deletion on a junction now loads: telling a gene segment from a junction is the
+  model's knowledge, which Phase C's validation checks.
+- **Deleted, with no caller:** the default constructors of `Deletion` and `Insertion`, which built a
+  V deletion and a VD insertion; the declared but undefined `Insertion(Seq_type,
+  std::forward_list<int>)`; the reader's `seq_type_to_gene_class()`, whose result only gene
+  choices read.
+
+Behaviour on a valid legacy model: none. An event built in code now carries its seq type from
+construction, so in the two apps' in-code demo models the deletions and chains resolve an id at
+`finalize()`. Those models are only written to a file and read back.
+
+Tests: `test_event_seq_type.cpp`.
+- **The legacy pin**, written first and run on the code before T1. The events of four fixtures
+  (VDJ and VJ, legacy and v2 format) keep their name, gene class and seq type, whether built by
+  the text reader, from the JSON node or through `copy()`.
+- **Three `[tandem_d]` cases**, `[!shouldfail]` before T1. The tandem fixture's sixteen events
+  carry the seq types it names, read those three ways. They resolve their ids and neighbours from
+  the order. The model written back reads the same seq types.
+- **The two legacy refusals,** and the case still accepted (an insertion on a gene).
+- **The translation** on the six legacy seq types, both ways, and its `Undefined_gene` cases.
+
+The five `[tandem_d][!mayfail]` cases of `test_model_format_v2.cpp` now pass and lose the tag. The
+test sites that built a legacy event and re-pointed it with `set_seq_type()` now build it on its
+name. Seven mutations were all caught:
+- the two refusals dropped;
+- the DJ and VJ tokens swapped;
+- a D deletion losing its class;
+- a deletion or a chain keeping no seq type;
+- an insertion's `copy()` dropping it.
+
+Left for T2, seen while doing T1:
+- **Names collide in the fixture**, in five pairs: `d1_choice`/`d2_choice`, both D deletions on each
+  side, `vd1_ins`/`d1d2_ins`, `vd1_dinucl`/`d1d2_dinucl`. `Model_Parms::add_event()` does not
+  check, so the two events of a pair share one `edges` entry.
+- **`Rec_Event::operator==` ignores the seq type.** `Model_Parms`' copy constructor rebuilds the
+  edges with it, so in a copy an edge to `d2_choice` can land on `d1_choice`.
+- **What still reads a deletion's gene class.** The generated name, the v1 event line and
+  `get_legacy_name()`, all through the translator, which stays as long as v1 does.
+  `FastGenerator::apply_deletion()` finds the segment it trims from the class
+  ([FastGenerator.cpp:308](../src/igor/Generation/Legacy/FastGenerator.cpp#L308)): it must read
+  `sampler.seq_type` before the class leaves the deletion, or it silently stops deleting. That is
+  the `FastGenerator` half of T4.
+- **`FastGenerator` generates no insertion**, read from the code and not run, and before T1 too.
+  `try_insertion_gene_class_to_seq_type(Gene_class, …)` always returns false, and an insertion's
+  class is `Undefined_gene`, so no placeholder is written and `sample_dinucl_markov()` has nothing
+  to fill. T4.
+
+Gate:
+- unit 483/483 and integration 10/10;
+- regression bitwise on cli, align, inference, no_d_align and generate;
+- convergence 2/2.
+
+The review's two commits (Oct 20 2026) pass the same gate, each on its own, with unit at 494/494
+after the T3 merge. Eight mutations were all caught: the DJ and VJ classes swapped, the event type
+ignored, `VD_genes` read as `DJ_ins_seq`, a deletion's class or v1 line taken from the junction
+half, a gene choice writing no `gene_class`, every event writing one, and every event allowed one.
 
 ### Not on the milestone-1 path
 

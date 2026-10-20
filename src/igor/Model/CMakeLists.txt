@@ -74,6 +74,7 @@ target_sources(${PROJECT_NAME}
     Legacy/HypermutationfullNmererrorrate.cpp
     Legacy/Hypermutationglobalerrorrate.cpp
     Legacy/Insertion.cpp
+    Legacy/LegacyFormat.cpp
     Legacy/ModelJson.cpp
     Legacy/Model_Parms.cpp
     Legacy/Model_marginals.cpp
@@ -101,6 +102,7 @@ target_sources(${PROJECT_NAME}
       ${LAYER_DIR}/Legacy/Insertion.h
       ${LAYER_DIR}/Legacy/JsonDetail.h
       ${LAYER_DIR}/Legacy/JunctionGeometry.h
+      ${LAYER_DIR}/Legacy/LegacyFormat.h
       ${LAYER_DIR}/Legacy/ModelContext.h
       ${LAYER_DIR}/Legacy/ModelJson.h
       ${LAYER_DIR}/Legacy/Model_Parms.h

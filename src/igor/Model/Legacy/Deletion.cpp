@@ -27,6 +27,7 @@
 #include <igor/Alignment/Legacy/Aligner.h>
 #include <igor/Model/Legacy/EventUtils.h>
 #include <igor/Model/Legacy/JsonDetail.h>
+#include <igor/Model/Legacy/LegacyFormat.h>
 #include <igor/Model/TraversalPlan.h>
 
 #include <algorithm>
@@ -41,46 +42,8 @@ using namespace igor::alignment::legacy;
 
 using namespace std;
 
-namespace {
-
-Seq_type get_deletion_target_seq_type(Gene_class gene_class)
-{
-    switch (gene_class) {
-    case V_gene:
-        return V_gene_seq;
-    case D_gene:
-        return D_gene_seq;
-    case J_gene:
-        return J_gene_seq;
-    default:
-        throw invalid_argument(std::string("Unknown gene for deletions : ") + to_string(gene_class));
-    }
-}
-
-Gene_class get_deletion_gene_class(Seq_type target_seq)
-{
-    switch (target_seq) {
-    case V_gene_seq:
-        return V_gene;
-    case D_gene_seq:
-        return D_gene;
-    case J_gene_seq:
-        return J_gene;
-    default:
-        throw invalid_argument(std::string("Unknown seq_type for deletions"));
-    }
-}
-
-} // namespace
-
-Deletion::Deletion() : Deletion(V_gene_seq, Undefined_side)
-{
-    this->event_class = Undefined_gene;
-    this->type = Event_type::Deletion_t;
-    this->update_event_name();
-}
-
-Deletion::Deletion(Seq_type target_seq, Seq_side del_side, pair<int, int> del_range) : Deletion(target_seq, del_side)
+Deletion::Deletion(const Seq_type_String &target_seq, Seq_side del_side, pair<int, int> del_range)
+    : Deletion(target_seq, del_side)
 {
     //TODO prevent undefined_side entry(throw exception)
 
@@ -97,9 +60,15 @@ Deletion::Deletion(Seq_type target_seq, Seq_side del_side, pair<int, int> del_ra
     this->update_event_name();
 }
 
-Deletion::Deletion(Seq_type target_seq, Seq_side side)
-    : Rec_Event(get_deletion_gene_class(target_seq), side),
-      target_seq_type(target_seq),
+/*
+ * The gene class is the v1 file's token for the segment, which the generated name carries too:
+ * V, D or J for the three legacy gene segments, Undefined_gene for any other seq type, a tandem
+ * D's included. A gene class belongs to the gene choice that creates the segment, and a deletion
+ * cannot ask it when it is built. Telling a gene segment from a junction is the model's
+ * knowledge, which load-time validation (parent plan Phase C) is the place to check.
+ */
+Deletion::Deletion(const Seq_type_String &target_seq, Seq_side side)
+    : Rec_Event(gene_class_legacy_to_new(legacy_gene_class_of(Deletion_t, target_seq)), side),
       base_index(INT16_MAX),
       new_scenario_proba(-1),
       proba_contribution(-1),
@@ -112,6 +81,8 @@ Deletion::Deletion(Seq_type target_seq, Seq_side side)
       memory_layer_proba_map_seq(-1)
 {
     this->type = Event_type::Deletion_t;
+    //The one place the seq type is kept, as for an insertion: see Insertion(const Seq_type_String &).
+    this->seq_type = target_seq;
     for (unordered_map<string, Event_realization>::const_iterator iter = this->event_realizations.begin();
          iter != this->event_realizations.end(); ++iter) {
         if ((*iter).second.value_int > (-this->len_min)) {
@@ -123,7 +94,8 @@ Deletion::Deletion(Seq_type target_seq, Seq_side side)
     this->update_event_name();
 }
 
-Deletion::Deletion(Seq_type target_seq, Seq_side side, unordered_map<string, Event_realization> &realizations)
+Deletion::Deletion(const Seq_type_String &target_seq, Seq_side side,
+                   unordered_map<string, Event_realization> &realizations)
     : Deletion(target_seq, side)
 {
     this->event_realizations = realizations;
@@ -141,24 +113,13 @@ Deletion::Deletion(Seq_type target_seq, Seq_side side, unordered_map<string, Eve
 }
 
 Deletion::Deletion(const nlohmann::json &node)
-    : Deletion(str2SeqType(igor::model::legacy::json_detail::require(node, "seq_type").get<Seq_type_String>()),
+    : Deletion(igor::model::legacy::json_detail::require(node, "seq_type").get<Seq_type_String>(),
                str2SeqSide(igor::model::legacy::json_detail::require(node, "side").get<string>()))
 {
     using namespace igor::model::legacy::json_detail;
     reject_unknown_keys(node, kEventKeys);
     expect_type(node, "Deletion");
 
-    // The base class' gene_class is derived from the seq_type by get_deletion_gene_class(), so
-    // the document's own value is checked rather than applied. A mismatch means a hand-edited
-    // or stale document, and taking the derived value silently would hide it.
-    const auto declared_gene_class = require(node, "gene_class").get<string>();
-    if (declared_gene_class != to_string(this->get_class()))
-        throw std::runtime_error("event json: deletion on \""
-                                 + require(node, "seq_type").get<string>()
-                                 + "\" implies gene class " + to_string(this->get_class())
-                                 + ", document says " + declared_gene_class);
-
-    this->set_seq_type(require(node, "seq_type").get<Seq_type_String>());
     this->set_priority(require(node, "priority").get<int>());
     this->set_nickname(require(node, "nickname").get<string>());
 
@@ -176,14 +137,13 @@ Deletion::~Deletion()
 shared_ptr<Rec_Event> Deletion::copy()
 {
     shared_ptr<Deletion> new_deletion_p = shared_ptr<Deletion>(
-            new Deletion(this->target_seq_type, this->event_side,
+            new Deletion(this->seq_type, this->event_side,
                          this->event_realizations)); //FIXME remove this new for all events and for the error rates
     new_deletion_p->priority = this->priority;
     new_deletion_p->nickname = this->nickname;
     new_deletion_p->fixed = this->is_fixed();
     new_deletion_p->update_event_name();
     new_deletion_p->set_event_identifier(this->event_index);
-    new_deletion_p->set_seq_type(this->get_seq_type());
     new_deletion_p->set_seq_type_id(this->get_seq_type_id());
     return new_deletion_p;
 }
@@ -610,7 +570,8 @@ void Deletion::write2txt(ofstream &outfile)
 
 void Deletion::write2txt_legacy(ofstream &outfile)
 {
-    outfile << "#Deletion;" << event_class << ";" << event_side << ";" << priority << ";" << nickname << endl;
+    outfile << "#Deletion;" << to_string(legacy_gene_class_of(Deletion_t, seq_type)) << ";" << event_side << ";"
+            << priority << ";" << nickname << endl;
     for (unordered_map<string, Event_realization>::const_iterator iter = event_realizations.begin();
          iter != event_realizations.end(); ++iter) {
         outfile << "%" << (*iter).second.value_int << ";" << (*iter).second.index << endl;

@@ -58,11 +58,9 @@ class MODEL_EXPORT Insertion : public Rec_Event
 {
 public:
     //Constructors
-    Insertion();
-    Insertion(Seq_type, std::pair<int, int>);
-    Insertion(Seq_type, std::forward_list<int>);
-    Insertion(Seq_type);
-    Insertion(Seq_type, std::unordered_map<std::string, Event_realization> &);
+    Insertion(const Seq_type_String &, std::pair<int, int>);
+    explicit Insertion(const Seq_type_String &);
+    Insertion(const Seq_type_String &, std::unordered_map<std::string, Event_realization> &);
     /// From one event node of the JSON model schema. See ModelJson.h.
     explicit Insertion(const nlohmann::json &);
 
@@ -130,8 +128,6 @@ private:
     /// Layers claimed for the two ends of the junction this event places (O12 (a'), R3).
     int memory_layer_offset_fivep = -1;
     int memory_layer_offset_threep = -1;
-
-    Seq_type ins_seq_type;
 
     //Pre create pairs to call seq_offsets (otherwise cost of creating a pair at each call)
     //std::pair<Seq_type,Seq_side> d_5_pair = std::make_pair (D_gene_seq,Five_prime);

@@ -27,6 +27,13 @@ namespace igor::model::legacy::json_detail {
 /// Keys every event node may carry. "parents" is model-level, written and read by
 /// ModelJson, but it is listed here so that an event constructor does not reject it.
 inline constexpr std::initializer_list<const char *> kEventKeys = {
+        "type", "seq_type", "side", "priority", "nickname", "realizations", "parents"
+};
+
+/// A gene choice's keys: the common ones plus "gene_class", the gene library it draws from.
+/// No other event has a gene class of its own, so a node of another type carrying one is
+/// refused like any other unknown key.
+inline constexpr std::initializer_list<const char *> kGeneChoiceKeys = {
         "type", "gene_class", "seq_type", "side", "priority", "nickname", "realizations", "parents"
 };
 

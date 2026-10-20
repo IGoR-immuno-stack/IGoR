@@ -34,6 +34,7 @@
 #include <cassert>
 #include <igor/Model/Legacy/gene_to_seqtype_migr.h>
 #include <igor/Model/Legacy/EventUtils.h>
+#include <igor/Model/Legacy/LegacyFormat.h>
 
 namespace igor::model::legacy {
 using namespace igor::core::legacy;
@@ -718,48 +719,6 @@ void Model_Parms::write_model_parms_v2(string filename)
     error_rate->write2txt(outfile);
 }
 
-/**
- * Helper function to convert legacy Gene_class_legacy to seq_type string for v2.0 format
- */
-static Seq_type_String legacy_gene_class_to_seq_type(Gene_class_legacy gene_class, Event_type event_type)
-{
-    switch (gene_class) {
-    case V_gene_legacy:
-        return "V_gene_seq";
-    case D_gene_legacy:
-        return "D_gene_seq";
-    case J_gene_legacy:
-        return "J_gene_seq";
-    case VD_genes:
-        return "VD_ins_seq";
-    case DJ_genes:
-        return "DJ_ins_seq";
-    case VJ_genes:
-        return "VJ_ins_seq";
-    default:
-        return "Undefined_seq";
-    }
-}
-
-/**
- * Helper function to convert v2.0 seq_type to Gene_class for internal use
- * For junction seq_types (VD, DJ, VJ) that have no direct Gene_class equivalent,
- * returns Undefined_gene since the constructor will use the seq_type string instead.
- */
-static Gene_class seq_type_to_gene_class(const Seq_type_String& seq_type, Event_type event_type)
-{
-    if (seq_type == "V_gene_seq") {
-        return V_gene;
-    } else if (seq_type == "D_gene_seq") {
-        return D_gene;
-    } else if (seq_type == "J_gene_seq") {
-        return J_gene;
-    } else {
-        // Junction seq_types (VD_ins_seq, DJ_ins_seq, VJ_ins_seq) and unknowns
-        return Undefined_gene;
-    }
-}
-
 void Model_Parms::read_model_parms(string filename)
 {
     ifstream infile(filename);
@@ -861,7 +820,8 @@ void Model_Parms::read_model_parms(string filename)
 
             cerr << event << " read" << endl;
             
-            // Determine seq_type and effective gene_class for v2.0 format conversion
+            // Determine seq_type, and the gene class a gene choice is built with. The other three
+            // events take only the seq type: a deletion derives its gene class from it.
             Seq_type_String event_seq_type = seq_type_str;
             Gene_class effective_gene_class = gene_class_legacy_to_new(event_class);
             
@@ -870,13 +830,20 @@ void Model_Parms::read_model_parms(string filename)
                 Event_type evt_type = (event == "GeneChoice") ? GeneChoice_t : 
                     (event == "Deletion") ? Deletion_t :
                     (event == "Insertion") ? Insertion_t : Dinuclmarkov_t;
-                event_seq_type = legacy_gene_class_to_seq_type(event_class, evt_type);
+                event_seq_type = legacy_gene_class_to_seq_type(event_class);
+                // The two lines the event constructors used to refuse while turning the name back
+                // into a Seq_type, refused here where the gene class still means something: a
+                // class naming no segment, and a deletion on a junction. A gene choice was never
+                // refused for either, and is not now.
+                const bool junction_class =
+                        (event_class == VD_genes or event_class == DJ_genes or event_class == VJ_genes);
+                if ((evt_type != GeneChoice_t and event_seq_type == "Undefined_seq")
+                    or (evt_type == Deletion_t and junction_class)) {
+                    throw runtime_error("Gene class \"" + to_string(event_class) + "\" names no segment a "
+                                        + event + " event can act on, in model file \"" + filename + "\"");
+                }
             } else {
-                // For v2.0 format, convert seq_type to gene_class for internal use
-                Event_type evt_type = (event == "GeneChoice") ? GeneChoice_t :
-                    (event == "Deletion") ? Deletion_t :
-                    (event == "Insertion") ? Insertion_t : Dinuclmarkov_t;
-                if (evt_type == GeneChoice_t) {
+                if (event == "GeneChoice") {
                     // In v2.0, GeneChoice gene_class must be an alignment target only:
                     // V_gene, D_gene, J_gene, or Undefined_gene. Junction classes are illegal.
                     if (event_class == VD_genes || event_class == DJ_genes ||
@@ -888,9 +855,6 @@ void Model_Parms::read_model_parms(string filename)
                             " or Undefined_gene. Junction classes (VD_genes, DJ_genes, VJ_genes,"
                             " VDJ_genes) are reserved for legacy format only.");
                     }
-                } else {
-                    // For non-GeneChoice events, derive gene_class from seq_type for backward compatibility
-                    effective_gene_class = seq_type_to_gene_class(seq_type_str, evt_type);
                 }
             }
             
@@ -908,10 +872,9 @@ void Model_Parms::read_model_parms(string filename)
                     getline(infile, line_str);
                 }
                 shared_ptr<Insertion> new_event_p =
-                        shared_ptr<Insertion>(new Insertion(str2SeqType(event_seq_type), event_realizations));
+                        shared_ptr<Insertion>(new Insertion(event_seq_type, event_realizations));
                 new_event_p->set_priority(priority);
                 new_event_p->set_nickname(nickname);
-                new_event_p->set_seq_type(event_seq_type);
                 this->add_event(new_event_p);
             } else if (event == string("Deletion")) {
                 unordered_map<string, Event_realization> event_realizations =
@@ -927,10 +890,9 @@ void Model_Parms::read_model_parms(string filename)
                     getline(infile, line_str);
                 }
                 shared_ptr<Deletion> new_event_p =
-                        shared_ptr<Deletion>(new Deletion(str2SeqType(event_seq_type), event_side, event_realizations));
+                        shared_ptr<Deletion>(new Deletion(event_seq_type, event_side, event_realizations));
                 new_event_p->set_priority(priority);
                 new_event_p->set_nickname(nickname);
-                new_event_p->set_seq_type(event_seq_type);
                 this->add_event(new_event_p);
             } else if (event == string("GeneChoice")) {
                 unordered_map<string, Event_realization> event_realizations =
@@ -957,10 +919,9 @@ void Model_Parms::read_model_parms(string filename)
                 new_event_p->set_seq_type(event_seq_type);
                 this->add_event(new_event_p);
             } else if (event == string("DinucMarkov")) {
-                shared_ptr<Dinucl_markov> new_event_p = shared_ptr<Dinucl_markov>(new Dinucl_markov(str2SeqType(event_seq_type)));
+                shared_ptr<Dinucl_markov> new_event_p = shared_ptr<Dinucl_markov>(new Dinucl_markov(event_seq_type));
                 new_event_p->set_priority(priority);
                 new_event_p->set_nickname(nickname);
-                new_event_p->set_seq_type(event_seq_type);
                 // Propagate direction: for legacy files derive from gene_class; for v2 use the parsed event_side.
                 if (format_version < 2.0) {
                     Seq_side dinucl_side = Undefined_side;

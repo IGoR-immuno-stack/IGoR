@@ -395,9 +395,9 @@ public:
      * \brief Serialized form of this event: its header fields plus its realizations.
      *
      * Non-pure on purpose. The body in Rec_Event.cpp is generic over the four subclasses,
-     * because everything it writes is already on the base: type, gene class, seq_type, side,
-     * priority, nickname, and the realization map. A subclass only needs to override it if it
-     * grows state that is not a realization.
+     * because everything it writes is already on the base: type, seq_type, side, priority,
+     * nickname, and the realization map. A subclass only needs to override it if it grows
+     * state that is not a realization, as Gene_choice does with its gene class.
      *
      * Realizations come out sorted by index, since event_realizations is an unordered_map and
      * an unsorted dump would not be reproducible.

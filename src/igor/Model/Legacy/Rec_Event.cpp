@@ -111,7 +111,7 @@ bool Rec_Event::operator==(const Rec_Event &other) const
 
 /**
  * The side token a generated name carries. Shared, because Insertion and Dinucl_markov override
- * update_event_name() to derive the class token from their ins_seq_type.
+ * update_event_name() to derive the class token from their seq type (legacy_gene_class_of()).
  *
  * It is the event's own side, except for DinucMarkov, where it is always Undefined_side. Two
  * reasons, one of substance and one of robustness.
@@ -234,7 +234,6 @@ nlohmann::json Rec_Event::to_json() const
 {
     nlohmann::json out;
     out["type"] = string() + this->type;   // "GeneChoice", "Deletion", "Insertion", "DinucMarkov"
-    out["gene_class"] = to_string(this->event_class);
     out["seq_type"] = this->seq_type;
     out["side"] = to_string(this->event_side);
     out["priority"] = this->priority;

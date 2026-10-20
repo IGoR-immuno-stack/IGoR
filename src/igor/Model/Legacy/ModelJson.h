@@ -9,11 +9,13 @@
  * is exactly one tokenizer for the text format, and the JSON schema is defined from the
  * objects rather than from a second parser that could drift from the first.
  *
- * The schema differs from the text format in three places, all deliberate:
+ * The schema differs from the text format in four places, all deliberate:
  *   - `seq_type_order` is a real array instead of a bracket-delimited line;
  *   - edges are carried per event as a list of parent nicknames, so there is no separate
  *     `@Edges` section and no dependence on the generated event names;
- *   - realizations always come out sorted by index, so the output is reproducible.
+ *   - realizations always come out sorted by index, so the output is reproducible;
+ *   - only a gene choice carries `gene_class`, the gene library it draws from. On the other
+ *     events the text format's class field is a v1 token their seq type already gives.
  *
  * Reading this schema back, through a factory and per-class constructors, is step 2.
  */

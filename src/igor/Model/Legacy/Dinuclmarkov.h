@@ -82,7 +82,8 @@ public:
         using Rec_Event::initialize_event;
 
     //Constructors
-    Dinucl_markov(Seq_type); //TODO should be scalable on one side easily (mono di tri quadri nucl)
+    //TODO should be scalable on one side easily (mono di tri quadri nucl)
+    explicit Dinucl_markov(const Seq_type_String &);
     /// From one event node of the JSON model schema. See ModelJson.h.
     explicit Dinucl_markov(const nlohmann::json &);
     //Destructor
@@ -171,8 +172,6 @@ private:
     int unmutable_base_index;
     double new_scenario_proba;
     double proba_contribution;
-
-    Seq_type ins_seq_type;
 
     /// One entry per position this event actually filled in the last scenario: the marginal
     /// index credited there, or -1 where the pair involved an ambiguous nucleotide. Cleared

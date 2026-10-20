@@ -31,12 +31,13 @@ static const std::string MODELS_DIR = std::string(IGOR_SOURCE_DIR) + "/models/";
 
 namespace {
 
-/// Every event node carries these, whatever its type.
+/// Every event node carries these, whatever its type. A gene class is a gene choice's only.
 void require_event_header(const nlohmann::json &node)
 {
-    for (const char *key : { "type", "gene_class", "seq_type", "side", "priority", "nickname",
-                             "realizations", "parents" })
+    for (const char *key : { "type", "seq_type", "side", "priority", "nickname", "realizations",
+                             "parents" })
         REQUIRE(node.contains(key));
+    REQUIRE(node.contains("gene_class") == (node.at("type").get<std::string>() == "GeneChoice"));
 }
 
 const nlohmann::json &event_by_nickname(const nlohmann::json &doc, const std::string &nickname)
@@ -218,7 +219,7 @@ TEST_CASE("model json: a rebuilt DinucMarkov gets the same name as the text read
 
     SECTION("the three name accessors agree on the side token") {
         // Only on the side. They disagree on the class token for a DinucMarkov, and that is a
-        // separate matter: Dinucl_markov::update_event_name() derives it from ins_seq_type
+        // separate matter: Dinucl_markov::update_event_name() derives it from the seq type
         // ("VD_genes") while the two accessors read event_class, which the reader leaves
         // Undefined_gene. Worth fixing, not here.
         for (const auto &name : { rebuilt->get_name(), rebuilt->get_legacy_name(),
@@ -282,9 +283,11 @@ TEST_CASE("model json: a malformed event node is rejected", "[Core][json]")
         REQUIRE_THROWS_AS(event_from_json(node), std::runtime_error);
     }
 
-    SECTION("a gene class the seq_type contradicts") {
-        nlohmann::json node = event_by_nickname(doc, "v_3_del");
-        node["gene_class"] = "J_gene";
-        REQUIRE_THROWS_AS(event_from_json(node), std::runtime_error);
+    SECTION("a gene class on an event that is not a gene choice") {
+        for (const char *nickname : { "v_3_del", "vd_ins", "vd_dinucl" }) {
+            nlohmann::json node = event_by_nickname(doc, nickname);
+            node["gene_class"] = "V_gene";
+            REQUIRE_THROWS_AS(event_from_json(node), std::runtime_error);
+        }
     }
 }
