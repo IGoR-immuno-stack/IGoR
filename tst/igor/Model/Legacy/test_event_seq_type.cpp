@@ -18,6 +18,7 @@
 #include <catch2/matchers/catch_matchers_string.hpp>
 
 #include <igor/Model/EventFactory.h>
+#include <igor/Model/Legacy/LegacyFormat.h>
 #include <igor/Model/Legacy/ModelJson.h>
 #include <igor/Model/Legacy/Model_Parms.h>
 
@@ -229,5 +230,40 @@ TEST_CASE("A legacy model file is refused where its gene class names no segment 
     }
     SECTION("and nothing else: an insertion on a gene was never refused") {
         REQUIRE_NOTHROW(read_legacy_vdj_with("#Insertion;VD_genes;", "#Insertion;V_gene;"));
+    }
+}
+
+TEST_CASE("The legacy format's gene classes translate to seq types and back",
+          "[model_format][seq_type][legacy]")
+{
+    // The v1 event line and the generated name both carry this token, so its value on the six
+    // legacy seq types is what keeps every legacy file and name as it was.
+    const std::map<Gene_class_legacy, std::pair<Event_type, Seq_type_String>> legacy = {
+            {V_gene_legacy, {Deletion_t, "V_gene_seq"}},
+            {D_gene_legacy, {Deletion_t, "D_gene_seq"}},
+            {J_gene_legacy, {Deletion_t, "J_gene_seq"}},
+            {VD_genes, {Insertion_t, "VD_ins_seq"}},
+            {DJ_genes, {Dinuclmarkov_t, "DJ_ins_seq"}},
+            {VJ_genes, {Insertion_t, "VJ_ins_seq"}},
+    };
+    SECTION("an inverse pair on the six legacy seq types") {
+        for (const auto &[gene_class, typed_seq_type] : legacy) {
+            const auto &[event_type, seq_type] = typed_seq_type;
+            CHECK(legacy_gene_class_to_seq_type(gene_class) == seq_type);
+            CHECK(legacy_gene_class_of(event_type, seq_type) == gene_class);
+        }
+    }
+    SECTION("a gene choice reads a gene segment's class, as a deletion does") {
+        CHECK(legacy_gene_class_of(GeneChoice_t, "D_gene_seq") == D_gene_legacy);
+    }
+    SECTION("the event type picks the half: an insertion on a gene, a deletion on a junction") {
+        CHECK(legacy_gene_class_of(Insertion_t, "V_gene_seq") == Undefined_gene_legacy);
+        CHECK(legacy_gene_class_of(Deletion_t, "VD_ins_seq") == Undefined_gene_legacy);
+    }
+    SECTION("no class for a seq type outside the legacy six, nor a seq type for a compound class") {
+        CHECK(legacy_gene_class_of(Deletion_t, "D1_gene_seq") == Undefined_gene_legacy);
+        CHECK(legacy_gene_class_of(Insertion_t, "D1D2_ins_seq") == Undefined_gene_legacy);
+        CHECK(legacy_gene_class_to_seq_type(VDJ_genes) == "Undefined_seq");
+        CHECK(legacy_gene_class_to_seq_type(Undefined_gene_legacy) == "Undefined_seq");
     }
 }

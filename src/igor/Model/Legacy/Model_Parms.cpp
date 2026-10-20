@@ -34,6 +34,7 @@
 #include <cassert>
 #include <igor/Model/Legacy/gene_to_seqtype_migr.h>
 #include <igor/Model/Legacy/EventUtils.h>
+#include <igor/Model/Legacy/LegacyFormat.h>
 
 namespace igor::model::legacy {
 using namespace igor::core::legacy;
@@ -718,29 +719,6 @@ void Model_Parms::write_model_parms_v2(string filename)
     error_rate->write2txt(outfile);
 }
 
-/**
- * Helper function to convert legacy Gene_class_legacy to seq_type string for v2.0 format
- */
-static Seq_type_String legacy_gene_class_to_seq_type(Gene_class_legacy gene_class, Event_type event_type)
-{
-    switch (gene_class) {
-    case V_gene_legacy:
-        return "V_gene_seq";
-    case D_gene_legacy:
-        return "D_gene_seq";
-    case J_gene_legacy:
-        return "J_gene_seq";
-    case VD_genes:
-        return "VD_ins_seq";
-    case DJ_genes:
-        return "DJ_ins_seq";
-    case VJ_genes:
-        return "VJ_ins_seq";
-    default:
-        return "Undefined_seq";
-    }
-}
-
 void Model_Parms::read_model_parms(string filename)
 {
     ifstream infile(filename);
@@ -852,7 +830,7 @@ void Model_Parms::read_model_parms(string filename)
                 Event_type evt_type = (event == "GeneChoice") ? GeneChoice_t : 
                     (event == "Deletion") ? Deletion_t :
                     (event == "Insertion") ? Insertion_t : Dinuclmarkov_t;
-                event_seq_type = legacy_gene_class_to_seq_type(event_class, evt_type);
+                event_seq_type = legacy_gene_class_to_seq_type(event_class);
                 // The two lines the event constructors used to refuse while turning the name back
                 // into a Seq_type, refused here where the gene class still means something: a
                 // class naming no segment, and a deletion on a junction. A gene choice was never

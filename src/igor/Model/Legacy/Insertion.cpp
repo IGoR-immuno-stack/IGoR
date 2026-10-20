@@ -26,6 +26,7 @@
 
 #include <igor/Model/Legacy/Insertion.h>
 #include <igor/Model/Legacy/JsonDetail.h>
+#include <igor/Model/Legacy/LegacyFormat.h>
 #include <igor/Model/TraversalPlan.h>
 #include <igor/Model/Legacy/gene_to_seqtype_migr.h>
 
@@ -289,8 +290,8 @@ void Insertion::write2txt(ofstream &outfile)
 
 void Insertion::write2txt_legacy(ofstream &outfile)
 {
-    outfile << "#Insertion;" << junction_class_token(seq_type) << ";" << event_side << ";" << priority << ";"
-            << nickname << endl;
+    outfile << "#Insertion;" << to_string(legacy_gene_class_of(Insertion_t, seq_type)) << ";" << event_side << ";"
+            << priority << ";" << nickname << endl;
     for (unordered_map<string, Event_realization>::const_iterator iter = event_realizations.begin();
          iter != event_realizations.end(); ++iter) {
         outfile << "%" << (*iter).second.value_int << ";" << (*iter).second.index << endl;
@@ -443,7 +444,7 @@ int Insertion::length_delta(const Event_realization &realization) const
 
 void Insertion::update_event_name()
 {
-    this->name = string() + this->type + "_" + junction_class_token(this->seq_type) + "_"
+    this->name = string() + this->type + "_" + to_string(legacy_gene_class_of(this->type, this->seq_type)) + "_"
                  + to_string(this->event_side) + "_prio" + to_string(priority) + "_size" + to_string(this->size());
 }
 

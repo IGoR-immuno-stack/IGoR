@@ -27,6 +27,7 @@
 #include <igor/Alignment/Legacy/Aligner.h>
 #include <igor/Model/Legacy/EventUtils.h>
 #include <igor/Model/Legacy/JsonDetail.h>
+#include <igor/Model/Legacy/LegacyFormat.h>
 #include <igor/Model/TraversalPlan.h>
 
 #include <algorithm>
@@ -40,34 +41,6 @@ using namespace igor::core::legacy;
 using namespace igor::alignment::legacy;
 
 using namespace std;
-
-namespace {
-
-/**
- * The gene class a deletion's generated name and legacy file line carry: its segment's, for the
- * three legacy gene segments, which keeps every legacy name as it was. Any other seq type, a
- * tandem D's included, gets Undefined_gene, as an insertion does. A gene class belongs to the
- * gene choice that creates the segment, and a deletion has no way to ask it when it is built.
- *
- * This no longer refuses a deletion on an insertion's seq type. It could only do so for the
- * legacy names; telling a gene segment from a junction is the model's knowledge, which load-time
- * validation (parent plan Phase C) is the place to check.
- */
-Gene_class deletion_gene_class(const Seq_type_String &target)
-{
-    if (target == "V_gene_seq") {
-        return V_gene;
-    }
-    if (target == "D_gene_seq") {
-        return D_gene;
-    }
-    if (target == "J_gene_seq") {
-        return J_gene;
-    }
-    return Undefined_gene;
-}
-
-} // namespace
 
 Deletion::Deletion(const Seq_type_String &target_seq, Seq_side del_side, pair<int, int> del_range)
     : Deletion(target_seq, del_side)
@@ -87,8 +60,15 @@ Deletion::Deletion(const Seq_type_String &target_seq, Seq_side del_side, pair<in
     this->update_event_name();
 }
 
+/*
+ * The gene class is the v1 file's token for the segment, which the generated name carries too:
+ * V, D or J for the three legacy gene segments, Undefined_gene for any other seq type, a tandem
+ * D's included. A gene class belongs to the gene choice that creates the segment, and a deletion
+ * cannot ask it when it is built. Telling a gene segment from a junction is the model's
+ * knowledge, which load-time validation (parent plan Phase C) is the place to check.
+ */
 Deletion::Deletion(const Seq_type_String &target_seq, Seq_side side)
-    : Rec_Event(deletion_gene_class(target_seq), side),
+    : Rec_Event(gene_class_legacy_to_new(legacy_gene_class_of(Deletion_t, target_seq)), side),
       base_index(INT16_MAX),
       new_scenario_proba(-1),
       proba_contribution(-1),
@@ -140,7 +120,7 @@ Deletion::Deletion(const nlohmann::json &node)
     reject_unknown_keys(node, kEventKeys);
     expect_type(node, "Deletion");
 
-    // The base class' gene_class is derived from the seq_type by deletion_gene_class(), so
+    // The base class' gene_class is derived from the seq_type by legacy_gene_class_of(), so
     // the document's own value is checked rather than applied. A mismatch means a hand-edited
     // or stale document, and taking the derived value silently would hide it.
     const auto declared_gene_class = require(node, "gene_class").get<string>();
@@ -600,7 +580,8 @@ void Deletion::write2txt(ofstream &outfile)
 
 void Deletion::write2txt_legacy(ofstream &outfile)
 {
-    outfile << "#Deletion;" << event_class << ";" << event_side << ";" << priority << ";" << nickname << endl;
+    outfile << "#Deletion;" << to_string(legacy_gene_class_of(Deletion_t, seq_type)) << ";" << event_side << ";"
+            << priority << ";" << nickname << endl;
     for (unordered_map<string, Event_realization>::const_iterator iter = event_realizations.begin();
          iter != event_realizations.end(); ++iter) {
         outfile << "%" << (*iter).second.value_int << ";" << (*iter).second.index << endl;

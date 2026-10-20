@@ -334,11 +334,6 @@ public:
     /// too, because the subclasses that override it have to apply the same rule.
     static Seq_side name_side(Event_type type, Seq_side side);
 
-    /// The class token an insertion or a Markov chain carries, in its generated name and in a
-    /// legacy model file: the legacy junction class of its seq type, Undefined_gene for any
-    /// other. See the definition in Rec_Event.cpp.
-    static std::string junction_class_token(const Seq_type_String &seq_type);
-
     virtual void update_event_name();
 
     ///@{ \name Generation (docs/GENERATION_REWRITE_PLAN.md)

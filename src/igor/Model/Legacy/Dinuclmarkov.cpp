@@ -27,6 +27,7 @@
 #include <igor/Alignment/Legacy/Aligner.h>
 #include <igor/Model/Legacy/EventUtils.h>
 #include <igor/Model/Legacy/JsonDetail.h>
+#include <igor/Model/Legacy/LegacyFormat.h>
 #include <igor/Model/TraversalPlan.h>
 
 #include <algorithm>
@@ -418,8 +419,8 @@ void Dinucl_markov::write2txt(ofstream &outfile)
 
 void Dinucl_markov::write2txt_legacy(ofstream &outfile)
 {
-    outfile << "#DinucMarkov;" << junction_class_token(seq_type) << ";" << Undefined_side << ";" << priority << ";"
-            << nickname << endl;
+    outfile << "#DinucMarkov;" << to_string(legacy_gene_class_of(Dinuclmarkov_t, seq_type)) << ";" << Undefined_side
+            << ";" << priority << ";" << nickname << endl;
     for (unordered_map<string, Event_realization>::const_iterator iter = event_realizations.begin();
          iter != event_realizations.end(); ++iter) {
         outfile << "%" << (*iter).second.value_str << ";" << (*iter).second.index << endl;
@@ -756,7 +757,7 @@ void Dinucl_markov::update_event_name()
     // name_side() is what keeps this name on Undefined_side: the junction is already named by
     // the class token, so the side would add a direction, not an identity. This override exists
     // for that class token, and it has to apply the base class's side rule.
-    this->name = string() + this->type + "_" + junction_class_token(this->seq_type) + "_"
+    this->name = string() + this->type + "_" + to_string(legacy_gene_class_of(this->type, this->seq_type)) + "_"
                  + to_string(name_side(this->type, this->event_side))
                  + "_prio" + to_string(priority) + "_size" + to_string(this->size());
 }
