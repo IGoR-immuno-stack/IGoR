@@ -120,16 +120,6 @@ Deletion::Deletion(const nlohmann::json &node)
     reject_unknown_keys(node, kEventKeys);
     expect_type(node, "Deletion");
 
-    // The base class' gene_class is derived from the seq_type by legacy_gene_class_of(), so
-    // the document's own value is checked rather than applied. A mismatch means a hand-edited
-    // or stale document, and taking the derived value silently would hide it.
-    const auto declared_gene_class = require(node, "gene_class").get<string>();
-    if (declared_gene_class != to_string(this->get_class()))
-        throw std::runtime_error("event json: deletion on \""
-                                 + require(node, "seq_type").get<string>()
-                                 + "\" implies gene class " + to_string(this->get_class())
-                                 + ", document says " + declared_gene_class);
-
     this->set_priority(require(node, "priority").get<int>());
     this->set_nickname(require(node, "nickname").get<string>());
 

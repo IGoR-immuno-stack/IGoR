@@ -234,7 +234,6 @@ nlohmann::json Rec_Event::to_json() const
 {
     nlohmann::json out;
     out["type"] = string() + this->type;   // "GeneChoice", "Deletion", "Insertion", "DinucMarkov"
-    out["gene_class"] = to_string(this->event_class);
     out["seq_type"] = this->seq_type;
     out["side"] = to_string(this->event_side);
     out["priority"] = this->priority;

@@ -33,7 +33,6 @@ namespace {
 nlohmann::json deletion_node()
 {
     return { { "type", "Deletion" },
-             { "gene_class", "V_gene" },
              { "seq_type", "V_gene_seq" },
              { "side", "Three_prime" },
              { "priority", 5 },
@@ -58,7 +57,6 @@ nlohmann::json gene_choice_node()
 nlohmann::json insertion_node()
 {
     return { { "type", "Insertion" },
-             { "gene_class", "Undefined_gene" },
              { "seq_type", "VD_ins_seq" },
              { "side", "Undefined_side" },
              { "priority", 4 },
@@ -70,7 +68,6 @@ nlohmann::json insertion_node()
 nlohmann::json dinucl_node()
 {
     return { { "type", "DinucMarkov" },
-             { "gene_class", "Undefined_gene" },
              { "seq_type", "VD_ins_seq" },
              { "side", "Three_prime" },
              { "priority", 3 },
