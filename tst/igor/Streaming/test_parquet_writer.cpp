@@ -31,8 +31,10 @@
 #include <arrow/io/api.h>
 #include <parquet/arrow/reader.h>
 
-using namespace igor;
-using namespace igor::test;
+using namespace igor::core::legacy;
+
+using namespace igor::streaming;
+using namespace igor::streaming::test;
 using namespace Catch::Matchers;
 
 //==============================================================================

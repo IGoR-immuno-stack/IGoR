@@ -34,7 +34,7 @@
 #include <algorithm>
 #include <iterator>
 
-namespace igor::airr::alignment {
+namespace igor::streaming::airr::alignment {
 
 //==============================================================================
 // Internal helpers
@@ -43,12 +43,12 @@ namespace igor::airr::alignment {
 namespace {
 
 // Convert Gene_class to segment string
-std::string gene_class_to_segment(Gene_class gc)
+std::string gene_class_to_segment(igor::core::legacy::Gene_class gc)
 {
     switch (gc) {
-        case Gene_class::V_gene: return "V";
-        case Gene_class::D_gene: return "D";
-        case Gene_class::J_gene: return "J";
+        case igor::core::legacy::Gene_class::V_gene: return "V";
+        case igor::core::legacy::Gene_class::D_gene: return "D";
+        case igor::core::legacy::Gene_class::J_gene: return "J";
         default: return "";
     }
 }
@@ -62,7 +62,7 @@ std::string gene_class_to_segment(Gene_class gc)
 // Use shared utility function from parent namespace
 using airr::delimiter_char;
 
-std::string make_cigar(const Alignment_data& align)
+std::string make_cigar(const igor::core::AlignmentData& align)
 {
     std::ostringstream cigar;
 
@@ -170,4 +170,4 @@ void write_batch(
     }
 }
 
-} // namespace igor::airr::alignment
+} // namespace igor::streaming::airr::alignment

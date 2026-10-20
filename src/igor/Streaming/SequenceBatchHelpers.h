@@ -88,9 +88,10 @@
 
 #include <igor/Streaming/Export.h>
 
-#include <igor/Core/Utils.h>
-#include <igor/Core/Aligner.h>
+#include <igor/Core/Legacy/Utils.h>
+#include <igor/Core/AlignmentData.h>
 
+#include <exception>
 #include <sparrow/record_batch.hpp>
 
 #include <string>
@@ -99,7 +100,7 @@
 #include <unordered_map>
 #include <vector>
 
-namespace igor {
+namespace igor::streaming {
 
 /**
  * @brief Represents sequence data in IGoR's internal format
@@ -111,14 +112,14 @@ struct STREAMING_EXPORT SequenceData
 {
     int index;
     std::string sequence;
-    std::unordered_map<Gene_class, std::vector<Alignment_data>> alignments;
+    std::unordered_map<igor::core::legacy::Gene_class, std::vector<igor::core::AlignmentData>> alignments;
 
     SequenceData() : index(-1), sequence(""), alignments() { }
 
     SequenceData(int idx, const std::string &seq) : index(idx), sequence(seq), alignments() { }
 
     SequenceData(int idx, const std::string &seq,
-                 const std::unordered_map<Gene_class, std::vector<Alignment_data>> &aligns)
+                 const std::unordered_map<igor::core::legacy::Gene_class, std::vector<igor::core::AlignmentData>> &aligns)
         : index(idx), sequence(seq), alignments(aligns)
     {
     }
@@ -162,7 +163,7 @@ SequenceData row_to_sequence_data(const sparrow::record_batch &batch, size_t row
 STREAMING_EXPORT
 sparrow::record_batch vector_to_batch(
         const std::vector<std::tuple<int, std::string,
-                                     std::unordered_map<Gene_class, std::vector<Alignment_data>>>>
+                                     std::unordered_map<igor::core::legacy::Gene_class, std::vector<igor::core::AlignmentData>>>>
                 &sequences);
 
 /**
@@ -176,7 +177,7 @@ sparrow::record_batch vector_to_batch(
  * @return Map of gene class to vector of alignment data
  */
 STREAMING_EXPORT
-std::unordered_map<Gene_class, std::vector<Alignment_data>>
+std::unordered_map<igor::core::legacy::Gene_class, std::vector<igor::core::AlignmentData>>
 parse_alignments_from_columns(const sparrow::record_batch &batch, size_t row_index);
 
 /**

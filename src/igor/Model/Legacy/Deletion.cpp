@@ -1,0 +1,870 @@
+/*
+ * Deletion.cpp
+ *
+ *  Created on: Dec 9, 2014
+ *      Author: Quentin Marcou
+ *
+ *  This source code is distributed as part of the IGoR software.
+ *  IGoR (Inference and Generation of Repertoires) is a versatile software to analyze and model immune receptors
+ *  generation, selection, mutation and all other processes.
+ *   Copyright (C) 2017  Quentin Marcou
+ *
+ *   This program is free software: you can redistribute it and/or modify
+ *   it under the terms of the GNU General Public License as published by
+ *   the Free Software Foundation, either version 3 of the License, or
+ *   (at your option) any later version.
+ *
+ *   This program is distributed in the hope that it will be useful,
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *   GNU General Public License for more details.
+
+ *   You should have received a copy of the GNU General Public License
+ *   along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+#include <igor/Model/Legacy/Deletion.h>
+#include <igor/Alignment/Legacy/Aligner.h>
+#include <igor/Model/Legacy/EventUtils.h>
+#include <igor/Model/Legacy/JsonDetail.h>
+#include <igor/Model/Legacy/LegacyFormat.h>
+#include <igor/Model/TraversalPlan.h>
+
+#include <algorithm>
+#include <limits>
+#include <optional>
+#include <utility>
+
+
+namespace igor::model::legacy {
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+
+using namespace std;
+
+Deletion::Deletion(const Seq_type_String &target_seq, Seq_side del_side, pair<int, int> del_range)
+    : Deletion(target_seq, del_side)
+{
+    //TODO prevent undefined_side entry(throw exception)
+
+    int min_del = std::min(del_range.first, del_range.second);
+    int max_del = std::max(del_range.first, del_range.second);
+
+    this->type = Event_type::Deletion_t;
+    this->len_max = -min_del;
+    this->len_min = -max_del;
+
+    for (int i = min_del; i != max_del + 1; ++i) {
+        this->add_realization(i);
+    }
+    this->update_event_name();
+}
+
+/*
+ * The gene class is the v1 file's token for the segment, which the generated name carries too:
+ * V, D or J for the three legacy gene segments, Undefined_gene for any other seq type, a tandem
+ * D's included. A gene class belongs to the gene choice that creates the segment, and a deletion
+ * cannot ask it when it is built. Telling a gene segment from a junction is the model's
+ * knowledge, which load-time validation (parent plan Phase C) is the place to check.
+ */
+Deletion::Deletion(const Seq_type_String &target_seq, Seq_side side)
+    : Rec_Event(gene_class_legacy_to_new(legacy_gene_class_of(Deletion_t, target_seq)), side),
+      base_index(INT16_MAX),
+      new_scenario_proba(-1),
+      proba_contribution(-1),
+      new_index(-1),
+      end_reached(false),
+      deletion_value(INT16_MAX),
+      memory_layer_cs(-1),
+      memory_layer_mismatches(-1),
+      memory_layer_offset_del(-1),
+      memory_layer_proba_map_seq(-1)
+{
+    this->type = Event_type::Deletion_t;
+    //The one place the seq type is kept, as for an insertion: see Insertion(const Seq_type_String &).
+    this->seq_type = target_seq;
+    for (unordered_map<string, Event_realization>::const_iterator iter = this->event_realizations.begin();
+         iter != this->event_realizations.end(); ++iter) {
+        if ((*iter).second.value_int > (-this->len_min)) {
+            this->len_min = -(*iter).second.value_int;
+        } else if ((*iter).second.value_int < (-this->len_max)) {
+            this->len_max = -(*iter).second.value_int;
+        }
+    }
+    this->update_event_name();
+}
+
+Deletion::Deletion(const Seq_type_String &target_seq, Seq_side side,
+                   unordered_map<string, Event_realization> &realizations)
+    : Deletion(target_seq, side)
+{
+    this->event_realizations = realizations;
+
+    this->type = Event_type::Deletion_t;
+    for (unordered_map<string, Event_realization>::const_iterator iter = this->event_realizations.begin();
+         iter != this->event_realizations.end(); ++iter) {
+        if ((*iter).second.value_int > (-this->len_min)) {
+            this->len_min = -(*iter).second.value_int;
+        } else if ((*iter).second.value_int < (-this->len_max)) {
+            this->len_max = -(*iter).second.value_int;
+        }
+    }
+    this->update_event_name();
+}
+
+Deletion::Deletion(const nlohmann::json &node)
+    : Deletion(igor::model::legacy::json_detail::require(node, "seq_type").get<Seq_type_String>(),
+               str2SeqSide(igor::model::legacy::json_detail::require(node, "side").get<string>()))
+{
+    using namespace igor::model::legacy::json_detail;
+    reject_unknown_keys(node, kEventKeys);
+    expect_type(node, "Deletion");
+
+    this->set_priority(require(node, "priority").get<int>());
+    this->set_nickname(require(node, "nickname").get<string>());
+
+    for (const nlohmann::json *realization : realizations_in_index_order(node))
+        this->add_realization(require(*realization, "value_int").get<int>());
+
+    this->update_event_name();
+}
+
+Deletion::~Deletion()
+{
+    // TODO Auto-generated destructor stub
+}
+
+shared_ptr<Rec_Event> Deletion::copy()
+{
+    shared_ptr<Deletion> new_deletion_p = shared_ptr<Deletion>(
+            new Deletion(this->seq_type, this->event_side,
+                         this->event_realizations)); //FIXME remove this new for all events and for the error rates
+    new_deletion_p->priority = this->priority;
+    new_deletion_p->nickname = this->nickname;
+    new_deletion_p->fixed = this->is_fixed();
+    new_deletion_p->update_event_name();
+    new_deletion_p->set_event_identifier(this->event_index);
+    new_deletion_p->set_seq_type_id(this->get_seq_type_id());
+    return new_deletion_p;
+}
+
+void Deletion::add_realization(int del_number)
+{
+
+    this->Rec_Event::add_realization(Event_realization(to_string(del_number), del_number, "", Int_Str(), this->size()));
+
+    if (del_number > (-this->len_min)) {
+        this->len_min = (-del_number);
+    } else if (del_number < (-this->len_max)) {
+        this->len_max = (-del_number);
+    }
+    this->update_event_name();
+}
+
+/**
+ * @brief Context-based iterate() implementation
+ *
+ * General: Loop over all possible number of deletions for a given gene on a given sequence side
+ *
+ * Specific:
+ * -First check whether any of these number of deletions is possible given the current position and number of deletions on other genes
+ * -Loop over # of deletions in decreasing order
+ */
+/*
+ * One body for V 3', D 5', D 3' and J 5'. Once initialize_event() has settled the topology, the
+ * four arms this replaces differed in exactly three things:
+ *
+ *   - **which side of its segment the deletion moves** -- and therefore which neighbours it is
+ *     compared against, which end of the template it trims, which junction it widens, which way
+ *     the mismatch list is cut and whether a palindrome's new positions need re-sorting. All of
+ *     that is `event_side`, and it is read here rather than switched on;
+ *   - **whether the segment is anchored on an end of the read** -- which decides whether the
+ *     template may be deleted away entirely (§2.7), whether the enumeration carries the
+ *     dominated early prune stage (§6.14), and how the palindrome is bounded against the read
+ *     (§7.15). Read off the ordering, exactly as `Gene_choice` does since B11a;
+ *   - **whether anything still moves the opposite end** -- which decides whether this segment's
+ *     error bound can be written at all, and which used to be spelled `d_del_opposite_side_processed`.
+ *
+ * None of those is a gene class, which is why a tandem D needs no fifth case.
+ */
+void Deletion::iterate(
+        QuerySequenceContext& query,
+        const ModelContext& model,
+        ScenarioContext& scenario,
+        ExplorationContext& exploration,
+        AccumulationContext& accumulation)
+{
+    base_index = exploration.index_map.get(this->event_index);
+    const double base_scenario_proba = scenario.scenario_proba;
+    const Seq_type my_seq_type = static_cast<Seq_type>(this->seq_type_id);
+
+    my_offset = scenario.get_offset(my_seq_type, this->event_side, memory_layer_offset_del - 1);
+
+    //Where each checked neighbour sits, read once per scenario, and whether it still has to be
+    //compared against at all. A pair the enclosing depth already established as separated needs
+    //no comparison here; re-asserting the verdict at this event's layer is what carries it
+    //down to the next reader, and is what the four `else { check = false; set safe }` arms did.
+    for (std::size_t i = 0; i != flank_checks_.size(); ++i) {
+        const FlankCheck &check = flank_checks_[i];
+        FlankState &state = flank_states_[i];
+        state.active = false;
+        //Read whether or not the comparison runs. The V arm this replaces read it only when it
+        //did, and then used it to measure the junction -- so a V deletion in a model with no D
+        //measured the V->J junction against a stale, and on the first scenario uninitialized,
+        //offset. See §7.21.
+        state.offset = scenario.get_offset(static_cast<Seq_type>(check.partner_id),
+                                           check.partner_side, check.partner_offset_layer);
+        if (exploration.is_overlap_safe(check.safety_cell, check.safety_layer - 1)) {
+            exploration.set_overlap_safety(check.safety_cell, true, check.safety_layer);
+        } else {
+            state.reach = pending_.reachable(check.partner_id, check.partner_side, state.offset);
+            state.active = true;
+        }
+    }
+
+    Int_Str &previous_str = *scenario.get_sequence_segment(my_seq_type, memory_layer_cs - 1);
+    const vector<size_t> &previous_mismatches =
+            *scenario.get_mismatches(my_seq_type, memory_layer_mismatches - 1);
+
+    //The junction on the side this deletion trims. Which span that is, where its value goes and
+    //at which layer were settled in initialize_event() (S4c); all iterate() does is measure the
+    //distance.
+    const JunctionBound &junction = junction_bound(trims_three_prime_ ? kRightJunction : kLeftJunction);
+
+    //Read at the gap as it stood *before* this deletion, in the profile of the realization
+    //chosen: the table is conditioned on this event's realization and counts its length in the
+    //key, like every other length it enumerates (R13). So the gap is the same for every
+    //realization, and is measured once.
+    int junction_length_before = 0;
+    if (junction.resolved()) {
+        const Seq_Offset partner_offset = flank_states_[junction_partner_].offset;
+        junction_length_before = trims_three_prime_ ? partner_offset - my_offset - 1
+                                                    : my_offset - partner_offset - 1;
+    }
+
+    for (forward_list<Event_realization>::const_iterator iter = int_value_and_index.begin();
+         iter != int_value_and_index.end(); ++iter) {
+        const int deletions = iter->value_int;
+
+        //A segment anchored on the read keeps at least one nucleotide of its template; an
+        //internal one may delete itself away entirely, leaving a written-but-empty segment at
+        //the degenerate offsets `three_prime == five_prime - 1`. §2.7 calls this a modelling
+        //decision rather than an accident, and 4a pins it in all four arms.
+        if (keep_one_nucleotide_ ? static_cast<int>(previous_str.size()) <= deletions
+                                 : static_cast<int>(previous_str.size()) < deletions) {
+            continue;
+        }
+
+        my_new_offset = trims_three_prime_ ? my_offset - deletions : my_offset + deletions;
+
+        //§7.3's surviving `//FIXME`, carried verbatim *including* its unsigned comparison: a
+        //negative offset converts to a huge size_t and is rejected here too, which is the
+        //second job 4a found it doing (§6.14). Only an internal segment's 5' deletion has it.
+        if (discard_offset_outside_read_
+            and static_cast<std::size_t>(my_new_offset) >= query.int_sequence.size()) {
+            continue;
+        }
+
+        //Can this deletion still avoid colliding with each checked neighbour? One predicate
+        //(§2.2) for what was eight hand-written comparisons, differing only in which side of the
+        //pair this segment sits on. The moving end is a point here -- the realization pins it --
+        //which is the difference §2.3's `reachable()` absorbs.
+        bool infeasible = false;
+        for (std::size_t i = 0; i != flank_checks_.size(); ++i) {
+            const FlankCheck &check = flank_checks_[i];
+            if (not flank_states_[i].active) {
+                continue;
+            }
+            const JunctionGeometry::OffsetInterval mine{my_new_offset, my_new_offset};
+            const JunctionGeometry::Overlap verdict = check.overlap(mine, flank_states_[i].reach);
+            if (verdict == JunctionGeometry::Overlap::Infeasible) {
+                //No combination of the pending deletions separates them: a bad alignment.
+                infeasible = true;
+                break;
+            }
+            exploration.set_overlap_safety(check.safety_cell,
+                                           verdict == JunctionGeometry::Overlap::Safe,
+                                           check.safety_layer);
+        }
+        if (infeasible) {
+            continue;
+        }
+
+        //Store the deletion value in a private variable: the error rates and the coverage
+        //counter read it off this event by pointer.
+        deletion_value = deletions;
+
+        current_realizations_index_vec[0] = iter->index;
+        new_index = base_index + iter->index;
+        new_scenario_proba = base_scenario_proba;
+        proba_contribution = 1;
+
+        this->iterate_common(iter, exploration.index_map, model.offset_map, model.model_parameters);
+
+        //Positive or negative deletion (palindroms) mechanism
+        if (deletions >= 0) {
+            if (trims_three_prime_) {
+                previous_str.substr(new_str, 0, previous_str.size() - deletions);
+            } else {
+                previous_str.substr(new_str, deletions, string::npos);
+            }
+            trim_mismatches(previous_mismatches);
+        } else {
+            //A negative deletion is a palindromic insertion: the |k| nucleotides nearest the
+            //trimmed end are reversed, complemented and put back on the far side of it.
+            //
+            //Only a 3' trim checks that its new end is still inside the read before scoring the
+            //palindrome against it. That asymmetry is §7.15, carried as observed: the four arms
+            //disagreed about *what* to do when the comparison runs off the read, so choosing one
+            //is a modelling decision rather than a refactor.
+            if (trims_three_prime_ and my_new_offset >= static_cast<int>(query.sequence.size())) {
+                continue;
+            }
+            //The palindrome cannot be longer than the template it is mirrored from.
+            if (-deletions > static_cast<int>(previous_str.size())) {
+                continue;
+            }
+
+            if (trims_three_prime_) {
+                previous_str.substr(tmp_str, previous_str.size() + deletions, string::npos);
+            } else {
+                previous_str.substr(tmp_str, 0, -deletions);
+            }
+            reverse(tmp_str.begin(), tmp_str.end());
+            make_transversions(tmp_str);
+            new_str = trims_three_prime_ ? previous_str + tmp_str : tmp_str + previous_str;
+
+            //Count mismatches and add them to the mismatches list. The |k| read positions the
+            //palindrome newly occupies run upwards from just past the old 3' end, or from the
+            //new 5' end -- the same set, measured from whichever end moved.
+            mismatches_vector = previous_mismatches;
+            const Seq_Offset first_new_position = trims_three_prime_ ? my_offset + 1 : my_new_offset;
+            for (int i = 0; i != -deletions; ++i) {
+                const Seq_Offset position = first_new_position + i;
+                //Half a guard each, and different halves -- §7.15's table. An internal segment's
+                //3' palindrome can run below the read and its 5' one past the end; the arms
+                //anchored on the read have neither, which is the defect that table records.
+                if (guard_palindrome_positions_
+                    and (trims_three_prime_
+                                 ? position < 0
+                                 : static_cast<std::size_t>(position) >= query.int_sequence.size())) {
+                    continue;
+                }
+                if (not comp_nt_int(tmp_str[i], query.int_sequence.at(position))) {
+                    mismatches_vector.push_back(position);
+                }
+            }
+            if (not trims_three_prime_) {
+                //A 5' palindrome prepends positions below everything already in the list; a 3'
+                //one appends above it, and needs no re-sort.
+                sort(mismatches_vector.begin(), mismatches_vector.end());
+            }
+        }
+
+        scenario.set_sequence_segment(my_seq_type, &new_str, memory_layer_cs);
+        scenario.set_offset(my_seq_type, this->event_side, my_new_offset, memory_layer_offset_del);
+        scenario.set_mismatches(my_seq_type, &mismatches_vector, memory_layer_mismatches);
+
+        //Get the junction upper bound proba for the span this deletion widens.
+        std::optional<double> junction_bound_proba;
+        if (junction.resolved()) {
+            junction_bound_proba = junction.profile_for(iter->index).best_for(junction_length_before);
+            if (not junction_bound_proba) {
+                continue; //This means no scenario can lead to a correct solution, would need to be changed for Error models with in/dels
+            }
+            //With the early stage the slot starts neutral and takes its value below, once that
+            //stage has had its chance to stop the enumeration; without it there is one write.
+            exploration.downstream_proba_map.set(junction.proba_key(),
+                                                 early_prune_stage_ ? 1.0 : *junction_bound_proba,
+                                                 junction.memory_layer());
+        }
+
+        //Update the mismatches penalty. While another event can still move the opposite end,
+        //nothing of this template is settled, so it constrains nothing -- the `//TODO finish
+        //this part (compute endogeneous mismatches)` the two D arms carried stays uncomputed.
+        if (opposite_end_still_moves_) {
+            exploration.downstream_proba_map.set(my_seq_type, 1.0, memory_layer_proba_map_seq);
+        } else {
+            exploration.downstream_proba_map.set(
+                    my_seq_type,
+                    accumulation.error_rate->get_err_rate_upper_bound(
+                            static_cast<int>(mismatches_vector.size()),
+                            static_cast<int>(new_str.size() - mismatches_vector.size())),
+                    memory_layer_proba_map_seq);
+        }
+
+        if (early_prune_stage_) {
+            //Stage one: the bound without this realization's own marginal and with the junction
+            //still neutral. 4a showed it can only fire where stage two fires too, and that both
+            //bounds are monotone along the enumeration -- which is decreasing deletion count --
+            //so the `break` is an optimisation rather than a behaviour (§6.14). It is kept
+            //because dropping it costs work, and it stays conditional because unifying the two
+            //shapes is not free: the arms without it multiply the contribution into the *bound*,
+            //which rounds differently from multiplying it into the probability first.
+            scenario_upper_bound_proba = exploration.compute_upper_bound(
+                new_scenario_proba,
+                current_downstream_proba_memory_layers
+            );
+            if (exploration.should_prune(scenario_upper_bound_proba)) {
+                break;
+            }
+
+            new_scenario_proba *= proba_contribution;
+            //Same junction, same distance -- the map was not touched in between, so the value
+            //read above still stands.
+            if (junction.resolved()) {
+                exploration.downstream_proba_map.set(junction.proba_key(), *junction_bound_proba,
+                                                     junction.memory_layer());
+            }
+            scenario_upper_bound_proba = exploration.compute_upper_bound(
+                new_scenario_proba,
+                current_downstream_proba_memory_layers
+            );
+        } else {
+            scenario_upper_bound_proba = exploration.compute_upper_bound(
+                new_scenario_proba,
+                current_downstream_proba_memory_layers
+            );
+            new_scenario_proba *= proba_contribution;
+            scenario_upper_bound_proba *= proba_contribution;
+        }
+
+        if (exploration.should_prune(scenario_upper_bound_proba)) {
+            continue;
+        }
+
+        // Update context with new probability before proceeding
+        scenario.scenario_proba = new_scenario_proba;
+
+        Rec_Event::iterate_wrap_up(query, model, scenario, exploration, accumulation);
+    }
+}
+
+/*
+ * Keep the mismatches that survive the trim, as a contiguous subrange of an ordered list.
+ *
+ * The direction is the opposite of the side's name: a 3' deletion keeps the *prefix* of the
+ * list and a 5' deletion the *suffix*, because the positions are read coordinates and the end
+ * that moved is the one whose side they fall on. Both walks are carried verbatim from the arms
+ * they came from, including their signed/unsigned comparison against the new offset.
+ */
+void Deletion::trim_mismatches(const vector<size_t> &previous_mismatches)
+{
+    if (previous_mismatches.empty()) {
+        mismatches_vector.clear();
+        return;
+    }
+
+    end_reached = false;
+    if (trims_three_prime_) {
+        mis_iter = previous_mismatches.end();
+        //Get an iterator referring to an actual integer (end() is not dereferenceable)
+        --mis_iter;
+        while ((*mis_iter) > my_new_offset) {
+            if (mis_iter == previous_mismatches.begin()) {
+                end_reached = true;
+                break;
+            }
+            --mis_iter;
+        }
+        if (end_reached) {
+            //Clear the vector but the capacity remains the same
+            mismatches_vector.clear();
+        } else {
+            ++mis_iter;
+            mismatches_vector.assign(previous_mismatches.begin(), mis_iter);
+        }
+    } else {
+        mis_iter = previous_mismatches.begin();
+        while ((*mis_iter) < my_new_offset) {
+            ++mis_iter;
+            if (mis_iter == previous_mismatches.end()) {
+                end_reached = true;
+                break;
+            }
+        }
+        if (end_reached) {
+            mismatches_vector.clear();
+        } else {
+            mismatches_vector.assign(mis_iter, previous_mismatches.end());
+        }
+    }
+}
+
+/*
+ * This short method performs the iterate operations common to all Rec_event (modify index map and fetch realization probability)
+ */
+void Deletion::iterate_common(
+        forward_list<Event_realization>::const_iterator &iter, Index_map &base_index_map,
+        const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
+        const Marginal_array_p &model_parameters_point)
+{
+    proba_contribution = Rec_Event::iterate_common(
+        (*iter).index, base_index, base_index_map, model_parameters_point);
+}
+
+void Deletion::construct_realization(const vector<int> &indices, GenerationState &segments) const
+{
+    if (indices.empty()) {
+        return;
+    }
+    const int deletions = this->realization_at(indices.front()).value_int;
+    string &segment = segments.modify(this->seq_type_id);
+
+    //The end the model names, as inference trims it.
+    if (this->event_side != Five_prime and this->event_side != Three_prime) {
+        throw invalid_argument("Deletion " + this->get_name()
+                               + ": a deletion must trim the 5' or the 3' end of its segment, "
+                                 "and this one names neither");
+    }
+    const bool trims_three_prime = (this->event_side == Three_prime);
+
+    //Plan D2 and D3: what inference drops, generation refuses. Deletion::iterate never counts a
+    //deletion past its segment's end, a palindrome longer than the template it mirrors, or a
+    //segment on an end of the ordering deleted away (it keeps one nucleotide, §2.7), so a model
+    //that puts mass on one of these is not one inference produces. Whether a deletion may run on
+    //into the next junction, or a palindrome read past its gene, is a question for neighbour
+    //types, not something to settle here.
+    const int length = static_cast<int>(segment.size());
+    const bool anchored = (this->left_adjacent_id == kNoSeqType or this->right_adjacent_id == kNoSeqType);
+    if (deletions > length or (anchored and deletions == length) or -deletions > length) {
+        string what;
+        if (deletions > length) {
+            what = to_string(deletions) + " deletions run past the end of a segment of " + to_string(length);
+        } else if (deletions >= 0) {
+            what = to_string(deletions) + " deletions delete away a segment of " + to_string(length)
+                 + ", and a segment on an end of the sequence keeps at least one nucleotide";
+        } else {
+            what = "a palindrome of " + to_string(-deletions) + " is longer than the " + to_string(length)
+                 + " nucleotides it mirrors";
+        }
+        throw out_of_range("Deletion " + this->get_name() + ": " + what
+                           + "; inference never counts this scenario, so the model should give it no mass");
+    }
+
+    if (deletions >= 0) {
+        if (trims_three_prime) {
+            segment.erase(segment.size() - deletions);
+        } else {
+            segment.erase(0, deletions);
+        }
+    } else {
+        //A palindrome: the |k| nucleotides at the trimmed end, reversed and complemented, put
+        //back beyond it.
+        string palindrome = trims_three_prime ? segment.substr(segment.size() + deletions, string::npos)
+                                              : segment.substr(0, -deletions);
+        reverse(palindrome.begin(), palindrome.end());
+        make_transversions(palindrome);
+        if (trims_three_prime) {
+            segment += palindrome;
+        } else {
+            segment = palindrome + segment;
+        }
+    }
+}
+
+void Deletion::write2txt(ofstream &outfile)
+{
+    write2txt_legacy(outfile);
+}
+
+void Deletion::write2txt_legacy(ofstream &outfile)
+{
+    outfile << "#Deletion;" << to_string(legacy_gene_class_of(Deletion_t, seq_type)) << ";" << event_side << ";"
+            << priority << ";" << nickname << endl;
+    for (unordered_map<string, Event_realization>::const_iterator iter = event_realizations.begin();
+         iter != event_realizations.end(); ++iter) {
+        outfile << "%" << (*iter).second.value_int << ";" << (*iter).second.index << endl;
+    }
+}
+
+void Deletion::write2txt_v2(ofstream &outfile)
+{
+    outfile << "#Deletion;Undefined_gene;" << seq_type << ";" << event_side << ";" << priority << ";" << nickname << endl;
+    for (unordered_map<string, Event_realization>::const_iterator iter = event_realizations.begin();
+         iter != event_realizations.end(); ++iter) {
+        outfile << "%" << (*iter).second.value_int << ";" << (*iter).second.index << endl;
+    }
+}
+
+void Deletion::initialize_event(
+        unordered_set<Rec_Event_name> &processed_events,
+        const Events_map &events_map,
+        const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
+        Downstream_scenario_proba_bound_map &downstream_proba_map, Seq_type_str_p_map &constructed_sequences,
+        SafetyMatrix &safety_set, shared_ptr<Error_rate> error_rate_p, Mismatch_vectors_map &mismatches_list,
+        Seq_offsets_map &seq_offsets, Index_map &index_map)
+{
+    //A deletion trims one end of one segment, so a model that does not say which end is not a
+    //model this event can run in. Rejected here rather than at the scenario node the four-arm
+    //body rejected it at: the generic body has no side to switch on, and a topology error
+    //belongs before inference rather than a million nodes into it.
+    if (this->event_side != Five_prime and this->event_side != Three_prime) {
+        throw invalid_argument("Deletion " + this->get_name()
+                               + ": a deletion must trim the 5' or the 3' end of its segment, "
+                                 "and this one names neither");
+    }
+
+    //TODO change this and the usage of int_value_and_index
+    int_value_and_index.clear();
+    for (unordered_map<string, Event_realization>::const_iterator iter = (*this).event_realizations.begin();
+         iter != (*this).event_realizations.end(); ++iter) {
+        int_value_and_index.push_front((*iter).second);
+    }
+    int_value_and_index.sort(del_numb_compare);
+
+    //Everything topological is settled here, so iterate() reads answers instead of switching on
+    //the gene again. That the topology is there to be read -- the segment in the ordering, an end
+    //created before it is trimmed -- is the engine's to check (TraversalPlan::check_admissible()).
+    //The eight `*_min_del` / `*_max_del` scalars and the sixty lines that filled them by
+    //looking up the V 3', D 5', D 3' and J 5' deletion events by hand collapse to this one
+    //object (§2.1); a topology with more than one deletion per end needs no new code for it,
+    //because the deltas sum. It reads each pending event's realization set rather than its
+    //accumulated `len_min` / `len_max`, which is the whole of §7.4 and the reason R10 moves
+    //the no_d_align reference.
+    const SeqTypeRegistry &registry = constructed_sequences.registry();
+    pending_.rebuild(registry, events_map, processed_events);
+
+    trims_three_prime_ = (this->event_side == Three_prime);
+
+    //A segment anchored on an end of the read behaves differently in three places, and all
+    //three used to be spelled "V or J". Read off the ordering, so a tandem D1/D2 pair gets the
+    //internal behaviour without either of them being named -- the same resolution B11a gave
+    //`Gene_choice`.
+    const bool at_read_end = registry.left_neighbor(this->seq_type_id) == kNoSeqType
+                          or registry.right_neighbor(this->seq_type_id) == kNoSeqType;
+    keep_one_nucleotide_ = at_read_end;
+    early_prune_stage_ = at_read_end;
+    guard_palindrome_positions_ = not at_read_end;
+    discard_offset_outside_read_ = not at_read_end and this->event_side == Five_prime;
+
+    //Is anything still going to move the other end of my segment? Asked through A0 rather than
+    //by looking up "the D deletion on the opposite side", which is what makes it answerable in
+    //a topology with two Ds. The gene choice that created the segment is always processed by
+    //now -- a deletion runs after its own gene choice by construction -- so the only events
+    //that can answer `Modifies` here are deletions still to come.
+    const Seq_side opposite_side = trims_three_prime_ ? Five_prime : Three_prime;
+    opposite_end_still_moves_ = false;
+    for (const auto &[key, event] : events_map) {
+        (void)key;
+        if (not event or processed_events.count(event->get_name()) != 0) {
+            continue;
+        }
+        if (event->get_name() == this->get_name()) {
+            continue;
+        }
+        if (event->get_offset_role(this->seq_type_id, opposite_side) == OffsetRole::Modifies) {
+            opposite_end_still_moves_ = true;
+        }
+    }
+
+    seq_offsets.request_layer(this->seq_type_id, this->event_side);
+    memory_layer_offset_del = seq_offsets.claimed_layer(this->seq_type_id, this->event_side);
+    mismatches_list.request_layer(this->seq_type_id);
+    this->memory_layer_mismatches = mismatches_list.claimed_layer(this->seq_type_id);
+    constructed_sequences.request_layer(this->seq_type_id);
+    this->memory_layer_cs = constructed_sequences.claimed_layer(this->seq_type_id);
+
+    //The neighbours this deletion is checked against: the segments placed **on the side it
+    //trims**, 5' to 3'. The other side of the segment is not moving, so nothing there can newly
+    //collide -- which is why each of the four arms checked one or two partners and never all
+    //three. The engine's plan says which are placed when this event runs (TraversalPlan); they
+    //used to be the legacy V, D and J by name, which left a tandem model's D1 and D2 out.
+    //A 3' deletion's partners all sit in the row of its own segment, so they share one safety
+    //layer (resolve_flank_checks()).
+    const EventPlacement &placed = this->placement();
+    flank_checks_ = resolve_flank_checks(placed, trims_three_prime_ ? Three_prime : Five_prime, safety_set,
+                                         seq_offsets);
+    flank_states_.assign(flank_checks_.size(), FlankState{});
+
+    downstream_proba_map.request_layer(this->seq_type_id);
+    memory_layer_proba_map_seq = downstream_proba_map.claimed_layer(this->seq_type_id);
+
+    //The junction this deletion widens: the gap between its trimmed end and the nearest built
+    //content on that side, which the plan holds a key for. Nearest, because a nearer built segment
+    //makes the further gap somebody else's to bound -- which is what the `if (d_chosen) … else if
+    //(j_chosen)` pairs said, once per arm. A segment whose own content is not built yet is no end
+    //of a gap; its deletion leaves the gap it sits in to the bound folded before it, which counted
+    //it among the events still to come.
+    junction_partner_ = -1;
+    const std::optional<SegmentSpan> gap =
+            placed.target_built ? placed.gap_toward(trims_three_prime_ ? Three_prime : Five_prime) : std::nullopt;
+    if (gap) {
+        const SeqTypeId far_end = trims_three_prime_ ? gap->right.id : gap->left.id;
+        for (std::size_t i = 0; i != flank_checks_.size(); ++i) {
+            if (flank_checks_[i].partner_id == far_end) {
+                junction_partner_ = static_cast<int>(i);
+            }
+        }
+        //Built content has its ends placed, so the far end is one of the checks; iterate() reads
+        //its offset to measure the gap.
+        if (junction_partner_ < 0) {
+            throw logic_error("Deletion " + this->get_name() + ": the gap it widens ends at "
+                              + registry.name(far_end) + ", which the plan does not list as placed");
+        }
+        const SeqTypeId junction_key = this->traversal_plan().gap_key(*gap);
+        downstream_proba_map.request_layer(junction_key);
+        resolve_junction(*gap, junction_key, downstream_proba_map.claimed_layer(junction_key));
+    }
+
+    this->Rec_Event::initialize_event(processed_events, events_map, offset_map, downstream_proba_map,
+                                      constructed_sequences, safety_set, error_rate_p, mismatches_list,
+                                      seq_offsets, index_map);
+}
+
+namespace {
+
+/// The inclusive deletion range, taken straight from the realization set.
+///
+/// Deliberately not read off len_min / len_max: those are accumulated by an `if / else if`
+/// over an unordered map, so a strictly ascending iteration order never reaches the second
+/// branch and leaves one bound at its INT16 sentinel. Latent today -- the hash order for
+/// realistic key sets happens to cooperate -- but the failure would be silent and severe.
+/// See docs/ITERATE_GENERIC_REWRITE_PLAN.md section 7.4.
+std::pair<int, int> deletion_range(const std::unordered_map<std::string, Event_realization> &realizations)
+{
+    if (realizations.empty()) {
+        return {0, 0};
+    }
+    int min_del = std::numeric_limits<int>::max();
+    int max_del = std::numeric_limits<int>::min();
+    for (const auto &[name, realization] : realizations) {
+        (void)name;
+        min_del = std::min(min_del, realization.value_int);
+        max_del = std::max(max_del, realization.value_int);
+    }
+    return {min_del, max_del};
+}
+
+} // namespace
+
+OffsetDelta Deletion::get_offset_delta_bounds(SeqTypeId type_id, Seq_side side) const
+{
+    if (type_id != this->seq_type_id || side != this->event_side) {
+        return {};
+    }
+    const auto [min_del, max_del] = deletion_range(this->event_realizations);
+
+    //A 3' end retreats as nucleotides are removed, a 5' end advances; a negative deletion
+    //(a palindromic insertion) moves it the other way. This sign flip is the one the
+    //current code spells out at each of its eight comparison sites.
+    if (side == Three_prime) {
+        return {-max_del, -min_del};
+    }
+    return {min_del, max_del};
+}
+
+LengthContribution Deletion::get_length_contribution(SeqTypeId type_id) const
+{
+    if (type_id != this->seq_type_id) {
+        return {};
+    }
+    const auto [min_del, max_del] = deletion_range(this->event_realizations);
+    //Removing `k` nucleotides shortens the segment by `k`, whichever end they come from.
+    return {-max_del, -min_del};
+}
+
+SeqConstructionRole Deletion::get_seq_construction_role(SeqTypeId type_id) const
+{
+    return type_id == this->seq_type_id ? SeqConstructionRole::Modifies : SeqConstructionRole::None;
+}
+
+OffsetRole Deletion::get_offset_role(SeqTypeId type_id, Seq_side side) const
+{
+    if (type_id != this->seq_type_id || side != this->event_side) {
+        return OffsetRole::None;
+    }
+    return OffsetRole::Modifies;
+}
+
+void Deletion::add_to_marginals(long double scenario_proba, Marginal_array_p &updated_marginals) const
+{
+    if (viterbi_run) {
+        updated_marginals[this->new_index] = scenario_proba;
+    } else {
+        updated_marginals[this->new_index] += scenario_proba;
+    }
+}
+
+string &make_transversions(string &init_sequence)
+{
+    for (string::iterator iter = init_sequence.begin(); iter != init_sequence.end(); ++iter) {
+        if ((*iter) == 'A') {
+            (*iter) = 'T';
+        } else if ((*iter) == 'C') {
+            (*iter) = 'G';
+        } else if ((*iter) == 'G') {
+            (*iter) = 'C';
+        } else if ((*iter) == 'T') {
+            (*iter) = 'A';
+        } else {
+            throw runtime_error("Unknown int nucleotide " + to_string((*iter)) + " in seq " + init_sequence
+                                + " in make_transversions()");
+        }
+    }
+    return init_sequence;
+}
+
+Int_Str &make_transversions(Int_Str &init_sequence)
+{
+
+    for (Int_Str::iterator iter = init_sequence.begin(); iter != init_sequence.end(); ++iter) {
+        if ((*iter) == 0) {
+            (*iter) = 3;
+        } else if ((*iter) == 1) {
+            (*iter) = 2;
+        } else if ((*iter) == 2) {
+            (*iter) = 1;
+        } else if ((*iter) == 3) {
+            (*iter) = 0;
+        } else if ((*iter) == 4) {
+            (*iter) = 5;
+        } else if ((*iter) == 5) {
+            (*iter) = 4;
+        } else if ((*iter) == 8) {
+            //Nothing to do
+        } else if ((*iter) == 9) {
+            //Nothing to do
+        } else if ((*iter) == 14) {
+            //Nothing to do
+        } else {
+
+            string error_str("Unknown int nucleotide " + to_string((*iter)) + " in seq ");
+            for (Int_Str::iterator jiter = init_sequence.begin(); jiter != init_sequence.end(); ++jiter) {
+                error_str += to_string((*jiter));
+            }
+            error_str += " in make_transversions()";
+            throw runtime_error(error_str);
+        }
+    }
+
+    return init_sequence;
+}
+
+bool del_numb_compare(const Event_realization &real1, const Event_realization &real2)
+{
+    return real1.value_int > real2.value_int;
+}
+
+int Deletion::length_delta(const Event_realization &realization) const
+{
+    //Negative: a deletion moves an anchor's boundary away from where it was created, which
+    //widens the span it bounds rather than shortening the anchor (§2.5's frame).
+    return -realization.value_int;
+}
+
+/*
+ * A deletion reads exactly one junction: the one on the side it trims. The table this replaces
+ * named two for a V or a J deletion -- {VD, VJ} and {VJ, DJ} -- of which one was always dead,
+ * because the consumption site picks by `d_chosen` and the other branch is never taken. On the
+ * TRB corpus that dead V->J fold was 176 ms of the 706 ms sweep, about a quarter (§6.10
+ * finding 3). Resolving the junction in initialize_event() removes the choice, so nothing is
+ * built that nothing reads.
+ */
+void Deletion::resolve_junction(SegmentSpan span, SeqTypeId proba_key, int memory_layer)
+{
+    junction_bound(this->event_side == Five_prime ? kLeftJunction : kRightJunction)
+            .resolve(span, proba_key, memory_layer, JunctionBound::Fold::Yes);
+}
+
+} // namespace igor::model::legacy

@@ -13,7 +13,7 @@ LANGUAGES
 add_executable(${PROJECT_NAME}
   main.cpp)
 
-target_link_libraries(${PROJECT_NAME} PRIVATE igor::Core)
+target_link_libraries(${PROJECT_NAME} PRIVATE igor::Inference igor::Generation igor::Alignment)
 target_link_libraries(${PROJECT_NAME} PRIVATE GSL::gsl)
 target_link_libraries(${PROJECT_NAME} PRIVATE OpenMP::OpenMP_CXX)
 

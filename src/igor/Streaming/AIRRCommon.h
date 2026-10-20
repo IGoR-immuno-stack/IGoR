@@ -39,7 +39,7 @@
 #include <string>
 #include <vector>
 
-namespace igor::airr {
+namespace igor::streaming::airr {
 
 /**
  * @brief Delimiter type for AIRR files
@@ -98,4 +98,4 @@ char delimiter_char(Delimiter delimiter);
 STREAMING_EXPORT
 Delimiter detect_delimiter(const std::string& filepath);
 
-} // namespace igor::airr
+} // namespace igor::streaming::airr
