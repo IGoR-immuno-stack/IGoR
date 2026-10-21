@@ -105,7 +105,7 @@ void SequenceGenerator::generate_sequences(int number_seq, bool generate_errors,
         outfile_ind_seq << "seq_index;nt_sequence" << endl;
         outfile_ind_real << "seq_index";
         while (!model_queue.empty()) {
-            outfile_ind_real << ";" << model_queue.front()->get_name();
+            outfile_ind_real << ";" << event_label(*model_queue.front(), this->event_labels);
             model_queue.pop();
         }
         outfile_ind_real << ";Errors" << endl;
@@ -238,7 +238,7 @@ void SequenceGenerator::write_seq_real2txt(string filename_ind_seq, string filen
     queue<shared_ptr<Rec_Event>> model_queue = this->model_parms.get_model_queue();
     outfile_ind_real << "Index";
     while (!model_queue.empty()) {
-        outfile_ind_real << ";" << model_queue.front()->get_name();
+        outfile_ind_real << ";" << event_label(*model_queue.front(), this->event_labels);
         model_queue.pop();
     }
     outfile_ind_real << endl;
@@ -366,6 +366,7 @@ void SequenceGenerator::generate_sequences_fast(size_t num_sequences, const stri
     igor::generation::legacy::fast::FastGeneratorConfig config;
     config.num_threads = num_threads;
     config.show_progress = show_progress;
+    config.event_labels = this->event_labels;
     if (seed >= 0) {
         config.base_seed = static_cast<uint64_t>(seed);
     } else {

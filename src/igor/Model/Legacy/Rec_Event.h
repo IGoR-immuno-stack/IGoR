@@ -799,4 +799,10 @@ struct Event_comparator
     }
 };
 
+/// "nickname" or "legacy", as the CLI spells them. Throws std::invalid_argument on anything else.
+MODEL_EXPORT Event_label str2EventLabel(const std::string &);
+
+/// The column header an output gives \a event.
+MODEL_EXPORT std::string event_label(const Rec_Event &event, Event_label labels);
+
 } // namespace igor::model::legacy

@@ -71,6 +71,7 @@ struct FastEventSampler
     Gene_class gene_class;
     Seq_side side;
     std::string name;
+    std::shared_ptr<const Rec_Event> event; ///< for the realizations file's header (event_label())
     Seq_type_String seq_type;  ///< Sequence type identifier (e.g., "VD_ins_seq") for step 3 migration
     size_t event_index; ///< Index of this event in the event_samplers_ vector
 

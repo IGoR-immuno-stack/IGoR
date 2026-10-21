@@ -47,6 +47,11 @@ if $IGORCALL config set generate.threads -1 >/dev/null 2>&1; then
     exit 1
 fi
 
+if $IGORCALL config set output.event_names gene_class >/dev/null 2>&1; then
+    echo "expected unknown event names to fail" >&2
+    exit 1
+fi
+
 if "$IGORBIN" -set_wd "$OUTDIR" datadir >/dev/null 2>&1; then
     echo "expected legacy -set_wd flag to fail" >&2
     exit 1

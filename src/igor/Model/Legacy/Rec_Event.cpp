@@ -270,6 +270,20 @@ Rec_Event_name Rec_Event::get_v2_name() const
            + string("_prio") + to_string(priority) + string("_size") + to_string(this->size());
 }
 
+Event_label str2EventLabel(const string &str)
+{
+    if (str == "nickname")
+        return Event_label::Nickname;
+    if (str == "legacy")
+        return Event_label::Legacy;
+    throw invalid_argument("Unknown event label \"" + str + "\": expected nickname or legacy");
+}
+
+string event_label(const Rec_Event &event, Event_label labels)
+{
+    return (labels == Event_label::Nickname) ? event.get_nickname() : event.get_name();
+}
+
 Rec_Event_name Rec_Event::get_legacy_name() const
 {
     return string() + this->type + string("_") + this->event_class + string("_")

@@ -145,6 +145,9 @@ int igor_legacy_main(int argc, char *argv[])
 
     //Common vars
     string batchname = "";
+    //How the outputs' column headers name the events (output.event_names). Applied once every
+    //argument is read, so that it does not depend on its place on the command line.
+    Event_label cl_event_labels = Event_label::Nickname;
 
     //Working directory vars
     bool wd = false;
@@ -319,6 +322,18 @@ int igor_legacy_main(int argc, char *argv[])
         else if (string(argv[carg_i]) == string("-stdout_f")) {
             clog << "Redirecting output to file: " << argv[carg_i + 1] << endl;
             freopen(argv[++carg_i], "a+", stdout);
+        }
+
+        else if (string(argv[carg_i]) == string("-event_names")) {
+            ++carg_i;
+            if (carg_i >= argc) {
+                return terminate_IGoR_with_error_message("Expected nickname or legacy after -event_names");
+            }
+            try {
+                cl_event_labels = str2EventLabel(string(argv[carg_i]));
+            } catch (exception &e) {
+                return terminate_IGoR_with_error_message(e.what());
+            }
         }
 
         else if (string(argv[carg_i]) == string("-batch")) {
@@ -1109,6 +1124,12 @@ int igor_legacy_main(int argc, char *argv[])
         ++carg_i;
     }
 
+    for (const auto &[index, counter] : cl_counters_list) {
+        if (auto best_scenarios = dynamic_pointer_cast<Best_scenarios_counter>(counter)) {
+            best_scenarios->set_event_labels(cl_event_labels);
+        }
+    }
+
     //Make sure the working directory is set somewhere before performing any action
     if (not wd) {
         cl_path = "/tmp/";
@@ -1763,7 +1784,8 @@ int igor_legacy_main(int argc, char *argv[])
         counters_list.emplace(4, coverage_counter_j_ptr);
 
         //Collect 10 best scenarios per sequence during the last iteration
-        shared_ptr<Counter> best_sc_ptr(new Best_scenarios_counter(10, cl_path + "/run_demo/", true));
+        shared_ptr<Best_scenarios_counter> best_sc_ptr(new Best_scenarios_counter(10, cl_path + "/run_demo/", true));
+        best_sc_ptr->set_event_labels(cl_event_labels);
         counters_list.emplace(1, best_sc_ptr);
 
         //Collect sequence generation probability during last iteration
@@ -1809,6 +1831,7 @@ int igor_legacy_main(int argc, char *argv[])
         //Generate sequences
         clog << "Generate sequences" << endl;
         SequenceGenerator generator(gen_model.get_model_parms(), gen_model.get_marginals());
+        generator.set_event_labels(cl_event_labels);
         auto generated_seq = generator.generate_sequences(100, false); //Without errors
         generator.write_seq_real2txt(string(cl_path + "/generated_seqs_indexed_demo.csv"),
                                      string(cl_path + "/generated_seqs_realizations_demo.csv"),
@@ -2249,6 +2272,7 @@ int igor_legacy_main(int argc, char *argv[])
             std::filesystem::create_directories(cl_path + batchname + "generated");
 
             SequenceGenerator genmodel(cl_model_parms, cl_model_marginals);
+            genmodel.set_event_labels(cl_event_labels);
 
             //TODO create generated folder
             string w_err_str;
