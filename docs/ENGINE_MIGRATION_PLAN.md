@@ -266,7 +266,7 @@ at the cost of redoing work.
 | L1, hypermutation | H0, the hypermutation track | ERR §4.3 | not started | hard for those models | the split of the leaf would be unverified on them |
 | L2 | E2: gating and viterbi out of the error model | ERR §4.2 | after milestone 1 | soft | otherwise the engine's leaf inherits the error model's gating (X4, X5) |
 | L2 | The unit harness | ITERATE_TEST_GUIDE | — | soft | `RecordingEvent` is a fake successor in `next_event_ptr_arr` |
-| L3 | T2: the nickname as identity; the uid | CAP T2, SYN step 2 | T2 planned (Oct 21 2026); uid not started | hard | the record is keyed by uid, which replaces the nickname keys T2 leaves; the bridge looks up by name |
+| L3 | T2: the nickname as identity; the uid | CAP T2, SYN step 2 | T2 delivered (`feature/tandemD-T2-names`); uid not started | hard | the record is keyed by uid, which replaces the nickname keys T2 leaves; the bridge looks up by name |
 | L3 | Q3–Q5 | here | open | hard | the uid order must drive neither the layout nor the queue |
 | L4 | E1 (the core) and E4 (the node, the bridge carrying r, registrars, the zero-row guard); X20 | ERR §4.2 | after milestone 1 | hard | the error model has no handler otherwise; `maximize` runs on every node |
 | L4 | Handler cut-offs at `!= 0`, the legacy summation order, `fixed`, an ordered merge, `long double` | SYN step 8, MERGE §6.2 | not started | hard | bitwise |

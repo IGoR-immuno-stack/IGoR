@@ -18,7 +18,7 @@
 
 The plans hold the content of each step; this document holds only the order.
 **Status**: as of Oct 21 2026, `origin/feature/tandemD` @ `c56fd7e`, where T1 (#78), T3 (#76)
-and the plans are merged.
+and the plans are merged. T2 is delivered on `feature/tandemD-T2-names`.
 
 ---
 
@@ -63,8 +63,11 @@ sequence; steps in different lanes run in parallel.
 ```mermaid
 flowchart LR
 
+  subgraph REV["Delivered, awaiting review"]
+    T2["T2 · the nickname names an event;<br/>JSON replaces v2<br/>feature/tandemD-T2-names"]
+  end
+
   subgraph TAN["Tandem D, milestone 1 · CAP"]
-    T2["T2 · the nickname names an event;<br/>JSON replaces v2"]
     T7a["T7a · Single over the ordering;<br/>hypermutation and counter guards"]
     T5a["T5a · V-D1-D2-J built from human TRB, in JSON"]
     T5b["T5b · reads generated and frozen"]
@@ -349,6 +352,7 @@ flowchart LR
   classDef optional stroke-dasharray:5 5
   classDef milestone fill:#fde7c8,stroke:#c26100,stroke-width:2px,color:#000
   classDef decision fill:#fbdcdc,stroke:#b42318,color:#000
+  class T2 review
   class ER1,HR,CR3,CR,CT1b,CRP,L7,SYN4b golden
   class S4d,PERF,NC optional
   class M1,M2,CP2,CP5,CP8 milestone
@@ -392,12 +396,13 @@ Status: **review** — delivered on its branch, awaiting merge · **ready** — 
 landed · **pending** — ready once its hard blocks land · **gated** — waits on a decision or on a step of another plan · **optional**.
 
 ### Delivered, awaiting review
-None.
+| Node | Source | Hard blocks | Status |
+|---|---|---|---|
+| T2 | CAP *T2* | — | review |
 
 ### Tandem D, milestone 1
 | Node | Source | Hard blocks | Soft | Status |
 |---|---|---|---|---|
-| T2 | CAP *T2* | — | — | ready; planned Oct 21 2026 |
 | T7a | CAP *T7*, ERR §4.1 | — | — | ready |
 | T5a | CAP *T5* | T2 | — | pending; the fixture script, the JSON model, the marginals filled into IGoR's own layout |
 | T5b | CAP *T5* | T5a | — | pending |
