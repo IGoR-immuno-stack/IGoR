@@ -175,7 +175,7 @@ undecided.
 | X5 | Viterbi inside the error model; the hypermutation models keep the last leaf, not the best | confirmed (engine's job) | E2 |
 | X13 | Single's M-step averages per-read rates; the EM estimate is Σ posterior errors / Σ posterior positions | confirmed | ER1 |
 | X15 | `viterbi_run` uninitialised in the base constructor | confirmed | E2 (viterbi leaves the error model) |
-| X20 | JSON exports only Single and reads no error model; the new engine path never infers the rate (test_ModelInference.cpp:567-586 discards the updated copy) | gap | E4 |
+| X20 | JSON exports only Single and reads no error model; the new engine path never infers the rate (test_ModelInference.cpp:567-586 discards the updated copy). **Oct 21 2026:** T2 adds the legacy reader's half, Single only, into `Model_Parms`; the node's reader stays E4's, and the hypermutation models' JSON form is HJ | gap | E4 |
 | X22 | Dead code: Single's deprecated path (throws on VJ), the base default, `subseq_compare_err_num` | dead | E1 |
 
 ### Part II (the hypermutation models)
@@ -228,7 +228,7 @@ Two separate questions:
   - Both become ordered sets of seq-type names, resolved to ids when the model is built.
   - The v1 translator maps the `Gene_class_legacy` tokens (`V_gene`, `VDJ_genes`, …) through the
     gene class of the `Gene_choice` that creates each segment, so `D_gene` is {D1, D2} in a tandem
-    model. A v2 or JSON file names any segments.
+    model. A JSON file names any segments.
   - Defaults: `apply_to` = every segment with a mismatch writer (§3.3); `learn_on` = `apply_to`.
   - Single gets `apply_to` too. No error model looks up V, D or J events any more, and the counters
     iterate the same resolved set.
@@ -459,9 +459,8 @@ End state: `Gene_class_legacy` only in the v1 reader and writer.
 Milestone 1 runs on `GenModel`'s DFS, and every tandem step does already:
 - T1 (loading) and T3 (the traversal plan, which `GenModel` owns) are written for it;
 - T4 is done for the legacy generator, the one T5 generates with;
-- T2 (colliding names) can be fixed in the legacy model too: the names key legacy structures
-  (`edges`, `Index_map`, `offset_map`), and giving the seq type to the generated name of non-legacy
-  segments only leaves every legacy name unchanged.
+- T2 (colliding names) is fixed in the legacy model too: the names key legacy structures
+  (`edges`, `Index_map`, `offset_map`), and T2 makes the nickname the name (decided Oct 21 2026).
 
 From this plan, milestone 1 needs T7a and its two guards (§4.1). Where the legacy design does, or
 might, stand in the way:
@@ -482,7 +481,7 @@ The tension is real:
 2. **Two homes for parameters.** `Model_marginals` and the `RecombinationModel` tensors, synced by
    `LegacyBridge`. The layouts must stay identical; they are (parents first, own axis last).
 3. **Not bitwise by default.** The legacy run merges chunks in a fixed order (#68); `InferenceEngine`
-   combines accumulators by name in no fixed order. The file formats differ too (text v1/v2, JSON).
+   combines accumulators by name in no fixed order. The file formats differ too (text v1, JSON).
 4. **Repairs land twice** unless the two paths share the code: a fix like X13 must be identical on
    both, or comparing them breaks.
 5. **The error model is the worst case:** outside the events in the legacy run, a node in the new
@@ -543,7 +542,7 @@ Candidates the port will need next:
 
 | Step | Content | Bitwise |
 |---|---|---|
-| E0 | Characterization suite for Single. Harness: `set_error_rate(std::shared_ptr<Error_rate>)` (today `set_error_rate(double)` only, test_utils.h:467-472). Cases: the leaf factor (VDJ, VJ, tandem); gating; viterbi; per-read and cross-read accumulators; the M-step (observed value, and X13's intended value under `[!shouldfail]`); merge order; `copy`; the round trip (v1, v2, JSON export); the bound; seeded `generate_errors`. Coverage report and mutations; ITERATE_TEST_GUIDE.md §7 has the recipe | tests only |
+| E0 | Characterization suite for Single. Harness: `set_error_rate(std::shared_ptr<Error_rate>)` (today `set_error_rate(double)` only, test_utils.h:467-472). Cases: the leaf factor (VDJ, VJ, tandem); gating; viterbi; per-read and cross-read accumulators; the M-step (observed value, and X13's intended value under `[!shouldfail]`); merge order; `copy`; the round trip (v1, JSON); the bound; seeded `generate_errors`. Coverage report and mutations; ITERATE_TEST_GUIDE.md §7 has the recipe | tests only |
 | E1 | The core `SingleErrorModel` in `src/igor/Model/` (§3.5): scope, factor, contribution, M-step (still the observed formula), bound, generation. `Single_error_rate` becomes its adapter; `surviving_core_bound` moves into it; dead code out (X22) | yes |
 | ER1 | X13 in the core: Σ errors / Σ positions, normalised per read | every inference golden moves, measured once |
 | E2 | Gating and viterbi leave the error model: the leaf evaluates the factor, tests the threshold, then asks the error model to accumulate; viterbi is the engine's (X4, X5, X15). The hypermutation models keep their current behaviour behind a legacy policy flag until Part II | yes |
@@ -561,7 +560,8 @@ Candidates the port will need next:
 | H3 | Flank segments (B3) replace the friend access | yes |
 | H4 | Scope sets (§3.2); `apply_to` applied (X10, a no-op on shipped files, which all say `VDJ_genes`) | yes on shipped files |
 | HR | Repairs, one per commit: sound bounds (X3, Q6), `fix_err` (X6), J tail (X8), V head (X9), precision and the saved threshold (X11) | moves the hypermutation goldens |
-| H5 | The two parameterizations as handlers: the context model of H2 becomes the core, with a legacy adapter and a node, as Single's in §3.5 | bitwise against the post-HR goldens |
+| HJ | The hypermutation models in the JSON document (added Oct 21 2026): the parameterization H2 settles (mu and e_i, or the table), N, `learn_on` and `apply_on`. The legacy JSON reader of capability-plan T2 reads them, so a model that needs JSON may carry one. Round trip on the H0 track: the model written in JSON and read back gives the same outputs | yes |
+| H5 | The two parameterizations as handlers: the context model of H2 becomes the core, with a legacy adapter and a node, as Single's in §3.5. Their JSON registrars read HJ's form | bitwise against the post-HR goldens |
 
 **The hypermutation track (H0).** No BCR reads ship with the repository, but the hypermutation
 models generate, so the track seeds itself:
