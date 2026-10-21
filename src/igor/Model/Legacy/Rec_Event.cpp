@@ -226,15 +226,6 @@ nlohmann::json Rec_Event::to_json() const
     return out;
 }
 
-Rec_Event_name Rec_Event::get_v2_name() const
-{
-    if (seq_type.empty())
-        return this->get_v1_legacy_name();
-    return string() + this->type + string("_") + this->event_class + string("_") + seq_type
-           + string("_") + name_side(this->type, this->event_side)
-           + string("_prio") + to_string(priority) + string("_size") + to_string(this->size());
-}
-
 Event_label str2EventLabel(const string &str)
 {
     if (str == "nickname")

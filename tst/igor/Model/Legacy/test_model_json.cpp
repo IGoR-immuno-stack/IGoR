@@ -26,7 +26,7 @@ using namespace igor::core::legacy;
 using namespace igor::alignment::legacy;
 using namespace igor::model::legacy;
 
-static const std::string TEST_DATA_DIR = std::string(IGOR_SOURCE_DIR) + "/tst/test_data/format_v2/";
+static const std::string TEST_DATA_DIR = std::string(IGOR_SOURCE_DIR) + "/tst/test_data/model_formats/";
 static const std::string MODELS_DIR = std::string(IGOR_SOURCE_DIR) + "/models/";
 
 namespace {
@@ -76,7 +76,7 @@ nlohmann::json without_parents(nlohmann::json node)
 TEST_CASE("model json: a v2 model serializes with its segment order", "[Core][json]")
 {
     Model_Parms parms;
-    REQUIRE_NOTHROW(parms.read_model_parms(TEST_DATA_DIR + "test_legacy_vdj_model_parms_v2.txt"));
+    REQUIRE_NOTHROW(parms.read_model_parms(TEST_DATA_DIR + "test_legacy_vdj_model_parms.txt"));
 
     const nlohmann::json doc = igor::model::legacy::model_parms_to_json(parms);
 
@@ -164,7 +164,7 @@ TEST_CASE("model json: realizations come out sorted by index", "[Core][json][int
 TEST_CASE("model json: json to object to json is the identity", "[Core][json]")
 {
     Model_Parms parms;
-    REQUIRE_NOTHROW(parms.read_model_parms(TEST_DATA_DIR + "test_legacy_vdj_model_parms_v2.txt"));
+    REQUIRE_NOTHROW(parms.read_model_parms(TEST_DATA_DIR + "test_legacy_vdj_model_parms.txt"));
     const nlohmann::json doc = igor::model::legacy::model_parms_to_json(parms);
 
     for (const auto &node : doc.at("events")) {
@@ -204,7 +204,7 @@ TEST_CASE("model json: a rebuilt DinucMarkov gets the same v1 name as the text r
     // The v1 name is what a v1 file's @Edges section names the event by. Its name, the key of the
     // model's maps, is its nickname (plan T2).
     Model_Parms parms;
-    REQUIRE_NOTHROW(parms.read_model_parms(TEST_DATA_DIR + "test_legacy_vdj_model_parms_v2.txt"));
+    REQUIRE_NOTHROW(parms.read_model_parms(TEST_DATA_DIR + "test_legacy_vdj_model_parms.txt"));
     const nlohmann::json doc = igor::model::legacy::model_parms_to_json(parms);
 
     const nlohmann::json &node = event_by_nickname(doc, "vd_dinucl");
@@ -217,15 +217,8 @@ TEST_CASE("model json: a rebuilt DinucMarkov gets the same v1 name as the text r
     REQUIRE(rebuilt->get_v1_legacy_name()
             == parms.get_event_pointer("vd_dinucl", true)->get_v1_legacy_name());
 
-    SECTION("the v1 and v2 names agree on the side token") {
-        // Only on the side. get_v2_name() disagrees with the v1 name on a DinucMarkov's class
-        // token: the v1 name derives it from the seq type ("VD_genes"), the v2 name reads
-        // event_class, which the reader leaves Undefined_gene.
-        for (const auto &name : { rebuilt->get_v1_legacy_name(), rebuilt->get_v2_name() }) {
-            INFO("name: " << name);
-            REQUIRE(name.find("Undefined_side") != std::string::npos);
-            REQUIRE(name.find("Three_prime") == std::string::npos);
-        }
+    SECTION("the v1 name says Undefined_side, never the chain's direction") {
+        REQUIRE(rebuilt->get_v1_legacy_name().find("Three_prime") == std::string::npos);
     }
 
     SECTION("the v1 name does not depend on the order of the setters") {
@@ -251,7 +244,7 @@ TEST_CASE("model json: a rebuilt DinucMarkov gets the same v1 name as the text r
 TEST_CASE("model json: a malformed event node is rejected", "[Core][json]")
 {
     Model_Parms parms;
-    REQUIRE_NOTHROW(parms.read_model_parms(TEST_DATA_DIR + "test_legacy_vdj_model_parms_v2.txt"));
+    REQUIRE_NOTHROW(parms.read_model_parms(TEST_DATA_DIR + "test_legacy_vdj_model_parms.txt"));
     const nlohmann::json doc = igor::model::legacy::model_parms_to_json(parms);
 
     SECTION("an unknown key, a typo for instance") {

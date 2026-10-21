@@ -93,7 +93,6 @@ public:
     void construct_realization(const std::vector<int> &, GenerationState &) const override;
     void write2txt(std::ofstream &) override;
     void write2txt_legacy(std::ofstream &) override;
-    void write2txt_v2(std::ofstream &) override;
     void initialize_event(
             std::unordered_set<Rec_Event_name> &,
             const Events_map &,

@@ -28,7 +28,7 @@ target_sources(model_tests
         Legacy/test_generation_state.cpp
         Legacy/test_genetic_code.cpp
         Legacy/test_insertion_iterate.cpp
-        Legacy/test_model_format_v2.cpp
+        Legacy/test_model_formats.cpp
         Legacy/test_model_json.cpp
         Legacy/test_proba_bound_benchmark.cpp
         Legacy/test_tandem_junctions.cpp

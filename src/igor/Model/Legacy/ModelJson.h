@@ -17,7 +17,9 @@
  *   - only a gene choice carries `gene_class`, the gene library it draws from. On the other
  *     events the text format's class field is a v1 token their seq type already gives.
  *
- * Reading this schema back, through a factory and per-class constructors, is step 2.
+ * model_parms_from_json() reads it back into a Model_Parms, through the event factory and the
+ * per-class constructors. It is the model file format for any model the v1 format cannot hold,
+ * a tandem D's for instance (plan T2), and replaced the v2 text format.
  */
 
 #include <igor/Model/Export.h>
@@ -40,5 +42,18 @@ constexpr int kModelJsonSchemaVersion = 1;
  *         error rate would look complete and rebuild a different model.
  */
 MODEL_EXPORT nlohmann::json model_parms_to_json(const Model_Parms &parms);
+
+/**
+ * \brief Fill an empty model from a document model_parms_to_json() wrote.
+ *
+ * The segment order, the events through the event factory, the edges from each event's
+ * parents, the error rate; then Model_Parms::finalize(). A key the schema does not have is
+ * refused, as it is in an event node.
+ * \throws std::runtime_error on another schema version, an unknown key, a parent no event is
+ *         named, or an error rate other than SingleErrorRate: the hypermutation models have no
+ *         JSON form yet (step HJ of docs/ERROR_MODEL_REWRITE_PLAN.md).
+ * \throws std::logic_error if \a parms already has events.
+ */
+MODEL_EXPORT void model_parms_from_json(const nlohmann::json &doc, Model_Parms &parms);
 
 } // namespace igor::model::legacy

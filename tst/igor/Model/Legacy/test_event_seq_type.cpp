@@ -35,7 +35,7 @@ using namespace igor::model::legacy;
 
 namespace {
 
-const std::string kTestDataDir = std::string(IGOR_SOURCE_DIR) + "/tst/test_data/format_v2/";
+const std::string kTestDataDir = std::string(IGOR_SOURCE_DIR) + "/tst/test_data/model_formats/";
 
 /// What an event is called and what it carries: the parts a model file and the outputs see.
 struct Identity {
@@ -160,22 +160,22 @@ TEST_CASE("The events of a legacy model keep their names, gene classes and seq t
           "[model_format][seq_type]")
 {
     SECTION("VDJ, legacy format") { require_identities("test_legacy_vdj_model_parms.txt", kVdj, true); }
-    SECTION("VDJ, v2 format") { require_identities("test_legacy_vdj_model_parms_v2.txt", kVdj, true); }
+    SECTION("VDJ, JSON") { require_identities("vdj_model.json", kVdj, true); }
     SECTION("VJ, legacy format") { require_identities("test_legacy_model_parms.txt", kVj, true); }
-    SECTION("VJ, v2 format") { require_identities("test_v2_model_parms.txt", kVj, true); }
+    SECTION("VJ, JSON") { require_identities("vj_model.json", kVj, true); }
 }
 
 TEST_CASE("The events of a tandem-D model carry the seq types it names",
           "[model_format][seq_type][tandem_d]")
 {
-    require_identities("test_v2_tandem_d_parms.txt", kTandemD, false);
+    require_identities("tandem_d_model.json", kTandemD, false);
 }
 
 TEST_CASE("A tandem-D event resolves its seq type and its neighbours from the model's order",
           "[model_format][seq_type][tandem_d]")
 {
     Model_Parms parms;
-    REQUIRE_NOTHROW(parms.read_model_parms(kTestDataDir + "test_v2_tandem_d_parms.txt"));
+    REQUIRE_NOTHROW(parms.read_model_parms(kTestDataDir + "tandem_d_model.json"));
     const SeqTypeRegistry &registry = parms.get_seq_type_registry();
 
     for (const auto &event : parms.get_event_list()) {
@@ -200,7 +200,7 @@ TEST_CASE("A tandem-D model written back reads the same seq types",
           "[model_format][seq_type][tandem_d]")
 {
     Model_Parms parms;
-    REQUIRE_NOTHROW(parms.read_model_parms(kTestDataDir + "test_v2_tandem_d_parms.txt"));
+    REQUIRE_NOTHROW(parms.read_model_parms(kTestDataDir + "tandem_d_model.json"));
 
     const std::filesystem::path written =
             std::filesystem::temp_directory_path() / "igor_test_event_seq_type_tandem_d_parms.txt";

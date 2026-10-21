@@ -712,14 +712,6 @@ void Gene_choice::write2txt_legacy(ofstream &outfile)
     }
 }
 
-void Gene_choice::write2txt_v2(ofstream &outfile)
-{
-    outfile << "#GeneChoice;" << event_class << ";" << seq_type << ";" << event_side << ";" << priority << ";" << nickname << endl;
-    for (const auto &iter : event_realizations) {
-        outfile << "%" << iter.second.name << ";" << iter.second.value_str << ";" << iter.second.index << endl;
-    }
-}
-
 void Gene_choice::initialize_event(
         unordered_set<Rec_Event_name> &processed_events,
         const Events_map &events_map,

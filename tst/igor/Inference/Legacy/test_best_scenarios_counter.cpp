@@ -39,7 +39,7 @@ TEST_CASE("The best-scenarios header names each event by nickname, or by its leg
 {
     ScratchDir dir;
     Model_Parms parms;
-    parms.read_model_parms(std::string(IGOR_SOURCE_DIR) + "/tst/test_data/format_v2/test_legacy_model_parms.txt");
+    parms.read_model_parms(std::string(IGOR_SOURCE_DIR) + "/tst/test_data/model_formats/test_legacy_model_parms.txt");
 
     SECTION("by nickname, the default") {
         CHECK(header_of(dir, parms, Event_label::Nickname)

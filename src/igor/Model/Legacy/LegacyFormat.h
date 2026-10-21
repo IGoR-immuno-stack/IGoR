@@ -10,7 +10,7 @@
  * that translation, in both directions.
  *
  * Only the six legacy seq types have a gene class. Any other, a tandem D's included, gets
- * Undefined_gene; Model_Parms::write_model_parms() writes such a model in v2.
+ * Undefined_gene; Model_Parms::write_model_parms() writes such a model as JSON.
  */
 
 #include <igor/Core/Legacy/Utils.h>

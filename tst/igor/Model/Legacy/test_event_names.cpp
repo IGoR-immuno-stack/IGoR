@@ -34,7 +34,7 @@ using namespace igor::model::legacy;
 
 namespace {
 
-const std::string kTestDataDir = std::string(IGOR_SOURCE_DIR) + "/tst/test_data/format_v2/";
+const std::string kTestDataDir = std::string(IGOR_SOURCE_DIR) + "/tst/test_data/model_formats/";
 const std::string kHumanTrb = std::string(IGOR_MODELS_DIR) + "/human/tcr_beta/models/model_parms.txt";
 
 std::string read_file(const std::string &path)
@@ -107,7 +107,7 @@ bool has_an_edge(const Graph &graph)
     return std::any_of(graph.begin(), graph.end(), [](const auto &entry) { return !entry.second.empty(); });
 }
 
-const std::string kTandemFixture = kTestDataDir + "test_v2_tandem_d_parms.txt";
+const std::string kTandemFixture = kTestDataDir + "tandem_d_model.json";
 
 /// Human TRB's dependencies with its D block doubled, as T5's model has them.
 const std::vector<std::pair<std::string, std::string>> kTandemEdges = {
@@ -187,7 +187,7 @@ TEST_CASE("A legacy model's edges survive a round trip", "[event_name][model_for
     ScratchDir scratch;
     const std::string written = scratch.file("written_parms.txt");
     SECTION("in v1") { parms.write_model_parms_legacy(written); }
-    SECTION("in v2, whose edges name events by their v2 name") { parms.write_model_parms_v2(written); }
+    SECTION("in JSON, whose edges name events by nickname") { parms.write_model_parms_json(written); }
 
     Model_Parms read_back;
     REQUIRE_NOTHROW(read_back.read_model_parms(written));

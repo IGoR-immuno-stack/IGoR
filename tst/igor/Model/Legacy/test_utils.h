@@ -673,7 +673,6 @@ public:
     OffsetRole get_offset_role(SeqTypeId, Seq_side) const override { return OffsetRole::None; }
     void write2txt(std::ofstream &) override {}
     void write2txt_legacy(std::ofstream &) override {}
-    void write2txt_v2(std::ofstream &) override {}
     void add_to_marginals(long double, Marginal_array_p &) const override {}
     int length_delta(const Event_realization &) const override { return 0; }
 };

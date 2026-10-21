@@ -37,7 +37,6 @@ public:
   void construct_realization(const vector<int> &, GenerationState &) const override {}
   void write2txt(ofstream &) override {}
   void write2txt_legacy(ofstream &) override {}
-  void write2txt_v2(ofstream &) override {}
   void initialize_event(
       unordered_set<Rec_Event_name> &,
       const Events_map &,

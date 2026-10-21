@@ -242,10 +242,6 @@ public:
     /// keys the legacy maps until the migration's uid; a model file and the outputs name the event
     /// by it too. Set it before the event joins a model, whose maps it keys from then on.
     const Rec_Event_name get_name() const { return nickname; };
-    /// Returns the v2.0-format event name that includes seq_type between
-    /// gene_class and seq_side.  Used in @Edges sections of v2.0 files.
-    /// Falls back to get_v1_legacy_name() when seq_type is empty.
-    Rec_Event_name get_v2_name() const;
     /// The name a v1 model file gives the event in its @Edges section: type, gene class, side,
     /// priority and size. It names one event only where a v1 gene class does, which
     /// Model_Parms::requires_extended_format() checks. Also the `legacy` output name (event_label()).
@@ -381,7 +377,6 @@ public:
     ///@}
     virtual void write2txt(std::ofstream &) = 0;
     virtual void write2txt_legacy(std::ofstream &) = 0;
-    virtual void write2txt_v2(std::ofstream &) = 0;
 
     /**
      * \brief Serialized form of this event: its header fields plus its realizations.

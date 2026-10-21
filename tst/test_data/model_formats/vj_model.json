@@ -1,0 +1,120 @@
+{
+  "error_rate": {
+    "rate": 0.001,
+    "type": "SingleErrorRate"
+  },
+  "events": [
+    {
+      "gene_class": "V_gene",
+      "nickname": "v_choice",
+      "parents": [],
+      "priority": 7,
+      "realizations": [
+        {
+          "index": 0,
+          "name": "V_test",
+          "value_str": "ATCGATCG"
+        }
+      ],
+      "seq_type": "V_gene_seq",
+      "side": "Undefined_side",
+      "type": "GeneChoice"
+    },
+    {
+      "gene_class": "J_gene",
+      "nickname": "j_choice",
+      "parents": [
+        "v_choice"
+      ],
+      "priority": 7,
+      "realizations": [
+        {
+          "index": 0,
+          "name": "J_test",
+          "value_str": "GCTAGCTA"
+        }
+      ],
+      "seq_type": "J_gene_seq",
+      "side": "Undefined_side",
+      "type": "GeneChoice"
+    },
+    {
+      "nickname": "v_3_del",
+      "parents": [
+        "v_choice"
+      ],
+      "priority": 5,
+      "realizations": [
+        {
+          "index": 0,
+          "name": "0",
+          "value_int": 0
+        },
+        {
+          "index": 1,
+          "name": "1",
+          "value_int": 1
+        }
+      ],
+      "seq_type": "V_gene_seq",
+      "side": "Three_prime",
+      "type": "Deletion"
+    },
+    {
+      "nickname": "vj_ins",
+      "parents": [],
+      "priority": 4,
+      "realizations": [
+        {
+          "index": 0,
+          "name": "0",
+          "value_int": 0
+        },
+        {
+          "index": 1,
+          "name": "1",
+          "value_int": 1
+        }
+      ],
+      "seq_type": "VJ_ins_seq",
+      "side": "Undefined_side",
+      "type": "Insertion"
+    },
+    {
+      "nickname": "vj_dinucl",
+      "parents": [],
+      "priority": 1,
+      "realizations": [
+        {
+          "index": 0,
+          "name": "A",
+          "value_str": "A"
+        },
+        {
+          "index": 1,
+          "name": "C",
+          "value_str": "C"
+        },
+        {
+          "index": 2,
+          "name": "G",
+          "value_str": "G"
+        },
+        {
+          "index": 3,
+          "name": "T",
+          "value_str": "T"
+        }
+      ],
+      "seq_type": "VJ_ins_seq",
+      "side": "Three_prime",
+      "type": "DinucMarkov"
+    }
+  ],
+  "schema_version": 1,
+  "seq_type_order": [
+    "V_gene_seq",
+    "VJ_ins_seq",
+    "J_gene_seq"
+  ]
+}

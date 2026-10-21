@@ -291,15 +291,6 @@ void Insertion::write2txt_legacy(ofstream &outfile)
     }
 }
 
-void Insertion::write2txt_v2(ofstream &outfile)
-{
-    outfile << "#Insertion;Undefined_gene;" << seq_type << ";" << event_side << ";" << priority << ";" << nickname << endl;
-    for (unordered_map<string, Event_realization>::const_iterator iter = event_realizations.begin();
-         iter != event_realizations.end(); ++iter) {
-        outfile << "%" << (*iter).second.value_int << ";" << (*iter).second.index << endl;
-    }
-}
-
 void Insertion::initialize_event(
         unordered_set<Rec_Event_name> &processed_events,
         const Events_map &events_map,

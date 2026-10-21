@@ -425,15 +425,6 @@ void Dinucl_markov::write2txt_legacy(ofstream &outfile)
     }
 }
 
-void Dinucl_markov::write2txt_v2(ofstream &outfile)
-{
-    outfile << "#DinucMarkov;Undefined_gene;" << seq_type << ";" << event_side << ";" << priority << ";" << nickname << endl;
-    for (unordered_map<string, Event_realization>::const_iterator iter = event_realizations.begin();
-         iter != event_realizations.end(); ++iter) {
-        outfile << "%" << (*iter).second.value_str << ";" << (*iter).second.index << endl;
-    }
-}
-
 
 void Dinucl_markov::iterate_common(std::vector<int> &realization_indices, int &previous_assigned_nt,
                                    Int_Str &ins_seq, const Marginal_array_p &model_parameters_point)

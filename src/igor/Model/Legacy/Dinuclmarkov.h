@@ -129,7 +129,6 @@ public:
     {}
     void write2txt(std::ofstream &) override;
     void write2txt_legacy(std::ofstream &) override;
-    void write2txt_v2(std::ofstream &) override;
     void ind_normalize(Marginal_array_p &, size_t) const override;
 
     void initialize_event(

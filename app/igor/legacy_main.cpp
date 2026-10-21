@@ -1333,7 +1333,10 @@ int igor_legacy_main(int argc, char *argv[])
     if (load_last_inferred_parms) {
         clog << "Loading last inferred model..." << endl;
         try {
-            cl_model_parms.read_model_parms(cl_path + batchname + "inference/final_parms.txt");
+            //An inference of a model the v1 format cannot hold wrote it as JSON.
+            const string last_parms = cl_path + batchname + "inference/final_parms";
+            cl_model_parms.read_model_parms(std::filesystem::exists(last_parms + ".json") ? last_parms + ".json"
+                                                                                           : last_parms + ".txt");
             cl_model_marginals = Model_marginals(cl_model_parms);
             cl_model_marginals.txt2marginals(cl_path + batchname + "inference/final_marginals.txt", cl_model_parms);
 
