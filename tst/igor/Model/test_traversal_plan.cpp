@@ -38,7 +38,7 @@ std::shared_ptr<Event> on(std::shared_ptr<Event> event, const SeqTypeRegistry &r
 {
     event->set_seq_type(seq_type);
     event->set_seq_type_id(registry.id(seq_type));
-    event->update_event_name();
+    event->set_nickname(default_nickname(*event));
     return event;
 }
 

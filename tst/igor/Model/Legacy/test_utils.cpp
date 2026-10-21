@@ -731,6 +731,12 @@ long double total_marginal_mass(const IterateTestState &state, std::size_t margi
 // Event builders
 // ============================================================================
 
+std::string default_nickname(const Rec_Event &event)
+{
+    return std::string() + event.get_type() + "_" + event.get_seq_type() + "_"
+           + Rec_Event::name_side(event.get_type(), event.get_side());
+}
+
 std::shared_ptr<Gene_choice> make_gene_choice(Gene_class gene_class,
                                               const std::vector<std::pair<std::string, std::string>> &genes,
                                               int event_id, bool fixed)
@@ -748,7 +754,7 @@ std::shared_ptr<Gene_choice> make_gene_choice(Gene_class gene_class,
     const Seq_type_String seq_type = EventUtils::seq_type_to_string(target);
     event->set_seq_type(seq_type);
     event->set_seq_type_id(legacy_seq_type_registry().id(seq_type));
-    event->update_event_name();
+    event->set_nickname(default_nickname(*event));
     event->fix(fixed);
     return event;
 }
@@ -761,7 +767,7 @@ std::shared_ptr<Deletion> make_deletion(Seq_type target, Seq_side side, int min_
     event->set_event_identifier(event_id);
     event->set_priority(1);
     event->set_seq_type_id(legacy_seq_type_registry().id(seq_type));
-    event->update_event_name();
+    event->set_nickname(default_nickname(*event));
     event->fix(true);
     return event;
 }
@@ -773,7 +779,7 @@ std::shared_ptr<Insertion> make_insertion(Seq_type target, int min_ins, int max_
     event->set_event_identifier(event_id);
     event->set_priority(1);
     event->set_seq_type_id(legacy_seq_type_registry().id(seq_type));
-    event->update_event_name();
+    event->set_nickname(default_nickname(*event));
     event->fix(true);
     return event;
 }
@@ -807,7 +813,7 @@ std::shared_ptr<Dinucl_markov> make_dinucl_markov(Seq_type target, int event_id,
     event->set_event_identifier(event_id);
     event->set_priority(1);
     event->set_seq_type_id(legacy_seq_type_registry().id(seq_type));
-    event->update_event_name();
+    event->set_nickname(default_nickname(*event));
     event->fix(true);
     return event;
 }

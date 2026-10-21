@@ -195,15 +195,14 @@ TEST_CASE("model json: round trip on a shipped model", "[Core][json][integration
     }
 }
 
-TEST_CASE("model json: a rebuilt DinucMarkov gets the same name as the text reader's",
+TEST_CASE("model json: a rebuilt DinucMarkov gets the same v1 name as the text reader's",
           "[Core][json]")
 {
-    // A DinucMarkov's generated name carries Undefined_side whatever its side, by decision:
-    // the seq_type identifies the junction and the side is a direction only. Model_Parms
-    // already keys it that way in get_events_map(), and write2txt_legacy() writes it that way
-    // in the event line. This is what makes the name independent of the order of the setters,
-    // and the name is a key — of Model_marginals::get_index_map(), of Model_Parms::edges, and
-    // of the scenario and generation output columns.
+    // A DinucMarkov's v1 name carries Undefined_side whatever its side, by decision: the
+    // seq_type identifies the junction and the side is a direction only. Model_Parms keys it
+    // that way in get_events_map(), and write2txt_legacy() writes it that way in the event line.
+    // The v1 name is what a v1 file's @Edges section names the event by. Its name, the key of the
+    // model's maps, is its nickname (plan T2).
     Model_Parms parms;
     REQUIRE_NOTHROW(parms.read_model_parms(TEST_DATA_DIR + "test_legacy_vdj_model_parms_v2.txt"));
     const nlohmann::json doc = igor::model::legacy::model_parms_to_json(parms);
@@ -213,42 +212,39 @@ TEST_CASE("model json: a rebuilt DinucMarkov gets the same name as the text read
 
     const auto rebuilt = event_from_json(node);
     REQUIRE(rebuilt->get_side() == Three_prime);
-    REQUIRE(rebuilt->get_name().find("Undefined_side") != std::string::npos);
-    REQUIRE(rebuilt->get_name()
-            == parms.get_event_pointer("vd_dinucl", true)->get_name());
+    REQUIRE(rebuilt->get_name() == "vd_dinucl");
+    REQUIRE(rebuilt->get_v1_legacy_name().find("Undefined_side") != std::string::npos);
+    REQUIRE(rebuilt->get_v1_legacy_name()
+            == parms.get_event_pointer("vd_dinucl", true)->get_v1_legacy_name());
 
-    SECTION("the three name accessors agree on the side token") {
-        // Only on the side. get_v2_name() disagrees with the other two on a DinucMarkov's class
-        // token: they derive it from the seq type ("VD_genes"), it reads event_class, which the
-        // reader leaves Undefined_gene.
-        for (const auto &name : { rebuilt->get_name(), rebuilt->get_v1_legacy_name(),
-                                  rebuilt->get_v2_name() }) {
+    SECTION("the v1 and v2 names agree on the side token") {
+        // Only on the side. get_v2_name() disagrees with the v1 name on a DinucMarkov's class
+        // token: the v1 name derives it from the seq type ("VD_genes"), the v2 name reads
+        // event_class, which the reader leaves Undefined_gene.
+        for (const auto &name : { rebuilt->get_v1_legacy_name(), rebuilt->get_v2_name() }) {
             INFO("name: " << name);
             REQUIRE(name.find("Undefined_side") != std::string::npos);
             REQUIRE(name.find("Three_prime") == std::string::npos);
         }
     }
 
-    SECTION("the name no longer depends on the order of the setters") {
-        const auto name = rebuilt->get_name();
+    SECTION("the v1 name does not depend on the order of the setters") {
+        const auto name = rebuilt->get_v1_legacy_name();
 
-        rebuilt->set_event_side(Five_prime);        // refreshes the name, as any setter does
+        rebuilt->set_event_side(Five_prime);
         REQUIRE(rebuilt->get_side() == Five_prime);
-        REQUIRE(rebuilt->get_name() == name);
-
-        rebuilt->update_event_name();               // and calling it again changes nothing
-        REQUIRE(rebuilt->get_name() == name);
+        REQUIRE(rebuilt->get_v1_legacy_name() == name);
     }
 
     SECTION("an event whose side IS its identity still carries it") {
         // The rule is specific to DinucMarkov. A deletion is identified by its side, so its
-        // name must keep it, and set_event_side() must move it.
+        // v1 name must keep it, and set_event_side() must move it.
         const auto deletion = event_from_json(event_by_nickname(doc, "v_3_del"));
-        REQUIRE(deletion->get_name().find("Three_prime") != std::string::npos);
+        REQUIRE(deletion->get_v1_legacy_name().find("Three_prime") != std::string::npos);
 
         deletion->set_event_side(Five_prime);
-        REQUIRE(deletion->get_name().find("Five_prime") != std::string::npos);
-        REQUIRE(deletion->get_name().find("Three_prime") == std::string::npos);
+        REQUIRE(deletion->get_v1_legacy_name().find("Five_prime") != std::string::npos);
+        REQUIRE(deletion->get_v1_legacy_name().find("Three_prime") == std::string::npos);
     }
 }
 

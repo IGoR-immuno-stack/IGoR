@@ -29,7 +29,9 @@
 
 #include <igor/Model/Legacy/Model_Parms.h>
 #include <igor/Alignment/Legacy/Aligner.h>
+#include <map>
 #include <set>
+#include <tuple>
 
 #include <cassert>
 #include <igor/Model/Legacy/gene_to_seqtype_migr.h>
@@ -56,13 +58,8 @@ Model_Parms::Model_Parms()
  */
 Model_Parms::Model_Parms(list<shared_ptr<Rec_Event>> event_list)
 {
-    this->events = event_list;
-    //this->edges = *(new unordered_map<Rec_Event_name,Adjacency_list>()); //FIXME nonsense new
-    size_t event_identifier = 0;
-    for (list<shared_ptr<Rec_Event>>::const_iterator iter = this->events.begin(); iter != this->events.end(); ++iter) {
-        this->edges.emplace((*iter)->get_name(), Adjacency_list());
-        (*iter)->set_event_identifier(event_identifier);
-        ++event_identifier;
+    for (const shared_ptr<Rec_Event> &event : event_list) {
+        this->add_event(event);
     }
 }
 
@@ -76,32 +73,22 @@ Model_Parms::Model_Parms(const Model_Parms &other)
         this->events.push_back((*iter)->copy());
     }
 
-    for (unordered_map<Rec_Event_name, Adjacency_list>::const_iterator iter = other.edges.begin();
-         iter != other.edges.end(); ++iter) {
+    //Each edge's events are found again by name, which is unique in a model. They used to be
+    //found with Rec_Event::operator==, which ignored the seq type, so in a copy an edge to D2's
+    //deletion could land on D1's.
+    unordered_map<Rec_Event_name, shared_ptr<Rec_Event>> copy_named;
+    for (const shared_ptr<Rec_Event> &event : this->events) {
+        copy_named.emplace(event->get_name(), event);
+    }
+    for (const auto &[name, other_adjacency] : other.edges) {
         Adjacency_list adjacency_list;
-        //TODO very dirty need to be changed
-        for (list<shared_ptr<Rec_Event>>::const_iterator jiter = (*iter).second.children.begin();
-             jiter != (*iter).second.children.end(); ++jiter) {
-            for (list<shared_ptr<Rec_Event>>::const_iterator kiter = this->events.begin(); kiter != this->events.end();
-                 ++kiter) {
-                if ((**kiter) == (**jiter)) {
-                    adjacency_list.children.push_back((*kiter));
-                    break;
-                }
-            }
+        for (const shared_ptr<Rec_Event> &child : other_adjacency.children) {
+            adjacency_list.children.push_back(copy_named.at(child->get_name()));
         }
-        for (list<shared_ptr<Rec_Event>>::const_iterator jiter = (*iter).second.parents.begin();
-             jiter != (*iter).second.parents.end(); ++jiter) {
-            for (list<shared_ptr<Rec_Event>>::const_iterator kiter = this->events.begin(); kiter != this->events.end();
-                 ++kiter) {
-                if ((**kiter) == (**jiter)) {
-                    adjacency_list.parents.push_back((*kiter));
-                    break;
-                }
-            }
+        for (const shared_ptr<Rec_Event> &parent : other_adjacency.parents) {
+            adjacency_list.parents.push_back(copy_named.at(parent->get_name()));
         }
-
-        this->edges.emplace((*iter).first, adjacency_list);
+        this->edges.emplace(name, adjacency_list);
     }
     this->error_rate = other.error_rate->copy();
     //The registry holds no owning pointers, so a plain copy is a deep copy.
@@ -150,6 +137,17 @@ bool Model_Parms::add_event(shared_ptr<Rec_Event> event_point)
     //could require a seq_type the frozen registry no longer accepts.
     if (seq_type_registry.is_frozen()) {
         throw std::logic_error("Model_Parms::add_event(): the model has been finalized");
+    }
+    //The nickname is the event's name: the key of the edges and the marginals' maps, and what
+    //the files and outputs name the event by (plan T2). An event without one, or with one the
+    //model already has, would share every entry with another.
+    if (event_point->get_nickname().empty()) {
+        throw runtime_error("Model_Parms::add_event(): the " + (string() + event_point->get_type())
+                            + " event on \"" + event_point->get_seq_type() + "\" has no nickname");
+    }
+    if (this->edges.count(event_point->get_name()) != 0) {
+        throw runtime_error("Model_Parms::add_event(): the model already has an event named \""
+                            + event_point->get_name() + "\"");
     }
     event_point->set_event_identifier(this->events.size());
     this->events.emplace_back(event_point);
@@ -537,15 +535,6 @@ shared_ptr<Rec_Event> Model_Parms::get_event_pointer(const Rec_Event_name &event
     return this->get_event_pointer(event_name, false);
 }
 
-void Model_Parms::update_edge_event_name(Rec_Event_name former_name, Rec_Event_name new_name)
-{
-    if (former_name != new_name) {
-        Adjacency_list adjacency_list = this->edges.at(former_name);
-        this->edges.emplace(new_name, adjacency_list);
-        this->edges.erase(former_name);
-    }
-}
-
 Events_map Model_Parms::get_events_map() const
 {
     //Handing out a model whose events do not know their seq_type id or their neighbours is
@@ -578,6 +567,22 @@ Events_map Model_Parms::get_events_map()
 
 void Model_Parms::finalize()
 {
+    //A name no longer stops two events of one type on one segment and side, and nothing in the
+    //model forbids them. The legacy engine does: get_events_map() holds one event per such key,
+    //and would drop the second without a word.
+    map<tuple<Event_type, Seq_type_String, Seq_side>, shared_ptr<Rec_Event>> at_place;
+    for (const shared_ptr<Rec_Event> &event : events) {
+        const Seq_side map_side = (event->get_type() == Dinuclmarkov_t) ? Undefined_side : event->get_side();
+        const auto [placed, inserted] =
+                at_place.emplace(make_tuple(event->get_type(), event->get_seq_type(), map_side), event);
+        if (not inserted) {
+            throw runtime_error("Model_Parms::finalize(): \"" + placed->second->get_nickname() + "\" and \""
+                                + event->get_nickname() + "\" are both " + (string() + event->get_type())
+                                + " events on \"" + event->get_seq_type() + "\" at " + (string() + map_side)
+                                + ": the legacy engine holds one event per type, segment and side");
+        }
+    }
+
     if (!seq_type_registry.is_frozen()) {
         //Pin the legacy ids first, so that an inferred ordering does not renumber them.
         seq_type_registry.register_legacy_seq_types();
@@ -835,16 +840,15 @@ void Model_Parms::read_model_parms(string filename)
 
             semicolon_index = next_semicolon_index;
             next_semicolon_index = line_str.find(";", semicolon_index + 1);
-            int priority;
-            string nickname;
-            if (next_semicolon_index == string::npos) {
-                //For retro-compatibility purposes
-                priority = stoi(line_str.substr(semicolon_index + 1, string::npos));
-            } else {
-                //Read the nickname along with the priority
-                priority = stoi(line_str.substr(semicolon_index + 1, next_semicolon_index - 1));
-                nickname = line_str.substr(next_semicolon_index + 1, string::npos);
+            //The nickname is the event's name (plan T2). Early model files could leave it out; none
+            //that IGoR ships does, and adding one is cheap.
+            if (next_semicolon_index == string::npos
+                or next_semicolon_index + 1 == line_str.size()) {
+                throw runtime_error("Event line \"" + line_str + "\" in model file \"" + filename
+                                    + "\" has no nickname: every event needs one, unique in its model");
             }
+            const int priority = stoi(line_str.substr(semicolon_index + 1, next_semicolon_index - 1));
+            const string nickname = line_str.substr(next_semicolon_index + 1, string::npos);
 
             cerr << event << " read" << endl;
             

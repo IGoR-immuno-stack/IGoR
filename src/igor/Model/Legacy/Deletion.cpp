@@ -57,7 +57,6 @@ Deletion::Deletion(const Seq_type_String &target_seq, Seq_side del_side, pair<in
     for (int i = min_del; i != max_del + 1; ++i) {
         this->add_realization(i);
     }
-    this->update_event_name();
 }
 
 /*
@@ -91,7 +90,6 @@ Deletion::Deletion(const Seq_type_String &target_seq, Seq_side side)
             this->len_max = -(*iter).second.value_int;
         }
     }
-    this->update_event_name();
 }
 
 Deletion::Deletion(const Seq_type_String &target_seq, Seq_side side,
@@ -109,7 +107,6 @@ Deletion::Deletion(const Seq_type_String &target_seq, Seq_side side,
             this->len_max = -(*iter).second.value_int;
         }
     }
-    this->update_event_name();
 }
 
 Deletion::Deletion(const nlohmann::json &node)
@@ -125,8 +122,6 @@ Deletion::Deletion(const nlohmann::json &node)
 
     for (const nlohmann::json *realization : realizations_in_index_order(node))
         this->add_realization(require(*realization, "value_int").get<int>());
-
-    this->update_event_name();
 }
 
 Deletion::~Deletion()
@@ -142,7 +137,6 @@ shared_ptr<Rec_Event> Deletion::copy()
     new_deletion_p->priority = this->priority;
     new_deletion_p->nickname = this->nickname;
     new_deletion_p->fixed = this->is_fixed();
-    new_deletion_p->update_event_name();
     new_deletion_p->set_event_identifier(this->event_index);
     new_deletion_p->set_seq_type_id(this->get_seq_type_id());
     return new_deletion_p;
@@ -158,7 +152,6 @@ void Deletion::add_realization(int del_number)
     } else if (del_number < (-this->len_max)) {
         this->len_max = (-del_number);
     }
-    this->update_event_name();
 }
 
 /**

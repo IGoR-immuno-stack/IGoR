@@ -142,8 +142,9 @@ TEST_CASE("EventFactory: the event it returns is complete", "[factory]")
     REQUIRE(event->get_priority() == 5);
     REQUIRE(event->get_nickname() == "v_3_del");
     REQUIRE(event->size() == 2);
-    // Nothing had to be set afterwards, so the generated name is already the final one.
-    REQUIRE(event->get_name() == "Deletion_V_gene_Three_prime_prio5_size2");
+    // Its name is its nickname (plan T2); its v1 name is complete with nothing set afterwards.
+    REQUIRE(event->get_name() == "v_3_del");
+    REQUIRE(event->get_v1_legacy_name() == "Deletion_V_gene_Three_prime_prio5_size2");
 }
 
 TEST_CASE("EventFactory: a node it cannot dispatch is rejected", "[factory]")

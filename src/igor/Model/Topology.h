@@ -21,6 +21,7 @@ public:
     using Adjacency_t = Navigator<legacy::Rec_Event>;
 
     // Core Graph Construction
+    /// Refuses an event with no nickname, or with one the topology already has.
     core::index_type addEvent(std::shared_ptr<legacy::Rec_Event> event);
     void addEdge(core::index_type parent_id, core::index_type child_id);
     

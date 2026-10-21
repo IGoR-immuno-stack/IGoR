@@ -732,6 +732,14 @@ long double total_marginal_mass(const IterateTestState &state, std::size_t margi
 // ============================================================================
 
 /**
+ * A nickname from where the event sits: its type, seq type and side, as get_events_map() keys
+ * it. An event's nickname is its name, the key of every name-keyed map (plan T2), so the
+ * builders below give each event one, and a helper that moves an event onto another segment
+ * gives it a new one. Two events with the same key cannot share a model anyway.
+ */
+std::string default_nickname(const Rec_Event &event);
+
+/**
  * Build a Gene_choice carrying one realization per (name, sequence) pair.
  *
  * `fixed` defaults to true for a reason: at a leaf, iterate_wrap_up() calls

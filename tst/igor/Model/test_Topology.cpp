@@ -54,9 +54,9 @@ TEST_CASE("Topology Construction", "[Model][Topology]") {
 
 TEST_CASE("Topology Edges & Adjacency", "[Model][Topology]") {
     Topology topology;
-    auto root = std::make_shared<Gene_choice>(); root->set_priority(10);
-    auto child1 = std::make_shared<Gene_choice>(); child1->set_priority(11);
-    auto child2 = std::make_shared<Gene_choice>(); child2->set_priority(12);
+    auto root = std::make_shared<Gene_choice>(); root->set_priority(10); root->set_nickname("root");
+    auto child1 = std::make_shared<Gene_choice>(); child1->set_priority(11); child1->set_nickname("child1");
+    auto child2 = std::make_shared<Gene_choice>(); child2->set_priority(12); child2->set_nickname("child2");
     
     index_type r_id = topology.addEvent(root);
     index_type c1_id = topology.addEvent(child1);
@@ -90,8 +90,8 @@ TEST_CASE("Topology Edges & Adjacency", "[Model][Topology]") {
 
 TEST_CASE("Topology Modification", "[Model][Topology]") {
     Topology topology;
-    auto p = std::make_shared<Gene_choice>(); p->set_priority(20);
-    auto c = std::make_shared<Gene_choice>(); c->set_priority(21);
+    auto p = std::make_shared<Gene_choice>(); p->set_priority(20); p->set_nickname("p");
+    auto c = std::make_shared<Gene_choice>(); c->set_priority(21); c->set_nickname("c");
     
     index_type p_id = topology.addEvent(p);
     index_type c_id = topology.addEvent(c);
@@ -119,9 +119,9 @@ TEST_CASE("Topology Modification", "[Model][Topology]") {
 
 TEST_CASE("Topology Algorithms", "[Model][Topology]") {
     Topology t;
-    auto n1 = std::make_shared<Gene_choice>(); n1->set_priority(30);
-    auto n2 = std::make_shared<Gene_choice>(); n2->set_priority(31);
-    auto n3 = std::make_shared<Gene_choice>(); n3->set_priority(32);
+    auto n1 = std::make_shared<Gene_choice>(); n1->set_priority(30); n1->set_nickname("n1");
+    auto n2 = std::make_shared<Gene_choice>(); n2->set_priority(31); n2->set_nickname("n2");
+    auto n3 = std::make_shared<Gene_choice>(); n3->set_priority(32); n3->set_nickname("n3");
     
     t.addEvent(n1); // 0
     t.addEvent(n2); // 1

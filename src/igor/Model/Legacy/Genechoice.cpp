@@ -41,7 +41,6 @@ using namespace std;
 Gene_choice::Gene_choice() : Gene_choice(Undefined_gene)
 {
     this->type = Event_type::GeneChoice_t;
-    this->update_event_name();
 }
 
 Gene_choice::Gene_choice(Gene_class gene)
@@ -61,7 +60,6 @@ Gene_choice::Gene_choice(Gene_class gene)
       memory_layer_off_fivep(-1)
 {
     this->type = Event_type::GeneChoice_t;
-    this->update_event_name();
 }
 
 /*
@@ -82,7 +80,6 @@ Gene_choice::Gene_choice(Gene_class gene, unordered_map<string, Event_realizatio
             this->len_min = str_len;
         }
     }
-    this->update_event_name();
 }
 
 Gene_choice::Gene_choice(Gene_class gene, vector<pair<string, string>> genomic_sequences) : Gene_choice(gene)
@@ -98,7 +95,6 @@ Gene_choice::Gene_choice(Gene_class gene, vector<pair<string, string>> genomic_s
         }
         this->add_realization((*seq_it).first, (*seq_it).second);
     }
-    this->update_event_name();
 }
 
 Gene_choice::Gene_choice(const nlohmann::json &node)
@@ -116,8 +112,6 @@ Gene_choice::Gene_choice(const nlohmann::json &node)
     for (const nlohmann::json *realization : realizations_in_index_order(node))
         this->add_realization(require(*realization, "name").get<string>(),
                               require(*realization, "value_str").get<string>());
-
-    this->update_event_name();
 }
 
 nlohmann::json Gene_choice::to_json() const
@@ -139,7 +133,6 @@ shared_ptr<Rec_Event> Gene_choice::copy()
     new_gene_choice_p->priority = this->priority;
     new_gene_choice_p->nickname = this->nickname;
     new_gene_choice_p->fixed = this->fixed;
-    new_gene_choice_p->update_event_name();
     new_gene_choice_p->set_event_identifier(this->event_index);
     new_gene_choice_p->set_seq_type(this->get_seq_type());
     new_gene_choice_p->set_seq_type_id(this->get_seq_type_id());
@@ -156,7 +149,6 @@ bool Gene_choice::add_realization(string gene_name, string gene_sequence)
     }
     this->Rec_Event::add_realization(Event_realization(gene_name, INT16_MAX, gene_sequence, nt2int(gene_sequence),
                                                        this->event_realizations.size())); //FIXME nonsense new
-    this->update_event_name();
     return 1;
 }
 

@@ -66,7 +66,6 @@ Dinucl_markov::Dinucl_markov(const Seq_type_String &seq_type) : Rec_Event(), tot
     event_realizations.emplace("T", Event_realization("T", INT16_MAX, "T", Int_Str(), 3));
 
     dinuc_proba_matrix = Matrix<double>(kIntNtCount, kIntNtCount);
-    this->update_event_name();
 }
 
 Dinucl_markov::Dinucl_markov(const nlohmann::json &node)
@@ -150,7 +149,6 @@ shared_ptr<Rec_Event> Dinucl_markov::copy()
     new_dinucl_markov_p->priority = this->priority;
     new_dinucl_markov_p->nickname = this->nickname;
     new_dinucl_markov_p->fixed = this->fixed;
-    new_dinucl_markov_p->update_event_name();
     new_dinucl_markov_p->set_event_identifier(this->event_index);
     new_dinucl_markov_p->set_seq_type_id(this->get_seq_type_id());
     new_dinucl_markov_p->set_event_side(this->get_side());
@@ -262,7 +260,7 @@ void Dinucl_markov::iterate(
             //already a no-op on an empty junction, and data_seq_substr is read nowhere else.
         } else if (previous_seq.empty()) {
             const SeqTypeRegistry &registry = scenario.constructed_sequences.registry();
-            throw runtime_error("Dinucl_markov " + this->name + ": the anchor segment "
+            throw runtime_error("Dinucl_markov " + this->get_name() + ": the anchor segment "
                                 + registry.name(spec.anchor_id) + " carries no nucleotide to seed "
                                 "the Markov chain from. This scenario deleted it entirely -- a "
                                 "legal realization, but one that leaves " + registry.name(spec.target_id)
@@ -323,7 +321,7 @@ vector<int> Dinucl_markov::draw_realization(const Marginal_array_p &, const unor
     uniform_real_distribution<double> distribution(0.0, 1.0);
 
     const DinuclTraversalSpec spec = get_junction();
-    require_junction(spec, this->name);
+    require_junction(spec, this->get_name());
 
     //Copies: the draw reads what has been built and writes nothing. The chain runs away from
     //its anchor, so a chain seeded from the anchor's 5' end reads that anchor backwards.
@@ -392,7 +390,7 @@ vector<int> Dinucl_markov::draw_chain(const string &previous_seq, string &insert
 void Dinucl_markov::construct_realization(const vector<int> &chain, GenerationState &segments) const
 {
     const DinuclTraversalSpec spec = get_junction();
-    require_junction(spec, this->name);
+    require_junction(spec, this->get_name());
 
     //One chain entry per placeholder, in chain order; the chain then reads 5'->3' once turned
     //around for a chain that ran from the right.
@@ -540,7 +538,7 @@ void Dinucl_markov::initialize_event(
 
     const DinuclTraversalSpec spec = get_junction();
     if (spec.anchor_id == kNoSeqType) {
-        throw invalid_argument("Dinucl_markov " + this->name
+        throw invalid_argument("Dinucl_markov " + this->get_name()
                                + ": no junction to fill. Its seq_type must be in the registry "
                                  "(Model_Parms::finalize() resolves that), it must declare which "
                                  "side its chain runs from, and that side must have a neighbour.");

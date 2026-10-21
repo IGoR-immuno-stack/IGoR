@@ -15,6 +15,13 @@ namespace igor::model {
 
 core::index_type Topology::addEvent(std::shared_ptr<legacy::Rec_Event> event)
 {
+    // Events are found by nickname, which a second event of the same one used to overwrite.
+    const std::string &nickname = event->get_nickname();
+    if (nickname.empty())
+        throw std::invalid_argument("Topology::addEvent: an event has no nickname");
+    if (m_name_to_id.count(nickname) != 0)
+        throw std::invalid_argument("Topology::addEvent: the topology already has an event named \"" + nickname
+                                    + "\"");
     core::index_type id = m_events.size();
     event->setUid(id);
     m_events.push_back(event);

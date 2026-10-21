@@ -49,7 +49,6 @@ Rec_Event::Rec_Event(Gene_class gene, Seq_side side)
     : priority(0),
       event_class(gene),
       event_side(side),
-      name("Undefined_event_name"),
       len_min(INT16_MAX),
       len_max(INT16_MIN),
       type(Undefined_t),
@@ -89,43 +88,14 @@ Rec_Event::~Rec_Event()
     // TODO Auto-generated destructor stub
 }
 
-bool Rec_Event::operator==(const Rec_Event &other) const
-{
-    if (this->get_type() != other.get_type())
-        return 0;
-    if (this->event_class != other.event_class)
-        return 0;
-    if (this->event_side != other.event_side)
-        return 0;
-    if (this->priority != other.priority)
-        return 0;
-    if (this->event_realizations.size() != other.event_realizations.size())
-        return 0;
-    for (unordered_map<string, Event_realization>::const_iterator iter = this->event_realizations.begin();
-         iter != this->event_realizations.end(); ++iter) {
-        if (other.event_realizations.count((*iter).first) != 1)
-            return 0;
-    }
-    return 1;
-}
-
 /**
- * The side token a generated name carries. It is the event's own side, except for DinucMarkov, where it is always Undefined_side. Two
- * reasons, one of substance and one of robustness.
- *
- * Substance: the side does not identify a DinucMarkov event. Its seq_type already says which
- * junction it belongs to, and event_side only carries a direction. Model_Parms is already
- * explicit about this — get_events_map() keys DinucMarkov with Undefined_side, and
- * write2txt_legacy() writes Undefined_side in the event line whatever the in-memory side is.
- * Names now follow the same rule instead of contradicting it.
- *
- * Robustness: the name used to depend on the ORDER of the setters. set_priority() refreshes
- * the name, and read_model_parms() sets the side after the priority, so a DinucMarkov kept a
- * name saying Undefined_side while its side was Three_prime — the truth by accident. Anything
- * that called update_event_name() once more produced a different name for the same event, and
- * that name is the key of Model_marginals::get_index_map(), of Model_Parms::edges, and a
- * column header of the scenario and generation outputs. Making the rule explicit here is what
- * lets set_event_side() refresh the name like every other setter.
+ * The side token a generated name carries. It is the event's own side, except for DinucMarkov,
+ * where it is always Undefined_side: the side does not identify a DinucMarkov event. Its seq_type
+ * already says which junction it belongs to, and event_side only carries a direction.
+ * get_events_map() keys DinucMarkov with Undefined_side, and write2txt_legacy() writes
+ * Undefined_side in the event line whatever the in-memory side is; the v1 name follows the same
+ * rule. A v1 file read before the side was set wrote names saying Undefined_side, so keeping the
+ * rule keeps every v1 file's edges readable.
  */
 Seq_side Rec_Event::name_side(Event_type type, Seq_side side)
 {
@@ -135,7 +105,7 @@ Seq_side Rec_Event::name_side(Event_type type, Seq_side side)
 const igor::model::TraversalPlan &Rec_Event::traversal_plan() const
 {
     if (traversal_plan_ == nullptr) {
-        throw logic_error("Rec_Event " + this->name
+        throw logic_error("Rec_Event " + this->get_name()
                           + ": no traversal plan; the engine sets one before initialize_event()");
     }
     return *traversal_plan_;
@@ -144,11 +114,6 @@ const igor::model::TraversalPlan &Rec_Event::traversal_plan() const
 const igor::model::EventPlacement &Rec_Event::placement() const
 {
     return this->traversal_plan().placement(*this);
-}
-
-void Rec_Event::update_event_name()
-{
-    this->name = this->get_v1_legacy_name();
 }
 
 string Rec_Event::name_class_token() const
@@ -227,7 +192,7 @@ const Event_realization &Rec_Event::realization_at(int index) const
             return realization;
         }
     }
-    throw out_of_range("Rec_Event " + this->name + ": no realization has index " + to_string(index));
+    throw out_of_range("Rec_Event " + this->get_name() + ": no realization has index " + to_string(index));
 }
 
 nlohmann::json Rec_Event::to_json() const
@@ -264,7 +229,7 @@ nlohmann::json Rec_Event::to_json() const
 Rec_Event_name Rec_Event::get_v2_name() const
 {
     if (seq_type.empty())
-        return name;
+        return this->get_v1_legacy_name();
     return string() + this->type + string("_") + this->event_class + string("_") + seq_type
            + string("_") + name_side(this->type, this->event_side)
            + string("_prio") + to_string(priority) + string("_size") + to_string(this->size());
@@ -294,13 +259,11 @@ Rec_Event_name Rec_Event::get_v1_legacy_name() const
 void Rec_Event::add_realization(const Event_realization &realization)
 {
     this->event_realizations.insert(make_pair((realization).name, (realization)));
-    this->update_event_name();
 }
 
 bool Rec_Event::set_priority(int new_priority)
 {
     this->priority = new_priority;
-    this->update_event_name();
     return 1;
 }
 
@@ -492,7 +455,7 @@ void Rec_Event::initialize_event_common(
     const auto downstream_layers = downstream_proba_map.claimed_layers();
     current_downstream_proba_memory_layers.assign(downstream_layers.begin(), downstream_layers.end());
 
-    processed_events.emplace(this->name);
+    processed_events.emplace(this->get_name());
 }
 
 void Rec_Event::ind_normalize(Marginal_array_p &marginal_array_p, size_t base_index) const

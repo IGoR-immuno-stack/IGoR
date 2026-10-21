@@ -238,10 +238,13 @@ public:
         return event_realizations;
     };
     const int get_priority() const { return priority; };
-    const Rec_Event_name get_name() const { return name; };
+    /// The event's identity: its nickname, which a model requires and keeps unique (plan T2). It
+    /// keys the legacy maps until the migration's uid; a model file and the outputs name the event
+    /// by it too. Set it before the event joins a model, whose maps it keys from then on.
+    const Rec_Event_name get_name() const { return nickname; };
     /// Returns the v2.0-format event name that includes seq_type between
     /// gene_class and seq_side.  Used in @Edges sections of v2.0 files.
-    /// Falls back to get_name() when seq_type is empty.
+    /// Falls back to get_v1_legacy_name() when seq_type is empty.
     Rec_Event_name get_v2_name() const;
     /// The name a v1 model file gives the event in its @Edges section: type, gene class, side,
     /// priority and size. It names one event only where a v1 gene class does, which
@@ -318,24 +321,12 @@ public:
     /// everywhere inside the scenario traversal, so the registry stays out of the hot path.
     SeqTypeId get_seq_type_id() const { return seq_type_id; }
     void set_seq_type_id(SeqTypeId id) { seq_type_id = id; }
-    /// Refreshes the generated name, like set_priority() and add_realization() do. It used not
-    /// to, which made the name depend on the order of the setters; see name_side() in
-    /// Rec_Event.cpp. A DinucMarkov's name is unaffected by the side, by design.
-    void set_event_side(Seq_side s)
-    {
-        event_side = s;
-        update_event_name();
-    }
-
-    bool operator==(const Rec_Event &) const;
+    void set_event_side(Seq_side s) { event_side = s; }
 
     /// The side token a generated name carries: the event's own side, except for DinucMarkov,
     /// whose name always says Undefined_side because its side is a direction, not an identity.
     /// See the definition in Rec_Event.cpp.
     static Seq_side name_side(Event_type type, Seq_side side);
-
-    /// Regenerates the name, the v1 one; every setter of what it is made of calls it.
-    void update_event_name();
 
     ///@{ \name Generation (docs/GENERATION_REWRITE_PLAN.md)
     /// The legacy generator's step for this event: draw_realization(), then
@@ -753,7 +744,6 @@ protected:
     int priority;
     Gene_class event_class;
     Seq_side event_side;
-    Rec_Event_name name; //Construct the name in a smart way so that it is unique
     std::string nickname;
     Seq_type_String seq_type; // Seq_type for v2.0 format (e.g., "V_gene_seq", "VD_ins_seq")
     SeqTypeId seq_type_id = kNoSeqType; // resolved from seq_type by Model_Parms::finalize()

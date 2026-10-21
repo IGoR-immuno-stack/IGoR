@@ -1408,9 +1408,7 @@ int igor_legacy_main(int argc, char *argv[])
             }
             if (any_genomic_difference) {
                 //If any difference is detected reset the marginals
-                Rec_Event_name former_name = v_choice_gc->get_name();
                 v_choice_gc->set_genomic_templates(v_genomic);
-                cl_model_parms.update_edge_event_name(former_name, v_choice_gc->get_name());
                 any_custom_gene = true;
             } else {
                 //Else we set to 0 probability all the ones that were not found in the list of genomic templates
@@ -1447,9 +1445,7 @@ int igor_legacy_main(int argc, char *argv[])
             }
             if (any_genomic_difference) {
                 //If any difference is detected reset the marginals
-                Rec_Event_name former_name = d_choice_gc->get_name();
                 d_choice_gc->set_genomic_templates(d_genomic);
-                cl_model_parms.update_edge_event_name(former_name, d_choice_gc->get_name());
                 any_custom_gene = true;
             } else {
                 //Else we set to 0 probability all the ones that were not found in the list of genomic templates
@@ -1486,9 +1482,7 @@ int igor_legacy_main(int argc, char *argv[])
             }
             if (any_genomic_difference) {
                 //If any difference is detected reset the marginals
-                Rec_Event_name former_name = j_choice_gc->get_name();
                 j_choice_gc->set_genomic_templates(j_genomic);
-                cl_model_parms.update_edge_event_name(former_name, j_choice_gc->get_name());
                 any_custom_gene = true;
             } else {
                 //Else we set to 0 probability all the ones that were not found in the list of genomic templates

@@ -8,10 +8,10 @@
  * D1_gene_seq for instance, could not be loaded at all.
  *
  * The first case pins what the events of a legacy model are called and what they carry, through
- * every way an event is built: the text reader, its JSON node, copy(). The name is a key of the
- * marginals and a column of the outputs, so it must not move. The [tandem_d] cases are what
- * removing the member is for. They do not pin names: two events of a tandem model still get the
- * same generated name, which is T2.
+ * every way an event is built: the text reader, its JSON node, copy(). Their name is their
+ * nickname (plan T2); their v1 name is what a v1 file's edges and the legacy output columns carry,
+ * so it must not move. The [tandem_d] cases are what removing the member is for. They pin no v1
+ * name: a tandem model's twin events share one, which is why the v1 name is no longer the name.
  */
 
 #include <catch2/catch_test_macros.hpp>
@@ -39,7 +39,7 @@ const std::string kTestDataDir = std::string(IGOR_SOURCE_DIR) + "/tst/test_data/
 
 /// What an event is called and what it carries: the parts a model file and the outputs see.
 struct Identity {
-    std::string name;
+    std::string v1_name;
     Gene_class gene_class;
     Seq_type_String seq_type;
 };
@@ -47,8 +47,9 @@ struct Identity {
 void require_identity(const Rec_Event &event, const Identity &expected, bool check_name)
 {
     INFO("event " << event.get_nickname());
+    CHECK(event.get_name() == event.get_nickname());
     if (check_name) {
-        CHECK(event.get_name() == expected.name);
+        CHECK(event.get_v1_legacy_name() == expected.v1_name);
     }
     CHECK(event.get_class() == expected.gene_class);
     CHECK(event.get_seq_type() == expected.seq_type);

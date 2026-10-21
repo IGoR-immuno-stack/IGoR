@@ -26,7 +26,7 @@ using namespace igor::model::legacy::EventUtils;
 // Mock Rec_Event for testing
 class MockEvent : public Rec_Event {
 public:
-  MockEvent(string name) : Rec_Event() { this->name = name; }
+  MockEvent(string name) : Rec_Event() { this->set_nickname(name); }
   void
   iterate(QuerySequenceContext& query,
           const ModelContext& model,
