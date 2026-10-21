@@ -752,14 +752,9 @@ void Dinucl_markov::prepare_span_proba_factor(const Marginal_array_p &model_para
     }
 }
 
-void Dinucl_markov::update_event_name()
+string Dinucl_markov::name_class_token() const
 {
-    // name_side() is what keeps this name on Undefined_side: the junction is already named by
-    // the class token, so the side would add a direction, not an identity. This override exists
-    // for that class token, and it has to apply the base class's side rule.
-    this->name = string() + this->type + "_" + to_string(legacy_gene_class_of(this->type, this->seq_type)) + "_"
-                 + to_string(name_side(this->type, this->event_side))
-                 + "_prio" + to_string(priority) + "_size" + to_string(this->size());
+    return to_string(legacy_gene_class_of(this->type, this->seq_type));
 }
 
 } // namespace igor::model::legacy

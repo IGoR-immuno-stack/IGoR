@@ -442,10 +442,9 @@ int Insertion::length_delta(const Event_realization &realization) const
     return realization.value_int;
 }
 
-void Insertion::update_event_name()
+string Insertion::name_class_token() const
 {
-    this->name = string() + this->type + "_" + to_string(legacy_gene_class_of(this->type, this->seq_type)) + "_"
-                 + to_string(this->event_side) + "_prio" + to_string(priority) + "_size" + to_string(this->size());
+    return to_string(legacy_gene_class_of(this->type, this->seq_type));
 }
 
 } // namespace igor::model::legacy

@@ -218,11 +218,10 @@ TEST_CASE("model json: a rebuilt DinucMarkov gets the same name as the text read
             == parms.get_event_pointer("vd_dinucl", true)->get_name());
 
     SECTION("the three name accessors agree on the side token") {
-        // Only on the side. They disagree on the class token for a DinucMarkov, and that is a
-        // separate matter: Dinucl_markov::update_event_name() derives it from the seq type
-        // ("VD_genes") while the two accessors read event_class, which the reader leaves
-        // Undefined_gene. Worth fixing, not here.
-        for (const auto &name : { rebuilt->get_name(), rebuilt->get_legacy_name(),
+        // Only on the side. get_v2_name() disagrees with the other two on a DinucMarkov's class
+        // token: they derive it from the seq type ("VD_genes"), it reads event_class, which the
+        // reader leaves Undefined_gene.
+        for (const auto &name : { rebuilt->get_name(), rebuilt->get_v1_legacy_name(),
                                   rebuilt->get_v2_name() }) {
             INFO("name: " << name);
             REQUIRE(name.find("Undefined_side") != std::string::npos);

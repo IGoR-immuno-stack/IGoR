@@ -243,9 +243,10 @@ public:
     /// gene_class and seq_side.  Used in @Edges sections of v2.0 files.
     /// Falls back to get_name() when seq_type is empty.
     Rec_Event_name get_v2_name() const;
-    /// Returns the legacy-format event name (without seq_type), even if the
-    /// internal name has been updated to include seq_type.
-    Rec_Event_name get_legacy_name() const;
+    /// The name a v1 model file gives the event in its @Edges section: type, gene class, side,
+    /// priority and size. It names one event only where a v1 gene class does, which
+    /// Model_Parms::requires_extended_format() checks. Also the `legacy` output name (event_label()).
+    Rec_Event_name get_v1_legacy_name() const;
     const std::string get_nickname() const { return nickname; };
     void set_nickname(std::string name) { nickname = name; }
     Event_type get_type() const { return this->type; }
@@ -330,11 +331,11 @@ public:
 
     /// The side token a generated name carries: the event's own side, except for DinucMarkov,
     /// whose name always says Undefined_side because its side is a direction, not an identity.
-    /// See the definition in Rec_Event.cpp. It sits next to update_event_name(), which is public
-    /// too, because the subclasses that override it have to apply the same rule.
+    /// See the definition in Rec_Event.cpp.
     static Seq_side name_side(Event_type type, Seq_side side);
 
-    virtual void update_event_name();
+    /// Regenerates the name, the v1 one; every setter of what it is made of calls it.
+    void update_event_name();
 
     ///@{ \name Generation (docs/GENERATION_REWRITE_PLAN.md)
     /// The legacy generator's step for this event: draw_realization(), then
@@ -576,6 +577,10 @@ public:
     void adopt_Len_proba_bound(const Rec_Event &source);
 
 protected:
+    /// The gene class token of the v1 name: event_class. An insertion and a Markov chain derive
+    /// theirs from the seq type instead, as the v1 format names their junction.
+    virtual std::string name_class_token() const;
+
     /**
      * \brief Build the `Retain` junction's decomposition, once the two halves are folded.
      *

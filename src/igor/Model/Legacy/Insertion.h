@@ -83,8 +83,6 @@ public:
     void write2txt_legacy(std::ofstream &) override;
     void write2txt_v2(std::ofstream &) override;
 
-    void update_event_name() override;
-
     void initialize_event(
             std::unordered_set<Rec_Event_name> &,
             const Events_map &,
@@ -105,6 +103,10 @@ public:
     OffsetRole get_offset_role(SeqTypeId, Seq_side) const override;
 
     int length_delta(const Event_realization &) const override;
+
+protected:
+    /// The junction class the v1 format names the insertion's seq type by, VD_genes for VD_ins_seq.
+    std::string name_class_token() const override;
 
 private:
     inline double iterate_common(

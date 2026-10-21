@@ -110,10 +110,7 @@ bool Rec_Event::operator==(const Rec_Event &other) const
 }
 
 /**
- * The side token a generated name carries. Shared, because Insertion and Dinucl_markov override
- * update_event_name() to derive the class token from their seq type (legacy_gene_class_of()).
- *
- * It is the event's own side, except for DinucMarkov, where it is always Undefined_side. Two
+ * The side token a generated name carries. It is the event's own side, except for DinucMarkov, where it is always Undefined_side. Two
  * reasons, one of substance and one of robustness.
  *
  * Substance: the side does not identify a DinucMarkov event. Its seq_type already says which
@@ -151,9 +148,12 @@ const igor::model::EventPlacement &Rec_Event::placement() const
 
 void Rec_Event::update_event_name()
 {
-    this->name = string() + this->type + string("_") + this->event_class + string("_")
-            + name_side(this->type, this->event_side)
-            + string("_prio") + to_string(priority) + string("_size") + to_string(this->size());
+    this->name = this->get_v1_legacy_name();
+}
+
+string Rec_Event::name_class_token() const
+{
+    return to_string(this->event_class);
 }
 
 queue<int> Rec_Event::draw_random_realization(
@@ -281,12 +281,12 @@ Event_label str2EventLabel(const string &str)
 
 string event_label(const Rec_Event &event, Event_label labels)
 {
-    return (labels == Event_label::Nickname) ? event.get_nickname() : event.get_name();
+    return (labels == Event_label::Nickname) ? event.get_nickname() : event.get_v1_legacy_name();
 }
 
-Rec_Event_name Rec_Event::get_legacy_name() const
+Rec_Event_name Rec_Event::get_v1_legacy_name() const
 {
-    return string() + this->type + string("_") + this->event_class + string("_")
+    return string() + this->type + string("_") + this->name_class_token() + string("_")
            + name_side(this->type, this->event_side)
            + string("_prio") + to_string(priority) + string("_size") + to_string(this->size());
 }
