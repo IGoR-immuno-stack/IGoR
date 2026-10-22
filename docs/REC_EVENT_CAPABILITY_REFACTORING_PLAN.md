@@ -674,6 +674,10 @@ Decisions (Quentin, Oct 22 2026):
   reader takes either.
 - **Normalized on read**, as the text reader does.
 - **The error rate stays a top-level key** until E4 gives it a node.
+- **Labels are optional** (Quentin, Oct 22 2026), to prototype: an axis without them follows the
+  index order of the model reading it, by position, and only its size is checked. IGoR always writes
+  them, so what it writes stays matched by label. §15.4's fingerprint would protect such an axis
+  against another domain, later.
 
 What moves, for a model the v1 format cannot hold only: inference writes its marginals as
 `initial_marginals.json`, `iteration_N.json` and `final_marginals.json`, fragments, and

@@ -328,6 +328,28 @@ TEST_CASE("Parameters are matched by label, whatever order the axes, the labels 
     }
 }
 
+TEST_CASE("An axis without labels follows the model's index order", "[model_format][json][parameters]")
+{
+    const Model_Parms parms = read_parms(kVdj);
+    nlohmann::json doc = fragment(parms, distinct_marginals(parms));
+    const Model_marginals labelled = read_into(parms, doc);
+    auto &nodes = doc["parameters"]["nodes"];
+
+    SECTION("on some axes or all, a Markov chain's included") {
+        nodes["d_3_del"]["axes"][0].erase("labels");
+        nodes["d_3_del"]["axes"][2].erase("labels");
+        for (auto &axis : nodes["vd_dinucl"]["axes"])
+            axis.erase("labels");
+        REQUIRE(same_array(read_into(parms, doc), labelled));
+    }
+    SECTION("its size is still checked") {
+        nodes["j_choice"]["axes"][0].erase("labels");
+        nodes["j_choice"]["values"].erase(0);
+        Model_marginals marginals(parms);
+        REQUIRE_THROWS_WITH(model_marginals_from_json(doc, parms, marginals), ContainsSubstring("not a list of 15"));
+    }
+}
+
 TEST_CASE("Values that do not sum to one are normalized, as the text reader does", "[model_format][json][parameters]")
 {
     const Model_Parms parms = read_parms(kVdj);

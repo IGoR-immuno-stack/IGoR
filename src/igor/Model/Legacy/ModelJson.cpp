@@ -326,7 +326,8 @@ nlohmann::json nested_values(const long double *block, const std::vector<LegacyA
 }
 
 /// A node's axes, checked against its event: its parents in any order, then its own axes. Each
-/// axis's labels must be its event's, each once, in any order.
+/// axis's labels must be its event's, each once, in any order. An axis without labels follows its
+/// event's index order, as the model reading it holds it.
 std::vector<LegacyAxis> read_axes(const nlohmann::json &node, const Rec_Event &event,
                                   const std::list<std::pair<std::shared_ptr<const Rec_Event>, int>> &parents)
 {
@@ -361,10 +362,18 @@ std::vector<LegacyAxis> read_axes(const nlohmann::json &node, const Rec_Event &e
             axis.stride = static_cast<std::size_t>(parent->second);
         }
 
+        const auto domain = realizations_by_index(*axis.event);
+        const auto labels_entry = axes[k].find("labels");
+        if (labels_entry == axes[k].end()) {
+            for (const auto &entry : domain)
+                axis.index_at.push_back(entry.first);
+            out.push_back(std::move(axis));
+            continue;
+        }
         std::map<std::string, int> index_of;
-        for (const auto &[index, label] : realizations_by_index(*axis.event))
+        for (const auto &[index, label] : domain)
             index_of.emplace(label.dump(), index);
-        const nlohmann::json &labels = require_model_key(axes[k], "labels");
+        const nlohmann::json &labels = *labels_entry;
         if (not labels.is_array() or labels.size() != index_of.size())
             throw std::runtime_error(where + " must list the " + std::to_string(index_of.size()) + " labels of \""
                                      + name + "\"");

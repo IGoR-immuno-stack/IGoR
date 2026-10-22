@@ -41,7 +41,9 @@
  *   with the rest of the model, or alone with its version: a fragment, which a marginals file is.
  *   Each node lists its axes, its event's parents then its own, each axis with the labels of its
  *   coordinates, so values are matched to realizations by label (REVIEW §15.4), whatever order
- *   the model reading them gives its events. Values are doubles.
+ *   the model reading them gives its events. Values are doubles. An axis may leave its labels out,
+ *   to prototype: it then follows the index order of the model reading it, and only its size is
+ *   checked. IGoR always writes them.
  *
  * Comments are allowed, and dropped when IGoR writes a model.
  *
@@ -154,7 +156,8 @@ MODEL_EXPORT nlohmann::json model_marginals_to_json(const Model_Parms &parms, co
  * Every event of \a parms needs its node, and no node may name another event. A node's axes are
  * its event's parents, in any order, then its own axis or axes. An axis's labels are its event's,
  * each once, in any order: a value goes to the realization its label names. Nothing therefore
- * depends on the order \a parms gives its events.
+ * depends on the order \a parms gives its events. An axis without labels follows the index order
+ * of \a parms, by position.
  * \throws std::runtime_error naming the event on any mismatch, or on a value that is negative or
  *         not a finite number.
  * \throws std::logic_error if \a marginals is not sized for \a parms.
