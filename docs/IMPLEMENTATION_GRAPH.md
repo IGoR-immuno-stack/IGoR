@@ -404,7 +404,7 @@ landed · **pending** — ready once its hard blocks land · **gated** — waits
 | Node | Source | Hard blocks | Soft | Status |
 |---|---|---|---|---|
 | T7a | CAP *T7*, ERR §4.1 | — | — | ready |
-| T5a | CAP *T5* | T2 | — | pending; the fixture script, the JSON model, the marginals filled into IGoR's own layout |
+| T5a | CAP *T5* | T2 | — | pending; the fixture script, the JSON model with its parameters, by label |
 | T5b | CAP *T5* | T5a | — | pending |
 | T5 | CAP *T5* | T5b, T7a | — | pending |
 | Milestone 1 | CAP | T5 | — | — |

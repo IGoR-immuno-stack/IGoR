@@ -30,7 +30,8 @@ brevity.  Much more detail can be found in the git revision history:
       as a JSON document, recognised by its content. Inference writes such a model's
       parameters to .json files. The document holds the structure (segment layout, events
       keyed by nickname, conditioning graph) apart from the template library, and may carry
-      comments
+      comments. Its marginals are JSON too, inline or in a file of their own, with 17
+      significant digits, and each value is matched to its realization by label
     - Every event needs a nickname, unique in its model, which now names the event in the
       model and in its outputs. A v1 model file with an event line without one is refused
   - Sequence sampler:

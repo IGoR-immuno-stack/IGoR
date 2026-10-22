@@ -547,7 +547,8 @@ type that token is not the event's name, so a model written in v2 read back with
 
 **What JSON does not carry yet.**
 - **Parameters** (synthesis step 4b). They stay in the marginals text file, labelled by nickname
-  and read by position, as they would have with v2.
+  and read by position, as they would have with v2. *(Oct 22 2026: a JSON model's parameters are
+  JSON too, matched by label; see "Parameters in the document" below.)*
 - **An error model other than `Single_error_rate`.** The hypermutation models have no JSON form
   ([ModelJson.cpp:22](../src/igor/Model/Legacy/ModelJson.cpp#L22)): their N-mer coefficients are
   not described by the schema. A model that needs JSON and carries one is refused when written; T7a
@@ -642,10 +643,57 @@ other than the type's, the authoring form's shorthands and `description` (REVIEW
 outside the plan: `error_rate` stands for the error model until E4 makes it a node of the structure
 and 4b moves its value into `parameters`. Without one a document now reads, as the writer omits it.
 
-Mutations, all caught: eight of N2, eight of N3, eleven of N4, twenty-three of the layout.
+**Parameters in the document (decided and delivered Oct 22 2026).** The text marginals file is the
+flat array, read by position: a model whose events come in another order, or whose structure was
+edited, gets its values shuffled without a word, which the engine hint only works around. The
+document now carries them, in REVIEW §15.4's `parameters` section less its fingerprint:
+- one node per event, keyed by nickname; its `axes` are its event's parents, then its own axis (a
+  Markov chain's two, from then to), each axis naming its event and listing the labels of its
+  coordinates; its `values` are nested, one level per axis;
+- the reader (`model_marginals_from_json()`) puts each value where its labels say, into the
+  legacy array of the model it reads into, then normalizes as `txt2marginals()` does. Parent axes
+  may come in any order, labels too. It refuses what does not fit: a missing node or one for no
+  event, a parent axis the conditioning does not have or the other way round, a label the event
+  lacks or lists twice, a wrong shape, a negative or infinite value;
+- the writer (`model_marginals_to_json()`) lays the axes out in the text file's order, labels in
+  index order, so that the values read straight through on the model that wrote them.
 
-Gate, at each step: unit (510/510 at N4, 515/515 with the layout) and integration 10/10; regression
-bitwise on cli, align, inference, no_d_align and generate; convergence 2/2 at N3, N4 and the layout.
+Decisions (Quentin, Oct 22 2026):
+- **Labels on every axis.** They repeat the structure's realizations, as checked redundancy: what
+  they buy is that parameters apply to a model that did not write them, a fragment sent to another
+  machine, a structure after a library update, a hand edit. On human TRB they are about 37 kB next
+  to 180 kB of values, mostly the shipped gene names, which are full IMGT headers. The fingerprint
+  variant of §15.4 can be allowed per axis later.
+- **Doubles**: 17 significant digits, where the text file has 6. A file written and read back holds
+  the values to double precision, and written again it is the same text. Exact `long double` would
+  need a writer of our own: nlohmann's passes a `long double` to `%g`, and its parser alone handles
+  one (synthesis open decision 8, for 4b).
+- **Complete documents and fragments.** A complete model document may carry its parameters; a
+  fragment is a document with its version and `parameters` only, which a marginals file now is
+  for a JSON model. Fragments are also what message passing between machines would exchange. The
+  reader takes either.
+- **Normalized on read**, as the text reader does.
+- **The error rate stays a top-level key** until E4 gives it a node.
+
+What moves, for a model the v1 format cannot hold only: inference writes its marginals as
+`initial_marginals.json`, `iteration_N.json` and `final_marginals.json`, fragments, and
+`-load_last_inferred` reads them. `-set_custom_model` reads a marginals file of either kind, and a
+complete document without one gives its own parameters rather than uniform ones. The v1 path does
+not change, so the five tracks stay bitwise.
+
+Tests: the layout against the array and the text file's `$Dim`, the round trip at double precision,
+normalization on read, complete documents and fragments, axes and labels rearranged, a model listing its events in
+another order (whose text file differs, while every labelled value agrees), the refusals, and an
+inference's output names. An inference on a tandem model itself waits for T7a: `Single_error_rate`
+reads the mismatches of the legacy D id, which a tandem model does not fill. A CLI run generates
+from a fragment, and from a complete document without a marginals file, what their parameters say.
+
+Mutations, all caught: eight of N2, eight of N3, eleven of N4, twenty-three of the layout,
+twenty-one of the parameters.
+
+Gate, at each step: unit (510/510 at N4, 515/515 with the layout, 523/523 with the parameters) and
+integration 10/10; regression bitwise on cli, align, inference, no_d_align and generate; convergence
+2/2 at N3, N4, the layout and the parameters.
 
 ### T7: segment ids follow the ordering, not the `Seq_type` enum (planned Oct 15 2026)
 
@@ -781,13 +829,12 @@ retires v2 instead:
 - **T2** (delivered Oct 21 2026). Events named by nickname, and the JSON reader. The script writes
   the document's sections as `model_parms_to_json()` does: events keyed by nickname, the
   conditioning by nickname, D1's and D2's templates once in the library.
-- **The marginals in the new model's layout.** `txt2marginals()` reads the values by position and
-  ignores the headers ([Model_marginals.cpp:1224-1236](../src/igor/Model/Legacy/Model_marginals.cpp#L1224)),
-  so the values must follow the tandem model's own layout. IGoR writes that layout itself:
-  `-set_custom_model` without a marginals file starts from uniform marginals
-  ([legacy_main.cpp:415-418](../app/igor/legacy_main.cpp#L415)), and the run writes them to
-  `initial_marginals.txt`. The script fills that template block by block from TRB's marginals,
-  matching each `#[parent,index]` line, D1's and D2's blocks from `d_gene`'s and its deletions'.
+- **The marginals, by label.** The script writes the model's `parameters` (T2, Oct 22 2026): a
+  node per event, D1's and D2's copied from `d_gene`'s and its deletions', TRB's others as they
+  are. The reader matches them by label, so the script need not know the legacy layout, and a
+  mismatch is refused rather than read into the wrong place. *(Superseded: the script used to fill
+  a template of IGoR's own layout, matching each `#[parent,index]` line, because `txt2marginals()`
+  reads by position.)*
 - **The duplication script**, in `scripts/`, with the choice of the D1D2 junction recorded in it.
 
 **The reads.** Generated from that model by the legacy generator (T4), seeded, on one thread, then
