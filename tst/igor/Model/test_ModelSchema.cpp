@@ -22,6 +22,7 @@
 #include <fstream>
 #include <iterator>
 #include <set>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -153,9 +154,10 @@ TEST_CASE("Model schemas: what IGoR writes follows them", "[model_format][schema
         marginals.uniform_initialize(parms);
         const std::string fragment = (std::filesystem::temp_directory_path() / "igor_test_schema_fragment.json").string();
         marginals.write_marginals_json(fragment, parms);
-        std::ifstream in(fragment);
-        const nlohmann::json doc = parse_model_document(in);
+        // Read whole and closed before the removal, which Windows refuses on an open file.
+        std::istringstream in(text_of(fragment));
         std::filesystem::remove(fragment);
+        const nlohmann::json doc = parse_model_document(in);
         CHECK(doc.at("$schema") == schema::document_schema_uri());
         REQUIRE_NOTHROW(schema::validate(doc, "model.schema.json", "the fragment", { "parameters" }));
     }
