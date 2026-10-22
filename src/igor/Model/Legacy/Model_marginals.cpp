@@ -26,6 +26,7 @@
 
 #include <igor/Model/Legacy/Model_marginals.h>
 #include <igor/Model/Legacy/ModelJson.h>
+#include <igor/Model/ModelSchema.h>
 
 #include <nlohmann/json.hpp>
 
@@ -1204,6 +1205,7 @@ void Model_marginals::write_marginals(string filename, const Model_Parms &parms)
 void Model_marginals::write_marginals_json(string filename, const Model_Parms &parms)
 {
     nlohmann::json doc;
+    doc["$schema"] = igor::model::schema::document_schema_uri();
     doc["schema_version"] = kModelJsonSchemaVersion;
     doc["parameters"] = model_marginals_to_json(parms, *this);
     ofstream outfile(filename);

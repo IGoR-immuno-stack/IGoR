@@ -387,8 +387,8 @@ public:
      *
      * Non-pure on purpose. The body in Rec_Event.cpp is generic over the four subclasses,
      * because everything it writes is already on the base. A subclass only needs to override it
-     * if it grows state that is not a realization, as Gene_choice does with its library and
-     * templates.
+     * if it grows state that is not a realization, as Gene_choice does with its library. A gene
+     * choice's templates are not in its node: they are the document's library's.
      *
      * Realizations come out sorted by index, since event_realizations is an unordered_map and
      * an unsorted dump would not be reproducible.

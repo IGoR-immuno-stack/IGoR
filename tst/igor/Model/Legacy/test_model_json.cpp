@@ -8,6 +8,7 @@
  */
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_string.hpp>
 
 #include <igor/Model/EventFactory.h>
 #include <igor/Model/Legacy/Deletion.h>
@@ -46,10 +47,16 @@ Model_Parms read_vdj()
     return parms;
 }
 
-/// The event's own node, as Rec_Event::to_json() gives it: templates inline.
+/// The event's node, as Rec_Event::to_json() gives it and the document holds it.
 nlohmann::json node_of(const Model_Parms &parms, const std::string &nickname)
 {
     return parms.get_event_pointer(nickname, true)->to_json();
+}
+
+/// The model's library section, which a gene choice's constructor takes its templates from.
+nlohmann::json library_of(const Model_Parms &parms)
+{
+    return model_parms_to_json(parms).at("library");
 }
 
 }  // namespace
@@ -63,8 +70,8 @@ TEST_CASE("model json: a v1 model serializes into the planned layout", "[Core][j
         REQUIRE(doc.at("schema_version") == kModelJsonSchemaVersion);
         REQUIRE(doc.at("schema_version") == "0.3");
         // A v1 model's events are not listed in nickname order, so the order goes with it as a hint.
-        REQUIRE(keys_of(doc) == std::set<std::string>{ "schema_version", "structure", "library", "error_rate",
-                                                       "engine_hints" });
+        REQUIRE(keys_of(doc) == std::set<std::string>{ "$schema", "schema_version", "structure", "library",
+                                                       "error_rate", "engine_hints" });
         REQUIRE(keys_of(doc.at("structure")) == std::set<std::string>{ "layout", "events", "conditioning" });
     }
 
@@ -175,10 +182,11 @@ TEST_CASE("model json: a legacy file serializes too, with the inferred order", "
 TEST_CASE("model json: node to event to node is the identity", "[Core][json]")
 {
     const Model_Parms parms = read_vdj();
+    const nlohmann::json library = library_of(parms);
     for (const auto &event : parms.get_event_list()) {
         INFO(event->get_nickname());
         const nlohmann::json node = event->to_json();
-        const auto rebuilt = create(event->get_nickname(), node);
+        const auto rebuilt = create(event->get_nickname(), node, library);
         REQUIRE(rebuilt->to_json() == node);
         REQUIRE(rebuilt->get_nickname() == event->get_nickname());
     }
@@ -194,10 +202,11 @@ TEST_CASE("model json: round trip on a shipped model", "[Core][json][integration
     REQUIRE_NOTHROW(parms.read_model_parms(shipped));
 
     REQUIRE(parms.get_event_list().size() == 11);
+    const nlohmann::json library = library_of(parms);
     for (const auto &event : parms.get_event_list()) {
         INFO(event->get_nickname());
         const nlohmann::json node = event->to_json();
-        const auto rebuilt = create(event->get_nickname(), node);
+        const auto rebuilt = create(event->get_nickname(), node, library);
         REQUIRE(rebuilt->to_json() == node);
         // The v1 name is what a v1 file's @Edges names the event by, so it has to survive the
         // round trip as well, not only the fields it is built from.
@@ -218,7 +227,7 @@ TEST_CASE("model json: a rebuilt DinucMarkov gets the same v1 name as the text r
     const nlohmann::json node = node_of(parms, "vd_dinucl");
     REQUIRE(node.at("targets").at(0).at("side") == "3'");
 
-    const auto rebuilt = create("vd_dinucl", node);
+    const auto rebuilt = create("vd_dinucl", node, nlohmann::json());
     REQUIRE(rebuilt->get_side() == Three_prime);
     REQUIRE(rebuilt->get_name() == "vd_dinucl");
     REQUIRE(rebuilt->get_v1_legacy_name().find("Undefined_side") != std::string::npos);
@@ -240,7 +249,7 @@ TEST_CASE("model json: a rebuilt DinucMarkov gets the same v1 name as the text r
     SECTION("an event whose side IS its identity still carries it") {
         // The rule is specific to DinucMarkov. A deletion is identified by its side, so its
         // v1 name must keep it, and set_event_side() must move it.
-        const auto deletion = create("v_3_del", node_of(parms, "v_3_del"));
+        const auto deletion = create("v_3_del", node_of(parms, "v_3_del"), nlohmann::json());
         REQUIRE(deletion->get_v1_legacy_name().find("Three_prime") != std::string::npos);
 
         deletion->set_event_side(Five_prime);
@@ -256,12 +265,12 @@ TEST_CASE("model json: a malformed event node is rejected", "[Core][json]")
 
     SECTION("an unknown key, a typo for instance") {
         node["prioriti"] = 5;
-        REQUIRE_THROWS_AS(create("v_3_del", node), std::runtime_error);
+        REQUIRE_THROWS_AS(create("v_3_del", node, nlohmann::json()), std::runtime_error);
     }
 
     SECTION("a missing key") {
         node.erase("priority");
-        REQUIRE_THROWS_AS(create("v_3_del", node), std::runtime_error);
+        REQUIRE_THROWS_AS(create("v_3_del", node, nlohmann::json()), std::runtime_error);
     }
 
     SECTION("a type that does not match the constructor") {
@@ -271,50 +280,51 @@ TEST_CASE("model json: a malformed event node is rejected", "[Core][json]")
 
     SECTION("a gap in the realization indices") {
         node["realizations"].at(0)["index"] = 7;
-        REQUIRE_THROWS_AS(create("v_3_del", node), std::runtime_error);
+        REQUIRE_THROWS_AS(create("v_3_del", node, nlohmann::json()), std::runtime_error);
     }
 
     SECTION("two realizations under one label") {
         node["realizations"].push_back({ { "index", 1 }, { "label", 0 } });
-        REQUIRE_THROWS_AS(create("v_3_del", node), std::runtime_error);
+        REQUIRE_THROWS_AS(create("v_3_del", node, nlohmann::json()), std::runtime_error);
     }
 
     SECTION("a label of the wrong kind") {
         node["realizations"].at(0)["label"] = "0";
-        REQUIRE_THROWS_AS(create("v_3_del", node), std::runtime_error);
+        REQUIRE_THROWS_AS(create("v_3_del", node, nlohmann::json()), std::runtime_error);
     }
 
     SECTION("a realization in the v2-era spelling") {
         node["realizations"].at(0)["value_int"] = 0;
-        REQUIRE_THROWS_AS(create("v_3_del", node), std::runtime_error);
+        REQUIRE_THROWS_AS(create("v_3_del", node, nlohmann::json()), std::runtime_error);
     }
 
     SECTION("no target, two targets, or a target without a segment") {
         const nlohmann::json target = node.at("targets").at(0);
         node["targets"] = nlohmann::json::array();
-        REQUIRE_THROWS_AS(create("v_3_del", node), std::runtime_error);
+        REQUIRE_THROWS_AS(create("v_3_del", node, nlohmann::json()), std::runtime_error);
         node["targets"] = nlohmann::json::array({ target, target });
-        REQUIRE_THROWS_AS(create("v_3_del", node), std::runtime_error);
+        REQUIRE_THROWS_AS(create("v_3_del", node, nlohmann::json()), std::runtime_error);
         node["targets"] = nlohmann::json::array({ { { "side", "3'" } } });
-        REQUIRE_THROWS_AS(create("v_3_del", node), std::runtime_error);
+        REQUIRE_THROWS_AS(create("v_3_del", node, nlohmann::json()), std::runtime_error);
     }
 
     SECTION("a side spelled otherwise than 5' or 3'") {
         node["targets"].at(0)["side"] = "Three_prime";
-        REQUIRE_THROWS_AS(create("v_3_del", node), std::runtime_error);
+        REQUIRE_THROWS_AS(create("v_3_del", node, nlohmann::json()), std::runtime_error);
     }
 
     SECTION("a library on an event that is not a gene choice") {
         for (const char *nickname : { "v_3_del", "vd_ins", "vd_dinucl" }) {
             nlohmann::json other = node_of(parms, nickname);
             other["library"] = "V_gene";
-            REQUIRE_THROWS_AS(create(nickname, other), std::runtime_error);
+            REQUIRE_THROWS_AS(create(nickname, other, nlohmann::json()), std::runtime_error);
         }
     }
 
-    SECTION("a gene choice's realization without its template") {
-        nlohmann::json gene = node_of(parms, "d_choice");
-        gene["realizations"].at(0).erase("sequence");
-        REQUIRE_THROWS_AS(create("d_choice", gene), std::runtime_error);
+    SECTION("a gene choice whose library lacks its template") {
+        nlohmann::json library = library_of(parms);
+        library["D_gene"].erase("D_test");
+        REQUIRE_THROWS_WITH(create("d_choice", node_of(parms, "d_choice"), library),
+                            Catch::Matchers::ContainsSubstring("library \"D_gene\" has no template \"D_test\""));
     }
 }

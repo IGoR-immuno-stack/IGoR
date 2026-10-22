@@ -97,31 +97,38 @@ Gene_choice::Gene_choice(Gene_class gene, vector<pair<string, string>> genomic_s
     }
 }
 
-Gene_choice::Gene_choice(const string &nickname, const nlohmann::json &node)
-    : Gene_choice(str2GeneClassNew(igor::model::legacy::json_detail::require(node, "library").get<string>()))
+Gene_choice::Gene_choice(const string &nickname, const nlohmann::json &node, const nlohmann::json &library)
+    : Gene_choice(str2GeneClassNew(
+              igor::model::legacy::json_detail::validated(node, "GeneChoice").at("library").get<string>()))
 {
     using namespace igor::model::legacy::json_detail;
-    reject_unknown_keys(node, kGeneChoiceKeys);
-    expect_type(node, "GeneChoice");
-
     const auto [segment, side] = single_target(node);
     this->set_seq_type(segment);
     this->set_event_side(side);
-    this->set_priority(require(node, "priority").get<int>());
+    this->set_priority(node.at("priority").get<int>());
     this->set_nickname(nickname);
 
-    for (const nlohmann::json *realization : realizations_in_index_order(node, kTemplatedRealizationKeys))
-        this->add_realization(text_label(*realization), require(*realization, "sequence").get<string>());
+    // Each realization's template, from the document's library, under the realization's label.
+    const string &name = node.at("library").get_ref<const string &>();
+    const auto templates = library.find(name);
+    if (templates == library.end())
+        throw std::runtime_error("event json: the document has no library \"" + name + "\"");
+    igor::model::schema::validate(library, "library.schema.json", "the library");
+    for (const nlohmann::json *realization : realizations_in_index_order(node)) {
+        const auto label = realization->at("label").get<string>();
+        const auto entry = templates->find(label);
+        if (entry == templates->end())
+            throw std::runtime_error("event json: library \"" + name + "\" has no template \"" + label + "\"");
+        this->add_realization(label, entry->at("sequence").get<string>());
+    }
 }
 
-/// The library is the gene class: the key of the alignments the choice reads. Each realization
-/// carries its template, which a model document moves into its "library" section.
+/// The library is the gene class: the key of the alignments the choice reads. The templates are
+/// the library's, which the document writes in its own section.
 nlohmann::json Gene_choice::to_json() const
 {
     nlohmann::json out = Rec_Event::to_json();
     out["library"] = to_string(this->event_class);
-    for (nlohmann::json &realization : out["realizations"])
-        realization["sequence"] = this->realization_at(realization.at("index").get<int>()).value_str;
     return out;
 }
 

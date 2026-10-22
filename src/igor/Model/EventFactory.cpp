@@ -46,7 +46,7 @@ void register_creator(const std::string &type_name, EventCreator func)
     detail::get_creators()[type_name] = std::move(func);
 }
 
-EventPtr create(const std::string &nickname, const nlohmann::json &node)
+EventPtr create(const std::string &nickname, const nlohmann::json &node, const nlohmann::json &library)
 {
     if (nickname.empty())
         throw std::runtime_error("EventFactory: an event needs a nickname");
@@ -62,7 +62,7 @@ EventPtr create(const std::string &nickname, const nlohmann::json &node)
         throw std::runtime_error("EventFactory: no creator registered for \"" + type_name
                                  + "\"; known types are " + detail::known_type_names());
 
-    return creator->second(nickname, node);
+    return creator->second(nickname, node, library);
 }
 
 bool is_registered(const std::string &type_name)
@@ -82,6 +82,9 @@ std::vector<std::string> registered_type_names()
 // Registered here, in the one translation unit that may know the concrete Core classes: Core
 // must not name Model. The strings are the ones the model file carries, which is why the last
 // one is "DinucMarkov" and not "Dinuclmarkov".
+template <>
+inline constexpr bool takes_library<legacy::Gene_choice> = true;
+
 namespace {
 const Registrar<legacy::Gene_choice> gene_choice_registrar{ "GeneChoice" };
 const Registrar<legacy::Deletion> deletion_registrar{ "Deletion" };

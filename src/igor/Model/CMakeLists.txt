@@ -33,6 +33,7 @@ target_sources(${PROJECT_NAME}
   PRIVATE
     EventFactory.cpp
     FlankCheck.cpp
+    ModelSchema.cpp
     Topology.cpp
     TraversalPlan.cpp
   PUBLIC FILE_SET HEADERS
@@ -47,6 +48,7 @@ target_sources(${PROJECT_NAME}
       ${LAYER_DIR}/Forward.h
       ${LAYER_DIR}/LegacyBridge.h
       ${LAYER_DIR}/LegacyBridge.tpp
+      ${LAYER_DIR}/ModelSchema.h
       ${LAYER_DIR}/Navigator.h
       ${LAYER_DIR}/RecombinationModel.h
       ${LAYER_DIR}/RecombinationModel.tpp
@@ -136,6 +138,23 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
   GSL::gsl
   nlohmann_json::nlohmann_json
 )
+
+## The JSON model schemas (ModelSchema.h). The files of schemas/<version>/ are embedded into the
+## library, which validates documents against them, and installed for editors and other tools.
+## The validator stays private: no installed header names it.
+set(MODEL_SCHEMA_DIR ${CMAKE_CURRENT_SOURCE_DIR}/schemas/0.3)
+file(GLOB MODEL_SCHEMA_FILES CONFIGURE_DEPENDS ${MODEL_SCHEMA_DIR}/*.schema.json)
+add_custom_command(
+  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/ModelSchemaFiles.cpp
+  COMMAND ${CMAKE_COMMAND} -DSCHEMA_DIR=${MODEL_SCHEMA_DIR}
+          -DOUTPUT=${CMAKE_CURRENT_BINARY_DIR}/ModelSchemaFiles.cpp
+          -P ${CMAKE_SOURCE_DIR}/cmake/igorEmbedSchemas.cmake
+  DEPENDS ${MODEL_SCHEMA_FILES} ${CMAKE_SOURCE_DIR}/cmake/igorEmbedSchemas.cmake
+  COMMENT "Embedding the model schemas"
+  VERBATIM)
+target_sources(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/ModelSchemaFiles.cpp)
+target_link_libraries(${PROJECT_NAME} PRIVATE nlohmann_json_schema_validator::validator)
+install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/schemas/ DESTINATION share/igor/schemas/model)
 
 ## #################################################################
 ## Install rules

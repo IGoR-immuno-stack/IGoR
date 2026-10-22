@@ -20,6 +20,7 @@ arrow-cpp = "*"
 cli11 = ">=2.6.2,<3"
 tomlplusplus = ">=3.3.0,<4"
 nlohmann_json = ">=3.11,<4"
+json_schema_validator = ">=2.4.1,<2.5"
 openssl = "*"
 
 [target.osx.dependencies]
@@ -114,6 +115,7 @@ sparrow-devel = "*"
 arrow-cpp = "*"
 tomlplusplus = ">=3.3.0,<4"
 nlohmann_json = ">=3.11,<4"
+json_schema_validator = ">=2.4.1,<2.5"  # private to igor::Model; its run_exports carry it at run time
 openssl = "*"
 
 [package.run-dependencies]

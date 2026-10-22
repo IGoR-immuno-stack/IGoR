@@ -8,6 +8,7 @@
  * (principle 6) plan, restricted to what the legacy model holds:
  *
  *     {
+ *       "$schema": "https://raw.githubusercontent.com/.../schemas/0.3/model.schema.json",
  *       "schema_version": "0.3",
  *       "structure": {
  *         "layout":       { "type": "Linear", "segments": ["V_gene_seq", "VD_ins_seq", ...] },
@@ -27,6 +28,9 @@
  *       "engine_hints": { "legacy_dfs": { "event_order": ["v_choice", "d_gene", ...] } }
  *     }
  *
+ * - Every reader checks the document against its JSON Schema first (ModelSchema.h): keys, types,
+ *   enumerations, ranges. What follows is checked in code, as no schema can relate one part of a
+ *   document to another. "$schema" names the schema, so that an editor validates and completes.
  * - The events are an object keyed by nickname, the identity. The order of its members is never
  *   read (§14.2), and a key repeated in one object is refused at parse (parse_model_document()).
  *   The readers build the events in byte-wise nickname order, unless the document carries the
@@ -36,7 +40,8 @@
  * - The conditioning graph is its own section, child to parents, apart from the events.
  * - A realization is its label, its identity, and its index, its coordinate in the marginal
  *   array. Indices run from 0 without gaps: the legacy marginals file is read by position.
- * - Templates sit in the library, keyed by label, so that D1 and D2 share one.
+ * - Templates sit in the library, keyed by label, so that D1 and D2 share one. A gene choice's
+ *   node names its library, and its constructor takes the templates from there.
  * - The parameters, the marginals of the legacy model, are optional. A document may hold them
  *   with the rest of the model, or alone with its version: a fragment, which a marginals file is.
  *   Each node lists its axes, its event's parents then its own, each axis with the labels of its
@@ -48,11 +53,11 @@
  * Comments are allowed, and dropped when IGoR writes a model.
  *
  * Not yet, and refused when present: the `provenance` and `accumulators` sections, the
- * parameters' structure fingerprint and compact axes (synthesis step 4b), several targets per event, a
- * layout other than Linear (step 5), a parameterization other than the event type's, and the
- * authoring form's shorthands and `description` fields (§14.4-14.5). `error_rate` is the one key outside the plan: it
- * stands for the error model until that is a node of the structure with its value in
- * `parameters` (ERROR_MODEL_REWRITE_PLAN.md, E4).
+ * parameters' structure fingerprint and compact axes (synthesis step 4b), several targets per
+ * event, a layout other than Linear (step 5), a parameterization other than the event type's, and
+ * the authoring form's shorthands and `description` fields (§14.4-14.5). `error_rate` is the one
+ * key outside the plan: it stands for the error model until that is a node of the structure with
+ * its value in `parameters` (ERROR_MODEL_REWRITE_PLAN.md, E4).
  */
 
 #include <igor/Core/Types.h>

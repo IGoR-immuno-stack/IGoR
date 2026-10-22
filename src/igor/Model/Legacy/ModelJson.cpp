@@ -1,6 +1,7 @@
 #include <igor/Model/Legacy/ModelJson.h>
 
 #include <igor/Model/EventFactory.h>
+#include <igor/Model/ModelSchema.h>
 #include <igor/Model/Legacy/Model_Parms.h>
 #include <igor/Model/Legacy/Model_marginals.h>
 #include <igor/Model/Legacy/Rec_Event.h>
@@ -46,131 +47,18 @@ nlohmann::json error_rate_to_json(const std::shared_ptr<Error_rate> &error_rate)
             + kModelJsonSchemaVersion);
 }
 
-/// The keys of the document, of its structure section and of a layout.
-constexpr std::initializer_list<const char *> kModelKeys = { "schema_version", "structure", "library",
-                                                             "parameters", "error_rate", "engine_hints" };
-constexpr std::initializer_list<const char *> kStructureKeys = { "layout", "events", "conditioning" };
-constexpr std::initializer_list<const char *> kLayoutKeys = { "type", "segments" };
-
-const nlohmann::json &require_model_key(const nlohmann::json &node, const char *key)
+/**
+ * The checks every reader makes first: the version, then the schema, with the sections the reader
+ * needs. The version comes first, and in its own words: another version's document would break
+ * this version's schema in ways that say nothing of the real cause.
+ */
+void check_document(const nlohmann::json &doc, std::initializer_list<const char *> required)
 {
-    const auto it = node.find(key);
-    if (it == node.end())
-        throw std::runtime_error(std::string("model json: missing key \"") + key + "\"");
-    return *it;
-}
-
-void reject_unknown_model_keys(const nlohmann::json &node, std::initializer_list<const char *> allowed,
-                               const std::string &where)
-{
-    if (not node.is_object())
-        throw std::runtime_error("model json: " + where + " is not an object");
-    for (const auto &entry : node.items()) {
-        const bool known = std::any_of(allowed.begin(), allowed.end(),
-                                       [&](const char *key) { return entry.key() == key; });
-        if (not known)
-            throw std::runtime_error("model json: unknown key \"" + entry.key() + "\" in " + where);
-    }
-}
-
-/// The document's keys and its version, which every reader checks first.
-void check_document(const nlohmann::json &doc)
-{
-    reject_unknown_model_keys(doc, kModelKeys, "the document");
-    // Only the current version: a pre-release 0.x is not read once the next one exists.
-    const nlohmann::json &version = require_model_key(doc, "schema_version");
-    if (version != kModelJsonSchemaVersion)
-        throw std::runtime_error("model json: schema version " + version.dump() + ", where \""
+    const auto version = doc.is_object() ? doc.find("schema_version") : doc.end();
+    if (version != doc.end() and *version != kModelJsonSchemaVersion)
+        throw std::runtime_error("model json: schema version " + version->dump() + ", where \""
                                  + kModelJsonSchemaVersion + "\" is the one this reader knows");
-}
-
-/// The reader's half of error_rate_to_json(), for the one error rate the schema describes.
-std::shared_ptr<Error_rate> error_rate_from_json(const nlohmann::json &node)
-{
-    const auto type = require_model_key(node, "type").get<std::string>();
-    if (type != Single_error_rate(0.0).type()) {
-        throw std::runtime_error("model json: error rate of type \"" + type
-                                 + "\" is not described by schema version "
-                                 + kModelJsonSchemaVersion
-                                 + "; the hypermutation models' JSON form is step HJ of "
-                                   "docs/ERROR_MODEL_REWRITE_PLAN.md");
-    }
-    reject_unknown_model_keys(node, { "type", "rate" }, "the error rate");
-    return std::make_shared<Single_error_rate>(require_model_key(node, "rate").get<double>());
-}
-
-/// The Linear layout's segments. A DAG of segments is synthesis step 5.
-std::vector<Seq_type_String> layout_segments(const nlohmann::json &structure)
-{
-    const nlohmann::json &layout = require_model_key(structure, "layout");
-    reject_unknown_model_keys(layout, kLayoutKeys, "the layout");
-    const auto type = require_model_key(layout, "type").get<std::string>();
-    if (type != "Linear")
-        throw std::runtime_error("model json: a layout of type \"" + type + "\"; this reader knows \"Linear\" only");
-
-    const auto segments = require_model_key(layout, "segments").get<std::vector<Seq_type_String>>();
-    if (segments.empty())
-        throw std::runtime_error("model json: the layout has no segment");
-    std::set<Seq_type_String> seen;
-    for (const auto &segment : segments) {
-        if (segment.empty() or not seen.insert(segment).second)
-            throw std::runtime_error("model json: the layout lists \"" + segment + "\" "
-                                     + (segment.empty() ? "as a segment" : "twice"));
-    }
-    return segments;
-}
-
-/// The library section: per library, per label, the template. Checked whole, used or not.
-void check_library(const nlohmann::json &doc)
-{
-    const auto library = doc.find("library");
-    if (library == doc.end())
-        return;
-    if (not library->is_object())
-        throw std::runtime_error("model json: \"library\" is not an object");
-    for (const auto &[name, templates] : library->items()) {
-        if (not templates.is_object())
-            throw std::runtime_error("model json: library \"" + name + "\" is not an object keyed by label");
-        for (const auto &[label, entry] : templates.items()) {
-            reject_unknown_model_keys(entry, { "sequence" }, "template \"" + label + "\" of library \"" + name + "\"");
-            if (not require_model_key(entry, "sequence").is_string())
-                throw std::runtime_error("model json: template \"" + label + "\" of library \"" + name
-                                         + "\" has no sequence string");
-        }
-    }
-}
-
-/// The node with each realization's template put back from the library, as a gene choice's
-/// constructor takes it. A node without a library is returned as it is.
-nlohmann::json with_templates(const nlohmann::json &doc, const nlohmann::json &node)
-{
-    const auto library = node.find("library");
-    if (library == node.end() or not library->is_string())
-        return node;
-    const auto realizations = node.find("realizations");
-    if (realizations == node.end() or not realizations->is_array())
-        return node;    // the constructor names what is missing
-
-    const std::string &name = library->get_ref<const std::string &>();
-    const nlohmann::json &section = require_model_key(doc, "library");
-    const auto templates = section.find(name);
-    if (templates == section.end())
-        throw std::runtime_error("model json: the library section has no \"" + name + "\"");
-
-    nlohmann::json resolved = node;
-    for (nlohmann::json &realization : resolved.at("realizations")) {
-        if (realization.contains("sequence"))
-            throw std::runtime_error("model json: a template belongs in the library section, not on a realization");
-        const auto label = realization.find("label");
-        if (label == realization.end() or not label->is_string())
-            continue;    // the constructor names what is wrong
-        const auto entry = templates->find(label->get_ref<const std::string &>());
-        if (entry == templates->end())
-            throw std::runtime_error("model json: library \"" + name + "\" has no template \""
-                                     + label->get<std::string>() + "\"");
-        realization["sequence"] = entry->at("sequence");
-    }
-    return resolved;
+    igor::model::schema::validate(doc, "model.schema.json", "the document", required);
 }
 
 /**
@@ -186,14 +74,10 @@ nlohmann::json with_templates(const nlohmann::json &doc, const nlohmann::json &n
 std::vector<std::string> event_order(const nlohmann::json &doc, const std::set<std::string> &nicknames)
 {
     const auto hints = doc.find("engine_hints");
-    if (hints == doc.end())
+    if (hints == doc.end() or not hints->contains("legacy_dfs"))
         return { nicknames.begin(), nicknames.end() };
-    reject_unknown_model_keys(*hints, { "legacy_dfs" }, "\"engine_hints\"");
-    const nlohmann::json &legacy = require_model_key(*hints, "legacy_dfs");
-    reject_unknown_model_keys(legacy, { "event_order" }, "the legacy_dfs hints");
-
-    const auto order = require_model_key(legacy, "event_order").get<std::vector<std::string>>();
-    if (std::set<std::string>(order.begin(), order.end()) != nicknames or order.size() != nicknames.size())
+    const auto order = hints->at("legacy_dfs").at("event_order").get<std::vector<std::string>>();
+    if (std::set<std::string>(order.begin(), order.end()) != nicknames)
         throw std::runtime_error("model json: the legacy_dfs event order does not list every event once");
     return order;
 }
@@ -207,15 +91,11 @@ std::vector<std::pair<std::string, std::string>> conditioning_edges(const nlohma
     const auto conditioning = structure.find("conditioning");
     if (conditioning == structure.end())
         return edges;
-    if (not conditioning->is_object())
-        throw std::runtime_error("model json: \"conditioning\" is not an object keyed by nickname");
 
     std::map<std::string, std::vector<std::string>> parents_of;
     for (const auto &[child, parents] : conditioning->items()) {
         if (nicknames.count(child) == 0)
             throw std::runtime_error("model json: the conditioning names an unknown event \"" + child + "\"");
-        if (not parents.is_array())
-            throw std::runtime_error("model json: the parents of \"" + child + "\" are not a list");
         std::vector<std::string> &sorted = parents_of[child];
         for (const auto &parent : parents) {
             const auto nickname = parent.get<std::string>();
@@ -227,8 +107,6 @@ std::vector<std::pair<std::string, std::string>> conditioning_edges(const nlohma
             sorted.push_back(nickname);
         }
         std::sort(sorted.begin(), sorted.end());
-        if (std::adjacent_find(sorted.begin(), sorted.end()) != sorted.end())
-            throw std::runtime_error("model json: event \"" + child + "\" names a parent twice");
     }
 
     // The graph must be acyclic. Model_Parms::add_edge() checks it too, Topology::addEdge() only
@@ -331,10 +209,9 @@ nlohmann::json nested_values(const long double *block, const std::vector<LegacyA
 std::vector<LegacyAxis> read_axes(const nlohmann::json &node, const Rec_Event &event,
                                   const std::list<std::pair<std::shared_ptr<const Rec_Event>, int>> &parents)
 {
-    reject_unknown_model_keys(node, { "axes", "values" }, "the node");
-    const nlohmann::json &axes = require_model_key(node, "axes");
+    const nlohmann::json &axes = node.at("axes");
     const std::vector<std::size_t> own = own_strides(event);
-    if (not axes.is_array() or axes.size() != parents.size() + own.size())
+    if (axes.size() != parents.size() + own.size())
         throw std::runtime_error("the axes must be the event's " + std::to_string(parents.size())
                                  + " parents, then its " + std::to_string(own.size()) + " own");
 
@@ -342,8 +219,7 @@ std::vector<LegacyAxis> read_axes(const nlohmann::json &node, const Rec_Event &e
     std::set<std::string> named_parents;
     for (std::size_t k = 0; k != axes.size(); ++k) {
         const std::string where = "axis " + std::to_string(k);
-        reject_unknown_model_keys(axes[k], { "event", "labels" }, where);
-        const auto name = require_model_key(axes[k], "event").get<std::string>();
+        const auto name = axes[k].at("event").get<std::string>();
         LegacyAxis axis{ &event, 0, {} };
         if (k >= parents.size()) {
             if (name != event.get_nickname())
@@ -363,8 +239,8 @@ std::vector<LegacyAxis> read_axes(const nlohmann::json &node, const Rec_Event &e
         }
 
         const auto domain = realizations_by_index(*axis.event);
-        const auto labels_entry = axes[k].find("labels");
-        if (labels_entry == axes[k].end()) {
+        const auto labels = axes[k].find("labels");
+        if (labels == axes[k].end()) {
             for (const auto &entry : domain)
                 axis.index_at.push_back(entry.first);
             out.push_back(std::move(axis));
@@ -373,12 +249,11 @@ std::vector<LegacyAxis> read_axes(const nlohmann::json &node, const Rec_Event &e
         std::map<std::string, int> index_of;
         for (const auto &[index, label] : domain)
             index_of.emplace(label.dump(), index);
-        const nlohmann::json &labels = *labels_entry;
-        if (not labels.is_array() or labels.size() != index_of.size())
+        if (labels->size() != index_of.size())
             throw std::runtime_error(where + " must list the " + std::to_string(index_of.size()) + " labels of \""
                                      + name + "\"");
         std::set<int> placed;
-        for (const auto &label : labels) {
+        for (const auto &label : *labels) {
             const auto found = index_of.find(label.dump());
             if (found == index_of.end())
                 throw std::runtime_error(where + ": \"" + name + "\" has no realization labelled " + label.dump());
@@ -391,7 +266,8 @@ std::vector<LegacyAxis> read_axes(const nlohmann::json &node, const Rec_Event &e
     return out;
 }
 
-/// The node's values into the event's block, each at the realizations its labels name.
+/// The node's values into the event's block, each at the realizations its labels name. The
+/// schema has them non-negative numbers; a document built in code may still hold an infinity.
 void place_values(const nlohmann::json &values, long double *block, const std::vector<LegacyAxis> &axes,
                   std::size_t depth, std::size_t offset)
 {
@@ -406,8 +282,8 @@ void place_values(const nlohmann::json &values, long double *block, const std::v
             continue;
         }
         const nlohmann::json &value = values[position];
-        if (not value.is_number() or not std::isfinite(value.get<double>()) or value.get<double>() < 0)
-            throw std::runtime_error("value " + value.dump() + " is not a finite, non-negative number");
+        if (not value.is_number() or not std::isfinite(value.get<double>()))
+            throw std::runtime_error("value " + value.dump() + " is not a finite number");
         block[at] = value.get<double>();
     }
 }
@@ -466,26 +342,23 @@ bool model_file_has_parameters(const std::string &filename)
 
 DocumentStructure read_document_structure(const nlohmann::json &doc)
 {
-    check_document(doc);
-    check_library(doc);
-
-    const nlohmann::json &structure = require_model_key(doc, "structure");
-    reject_unknown_model_keys(structure, kStructureKeys, "\"structure\"");
+    check_document(doc, { "structure" });
+    const nlohmann::json &structure = doc.at("structure");
 
     DocumentStructure out;
-    out.segments = layout_segments(structure);
+    out.segments = structure.at("layout").at("segments").get<std::vector<Seq_type_String>>();
 
     // Built in nickname order, or the legacy engine's, whatever order the parser keeps the
-    // members in.
-    const nlohmann::json &events = require_model_key(structure, "events");
-    if (not events.is_object())
-        throw std::runtime_error("model json: \"events\" is not an object keyed by nickname");
+    // members in. A gene choice takes its templates from the library.
+    static const nlohmann::json no_library;
+    const nlohmann::json &library = doc.contains("library") ? doc.at("library") : no_library;
+    const nlohmann::json &events = structure.at("events");
     std::set<std::string> nicknames;
     for (const auto &entry : events.items())
         nicknames.insert(entry.key());
     for (const auto &nickname : event_order(doc, nicknames)) {
         try {
-            out.events.push_back(igor::model::event_factory::create(nickname, with_templates(doc, events.at(nickname))));
+            out.events.push_back(igor::model::event_factory::create(nickname, events.at(nickname), library));
         } catch (const std::exception &e) {
             throw std::runtime_error("model json: event \"" + nickname + "\": " + e.what());
         }
@@ -498,6 +371,7 @@ DocumentStructure read_document_structure(const nlohmann::json &doc)
 nlohmann::json model_parms_to_json(const Model_Parms &parms)
 {
     nlohmann::json doc;
+    doc["$schema"] = igor::model::schema::document_schema_uri();
     doc["schema_version"] = kModelJsonSchemaVersion;
 
     // The segment order is model data and is not derivable from the event graph: the graph
@@ -506,7 +380,8 @@ nlohmann::json model_parms_to_json(const Model_Parms &parms)
     if (segments.empty())
         throw std::runtime_error("model_parms_to_json: the model has no segment order; finalize() it first");
     nlohmann::json structure;
-    structure["layout"] = { { "type", "Linear" }, { "segments", segments } };
+    structure["layout"]["type"] = "Linear";
+    structure["layout"]["segments"] = segments;
 
     nlohmann::json events = nlohmann::json::object();
     nlohmann::json conditioning = nlohmann::json::object();
@@ -516,18 +391,18 @@ nlohmann::json model_parms_to_json(const Model_Parms &parms)
         listed.push_back(event->get_nickname());
         nlohmann::json node = event->to_json();
 
-        // The templates move to the library, under the label that names them there.
+        // A templated event's templates go to the library it names, under their labels.
         const auto library_name = node.find("library");
         if (library_name != node.end()) {
             nlohmann::json &templates = library[library_name->get<std::string>()];
-            for (nlohmann::json &realization : node.at("realizations")) {
-                const auto label = realization.at("label").get<std::string>();
-                nlohmann::json entry = { { "sequence", realization.at("sequence") } };
-                if (templates.contains(label) and templates.at(label) != entry)
+            for (const auto &entry : event->get_realizations_map()) {
+                const Event_realization &realization = entry.second;
+                nlohmann::json value;
+                value["sequence"] = realization.value_str;
+                if (templates.contains(realization.name) and templates.at(realization.name) != value)
                     throw std::runtime_error("model_parms_to_json: library \"" + library_name->get<std::string>()
-                                             + "\" would hold two templates labelled \"" + label + "\"");
-                templates[label] = std::move(entry);
-                realization.erase("sequence");
+                                             + "\" would hold two templates labelled \"" + realization.name + "\"");
+                templates[realization.name] = std::move(value);
             }
         }
         events[event->get_nickname()] = std::move(node);
@@ -565,9 +440,11 @@ void model_parms_from_json(const nlohmann::json &doc, Model_Parms &parms)
     for (const auto &[parent, child] : structure.edges)
         parms.add_edge(parent, child);
 
+    // The schema allows SingleErrorRate only: the hypermutation models' JSON form is step HJ of
+    // docs/ERROR_MODEL_REWRITE_PLAN.md.
     const auto error_rate = doc.find("error_rate");
     if (error_rate != doc.end())
-        parms.set_error_ratep(error_rate_from_json(*error_rate));
+        parms.set_error_ratep(std::make_shared<Single_error_rate>(error_rate->at("rate").get<double>()));
     parms.finalize();
 }
 
@@ -612,12 +489,8 @@ nlohmann::json model_marginals_to_json(const Model_Parms &parms, const Model_mar
 
 void model_marginals_from_json(const nlohmann::json &doc, const Model_Parms &parms, Model_marginals &marginals)
 {
-    check_document(doc);
-    const nlohmann::json &section = require_model_key(doc, "parameters");
-    reject_unknown_model_keys(section, { "nodes" }, "\"parameters\"");
-    const nlohmann::json &nodes = require_model_key(section, "nodes");
-    if (not nodes.is_object())
-        throw std::runtime_error("model json: the parameters' \"nodes\" are not an object keyed by nickname");
+    check_document(doc, { "parameters" });
+    const nlohmann::json &nodes = doc.at("parameters").at("nodes");
 
     const auto queue = parms.get_model_queue();
     const auto index_map = marginals.get_index_map(parms, queue);
@@ -643,8 +516,8 @@ void model_marginals_from_json(const nlohmann::json &doc, const Model_Parms &par
             throw std::runtime_error("model json: the parameters have no node for event \"" + nickname + "\"");
         try {
             const auto axes = read_axes(*node, *event, parents_by_stride(inverse_offsets, *event));
-            place_values(require_model_key(*node, "values"),
-                         marginals.marginal_array_smart_p.get() + index_map.at(event->get_name()), axes, 0, 0);
+            place_values(node->at("values"), marginals.marginal_array_smart_p.get() + index_map.at(event->get_name()),
+                         axes, 0, 0);
         } catch (const std::exception &e) {
             throw std::runtime_error("model json: the parameters of \"" + nickname + "\": " + e.what());
         }

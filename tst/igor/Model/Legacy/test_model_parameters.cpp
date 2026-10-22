@@ -420,7 +420,7 @@ TEST_CASE("Parameters that do not fit the model are refused", "[model_format][js
         labels[0] = 99;
         refused("no realization labelled 99");
         labels[0] = labels[1];
-        refused("twice");
+        refused("/parameters/nodes/v_3_del/axes/1/labels: items have to be unique");
         labels.erase(labels.begin());
         refused("must list the 21 labels");
         labels.insert(labels.begin(), first);
@@ -432,15 +432,15 @@ TEST_CASE("Parameters that do not fit the model are refused", "[model_format][js
         refused("not a list of 15");
         nodes = fragment(parms, distinct_marginals(parms))["parameters"]["nodes"];
         nodes["j_choice"]["values"][0] = -0.5;
-        refused("not a finite, non-negative number");
+        refused("/parameters/nodes/j_choice/values/0: instance is below minimum");
         nodes["j_choice"]["values"][0] = "0.5";
-        refused("not a finite, non-negative number");
+        refused("/parameters/nodes/j_choice/values/0: unexpected instance type");
     }
     SECTION("a document without parameters, or with another version") {
         nlohmann::json structure = model_parms_to_json(parms);
         Model_marginals marginals(parms);
         REQUIRE_THROWS_WITH(model_marginals_from_json(structure, parms, marginals),
-                            ContainsSubstring("missing key \"parameters\""));
+                            ContainsSubstring("required property 'parameters' not found"));
         doc["schema_version"] = "0.2";
         refused("schema version \"0.2\"");
     }
@@ -469,6 +469,6 @@ TEST_CASE("A value too large for a double is refused", "[model_format][json][par
         doc["parameters"]["nodes"]["vd_ins"]["values"][0] = std::numeric_limits<double>::infinity();
         Model_marginals marginals(parms);
         REQUIRE_THROWS_WITH(model_marginals_from_json(doc, parms, marginals),
-                            ContainsSubstring("vd_ins") && ContainsSubstring("not a finite, non-negative number"));
+                            ContainsSubstring("vd_ins") && ContainsSubstring("is not a finite number"));
     }
 }

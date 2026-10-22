@@ -69,13 +69,10 @@ Dinucl_markov::Dinucl_markov(const Seq_type_String &seq_type) : Rec_Event(), tot
 }
 
 Dinucl_markov::Dinucl_markov(const string &nickname, const nlohmann::json &node)
-    : Dinucl_markov(igor::model::legacy::json_detail::single_target(node).first)
+    : Dinucl_markov(igor::model::legacy::json_detail::validated_target(node, "DinucMarkov").first)
 {
     using namespace igor::model::legacy::json_detail;
-    reject_unknown_keys(node, kEventKeys);
-    expect_type(node, "DinucMarkov");
-
-    this->set_priority(require(node, "priority").get<int>());
+    this->set_priority(node.at("priority").get<int>());
     this->set_nickname(nickname);
 
     // The side is the traversal anchor: Three_prime means the chain is seeded from the segment
@@ -83,22 +80,14 @@ Dinucl_markov::Dinucl_markov(const string &nickname, const nlohmann::json &node)
     this->set_event_side(single_target(node).second);
 
     // The four nucleotides are self-initialized above, so the document's realizations are
-    // verified rather than applied. Anything else means the document was not written by this
-    // schema, and building a chain over a different alphabet would need more than a loop here.
-    const auto realizations = realizations_in_index_order(node);
-    if (realizations.size() != this->event_realizations.size())
-        throw std::runtime_error("event json: a dinucleotide Markov chain has "
-                                 + std::to_string(this->event_realizations.size())
-                                 + " realizations, document has "
-                                 + std::to_string(realizations.size()));
-    for (const nlohmann::json *realization : realizations) {
-        const auto name = text_label(*realization);
+    // verified rather than applied: the schema holds them to A, C, G and T, and this to the
+    // indices the chain gives them.
+    for (const nlohmann::json *realization : realizations_in_index_order(node)) {
+        const auto name = realization->at("label").get<string>();
         const auto found = this->event_realizations.find(name);
-        if (found == this->event_realizations.end()
-            || found->second.index != require(*realization, "index").get<int>())
-            throw std::runtime_error("event json: unexpected dinucleotide realization \"" + name
-                                     + "\" at index "
-                                     + std::to_string(require(*realization, "index").get<int>()));
+        if (found == this->event_realizations.end() || found->second.index != realization->at("index").get<int>())
+            throw std::runtime_error("event json: unexpected dinucleotide realization \"" + name + "\" at index "
+                                     + std::to_string(realization->at("index").get<int>()));
     }
 }
 

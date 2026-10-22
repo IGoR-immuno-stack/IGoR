@@ -72,8 +72,8 @@ public:
     Gene_choice(Gene_class);
     Gene_choice(Gene_class, std::unordered_map<std::string, Event_realization> &);
     Gene_choice(Gene_class, std::vector<std::pair<std::string, std::string>>);
-    /// From its nickname and its node, templates included. See ModelJson.h.
-    Gene_choice(const std::string &nickname, const nlohmann::json &);
+    /// From its nickname, its node, and the document's library, where its templates are. See ModelJson.h.
+    Gene_choice(const std::string &nickname, const nlohmann::json &node, const nlohmann::json &library);
     //Destructor
     ~Gene_choice() override;
     //Virtual methods overload

@@ -209,7 +209,8 @@ TEST_CASE("A JSON document the schema does not describe is refused", "[model_for
     }
     SECTION("an error rate other than SingleErrorRate, whose JSON form is HJ") {
         doc["error_rate"] = {{"type", "HypermutationGlobalErrorRate"}, {"rate", 0.1}};
-        REQUIRE_THROWS_WITH(read(doc), ContainsSubstring("HypermutationGlobalErrorRate") && ContainsSubstring("HJ"));
+        REQUIRE_THROWS_WITH(read(doc), ContainsSubstring("/error_rate/type: instance not found in required enum")
+                                               && ContainsSubstring("HypermutationGlobalErrorRate"));
     }
     SECTION("the v1 era's spellings in the structure: an events array, parents in an event") {
         nlohmann::json events = nlohmann::json::array();
@@ -217,10 +218,10 @@ TEST_CASE("A JSON document the schema does not describe is refused", "[model_for
             events.push_back(node);
         nlohmann::json as_array = doc;
         as_array["structure"]["events"] = events;
-        REQUIRE_THROWS_WITH(read(as_array), ContainsSubstring("keyed by nickname"));
+        REQUIRE_THROWS_WITH(read(as_array), ContainsSubstring("/structure/events: unexpected instance type"));
 
         doc["structure"]["events"]["j_choice"]["parents"] = {"v_choice"};
-        REQUIRE_THROWS_WITH(read(doc), ContainsSubstring("j_choice") && ContainsSubstring("unknown key \"parents\""));
+        REQUIRE_THROWS_WITH(read(doc), ContainsSubstring("/structure/events/j_choice: unknown key \"parents\""));
     }
     SECTION("a section the plan has and this reader does not yet") {
         doc["provenance"] = nlohmann::json::object();
@@ -230,7 +231,7 @@ TEST_CASE("A JSON document the schema does not describe is refused", "[model_for
         doc["structure"]["layout"]["type"] = "Dag";
         REQUIRE_THROWS_WITH(read(doc), ContainsSubstring("\"Dag\""));
         doc["structure"]["layout"] = {{"type", "Linear"}, {"segments", {"V_gene_seq", "VJ_ins_seq", "V_gene_seq"}}};
-        REQUIRE_THROWS_WITH(read(doc), ContainsSubstring("\"V_gene_seq\" twice"));
+        REQUIRE_THROWS_WITH(read(doc), ContainsSubstring("/structure/layout/segments: items have to be unique"));
     }
     SECTION("a conditioning naming an event that does not exist, as child or as parent") {
         doc["structure"]["conditioning"]["v_gene"] = {"v_choice"};
@@ -238,7 +239,7 @@ TEST_CASE("A JSON document the schema does not describe is refused", "[model_for
     }
     SECTION("a parent named twice, or the event itself") {
         doc["structure"]["conditioning"]["v_3_del"] = {"v_choice", "v_choice"};
-        REQUIRE_THROWS_WITH(read(doc), ContainsSubstring("names a parent twice"));
+        REQUIRE_THROWS_WITH(read(doc), ContainsSubstring("/structure/conditioning/v_3_del: items have to be unique"));
         doc["structure"]["conditioning"]["v_3_del"] = {"v_3_del"};
         REQUIRE_THROWS_WITH(read(doc), ContainsSubstring("names itself"));
     }
@@ -252,7 +253,8 @@ TEST_CASE("A JSON document the schema does not describe is refused", "[model_for
         REQUIRE_THROWS_WITH(read(missing), ContainsSubstring("v_choice") && ContainsSubstring("no template \"V_test\""));
 
         doc["structure"]["events"]["v_choice"]["realizations"][0]["sequence"] = "ATCGATCG";
-        REQUIRE_THROWS_WITH(read(doc), ContainsSubstring("library section"));
+        REQUIRE_THROWS_WITH(read(doc),
+                            ContainsSubstring("/structure/events/v_choice/realizations/0: unknown key \"sequence\""));
     }
     SECTION("a library entry of another shape, even one no event uses") {
         doc["library"]["V_gene"]["V_spare"] = {{"seq", "ATCG"}};
@@ -403,7 +405,8 @@ TEST_CASE("A v1 model written as JSON keeps its event order as a legacy engine h
 
         doc["engine_hints"]["legacy_dfs"]["event_order"].push_back(listed.front());
         REQUIRE_THROWS_WITH(parms.read_model_parms(scratch.file("doubled.json", doc.dump())),
-                            Catch::Matchers::ContainsSubstring("every event once"));
+                            Catch::Matchers::ContainsSubstring("/engine_hints/legacy_dfs/event_order: items have to "
+                                                               "be unique"));
     }
 }
 
@@ -431,8 +434,10 @@ TEST_CASE("A JSON document may carry comments", "[model_format][json]")
         read_back.write_model_parms_json(written);
         std::ifstream in(written);
         const std::string rewritten((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
-        CHECK(rewritten.find("//") == std::string::npos);
-        CHECK(rewritten.find("/*") == std::string::npos);
+        // "$schema" is a URL, so a comment would open a line.
+        CHECK(rewritten.find("\n//") == std::string::npos);
+        CHECK(rewritten.find("\n/*") == std::string::npos);
+        CHECK(rewritten.front() == '{');
     }
     SECTION("the fixtures open with one") {
         REQUIRE(first_line_of(TEST_DATA_DIR + "tandem_d_model.json") == "/*");

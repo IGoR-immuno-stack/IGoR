@@ -102,18 +102,15 @@ Insertion::Insertion(const Seq_type_String &seq_type, unordered_map<string, Even
 }
 
 Insertion::Insertion(const string &nickname, const nlohmann::json &node)
-    : Insertion(igor::model::legacy::json_detail::single_target(node).first)
+    : Insertion(igor::model::legacy::json_detail::validated_target(node, "Insertion").first)
 {
     using namespace igor::model::legacy::json_detail;
-    reject_unknown_keys(node, kEventKeys);
-    expect_type(node, "Insertion");
-
     this->set_event_side(single_target(node).second);
-    this->set_priority(require(node, "priority").get<int>());
+    this->set_priority(node.at("priority").get<int>());
     this->set_nickname(nickname);
 
     for (const nlohmann::json *realization : realizations_in_index_order(node))
-        this->add_realization(integer_label(*realization));
+        this->add_realization(realization->at("label").get<int>());
 }
 
 Insertion::~Insertion()

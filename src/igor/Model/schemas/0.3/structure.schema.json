@@ -1,0 +1,45 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/IGoR-immuno-stack/IGoR/master/src/igor/Model/schemas/0.3/structure.schema.json",
+  "title": "IGoR model: structure",
+  "description": "What the model is: its segments, its events, and which event conditions which.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "layout",
+    "events"
+  ],
+  "properties": {
+    "layout": {
+      "$ref": "layout.schema.json"
+    },
+    "events": {
+      "type": "object",
+      "propertyNames": {
+        "$ref": "common.schema.json#/definitions/nickname"
+      },
+      "description": "The events, keyed by nickname. Their order is never read.",
+      "patternProperties": {
+        "": {
+          "$ref": "event.schema.json"
+        }
+      }
+    },
+    "conditioning": {
+      "type": "object",
+      "propertyNames": {
+        "$ref": "common.schema.json#/definitions/nickname"
+      },
+      "description": "Each conditioned event's parents, by nickname. An event without parents is left out.",
+      "patternProperties": {
+        "": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "common.schema.json#/definitions/nickname"
+          }
+        }
+      }
+    }
+  }
+}
