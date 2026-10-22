@@ -358,7 +358,7 @@ Stale statements in the untracked design documents, listed for their next revisi
 |---|---|---|
 | SYN open decision 7 | Single's M-step: keep the mean of per-read frequencies, or pool | decided: pooled (ERR X13, ER1) |
 | SYN §5, REV §6 | Single on a Bernoulli handler | a two-cell Categorical, which is the same distribution (ERR §3.5) |
-| SYN open decision 3, REV §7.1 | no JSON library in the tree | `nlohmann` is used by `ModelJson` and the JSON constructors |
+| SYN open decision 3, REV §7.1 | no JSON library in the tree | `nlohmann` is used by `ModelJson` and the JSON constructors; `json_schema_validator` checks documents and event nodes against the schemas of `src/igor/Model/schemas/` (T2, Oct 22 2026), the first phase of REV §14.3's two-phase load |
 | SYN §5, "Build" row | the legacy runtime stays in `Core` | it is in `Inference/Legacy/` and `Model/Legacy/` since step 1c |
 | REV §6 | Single's M-step must stay as is to keep the goldens bitwise | ER1 moves them once, deliberately |
 | REV §7.2 | `Coverage_err_counter` is a `friend` | it reads public slots since step 1c; the hypermutation models are still `friend`s |

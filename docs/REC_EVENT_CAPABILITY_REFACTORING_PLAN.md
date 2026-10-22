@@ -692,12 +692,44 @@ inference's output names. An inference on a tandem model itself waits for T7a: `
 reads the mismatches of the legacy D id, which a tandem model does not fill. A CLI run generates
 from a fragment, and from a complete document without a marginals file, what their parameters say.
 
-Mutations, all caught: eight of N2, eight of N3, eleven of N4, twenty-three of the layout,
-twenty-one of the parameters.
+**The JSON Schema (decided and delivered Oct 22 2026).** REVIEW §14.3 plans a two-phase load: the
+document checked against a schema assembled from the registries, then built, its references
+resolved. The first phase is now `json_schema_validator` (conda-forge, MIT, built on nlohmann,
+draft-07), private to `igor::Model`:
+- **Where.** Twelve files in `src/igor/Model/schemas/0.3/`, one per definition: the document, its
+  sections (`structure`, `layout`, `library`, `parameters`, `error-rate`), shared definitions
+  (`common`), the event union and one file per event type. Each `$id` is the file's raw URL on the
+  repository's `master` branch, which editors can fetch once this is merged, provided the
+  repository is public. The files are embedded in the library at build time (`cmake/igorEmbedSchemas.cmake`) and
+  installed under `share/igor/schemas/model/0.3/`.
+- **`$schema`.** Every document IGoR writes names `model.schema.json`, so that an editor validates
+  and completes it (Quentin, Oct 22 2026).
+- **What the schema checks**: keys, types, enumerations, ranges, uniqueness in a list, one target,
+  the version. Tagged unions (event types, layouts, error rates) are `if`/`then` on `type`, so that
+  an error comes from the matching kind only. Maps keyed by nickname or label use
+  `patternProperties`, so that an error points at the entry.
+- **What stays in code**: duplicate keys at parse, the version first and in its own words, the
+  conditioning naming events without a cycle, a template for each label, dense indices and unique
+  labels within an event, the parameters' axes against the conditioning and their labels against
+  the events, the engine hint listing every event, and the legacy engine's own limits.
+- **Every reader checks the document**, and **every event constructor its node** against its type's
+  schema, so a node built in code is checked too. The hand-written shape checks of `JsonDetail.h`
+  and `ModelJson.cpp` went.
+- **A gene choice's node is the document's**: `create(nickname, node, library)` hands it the
+  library, where it finds its templates, so one schema per type describes both. A class opts into
+  the library through `event_factory::takes_library`: asking whether the three-argument
+  constructor exists found `Deletion(seq_type, side, std::pair<int, int>)`, nlohmann converting to
+  anything.
+- **Messages** list every violation at its JSON pointer, the first ten, in the reader's words
+  (`unknown key "x"`) and once each, the validator's `allOf` summaries dropped.
+- Python's `jsonschema` reads the same files and agrees on the fixtures and on a broken document.
 
-Gate, at each step: unit (510/510 at N4, 515/515 with the layout, 523/523 with the parameters) and
-integration 10/10; regression bitwise on cli, align, inference, no_d_align and generate; convergence
-2/2 at N3, N4, the layout and the parameters.
+Mutations, all caught: eight of N2, eight of N3, eleven of N4, twenty-three of the layout,
+twenty-one of the parameters, twelve of the schema.
+
+Gate, at each step: unit (510/510 at N4, 515/515 with the layout, 523/523 with the parameters,
+529/529 with the schema) and integration 10/10; regression bitwise on cli, align, inference,
+no_d_align and generate; convergence 2/2 at N3, N4, the layout, the parameters and the schema.
 
 ### T7: segment ids follow the ordering, not the `Seq_type` enum (planned Oct 15 2026)
 
