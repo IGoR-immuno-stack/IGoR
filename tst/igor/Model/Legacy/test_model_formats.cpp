@@ -223,8 +223,8 @@ TEST_CASE("A JSON document the schema does not describe is refused", "[model_for
         REQUIRE_THROWS_WITH(read(doc), ContainsSubstring("j_choice") && ContainsSubstring("unknown key \"parents\""));
     }
     SECTION("a section the plan has and this reader does not yet") {
-        doc["parameters"] = nlohmann::json::object();
-        REQUIRE_THROWS_WITH(read(doc), ContainsSubstring("unknown key \"parameters\""));
+        doc["provenance"] = nlohmann::json::object();
+        REQUIRE_THROWS_WITH(read(doc), ContainsSubstring("unknown key \"provenance\""));
     }
     SECTION("a layout other than a Linear one, or a segment twice") {
         doc["structure"]["layout"]["type"] = "Dag";

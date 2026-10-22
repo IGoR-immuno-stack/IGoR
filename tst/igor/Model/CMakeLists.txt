@@ -30,6 +30,7 @@ target_sources(model_tests
         Legacy/test_insertion_iterate.cpp
         Legacy/test_model_formats.cpp
         Legacy/test_model_json.cpp
+        Legacy/test_model_parameters.cpp
         Legacy/test_proba_bound_benchmark.cpp
         Legacy/test_tandem_junctions.cpp
         Legacy/test_utils.cpp

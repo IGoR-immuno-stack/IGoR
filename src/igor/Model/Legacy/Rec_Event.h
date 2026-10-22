@@ -794,6 +794,10 @@ struct Event_comparator
     }
 };
 
+/// What a model document calls \a realization: its value for a deletion or an insertion, its name
+/// for a gene or a nucleotide. Its identity in the document's structure and parameters alike.
+MODEL_EXPORT nlohmann::json realization_label(const Event_realization &realization);
+
 /// "nickname" or "legacy", as the CLI spells them. Throws std::invalid_argument on anything else.
 MODEL_EXPORT Event_label str2EventLabel(const std::string &);
 

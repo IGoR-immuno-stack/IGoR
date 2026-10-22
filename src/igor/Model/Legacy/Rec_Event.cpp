@@ -216,12 +216,7 @@ nlohmann::json Rec_Event::to_json() const
         const Event_realization &real = entry.second;
         nlohmann::json r;
         r["index"] = real.index;
-        // INT16_MAX is the "no integer value" sentinel of the realizations named rather than
-        // numbered: genes and nucleotides.
-        if (real.value_int != INT16_MAX)
-            r["label"] = real.value_int;
-        else
-            r["label"] = real.name;
+        r["label"] = realization_label(real);
         realizations.push_back(std::move(r));
     }
     std::sort(realizations.begin(), realizations.end(),
@@ -230,6 +225,15 @@ nlohmann::json Rec_Event::to_json() const
               });
     out["realizations"] = std::move(realizations);
     return out;
+}
+
+nlohmann::json realization_label(const Event_realization &realization)
+{
+    // INT16_MAX is the "no integer value" sentinel of the realizations named rather than
+    // numbered: genes and nucleotides.
+    if (realization.value_int != INT16_MAX)
+        return realization.value_int;
+    return realization.name;
 }
 
 Event_label str2EventLabel(const string &str)

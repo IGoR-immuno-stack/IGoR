@@ -198,10 +198,11 @@ bool GenModel::infer_model(
         general_logs << "Error model updated: " << model_parms.get_err_rate_p()->is_updated() << endl;
     }
 
-    //Write initial condition to file
-    this->model_marginals.write2txt(path + string("initial_marginals.txt"), this->model_parms);
-    //A model the v1 format cannot hold is written as JSON, and named so.
-    this->model_parms.write_model_parms(path + "initial_model" + this->model_parms.model_file_extension());
+    //Write initial condition to file. A model the v1 format cannot hold is written as JSON, its
+    //marginals as a JSON fragment, and both are named so.
+    const string extension = this->model_parms.model_file_extension();
+    this->model_marginals.write_marginals(path + "initial_marginals" + extension, this->model_parms);
+    this->model_parms.write_model_parms(path + "initial_model" + extension);
 
     /*
 	 * First initialization creates file streams
@@ -697,17 +698,17 @@ bool GenModel::infer_model(
         this->model_marginals = new_marginals;
         ++iteration_accomplished;
 
-        this->model_marginals.write2txt(
-                path + string("iteration_") + to_string(iteration_accomplished) + string(".txt"), this->model_parms);
+        this->model_marginals.write_marginals(
+                path + string("iteration_") + to_string(iteration_accomplished) + extension, this->model_parms);
         this->model_parms.write_model_parms(path + string("iteration_") + to_string(iteration_accomplished)
-                                            + "_parms" + this->model_parms.model_file_extension());
+                                            + "_parms" + extension);
 
         //Close current iteration progress bar
         close_progress_bar(cerr, "Iteration " + to_string(iteration_accomplished), 50);
     }
     //Create a copy of the last iteration results with identifiable name
-    this->model_marginals.write2txt(path + string("final_marginals.txt"), this->model_parms);
-    this->model_parms.write_model_parms(path + "final_parms" + this->model_parms.model_file_extension());
+    this->model_marginals.write_marginals(path + "final_marginals" + extension, this->model_parms);
+    this->model_parms.write_model_parms(path + "final_parms" + extension);
 
     return 0;
 }

@@ -106,6 +106,12 @@ public:
                                                           std::queue<std::shared_ptr<Rec_Event>>) const;
     void write2txt(std::string, const Model_Parms &);
     void txt2marginals(std::string, const Model_Parms &);
+    /// The text format, or for a model the v1 format cannot hold a JSON fragment: the document's
+    /// version and its "parameters" section (ModelJson.h).
+    void write_marginals(std::string, const Model_Parms &);
+    void write_marginals_json(std::string, const Model_Parms &);
+    /// Reads a text file or a JSON document, a complete model or a fragment, told apart by content.
+    void read_marginals(std::string, const Model_Parms &);
     Model_marginals empty_copy();
     Model_marginals &invert_edge(Rec_Event_name, Rec_Event_name, Model_Parms &);
     size_t get_length() const { return marginal_arr_size; };

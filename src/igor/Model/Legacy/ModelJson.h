@@ -20,6 +20,9 @@
  *         "conditioning": { "v_3_del": ["v_choice"], ... }
  *       },
  *       "library":    { "V_gene": { "TRBV1*01": { "sequence": "GATACT..." }, ... }, ... },
+ *       "parameters": { "nodes": { "v_3_del": { "axes": [ { "event": "v_choice", "labels": ["TRBV1*01", ...] },
+ *                                                          { "event": "v_3_del", "labels": [-4, ...] } ],
+ *                                               "values": [ [0.01, ...], ... ] }, ... } },
  *       "error_rate": { "type": "SingleErrorRate", "rate": 0.000846 },
  *       "engine_hints": { "legacy_dfs": { "event_order": ["v_choice", "d_gene", ...] } }
  *     }
@@ -34,11 +37,16 @@
  * - A realization is its label, its identity, and its index, its coordinate in the marginal
  *   array. Indices run from 0 without gaps: the legacy marginals file is read by position.
  * - Templates sit in the library, keyed by label, so that D1 and D2 share one.
+ * - The parameters, the marginals of the legacy model, are optional. A document may hold them
+ *   with the rest of the model, or alone with its version: a fragment, which a marginals file is.
+ *   Each node lists its axes, its event's parents then its own, each axis with the labels of its
+ *   coordinates, so values are matched to realizations by label (REVIEW §15.4), whatever order
+ *   the model reading them gives its events. Values are doubles.
  *
  * Comments are allowed, and dropped when IGoR writes a model.
  *
- * Not yet, and refused when present: the `parameters`, `provenance` and `accumulators` sections
- * (synthesis step 4b; the marginals stay in their text file), several targets per event, a
+ * Not yet, and refused when present: the `provenance` and `accumulators` sections, the
+ * parameters' structure fingerprint and compact axes (synthesis step 4b), several targets per event, a
  * layout other than Linear (step 5), a parameterization other than the event type's, and the
  * authoring form's shorthands and `description` fields (§14.4-14.5). `error_rate` is the one key outside the plan: it
  * stands for the error model until that is a node of the structure with its value in
@@ -58,6 +66,7 @@
 
 namespace igor::model::legacy {
 
+class Model_marginals;
 class Model_Parms;
 class Rec_Event;
 
@@ -78,6 +87,13 @@ inline constexpr const char *kModelJsonSchemaVersion = "0.3";
  * \throws nlohmann::json::parse_error if the text is not JSON.
  */
 MODEL_EXPORT nlohmann::json parse_model_document(std::istream &in);
+
+/// Whether a model or marginals file is a JSON document: one opens with its object or with a
+/// comment, a v1 file with an @ section. Skips the leading whitespace.
+MODEL_EXPORT bool starts_like_json_document(std::istream &in);
+
+/// Whether \a filename is a JSON document that carries a "parameters" section.
+MODEL_EXPORT bool model_file_has_parameters(const std::string &filename);
 
 /// The structure of a document, checked: what model_parms_from_json() and topology_from_json()
 /// both build from.
@@ -118,5 +134,32 @@ MODEL_EXPORT nlohmann::json model_parms_to_json(const Model_Parms &parms);
  * \throws std::logic_error if \a parms already has events.
  */
 MODEL_EXPORT void model_parms_from_json(const nlohmann::json &doc, Model_Parms &parms);
+
+/**
+ * \brief The "parameters" section of \a marginals, laid out by \a parms.
+ *
+ * One node per event, keyed by nickname. Its axes come in the legacy layout's order, the parents
+ * in the order of the marginals file's $Dim line, then its own axis, or a Markov chain's two (from,
+ * then to). Each lists its event's labels in index order, so the values, nested one level per axis,
+ * read straight through on the model that wrote them. A value is the long double rounded to a
+ * double: 17 significant digits, where the text file has 6.
+ */
+MODEL_EXPORT nlohmann::json model_marginals_to_json(const Model_Parms &parms, const Model_marginals &marginals);
+
+/**
+ * \brief Fill \a marginals from the "parameters" section of a document, then normalize them as
+ * Model_marginals::txt2marginals() does.
+ *
+ * \a doc may be a complete model document or a fragment, its version and "parameters" only.
+ * Every event of \a parms needs its node, and no node may name another event. A node's axes are
+ * its event's parents, in any order, then its own axis or axes. An axis's labels are its event's,
+ * each once, in any order: a value goes to the realization its label names. Nothing therefore
+ * depends on the order \a parms gives its events.
+ * \throws std::runtime_error naming the event on any mismatch, or on a value that is negative or
+ *         not a finite number.
+ * \throws std::logic_error if \a marginals is not sized for \a parms.
+ */
+MODEL_EXPORT void model_marginals_from_json(const nlohmann::json &doc, const Model_Parms &parms,
+                                            Model_marginals &marginals);
 
 } // namespace igor::model::legacy

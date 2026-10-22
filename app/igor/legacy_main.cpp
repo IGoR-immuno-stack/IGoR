@@ -33,6 +33,7 @@
 #include <igor/Model/Legacy/Rec_Event.h>
 #include <igor/Model/Legacy/Singleerrorrate.h>
 #include <igor/Model/Legacy/Model_marginals.h>
+#include <igor/Model/Legacy/ModelJson.h>
 #include <igor/Alignment/Legacy/Aligner.h>
 #include <igor/Inference/Legacy/GenModel.h>
 #include <igor/Generation/Legacy/SequenceGenerator.h>
@@ -415,7 +416,7 @@ int igor_legacy_main(int argc, char *argv[])
                 ++carg_i;
                 //Check if the next argument is a new command or the corresponding marginal file
                 try {
-                    cl_model_marginals.txt2marginals(string(argv[carg_i]), cl_model_parms);
+                    cl_model_marginals.read_marginals(string(argv[carg_i]), cl_model_parms);
                 } catch (exception &e) {
                     forward_list<string> error_messages;
                     error_messages.emplace_front("If you have altered the default model structure corresponding "
@@ -425,6 +426,15 @@ int igor_legacy_main(int argc, char *argv[])
                     error_messages.emplace_front(
                             "Exception caught while reading custom marginals after \"-set_custom_model\"");
                     return terminate_IGoR_with_error_message(error_messages, e);
+                }
+            } else if (model_file_has_parameters(argv[carg_i])) {
+                //A complete JSON model carries its marginals.
+                try {
+                    cl_model_marginals.read_marginals(string(argv[carg_i]), cl_model_parms);
+                } catch (exception &e) {
+                    return terminate_IGoR_with_error_message(
+                            "Exception caught while reading the parameters of the model after \"-set_custom_model\"",
+                            e);
                 }
             } else {
                 clog << "No model marginals file was provided with the custom model parameters, initializing "
@@ -1333,12 +1343,13 @@ int igor_legacy_main(int argc, char *argv[])
     if (load_last_inferred_parms) {
         clog << "Loading last inferred model..." << endl;
         try {
-            //An inference of a model the v1 format cannot hold wrote it as JSON.
+            //An inference of a model the v1 format cannot hold wrote it, and its marginals, as JSON.
             const string last_parms = cl_path + batchname + "inference/final_parms";
-            cl_model_parms.read_model_parms(std::filesystem::exists(last_parms + ".json") ? last_parms + ".json"
-                                                                                           : last_parms + ".txt");
+            const string extension = std::filesystem::exists(last_parms + ".json") ? ".json" : ".txt";
+            cl_model_parms.read_model_parms(last_parms + extension);
             cl_model_marginals = Model_marginals(cl_model_parms);
-            cl_model_marginals.txt2marginals(cl_path + batchname + "inference/final_marginals.txt", cl_model_parms);
+            cl_model_marginals.read_marginals(cl_path + batchname + "inference/final_marginals" + extension,
+                                              cl_model_parms);
 
             //Check if the model contains a D gene event in order to load the alignments
             auto events_map = cl_model_parms.get_events_map();

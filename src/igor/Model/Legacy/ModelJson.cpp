@@ -2,17 +2,23 @@
 
 #include <igor/Model/EventFactory.h>
 #include <igor/Model/Legacy/Model_Parms.h>
+#include <igor/Model/Legacy/Model_marginals.h>
 #include <igor/Model/Legacy/Rec_Event.h>
 #include <igor/Model/Legacy/Singleerrorrate.h>
 
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
+#include <cmath>
+#include <fstream>
 #include <istream>
+#include <list>
 #include <map>
 #include <set>
 #include <stdexcept>
 #include <string>
+#include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace igor::model::legacy {
@@ -42,7 +48,7 @@ nlohmann::json error_rate_to_json(const std::shared_ptr<Error_rate> &error_rate)
 
 /// The keys of the document, of its structure section and of a layout.
 constexpr std::initializer_list<const char *> kModelKeys = { "schema_version", "structure", "library",
-                                                             "error_rate", "engine_hints" };
+                                                             "parameters", "error_rate", "engine_hints" };
 constexpr std::initializer_list<const char *> kStructureKeys = { "layout", "events", "conditioning" };
 constexpr std::initializer_list<const char *> kLayoutKeys = { "type", "segments" };
 
@@ -65,6 +71,17 @@ void reject_unknown_model_keys(const nlohmann::json &node, std::initializer_list
         if (not known)
             throw std::runtime_error("model json: unknown key \"" + entry.key() + "\" in " + where);
     }
+}
+
+/// The document's keys and its version, which every reader checks first.
+void check_document(const nlohmann::json &doc)
+{
+    reject_unknown_model_keys(doc, kModelKeys, "the document");
+    // Only the current version: a pre-release 0.x is not read once the next one exists.
+    const nlohmann::json &version = require_model_key(doc, "schema_version");
+    if (version != kModelJsonSchemaVersion)
+        throw std::runtime_error("model json: schema version " + version.dump() + ", where \""
+                                 + kModelJsonSchemaVersion + "\" is the one this reader knows");
 }
 
 /// The reader's half of error_rate_to_json(), for the one error rate the schema describes.
@@ -252,6 +269,140 @@ std::vector<std::pair<std::string, std::string>> conditioning_edges(const nlohma
     return edges;
 }
 
+/// An event's realizations as (index, label), in index order.
+std::vector<std::pair<int, nlohmann::json>> realizations_by_index(const Rec_Event &event)
+{
+    std::vector<std::pair<int, nlohmann::json>> out;
+    for (const auto &entry : event.get_realizations_map())
+        out.emplace_back(entry.second.index, realization_label(entry.second));
+    std::sort(out.begin(), out.end(), [](const auto &a, const auto &b) { return a.first < b.first; });
+    return out;
+}
+
+/// One axis of a parameters node, as the legacy array lays it out: its event, its stride in the
+/// event's block, and the realization index at each position of the node's values along it.
+struct LegacyAxis {
+    const Rec_Event *event;
+    std::size_t stride;
+    std::vector<int> index_at;
+};
+
+using InverseOffsets =
+        std::unordered_map<Rec_Event_name, std::list<std::pair<std::shared_ptr<const Rec_Event>, int>>>;
+
+/// An event's parents with their strides, outermost first: the order of the text file's $Dim line.
+std::list<std::pair<std::shared_ptr<const Rec_Event>, int>> parents_by_stride(const InverseOffsets &inverse_offsets,
+                                                                            const Rec_Event &event)
+{
+    const auto it = inverse_offsets.find(event.get_name());
+    if (it == inverse_offsets.end())
+        return {};
+    auto parents = it->second;
+    parents.sort(offset_comp());
+    return parents;
+}
+
+/// The strides of an event's own axes: one axis, or a Markov chain's two, from then to, the from
+/// axis stepping over a row of the four nucleotides.
+std::vector<std::size_t> own_strides(const Rec_Event &event)
+{
+    if (event.get_type() == Dinuclmarkov_t)
+        return { event.get_realizations_map().size(), 1 };
+    return { 1 };
+}
+
+nlohmann::json nested_values(const long double *block, const std::vector<LegacyAxis> &axes, std::size_t depth,
+                             std::size_t offset)
+{
+    nlohmann::json out = nlohmann::json::array();
+    for (const int index : axes[depth].index_at) {
+        const std::size_t at = offset + axes[depth].stride * static_cast<std::size_t>(index);
+        if (depth + 1 == axes.size())
+            out.push_back(static_cast<double>(block[at]));
+        else
+            out.push_back(nested_values(block, axes, depth + 1, at));
+    }
+    return out;
+}
+
+/// A node's axes, checked against its event: its parents in any order, then its own axes. Each
+/// axis's labels must be its event's, each once, in any order.
+std::vector<LegacyAxis> read_axes(const nlohmann::json &node, const Rec_Event &event,
+                                  const std::list<std::pair<std::shared_ptr<const Rec_Event>, int>> &parents)
+{
+    reject_unknown_model_keys(node, { "axes", "values" }, "the node");
+    const nlohmann::json &axes = require_model_key(node, "axes");
+    const std::vector<std::size_t> own = own_strides(event);
+    if (not axes.is_array() or axes.size() != parents.size() + own.size())
+        throw std::runtime_error("the axes must be the event's " + std::to_string(parents.size())
+                                 + " parents, then its " + std::to_string(own.size()) + " own");
+
+    std::vector<LegacyAxis> out;
+    std::set<std::string> named_parents;
+    for (std::size_t k = 0; k != axes.size(); ++k) {
+        const std::string where = "axis " + std::to_string(k);
+        reject_unknown_model_keys(axes[k], { "event", "labels" }, where);
+        const auto name = require_model_key(axes[k], "event").get<std::string>();
+        LegacyAxis axis{ &event, 0, {} };
+        if (k >= parents.size()) {
+            if (name != event.get_nickname())
+                throw std::runtime_error(where + " names \"" + name + "\", where the event's own axis comes");
+            axis.stride = own[k - parents.size()];
+        } else {
+            if (name == event.get_nickname())
+                throw std::runtime_error(where + " names the event itself, whose own axis comes after its parents'");
+            const auto parent = std::find_if(parents.begin(), parents.end(),
+                                             [&](const auto &entry) { return entry.first->get_nickname() == name; });
+            if (parent == parents.end())
+                throw std::runtime_error(where + " names \"" + name + "\", which is not a parent of the event");
+            if (not named_parents.insert(name).second)
+                throw std::runtime_error("two axes name the parent \"" + name + "\"");
+            axis.event = parent->first.get();
+            axis.stride = static_cast<std::size_t>(parent->second);
+        }
+
+        std::map<std::string, int> index_of;
+        for (const auto &[index, label] : realizations_by_index(*axis.event))
+            index_of.emplace(label.dump(), index);
+        const nlohmann::json &labels = require_model_key(axes[k], "labels");
+        if (not labels.is_array() or labels.size() != index_of.size())
+            throw std::runtime_error(where + " must list the " + std::to_string(index_of.size()) + " labels of \""
+                                     + name + "\"");
+        std::set<int> placed;
+        for (const auto &label : labels) {
+            const auto found = index_of.find(label.dump());
+            if (found == index_of.end())
+                throw std::runtime_error(where + ": \"" + name + "\" has no realization labelled " + label.dump());
+            if (not placed.insert(found->second).second)
+                throw std::runtime_error(where + " lists " + label.dump() + " twice");
+            axis.index_at.push_back(found->second);
+        }
+        out.push_back(std::move(axis));
+    }
+    return out;
+}
+
+/// The node's values into the event's block, each at the realizations its labels name.
+void place_values(const nlohmann::json &values, long double *block, const std::vector<LegacyAxis> &axes,
+                  std::size_t depth, std::size_t offset)
+{
+    const LegacyAxis &axis = axes[depth];
+    if (not values.is_array() or values.size() != axis.index_at.size())
+        throw std::runtime_error("the values along axis " + std::to_string(depth) + " are not a list of "
+                                 + std::to_string(axis.index_at.size()));
+    for (std::size_t position = 0; position != axis.index_at.size(); ++position) {
+        const std::size_t at = offset + axis.stride * static_cast<std::size_t>(axis.index_at[position]);
+        if (depth + 1 != axes.size()) {
+            place_values(values[position], block, axes, depth + 1, at);
+            continue;
+        }
+        const nlohmann::json &value = values[position];
+        if (not value.is_number() or not std::isfinite(value.get<double>()) or value.get<double>() < 0)
+            throw std::runtime_error("value " + value.dump() + " is not a finite, non-negative number");
+        block[at] = value.get<double>();
+    }
+}
+
 }  // namespace
 
 nlohmann::json parse_model_document(std::istream &in)
@@ -289,14 +440,24 @@ nlohmann::json parse_model_document(std::istream &in)
     return nlohmann::json::parse(in, on_event, /*allow_exceptions=*/true, /*ignore_comments=*/true);
 }
 
+bool starts_like_json_document(std::istream &in)
+{
+    in >> std::ws;
+    const auto first = in.peek();
+    return first == '{' or first == '/';
+}
+
+bool model_file_has_parameters(const std::string &filename)
+{
+    std::ifstream in(filename);
+    if (not in or not starts_like_json_document(in))
+        return false;
+    return parse_model_document(in).contains("parameters");
+}
+
 DocumentStructure read_document_structure(const nlohmann::json &doc)
 {
-    reject_unknown_model_keys(doc, kModelKeys, "the document");
-    // Only the current version: a pre-release 0.x is not read once the next one exists.
-    const nlohmann::json &version = require_model_key(doc, "schema_version");
-    if (version != kModelJsonSchemaVersion)
-        throw std::runtime_error("model json: schema version " + version.dump() + ", where \""
-                                 + kModelJsonSchemaVersion + "\" is the one this reader knows");
+    check_document(doc);
     check_library(doc);
 
     const nlohmann::json &structure = require_model_key(doc, "structure");
@@ -399,6 +560,94 @@ void model_parms_from_json(const nlohmann::json &doc, Model_Parms &parms)
     if (error_rate != doc.end())
         parms.set_error_ratep(error_rate_from_json(*error_rate));
     parms.finalize();
+}
+
+nlohmann::json model_marginals_to_json(const Model_Parms &parms, const Model_marginals &marginals)
+{
+    const auto queue = parms.get_model_queue();
+    const auto index_map = marginals.get_index_map(parms, queue);
+    const InverseOffsets inverse_offsets = marginals.get_inverse_offset_map(parms, queue);
+
+    nlohmann::json nodes = nlohmann::json::object();
+    for (const auto &event : parms.get_event_list()) {
+        std::vector<LegacyAxis> axes;
+        nlohmann::json axes_json = nlohmann::json::array();
+        const auto add_axis = [&](const Rec_Event &axis_event, std::size_t stride) {
+            LegacyAxis axis{ &axis_event, stride, {} };
+            nlohmann::json labels = nlohmann::json::array();
+            for (auto &[index, label] : realizations_by_index(axis_event)) {
+                axis.index_at.push_back(index);
+                labels.push_back(std::move(label));
+            }
+            nlohmann::json entry;
+            entry["event"] = axis_event.get_nickname();
+            entry["labels"] = std::move(labels);
+            axes_json.push_back(std::move(entry));
+            axes.push_back(std::move(axis));
+        };
+        for (const auto &[parent, stride] : parents_by_stride(inverse_offsets, *event))
+            add_axis(*parent, static_cast<std::size_t>(stride));
+        for (const std::size_t stride : own_strides(*event))
+            add_axis(*event, stride);
+
+        const long double *block = marginals.marginal_array_smart_p.get() + index_map.at(event->get_name());
+        nlohmann::json node;
+        node["axes"] = std::move(axes_json);
+        node["values"] = nested_values(block, axes, 0, 0);
+        nodes[event->get_nickname()] = std::move(node);
+    }
+    nlohmann::json section;
+    section["nodes"] = std::move(nodes);
+    return section;
+}
+
+void model_marginals_from_json(const nlohmann::json &doc, const Model_Parms &parms, Model_marginals &marginals)
+{
+    check_document(doc);
+    const nlohmann::json &section = require_model_key(doc, "parameters");
+    reject_unknown_model_keys(section, { "nodes" }, "\"parameters\"");
+    const nlohmann::json &nodes = require_model_key(section, "nodes");
+    if (not nodes.is_object())
+        throw std::runtime_error("model json: the parameters' \"nodes\" are not an object keyed by nickname");
+
+    const auto queue = parms.get_model_queue();
+    const auto index_map = marginals.get_index_map(parms, queue);
+    const InverseOffsets inverse_offsets = marginals.get_inverse_offset_map(parms, queue);
+
+    // The blocks of every event, end to end, are the whole array.
+    std::size_t size = 0;
+    for (const auto &event : parms.get_event_list()) {
+        std::size_t block = event->size();
+        for (const auto &entry : parents_by_stride(inverse_offsets, *event))
+            block *= entry.first->size();
+        size += block;
+    }
+    if (marginals.get_length() != size)
+        throw std::logic_error("model_marginals_from_json: the marginals are not sized for this model");
+
+    std::set<std::string> nicknames;
+    for (const auto &event : parms.get_event_list()) {
+        const std::string &nickname = event->get_nickname();
+        nicknames.insert(nickname);
+        const auto node = nodes.find(nickname);
+        if (node == nodes.end())
+            throw std::runtime_error("model json: the parameters have no node for event \"" + nickname + "\"");
+        try {
+            const auto axes = read_axes(*node, *event, parents_by_stride(inverse_offsets, *event));
+            place_values(require_model_key(*node, "values"),
+                         marginals.marginal_array_smart_p.get() + index_map.at(event->get_name()), axes, 0, 0);
+        } catch (const std::exception &e) {
+            throw std::runtime_error("model json: the parameters of \"" + nickname + "\": " + e.what());
+        }
+    }
+    for (const auto &entry : nodes.items()) {
+        if (nicknames.count(entry.key()) == 0)
+            throw std::runtime_error("model json: the parameters have a node for \"" + entry.key()
+                                     + "\", which is no event");
+    }
+
+    // As txt2marginals() does: values written to a finite precision need not sum to one exactly.
+    marginals.normalize(inverse_offsets, index_map, queue);
 }
 
 } // namespace igor::model::legacy
