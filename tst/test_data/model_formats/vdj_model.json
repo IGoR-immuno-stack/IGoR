@@ -3,212 +3,235 @@
     "rate": 0.001,
     "type": "SingleErrorRate"
   },
-  "events": [
-    {
-      "gene_class": "V_gene",
-      "nickname": "v_choice",
-      "parents": [],
-      "priority": 7,
-      "realizations": [
-        {
-          "index": 0,
-          "name": "V_test",
-          "value_str": "ATCGATCG"
-        }
-      ],
-      "seq_type": "V_gene_seq",
-      "side": "Undefined_side",
-      "type": "GeneChoice"
+  "library": {
+    "D_gene": {
+      "D_test": {
+        "sequence": "GGGG"
+      }
     },
-    {
-      "gene_class": "D_gene",
-      "nickname": "d_choice",
-      "parents": [],
-      "priority": 6,
-      "realizations": [
-        {
-          "index": 0,
-          "name": "D_test",
-          "value_str": "GGGG"
-        }
-      ],
-      "seq_type": "D_gene_seq",
-      "side": "Undefined_side",
-      "type": "GeneChoice"
+    "J_gene": {
+      "J_test": {
+        "sequence": "GCTAGCTA"
+      }
     },
-    {
-      "gene_class": "J_gene",
-      "nickname": "j_choice",
-      "parents": [],
-      "priority": 7,
-      "realizations": [
-        {
-          "index": 0,
-          "name": "J_test",
-          "value_str": "GCTAGCTA"
-        }
-      ],
-      "seq_type": "J_gene_seq",
-      "side": "Undefined_side",
-      "type": "GeneChoice"
-    },
-    {
-      "nickname": "v_3_del",
-      "parents": [],
-      "priority": 5,
-      "realizations": [
-        {
-          "index": 0,
-          "name": "0",
-          "value_int": 0
-        }
-      ],
-      "seq_type": "V_gene_seq",
-      "side": "Three_prime",
-      "type": "Deletion"
-    },
-    {
-      "nickname": "d_5_del",
-      "parents": [],
-      "priority": 5,
-      "realizations": [
-        {
-          "index": 0,
-          "name": "0",
-          "value_int": 0
-        }
-      ],
-      "seq_type": "D_gene_seq",
-      "side": "Five_prime",
-      "type": "Deletion"
-    },
-    {
-      "nickname": "d_3_del",
-      "parents": [],
-      "priority": 5,
-      "realizations": [
-        {
-          "index": 0,
-          "name": "0",
-          "value_int": 0
-        }
-      ],
-      "seq_type": "D_gene_seq",
-      "side": "Three_prime",
-      "type": "Deletion"
-    },
-    {
-      "nickname": "j_5_del",
-      "parents": [],
-      "priority": 5,
-      "realizations": [
-        {
-          "index": 0,
-          "name": "0",
-          "value_int": 0
-        }
-      ],
-      "seq_type": "J_gene_seq",
-      "side": "Five_prime",
-      "type": "Deletion"
-    },
-    {
-      "nickname": "vd_ins",
-      "parents": [],
-      "priority": 4,
-      "realizations": [
-        {
-          "index": 0,
-          "name": "0",
-          "value_int": 0
-        }
-      ],
-      "seq_type": "VD_ins_seq",
-      "side": "Undefined_side",
-      "type": "Insertion"
-    },
-    {
-      "nickname": "dj_ins",
-      "parents": [],
-      "priority": 2,
-      "realizations": [
-        {
-          "index": 0,
-          "name": "0",
-          "value_int": 0
-        }
-      ],
-      "seq_type": "DJ_ins_seq",
-      "side": "Undefined_side",
-      "type": "Insertion"
-    },
-    {
-      "nickname": "vd_dinucl",
-      "parents": [],
-      "priority": 3,
-      "realizations": [
-        {
-          "index": 0,
-          "name": "A",
-          "value_str": "A"
-        },
-        {
-          "index": 1,
-          "name": "C",
-          "value_str": "C"
-        },
-        {
-          "index": 2,
-          "name": "G",
-          "value_str": "G"
-        },
-        {
-          "index": 3,
-          "name": "T",
-          "value_str": "T"
-        }
-      ],
-      "seq_type": "VD_ins_seq",
-      "side": "Three_prime",
-      "type": "DinucMarkov"
-    },
-    {
-      "nickname": "dj_dinucl",
-      "parents": [],
-      "priority": 1,
-      "realizations": [
-        {
-          "index": 0,
-          "name": "A",
-          "value_str": "A"
-        },
-        {
-          "index": 1,
-          "name": "C",
-          "value_str": "C"
-        },
-        {
-          "index": 2,
-          "name": "G",
-          "value_str": "G"
-        },
-        {
-          "index": 3,
-          "name": "T",
-          "value_str": "T"
-        }
-      ],
-      "seq_type": "DJ_ins_seq",
-      "side": "Five_prime",
-      "type": "DinucMarkov"
+    "V_gene": {
+      "V_test": {
+        "sequence": "ATCGATCG"
+      }
     }
-  ],
-  "schema_version": 1,
-  "seq_type_order": [
-    "V_gene_seq",
-    "VD_ins_seq",
-    "D_gene_seq",
-    "DJ_ins_seq",
-    "J_gene_seq"
-  ]
+  },
+  "schema_version": 3,
+  "structure": {
+    "conditioning": {},
+    "events": {
+      "d_3_del": {
+        "priority": 5,
+        "realizations": [
+          {
+            "index": 0,
+            "label": 0
+          }
+        ],
+        "targets": [
+          {
+            "segment": "D_gene_seq",
+            "side": "3'"
+          }
+        ],
+        "type": "Deletion"
+      },
+      "d_5_del": {
+        "priority": 5,
+        "realizations": [
+          {
+            "index": 0,
+            "label": 0
+          }
+        ],
+        "targets": [
+          {
+            "segment": "D_gene_seq",
+            "side": "5'"
+          }
+        ],
+        "type": "Deletion"
+      },
+      "d_choice": {
+        "library": "D_gene",
+        "priority": 6,
+        "realizations": [
+          {
+            "index": 0,
+            "label": "D_test"
+          }
+        ],
+        "targets": [
+          {
+            "segment": "D_gene_seq"
+          }
+        ],
+        "type": "GeneChoice"
+      },
+      "dj_dinucl": {
+        "priority": 1,
+        "realizations": [
+          {
+            "index": 0,
+            "label": "A"
+          },
+          {
+            "index": 1,
+            "label": "C"
+          },
+          {
+            "index": 2,
+            "label": "G"
+          },
+          {
+            "index": 3,
+            "label": "T"
+          }
+        ],
+        "targets": [
+          {
+            "segment": "DJ_ins_seq",
+            "side": "5'"
+          }
+        ],
+        "type": "DinucMarkov"
+      },
+      "dj_ins": {
+        "priority": 2,
+        "realizations": [
+          {
+            "index": 0,
+            "label": 0
+          }
+        ],
+        "targets": [
+          {
+            "segment": "DJ_ins_seq"
+          }
+        ],
+        "type": "Insertion"
+      },
+      "j_5_del": {
+        "priority": 5,
+        "realizations": [
+          {
+            "index": 0,
+            "label": 0
+          }
+        ],
+        "targets": [
+          {
+            "segment": "J_gene_seq",
+            "side": "5'"
+          }
+        ],
+        "type": "Deletion"
+      },
+      "j_choice": {
+        "library": "J_gene",
+        "priority": 7,
+        "realizations": [
+          {
+            "index": 0,
+            "label": "J_test"
+          }
+        ],
+        "targets": [
+          {
+            "segment": "J_gene_seq"
+          }
+        ],
+        "type": "GeneChoice"
+      },
+      "v_3_del": {
+        "priority": 5,
+        "realizations": [
+          {
+            "index": 0,
+            "label": 0
+          }
+        ],
+        "targets": [
+          {
+            "segment": "V_gene_seq",
+            "side": "3'"
+          }
+        ],
+        "type": "Deletion"
+      },
+      "v_choice": {
+        "library": "V_gene",
+        "priority": 7,
+        "realizations": [
+          {
+            "index": 0,
+            "label": "V_test"
+          }
+        ],
+        "targets": [
+          {
+            "segment": "V_gene_seq"
+          }
+        ],
+        "type": "GeneChoice"
+      },
+      "vd_dinucl": {
+        "priority": 3,
+        "realizations": [
+          {
+            "index": 0,
+            "label": "A"
+          },
+          {
+            "index": 1,
+            "label": "C"
+          },
+          {
+            "index": 2,
+            "label": "G"
+          },
+          {
+            "index": 3,
+            "label": "T"
+          }
+        ],
+        "targets": [
+          {
+            "segment": "VD_ins_seq",
+            "side": "3'"
+          }
+        ],
+        "type": "DinucMarkov"
+      },
+      "vd_ins": {
+        "priority": 4,
+        "realizations": [
+          {
+            "index": 0,
+            "label": 0
+          }
+        ],
+        "targets": [
+          {
+            "segment": "VD_ins_seq"
+          }
+        ],
+        "type": "Insertion"
+      }
+    },
+    "layout": {
+      "segments": [
+        "V_gene_seq",
+        "VD_ins_seq",
+        "D_gene_seq",
+        "DJ_ins_seq",
+        "J_gene_seq"
+      ],
+      "type": "Linear"
+    }
+  }
 }

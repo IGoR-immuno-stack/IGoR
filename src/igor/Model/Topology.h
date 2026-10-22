@@ -78,14 +78,14 @@ private:
 };
 
 /**
- * \brief Build a Topology from a model document, through the event factory.
+ * \brief Build a Topology from a model document (ModelJson.h), through the event factory.
  *
- * Two phases, because a graph has forward references: every node is created first, then the
- * edges are wired from each node's parent list. The first phase is the factory's, so this
- * function has no dispatch of its own and knows no concrete event class.
+ * legacy::read_document_structure() checks the document and builds the events, so this
+ * function has no dispatch of its own and knows no concrete event class. The events are added
+ * in the order it gives, nickname order or the legacy engine's, which is therefore their uid
+ * order; then the conditioning's edges.
  *
- * \throws std::runtime_error if the document is malformed, a type is not registered, or an
- *         edge names an event the document does not define.
+ * \throws std::runtime_error as read_document_structure() does.
  */
 MODEL_EXPORT std::shared_ptr<Topology> topology_from_json(const nlohmann::json& doc);
 

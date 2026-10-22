@@ -61,8 +61,8 @@ public:
     Insertion(const Seq_type_String &, std::pair<int, int>);
     explicit Insertion(const Seq_type_String &);
     Insertion(const Seq_type_String &, std::unordered_map<std::string, Event_realization> &);
-    /// From one event node of the JSON model schema. See ModelJson.h.
-    explicit Insertion(const nlohmann::json &);
+    /// From its nickname and its node in a model document. See ModelJson.h.
+    Insertion(const std::string &nickname, const nlohmann::json &);
 
     //Destructor
     ~Insertion() override;

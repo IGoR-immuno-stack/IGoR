@@ -97,27 +97,31 @@ Gene_choice::Gene_choice(Gene_class gene, vector<pair<string, string>> genomic_s
     }
 }
 
-Gene_choice::Gene_choice(const nlohmann::json &node)
-    : Gene_choice(str2GeneClassNew(igor::model::legacy::json_detail::require(node, "gene_class").get<string>()))
+Gene_choice::Gene_choice(const string &nickname, const nlohmann::json &node)
+    : Gene_choice(str2GeneClassNew(igor::model::legacy::json_detail::require(node, "library").get<string>()))
 {
     using namespace igor::model::legacy::json_detail;
     reject_unknown_keys(node, kGeneChoiceKeys);
     expect_type(node, "GeneChoice");
 
-    this->set_seq_type(require(node, "seq_type").get<Seq_type_String>());
-    this->set_event_side(str2SeqSide(require(node, "side").get<string>()));
+    const auto [segment, side] = single_target(node);
+    this->set_seq_type(segment);
+    this->set_event_side(side);
     this->set_priority(require(node, "priority").get<int>());
-    this->set_nickname(require(node, "nickname").get<string>());
+    this->set_nickname(nickname);
 
-    for (const nlohmann::json *realization : realizations_in_index_order(node))
-        this->add_realization(require(*realization, "name").get<string>(),
-                              require(*realization, "value_str").get<string>());
+    for (const nlohmann::json *realization : realizations_in_index_order(node, kTemplatedRealizationKeys))
+        this->add_realization(text_label(*realization), require(*realization, "sequence").get<string>());
 }
 
+/// The library is the gene class: the key of the alignments the choice reads. Each realization
+/// carries its template, which a model document moves into its "library" section.
 nlohmann::json Gene_choice::to_json() const
 {
     nlohmann::json out = Rec_Event::to_json();
-    out["gene_class"] = to_string(this->event_class);
+    out["library"] = to_string(this->event_class);
+    for (nlohmann::json &realization : out["realizations"])
+        realization["sequence"] = this->realization_at(realization.at("index").get<int>()).value_str;
     return out;
 }
 

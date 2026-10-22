@@ -17,7 +17,6 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
 
-#include <igor/Model/EventFactory.h>
 #include <igor/Model/Legacy/LegacyFormat.h>
 #include <igor/Model/Legacy/ModelJson.h>
 #include <igor/Model/Legacy/Model_Parms.h>
@@ -70,9 +69,7 @@ void require_identities(const std::string &file, const std::map<std::string, Ide
     }
 
     SECTION("from its JSON node") {
-        const nlohmann::json doc = model_parms_to_json(parms);
-        for (const auto &node : doc.at("events")) {
-            const auto event = igor::model::event_factory::create(node);
+        for (const auto &event : read_document_structure(model_parms_to_json(parms)).events) {
             require_identity(*event, expected.at(event->get_nickname()), check_name);
         }
     }

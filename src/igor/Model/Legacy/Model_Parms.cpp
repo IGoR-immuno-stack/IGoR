@@ -744,7 +744,7 @@ void Model_Parms::read_model_parms(string filename)
     if (infile.peek() == '{') {
         nlohmann::json doc;
         try {
-            doc = nlohmann::json::parse(infile);
+            doc = parse_model_document(infile);
         } catch (const nlohmann::json::exception &e) {
             throw runtime_error("Model file \"" + filename + "\" is not valid JSON: " + e.what());
         }

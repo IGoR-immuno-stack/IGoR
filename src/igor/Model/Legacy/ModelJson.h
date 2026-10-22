@@ -2,56 +2,111 @@
 
 /**
  * \file ModelJson.h
- * \brief JSON serialization of a parsed model.
+ * \brief The JSON model document: written from a Model_Parms, read into one or into a Topology.
  *
- * Step 1 of the move to a JSON model format. Core keeps its text parser: this header does
- * not read anything, it serializes a Model_Parms that has already been read. That way there
- * is exactly one tokenizer for the text format, and the JSON schema is defined from the
- * objects rather than from a second parser that could drift from the first.
+ * The layout is the one SEGMENT_DECOMPOSITION_REVIEW.md §14 and ARCHITECTURE_SYNTHESIS.md
+ * (principle 6) plan, restricted to what the legacy model holds:
  *
- * The schema differs from the text format in four places, all deliberate:
- *   - `seq_type_order` is a real array instead of a bracket-delimited line;
- *   - edges are carried per event as a list of parent nicknames, so there is no separate
- *     `@Edges` section and no dependence on the generated event names;
- *   - realizations always come out sorted by index, so the output is reproducible;
- *   - only a gene choice carries `gene_class`, the gene library it draws from. On the other
- *     events the text format's class field is a v1 token their seq type already gives.
+ *     {
+ *       "schema_version": 3,
+ *       "structure": {
+ *         "layout":       { "type": "Linear", "segments": ["V_gene_seq", "VD_ins_seq", ...] },
+ *         "events":       { "v_choice": { "type": "GeneChoice", "library": "V_gene", "priority": 7,
+ *                                         "targets": [ { "segment": "V_gene_seq" } ],
+ *                                         "realizations": [ { "index": 0, "label": "TRBV1*01" }, ... ] },
+ *                           "v_3_del":  { "type": "Deletion", "priority": 5,
+ *                                         "targets": [ { "segment": "V_gene_seq", "side": "3'" } ],
+ *                                         "realizations": [ { "index": 0, "label": -4 }, ... ] }, ... },
+ *         "conditioning": { "v_3_del": ["v_choice"], ... }
+ *       },
+ *       "library":    { "V_gene": { "TRBV1*01": { "sequence": "GATACT..." }, ... }, ... },
+ *       "error_rate": { "type": "SingleErrorRate", "rate": 0.000846 },
+ *       "engine_hints": { "legacy_dfs": { "event_order": ["v_choice", "d_gene", ...] } }
+ *     }
  *
- * model_parms_from_json() reads it back into a Model_Parms, through the event factory and the
- * per-class constructors. It is the model file format for any model the v1 format cannot hold,
- * a tandem D's for instance (plan T2), and replaced the v2 text format.
+ * - The events are an object keyed by nickname, the identity. The order of its members is never
+ *   read (§14.2), and a key repeated in one object is refused at parse (parse_model_document()).
+ *   The readers build the events in byte-wise nickname order, unless the document carries the
+ *   legacy engine's event order: the writer records it for a model whose event list is in
+ *   another order, a v1 model's for one, so that its queue and its marginals file still fit
+ *   (ENGINE_MIGRATION_PLAN Q4).
+ * - The conditioning graph is its own section, child to parents, apart from the events.
+ * - A realization is its label, its identity, and its index, its coordinate in the marginal
+ *   array. Indices run from 0 without gaps: the legacy marginals file is read by position.
+ * - Templates sit in the library, keyed by label, so that D1 and D2 share one.
+ *
+ * Not yet, and refused when present: the `parameters`, `provenance` and `accumulators` sections
+ * (synthesis step 4b; the marginals stay in their text file), several targets per event, a
+ * layout other than Linear (step 5), a parameterization other than the event type's, and the
+ * authoring form's shorthands (§14.4-14.5). `error_rate` is the one key outside the plan: it
+ * stands for the error model until that is a node of the structure with its value in
+ * `parameters` (ERROR_MODEL_REWRITE_PLAN.md, E4).
  */
 
+#include <igor/Core/Types.h>
 #include <igor/Model/Export.h>
 
 #include <nlohmann/json_fwd.hpp>
 
+#include <iosfwd>
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
+
 namespace igor::model::legacy {
 
 class Model_Parms;
+class Rec_Event;
 
-/// Schema version written into every document, and the only version the future reader
-/// will accept without a migration.
-constexpr int kModelJsonSchemaVersion = 1;
+/// Schema version written into every document, and the only version the reader accepts. The
+/// v1 and v2 text formats are the versions before it.
+constexpr int kModelJsonSchemaVersion = 3;
 
 /**
- * \brief Serialize a model into the JSON schema.
- * \param parms a model that has already been read, so its seq_type registry is frozen.
- * \throws std::runtime_error if the model carries an error rate this function cannot
- *         serialize yet. Failing loudly is deliberate: a document silently missing its
- *         error rate would look complete and rebuild a different model.
+ * \brief Parse a model document.
+ * \throws std::runtime_error naming the key and its object if a key appears twice in one
+ *         object: nlohmann::json would keep the last one without a word.
+ * \throws nlohmann::json::parse_error if the text is not JSON.
+ */
+MODEL_EXPORT nlohmann::json parse_model_document(std::istream &in);
+
+/// The structure of a document, checked: what model_parms_from_json() and topology_from_json()
+/// both build from.
+struct DocumentStructure {
+    std::vector<core::SeqTypeString> segments;           ///< the Linear layout, 5' to 3'
+    std::vector<std::shared_ptr<Rec_Event>> events;      ///< built by the event factory, in build order
+    std::vector<std::pair<std::string, std::string>> edges;  ///< (parent, child) nicknames
+};
+
+/**
+ * \brief Check a document and build its events.
+ *
+ * Each event goes through the event factory, a gene choice with its templates taken from the
+ * library, in nickname order or the legacy engine's. The conditioning is checked to name events
+ * only, each parent once, without a cycle.
+ * \throws std::runtime_error on another schema version, an unknown or missing key, or any of
+ *         the above; an event's error names its nickname.
+ */
+MODEL_EXPORT DocumentStructure read_document_structure(const nlohmann::json &doc);
+
+/**
+ * \brief Serialize a model into a document.
+ * \param parms a finalized model, so its seq_type registry holds its segment order.
+ * \throws std::runtime_error if the model carries an error rate this function cannot serialize
+ *         yet, or two templates under one label in one library. Failing loudly is deliberate: a
+ *         document silently missing either would look complete and rebuild a different model.
  */
 MODEL_EXPORT nlohmann::json model_parms_to_json(const Model_Parms &parms);
 
 /**
- * \brief Fill an empty model from a document model_parms_to_json() wrote.
+ * \brief Fill an empty model from a document.
  *
- * The segment order, the events through the event factory, the edges from each event's
- * parents, the error rate; then Model_Parms::finalize(). A key the schema does not have is
- * refused, as it is in an event node.
- * \throws std::runtime_error on another schema version, an unknown key, a parent no event is
- *         named, or an error rate other than SingleErrorRate: the hypermutation models have no
- *         JSON form yet (step HJ of docs/ERROR_MODEL_REWRITE_PLAN.md).
+ * read_document_structure(), then the segment order, the events, the edges and the error rate
+ * into \a parms, and Model_Parms::finalize().
+ * \throws std::runtime_error as read_document_structure() does, or on an error rate other than
+ *         SingleErrorRate: the hypermutation models have no JSON form yet (step HJ of
+ *         docs/ERROR_MODEL_REWRITE_PLAN.md).
  * \throws std::logic_error if \a parms already has events.
  */
 MODEL_EXPORT void model_parms_from_json(const nlohmann::json &doc, Model_Parms &parms);

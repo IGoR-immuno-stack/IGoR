@@ -109,19 +109,19 @@ Deletion::Deletion(const Seq_type_String &target_seq, Seq_side side,
     }
 }
 
-Deletion::Deletion(const nlohmann::json &node)
-    : Deletion(igor::model::legacy::json_detail::require(node, "seq_type").get<Seq_type_String>(),
-               str2SeqSide(igor::model::legacy::json_detail::require(node, "side").get<string>()))
+Deletion::Deletion(const string &nickname, const nlohmann::json &node)
+    : Deletion(igor::model::legacy::json_detail::single_target(node).first,
+               igor::model::legacy::json_detail::single_target(node).second)
 {
     using namespace igor::model::legacy::json_detail;
     reject_unknown_keys(node, kEventKeys);
     expect_type(node, "Deletion");
 
     this->set_priority(require(node, "priority").get<int>());
-    this->set_nickname(require(node, "nickname").get<string>());
+    this->set_nickname(nickname);
 
     for (const nlohmann::json *realization : realizations_in_index_order(node))
-        this->add_realization(require(*realization, "value_int").get<int>());
+        this->add_realization(integer_label(*realization));
 }
 
 Deletion::~Deletion()

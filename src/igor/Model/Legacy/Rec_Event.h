@@ -379,15 +379,20 @@ public:
     virtual void write2txt_legacy(std::ofstream &) = 0;
 
     /**
-     * \brief Serialized form of this event: its header fields plus its realizations.
+     * \brief This event's node in a model document: type, priority, target and realizations.
+     *
+     * The nickname is not in it: it is the node's key in the document. Each realization is its
+     * index and its label, the label being its value for a deletion or an insertion and its name
+     * otherwise.
      *
      * Non-pure on purpose. The body in Rec_Event.cpp is generic over the four subclasses,
-     * because everything it writes is already on the base: type, seq_type, side, priority,
-     * nickname, and the realization map. A subclass only needs to override it if it grows
-     * state that is not a realization, as Gene_choice does with its gene class.
+     * because everything it writes is already on the base. A subclass only needs to override it
+     * if it grows state that is not a realization, as Gene_choice does with its library and
+     * templates.
      *
      * Realizations come out sorted by index, since event_realizations is an unordered_map and
      * an unsorted dump would not be reproducible.
+     * \throws std::logic_error if the event has no seq_type yet: its target would name nothing.
      */
     virtual nlohmann::json to_json() const;
     virtual void ind_normalize(Marginal_array_p &, size_t) const;

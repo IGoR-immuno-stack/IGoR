@@ -1,8 +1,6 @@
 #include <igor/Model/Topology.h>
 
-#include <igor/Model/EventFactory.h>
-
-#include <nlohmann/json.hpp>
+#include <igor/Model/Legacy/ModelJson.h>
 
 #include <algorithm>
 #include <cassert>
@@ -193,45 +191,14 @@ std::vector<core::index_type> Topology::topologicalOrder() const
 
 std::shared_ptr<Topology> topology_from_json(const nlohmann::json& doc)
 {
-    const auto events = doc.find("events");
-    if (events == doc.end() || !events->is_array())
-        throw std::runtime_error("topology_from_json: the document has no \"events\" array");
+    const legacy::DocumentStructure structure = legacy::read_document_structure(doc);
 
     auto topo = std::make_shared<Topology>();
-
-    const auto order = doc.find("seq_type_order");
-    if (order != doc.end())
-        topo->setSeqTypeOrder(order->get<std::vector<core::SeqTypeString>>());
-
-    // Phase 1: every node, built complete by the factory. No dispatch here, and no concrete
-    // event class named: adding an event type touches the factory's registrars, not this loop.
-    for (const auto& node : *events)
-        topo->addEvent(event_factory::create(node));
-
-    // Phase 2: the edges, which is why this needs two phases at all. A parent may be named
-    // before it is defined, so the wiring waits until every node exists.
-    for (const auto& node : *events) {
-        const auto child_nickname = node.at("nickname").get<std::string>();
-        const core::index_type child_id = topo->eventId(child_nickname);
-        if (child_id < 0)
-            throw std::runtime_error("topology_from_json: event \"" + child_nickname
-                                     + "\" was not registered by its own nickname");
-
-        const auto parents = node.find("parents");
-        if (parents == node.end())
-            continue;
-        for (const auto& parent : *parents) {
-            const auto parent_nickname = parent.get<std::string>();
-            const core::index_type parent_id = topo->eventId(parent_nickname);
-            if (parent_id < 0)
-                throw std::runtime_error("topology_from_json: event \"" + child_nickname
-                                         + "\" names an unknown parent \"" + parent_nickname
-                                         + "\"");
-            if (!topo->hasEdge(parent_id, child_id))
-                topo->addEdge(parent_id, child_id);
-        }
-    }
-
+    topo->setSeqTypeOrder(structure.segments);
+    for (const auto& event : structure.events)
+        topo->addEvent(event);
+    for (const auto& [parent, child] : structure.edges)
+        topo->addEdge(topo->eventId(parent), topo->eventId(child));
     return topo;
 }
 

@@ -29,6 +29,7 @@
 #include <igor/Model/Legacy/EventUtils.h>
 #include <igor/Model/Legacy/Scenario.h>  // For Scenario view construction
 #include <igor/Model/Legacy/BoundTightness.h>
+#include <igor/Model/Legacy/JsonDetail.h>
 #include <igor/Model/TraversalPlan.h>
 
 #include <nlohmann/json.hpp>
@@ -197,25 +198,30 @@ const Event_realization &Rec_Event::realization_at(int index) const
 
 nlohmann::json Rec_Event::to_json() const
 {
+    if (this->seq_type.empty())
+        throw logic_error("Rec_Event::to_json(): \"" + this->nickname + "\" acts on no segment yet");
+
     nlohmann::json out;
     out["type"] = string() + this->type;   // "GeneChoice", "Deletion", "Insertion", "DinucMarkov"
-    out["seq_type"] = this->seq_type;
-    out["side"] = to_string(this->event_side);
     out["priority"] = this->priority;
-    out["nickname"] = this->nickname;
+
+    nlohmann::json target;
+    target["segment"] = this->seq_type;
+    if (this->event_side != Undefined_side)
+        target["side"] = igor::model::legacy::json_detail::side_to_json(this->event_side);
+    out["targets"] = nlohmann::json::array({ std::move(target) });
 
     nlohmann::json realizations = nlohmann::json::array();
     for (const auto &entry : this->event_realizations) {
         const Event_realization &real = entry.second;
         nlohmann::json r;
         r["index"] = real.index;
-        r["name"] = real.name;
-        // INT16_MAX is the "no integer value" sentinel the gene-choice events carry, and an
-        // empty value_str is the "no sequence" one. Emitting either would not round-trip.
+        // INT16_MAX is the "no integer value" sentinel of the realizations named rather than
+        // numbered: genes and nucleotides.
         if (real.value_int != INT16_MAX)
-            r["value_int"] = real.value_int;
-        if (!real.value_str.empty())
-            r["value_str"] = real.value_str;
+            r["label"] = real.value_int;
+        else
+            r["label"] = real.name;
         realizations.push_back(std::move(r));
     }
     std::sort(realizations.begin(), realizations.end(),

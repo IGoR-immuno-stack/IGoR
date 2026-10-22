@@ -68,22 +68,19 @@ Dinucl_markov::Dinucl_markov(const Seq_type_String &seq_type) : Rec_Event(), tot
     dinuc_proba_matrix = Matrix<double>(kIntNtCount, kIntNtCount);
 }
 
-Dinucl_markov::Dinucl_markov(const nlohmann::json &node)
-    : Dinucl_markov(igor::model::legacy::json_detail::require(node, "seq_type").get<Seq_type_String>())
+Dinucl_markov::Dinucl_markov(const string &nickname, const nlohmann::json &node)
+    : Dinucl_markov(igor::model::legacy::json_detail::single_target(node).first)
 {
     using namespace igor::model::legacy::json_detail;
     reject_unknown_keys(node, kEventKeys);
     expect_type(node, "DinucMarkov");
 
     this->set_priority(require(node, "priority").get<int>());
-    this->set_nickname(require(node, "nickname").get<string>());
+    this->set_nickname(nickname);
 
-    // The call order used to matter here, and it no longer does: name_side() in Rec_Event.cpp
-    // keeps a DinucMarkov's generated name on Undefined_side whatever its side, so the name
-    // this constructor produces is the text reader's. The side itself is load-bearing beyond
-    // the name — it is the traversal anchor, so Three_prime means the chain is seeded from the
-    // segment on its left.
-    this->set_event_side(str2SeqSide(require(node, "side").get<string>()));
+    // The side is the traversal anchor: Three_prime means the chain is seeded from the segment
+    // on its left.
+    this->set_event_side(single_target(node).second);
 
     // The four nucleotides are self-initialized above, so the document's realizations are
     // verified rather than applied. Anything else means the document was not written by this
@@ -95,7 +92,7 @@ Dinucl_markov::Dinucl_markov(const nlohmann::json &node)
                                  + " realizations, document has "
                                  + std::to_string(realizations.size()));
     for (const nlohmann::json *realization : realizations) {
-        const auto name = require(*realization, "name").get<string>();
+        const auto name = text_label(*realization);
         const auto found = this->event_realizations.find(name);
         if (found == this->event_realizations.end()
             || found->second.index != require(*realization, "index").get<int>())
