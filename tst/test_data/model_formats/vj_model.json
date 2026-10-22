@@ -17,7 +17,7 @@
       }
     }
   },
-  "schema_version": 3,
+  "schema_version": "0.3",
   "structure": {
     "conditioning": {
       "j_choice": [

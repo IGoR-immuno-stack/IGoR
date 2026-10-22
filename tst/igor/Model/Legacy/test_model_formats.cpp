@@ -201,9 +201,11 @@ TEST_CASE("A JSON document the schema does not describe is refused", "[model_for
         doc["edges"] = nlohmann::json::array();
         REQUIRE_THROWS_WITH(read(doc), ContainsSubstring("unknown key \"edges\""));
     }
-    SECTION("another schema version") {
-        doc["schema_version"] = 2;
-        REQUIRE_THROWS_WITH(read(doc), ContainsSubstring("schema version 2"));
+    SECTION("another schema version, an earlier pre-release one included") {
+        doc["schema_version"] = "0.2";
+        REQUIRE_THROWS_WITH(read(doc), ContainsSubstring("schema version \"0.2\""));
+        doc["schema_version"] = 3;
+        REQUIRE_THROWS_WITH(read(doc), ContainsSubstring("schema version 3,"));
     }
     SECTION("an error rate other than SingleErrorRate, whose JSON form is HJ") {
         doc["error_rate"] = {{"type", "HypermutationGlobalErrorRate"}, {"rate", 0.1}};

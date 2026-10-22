@@ -60,8 +60,8 @@ TEST_CASE("model json: a v1 model serializes into the planned layout", "[Core][j
     const nlohmann::json doc = model_parms_to_json(parms);
 
     SECTION("the document: its version and its sections") {
-        REQUIRE(doc.at("schema_version").get<int>() == kModelJsonSchemaVersion);
-        REQUIRE(kModelJsonSchemaVersion == 3);
+        REQUIRE(doc.at("schema_version") == kModelJsonSchemaVersion);
+        REQUIRE(doc.at("schema_version") == "0.3");
         // A v1 model's events are not listed in nickname order, so the order goes with it as a hint.
         REQUIRE(keys_of(doc) == std::set<std::string>{ "schema_version", "structure", "library", "error_rate",
                                                        "engine_hints" });

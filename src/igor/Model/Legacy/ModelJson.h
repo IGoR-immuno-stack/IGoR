@@ -8,7 +8,7 @@
  * (principle 6) plan, restricted to what the legacy model holds:
  *
  *     {
- *       "schema_version": 3,
+ *       "schema_version": "0.3",
  *       "structure": {
  *         "layout":       { "type": "Linear", "segments": ["V_gene_seq", "VD_ins_seq", ...] },
  *         "events":       { "v_choice": { "type": "GeneChoice", "library": "V_gene", "priority": 7,
@@ -61,9 +61,12 @@ namespace igor::model::legacy {
 class Model_Parms;
 class Rec_Event;
 
-/// Schema version written into every document, and the only version the reader accepts. The
-/// v1 and v2 text formats are the versions before it.
-constexpr int kModelJsonSchemaVersion = 3;
+/// Schema version written into every document, and the only version the reader accepts.
+///
+/// A 0.x version is a pre-release one. Each replaces the one before it, and no reader keeps
+/// support for an older 0.x: none leaves the repository, so none has a user to keep, as the v2
+/// text format had none. A released version, from 1.0, stays readable by every later reader.
+inline constexpr const char *kModelJsonSchemaVersion = "0.3";
 
 /**
  * \brief Parse a model document.

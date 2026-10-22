@@ -437,7 +437,7 @@ that member with three readers: the constructors, `copy()` and the generated nam
   derived from its seq type and checked against it, and an insertion's or a chain's was always
   `Undefined_gene`. A node of another type that carries one is refused as an unknown key. No
   document is stored: the JSON is built from a `Model_Parms` and read by `topology_from_json()`,
-  so the schema version stays 1. (T2 renames it `library`, in schema version 3.)
+  so the schema version stays 1. (T2 renames it `library`, in schema version 0.3.)
 - **The refusals the constructors made move to the legacy reader.** `str2SeqType()` refused a
   line whose gene class names no segment, and the deletion constructor refused a deletion on a
   junction. The v1 reader now refuses both, where the gene class still means something. A v2 file
@@ -605,7 +605,9 @@ Where it differs from the plan, or adds to it:
 **The document's layout follows REVIEW §14 (Oct 22 2026).** N4 had read and written the layout
 `model_parms_to_json()` already had, which the review of SEGMENT §3 had replaced: an events array
 whose nodes carried their parents. Since T2 makes that document a file format, it now takes the
-planned layout, in schema version 3 (v1 and v2 being the text formats before it):
+planned layout, in schema version `"0.3"`. A 0.x version is a pre-release one (Quentin, Oct 22
+2026): each replaces the one before it, and no reader keeps support for an older 0.x, which has no
+user outside the repository, as v2 had none. From 1.0, a released version stays readable.
 - `structure` holds the `layout` (`Linear`, its `segments`), the `events` and the `conditioning`;
 - the events are an object keyed by nickname. The order of its members is never read, and a key
   repeated in one object is refused when the text is parsed (nlohmann keeps the last one);

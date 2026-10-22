@@ -28,7 +28,7 @@
       }
     }
   },
-  "schema_version": 3,
+  "schema_version": "0.3",
   "structure": {
     // Empty: which events condition which in a tandem model has not been decided.
     "conditioning": {},

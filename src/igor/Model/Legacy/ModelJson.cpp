@@ -37,7 +37,7 @@ nlohmann::json error_rate_to_json(const std::shared_ptr<Error_rate> &error_rate)
     throw std::runtime_error(
             "model_parms_to_json: error rate of type \"" + error_rate->type()
             + "\" cannot be serialized yet; only SingleErrorRate is described by schema version "
-            + std::to_string(kModelJsonSchemaVersion));
+            + kModelJsonSchemaVersion);
 }
 
 /// The keys of the document, of its structure section and of a layout.
@@ -74,7 +74,7 @@ std::shared_ptr<Error_rate> error_rate_from_json(const nlohmann::json &node)
     if (type != Single_error_rate(0.0).type()) {
         throw std::runtime_error("model json: error rate of type \"" + type
                                  + "\" is not described by schema version "
-                                 + std::to_string(kModelJsonSchemaVersion)
+                                 + kModelJsonSchemaVersion
                                  + "; the hypermutation models' JSON form is step HJ of "
                                    "docs/ERROR_MODEL_REWRITE_PLAN.md");
     }
@@ -292,10 +292,11 @@ nlohmann::json parse_model_document(std::istream &in)
 DocumentStructure read_document_structure(const nlohmann::json &doc)
 {
     reject_unknown_model_keys(doc, kModelKeys, "the document");
-    const int version = require_model_key(doc, "schema_version").get<int>();
+    // Only the current version: a pre-release 0.x is not read once the next one exists.
+    const nlohmann::json &version = require_model_key(doc, "schema_version");
     if (version != kModelJsonSchemaVersion)
-        throw std::runtime_error("model json: schema version " + std::to_string(version) + ", where "
-                                 + std::to_string(kModelJsonSchemaVersion) + " is the one this reader knows");
+        throw std::runtime_error("model json: schema version " + version.dump() + ", where \""
+                                 + kModelJsonSchemaVersion + "\" is the one this reader knows");
     check_library(doc);
 
     const nlohmann::json &structure = require_model_key(doc, "structure");
