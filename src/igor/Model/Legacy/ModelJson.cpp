@@ -529,7 +529,18 @@ void model_marginals_from_json(const nlohmann::json &doc, const Model_Parms &par
     }
 
     // As txt2marginals() does: values written to a finite precision need not sum to one exactly.
+    // Values that already do, to a double's precision, as IGoR writes them, are kept as written:
+    // normalizing would move each by a few units in its last place wherever long double is double
+    // (arm64, MSVC), and the document written again would no longer be the same text. The bound is
+    // far above that rounding (about 1e-16 per term summed), far below a text file's 6 digits.
+    constexpr long double kAlreadyNormalized = 1e-12L;
+    long double *array = marginals.marginal_array_smart_p.get();
+    const std::vector<long double> as_written(array, array + size);
     marginals.normalize(inverse_offsets, index_map, queue);
+    if (std::equal(as_written.begin(), as_written.end(), array, [](long double written, long double normalized) {
+            return std::fabs(normalized - written) <= kAlreadyNormalized * std::fabs(written);
+        }))
+        std::copy(as_written.begin(), as_written.end(), array);
 }
 
 } // namespace igor::model::legacy

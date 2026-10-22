@@ -243,13 +243,14 @@ TEST_CASE("Marginals written as JSON read back at double precision", "[model_for
     original.write_marginals_json(written, parms);
     REQUIRE(text_of(written).front() == '{');
 
+    // The file holds the double nearest each value, and the reader keeps it: normalizing it again
+    // would move it where long double is double.
     Model_marginals read_back(parms);
     read_back.read_marginals(written, parms);
     for (std::size_t i = 0; i != original.get_length(); ++i) {
-        const long double a = original.marginal_array_smart_p[i];
-        const long double b = read_back.marginal_array_smart_p[i];
         INFO("index " << i);
-        REQUIRE(std::fabs(static_cast<double>(a - b)) <= 4e-16 * std::fabs(static_cast<double>(a)) + 1e-300);
+        REQUIRE(read_back.marginal_array_smart_p[i]
+                == static_cast<long double>(static_cast<double>(original.marginal_array_smart_p[i])));
     }
 
     SECTION("written again, the file is the same, text for text") {
@@ -357,12 +358,22 @@ TEST_CASE("Values that do not sum to one are normalized, as the text reader does
     auto &values = doc["parameters"]["nodes"]["vd_ins"]["values"];
     for (auto &value : values)
         value = 0;
-    values[0] = 1;
-    values[1] = 3;
-    const Model_marginals read = read_into(parms, doc);
-    const std::size_t base = read.get_index_map(parms).at("vd_ins");
-    CHECK(read.marginal_array_smart_p[base] == 0.25L);
-    CHECK(read.marginal_array_smart_p[base + 1] == 0.75L);
+
+    SECTION("far from it") {
+        values[0] = 1;
+        values[1] = 3;
+        const Model_marginals read = read_into(parms, doc);
+        const std::size_t base = read.get_index_map(parms).at("vd_ins");
+        CHECK(read.marginal_array_smart_p[base] == 0.25L);
+        CHECK(read.marginal_array_smart_p[base + 1] == 0.75L);
+    }
+    SECTION("or by as little as values written to nine digits") {
+        values[0] = 0.333333333;
+        values[1] = 0.666666666;
+        const Model_marginals read = read_into(parms, doc);
+        const std::size_t base = read.get_index_map(parms).at("vd_ins");
+        CHECK(std::fabs(read.marginal_array_smart_p[base] + read.marginal_array_smart_p[base + 1] - 1.0L) < 1e-15L);
+    }
 }
 
 TEST_CASE("Parameters that do not fit the model are refused", "[model_format][json][parameters]")

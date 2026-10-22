@@ -157,6 +157,9 @@ MODEL_EXPORT nlohmann::json model_marginals_to_json(const Model_Parms &parms, co
  * \brief Fill \a marginals from the "parameters" section of a document, then normalize them as
  * Model_marginals::txt2marginals() does.
  *
+ * Values that already sum to one to a double's precision, as IGoR writes them, are kept exactly as
+ * written, so that a document read and written again is the same text on every platform.
+ *
  * \a doc may be a complete model document or a fragment, its version and "parameters" only.
  * Every event of \a parms needs its node, and no node may name another event. A node's axes are
  * its event's parents, in any order, then its own axis or axes. An axis's labels are its event's,

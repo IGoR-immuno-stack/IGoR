@@ -672,7 +672,10 @@ Decisions (Quentin, Oct 22 2026):
   fragment is a document with its version and `parameters` only, which a marginals file now is
   for a JSON model. Fragments are also what message passing between machines would exchange. The
   reader takes either.
-- **Normalized on read**, as the text reader does.
+- **Normalized on read**, as the text reader does. Values that already sum to one to a double's
+  precision (within 1e-12), as IGoR writes them, are kept as written: normalizing them again moved
+  each by a few units in its last place wherever `long double` is `double` (arm64 macOS, MSVC),
+  which the first macOS CI run showed, and the document written again was no longer the same text.
 - **The error rate stays a top-level key** until E4 gives it a node.
 - **Labels are optional** (Quentin, Oct 22 2026), to prototype: an axis without them follows the
   index order of the model reading it, by position, and only its size is checked. IGoR always writes
