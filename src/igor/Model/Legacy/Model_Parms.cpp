@@ -739,9 +739,10 @@ void Model_Parms::read_model_parms(string filename)
         throw runtime_error("File not found : \"" + filename + "\"");
     }
 
-    //A model the v1 format cannot hold is a JSON document (plan T2), told apart by its content.
+    //A model the v1 format cannot hold is a JSON document (plan T2), told apart by its content:
+    //a v1 file opens with its @Event_list, a document with its object or with a comment.
     infile >> ws;
-    if (infile.peek() == '{') {
+    if (infile.peek() == '{' or infile.peek() == '/') {
         nlohmann::json doc;
         try {
             doc = parse_model_document(infile);

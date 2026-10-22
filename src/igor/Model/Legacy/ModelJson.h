@@ -35,10 +35,12 @@
  *   array. Indices run from 0 without gaps: the legacy marginals file is read by position.
  * - Templates sit in the library, keyed by label, so that D1 and D2 share one.
  *
+ * Comments are allowed, and dropped when IGoR writes a model.
+ *
  * Not yet, and refused when present: the `parameters`, `provenance` and `accumulators` sections
  * (synthesis step 4b; the marginals stay in their text file), several targets per event, a
  * layout other than Linear (step 5), a parameterization other than the event type's, and the
- * authoring form's shorthands (§14.4-14.5). `error_rate` is the one key outside the plan: it
+ * authoring form's shorthands and `description` fields (§14.4-14.5). `error_rate` is the one key outside the plan: it
  * stands for the error model until that is a node of the structure with its value in
  * `parameters` (ERROR_MODEL_REWRITE_PLAN.md, E4).
  */
@@ -65,6 +67,9 @@ constexpr int kModelJsonSchemaVersion = 3;
 
 /**
  * \brief Parse a model document.
+ *
+ * Comments, // and C-style, are allowed anywhere whitespace is, so that a model or a test
+ * fixture can say what it is (REVIEW §14.5). IGoR does not keep them: a model it writes has none.
  * \throws std::runtime_error naming the key and its object if a key appears twice in one
  *         object: nlohmann::json would keep the last one without a word.
  * \throws nlohmann::json::parse_error if the text is not JSON.

@@ -1,3 +1,5 @@
+// A VDJ model with one template per gene and no edges: the JSON counterpart of
+// test_legacy_vdj_model_parms.txt.
 {
   "error_rate": {
     "rate": 0.001,

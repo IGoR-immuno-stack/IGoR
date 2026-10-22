@@ -1,3 +1,8 @@
+/*
+ * A tandem-D model, V-D1-D2-J, with one template per gene. Every event has a segment of its own,
+ * and D1 and D2 draw from one library, the D genes, each with its own template. The v1 format
+ * cannot hold it.
+ */
 {
   "error_rate": {
     "rate": 0.001,
@@ -25,6 +30,7 @@
   },
   "schema_version": 3,
   "structure": {
+    // Empty: which events condition which in a tandem model has not been decided.
     "conditioning": {},
     "events": {
       "d1_3_del": {

@@ -617,10 +617,14 @@ planned layout, in schema version 3 (v1 and v2 being the text formats before it)
   stay explicit and dense, the marginals file being read by position;
 - templates sit in a `library` section, keyed by label, so that D1 and D2 share theirs. A model
   where one label would carry two templates is refused when written;
-- the event factory takes the nickname beside the node: `create(nickname, node)`.
+- the event factory takes the nickname beside the node: `create(nickname, node)`;
+- comments, `//` and `/* */`, may stand wherever whitespace may, before the object too, so that a
+  model or a fixture says what it is. IGoR drops them when it writes a model, as REVIEW §14.5 plans;
+  the `description` field that would survive is not there yet.
 
-The three JSON fixtures are converted to it. New cases cover the duplicate key, the member order,
-the conditioning's refusals, the shared library and the hint.
+The three JSON fixtures are converted to it, and each opens with a comment saying what it is. New
+cases cover the duplicate key, the member order, the conditioning's refusals, the shared library,
+the hint and the comments.
 
 **The legacy order travels as an engine hint.** The legacy engine queues events by priority, then
 by the event list, and the marginals file is laid out by that queue; a `Topology` lays out its
@@ -632,13 +636,13 @@ Q4 has the importer record, so L5 inherits it.
 
 **Not yet, and refused when present**: the `parameters`, `provenance` and `accumulators` sections
 (synthesis step 4b), several targets, a layout other than `Linear` (step 5), a parameterization
-other than the type's, the authoring form's shorthands and comments (REVIEW §14.4-14.5). One key is
+other than the type's, the authoring form's shorthands and `description` (REVIEW §14.4-14.5). One key is
 outside the plan: `error_rate` stands for the error model until E4 makes it a node of the structure
 and 4b moves its value into `parameters`. Without one a document now reads, as the writer omits it.
 
-Mutations, all caught: eight of N2, eight of N3, eleven of N4, twenty-one of the layout.
+Mutations, all caught: eight of N2, eight of N3, eleven of N4, twenty-three of the layout.
 
-Gate, at each step: unit (510/510 at N4, 514/514 with the layout) and integration 10/10; regression
+Gate, at each step: unit (510/510 at N4, 515/515 with the layout) and integration 10/10; regression
 bitwise on cli, align, inference, no_d_align and generate; convergence 2/2 at N3, N4 and the layout.
 
 ### T7: segment ids follow the ordering, not the `Seq_type` enum (planned Oct 15 2026)

@@ -1,3 +1,5 @@
+// A VJ model with one template per gene: the JSON counterpart of test_legacy_model_parms.txt,
+// with its two edges, V conditioning J and V's 3' deletion.
 {
   "error_rate": {
     "rate": 0.001,

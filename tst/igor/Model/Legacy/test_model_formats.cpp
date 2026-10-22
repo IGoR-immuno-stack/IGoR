@@ -32,6 +32,7 @@
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <map>
 #include <optional>
 #include <set>
@@ -50,10 +51,11 @@ using namespace igor::model::legacy;
 
 namespace {
 
+/// A document as plain json, its comments skipped, for a test to edit.
 nlohmann::json read_json(const std::string &path)
 {
     std::ifstream in(path);
-    return nlohmann::json::parse(in);
+    return nlohmann::json::parse(in, nullptr, /*allow_exceptions=*/true, /*ignore_comments=*/true);
 }
 
 std::string first_line_of(const std::string &path)
@@ -294,7 +296,7 @@ TEST_CASE("A JSON key repeated in one object is refused", "[model_format][json]"
 TEST_CASE("A JSON document's member order is never read", "[model_format][json]")
 {
     std::ifstream in(TEST_DATA_DIR + "tandem_d_model.json");
-    const auto original = nlohmann::ordered_json::parse(in);
+    const auto original = nlohmann::ordered_json::parse(in, nullptr, true, /*ignore_comments=*/true);
     nlohmann::ordered_json reversed = original;
     nlohmann::ordered_json events = nlohmann::ordered_json::object();
     const auto &source = original.at("structure").at("events");
@@ -400,6 +402,45 @@ TEST_CASE("A v1 model written as JSON keeps its event order as a legacy engine h
         doc["engine_hints"]["legacy_dfs"]["event_order"].push_back(listed.front());
         REQUIRE_THROWS_WITH(parms.read_model_parms(scratch.file("doubled.json", doc.dump())),
                             Catch::Matchers::ContainsSubstring("every event once"));
+    }
+}
+
+// Comments let a model, or a test fixture, say what it is (REVIEW §14.5). They may stand anywhere
+// whitespace may, before the object too; IGoR reads past them and does not write them back.
+TEST_CASE("A JSON document may carry comments", "[model_format][json]")
+{
+    ScratchDir scratch;
+    Model_Parms plain;
+    REQUIRE_NOTHROW(plain.read_model_parms(TEST_DATA_DIR + "test_legacy_model_parms.txt"));
+    const std::string text = model_parms_to_json(plain).dump(2);
+
+    SECTION("line and block comments, before the object and inside it") {
+        std::string commented = "// A VJ model.\n/* Written by a test,\n   with comments. */\n" + text;
+        const std::string structure = "\"structure\": {";
+        commented.insert(commented.find(structure) + structure.size(), " // what the model is\n");
+        const std::string segments = "\"V_gene_seq\",";
+        commented.insert(commented.find(segments) + segments.size(), " /* then the junction */");
+
+        Model_Parms read_back;
+        REQUIRE_NOTHROW(read_back.read_model_parms(scratch.file("commented.json", commented)));
+        REQUIRE(model_parms_to_json(read_back) == model_parms_to_json(plain));
+
+        const std::string written = scratch.file("rewritten.json");
+        read_back.write_model_parms_json(written);
+        std::ifstream in(written);
+        const std::string rewritten((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+        CHECK(rewritten.find("//") == std::string::npos);
+        CHECK(rewritten.find("/*") == std::string::npos);
+    }
+    SECTION("the fixtures open with one") {
+        REQUIRE(first_line_of(TEST_DATA_DIR + "tandem_d_model.json") == "/*");
+        Model_Parms parms;
+        REQUIRE_NOTHROW(parms.read_model_parms(TEST_DATA_DIR + "tandem_d_model.json"));
+    }
+    SECTION("a file opening with a slash is read as JSON, and said not to be") {
+        Model_Parms parms;
+        REQUIRE_THROWS_WITH(parms.read_model_parms(scratch.file("slash.json", "/ {}")),
+                            Catch::Matchers::ContainsSubstring("not valid JSON"));
     }
 }
 

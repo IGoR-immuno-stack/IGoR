@@ -286,7 +286,7 @@ nlohmann::json parse_model_document(std::istream &in)
         }
         return true;
     };
-    return nlohmann::json::parse(in, on_event);
+    return nlohmann::json::parse(in, on_event, /*allow_exceptions=*/true, /*ignore_comments=*/true);
 }
 
 DocumentStructure read_document_structure(const nlohmann::json &doc)
