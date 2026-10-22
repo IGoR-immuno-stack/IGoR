@@ -128,7 +128,7 @@ find_package(sparrow REQUIRED)
 find_package(CLI11 REQUIRED)
 find_package(tomlplusplus REQUIRED)
 find_package(nlohmann_json REQUIRED)
-find_package(nlohmann_json_schema_validator REQUIRED)
+include(igorSetupJsonSchemaValidator)
 
 # OpenSSL (app/igor and tst/utils) must come from the pixi environment, like every other
 # dependency. Without this hint FindOpenSSL searches /usr before the environment and links

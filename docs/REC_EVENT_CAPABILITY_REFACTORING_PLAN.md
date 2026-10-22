@@ -726,6 +726,13 @@ draft-07), private to `igor::Model`:
 - **Messages** list every violation at its JSON pointer, the first ten, in the reader's words
   (`unknown key "x"`) and once each, the validator's `allOf` summaries dropped.
 - Python's `jsonschema` reads the same files and agrees on the fixtures and on a broken document.
+- **On Windows the validator is built from source.** conda-forge's win-64 build (2.4.0, 2.4.1) is a
+  Debug DLL: its recipe configures with NMake and no build type, which MSVC takes as Debug, so it
+  links the debug runtime, whose STL layout is not a Release build's, and the first Windows CI run
+  crashed in every test that validates. `cmake/igorSetupJsonSchemaValidator.cmake` builds the same
+  release there, the recipe's archive at its hash, as a static library inside `igor::Model`;
+  `IGOR_BUILD_JSON_SCHEMA_VALIDATOR` chooses either way on any platform. The feedstock's fix is
+  one flag, `-DCMAKE_BUILD_TYPE=Release`, after which Windows can use the package again.
 
 Mutations, all caught: eight of N2, eight of N3, eleven of N4, twenty-three of the layout,
 twenty-one of the parameters, twelve of the schema.
