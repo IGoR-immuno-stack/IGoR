@@ -28,7 +28,8 @@ brevity.  Much more detail can be found in the git revision history:
   - Model files:
     - A model the v1 text format cannot hold, a tandem D for instance, is read and written
       as a JSON document, recognised by its content. Inference writes such a model's
-      parameters to .json files
+      parameters to .json files. The document holds the structure (segment layout, events
+      keyed by nickname, conditioning graph) apart from the template library
     - Every event needs a nickname, unique in its model, which now names the event in the
       model and in its outputs. A v1 model file with an event line without one is refused
   - Sequence sampler:

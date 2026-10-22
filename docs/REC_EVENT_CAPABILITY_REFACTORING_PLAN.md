@@ -437,7 +437,7 @@ that member with three readers: the constructors, `copy()` and the generated nam
   derived from its seq type and checked against it, and an insertion's or a chain's was always
   `Undefined_gene`. A node of another type that carries one is refused as an unknown key. No
   document is stored: the JSON is built from a `Model_Parms` and read by `topology_from_json()`,
-  so the schema version stays 1.
+  so the schema version stays 1. (T2 renames it `library`, in schema version 3.)
 - **The refusals the constructors made move to the legacy reader.** `str2SeqType()` refused a
   line whose gene class names no segment, and the deletion constructor refused a deletion on a
   junction. The v1 reader now refuses both, where the gene class still means something. A v2 file
@@ -602,10 +602,44 @@ Where it differs from the plan, or adds to it:
   - A smoke run of the CLI generates from the tandem fixture, with sixteen nickname columns, and
     loads a `final_parms.json` as the last inferred model.
 
-Mutations, all caught: eight of N2, eight of N3, eleven of N4.
+**The document's layout follows REVIEW §14 (Oct 22 2026).** N4 had read and written the layout
+`model_parms_to_json()` already had, which the review of SEGMENT §3 had replaced: an events array
+whose nodes carried their parents. Since T2 makes that document a file format, it now takes the
+planned layout, in schema version 3 (v1 and v2 being the text formats before it):
+- `structure` holds the `layout` (`Linear`, its `segments`), the `events` and the `conditioning`;
+- the events are an object keyed by nickname. The order of its members is never read, and a key
+  repeated in one object is refused when the text is parsed (nlohmann keeps the last one);
+- the conditioning is its own section, child to parents, apart from the events. The readers check
+  it names events only, each parent once, without a cycle;
+- an event states its `targets` (one, `segment` and `side` as `5'` or `3'`), and a gene choice its
+  `library`, today's gene class;
+- a realization is its `label` (the gene, the value or the nucleotide) and its `index`. Indices
+  stay explicit and dense, the marginals file being read by position;
+- templates sit in a `library` section, keyed by label, so that D1 and D2 share theirs. A model
+  where one label would carry two templates is refused when written;
+- the event factory takes the nickname beside the node: `create(nickname, node)`.
 
-Gate, at each step: unit (510/510 at N4) and integration 10/10; regression bitwise on cli, align,
-inference, no_d_align and generate; convergence 2/2 at N3 and N4.
+The three JSON fixtures are converted to it. New cases cover the duplicate key, the member order,
+the conditioning's refusals, the shared library and the hint.
+
+**The legacy order travels as an engine hint.** The legacy engine queues events by priority, then
+by the event list, and the marginals file is laid out by that queue; a `Topology` lays out its
+tensors by uid. A document has no order, so its readers build events in nickname order, and a
+JSON-native model breaks its ties so (MIG Q4). A model whose list is in another order, a v1 model's,
+is written with `engine_hints.legacy_dfs.event_order`, which the readers follow: written as JSON
+and read back, it has the same queue, the same marginal layout and the same uids. That is the hint
+Q4 has the importer record, so L5 inherits it.
+
+**Not yet, and refused when present**: the `parameters`, `provenance` and `accumulators` sections
+(synthesis step 4b), several targets, a layout other than `Linear` (step 5), a parameterization
+other than the type's, the authoring form's shorthands and comments (REVIEW §14.4-14.5). One key is
+outside the plan: `error_rate` stands for the error model until E4 makes it a node of the structure
+and 4b moves its value into `parameters`. Without one a document now reads, as the writer omits it.
+
+Mutations, all caught: eight of N2, eight of N3, eleven of N4, twenty-one of the layout.
+
+Gate, at each step: unit (510/510 at N4, 514/514 with the layout) and integration 10/10; regression
+bitwise on cli, align, inference, no_d_align and generate; convergence 2/2 at N3, N4 and the layout.
 
 ### T7: segment ids follow the ordering, not the `Seq_type` enum (planned Oct 15 2026)
 
@@ -739,7 +773,8 @@ retires v2 instead:
 
 **What it needs.**
 - **T2** (delivered Oct 21 2026). Events named by nickname, and the JSON reader. The script writes
-  each event's parents by nickname, as `model_parms_to_json()` does.
+  the document's sections as `model_parms_to_json()` does: events keyed by nickname, the
+  conditioning by nickname, D1's and D2's templates once in the library.
 - **The marginals in the new model's layout.** `txt2marginals()` reads the values by position and
   ignores the headers ([Model_marginals.cpp:1224-1236](../src/igor/Model/Legacy/Model_marginals.cpp#L1224)),
   so the values must follow the tandem model's own layout. IGoR writes that layout itself:
