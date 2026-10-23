@@ -602,6 +602,24 @@ TEST_CASE("Gene_choice::iterate realization branching and probability",
     }
 }
 
+TEST_CASE("Gene_choice::iterate passes over an alignment of a template it does not hold",
+          "[gene_choice][iterate][tandem_d][!shouldfail]")
+{
+    // Two gene choices of one library can each hold a part of it, as a tandem TRB's D1 holds
+    // TRBD1 and its D2 TRBD2. Both read the library's alignments, keyed by library, so each sees
+    // the other's. An alignment of a template this event does not hold is no placement of it:
+    // looking its label up threw, and inside an inference the exception terminated it.
+    auto state = create_iterate_state("ACGTACGTTTTTAAAAGGGGCCCC");
+    auto d1_event = make_gene_choice(D_gene, { { "D1", "TTTTAAAA" } }, 0, /*fixed=*/false);
+    state.set_alignments(D_gene, { create_perfect_alignment("D2", 0, 4), create_perfect_alignment("D1", 8, 8) });
+    state.set_marginal(0, 1.0L);
+
+    auto rec = call_iterate_recording(d1_event, state);
+    REQUIRE(rec->call_count() == 1);
+    CHECK(rec->calls.at(0).five_prime(D_gene_seq) == 8);
+    CHECK(rec->calls.at(0).sequences.at(D_gene_seq) == "TTTTAAAA");
+}
+
 TEST_CASE("Gene_choice::iterate junction-length bound (G5)", "[gene_choice][iterate][junction]")
 {
     // The guard at Genechoice.cpp:322: the gap between V's 3' end and the chosen D's 5'
