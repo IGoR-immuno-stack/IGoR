@@ -360,6 +360,36 @@ TEST_CASE("Gene choices of one library share its templates", "[model_format][jso
     }
 }
 
+// What reads a library's alignments finds its gene choices by library: the CLI loads D's for a
+// model with any, and a tandem model has two, on segments no legacy name gives.
+TEST_CASE("A model's gene choices are found by library, whatever their segments", "[model_format][tandem_d]")
+{
+    const auto nicknames = [](const std::list<std::shared_ptr<Gene_choice>> &choices) {
+        std::vector<std::string> out;
+        for (const auto &choice : choices)
+            out.push_back(choice->get_nickname());
+        return out;
+    };
+
+    SECTION("the two Ds of a tandem model, in event-list order")
+    {
+        Model_Parms parms;
+        REQUIRE_NOTHROW(parms.read_model_parms(TEST_DATA_DIR + "tandem_d_model.json"));
+        CHECK(nicknames(parms.get_gene_choices(D_gene)) == std::vector<std::string>{ "d1_choice", "d2_choice" });
+        CHECK(nicknames(parms.get_gene_choices(V_gene)) == std::vector<std::string>{ "v_choice" });
+        CHECK(nicknames(parms.get_gene_choices(J_gene)) == std::vector<std::string>{ "j_choice" });
+    }
+    SECTION("the one D of a V-D-J model, and none in a V-J one")
+    {
+        Model_Parms vdj;
+        REQUIRE_NOTHROW(vdj.read_model_parms(TEST_DATA_DIR + "test_legacy_vdj_model_parms.txt"));
+        CHECK(vdj.get_gene_choices(D_gene).size() == 1);
+        Model_Parms vj;
+        REQUIRE_NOTHROW(vj.read_model_parms(TEST_DATA_DIR + "vj_model.json"));
+        CHECK(vj.get_gene_choices(D_gene).empty());
+    }
+}
+
 // The legacy engine queues events by priority, then by the event list, and lays out the
 // marginals file by that queue. A v1 model written as JSON keeps its list as an engine hint, so
 // that it reads back with the same queue and its marginals file still fits (MIG Q4).
