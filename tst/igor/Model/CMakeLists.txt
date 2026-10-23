@@ -36,6 +36,7 @@ target_sources(model_tests
         Legacy/test_single_error_rate.cpp
         Legacy/test_tandem_guards.cpp
         Legacy/test_tandem_junctions.cpp
+        Legacy/test_tandem_trb_model.cpp
         Legacy/test_utils.cpp
 )
 
