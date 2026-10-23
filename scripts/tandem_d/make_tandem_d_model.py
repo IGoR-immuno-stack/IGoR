@@ -5,16 +5,18 @@ TRB's D block is duplicated, and the result is written as one JSON model documen
 structure, its template library, its parameters and its error rate.
 
   - The D gene and its two deletions are copied twice, as D1 and D2. Both gene choices draw
-    from TRB's D library and are conditioned on V and J, as TRB's is; each 3' deletion is
-    conditioned on its own gene and 5' deletion, as in TRB.
+    from TRB's D library and are conditioned on V and J, as TRB's is.
   - TRB's two junctions become three: VD1 copies VD, D2J copies DJ, and D1D2 copies VD (see
     COPIES below).
+  - The events run in the order the segments join (see PRIORITIES below). D1's two deletions
+    then come the other way round from TRB's: its 3' deletion is drawn first, and the 5' one is
+    conditioned on it (see joining_order_deletions()).
   - V and J, their deletions and the error rate are TRB's as they are.
 
-Every event's realizations, labels and parameters are those of the TRB event it copies. The
-parameters are written by label, as model_parms_to_json() and model_marginals_to_json() lay them
-out, so IGoR reads them whatever order it gives the events. The values are TRB's as its
-marginals file writes them; IGoR normalizes them on reading, as it does the text file's.
+Every other event's realizations, labels and parameters are those of the TRB event it copies.
+The parameters are written by label, as model_parms_to_json() and model_marginals_to_json() lay
+them out, so IGoR reads them whatever order it gives the events. The values copied are TRB's as
+its marginals file writes them; IGoR normalizes them on reading, as it does the text file's.
 
 The model is a computation test, biologically implausible by construction: a fixed V-D1-D2-J
 layout cannot explain the V-D-J reads a real repertoire also holds.
@@ -44,7 +46,7 @@ SEGMENTS = ["V_gene_seq", "VD1_ins_seq", "D1_gene_seq", "D1D2_ins_seq", "D2_gene
 
 # The tandem model's events, by group: each maps the TRB events it copies to the copies'
 # nicknames, all on the group's segment. A parent of a copy is renamed by the copy's group, so
-# D1's 3' deletion is conditioned on D1's gene and 5' deletion; a parent outside the group keeps
+# D2's 3' deletion is conditioned on D2's gene and 5' deletion; a parent outside the group keeps
 # its name, so both Ds are conditioned on V and J.
 #
 # D1D2 copies TRB's VD junction, not DJ: the chain then runs 5' to 3' from D1, as VD's runs from
@@ -60,6 +62,26 @@ COPIES = [
     ("J_gene_seq", {"j_choice": "j_choice", "j_5_del": "j_5_del"}),
 ]
 
+# The order the events run in, highest first: the legacy engine explores them in it, and
+# generation draws them in it. The gene choices come first, as in TRB; then the segments join
+# in the order reported for a tandem TRB rearrangement: D1 to D2, then D1D2 to J, then V to
+# D1D2J. Each joint's two deletions come right before its insertion.
+#
+# The order is what seeds D1D2's Markov chain. A chain is seeded from its anchor as the events
+# before it left it, and D1D2's anchor is D1: its 3' end is cut before the chain runs, its 5'
+# end only at the V joint, after. In TRB's order both of D1's deletions came first, and a D1
+# they deleted entirely left the chain no nucleotide to start from, which throws in generation
+# and in inference (GENERATION_REWRITE_PLAN D6).
+PRIORITIES = {
+    "v_choice": 14, "j_choice": 14, "d1_choice": 13, "d2_choice": 13,
+    # D1 to D2
+    "d1_3_del": 12, "d2_5_del": 12, "d1d2_ins": 11, "d1d2_dinucl": 10,
+    # D1D2 to J
+    "d2_3_del": 9, "j_5_del": 9, "d2j_ins": 8, "d2j_dinucl": 7,
+    # V to D1D2J
+    "v_3_del": 6, "d1_5_del": 6, "vd1_ins": 5, "vd1_dinucl": 4,
+}
+
 HEADER = """\
 /*
  * The V-D1-D2-J model of milestone 1 (capability plan T5), built from human TRB
@@ -67,8 +89,10 @@ HEADER = """\
  * change the script and run it again.
  *
  * TRB's D gene and its deletions are copied twice, as D1 and D2, both conditioned on V and J.
- * VD1 and D1D2 copy TRB's VD junction, D2J its DJ junction. The parameters are TRB's, event by
- * event. A computation test, biologically implausible by construction.
+ * VD1 and D1D2 copy TRB's VD junction, D2J its DJ junction. The events run in the order the
+ * segments join: D1 to D2, D1D2 to J, then V. D1's 3' deletion is drawn before its 5' one,
+ * from TRB's joint distribution of the two; the other parameters are TRB's, event by event.
+ * A computation test, biologically implausible by construction.
  */
 """
 
@@ -191,11 +215,92 @@ def nested(rows, sizes, own, prefix=()):
     return [nested(rows, sizes, own, prefix + (index,)) for index in range(sizes[len(prefix)])]
 
 
+def normalized(row):
+    total = sum(row)
+    return [value / total for value in row] if total > 0 else [0.0] * len(row)
+
+
+def legal(length, first, second):
+    """Whether an internal segment of `length` nucleotides takes the deletion `first`, then `second`.
+
+    Each cuts the segment the one before it left: a deletion of k at most all of it, a
+    palindrome of k no longer than what it mirrors, as Deletion::iterate() and the generator
+    have it.
+    """
+    for deletion in (first, second):
+        if abs(deletion) > length:
+            return False
+        length -= deletion
+    return True
+
+
+def joining_order_deletions(events, marginals):
+    """D1's two deletions in the joining order, from TRB's joint distribution of a D's two.
+
+    TRB draws a D's 5' deletion first and conditions the 3' one on it: P(d5 | D) P(d3 | D, d5).
+    In the joining order D1's 3' end is cut first, at the D1-D2 joint, and its 5' end last, at
+    the V joint: P(d3 | D) P(d5 | D, d3), the same joint read the other way. Two things change
+    with the order:
+      - the 3' deletion stops one short of the shortest D, so that D1 still holds the nucleotide
+        D1D2's chain is seeded from. A D1 cut away before it joins D2 is no D1, and milestone 1
+        has both Ds present; what an absent D means is B10's;
+      - which pairs are legal (legal()): a pair TRB allows, such as a 5' palindrome the 3'
+        deletion then reaches into, may not be legal the other way round.
+    The pairs left out lose their mass, and each gene's joint is normalized again.
+
+    Returns the nodes of d1_3_del and d1_5_del, the 3' deletion's realizations, and the mass
+    left out for each gene.
+    """
+    genes = events["d_gene"]["realizations"]
+    deletions = [r["label"] for r in events["d_5_del"]["realizations"]]
+    if deletions != [r["label"] for r in events["d_3_del"]["realizations"]]:
+        raise SourceError("TRB's two D deletions do not have the same realizations")
+    if marginals["d_5_del"]["parents"] != ["d_gene"] or marginals["d_3_del"]["parents"] != ["d_gene", "d_5_del"]:
+        raise SourceError("TRB's D deletions are not conditioned as the joining order expects")
+    shortest = min(len(gene["sequence"]) for gene in genes)
+    kept_3 = [k for k in deletions if k < shortest]
+
+    gene_labels = [gene["label"] for gene in genes]
+    three_prime = []
+    five_prime = []
+    left_out = {}
+    for g, gene in enumerate(genes):
+        p5 = normalized(marginals["d_5_del"]["rows"][(g,)])
+        joint = {}
+        for i5, d5 in enumerate(deletions):
+            p3 = normalized(marginals["d_3_del"]["rows"][(g, i5)])
+            for i3, d3 in enumerate(deletions):
+                joint[d5, d3] = p5[i5] * p3[i3]
+        kept = {pair: mass for pair, mass in joint.items()
+                if pair[1] < shortest and legal(len(gene["sequence"]), pair[1], pair[0])}
+        total = sum(kept.values())
+        left_out[gene["label"]] = 1.0 - total
+        marginal_3 = [sum(kept.get((d5, d3), 0.0) for d5 in deletions) / total for d3 in kept_3]
+        three_prime.append(marginal_3)
+        five_prime.append([[kept.get((d5, d3), 0.0) / total / m3 if m3 > 0 else 0.0 for d5 in deletions]
+                           for d3, m3 in zip(kept_3, marginal_3)])
+
+    nodes = {
+        "d1_3_del": {"axes": [{"event": "d1_choice", "labels": gene_labels},
+                              {"event": "d1_3_del", "labels": kept_3}],
+                     "values": three_prime},
+        "d1_5_del": {"axes": [{"event": "d1_choice", "labels": gene_labels},
+                              {"event": "d1_3_del", "labels": kept_3},
+                              {"event": "d1_5_del", "labels": deletions}],
+                     "values": five_prime},
+    }
+    realizations = [{"index": index, "label": label} for index, label in enumerate(kept_3)]
+    return nodes, realizations, left_out
+
+
 def build_document(events, edges, error_rate, marginals):
     copied = {source for _, group in COPIES for source in group}
     if copied != set(events):
         raise SourceError("the TRB events are not the ones the duplication copies: "
                           + ", ".join(sorted(copied ^ set(events))))
+    copies = {copy for _, group in COPIES for copy in group.values()}
+    if set(PRIORITIES) != copies:
+        raise SourceError("PRIORITIES does not order the copies: " + ", ".join(sorted(set(PRIORITIES) ^ copies)))
     parents_of = {nickname: [] for nickname in events}
     for parent, child in edges:
         parents_of[child].append(parent)
@@ -222,7 +327,7 @@ def build_document(events, edges, error_rate, marginals):
                 target["side"] = side
             node = {
                 "type": event["type"],
-                "priority": event["priority"],
+                "priority": PRIORITIES[copy],
                 "targets": [target],
                 "realizations": [{"index": r["index"], "label": r["label"]} for r in event["realizations"]],
             }
@@ -254,7 +359,14 @@ def build_document(events, edges, error_rate, marginals):
                 raise SourceError(f"the marginals of {source} do not fit its realizations")
             nodes[copy] = {"axes": axes, "values": nested(block["rows"], sizes, own)}
 
-    return {
+    # D1's deletions in the joining order: the 3' one first, the 5' one conditioned on it.
+    d1_nodes, d1_3_realizations, left_out = joining_order_deletions(events, marginals)
+    nodes.update(d1_nodes)
+    structure_events["d1_3_del"]["realizations"] = d1_3_realizations
+    conditioning["d1_3_del"] = ["d1_choice"]
+    conditioning["d1_5_del"] = ["d1_3_del", "d1_choice"]
+
+    document = {
         "$schema": SCHEMA_URI,
         "schema_version": SCHEMA_VERSION,
         "structure": {
@@ -266,6 +378,7 @@ def build_document(events, edges, error_rate, marginals):
         "parameters": {"nodes": nodes},
         "error_rate": {"type": "SingleErrorRate", "rate": error_rate},
     }
+    return document, left_out
 
 
 def dumps(value, indent=0):
@@ -295,12 +408,14 @@ def main():
     try:
         events, edges, error_rate = read_parms(args.source / "model_parms.txt")
         marginals = read_marginals(args.source / "model_marginals.txt")
-        document = build_document(events, edges, error_rate, marginals)
+        document, left_out = build_document(events, edges, error_rate, marginals)
     except SourceError as error:
         sys.exit(f"make_tandem_d_model.py: {error}")
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(HEADER + dumps(document) + "\n")
+    for gene, mass in left_out.items():
+        print(f"D1 {gene.strip()}: {mass:.4f} of TRB's deletion mass left out by the joining order")
 
 
 if __name__ == "__main__":
