@@ -3,17 +3,17 @@
 **Audience**: anyone adding tests for a `Rec_Event` subclass or an `Error_rate`, and anyone
 changing existing ones while refactoring.
 **Status**: matches the harness on `feature/tandemD-T5` @ `3c06f52` (Oct 23 2026).
-**Reference implementation**: [test_gene_choice_iterate.cpp](../tst/igor/Model/Legacy/test_gene_choice_iterate.cpp).
+**Reference implementation**: [test_gene_choice_iterate.cpp](../../tst/igor/Model/Legacy/test_gene_choice_iterate.cpp).
 `Gene_choice` is fully covered, and every pattern below has a worked instance there.
-[test_deletion_iterate.cpp](../tst/igor/Model/Legacy/test_deletion_iterate.cpp) shows how sections
+[test_deletion_iterate.cpp](../../tst/igor/Model/Legacy/test_deletion_iterate.cpp) shows how sections
 stay organised by pattern when one body serves four kinds of deletion.
-[test_tandem_junctions.cpp](../tst/igor/Model/Legacy/test_tandem_junctions.cpp) shows a fixture on
+[test_tandem_junctions.cpp](../../tst/igor/Model/Legacy/test_tandem_junctions.cpp) shows a fixture on
 a tandem-D layout.
-**Harness**: [test_utils.h](../tst/igor/Model/Legacy/test_utils.h) /
-[.cpp](../tst/igor/Model/Legacy/test_utils.cpp), in `tst/igor/Model/Legacy/`.
+**Harness**: [test_utils.h](../../tst/igor/Model/Legacy/test_utils.h) /
+[.cpp](../../tst/igor/Model/Legacy/test_utils.cpp), in `tst/igor/Model/Legacy/`.
 **Related**: [ITERATE_INTERNALS.md](ITERATE_INTERNALS.md) explains the machinery a test exercises
 (layers, the plan, safety, bounds), and [REC_EVENT_CONTRACT.md](REC_EVENT_CONTRACT.md) what an event
-must do. [ITERATE_GENERIC_REWRITE_PLAN.md](ITERATE_GENERIC_REWRITE_PLAN.md) records how the
+must do. [ITERATE_GENERIC_REWRITE_PLAN.md](../ITERATE_GENERIC_REWRITE_PLAN.md) records how the
 bodies were rewritten and the defects found on the way.
 
 ---
@@ -228,7 +228,7 @@ write is missing on that path, or the write whose `request_layer()` is.
   one library may hold different templates.
 
 ### `Deletion`
-Covered in [test_deletion_iterate.cpp](../tst/igor/Model/Legacy/test_deletion_iterate.cpp)
+Covered in [test_deletion_iterate.cpp](../../tst/igor/Model/Legacy/test_deletion_iterate.cpp)
 (ITER step 4a, kept through 4b). Read it before adding to it; it covers:
 
 - positive deletion: sequence truncated, offset moved, mismatch list trimmed to a **contiguous
@@ -330,7 +330,7 @@ a non-zero mismatch count collapse to 0, which asserts nothing.
 
 `compute_scenario_error_probability(query, model, scenario, exploration)` runs at the leaf, so the
 recorder is the wrong instrument. Call it directly on a state whose segments are preset, as
-[test_single_error_rate.cpp](../tst/igor/Model/Legacy/test_single_error_rate.cpp) does.
+[test_single_error_rate.cpp](../../tst/igor/Model/Legacy/test_single_error_rate.cpp) does.
 
 `Single_error_rate` charges every segment of the ordering that **has a mismatch list**: the genes,
 whose gene choices and deletions write one, and not the junctions (T7a). Presence is signalled by
@@ -352,7 +352,7 @@ What to assert:
 | **Which segments** | every gene of the ordering, a tandem model's D1 and D2 included; junctions uncharged; an absent D changes both counts, a present-but-empty one contributes 0 |
 | **Threshold** | below `seq_max_prob × factor` returns 0 and updates **no** accumulator |
 | **Accumulators** | `seq_likelihood`, `seq_weighted_er`, `seq_probability` accumulate across scenarios, and are *assigned* rather than accumulated under `viterbi_run` |
-| **Admissibility** | `check_admissible(registry)` accepts the orderings the model can read and refuses the others with a message naming the reader ([test_tandem_guards.cpp](../tst/igor/Model/Legacy/test_tandem_guards.cpp)) |
+| **Admissibility** | `check_admissible(registry)` accepts the orderings the model can read and refuses the others with a message naming the reader ([test_tandem_guards.cpp](../../tst/igor/Model/Legacy/test_tandem_guards.cpp)) |
 
 > **Subject to change — ERR E0, H0, H1.** E0 extends the `Single_error_rate` suite (merge order,
 > `copy`, the M-step, the round trip), and `set_error_rate()` gains a form taking any `Error_rate`.

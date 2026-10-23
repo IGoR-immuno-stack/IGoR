@@ -6,7 +6,7 @@
 **Companion**: [ITERATE_INTERNALS.md](ITERATE_INTERNALS.md) explains the machinery that calls the
 event: the registry, the layered scenario state, the engine's plan, overlap safety and the
 probability bounds. Read its §1 first.
-**Scope**: the contract of `Rec_Event` ([Rec_Event.h](../src/igor/Model/Legacy/Rec_Event.h)) as the
+**Scope**: the contract of `Rec_Event` ([Rec_Event.h](../../src/igor/Model/Legacy/Rec_Event.h)) as the
 legacy inference engine (`GenModel::infer_model()`) and the legacy generator (`SequenceGenerator`)
 use it. The Model module's `Topology`, handlers and engines are merged but not wired, and are not
 covered.
@@ -149,7 +149,7 @@ A negative deletion value is a palindromic extension; the ranges above stay orde
 ### 3.1 Construction, copy and serialization
 
 - **From a JSON node.** A JSON model builds every event through `event_factory::create(nickname,
-  node, library)` ([EventFactory.h](../src/igor/Model/EventFactory.h)). An event type provides:
+  node, library)` ([EventFactory.h](../../src/igor/Model/EventFactory.h)). An event type provides:
   - a constructor `(const std::string &nickname, const nlohmann::json &node)`, or
     `(nickname, node, library)` if it draws templates from the document's library, which it declares
     by specializing `event_factory::takes_library<T>`;
@@ -159,7 +159,7 @@ A negative deletion value is a palindromic extension; the ranges above stay orde
     checked too.
 - **From a v1 model file.** The legacy constructors, through `Model_Parms`' reader. The v1 format
   translates gene classes to seq types and back (`legacy_gene_class_of()`,
-  `legacy_gene_class_to_seq_type()`, [LegacyFormat.h](../src/igor/Model/Legacy/LegacyFormat.h)). A
+  `legacy_gene_class_to_seq_type()`, [LegacyFormat.h](../../src/igor/Model/Legacy/LegacyFormat.h)). A
   model the v1 format cannot express (`requires_extended_format()`) is written as JSON.
 - **`copy()`** returns an independent event for another thread. It must carry the realizations,
   the seq type and its id, the nickname, the priority, the `fixed` flag and the event identifier.

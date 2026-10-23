@@ -24,7 +24,7 @@
 
 /**
  * Written against the *unmodified* event, before B5 collapses its four arms (plan step 4b).
- * Follows docs/ITERATE_TEST_GUIDE.md: one TEST_CASE per pattern, one SECTION per instance,
+ * Follows docs/reference/ITERATE_TEST_GUIDE.md: one TEST_CASE per pattern, one SECTION per instance,
  * every guard paired with a positive control.
  *
  * `Deletion::iterate` was at **0 % line coverage** before this file: no unit test of any kind

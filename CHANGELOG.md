@@ -83,8 +83,8 @@ brevity.  Much more detail can be found in the git revision history:
       by run-time ids from the model's segment registry, each event type has one iterate()
       body, overlap checks and pruning bounds follow from the events' declared roles and
       their order, and the scenario state lives in containers sized from the model.
-      Outputs unchanged on the regression tracks. See docs/ITERATE_INTERNALS.md and
-      docs/REC_EVENT_CONTRACT.md
+      Outputs unchanged on the regression tracks. See docs/reference/ITERATE_INTERNALS.md
+      and docs/reference/REC_EVENT_CONTRACT.md
     - The legacy sequence generator draws realization indices, then builds each segment by
       id and joins them in the model's segment order. Outputs unchanged
 

@@ -1886,7 +1886,7 @@ Deferred to step 4 rather than written here: the zero-length-junction section. `
 never writes an empty segment — a genomic template is never empty — so B10's degenerate offset
 convention can only be exercised from `Deletion`.
 
-> **Writing the sections is documented separately.** [ITERATE_TEST_GUIDE.md](ITERATE_TEST_GUIDE.md)
+> **Writing the sections is documented separately.** [ITERATE_TEST_GUIDE.md](reference/ITERATE_TEST_GUIDE.md)
 > carries the harness reference, the nine-row matrix every event's tests must fill, the setup
 > recipes, the traps, and the `[!shouldfail]` convention. Steps 1, 2 and 4 follow it rather than
 > re-deriving the shape.
@@ -4972,7 +4972,7 @@ layer contract — *requesting a layer is a promise to write it before handing o
 hand-off, across all six seq_type-keyed maps, for every section in the suite. Verified against
 this very bug: reverting the fix makes the exhaustive-path sections report
 `safety_set key 0 / key 1: requested layer 0, current layer 2`. See
-[ITERATE_TEST_GUIDE.md](ITERATE_TEST_GUIDE.md) §4.1. Its one limit is that it only sees branches
+[ITERATE_TEST_GUIDE.md](reference/ITERATE_TEST_GUIDE.md) §4.1. Its one limit is that it only sees branches
 a test executes.
 
 **And the container no longer permits the ambiguity at all** (§7.10): `LayeredArray` now tracks

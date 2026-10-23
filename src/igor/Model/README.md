@@ -6,6 +6,32 @@ that operate on them (inference and generation).
 
 ---
 
+## Used by inference today
+
+The tensor architecture this README describes is merged but **not wired**: inference and
+generation still run on the legacy model and events in [Legacy/](Legacy/README.md), and their
+migration is [ENGINE_MIGRATION_PLAN.md](../../../docs/ENGINE_MIGRATION_PLAN.md). Part of this module
+is wired already. The legacy engine uses these files on every run:
+
+| File | Role | Described in |
+|---|---|---|
+| `SegmentIndex.h` | which events create and which modify each segment's ends and content, read from their declared roles | [ITERATE_INTERNALS.md](../../../docs/reference/ITERATE_INTERNALS.md) §4.1 |
+| `TraversalPlan.h / .cpp` | for one order of the events: what each finds placed and built when it runs, the gaps it bounds and their keys in the downstream bound map, and `check_admissible()` | §4.2 to §4.4 |
+| `SafetyMatrix.h` | which pairs of segments are known not to overlap, one bitmask word per row of the ordering | §5.2 |
+| `JunctionGeometry.h` | `PendingModifierBounds` (how far each segment end can still move) and `check_overlap()` | §5.1 |
+| `FlankCheck.h / .cpp` | the overlap checks of a gene choice or a deletion, against its nearest placed neighbours | §5.3 |
+| `SpanProfile.h` | `SpanProfile`, `SpanDecomposition` and `JunctionBound`: the junction tables an event reads its pruning bound from | §6.2, §6.4 |
+| `UnfilledSegmentLengths.h` | per segment, how many nucleotides are still to be chosen, along one path of the junction fold | §6.3 |
+| `BoundTightness.h` | the bound instrument, compiled out unless `ENABLE_BOUND_INSTRUMENTATION` is on | §6.6 |
+| `EventFactory.h / .cpp` | builds an event from its node in a JSON model document; the JSON reader goes through it | [REC_EVENT_CONTRACT.md](../../../docs/reference/REC_EVENT_CONTRACT.md) §3.1 |
+| `ModelSchema.h / .cpp`, `schemas/0.3/` | the JSON Schemas of the model document, embedded at build time, and the check every reader and every JSON event constructor runs | *T2* in [REC_EVENT_CAPABILITY_REFACTORING_PLAN.md](../../../docs/REC_EVENT_CAPABILITY_REFACTORING_PLAN.md) |
+
+`Legacy/` keeps forwarding headers for five of them (`SafetyMatrix.h`, `JunctionGeometry.h`,
+`SpanProfile.h`, `UnfilledSegmentLengths.h`, `BoundTightness.h`), from before they were promoted
+out of it.
+
+---
+
 ## Architecture Overview
 
 ```
@@ -642,6 +668,7 @@ that links publicly against `igor::Core` and `igor::Math`.
 igor::Core ◄── igor::Model ──► igor::Math
 ```
 
-Compiled sources: `EventFactory.cpp`, `InferenceHandlerFactory.cpp`,
-`SamplingHandlerFactory.cpp`, `Topology.cpp`. All other code is
-header-only (templates in `.h` / `.tpp` files).
+Compiled sources: `EventFactory.cpp`, `FlankCheck.cpp`, `ModelSchema.cpp`,
+`Topology.cpp`, `TraversalPlan.cpp`, the `.cpp` files of `Legacy/`, and the
+schema files embedded at build time. All other code is header-only
+(templates in `.h` / `.tpp` files).

@@ -2,7 +2,7 @@
 
 **Status**: a record, brought up to date on `feature/tandemD-T5` @ `3c06f52` (Oct 23 2026). It was
 written to review the S4 series. **For how the bound works today, read
-[ITERATE_INTERNALS.md](ITERATE_INTERNALS.md) §6**, which describes the code as it stands.
+[ITERATE_INTERNALS.md](reference/ITERATE_INTERNALS.md) §6**, which describes the code as it stands.
 
 This document keeps what that one does not: what the machinery was (§3, §4), what each step
 bought, measured (§6), why `Dinucl_markov` creates its segment (§7), what is still loose (§8), and
@@ -237,7 +237,7 @@ downstream_proba_map.set(VD_ins_seq, vd_length_best_proba_map.at(d_offset - v_3_
 
 ## 5. What replaced it
 
-How each piece works today is in [ITERATE_INTERNALS.md](ITERATE_INTERNALS.md). This table maps
+How each piece works today is in [ITERATE_INTERNALS.md](reference/ITERATE_INTERNALS.md). This table maps
 the legacy pieces of §3 onto it.
 
 | Legacy (§3) | Today | Step | ITERATE_INTERNALS |
@@ -669,7 +669,7 @@ per-sequence best. Not built.
 
 | | |
 |---|---|
-| the machinery as it stands, and the event contract it relies on | [ITERATE_INTERNALS.md](ITERATE_INTERNALS.md) §6, [REC_EVENT_CONTRACT.md](REC_EVENT_CONTRACT.md) §2 |
+| the machinery as it stands, and the event contract it relies on | [ITERATE_INTERNALS.md](reference/ITERATE_INTERNALS.md) §6, [REC_EVENT_CONTRACT.md](reference/REC_EVENT_CONTRACT.md) §2 |
 | the composition algebra, the frame, boundary-addressed spans | ITER §2.5 |
 | what the legacy machinery is, finding by finding | ITER §6.10 |
 | delivered notes per step | ITER §6.11 (S4a), §6.12 (S4b), §6.19 (5b) |

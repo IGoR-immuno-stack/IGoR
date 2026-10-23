@@ -24,7 +24,7 @@
 
 /**
  * Written against the *unmodified* event, before B6 collapses its three seq_type branches
- * (plan step 1a). Follows docs/ITERATE_TEST_GUIDE.md: one TEST_CASE per pattern, one SECTION
+ * (plan step 1a). Follows docs/reference/ITERATE_TEST_GUIDE.md: one TEST_CASE per pattern, one SECTION
  * per instance, every guard paired with a positive control.
  *
  * Insertion is the smallest iterate() body and the only one that never branches: its

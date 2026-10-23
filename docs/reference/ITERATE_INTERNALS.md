@@ -11,18 +11,18 @@ exposes. This document explains the machinery that uses it.
 (MIG §1.1).
 
 This document describes the code as it is. The plans record how it got there and what comes next.
-They are cited by the short names [IMPLEMENTATION_GRAPH.md](IMPLEMENTATION_GRAPH.md) uses:
+They are cited by the short names [IMPLEMENTATION_GRAPH.md](../IMPLEMENTATION_GRAPH.md) uses:
 
 | Short | Document |
 |---|---|
-| CAP | [REC_EVENT_CAPABILITY_REFACTORING_PLAN.md](REC_EVENT_CAPABILITY_REFACTORING_PLAN.md), tandem D (T1–T7, B0–B11) |
-| ITER | [ITERATE_GENERIC_REWRITE_PLAN.md](ITERATE_GENERIC_REWRITE_PLAN.md), the generic `iterate()` bodies and phase R |
-| PBM | [PROBA_BOUND_MACHINERY.md](PROBA_BOUND_MACHINERY.md), the history and measurements of the junction bound |
-| MIG | [ENGINE_MIGRATION_PLAN.md](ENGINE_MIGRATION_PLAN.md), steps L0–L8 |
-| ERR | [ERROR_MODEL_REWRITE_PLAN.md](ERROR_MODEL_REWRITE_PLAN.md), steps E0–E4, H0–H5 |
-| CNT | [COUNTER_REWRITE_PLAN.md](COUNTER_REWRITE_PLAN.md), steps CT0–CT7 |
-| GEN | [GENERATION_REWRITE_PLAN.md](GENERATION_REWRITE_PLAN.md) |
-| SYN | [ARCHITECTURE_SYNTHESIS.md](ARCHITECTURE_SYNTHESIS.md), the target architecture |
+| CAP | [REC_EVENT_CAPABILITY_REFACTORING_PLAN.md](../REC_EVENT_CAPABILITY_REFACTORING_PLAN.md), tandem D (T1–T7, B0–B11) |
+| ITER | [ITERATE_GENERIC_REWRITE_PLAN.md](../ITERATE_GENERIC_REWRITE_PLAN.md), the generic `iterate()` bodies and phase R |
+| PBM | [PROBA_BOUND_MACHINERY.md](../PROBA_BOUND_MACHINERY.md), the history and measurements of the junction bound |
+| MIG | [ENGINE_MIGRATION_PLAN.md](../ENGINE_MIGRATION_PLAN.md), steps L0–L8 |
+| ERR | [ERROR_MODEL_REWRITE_PLAN.md](../ERROR_MODEL_REWRITE_PLAN.md), steps E0–E4, H0–H5 |
+| CNT | [COUNTER_REWRITE_PLAN.md](../COUNTER_REWRITE_PLAN.md), steps CT0–CT7 |
+| GEN | [GENERATION_REWRITE_PLAN.md](../GENERATION_REWRITE_PLAN.md) |
+| SYN | [ARCHITECTURE_SYNTHESIS.md](../ARCHITECTURE_SYNTHESIS.md), the target architecture |
 
 **Subject to change.** A part that a planned step changes carries a note naming that step:
 
@@ -82,7 +82,7 @@ Every node receives the same five contexts, by reference:
 ### 2.1 `SeqTypeRegistry`
 
 A model's segments have names: `V_gene_seq`, `VD_ins_seq`, …, or `D1_gene_seq`, `D1D2_ins_seq` in a
-tandem model. The registry ([SeqTypeRegistry.h](../src/igor/Core/SeqTypeRegistry.h)) gives each
+tandem model. The registry ([SeqTypeRegistry.h](../../src/igor/Core/SeqTypeRegistry.h)) gives each
 name a dense `SeqTypeId` (`uint16_t`), and holds the **ordering**: the segments from 5′ to 3′.
 
 - **Name and id.** `register_type()`, `id()` and `name()` convert between them. Ids are dense from
@@ -126,7 +126,7 @@ It runs once per model, after the events are added:
 
 ### 2.3 Spans and boundaries
 
-[SegmentSpan.h](../src/igor/Core/SegmentSpan.h):
+[SegmentSpan.h](../../src/igor/Core/SegmentSpan.h):
 - `SegmentBoundary{id, side}` is one end of one segment.
 - `SegmentSpan{left, right}` is a pair of boundaries. `SegmentSpan::gap(l, r)` is the span between
   two segments, from `l`'s 3′ end to `r`'s 5′ end. No caller builds any other shape.
@@ -152,7 +152,7 @@ committed to one **observed distance** (PBM §2).
 
 ### 3.1 `LayeredArray`
 
-[LayeredArray.h](../src/igor/Core/LayeredArray.h) is an integer-keyed array in which every key has
+[LayeredArray.h](../../src/igor/Core/LayeredArray.h) is an integer-keyed array in which every key has
 a stack of layers. A layer is a depth of the walk. Writing key `k` at layer `n` leaves the value at
 layer `n − 1` intact, so going back up the tree costs nothing.
 
@@ -178,7 +178,7 @@ class: building an error message inline was enough to stop GCC inlining the chec
 
 ### 3.2 `DynamicSequenceMap` and `SeqOffsetsMap`
 
-[DynamicSequenceMap.h](../src/igor/Core/DynamicSequenceMap.h) is a `LayeredArray` keyed by
+[DynamicSequenceMap.h](../../src/igor/Core/DynamicSequenceMap.h) is a `LayeredArray` keyed by
 `SeqTypeId` and sized from a frozen registry. The downstream bound map is created larger, with
 `TraversalPlan::bound_key_count()` keys (§4.3). For sequences, the map tells three states apart:
 - **not processed yet**: never written;
@@ -193,7 +193,7 @@ class: building an error message inline was enough to stop GCC inlining the chec
 > segment is present in every scenario, as milestone 1 requires. Milestone 2 decides how absence is
 > written, and whether "neighbour" then means the nearest occupied segment.
 
-[SeqOffsetsMap.h](../src/igor/Core/SeqOffsetsMap.h) keeps the two ends of every segment in two
+[SeqOffsetsMap.h](../../src/igor/Core/SeqOffsetsMap.h) keeps the two ends of every segment in two
 `DynamicSequenceMap<SeqOffset>`s, `five_prime` and `three_prime`. Code that knows its side should
 address that map directly.
 
@@ -254,7 +254,7 @@ each event before `initialize_event()`. Nothing in this section names a gene or 
 
 ### 4.1 `SegmentIndex`
 
-[SegmentIndex.h](../src/igor/Model/SegmentIndex.h) records, for each segment of the ordering:
+[SegmentIndex.h](../../src/igor/Model/SegmentIndex.h) records, for each segment of the ordering:
 - which events create or modify each end, from `get_offset_role()`;
 - which events create or modify its content, from `get_seq_construction_role()`.
 
@@ -266,7 +266,7 @@ fills carries its bound.
 
 ### 4.2 `TraversalPlan` and `EventPlacement`
 
-[TraversalPlan.h](../src/igor/Model/TraversalPlan.h) walks the engine's order once and records, for
+[TraversalPlan.h](../../src/igor/Model/TraversalPlan.h) walks the engine's order once and records, for
 each event, an `EventPlacement`:
 
 | Field | Meaning |
@@ -338,7 +338,7 @@ on events still to come.
 ### 5.1 How far an end can still move
 
 `JunctionGeometry::PendingModifierBounds`
-([JunctionGeometry.h](../src/igor/Model/JunctionGeometry.h)) is rebuilt by each gene choice and
+([JunctionGeometry.h](../../src/igor/Model/JunctionGeometry.h)) is rebuilt by each gene choice and
 deletion in `initialize_event()`. For every segment end, it sums `get_offset_delta_bounds()`
 over the events not yet processed, and for every segment, it sums `get_length_contribution()`. The
 deltas add up, so a model with more than one deletion on an end needs no new code. A range with
@@ -352,7 +352,7 @@ deltas add up, so a model with more than one deletion on an end needs no new cod
 
 ### 5.2 `SafetyMatrix`
 
-[SafetyMatrix.h](../src/igor/Model/SafetyMatrix.h) records which pairs of segments are already
+[SafetyMatrix.h](../../src/igor/Model/SafetyMatrix.h) records which pairs of segments are already
 known not to overlap in the scenario being explored.
 - **Indexed by ordering position**, not by id. `cell(a, b)` returns a `SafetyCell{row, column}`,
   the 5′-most segment first. It is resolved once, in `initialize_event()`.
@@ -367,7 +367,7 @@ known not to overlap in the scenario being explored.
 
 ### 5.3 Who checks what: `FlankCheck`
 
-`resolve_flank_checks()` ([FlankCheck.h](../src/igor/Model/FlankCheck.h)) builds an event's checks
+`resolve_flank_checks()` ([FlankCheck.h](../../src/igor/Model/FlankCheck.h)) builds an event's checks
 from its placement, during `initialize_event()`:
 - **Nearest placed neighbour only**, on each side requested (ITER §2.3, decision O1). A pair further
   apart follows from the nearer ones, through the propagation above. A gene choice checks both sides
@@ -427,7 +427,7 @@ probability.
 
 ### 6.2 Junction bounds: `JunctionBound` and `SpanProfile`
 
-An event holds three `JunctionBound` slots ([SpanProfile.h](../src/igor/Model/SpanProfile.h)):
+An event holds three `JunctionBound` slots ([SpanProfile.h](../../src/igor/Model/SpanProfile.h)):
 `kLeftJunction`, `kRightJunction` and `kEnclosingJunction`. Three are enough in every layout:
 a segment has two flanks and lies within at most one gap. In a tandem model, D1 bounds V→D1 and
 D1→D2 and lies within V→J, exactly as D does in VDJ.
@@ -512,7 +512,7 @@ per-event maxima would be looser.
 
 **Unfilled lengths.** A Markov chain's factor depends on how many nucleotides it will choose, which
 an earlier participant decided. `UnfilledSegmentLengths`
-([UnfilledSegmentLengths.h](../src/igor/Model/UnfilledSegmentLengths.h)) carries, per segment, how
+([UnfilledSegmentLengths.h](../../src/igor/Model/UnfilledSegmentLengths.h)) carries, per segment, how
 many nucleotides its offsets imply that nobody has chosen yet. The publisher is whichever event
 creates a segment's offsets but not its content:
 - an insertion publishes its length;
@@ -573,7 +573,7 @@ the first pruned placement, which is exact only in that order (ITER §2.6, §6.1
 
 ### 6.6 Measuring the bound: `BoundTightness`
 
-[BoundTightness.h](../src/igor/Model/BoundTightness.h) measures how far the bound sits above what
+[BoundTightness.h](../../src/igor/Model/BoundTightness.h) measures how far the bound sits above what
 the walk finds. Its entry points are empty unless `IGOR_BOUND_INSTRUMENTATION` is defined, so the
 default build is unchanged.
 
@@ -604,7 +604,7 @@ threshold, updates the best scenario, calls each counter with a `Scenario` view,
   accepts any model by default. The two hypermutation error models and four counters (errors,
   coverage, best scenarios, Pgen) still read V, D and J at their pinned ids. They refuse an ordering
   that is neither V-D-J nor V-J through `migration::require_vdj_or_vj_ordering()`
-  ([vdj_ordering_migr.h](../src/igor/Model/Legacy/vdj_ordering_migr.h)). `GenModel` calls the
+  ([vdj_ordering_migr.h](../../src/igor/Model/Legacy/vdj_ordering_migr.h)). `GenModel` calls the
   checks before any thread starts, so a refused run writes no file.
 
 > **Subject to change — CAP T7b, CNT CT2a.** The `Scenario` snapshot is sized from the registry and
@@ -644,5 +644,5 @@ threshold, updates the best scenario, calls each counter with a `Scenario` view,
 | the defects found and fixed on the way | ITER §7, phase R in ITER §6.9 |
 | the history, costs and measurements of the junction bound | PBM |
 | writing tests for an event | [ITERATE_TEST_GUIDE.md](ITERATE_TEST_GUIDE.md) |
-| what each `iterate()` did before the rewrite | [ITERATE_METHOD_ANALYSIS.md](ITERATE_METHOD_ANALYSIS.md) |
-| what comes next, in order | [IMPLEMENTATION_GRAPH.md](IMPLEMENTATION_GRAPH.md) |
+| what each `iterate()` did before the rewrite | [ITERATE_METHOD_ANALYSIS.md](../ITERATE_METHOD_ANALYSIS.md) |
+| what comes next, in order | [IMPLEMENTATION_GRAPH.md](../IMPLEMENTATION_GRAPH.md) |
