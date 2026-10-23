@@ -150,7 +150,7 @@ void Best_scenarios_counter::initialize(const ModelContext& model) {
         auto event_queue_copy = model.model_queue;  // Copy queue to iterate
         while (!event_queue_copy.empty()) {
             shared_ptr<Rec_Event> event_ptr = event_queue_copy.front();
-            (*this->output_scenario_file_ptr.get()) << ";" << event_ptr->get_name();
+            (*this->output_scenario_file_ptr.get()) << ";" << event_label(*event_ptr, this->event_labels);
             this->event_fw_list.emplace_front(event_ptr);
             event_queue_copy.pop();
         }
@@ -259,7 +259,7 @@ void Best_scenarios_counter::initialize_counter(const Model_Parms &parms, const 
 
         while (not event_queue.empty()) {
             shared_ptr<Rec_Event> event_ptr = event_queue.front();
-            (*this->output_scenario_file_ptr.get()) << ";" << event_ptr->get_name();
+            (*this->output_scenario_file_ptr.get()) << ";" << event_label(*event_ptr, this->event_labels);
             this->event_fw_list.emplace_front(event_ptr);
             event_queue.pop();
         }
@@ -330,6 +330,7 @@ shared_ptr<Counter> Best_scenarios_counter::copy() const
     shared_ptr<Best_scenarios_counter> counter_copy_ptr(new Best_scenarios_counter(this->n_scenarios_counted));
     counter_copy_ptr->tie_digits = this->tie_digits;
     counter_copy_ptr->keep_ties = this->keep_ties;
+    counter_copy_ptr->event_labels = this->event_labels;
     counter_copy_ptr->fstreams_created = this->fstreams_created;
     if (this->fstreams_created) {
         counter_copy_ptr->output_scenario_file_ptr = this->output_scenario_file_ptr;

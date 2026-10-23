@@ -130,7 +130,7 @@ struct VdjModel {
     VdjModel()
     {
         dinucl->set_seq_type_id(legacy_seq_type_registry().id("VD_ins_seq"));
-        dinucl->update_event_name();
+        dinucl->set_nickname(default_nickname(*dinucl));
         for (const std::shared_ptr<Rec_Event> &event :
              std::vector<std::shared_ptr<Rec_Event>>{v_choice, d_choice, j_choice, del_v_3, del_d_5,
                                                      del_d_3, del_j_5, ins_vd, ins_dj, dinucl}) {
@@ -303,6 +303,9 @@ TEST_CASE("PendingModifierBounds: two modifiers on one end sum", "[junction_geom
     // own contract, that contributions compose by addition rather than by last-write.
     auto del_a = make_deletion(D_gene_seq, Five_prime, 0, 3, 0);
     auto del_b = make_deletion(D_gene_seq, Five_prime, 0, 5, 1);
+    // Two events at one place: only their nicknames tell them apart (plan T2).
+    del_a->set_nickname("d_5_del_a");
+    del_b->set_nickname("d_5_del_b");
 
     const SeqTypeRegistry registry = make_registry({"V_gene_seq", "D_gene_seq", "J_gene_seq"});
     Events_map events_map;
@@ -679,7 +682,7 @@ class UnorderedDeltaEvent : public Rec_Event
 public:
     explicit UnorderedDeltaEvent(bool break_offset) : break_offset_(break_offset)
     {
-        this->name = break_offset ? "bad_offset_event" : "bad_length_event";
+        this->set_nickname(break_offset ? "bad_offset_event" : "bad_length_event");
     }
 
     OffsetDelta get_offset_delta_bounds(SeqTypeId, Seq_side) const override
@@ -701,7 +704,6 @@ public:
     void construct_realization(const std::vector<int> &, GenerationState &) const override {}
     void write2txt(std::ofstream &) override {}
     void write2txt_legacy(std::ofstream &) override {}
-    void write2txt_v2(std::ofstream &) override {}
     void initialize_event(
             std::unordered_set<Rec_Event_name> &, const Events_map &,
             const std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &,

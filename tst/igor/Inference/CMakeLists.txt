@@ -10,7 +10,9 @@ add_executable(inference_tests
 # Legacy tests: the tests of the code still under <Layer>/Legacy.
 target_sources(inference_tests
     PRIVATE
+        Legacy/test_best_scenarios_counter.cpp
         Legacy/test_inference.cpp
+        Legacy/test_inference_outputs.cpp
 )
 
 set_target_properties(inference_tests PROPERTIES CXX_STANDARD 23)

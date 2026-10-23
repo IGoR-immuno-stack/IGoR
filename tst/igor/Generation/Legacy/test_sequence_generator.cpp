@@ -215,3 +215,43 @@ TEST_CASE("Generation: an insertion no Markov chain fills stays as placeholders"
     const Generated generated = generate_one(dir, vdj_parms(false), vdj_marginals(false));
     CHECK(generated.sequence == "TTTTTTTTIIGGTTIIGGGAA");
 }
+
+TEST_CASE("Generation: the realizations file names each event by nickname, or by its legacy name",
+          "[generation][event_name]")
+{
+    //output.event_names, plan T2. The legacy names are what the regression goldens carry.
+    ScratchDir dir;
+    Model_Parms parms;
+    parms.read_model_parms(dir.file("parms.txt", vj_parms()));
+    Model_marginals marginals(parms);
+    marginals.txt2marginals(dir.file("marginals.txt", vj_marginals()), parms);
+    SequenceGenerator generator(parms, marginals);
+
+    const auto header = [&](const std::string &file) {
+        std::ifstream in(dir.file(file));
+        std::string line;
+        std::getline(in, line);
+        return line;
+    };
+    const std::string nicknames = "v_choice;j_choice;v_3_del;j_5_del;vj_ins;vj_dinucl";
+    const std::string legacy_names = "GeneChoice_V_gene_Undefined_side_prio7_size1;"
+                                     "GeneChoice_J_gene_Undefined_side_prio6_size1;"
+                                     "Deletion_V_gene_Three_prime_prio5_size2;"
+                                     "Deletion_J_gene_Five_prime_prio5_size2;"
+                                     "Insertion_VJ_gene_Undefined_side_prio4_size2;"
+                                     "DinucMarkov_VJ_gene_Undefined_side_prio3_size16";
+
+    SECTION("by nickname, the default") {
+        generator.generate_sequences(1, false, dir.file("seqs.csv"), dir.file("reals.csv"));
+        CHECK(header("reals.csv") == "seq_index;" + nicknames + ";Errors");
+        generator.generate_sequences_fast(1, dir.file("fast_seqs.csv"), dir.file("fast_reals.csv"), 1, 42, false);
+        CHECK(header("fast_reals.csv") == "seq_index;" + nicknames);
+    }
+    SECTION("by legacy name") {
+        generator.set_event_labels(Event_label::Legacy);
+        generator.generate_sequences(1, false, dir.file("seqs.csv"), dir.file("reals.csv"));
+        CHECK(header("reals.csv") == "seq_index;" + legacy_names + ";Errors");
+        generator.generate_sequences_fast(1, dir.file("fast_seqs.csv"), dir.file("fast_reals.csv"), 1, 42, false);
+        CHECK(header("fast_reals.csv") == "seq_index;" + legacy_names);
+    }
+}

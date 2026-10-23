@@ -17,11 +17,26 @@ brevity.  Much more detail can be found in the git revision history:
   - CLI
     - Route the POSIX-style command interface through CLI11 for consistent help, version, and option validation
     - Add full configured pipeline replay and richer reproducibility manifests with runtime and compiler metadata
+    - New output.event_names option. The best scenarios and generated realizations files
+      now head each event's column with its nickname; `legacy` writes the generated names
+      IGoR used before, which repeat for the two D blocks of a tandem model
     - New output.scenario_tie_digits and output.scenario_keep_ties options, controlling
       the precision best scenario probabilities are compared on and whether scenarios
       tied with the last recorded one are all reported. Both are recorded in the run
       manifest. Sequences whose N-th best scenario is degenerate now get more than
       output.scenarios rows instead of an arbitrary member of the degenerate group
+  - Model files:
+    - A model the v1 text format cannot hold, a tandem D for instance, is read and written
+      as a JSON document, recognised by its content. Inference writes such a model's
+      parameters to .json files. The document holds the structure (segment layout, events
+      keyed by nickname, conditioning graph) apart from the template library, and may carry
+      comments. Its marginals are JSON too, inline or in a file of their own, with 17
+      significant digits, and each value is matched to its realization by label
+    - A JSON model names its JSON Schema in "$schema", so that an editor validates and
+      completes it. The schemas are installed under share/igor/schemas/model/, and IGoR
+      checks every document against them, naming each violation by its JSON pointer
+    - Every event needs a nickname, unique in its model, which now names the event in the
+      model and in its outputs. A v1 model file with an event line without one is refused
   - Sequence sampler:
     - Add fast parallel sequence generator (FastGenerator) with 100x+ speedup
       using precomputed CDFs, binary search/alias method sampling, and OpenMP

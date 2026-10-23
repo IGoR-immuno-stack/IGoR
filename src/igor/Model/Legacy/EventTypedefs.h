@@ -53,6 +53,16 @@ typedef std::unordered_map<std::tuple<Event_type, Seq_type_String, Seq_side>,
                            std::shared_ptr<Rec_Event>>
         Events_map;
 
+/**
+ * \brief How an output names an event in its column headers (`output.event_names`).
+ *
+ * The best-scenarios counter and the generators head one column per event. `Nickname` is the
+ * identity a model file gives the event, and the default. `Legacy` is the generated name IGoR's
+ * outputs carried before, which tells events apart only where a v1 gene class does: kept for the
+ * readers of those outputs, and for the regression goldens. event_label() in Rec_Event.h applies it.
+ */
+enum class Event_label { Nickname, Legacy };
+
 struct inverse_offset_comparator
 {
     bool operator()(const std::pair<std::shared_ptr<const Rec_Event>, int> &inv_offset_1,

@@ -1,6 +1,6 @@
 # Rec_Event Capability Attributes & Gene_class Correction: Architectural Refactoring Plan
 
-**Last Updated**: October 16, 2026
+**Last Updated**: October 21, 2026
 
 ---
 
@@ -22,7 +22,7 @@ Legend: ✅ done · 🟡 partial · ⬜ not started
 | B8 | ✅ | All five maps migrated and sized from the frozen registry: downstream proba bounds (`13fcdec`), the two mismatch maps (`1abd908`), constructed sequences (`c86d34e`), offsets split per sequence end (`fe8c5d1`), overlap safety to `LayeredArray<bool>` (`a58808b`). `Enum_fast_memory_map`, `Enum_fast_memory_dual_key_map` and `Str_Dual_key_memory_map` are deleted. Measured cost +9.4 % inference wall clock; accepted for the refactoring's duration, see D4 step 3. |
 | B11 *(new)* | ✅ | Both paths generic: the alignment path (iterate plan step 3, Sep 16 2026) and the `no_d_align` position scan (step 5b, Sep 21 2026). `Gene_choice::iterate` names no gene. Its flank-check set-up and `affects_length_of` still do (T3). **Oct 6 2026:** neither does now, see *T3*. |
 | B10 *(new)* | ⬜ | Absent-segment semantics. **Off the tandem-D critical path** — milestone 1 has both D genes always present. Carries a real modelling decision (chain-with-conflation vs. DAG ordering) deferred to milestone 2. **Oct 2 2026:** the synthesis sets the direction, a layout DAG with existence guards in the model (synthesis step 5); that is option (b) below, generalised. |
-| B9 | 🟡 | Legacy→seq_type inference, registry inference (VDJ/VJ), `write_model_parms_legacy` / `write_model_parms_v2` split, v2 `@Version` / `@Seq_type_order` parsing and per-event `write2txt_v2()` are all implemented. `VDJ_genes` `Dinucl_markov` expansion (B9 step 3) and junction safety adjacency generation (step 4) are not. **Oct 2 2026:** step 3's replacement of the V/D/J literal is part of T3, and its `VDJ_genes` split becomes a shared handler (synthesis); step 4 is superseded by S5's `SafetyMatrix`; step 5 is T4. |
+| B9 | 🟡 | Legacy→seq_type inference, registry inference (VDJ/VJ), `write_model_parms_legacy` / `write_model_parms_v2` split, v2 `@Version` / `@Seq_type_order` parsing and per-event `write2txt_v2()` are all implemented. `VDJ_genes` `Dinucl_markov` expansion (B9 step 3) and junction safety adjacency generation (step 4) are not. **Oct 2 2026:** step 3's replacement of the V/D/J literal is part of T3, and its `VDJ_genes` split becomes a shared handler (synthesis); step 4 is superseded by S5's `SafetyMatrix`; step 5 is T4. <br><br>**Oct 21 2026:** the v2 text format retires for JSON before T5 (see *T2*). |
 | Phase C | ⬜ | **Out of this plan (Oct 2 2026).** Engine work, carried on a later branch once legacy inference has moved into a `LegacyDfsEngine` (synthesis step 6). See *Remaining work*. <br><br>**Oct 16 2026:** [ENGINE_MIGRATION_PLAN.md](ENGINE_MIGRATION_PLAN.md) places it: its step L1 gives the engine a `check_admissible`, and L5 moves the model's validation into `RecombinationModel`. |
 | Phase D | ⬜ | **Out of this plan (Oct 2 2026)**, with Phase C. In the synthesis it is the `ChainDPEngine` (step 9). <br><br>**Oct 16 2026:** it waits for the migration ([ENGINE_MIGRATION_PLAN.md](ENGINE_MIGRATION_PLAN.md) §7): the engine reading `RecombinationModel` (L5), then the synthesis' step 7. |
 | Phase E | ⬜ | **Replaced by synthesis step 8 (Oct 2 2026):** the error models become one Probe event with its own handlers. <br><br>**Oct 16 2026:** carried by [ERROR_MODEL_REWRITE_PLAN.md](ERROR_MODEL_REWRITE_PLAN.md), after milestone 1: `Single_error_rate` first, through an engine-agnostic core that the legacy class and a new-architecture node both call (Part I); then the hypermutation models (Part II). Tandem D needs only T7a from it. The error node enters the engine at steps L4 and L5 of [ENGINE_MIGRATION_PLAN.md](ENGINE_MIGRATION_PLAN.md). |
@@ -141,7 +141,7 @@ constructors call `str2SeqType()` too.
 |---|---|---|---|
 | **T0** ✅ | **Merging `integration/model-on-tandemD` into `feature/tandemD`**, and showing on Linux that the merge is mechanical (see above). Delivered Oct 2 2026 (#70) | GCC 15.3 and C++23 in the integration branch's build; the `test_generate.sh` data rows | merge |
 | **T1** ✅ | **A tandem-D model does not load.** Delivered Oct 5 2026, see *T1* below. `Deletion::target_seq_type`, `Insertion::ins_seq_type` and `Dinucl_markov::ins_seq_type` are typed `Seq_type`, so the text reader ([Model_Parms.cpp:904](../src/igor/Core/Model_Parms.cpp#L904), 923, 953) and the JSON constructors go through `str2SeqType()` | 5 of the 7 `[tandem_d]` cases fail, all with `Unknown Seq_type string in str2SeqType: D1_gene_seq` | **B0**, unfinished |
-| **T2** | **Generated names collide.** The name is type + gene class + side + priority + size ([Rec_Event.cpp:104](../src/igor/Core/Rec_Event.cpp#L104)), and it keys `Model_Parms::edges`, `Index_map`, `processed_events` and `offset_map` | In the fixture, `d1_choice` and `d2_choice` are both D, priority 6, size 1; `d1_5_del` and `d2_5_del` collide the same way | synthesis step 2 |
+| **T2** ✅ | **Generated names collide.** Delivered Oct 21 2026, see *T2* below. The name is type + gene class + side + priority + size ([Rec_Event.cpp:104](../src/igor/Core/Rec_Event.cpp#L104)), and it keys `Model_Parms::edges`, `Index_map`, `processed_events` and `offset_map` | In the fixture, `d1_choice` and `d2_choice` are both D, priority 6, size 1; `d1_5_del` and `d2_5_del` collide the same way | *T2* below; synthesis step 2 |
 | **T3** | **V, D and J are still named in the span and safety set-up.** `affects_length_of` on `Gene_choice`, `Insertion` and `Deletion`, and `Dinucl_markov`'s `affects_proba_of` and `span_proba_factor`, go through `legacy_junction_of()` or a VD/DJ/VJ switch; the flank checks list the gene segments in `kGeneSegments` ([Deletion.cpp:746](../src/igor/Core/Deletion.cpp#L746), [Genechoice.cpp:785](../src/igor/Core/Genechoice.cpp#L785)) | `legacy_junction_of()` throws on any span other than VD, DJ and VJ ([SegmentSpan.h:184](../src/igor/Core/SegmentSpan.h#L184)), and so does `Dinucl_markov` on any other insertion ([Dinuclmarkov.cpp:634](../src/igor/Core/Dinuclmarkov.cpp#L634), 661). On V→J the `Insertion` table leaves out `VD1_ins` and `D1D2_ins`. D1 and D2 are never checked against each other for overlap. The junction slots of the downstream bound map are addressed by an insertion's seq type id, with `VJ_ins_seq` standing in for V→J ([Genechoice.cpp:884](../src/igor/Core/Genechoice.cpp#L884), [Deletion.cpp:817](../src/igor/Core/Deletion.cpp#L817)), so a span such as D1→J has no slot | **R12**, and the literal B9 step 3 was to replace |
 | **T4** | **Tandem-D sequences cannot be generated** for the round-trip test. `draw_random_realization()` writes an `unordered_map<Seq_type, string>`, `Dinucl_markov` throws "see B9", `FastGenerator` names `D_gene_seq` | read from the code | **B9 step 5**: option (a), decided; see *T4* below |
 | **T5** | **Milestone 1 itself:** a synthetic V-D1-D2-J model built from human TRB by duplicating its D block (see *T5* below), a generate-then-infer round trip, the cost against the source TRB model, `[!mayfail]` off the `[tandem_d]` cases | — | *T5* below; step 1 of the execution plan below |
@@ -172,7 +172,7 @@ The order across every plan, with hard and soft blocks told apart, is drawn in
 | 2 | 🟡 **T3**: ordering positions instead of V/D/J names. **R12** (item 1) landed Oct 2 2026, with R16. Items 2 and 3 remain, both in `Gene_choice::initialize_event()`: the flank checks' `kGeneSegments` literal, and junction slots keyed by `legacy_junction_of()` | `feature/tandemD` | yes on shipped models, if R12 keeps the legacy deletion rule; R16 moves every output |
 | 3 | 🟡 **T4**: generation keyed by `SeqTypeId`, legacy generator first, then `FastGenerator`; **T6b** deletes the rest of the module. The legacy generator is done (#74, Oct 5 2026, [GENERATION_REWRITE_PLAN.md](GENERATION_REWRITE_PLAN.md)); `FastGenerator` and T6b are not | `feature/tandemD` | the legacy generator yes; `FastGenerator` no (see T4) |
 | 4 | ✅ **T0**: merge `integration/model-on-tandemD` into `feature/tandemD`; the Linux gate (#70, Oct 2 2026) | `feature/tandemD` | the gate itself |
-| 5 | ✅ **T1** (Oct 5 2026), then **T2** | the merged branch | yes |
+| 5 | ✅ **T1** (Oct 5 2026), then ✅ **T2** (Oct 21 2026): the nickname names an event, and JSON replaces the v2 text format | the merged branch | yes, with the legacy output names |
 | 6 | **T7a**: `Single_error_rate` counts every segment with a mismatch list, over the ordering; the hypermutation models and the V/D/J-shaped counters refuse a tandem model (see *T7*) | the merged branch | yes |
 | 7 | **T5**: milestone 1, on the legacy DFS | the merged branch | new tests |
 | 8 | **Part I** of [ERROR_MODEL_REWRITE_PLAN.md](ERROR_MODEL_REWRITE_PLAN.md) (E0–E4): `Single_error_rate` through a shared core, called by the legacy class and by a new-architecture node | its own feature branch, after milestone 1 | yes, except ER1 (X13), which moves every inference golden once |
@@ -437,7 +437,7 @@ that member with three readers: the constructors, `copy()` and the generated nam
   derived from its seq type and checked against it, and an insertion's or a chain's was always
   `Undefined_gene`. A node of another type that carries one is refused as an unknown key. No
   document is stored: the JSON is built from a `Model_Parms` and read by `topology_from_json()`,
-  so the schema version stays 1.
+  so the schema version stays 1. (T2 renames it `library`, in schema version 0.3.)
 - **The refusals the constructors made move to the legacy reader.** `str2SeqType()` refused a
   line whose gene class names no segment, and the deletion constructor refused a deletion on a
   junction. The v1 reader now refuses both, where the gene class still means something. A v2 file
@@ -488,6 +488,9 @@ Left for T2, seen while doing T1:
   class is `Undefined_gene`, so no placeholder is written and `sample_dinucl_markov()` has nothing
   to fill. T4.
 
+**Oct 21 2026:** T2 takes the first two: the nickname becomes the name, and the copy constructor
+finds edges by it. The other two are T4's `FastGenerator` half.
+
 Gate:
 - unit 483/483 and integration 10/10;
 - regression bitwise on cli, align, inference, no_d_align and generate;
@@ -497,6 +500,246 @@ The review's two commits (Oct 20 2026) pass the same gate, each on its own, with
 after the T3 merge. Eight mutations were all caught: the DJ and VJ classes swapped, the event type
 ignored, `VD_genes` read as `DJ_ins_seq`, a deletion's class or v1 line taken from the junction
 half, a gene choice writing no `gene_class`, every event writing one, and every event allowed one.
+
+### T2: the nickname names an event, and JSON replaces the v2 text format (planned and delivered Oct 21 2026)
+
+**The problem.** A generated name is type, gene class, side, priority and size. It does three jobs:
+- it keys `Model_Parms::edges`, the marginals' index and offset maps and the sets of processed
+  events;
+- it is the token a model file's `@Edges` section names an event by;
+- it heads the columns of the best-scenarios and generation outputs.
+
+The two D blocks of a tandem model agree on all five parts. In the fixture five pairs of events
+share a name (*T1*, "Left for T2"), and so one entry of every map. A generated name can only tell
+them apart by changing what it writes in the files and the outputs.
+
+**A first version (Oct 20 2026, superseded before review)** put the seq type into the name of every
+event a v1 gene class cannot name, so that every legacy name stayed. It worked, and left a hybrid:
+- the name was a v1 name where one existed, a v2 name otherwise;
+- it still depended on priority and size, which change when custom genomic templates replace a gene
+  choice's realizations, so the edges had to be re-keyed after each replacement.
+
+It also found that the v2 reader keyed each edge by its file token. For an event on a legacy seq
+type that token is not the event's name, so a model written in v2 read back without its edges.
+
+**Decisions (Quentin, Oct 21 2026).**
+- **The nickname is an event's identity outside the code**: in model files and in outputs, as the
+  JSON document, `Topology`, the marginals file and `infer.only` already have it. The integer uid of
+  the migration's L3 becomes its identity inside. Until L3, the nickname also keys the legacy maps.
+- **A nickname is required and unique.** A v1 line without one is refused: every model of the
+  corpus has one, and adding one is cheap.
+- **The identity does not forbid two events of the same type on the same segment and side.** The
+  legacy engine still holds one event per such key in its `Events_map`, so it refuses a second one
+  until the handler architecture lifts the limit.
+- **Outputs name events by nickname by default** (`output.event_names = nickname`). `legacy` writes
+  the v1 names. The regression scripts set `legacy`, so no golden moves.
+- **The v2 text format retires for JSON before T5.** It has no user, and its lifetime was bounded
+  by JSON anyway. Each v2 test gets a JSON counterpart.
+
+**Steps**, one commit each, bitwise on the five tracks:
+
+| Step | Content |
+|---|---|
+| N1 | **Output names.** `output.event_names` (`nickname` or `legacy`), passed to the legacy main as `-event_names`. The best-scenarios counter and both generators head their columns through one function, `event_label()`. The default is `nickname`; the regression scripts set `legacy` |
+| N2 | **The v1 name at the v1 boundary only.** `get_v1_legacy_name()`, today's `get_legacy_name()` with the class token an insertion and a chain take from their seq type, is what the v1 writer writes in `@Edges`, what the v1 reader resolves an edge token against (the token finds the event, and the edge is keyed by the event's name), and the `legacy` output name. `requires_extended_format()` also returns true when two events share a v1 name, as an insertion on a gene segment or deletions on two junctions would |
+| N3 | **The nickname is the identity.** `get_name()` returns it. The stored generated name, `update_event_name()` and the re-keying after new genomic templates (`update_edge_event_name()`, in `legacy_main`) go. `Model_Parms::add_event()` and `Topology::addEvent()` refuse an empty or repeated nickname, and the v1 reader a line without one. `finalize()` refuses two events of the same type on the same segment and side. The copy constructor finds each edge's events by name, not with `operator==`, which ignored the seq type. The tests and the two apps give every event they build a nickname |
+| N4 | **JSON replaces v2.** `model_parms_from_json()`, next to the writer: events through the factory, the order, edges by nickname, `Single_error_rate`, `finalize()`. `read_model_parms()` reads either format by content. `write_model_parms()` writes JSON when the model cannot be written in v1, and the inference outputs of such a model are `.json` files. The v2 reader and writer, `write2txt_v2()`, `get_v2_name()`, `models/human/tcr_beta/models_v2/` and the v2 fixtures go; a v2 file is refused with a message naming JSON. Each v2 test gets a JSON counterpart, and the tandem fixture becomes JSON |
+
+**What JSON does not carry yet.**
+- **Parameters** (synthesis step 4b). They stay in the marginals text file, labelled by nickname
+  and read by position, as they would have with v2. *(Oct 22 2026: a JSON model's parameters are
+  JSON too, matched by label; see "Parameters in the document" below.)*
+- **An error model other than `Single_error_rate`.** The hypermutation models have no JSON form
+  ([ModelJson.cpp:22](../src/igor/Model/Legacy/ModelJson.cpp#L22)): their N-mer coefficients are
+  not described by the schema. A model that needs JSON and carries one is refused when written; T7a
+  refuses a tandem model with one anyway. Their JSON form is step HJ of
+  [ERROR_MODEL_REWRITE_PLAN.md](ERROR_MODEL_REWRITE_PLAN.md), after their regression track (H0) and
+  unit suite (H1). The error node's own reader, in the new architecture, is X20 (step E4).
+
+**What moves.** Nothing on the five tracks: with the `legacy` names, the outputs and the v1 files
+keep every byte. Outside them:
+- a v1 model file without nicknames, or with a repeated one, is refused;
+- a model whose v1 names collide is written in JSON;
+- output headers are nicknames unless `legacy` is asked for;
+- a v2 file is refused.
+
+**Gate**: the five regression tracks bitwise; unit, integration and convergence; mutations of each
+step.
+
+**Not in T2: `event_class` stays on the base.** *T1* gave its move into `Gene_choice` to T2, as a
+change of names. Names no longer depend on it, except the v1 one, and the move still waits for
+`FastGenerator::apply_deletion()`, which finds the segment it trims from a deletion's class: T4's
+`FastGenerator` half.
+
+**After T2.** L3 replaces the nickname keys with integer uids in nickname order (the migration's
+Q5). Files and outputs keep the nickname.
+
+**Delivered (Oct 21 2026)**, on `feature/tandemD-T2-names`, one commit per step after the plan's.
+Where it differs from the plan, or adds to it:
+- **N1.** `Event_label` sits in `EventTypedefs.h`, so `FastGeneratorConfig` can carry it without
+  `Rec_Event.h`. The legacy main applies `-event_names` once every argument is read, so its place
+  on the command line does not matter. Without the setting, the generate track fails on its header
+  line, which is how the scripts' `legacy` was checked.
+- **N2.**
+  - `requires_extended_format()` checks more than collisions: every event's v1 line must read
+    back as that event. A deletion on a junction, an insertion on a gene segment, and a gene
+    choice whose class names another segment all went to v1 and came back wrong.
+  - The reader refuses an edge token that names two events.
+  - N2 also fixed the v2 reader, which keyed each edge by its file token, so a model written in
+    v2 read back without its edges. N4 then deleted that reader.
+- **N3.**
+  - `operator==` had no caller left once the copy constructor found edges by name, and went.
+  - The test helpers name each event after where it sits (type, seq type, side). One test puts
+    two deletions on one end: their nicknames are what now tell them apart.
+- **N4.**
+  - The fixtures live in `tst/test_data/model_formats/`, and the tests in `test_model_formats.cpp`.
+  - The three JSON fixtures (VJ, VDJ, tandem) were written by `model_parms_to_json()` from the v2
+    originals.
+  - Each v2 case has a JSON counterpart. New ones cover what the schema does not describe: an
+    unknown key, another version, an error rate other than Single, a parent no event is named.
+  - `models/human/tcr_beta/models_v2/` is in the `models` submodule. Its pin moves from
+    `8a32400` (igor-models `feature/v2_format`, which only adds that file) back to `fe037a4`, its
+    `main`; igor-models itself is untouched.
+  - A smoke run of the CLI generates from the tandem fixture, with sixteen nickname columns, and
+    loads a `final_parms.json` as the last inferred model.
+
+**The document's layout follows REVIEW §14 (Oct 22 2026).** N4 had read and written the layout
+`model_parms_to_json()` already had, which the review of SEGMENT §3 had replaced: an events array
+whose nodes carried their parents. Since T2 makes that document a file format, it now takes the
+planned layout, in schema version `"0.3"`. A 0.x version is a pre-release one (Quentin, Oct 22
+2026): each replaces the one before it, and no reader keeps support for an older 0.x, which has no
+user outside the repository, as v2 had none. From 1.0, a released version stays readable.
+- `structure` holds the `layout` (`Linear`, its `segments`), the `events` and the `conditioning`;
+- the events are an object keyed by nickname. The order of its members is never read, and a key
+  repeated in one object is refused when the text is parsed (nlohmann keeps the last one);
+- the conditioning is its own section, child to parents, apart from the events. The readers check
+  it names events only, each parent once, without a cycle;
+- an event states its `targets` (one, `segment` and `side` as `5'` or `3'`), and a gene choice its
+  `library`, today's gene class;
+- a realization is its `label` (the gene, the value or the nucleotide) and its `index`. Indices
+  stay explicit and dense, the marginals file being read by position;
+- templates sit in a `library` section, keyed by label, so that D1 and D2 share theirs. A model
+  where one label would carry two templates is refused when written;
+- the event factory takes the nickname beside the node: `create(nickname, node)`;
+- comments, `//` and `/* */`, may stand wherever whitespace may, before the object too, so that a
+  model or a fixture says what it is. IGoR drops them when it writes a model, as REVIEW §14.5 plans;
+  the `description` field that would survive is not there yet.
+
+The three JSON fixtures are converted to it, and each opens with a comment saying what it is. New
+cases cover the duplicate key, the member order, the conditioning's refusals, the shared library,
+the hint and the comments.
+
+**The legacy order travels as an engine hint.** The legacy engine queues events by priority, then
+by the event list, and the marginals file is laid out by that queue; a `Topology` lays out its
+tensors by uid. A document has no order, so its readers build events in nickname order, and a
+JSON-native model breaks its ties so (MIG Q4). A model whose list is in another order, a v1 model's,
+is written with `engine_hints.legacy_dfs.event_order`, which the readers follow: written as JSON
+and read back, it has the same queue, the same marginal layout and the same uids. That is the hint
+Q4 has the importer record, so L5 inherits it.
+
+**Not yet, and refused when present**: the `parameters`, `provenance` and `accumulators` sections
+(synthesis step 4b), several targets, a layout other than `Linear` (step 5), a parameterization
+other than the type's, the authoring form's shorthands and `description` (REVIEW §14.4-14.5). One key is
+outside the plan: `error_rate` stands for the error model until E4 makes it a node of the structure
+and 4b moves its value into `parameters`. Without one a document now reads, as the writer omits it.
+
+**Parameters in the document (decided and delivered Oct 22 2026).** The text marginals file is the
+flat array, read by position: a model whose events come in another order, or whose structure was
+edited, gets its values shuffled without a word, which the engine hint only works around. The
+document now carries them, in REVIEW §15.4's `parameters` section less its fingerprint:
+- one node per event, keyed by nickname; its `axes` are its event's parents, then its own axis (a
+  Markov chain's two, from then to), each axis naming its event and listing the labels of its
+  coordinates; its `values` are nested, one level per axis;
+- the reader (`model_marginals_from_json()`) puts each value where its labels say, into the
+  legacy array of the model it reads into, then normalizes as `txt2marginals()` does. Parent axes
+  may come in any order, labels too. It refuses what does not fit: a missing node or one for no
+  event, a parent axis the conditioning does not have or the other way round, a label the event
+  lacks or lists twice, a wrong shape, a negative or infinite value;
+- the writer (`model_marginals_to_json()`) lays the axes out in the text file's order, labels in
+  index order, so that the values read straight through on the model that wrote them.
+
+Decisions (Quentin, Oct 22 2026):
+- **Labels on every axis.** They repeat the structure's realizations, as checked redundancy: what
+  they buy is that parameters apply to a model that did not write them, a fragment sent to another
+  machine, a structure after a library update, a hand edit. On human TRB they are about 37 kB next
+  to 180 kB of values, mostly the shipped gene names, which are full IMGT headers. The fingerprint
+  variant of §15.4 can be allowed per axis later.
+- **Doubles**: 17 significant digits, where the text file has 6. A file written and read back holds
+  the values to double precision, and written again it is the same text. Exact `long double` would
+  need a writer of our own: nlohmann's passes a `long double` to `%g`, and its parser alone handles
+  one (synthesis open decision 8, for 4b).
+- **Complete documents and fragments.** A complete model document may carry its parameters; a
+  fragment is a document with its version and `parameters` only, which a marginals file now is
+  for a JSON model. Fragments are also what message passing between machines would exchange. The
+  reader takes either.
+- **Normalized on read**, as the text reader does. Values that already sum to one to a double's
+  precision (within 1e-12), as IGoR writes them, are kept as written: normalizing them again moved
+  each by a few units in its last place wherever `long double` is `double` (arm64 macOS, MSVC),
+  which the first macOS CI run showed, and the document written again was no longer the same text.
+- **The error rate stays a top-level key** until E4 gives it a node.
+- **Labels are optional** (Quentin, Oct 22 2026), to prototype: an axis without them follows the
+  index order of the model reading it, by position, and only its size is checked. IGoR always writes
+  them, so what it writes stays matched by label. §15.4's fingerprint would protect such an axis
+  against another domain, later.
+
+What moves, for a model the v1 format cannot hold only: inference writes its marginals as
+`initial_marginals.json`, `iteration_N.json` and `final_marginals.json`, fragments, and
+`-load_last_inferred` reads them. `-set_custom_model` reads a marginals file of either kind, and a
+complete document without one gives its own parameters rather than uniform ones. The v1 path does
+not change, so the five tracks stay bitwise.
+
+Tests: the layout against the array and the text file's `$Dim`, the round trip at double precision,
+normalization on read, complete documents and fragments, axes and labels rearranged, a model listing its events in
+another order (whose text file differs, while every labelled value agrees), the refusals, and an
+inference's output names. An inference on a tandem model itself waits for T7a: `Single_error_rate`
+reads the mismatches of the legacy D id, which a tandem model does not fill. A CLI run generates
+from a fragment, and from a complete document without a marginals file, what their parameters say.
+
+**The JSON Schema (decided and delivered Oct 22 2026).** REVIEW §14.3 plans a two-phase load: the
+document checked against a schema assembled from the registries, then built, its references
+resolved. The first phase is now `json_schema_validator` (conda-forge, MIT, built on nlohmann,
+draft-07), private to `igor::Model`:
+- **Where.** Twelve files in `src/igor/Model/schemas/0.3/`, one per definition: the document, its
+  sections (`structure`, `layout`, `library`, `parameters`, `error-rate`), shared definitions
+  (`common`), the event union and one file per event type. Each `$id` is the file's raw URL on the
+  repository's `master` branch, which editors can fetch once this is merged, provided the
+  repository is public. The files are embedded in the library at build time (`cmake/igorEmbedSchemas.cmake`) and
+  installed under `share/igor/schemas/model/0.3/`.
+- **`$schema`.** Every document IGoR writes names `model.schema.json`, so that an editor validates
+  and completes it (Quentin, Oct 22 2026).
+- **What the schema checks**: keys, types, enumerations, ranges, uniqueness in a list, one target,
+  the version. Tagged unions (event types, layouts, error rates) are `if`/`then` on `type`, so that
+  an error comes from the matching kind only. Maps keyed by nickname or label use
+  `patternProperties`, so that an error points at the entry.
+- **What stays in code**: duplicate keys at parse, the version first and in its own words, the
+  conditioning naming events without a cycle, a template for each label, dense indices and unique
+  labels within an event, the parameters' axes against the conditioning and their labels against
+  the events, the engine hint listing every event, and the legacy engine's own limits.
+- **Every reader checks the document**, and **every event constructor its node** against its type's
+  schema, so a node built in code is checked too. The hand-written shape checks of `JsonDetail.h`
+  and `ModelJson.cpp` went.
+- **A gene choice's node is the document's**: `create(nickname, node, library)` hands it the
+  library, where it finds its templates, so one schema per type describes both. A class opts into
+  the library through `event_factory::takes_library`: asking whether the three-argument
+  constructor exists found `Deletion(seq_type, side, std::pair<int, int>)`, nlohmann converting to
+  anything.
+- **Messages** list every violation at its JSON pointer, the first ten, in the reader's words
+  (`unknown key "x"`) and once each, the validator's `allOf` summaries dropped.
+- Python's `jsonschema` reads the same files and agrees on the fixtures and on a broken document.
+- **On Windows the validator is built from source.** conda-forge's win-64 build (2.4.0, 2.4.1) is a
+  Debug DLL: its recipe configures with NMake and no build type, which MSVC takes as Debug, so it
+  links the debug runtime, whose STL layout is not a Release build's, and the first Windows CI run
+  crashed in every test that validates. `cmake/igorSetupJsonSchemaValidator.cmake` builds the same
+  release there, the recipe's archive at its hash, as a static library inside `igor::Model`;
+  `IGOR_BUILD_JSON_SCHEMA_VALIDATOR` chooses either way on any platform. The feedstock's fix is
+  one flag, `-DCMAKE_BUILD_TYPE=Release`, after which Windows can use the package again.
+
+Mutations, all caught: eight of N2, eight of N3, eleven of N4, twenty-three of the layout,
+twenty-one of the parameters, twelve of the schema.
+
+Gate, at each step: unit (510/510 at N4, 515/515 with the layout, 523/523 with the parameters,
+529/529 with the schema) and integration 10/10; regression bitwise on cli, align, inference,
+no_d_align and generate; convergence 2/2 at N3, N4, the layout, the parameters and the schema.
 
 ### T7: segment ids follow the ordering, not the `Seq_type` enum (planned Oct 15 2026)
 
@@ -600,18 +843,16 @@ The enum goes with `FastGenerator` and T6b.
 keys are the ones that move. T7b
 comes later, after milestone 1.
 
-### T5: milestone 1 on a synthetic V-D1-D2-J model (decided Oct 16 2026; v2 route Oct 19 2026)
+### T5: milestone 1 on a synthetic V-D1-D2-J model (decided Oct 16 2026; v2 route Oct 19 2026; JSON route Oct 21 2026)
 
 Milestone 1 and its runtime are measured on a model derived from a shipped one, not on the small
-dummy fixture (`tst/test_data/format_v2/test_v2_tandem_d_parms.txt`, which stays for the unit
-cases). The model is a computation test and biologically implausible by construction: a fixed
+dummy fixture (the tandem fixture of the unit cases, JSON after T2). The model is a computation test and biologically implausible by construction: a fixed
 VDDJ layout cannot explain the VDJ reads a real repertoire also holds. Biological use waits for
 milestone 2 (B10). Where B10 goes is decided once T5's timings are in: decision Q14 of
 [ENGINE_MIGRATION_PLAN.md](ENGINE_MIGRATION_PLAN.md).
 
-**The model.** Human TRB (`models/human/tcr_beta/models/`, the full v1 model; the v2 file next to it
-is a reduced one with 4 V genes and no marginals), its D block duplicated by a script that writes
-the result in the v2 format:
+**The model.** Human TRB (`models/human/tcr_beta/models/`, the full v1 model), its D block
+duplicated by a script that writes the result as a JSON document:
 - `d_gene` becomes two gene choices on `D1_gene_seq` and `D2_gene_seq`, both drawing from TRB's D
   library, both conditioned on V and J as `d_gene` is;
 - each D gets its two deletions, the 3′ one conditioned on its own gene and 5′ deletion, as in TRB;
@@ -620,30 +861,26 @@ the result in the v2 format:
 - the segment order `[V, VD1_ins, D1, D1D2_ins, D2, D2J_ins, J]`, and the edges;
 - the parameters copied block by block (below).
 
-**Why v2, not JSON.**
-- v2 already expresses a tandem model: the dummy fixture is v2, and T1 loads it.
-- Nothing reads JSON into `Model_Parms`: `model_parms_to_json()` writes the structure only and is
-  called only from tests, `topology_from_json()` feeds `Topology` only, and `export_to_legacy()`
-  drops the segment order and the error rate and calls no `finalize()` (merge analysis §4.3). A JSON
-  route would need a `model_parms_from_json()` that stops having a consumer once the engine reads
-  `RecombinationModel` (the migration's L5).
-- The JSON document carries no parameters yet (synthesis step 4b), so a JSON route would still
-  write the marginals as text.
-- When a JSON form of the model is wanted, `model_parms_to_json()` writes it from the v2 one.
+**Why JSON, not v2 (Oct 21 2026).** The Oct 19 choice was v2, because nothing read JSON into
+`Model_Parms`, and a `model_parms_from_json()` would lose its caller at the migration's L5. T2
+retires v2 instead:
+- the reader is small, beside its writer, and it is the v2 reader that has no future: L5's importer
+  then reads v1 only;
+- v2 names an edge's events by a generated name, which is what T2 removes; JSON names them by
+  nickname;
+- both formats keep the parameters in the marginals text file (synthesis step 4b), so that was no
+  reason for either.
 
 **What it needs.**
-- **T2.** `write_model_parms_v2()` writes the edges with the seq type in the name (`get_v2_name()`,
-  [Rec_Event.cpp:264](../src/igor/Model/Legacy/Rec_Event.cpp#L264)), but the reader resolves them
-  by generated name (`get_event_pointer()`,
-  [Model_Parms.cpp:956](../src/igor/Model/Legacy/Model_Parms.cpp#L956)), and D1's and D2's generated
-  names collide. The script writes the edges under the names T2 settles.
-- **The marginals in the new model's layout.** `txt2marginals()` reads the values by position and
-  ignores the headers ([Model_marginals.cpp:1224-1236](../src/igor/Model/Legacy/Model_marginals.cpp#L1224)),
-  so the values must follow the tandem model's own layout. IGoR writes that layout itself:
-  `-set_custom_model` without a marginals file starts from uniform marginals
-  ([legacy_main.cpp:415-418](../app/igor/legacy_main.cpp#L415)), and the run writes them to
-  `initial_marginals.txt`. The script fills that template block by block from TRB's marginals,
-  matching each `#[parent,index]` line, D1's and D2's blocks from `d_gene`'s and its deletions'.
+- **T2** (delivered Oct 21 2026). Events named by nickname, and the JSON reader. The script writes
+  the document's sections as `model_parms_to_json()` does: events keyed by nickname, the
+  conditioning by nickname, D1's and D2's templates once in the library.
+- **The marginals, by label.** The script writes the model's `parameters` (T2, Oct 22 2026): a
+  node per event, D1's and D2's copied from `d_gene`'s and its deletions', TRB's others as they
+  are. The reader matches them by label, so the script need not know the legacy layout, and a
+  mismatch is refused rather than read into the wrong place. *(Superseded: the script used to fill
+  a template of IGoR's own layout, matching each `#[parent,index]` line, because `txt2marginals()`
+  reads by position.)*
 - **The duplication script**, in `scripts/`, with the choice of the D1D2 junction recorded in it.
 
 **The reads.** Generated from that model by the legacy generator (T4), seeded, on one thread, then

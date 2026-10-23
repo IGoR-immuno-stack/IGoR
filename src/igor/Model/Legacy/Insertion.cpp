@@ -59,7 +59,6 @@ Insertion::Insertion(const Seq_type_String &seq_type, pair<int, int> ins_range) 
     for (int i = min_ins; i != max_ins + 1; ++i) {
         this->add_realization(i);
     }
-    this->update_event_name();
 }
 
 Insertion::Insertion(const Seq_type_String &seq_type)
@@ -84,7 +83,6 @@ Insertion::Insertion(const Seq_type_String &seq_type)
             this->len_min = (*iter).second.value_int;
         }
     }
-    this->update_event_name();
 }
 
 Insertion::Insertion(const Seq_type_String &seq_type, unordered_map<string, Event_realization> &realizations)
@@ -101,24 +99,18 @@ Insertion::Insertion(const Seq_type_String &seq_type, unordered_map<string, Even
             this->len_min = (*iter).second.value_int;
         }
     }
-    this->update_event_name();
 }
 
-Insertion::Insertion(const nlohmann::json &node)
-    : Insertion(igor::model::legacy::json_detail::require(node, "seq_type").get<Seq_type_String>())
+Insertion::Insertion(const string &nickname, const nlohmann::json &node)
+    : Insertion(igor::model::legacy::json_detail::validated_target(node, "Insertion").first)
 {
     using namespace igor::model::legacy::json_detail;
-    reject_unknown_keys(node, kEventKeys);
-    expect_type(node, "Insertion");
-
-    this->set_event_side(str2SeqSide(require(node, "side").get<string>()));
-    this->set_priority(require(node, "priority").get<int>());
-    this->set_nickname(require(node, "nickname").get<string>());
+    this->set_event_side(single_target(node).second);
+    this->set_priority(node.at("priority").get<int>());
+    this->set_nickname(nickname);
 
     for (const nlohmann::json *realization : realizations_in_index_order(node))
-        this->add_realization(require(*realization, "value_int").get<int>());
-
-    this->update_event_name();
+        this->add_realization(realization->at("label").get<int>());
 }
 
 Insertion::~Insertion()
@@ -134,7 +126,6 @@ shared_ptr<Rec_Event> Insertion::copy()
     new_insertion_p->priority = this->priority;
     new_insertion_p->nickname = this->nickname;
     new_insertion_p->fixed = this->fixed;
-    new_insertion_p->update_event_name();
     new_insertion_p->set_event_identifier(this->event_index);
     new_insertion_p->set_seq_type_id(this->get_seq_type_id());
     return new_insertion_p;
@@ -149,7 +140,6 @@ bool Insertion::add_realization(int insertion_number)
     } else if (insertion_number < this->len_min) {
         this->len_min = insertion_number;
     }
-    this->update_event_name();
     return 0;
 }
 
@@ -221,7 +211,7 @@ void Insertion::iterate(
         const std::optional<double> junction_bound_proba =
                 junction.profile_for(realization_index).best_for(insertions);
         if (not junction_bound_proba) {
-            throw out_of_range("Insertion " + this->name + ": no junction bound for "
+            throw out_of_range("Insertion " + this->get_name() + ": no junction bound for "
                                + to_string(insertions) + " insertions");
         }
         exploration.downstream_proba_map.set(junction.proba_key(), *junction_bound_proba,
@@ -262,8 +252,8 @@ inline double Insertion::iterate_common(
         return 0;
     }
 
-    /*	if (offset_map.count(this->name)!=0){
-		for(vector<pair<const Rec_Event*,int>>::const_iterator jiter = offset_map.at(this->name).begin() ; jiter!= offset_map.at(this->name).end() ; jiter++){
+    /*	if (offset_map.count(this->get_name())!=0){
+		for(vector<pair<const Rec_Event*,int>>::const_iterator jiter = offset_map.at(this->get_name()).begin() ; jiter!= offset_map.at(this->get_name()).end() ; jiter++){
 			//modify index map using offset map
 			base_index_map.at((*jiter).first->get_name()) += realization_index * ((*jiter).second);
 		}
@@ -298,15 +288,6 @@ void Insertion::write2txt_legacy(ofstream &outfile)
     }
 }
 
-void Insertion::write2txt_v2(ofstream &outfile)
-{
-    outfile << "#Insertion;Undefined_gene;" << seq_type << ";" << event_side << ";" << priority << ";" << nickname << endl;
-    for (unordered_map<string, Event_realization>::const_iterator iter = event_realizations.begin();
-         iter != event_realizations.end(); ++iter) {
-        outfile << "%" << (*iter).second.value_int << ";" << (*iter).second.index << endl;
-    }
-}
-
 void Insertion::initialize_event(
         unordered_set<Rec_Event_name> &processed_events,
         const Events_map &events_map,
@@ -323,7 +304,7 @@ void Insertion::initialize_event(
     if (this->seq_type_id == kNoSeqType
         || static_cast<std::size_t>(this->seq_type_id) >= registry.total_count()
         || registry.name(this->seq_type_id) != this->seq_type) {
-        throw runtime_error("Insertion " + this->name + ": seq_type \"" + this->seq_type
+        throw runtime_error("Insertion " + this->get_name() + ": seq_type \"" + this->seq_type
                             + "\" does not match the registry entry for its id");
     }
 
@@ -340,7 +321,7 @@ void Insertion::initialize_event(
     //ordering. A tandem-D D1D2_ins is told about D1 and D2 by the same pass that tells this
     //event about V and D.
     if (get_left_adjacent_id() == kNoSeqType || get_right_adjacent_id() == kNoSeqType) {
-        throw runtime_error("Insertion " + this->name + " has no segment on one side: an "
+        throw runtime_error("Insertion " + this->get_name() + " has no segment on one side: an "
                             "insertion is defined by the two segments it sits between, and "
                             "Model_Parms::finalize() must have resolved them");
     }
@@ -352,7 +333,7 @@ void Insertion::initialize_event(
     //and never again: the profile is reached through the handle, not by asking which span this is.
     const std::optional<SegmentSpan> gap = this->placement().enclosing_gap();
     if (not gap) {
-        throw runtime_error("Insertion " + this->name + " sits in no gap: nothing is built on one side "
+        throw runtime_error("Insertion " + this->get_name() + " sits in no gap: nothing is built on one side "
                             "of it when it runs");
     }
     const SeqTypeId junction_key = this->traversal_plan().gap_key(*gap);
@@ -391,7 +372,7 @@ void Insertion::require_dinucl_markov(const Events_map &events_map) const
     //junction they fill. Since O12 (a') it is the Dinucl_markov that creates the segment this
     //event only places, so an Insertion without one leaves a junction nobody fills.
     if (events_map.find(make_tuple(Dinuclmarkov_t, this->seq_type, Undefined_side)) == events_map.end()) {
-        throw runtime_error("Insertion " + this->name + ": no Dinucl_markov event fills " + this->seq_type);
+        throw runtime_error("Insertion " + this->get_name() + ": no Dinucl_markov event fills " + this->seq_type);
     }
 }
 
@@ -442,10 +423,9 @@ int Insertion::length_delta(const Event_realization &realization) const
     return realization.value_int;
 }
 
-void Insertion::update_event_name()
+string Insertion::name_class_token() const
 {
-    this->name = string() + this->type + "_" + to_string(legacy_gene_class_of(this->type, this->seq_type)) + "_"
-                 + to_string(this->event_side) + "_prio" + to_string(priority) + "_size" + to_string(this->size());
+    return to_string(legacy_gene_class_of(this->type, this->seq_type));
 }
 
 } // namespace igor::model::legacy

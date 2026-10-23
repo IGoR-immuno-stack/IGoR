@@ -25,7 +25,10 @@
  */
 
 #include <igor/Model/Legacy/Model_marginals.h>
+#include <igor/Model/Legacy/ModelJson.h>
+#include <igor/Model/ModelSchema.h>
 
+#include <nlohmann/json.hpp>
 
 namespace igor::model::legacy {
 using namespace igor::core::legacy;
@@ -1189,6 +1192,43 @@ void Model_marginals::write2txt_iteration(list<pair<shared_ptr<const Rec_Event>,
         }
         outfile << endl;
     }
+}
+
+void Model_marginals::write_marginals(string filename, const Model_Parms &parms)
+{
+    if (parms.requires_extended_format())
+        write_marginals_json(filename, parms);
+    else
+        write2txt(filename, parms);
+}
+
+void Model_marginals::write_marginals_json(string filename, const Model_Parms &parms)
+{
+    nlohmann::json doc;
+    doc["$schema"] = igor::model::schema::document_schema_uri();
+    doc["schema_version"] = kModelJsonSchemaVersion;
+    doc["parameters"] = model_marginals_to_json(parms, *this);
+    ofstream outfile(filename);
+    outfile << doc.dump(2) << endl;
+}
+
+void Model_marginals::read_marginals(string filename, const Model_Parms &parms)
+{
+    ifstream infile(filename);
+    if (!infile) {
+        throw runtime_error("Unknown file: " + filename);
+    }
+    if (not starts_like_json_document(infile)) {
+        txt2marginals(filename, parms);
+        return;
+    }
+    nlohmann::json doc;
+    try {
+        doc = parse_model_document(infile);
+    } catch (const nlohmann::json::exception &e) {
+        throw runtime_error("Marginals file \"" + filename + "\" is not valid JSON: " + e.what());
+    }
+    model_marginals_from_json(doc, parms, *this);
 }
 
 void Model_marginals::txt2marginals(string filename, const Model_Parms &parms)

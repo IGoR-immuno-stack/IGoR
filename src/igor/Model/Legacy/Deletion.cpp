@@ -57,7 +57,6 @@ Deletion::Deletion(const Seq_type_String &target_seq, Seq_side del_side, pair<in
     for (int i = min_del; i != max_del + 1; ++i) {
         this->add_realization(i);
     }
-    this->update_event_name();
 }
 
 /*
@@ -91,7 +90,6 @@ Deletion::Deletion(const Seq_type_String &target_seq, Seq_side side)
             this->len_max = -(*iter).second.value_int;
         }
     }
-    this->update_event_name();
 }
 
 Deletion::Deletion(const Seq_type_String &target_seq, Seq_side side,
@@ -109,24 +107,18 @@ Deletion::Deletion(const Seq_type_String &target_seq, Seq_side side,
             this->len_max = -(*iter).second.value_int;
         }
     }
-    this->update_event_name();
 }
 
-Deletion::Deletion(const nlohmann::json &node)
-    : Deletion(igor::model::legacy::json_detail::require(node, "seq_type").get<Seq_type_String>(),
-               str2SeqSide(igor::model::legacy::json_detail::require(node, "side").get<string>()))
+Deletion::Deletion(const string &nickname, const nlohmann::json &node)
+    : Deletion(igor::model::legacy::json_detail::validated_target(node, "Deletion").first,
+               igor::model::legacy::json_detail::validated_target(node, "Deletion").second)
 {
     using namespace igor::model::legacy::json_detail;
-    reject_unknown_keys(node, kEventKeys);
-    expect_type(node, "Deletion");
-
-    this->set_priority(require(node, "priority").get<int>());
-    this->set_nickname(require(node, "nickname").get<string>());
+    this->set_priority(node.at("priority").get<int>());
+    this->set_nickname(nickname);
 
     for (const nlohmann::json *realization : realizations_in_index_order(node))
-        this->add_realization(require(*realization, "value_int").get<int>());
-
-    this->update_event_name();
+        this->add_realization(realization->at("label").get<int>());
 }
 
 Deletion::~Deletion()
@@ -142,7 +134,6 @@ shared_ptr<Rec_Event> Deletion::copy()
     new_deletion_p->priority = this->priority;
     new_deletion_p->nickname = this->nickname;
     new_deletion_p->fixed = this->is_fixed();
-    new_deletion_p->update_event_name();
     new_deletion_p->set_event_identifier(this->event_index);
     new_deletion_p->set_seq_type_id(this->get_seq_type_id());
     return new_deletion_p;
@@ -158,7 +149,6 @@ void Deletion::add_realization(int del_number)
     } else if (del_number < (-this->len_max)) {
         this->len_max = (-del_number);
     }
-    this->update_event_name();
 }
 
 /**
@@ -572,15 +562,6 @@ void Deletion::write2txt_legacy(ofstream &outfile)
 {
     outfile << "#Deletion;" << to_string(legacy_gene_class_of(Deletion_t, seq_type)) << ";" << event_side << ";"
             << priority << ";" << nickname << endl;
-    for (unordered_map<string, Event_realization>::const_iterator iter = event_realizations.begin();
-         iter != event_realizations.end(); ++iter) {
-        outfile << "%" << (*iter).second.value_int << ";" << (*iter).second.index << endl;
-    }
-}
-
-void Deletion::write2txt_v2(ofstream &outfile)
-{
-    outfile << "#Deletion;Undefined_gene;" << seq_type << ";" << event_side << ";" << priority << ";" << nickname << endl;
     for (unordered_map<string, Event_realization>::const_iterator iter = event_realizations.begin();
          iter != event_realizations.end(); ++iter) {
         outfile << "%" << (*iter).second.value_int << ";" << (*iter).second.index << endl;

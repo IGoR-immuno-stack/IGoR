@@ -8,16 +8,15 @@
  * D1_gene_seq for instance, could not be loaded at all.
  *
  * The first case pins what the events of a legacy model are called and what they carry, through
- * every way an event is built: the text reader, its JSON node, copy(). The name is a key of the
- * marginals and a column of the outputs, so it must not move. The [tandem_d] cases are what
- * removing the member is for. They do not pin names: two events of a tandem model still get the
- * same generated name, which is T2.
+ * every way an event is built: the text reader, its JSON node, copy(). Their name is their
+ * nickname (plan T2); their v1 name is what a v1 file's edges and the legacy output columns carry,
+ * so it must not move. The [tandem_d] cases are what removing the member is for. They pin no v1
+ * name: a tandem model's twin events share one, which is why the v1 name is no longer the name.
  */
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
 
-#include <igor/Model/EventFactory.h>
 #include <igor/Model/Legacy/LegacyFormat.h>
 #include <igor/Model/Legacy/ModelJson.h>
 #include <igor/Model/Legacy/Model_Parms.h>
@@ -35,11 +34,11 @@ using namespace igor::model::legacy;
 
 namespace {
 
-const std::string kTestDataDir = std::string(IGOR_SOURCE_DIR) + "/tst/test_data/format_v2/";
+const std::string kTestDataDir = std::string(IGOR_SOURCE_DIR) + "/tst/test_data/model_formats/";
 
 /// What an event is called and what it carries: the parts a model file and the outputs see.
 struct Identity {
-    std::string name;
+    std::string v1_name;
     Gene_class gene_class;
     Seq_type_String seq_type;
 };
@@ -47,8 +46,9 @@ struct Identity {
 void require_identity(const Rec_Event &event, const Identity &expected, bool check_name)
 {
     INFO("event " << event.get_nickname());
+    CHECK(event.get_name() == event.get_nickname());
     if (check_name) {
-        CHECK(event.get_name() == expected.name);
+        CHECK(event.get_v1_legacy_name() == expected.v1_name);
     }
     CHECK(event.get_class() == expected.gene_class);
     CHECK(event.get_seq_type() == expected.seq_type);
@@ -69,9 +69,7 @@ void require_identities(const std::string &file, const std::map<std::string, Ide
     }
 
     SECTION("from its JSON node") {
-        const nlohmann::json doc = model_parms_to_json(parms);
-        for (const auto &node : doc.at("events")) {
-            const auto event = igor::model::event_factory::create(node);
+        for (const auto &event : read_document_structure(model_parms_to_json(parms)).events) {
             require_identity(*event, expected.at(event->get_nickname()), check_name);
         }
     }
@@ -159,22 +157,22 @@ TEST_CASE("The events of a legacy model keep their names, gene classes and seq t
           "[model_format][seq_type]")
 {
     SECTION("VDJ, legacy format") { require_identities("test_legacy_vdj_model_parms.txt", kVdj, true); }
-    SECTION("VDJ, v2 format") { require_identities("test_legacy_vdj_model_parms_v2.txt", kVdj, true); }
+    SECTION("VDJ, JSON") { require_identities("vdj_model.json", kVdj, true); }
     SECTION("VJ, legacy format") { require_identities("test_legacy_model_parms.txt", kVj, true); }
-    SECTION("VJ, v2 format") { require_identities("test_v2_model_parms.txt", kVj, true); }
+    SECTION("VJ, JSON") { require_identities("vj_model.json", kVj, true); }
 }
 
 TEST_CASE("The events of a tandem-D model carry the seq types it names",
           "[model_format][seq_type][tandem_d]")
 {
-    require_identities("test_v2_tandem_d_parms.txt", kTandemD, false);
+    require_identities("tandem_d_model.json", kTandemD, false);
 }
 
 TEST_CASE("A tandem-D event resolves its seq type and its neighbours from the model's order",
           "[model_format][seq_type][tandem_d]")
 {
     Model_Parms parms;
-    REQUIRE_NOTHROW(parms.read_model_parms(kTestDataDir + "test_v2_tandem_d_parms.txt"));
+    REQUIRE_NOTHROW(parms.read_model_parms(kTestDataDir + "tandem_d_model.json"));
     const SeqTypeRegistry &registry = parms.get_seq_type_registry();
 
     for (const auto &event : parms.get_event_list()) {
@@ -199,7 +197,7 @@ TEST_CASE("A tandem-D model written back reads the same seq types",
           "[model_format][seq_type][tandem_d]")
 {
     Model_Parms parms;
-    REQUIRE_NOTHROW(parms.read_model_parms(kTestDataDir + "test_v2_tandem_d_parms.txt"));
+    REQUIRE_NOTHROW(parms.read_model_parms(kTestDataDir + "tandem_d_model.json"));
 
     const std::filesystem::path written =
             std::filesystem::temp_directory_path() / "igor_test_event_seq_type_tandem_d_parms.txt";

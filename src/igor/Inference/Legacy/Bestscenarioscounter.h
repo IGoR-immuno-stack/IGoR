@@ -84,6 +84,10 @@ public:
      * \brief Whether tied scenarios straddling the N-th rank are all recorded.
      */
     void set_keep_ties(bool keep) { this->keep_ties = keep; };
+    /**
+     * \brief How the header names the events: by nickname (the default), or by legacy name.
+     */
+    void set_event_labels(Event_label labels) { this->event_labels = labels; };
 
     std::string type() const override { return "BestScenarioCounter"; }; //TODO return an enum
 
@@ -123,6 +127,7 @@ public:
     size_t n_scenarios_counted;
     size_t tie_digits = default_tie_digits;
     bool keep_ties = true;
+    Event_label event_labels = Event_label::Nickname;
     std::shared_ptr<std::ofstream> output_scenario_file_ptr;
 
     std::vector<std::vector<int>> single_scenario_realizations;

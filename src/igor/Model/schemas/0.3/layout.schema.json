@@ -1,0 +1,59 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/IGoR-immuno-stack/IGoR/master/src/igor/Model/schemas/0.3/layout.schema.json",
+  "title": "IGoR model: layout",
+  "description": "The segments and how they follow each other, by kind.",
+  "type": "object",
+  "required": [
+    "type"
+  ],
+  "properties": {
+    "type": {
+      "enum": [
+        "Linear"
+      ],
+      "description": "The kind of layout. A DAG of segments comes later."
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": [
+          "type"
+        ],
+        "properties": {
+          "type": {
+            "const": "Linear"
+          }
+        }
+      },
+      "then": {
+        "$ref": "#/definitions/Linear"
+      }
+    }
+  ],
+  "definitions": {
+    "Linear": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "segments"
+      ],
+      "properties": {
+        "type": {
+          "const": "Linear"
+        },
+        "segments": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "common.schema.json#/definitions/segment"
+          },
+          "description": "The segments, 5' to 3'."
+        }
+      }
+    }
+  }
+}

@@ -1,12 +1,12 @@
 /**
- * @file test_model_format_v2.cpp
- * @brief Tests for the new model file format v2.0
+ * @file test_model_formats.cpp
+ * @brief The model file formats: v1, and JSON for a model v1 cannot hold.
  *
- * Tests backward compatibility with legacy format and new v2.0 format features.
- * The v2.0 format adds:
- *   - @Version section (2.0)
- *   - @Seq_type_order section
- *   - Explicit seq_type field in event declarations
+ * JSON replaced the v2 text format (plan T2), which no release read. Each v2 case has its JSON
+ * counterpart here. What JSON adds over v1, in the layout of SEGMENT_DECOMPOSITION_REVIEW §14:
+ *   - the segment order, as a Linear layout;
+ *   - each event's target, its seq type and side, so any segment can be named;
+ *   - events keyed by nickname, and the conditioning as its own section, child to parents.
  */
 
 #include <catch2/catch_test_macros.hpp>
@@ -25,12 +25,20 @@
 #include <igor/Core/Legacy/SeqTypeRegistry.h>
 #include <igor/Core/Legacy/Utils.h>
 #include <igor/Model/Legacy/EventUtils.h>
+#include <igor/Model/Legacy/ModelJson.h>
+
+#include <nlohmann/json.hpp>
 
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
+#include <map>
 #include <optional>
+#include <set>
+#include <sstream>
 #include <string>
+#include <tuple>
 
 using namespace igor::core::legacy;
 using namespace igor::alignment::legacy;
@@ -40,12 +48,43 @@ using namespace igor::model::legacy;
 // for milestone 1 of the Rec_Event refactoring (see docs/REC_EVENT_CAPABILITY_REFACTORING_PLAN.md).
 // They were [!mayfail] until T1: no event could be built on a seq type outside the six legacy
 // names, so a tandem-D model file could not be loaded.
-static const std::string TEST_DATA_DIR = std::string(IGOR_SOURCE_DIR) + "/tst/test_data/format_v2/";
+
+namespace {
+
+/// A document as plain json, its comments skipped, for a test to edit.
+nlohmann::json read_json(const std::string &path)
+{
+    std::ifstream in(path);
+    return nlohmann::json::parse(in, nullptr, /*allow_exceptions=*/true, /*ignore_comments=*/true);
+}
+
+std::string first_line_of(const std::string &path)
+{
+    std::ifstream in(path);
+    std::string line;
+    std::getline(in, line);
+    return line;
+}
+
+/// Each event's children, by nickname.
+std::map<std::string, std::set<std::string>> children_by_nickname(const Model_Parms &parms)
+{
+    std::map<std::string, std::set<std::string>> graph;
+    for (const auto &event : parms.get_event_list()) {
+        auto &children = graph[event->get_nickname()];
+        for (const auto &child : parms.get_children(event)) {
+            children.insert(child->get_nickname());
+        }
+    }
+    return graph;
+}
+
+}  // namespace
+static const std::string TEST_DATA_DIR = std::string(IGOR_SOURCE_DIR) + "/tst/test_data/model_formats/";
 
 // Test that legacy format files can still be read
 TEST_CASE("Legacy model format backward compatibility", "[model_format][legacy]")
 {
-    // Read the legacy format file from test_data/format_v2
     std::string filename = "test_legacy_model_parms.txt";
     std::string file_path = TEST_DATA_DIR + filename;
     
@@ -64,11 +103,10 @@ TEST_CASE("Legacy model format backward compatibility", "[model_format][legacy]"
 }
 
 
-// Test that v2.0 format files can be read (placeholder for future implementation)
-TEST_CASE("Model format v2.0 parsing", "[model_format][v2.0]")
+// A JSON document can be read.
+TEST_CASE("Model format JSON parsing", "[model_format][json]")
 {
-    // Read the v2.0 format file from test_data/format_v2
-    std::string filename = "test_v2_model_parms.txt";
+    std::string filename = "vj_model.json";
     std::string file_path = TEST_DATA_DIR + filename;
     
     Model_Parms parms;
@@ -79,7 +117,7 @@ TEST_CASE("Model format v2.0 parsing", "[model_format][v2.0]")
     REQUIRE(events.size() == 5); // 2 GeneChoice + 1 Deletion + 1 Insertion + 1 DinucMarkov (error rate is separate)
 }
 
-// Test round-trip: write to test_data/format_v2 and read back
+// Test round-trip: write a model built in code and read it back
 TEST_CASE("Model format round-trip", "[model_format]")
 {
     // Create a simple model
@@ -138,73 +176,308 @@ TEST_CASE("Format version detection", "[model_format]")
     Model_Parms legacy_parms;
     REQUIRE_NOTHROW(legacy_parms.read_model_parms(legacy_file));
     
-    // Test v2.0 format detection
-    std::string v2_file = TEST_DATA_DIR + "test_v2_detect.txt";
-    Model_Parms v2_parms;
-    REQUIRE_NOTHROW(v2_parms.read_model_parms(v2_file));
+    // JSON is told apart by its content, not its file name.
+    ScratchDir scratch;
+    std::ifstream json_in(TEST_DATA_DIR + "vj_model.json");
+    std::stringstream json_text;
+    json_text << json_in.rdbuf();
+    Model_Parms json_parms;
+    REQUIRE_NOTHROW(json_parms.read_model_parms(scratch.file("named_like_v1_parms.txt", json_text.str())));
+    REQUIRE(json_parms.get_event_list().size() == 5);
 }
 
-// Test reading actual v2.0 format model file from models directory
-TEST_CASE("Load actual v2.0 model file from models directory", "[model_format][v2.0][integration]")
+// What the schema does not describe is refused, rather than read as something else.
+TEST_CASE("A JSON document the schema does not describe is refused", "[model_format][json]")
 {
-    // Get the project source directory from CMake define
-    std::string source_dir = IGOR_SOURCE_DIR;
-    std::string v2_model_path = source_dir + "/models/human/tcr_beta/models_v2/model_parms.txt";
-    
-    // Skip if model file doesn't exist (e.g., submodule not initialized)
-    if (!std::filesystem::exists(v2_model_path)) {
-        SKIP("v2.0 model file not found at " << v2_model_path << " (submodule may not be initialized)");
+    using Catch::Matchers::ContainsSubstring;
+    nlohmann::json doc = read_json(TEST_DATA_DIR + "vj_model.json");
+    ScratchDir scratch;
+    const auto read = [&](const nlohmann::json &edited) {
+        Model_Parms parms;
+        parms.read_model_parms(scratch.file("edited.json", edited.dump()));
+    };
+
+    SECTION("an unknown key") {
+        doc["edges"] = nlohmann::json::array();
+        REQUIRE_THROWS_WITH(read(doc), ContainsSubstring("unknown key \"edges\""));
     }
-    
-    // Load the v2.0 model
-    Model_Parms parms;
-    REQUIRE_NOTHROW(parms.read_model_parms(v2_model_path));
-    
-    // Verify events were loaded
-    auto events = parms.get_event_list();
-    REQUIRE(events.size() >= 10); // Should have V_choice, D_choice, J_choice, deletions, insertions, dinuc
-    
-    // Check specific events exist
-    auto v_choice = parms.get_event_pointer("v_choice", true);
-    REQUIRE(v_choice != nullptr);
-    REQUIRE(v_choice->get_type() == GeneChoice_t);
-    REQUIRE(v_choice->get_class() == V_gene);
-    REQUIRE(v_choice->get_seq_type() == "V_gene_seq");
-    
-    auto v_3_del = parms.get_event_pointer("v_3_del", true);
-    REQUIRE(v_3_del != nullptr);
-    REQUIRE(v_3_del->get_type() == Deletion_t);
-    REQUIRE(v_3_del->get_seq_type() == "V_gene_seq");
-    
-    auto vd_ins = parms.get_event_pointer("vd_ins", true);
-    REQUIRE(vd_ins != nullptr);
-    REQUIRE(vd_ins->get_type() == Insertion_t);
-    REQUIRE(vd_ins->get_seq_type() == "VD_ins_seq");
-    
-    auto vd_dinucl = parms.get_event_pointer("vd_dinucl", true);
-    REQUIRE(vd_dinucl != nullptr);
-    REQUIRE(vd_dinucl->get_type() == Dinuclmarkov_t);
-    REQUIRE(vd_dinucl->get_seq_type() == "VD_ins_seq");
-    
-    // Verify edges were loaded
-    auto edges = parms.get_edges();
-    REQUIRE(!edges.empty());
+    SECTION("another schema version, an earlier pre-release one included") {
+        doc["schema_version"] = "0.2";
+        REQUIRE_THROWS_WITH(read(doc), ContainsSubstring("schema version \"0.2\""));
+        doc["schema_version"] = 3;
+        REQUIRE_THROWS_WITH(read(doc), ContainsSubstring("schema version 3,"));
+    }
+    SECTION("an error rate other than SingleErrorRate, whose JSON form is HJ") {
+        doc["error_rate"] = {{"type", "HypermutationGlobalErrorRate"}, {"rate", 0.1}};
+        REQUIRE_THROWS_WITH(read(doc), ContainsSubstring("/error_rate/type: instance not found in required enum")
+                                               && ContainsSubstring("HypermutationGlobalErrorRate"));
+    }
+    SECTION("the v1 era's spellings in the structure: an events array, parents in an event") {
+        nlohmann::json events = nlohmann::json::array();
+        for (const auto &[nickname, node] : doc.at("structure").at("events").items())
+            events.push_back(node);
+        nlohmann::json as_array = doc;
+        as_array["structure"]["events"] = events;
+        REQUIRE_THROWS_WITH(read(as_array), ContainsSubstring("/structure/events: unexpected instance type"));
+
+        doc["structure"]["events"]["j_choice"]["parents"] = {"v_choice"};
+        REQUIRE_THROWS_WITH(read(doc), ContainsSubstring("/structure/events/j_choice: unknown key \"parents\""));
+    }
+    SECTION("a section the plan has and this reader does not yet") {
+        doc["provenance"] = nlohmann::json::object();
+        REQUIRE_THROWS_WITH(read(doc), ContainsSubstring("unknown key \"provenance\""));
+    }
+    SECTION("a layout other than a Linear one, or a segment twice") {
+        doc["structure"]["layout"]["type"] = "Dag";
+        REQUIRE_THROWS_WITH(read(doc), ContainsSubstring("\"Dag\""));
+        doc["structure"]["layout"] = {{"type", "Linear"}, {"segments", {"V_gene_seq", "VJ_ins_seq", "V_gene_seq"}}};
+        REQUIRE_THROWS_WITH(read(doc), ContainsSubstring("/structure/layout/segments: items have to be unique"));
+    }
+    SECTION("a conditioning naming an event that does not exist, as child or as parent") {
+        doc["structure"]["conditioning"]["v_gene"] = {"v_choice"};
+        REQUIRE_THROWS_WITH(read(doc), ContainsSubstring("unknown event \"v_gene\""));
+    }
+    SECTION("a parent named twice, or the event itself") {
+        doc["structure"]["conditioning"]["v_3_del"] = {"v_choice", "v_choice"};
+        REQUIRE_THROWS_WITH(read(doc), ContainsSubstring("/structure/conditioning/v_3_del: items have to be unique"));
+        doc["structure"]["conditioning"]["v_3_del"] = {"v_3_del"};
+        REQUIRE_THROWS_WITH(read(doc), ContainsSubstring("names itself"));
+    }
+    SECTION("a cycle") {
+        doc["structure"]["conditioning"]["v_choice"] = {"v_3_del"};
+        REQUIRE_THROWS_WITH(read(doc), ContainsSubstring("the conditioning has a cycle"));
+    }
+    SECTION("a template the library does not hold, or a template on the realization") {
+        nlohmann::json missing = doc;
+        missing["library"]["V_gene"].erase("V_test");
+        REQUIRE_THROWS_WITH(read(missing), ContainsSubstring("v_choice") && ContainsSubstring("no template \"V_test\""));
+
+        doc["structure"]["events"]["v_choice"]["realizations"][0]["sequence"] = "ATCGATCG";
+        REQUIRE_THROWS_WITH(read(doc),
+                            ContainsSubstring("/structure/events/v_choice/realizations/0: unknown key \"sequence\""));
+    }
+    SECTION("a library entry of another shape, even one no event uses") {
+        doc["library"]["V_gene"]["V_spare"] = {{"seq", "ATCG"}};
+        REQUIRE_THROWS_WITH(read(doc), ContainsSubstring("V_spare"));
+    }
+    SECTION("no error rate: read as written, without one") {
+        doc.erase("error_rate");
+        Model_Parms parms;
+        REQUIRE_NOTHROW(parms.read_model_parms(scratch.file("no_error_rate.json", doc.dump())));
+        REQUIRE(parms.get_err_rate_p() == nullptr);
+    }
+    SECTION("into a model that already has events") {
+        Model_Parms parms;
+        REQUIRE_NOTHROW(parms.read_model_parms(TEST_DATA_DIR + "vj_model.json"));
+        REQUIRE_THROWS_AS(model_parms_from_json(doc, parms), std::logic_error);
+    }
 }
 
-// Test that a v2 file with a custom (tandem-D) @Seq_type_order populates
-// the SeqTypeRegistry with exactly the declared order, including non-standard
-// seq_type names that cannot exist in legacy format.
-TEST_CASE("SeqTypeRegistry populated from v2 custom seq_type_order",
-          "[model_format][v2.0][seq_type_registry][tandem_d]")
+// A key repeated in one object is refused when the text is parsed: nlohmann::json would keep the
+// last one, so a model edited by hand could lose an event without a word (REVIEW §14.2).
+TEST_CASE("A JSON key repeated in one object is refused", "[model_format][json]")
 {
-    const std::string file_path = TEST_DATA_DIR + "test_v2_tandem_d_parms.txt";
+    std::ifstream in(TEST_DATA_DIR + "vj_model.json");
+    std::stringstream text;
+    text << in.rdbuf();
+    std::string doubled = text.str();
+    const std::string events_key = "\"events\": {";
+    const auto at = doubled.find(events_key);
+    REQUIRE(at != std::string::npos);
+    doubled.insert(at + events_key.size(),
+                   "\"v_3_del\": {\"type\": \"Deletion\", \"priority\": 5, "
+                   "\"targets\": [{\"segment\": \"V_gene_seq\", \"side\": \"5'\"}], "
+                   "\"realizations\": [{\"index\": 0, \"label\": 0}]},");
+
+    ScratchDir scratch;
+    Model_Parms parms;
+    REQUIRE_THROWS_WITH(parms.read_model_parms(scratch.file("doubled.json", doubled)),
+                        Catch::Matchers::ContainsSubstring("\"v_3_del\" appears twice in \"events\""));
+}
+
+// The order of a document's members is not content: the events are listed in nickname order,
+// whatever the order of the text, and a model's queue does not depend on how a file was edited.
+TEST_CASE("A JSON document's member order is never read", "[model_format][json]")
+{
+    std::ifstream in(TEST_DATA_DIR + "tandem_d_model.json");
+    const auto original = nlohmann::ordered_json::parse(in, nullptr, true, /*ignore_comments=*/true);
+    nlohmann::ordered_json reversed = original;
+    nlohmann::ordered_json events = nlohmann::ordered_json::object();
+    const auto &source = original.at("structure").at("events");
+    for (auto it = source.rbegin(); it != source.rend(); ++it)
+        events[it.key()] = it.value();
+    reversed["structure"]["events"] = events;
+    REQUIRE(reversed.dump() != original.dump());
+
+    ScratchDir scratch;
+    Model_Parms as_written, as_reversed;
+    REQUIRE_NOTHROW(as_written.read_model_parms(scratch.file("original.json", original.dump())));
+    REQUIRE_NOTHROW(as_reversed.read_model_parms(scratch.file("reversed.json", reversed.dump())));
+
+    const auto nicknames = [](const Model_Parms &parms) {
+        std::vector<std::string> out;
+        for (const auto &event : parms.get_event_list())
+            out.push_back(event->get_nickname());
+        return out;
+    };
+    const std::vector<std::string> listed = nicknames(as_written);
+    REQUIRE(listed == nicknames(as_reversed));
+    REQUIRE(std::is_sorted(listed.begin(), listed.end()));
+}
+
+// D1 and D2 draw from one library, so a label names one template in it: two choices that
+// share a label share its template, and a model where they would not is refused when written.
+TEST_CASE("Gene choices of one library share its templates", "[model_format][json][tandem_d]")
+{
+    const auto model_with = [](const std::string &d2_template) {
+        auto parms = std::make_shared<Model_Parms>();
+        parms->set_seq_type_order({"D1_gene_seq", "D2_gene_seq"});
+        for (const auto &[nickname, segment, sequence] :
+             {std::tuple<std::string, std::string, std::string>{"d1_choice", "D1_gene_seq", "GGGG"},
+              {"d2_choice", "D2_gene_seq", d2_template}}) {
+            auto choice = std::make_shared<Gene_choice>(D_gene);
+            choice->set_seq_type(segment);
+            choice->add_realization("D_test", sequence);
+            choice->set_priority(6);
+            choice->set_nickname(nickname);
+            parms->add_event(choice);
+        }
+        parms->finalize();
+        return parms;
+    };
+
+    SECTION("one entry for both, and both read back with it") {
+        const nlohmann::json doc = model_parms_to_json(*model_with("GGGG"));
+        REQUIRE(doc.at("library") == nlohmann::json{{"D_gene", {{"D_test", {{"sequence", "GGGG"}}}}}});
+        Model_Parms read_back;
+        model_parms_from_json(doc, read_back);
+        for (const char *nickname : {"d1_choice", "d2_choice"})
+            CHECK(read_back.get_event_pointer(nickname, true)->realization_at(0).value_str == "GGGG");
+    }
+    SECTION("two templates under one label are refused") {
+        REQUIRE_THROWS_WITH(model_parms_to_json(*model_with("CCCC")),
+                            Catch::Matchers::ContainsSubstring("two templates labelled \"D_test\""));
+    }
+}
+
+// The legacy engine queues events by priority, then by the event list, and lays out the
+// marginals file by that queue. A v1 model written as JSON keeps its list as an engine hint, so
+// that it reads back with the same queue and its marginals file still fits (MIG Q4).
+TEST_CASE("A v1 model written as JSON keeps its event order as a legacy engine hint", "[model_format][json]")
+{
+    Model_Parms v1_parms;
+    REQUIRE_NOTHROW(v1_parms.read_model_parms(TEST_DATA_DIR + "test_legacy_vdj_model_parms.txt"));
+    const auto nicknames = [](const Model_Parms &parms) {
+        std::vector<std::string> out;
+        for (const auto &event : parms.get_event_list())
+            out.push_back(event->get_nickname());
+        return out;
+    };
+    const std::vector<std::string> listed = nicknames(v1_parms);
+    REQUIRE_FALSE(std::is_sorted(listed.begin(), listed.end()));
+
+    nlohmann::json doc = model_parms_to_json(v1_parms);
+    REQUIRE(doc.at("engine_hints").at("legacy_dfs").at("event_order").get<std::vector<std::string>>() == listed);
+
+    ScratchDir scratch;
+    SECTION("read back in that order") {
+        Model_Parms read_back;
+        REQUIRE_NOTHROW(read_back.read_model_parms(scratch.file("hinted.json", doc.dump())));
+        REQUIRE(nicknames(read_back) == listed);
+        REQUIRE(model_parms_to_json(read_back) == doc);
+    }
+    SECTION("without the hint, in nickname order, and the writer then writes none") {
+        doc.erase("engine_hints");
+        Model_Parms read_back;
+        REQUIRE_NOTHROW(read_back.read_model_parms(scratch.file("unhinted.json", doc.dump())));
+        std::vector<std::string> sorted = listed;
+        std::sort(sorted.begin(), sorted.end());
+        REQUIRE(nicknames(read_back) == sorted);
+        REQUIRE_FALSE(model_parms_to_json(read_back).contains("engine_hints"));
+    }
+    SECTION("a hint that does not list every event once is refused") {
+        nlohmann::json shorter = doc;
+        auto &order = shorter["engine_hints"]["legacy_dfs"]["event_order"];
+        order.erase(order.begin());
+        Model_Parms parms;
+        REQUIRE_THROWS_WITH(parms.read_model_parms(scratch.file("short.json", shorter.dump())),
+                            Catch::Matchers::ContainsSubstring("every event once"));
+
+        doc["engine_hints"]["legacy_dfs"]["event_order"].push_back(listed.front());
+        REQUIRE_THROWS_WITH(parms.read_model_parms(scratch.file("doubled.json", doc.dump())),
+                            Catch::Matchers::ContainsSubstring("/engine_hints/legacy_dfs/event_order: items have to "
+                                                               "be unique"));
+    }
+}
+
+// Comments let a model, or a test fixture, say what it is (REVIEW §14.5). They may stand anywhere
+// whitespace may, before the object too; IGoR reads past them and does not write them back.
+TEST_CASE("A JSON document may carry comments", "[model_format][json]")
+{
+    ScratchDir scratch;
+    Model_Parms plain;
+    REQUIRE_NOTHROW(plain.read_model_parms(TEST_DATA_DIR + "test_legacy_model_parms.txt"));
+    const std::string text = model_parms_to_json(plain).dump(2);
+
+    SECTION("line and block comments, before the object and inside it") {
+        std::string commented = "// A VJ model.\n/* Written by a test,\n   with comments. */\n" + text;
+        const std::string structure = "\"structure\": {";
+        commented.insert(commented.find(structure) + structure.size(), " // what the model is\n");
+        const std::string segments = "\"V_gene_seq\",";
+        commented.insert(commented.find(segments) + segments.size(), " /* then the junction */");
+
+        Model_Parms read_back;
+        REQUIRE_NOTHROW(read_back.read_model_parms(scratch.file("commented.json", commented)));
+        REQUIRE(model_parms_to_json(read_back) == model_parms_to_json(plain));
+
+        const std::string written = scratch.file("rewritten.json");
+        read_back.write_model_parms_json(written);
+        std::ifstream in(written);
+        const std::string rewritten((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+        // "$schema" is a URL, so a comment would open a line.
+        CHECK(rewritten.find("\n//") == std::string::npos);
+        CHECK(rewritten.find("\n/*") == std::string::npos);
+        CHECK(rewritten.front() == '{');
+    }
+    SECTION("the fixtures open with one") {
+        REQUIRE(first_line_of(TEST_DATA_DIR + "tandem_d_model.json") == "/*");
+        Model_Parms parms;
+        REQUIRE_NOTHROW(parms.read_model_parms(TEST_DATA_DIR + "tandem_d_model.json"));
+    }
+    SECTION("a file opening with a slash is read as JSON, and said not to be") {
+        Model_Parms parms;
+        REQUIRE_THROWS_WITH(parms.read_model_parms(scratch.file("slash.json", "/ {}")),
+                            Catch::Matchers::ContainsSubstring("not valid JSON"));
+    }
+}
+
+// The v2 text format was retired before any release read it.
+TEST_CASE("A v2 text file is refused, and the message names JSON", "[model_format][json]")
+{
+    ScratchDir scratch;
+    const std::string v2_file = scratch.file("json_parms.txt",
+                                             "@Version\n2.0\n@Event_list\n"
+                                             "#GeneChoice;V_gene;V_gene_seq;Undefined_side;7;v_choice\n%V1;ATCG;0\n"
+                                             "@Edges\n@ErrorRate\n#SingleErrorRate\n0.001\n");
+    Model_Parms parms;
+    REQUIRE_THROWS_WITH(parms.read_model_parms(v2_file),
+                        Catch::Matchers::ContainsSubstring("v2 text format")
+                                && Catch::Matchers::ContainsSubstring("JSON"));
+}
+
+// A JSON document's layout populates the SeqTypeRegistry with exactly the declared order,
+// including non-standard seq_type names that cannot exist in the v1 format.
+TEST_CASE("SeqTypeRegistry populated from a JSON document's layout",
+          "[model_format][json][seq_type_registry][tandem_d]")
+{
+    const std::string file_path = TEST_DATA_DIR + "tandem_d_model.json";
 
     Model_Parms parms;
     REQUIRE_NOTHROW(parms.read_model_parms(file_path));
 
     const SeqTypeRegistry &registry = parms.get_seq_type_registry();
 
-    // Registry must reflect exactly the seven entries listed in @Seq_type_order
+    // Registry must reflect exactly the seven segments the layout lists
     const std::vector<std::string> expected = {
         "V_gene_seq", "VD1_ins_seq", "D1_gene_seq",
         "D1D2_ins_seq", "D2_gene_seq", "DJ_ins_seq", "J_gene_seq"
@@ -295,10 +568,10 @@ TEST_CASE("Loaded models pin legacy seq_type ids to the Seq_type enum",
         CHECK(parms.get_seq_type_registry().get_ordered_types() == vj);
     }
 
-    SECTION("v2 model")
+    SECTION("JSON model")
     {
         Model_Parms parms;
-        REQUIRE_NOTHROW(parms.read_model_parms(TEST_DATA_DIR + "test_v2_model_parms.txt"));
+        REQUIRE_NOTHROW(parms.read_model_parms(TEST_DATA_DIR + "vj_model.json"));
         check_enum_alignment(parms);
     }
 }
@@ -435,15 +708,15 @@ TEST_CASE("Rec_Event::copy carries the resolved SeqTypeId", "[model_format][seq_
 // Model_Parms is deep-copied once per OpenMP thread in the inference loop, and the
 // scenario maps are built from that copy. A copy that drops seq_type_registry leaves
 // every worker with an empty ordering -- and silently downgrades write_model_parms()
-// to the legacy format, since requires_extended_format() returns false on an empty
+// from JSON to the v1 format, since requires_extended_format() returns false on an empty
 // registry.
 TEST_CASE("Model_Parms copy constructor preserves the seq_type registry",
           "[model_format][seq_type_registry][copy]")
 {
-    SECTION("explicit v2 ordering")
+    SECTION("explicit JSON ordering")
     {
         Model_Parms original;
-        REQUIRE_NOTHROW(original.read_model_parms(TEST_DATA_DIR + "test_v2_model_parms.txt"));
+        REQUIRE_NOTHROW(original.read_model_parms(TEST_DATA_DIR + "tandem_d_model.json"));
         REQUIRE_FALSE(original.get_seq_type_registry().get_ordered_types().empty());
 
         Model_Parms copy(original);
@@ -473,29 +746,28 @@ TEST_CASE("Model_Parms copy constructor preserves the seq_type registry",
     SECTION("copy keeps the same write_model_parms format selection")
     {
         Model_Parms original;
-        REQUIRE_NOTHROW(original.read_model_parms(TEST_DATA_DIR + "test_v2_model_parms.txt"));
+        REQUIRE_NOTHROW(original.read_model_parms(TEST_DATA_DIR + "tandem_d_model.json"));
+        REQUIRE(original.requires_extended_format());
 
         Model_Parms copy(original);
-        CHECK(copy.requires_extended_format() == original.requires_extended_format());
+        CHECK(copy.requires_extended_format());
     }
 }
 
-// ── Gene_class_legacy validation in v2 format ──────────────────────────────────────
+// ── Gene classes in the JSON format ────────────────────────────────────────────────
 
-// In v2.0 a GeneChoice event may only carry an alignment-purpose gene_class
-// (V_gene, D_gene, J_gene, Undefined_gene).  Junction classes (VD_genes,
-// DJ_genes, VJ_genes, VDJ_genes) are illegal and must produce an error.
-TEST_CASE("v2 format: GeneChoice with junction gene_class throws", "[model_format][v2.0][gene_class]")
+// A GeneChoice's library is the gene class it aligns against: V_gene, D_gene, J_gene or
+// Undefined_gene. The v1 junction classes (VD_genes, …) are refused, even with templates.
+TEST_CASE("JSON format: a GeneChoice whose library is a junction class throws", "[model_format][json][gene_class]")
 {
-    const std::string file_path = TEST_DATA_DIR + "test_v2_bad_genechoice_gene_class.txt";
+    nlohmann::json doc = read_json(TEST_DATA_DIR + "vj_model.json");
+    doc["structure"]["events"]["v_choice"]["library"] = "VD_genes";
+    doc["library"]["VD_genes"] = doc["library"]["V_gene"];
+    ScratchDir scratch;
+    const std::string file_path = scratch.file("bad_gene_class.json", doc.dump());
 
     Model_Parms parms;
-    REQUIRE_THROWS_AS(parms.read_model_parms(file_path), std::runtime_error);
-    REQUIRE_THROWS_WITH(
-        parms.read_model_parms(file_path),
-        Catch::Matchers::ContainsSubstring("VD_genes") &&
-        Catch::Matchers::ContainsSubstring("GeneChoice") &&
-        Catch::Matchers::ContainsSubstring("v2.0"));
+    REQUIRE_THROWS_WITH(parms.read_model_parms(file_path), Catch::Matchers::ContainsSubstring("VD_genes"));
 }
 
 // In legacy format the junction gene_class values (VJ_gene, VD_genes, …) on
@@ -543,12 +815,12 @@ TEST_CASE("legacy format: GeneChoice gene_class preserved and seq_type inferred"
     REQUIRE(j_choice->get_seq_type() == "J_gene_seq");
 }
 
-// In v2.0 format Insertion and DinucMarkov must use Undefined_gene as
-// gene_class, and their seq_type must equal the explicit field from the file.
-TEST_CASE("v2 format: Insertion and DinucMarkov use explicit seq_type field",
-          "[model_format][v2.0][gene_class]")
+// In the JSON format Insertion and DinucMarkov carry no library, and their seq_type is their
+// target's segment.
+TEST_CASE("JSON format: Insertion and DinucMarkov take their seq type from their target",
+          "[model_format][json][gene_class]")
 {
-    const std::string file_path = TEST_DATA_DIR + "test_v2_model_parms.txt";
+    const std::string file_path = TEST_DATA_DIR + "vj_model.json";
 
     Model_Parms parms;
     REQUIRE_NOTHROW(parms.read_model_parms(file_path));
@@ -564,12 +836,12 @@ TEST_CASE("v2 format: Insertion and DinucMarkov use explicit seq_type field",
     REQUIRE(vj_dinucl->get_seq_type() == "VJ_ins_seq");
 }
 
-// In v2.0 format GeneChoice with valid alignment gene_class must be accepted
-// and the seq_type field must be stored verbatim.
-TEST_CASE("v2 format: GeneChoice with valid gene_class accepted",
-          "[model_format][v2.0][gene_class]")
+// In the JSON format a GeneChoice with a gene library is accepted, and its target's segment
+// is stored verbatim.
+TEST_CASE("JSON format: a GeneChoice with a gene library is accepted",
+          "[model_format][json][gene_class]")
 {
-    const std::string file_path = TEST_DATA_DIR + "test_v2_model_parms.txt";
+    const std::string file_path = TEST_DATA_DIR + "vj_model.json";
 
     Model_Parms parms;
     REQUIRE_NOTHROW(parms.read_model_parms(file_path));
@@ -585,7 +857,7 @@ TEST_CASE("v2 format: GeneChoice with valid gene_class accepted",
     REQUIRE(j_choice->get_seq_type() == "J_gene_seq");
 }
 
-// ── v1/v2 parity tests ──────────────────────────────────────────────────────
+// ── v1/JSON parity tests ────────────────────────────────────────────────────
 
 // Helper: collect comparable per-event properties from a loaded Model_Parms.
 struct EventSummary {
@@ -618,95 +890,119 @@ static std::vector<EventSummary> summarise_events(const Model_Parms &parms)
     return out;
 }
 
-static void require_same_events(const Model_Parms &v1_parms, const Model_Parms &v2_parms)
+static void require_same_events(const Model_Parms &v1_parms, const Model_Parms &json_parms)
 {
     auto v1 = summarise_events(v1_parms);
-    auto v2 = summarise_events(v2_parms);
-    REQUIRE(v1.size() == v2.size());
+    auto json = summarise_events(json_parms);
+    REQUIRE(v1.size() == json.size());
     for (size_t i = 0; i < v1.size(); ++i) {
         INFO("Event: " << v1[i].nickname);
-        REQUIRE(v1[i].nickname         == v2[i].nickname);
-        REQUIRE(v1[i].type             == v2[i].type);
-        REQUIRE(v1[i].seq_type         == v2[i].seq_type);
-        REQUIRE(v1[i].num_realizations == v2[i].num_realizations);
+        REQUIRE(v1[i].nickname         == json[i].nickname);
+        REQUIRE(v1[i].type             == json[i].type);
+        REQUIRE(v1[i].seq_type         == json[i].seq_type);
+        REQUIRE(v1[i].num_realizations == json[i].num_realizations);
         // For GeneChoice events the alignment gene_class must be preserved.
         if (v1[i].type == GeneChoice_t) {
-            REQUIRE(v1[i].gene_class == v2[i].gene_class);
+            REQUIRE(v1[i].gene_class == json[i].gene_class);
         }
     }
 }
 
-// VJ legacy vs hand-written v2 counterpart.
-TEST_CASE("v1/v2 parity: VJ model - hand-written v2 file matches legacy",
-          "[model_format][parity][v2.0]")
+// VJ legacy vs its JSON counterpart.
+TEST_CASE("v1/JSON parity: VJ model - JSON file matches legacy",
+          "[model_format][parity][json]")
 {
-    Model_Parms v1_parms, v2_parms;
+    Model_Parms v1_parms, json_parms;
     REQUIRE_NOTHROW(v1_parms.read_model_parms(TEST_DATA_DIR + "test_legacy_model_parms.txt"));
-    REQUIRE_NOTHROW(v2_parms.read_model_parms(TEST_DATA_DIR + "test_legacy_model_parms_v2.txt"));
+    REQUIRE_NOTHROW(json_parms.read_model_parms(TEST_DATA_DIR + "vj_model.json"));
 
-    require_same_events(v1_parms, v2_parms);
+    require_same_events(v1_parms, json_parms);
 
     REQUIRE(v1_parms.get_seq_type_registry().get_ordered_types() ==
-            v2_parms.get_seq_type_registry().get_ordered_types());
+            json_parms.get_seq_type_registry().get_ordered_types());
 }
 
-// VDJ legacy vs hand-written v2 counterpart.
-TEST_CASE("v1/v2 parity: VDJ model - hand-written v2 file matches legacy",
-          "[model_format][parity][v2.0]")
+// VDJ legacy vs its JSON counterpart.
+TEST_CASE("v1/JSON parity: VDJ model - JSON file matches legacy",
+          "[model_format][parity][json]")
 {
-    Model_Parms v1_parms, v2_parms;
+    Model_Parms v1_parms, json_parms;
     REQUIRE_NOTHROW(v1_parms.read_model_parms(TEST_DATA_DIR + "test_legacy_vdj_model_parms.txt"));
-    REQUIRE_NOTHROW(v2_parms.read_model_parms(TEST_DATA_DIR + "test_legacy_vdj_model_parms_v2.txt"));
+    REQUIRE_NOTHROW(json_parms.read_model_parms(TEST_DATA_DIR + "vdj_model.json"));
 
-    require_same_events(v1_parms, v2_parms);
+    require_same_events(v1_parms, json_parms);
 
     REQUIRE(v1_parms.get_seq_type_registry().get_ordered_types() ==
-            v2_parms.get_seq_type_registry().get_ordered_types());
+            json_parms.get_seq_type_registry().get_ordered_types());
 }
 
-// Round-trip: read legacy -> write v2 -> read back -> same as legacy.
-TEST_CASE("v1/v2 parity: write_model_parms_v2 round-trip equals original",
-          "[model_format][parity][v2.0]")
+// Round-trip: read legacy -> write JSON -> read back -> same as legacy.
+TEST_CASE("v1/JSON parity: write_model_parms_json round-trip equals original",
+          "[model_format][parity][json]")
 {
     const std::string v1_path = TEST_DATA_DIR + "test_legacy_vdj_model_parms.txt";
     ScratchDir scratch;
-    const std::string tmp_v2  = scratch.file("tmp_roundtrip_v2.txt");
+    const std::string tmp_json  = scratch.file("tmp_roundtrip.json");
 
     Model_Parms v1_parms;
     REQUIRE_NOTHROW(v1_parms.read_model_parms(v1_path));
 
-    REQUIRE_NOTHROW(v1_parms.write_model_parms_v2(tmp_v2));
+    REQUIRE_NOTHROW(v1_parms.write_model_parms_json(tmp_json));
 
-    Model_Parms v2_parms;
-    REQUIRE_NOTHROW(v2_parms.read_model_parms(tmp_v2));
+    Model_Parms json_parms;
+    REQUIRE_NOTHROW(json_parms.read_model_parms(tmp_json));
 
-    require_same_events(v1_parms, v2_parms);
+    require_same_events(v1_parms, json_parms);
 
     REQUIRE(v1_parms.get_seq_type_registry().get_ordered_types() ==
-            v2_parms.get_seq_type_registry().get_ordered_types());
+            json_parms.get_seq_type_registry().get_ordered_types());
 }
 
 // Round-trip using the large inference model file (covers full V/D/J gene sets).
-TEST_CASE("v1/v2 parity: write_model_parms_v2 round-trip for inference model",
-          "[model_format][parity][v2.0][inference]")
+TEST_CASE("v1/JSON parity: write_model_parms_json round-trip for inference model",
+          "[model_format][parity][json][inference]")
 {
     const std::string INFER_DIR = std::string(IGOR_SOURCE_DIR) + "/tst/test_data/inference/";
     const std::string v1_path   = INFER_DIR + "fixed_VJ_TRB_model_parms.txt";
     ScratchDir scratch;
-    const std::string tmp_v2    = scratch.file("tmp_inference_v2.txt");
+    const std::string tmp_json    = scratch.file("tmp_inference.json");
 
     Model_Parms v1_parms;
     REQUIRE_NOTHROW(v1_parms.read_model_parms(v1_path));
 
-    REQUIRE_NOTHROW(v1_parms.write_model_parms_v2(tmp_v2));
+    REQUIRE_NOTHROW(v1_parms.write_model_parms_json(tmp_json));
 
-    Model_Parms v2_parms;
-    REQUIRE_NOTHROW(v2_parms.read_model_parms(tmp_v2));
+    Model_Parms json_parms;
+    REQUIRE_NOTHROW(json_parms.read_model_parms(tmp_json));
 
-    require_same_events(v1_parms, v2_parms);
+    require_same_events(v1_parms, json_parms);
 
     REQUIRE(v1_parms.get_seq_type_registry().get_ordered_types() ==
-            v2_parms.get_seq_type_registry().get_ordered_types());
+            json_parms.get_seq_type_registry().get_ordered_types());
+}
+
+// A shipped model written as JSON and read back: its events, order and edges. Counterpart of
+// the reduced v2 TRB model the models submodule carried.
+TEST_CASE("A shipped model written as JSON reads back the same", "[model_format][json][integration]")
+{
+    const std::string source = std::string(IGOR_SOURCE_DIR) + "/models/human/tcr_beta/models/model_parms.txt";
+    if (!std::filesystem::exists(source)) {
+        SKIP("model file not found at " << source << " (submodule may not be initialized)");
+    }
+    Model_Parms original;
+    REQUIRE_NOTHROW(original.read_model_parms(source));
+
+    ScratchDir scratch;
+    const std::string written = scratch.file("human_trb.json");
+    REQUIRE_NOTHROW(original.write_model_parms_json(written));
+
+    Model_Parms loaded;
+    REQUIRE_NOTHROW(loaded.read_model_parms(written));
+    require_same_events(original, loaded);
+    CHECK(loaded.get_seq_type_registry().get_ordered_types()
+          == original.get_seq_type_registry().get_ordered_types());
+    CHECK(children_by_nickname(loaded) == children_by_nickname(original));
+    CHECK(loaded.get_event_pointer("vd_ins", true)->get_seq_type() == "VD_ins_seq");
 }
 
 // ── Step 7: requires_extended_format() ─────────────────────────────────────
@@ -729,12 +1025,12 @@ TEST_CASE("requires_extended_format: VDJ model returns false",
     REQUIRE_FALSE(parms.requires_extended_format());
 }
 
-// Tandem-D model has non-standard seq_types (D1_gene_seq, VD1_ins_seq …) → must use v2.
+// Tandem-D model has non-standard seq_types (D1_gene_seq, VD1_ins_seq …) → must use JSON.
 TEST_CASE("requires_extended_format: tandem-D model returns true",
           "[model_format][step7][requires_extended_format][tandem_d]")
 {
     Model_Parms parms;
-    REQUIRE_NOTHROW(parms.read_model_parms(TEST_DATA_DIR + "test_v2_tandem_d_parms.txt"));
+    REQUIRE_NOTHROW(parms.read_model_parms(TEST_DATA_DIR + "tandem_d_model.json"));
     REQUIRE(parms.requires_extended_format());
 }
 
@@ -748,8 +1044,7 @@ TEST_CASE("requires_extended_format: empty registry returns false",
 
 // ── Step 7: write_model_parms() auto-selection ──────────────────────────────
 
-// For a standard VDJ model, write_model_parms() must produce a legacy file
-// (no @Version header).
+// For a standard VDJ model, write_model_parms() must produce a v1 file.
 TEST_CASE("write_model_parms auto-selects legacy format for standard VDJ model",
           "[model_format][step7][auto_select]")
 {
@@ -761,37 +1056,29 @@ TEST_CASE("write_model_parms auto-selects legacy format for standard VDJ model",
     REQUIRE_NOTHROW(parms.read_model_parms(src));
     REQUIRE_NOTHROW(parms.write_model_parms(dest));
 
-    // First line must NOT be @Version
-    std::ifstream f(dest);
-    REQUIRE(f.is_open());
-    std::string first_line;
-    std::getline(f, first_line);
-    REQUIRE(first_line != "@Version");
+    REQUIRE(first_line_of(dest) == "@Event_list");
+    CHECK(parms.model_file_extension() == ".txt");
 
-    // Must be readable as legacy (no version header means legacy parser path)
     Model_Parms loaded;
     REQUIRE_NOTHROW(loaded.read_model_parms(dest));
     require_same_events(parms, loaded);
 }
 
-// For a tandem-D model with non-standard seq_types, write_model_parms() must
-// produce a v2 file (starts with @Version / 2.0).
-TEST_CASE("write_model_parms auto-selects v2 format for tandem-D model",
+// For a tandem-D model with non-standard seq_types, write_model_parms() must produce a JSON
+// document, and its output files are named so.
+TEST_CASE("write_model_parms auto-selects JSON for tandem-D model",
           "[model_format][step7][auto_select][tandem_d]")
 {
-    const std::string src  = TEST_DATA_DIR + "test_v2_tandem_d_parms.txt";
+    const std::string src  = TEST_DATA_DIR + "tandem_d_model.json";
     ScratchDir scratch;
-    const std::string dest = scratch.file("tmp_auto_select_v2.txt");
+    const std::string dest = scratch.file("tmp_auto_select.json");
 
     Model_Parms parms;
     REQUIRE_NOTHROW(parms.read_model_parms(src));
     REQUIRE_NOTHROW(parms.write_model_parms(dest));
 
-    std::ifstream f(dest);
-    REQUIRE(f.is_open());
-    std::string first_line;
-    std::getline(f, first_line);
-    REQUIRE(first_line == "@Version");
+    REQUIRE(first_line_of(dest) == "{");
+    CHECK(parms.model_file_extension() == ".json");
 
     // Must also be readable back with the same events
     Model_Parms loaded;
@@ -814,12 +1101,7 @@ TEST_CASE("write_model_parms_legacy: VDJ round-trip preserves events",
     REQUIRE_NOTHROW(original.read_model_parms(src));
     REQUIRE_NOTHROW(original.write_model_parms_legacy(dest));
 
-    // Written file must not contain @Version
-    std::ifstream f(dest);
-    REQUIRE(f.is_open());
-    std::string first_line;
-    std::getline(f, first_line);
-    REQUIRE(first_line != "@Version");
+    REQUIRE(first_line_of(dest) == "@Event_list");
 
     Model_Parms loaded;
     REQUIRE_NOTHROW(loaded.read_model_parms(dest));
@@ -829,170 +1111,116 @@ TEST_CASE("write_model_parms_legacy: VDJ round-trip preserves events",
             loaded.get_seq_type_registry().get_ordered_types());
 }
 
-// ── Step 5: write2txt_v2() output format check ─────────────────────────────
+// ── Step 5: the JSON event nodes ───────────────────────────────────────────
 
-// write_model_parms_v2() must produce event lines with the seq_type field
-// between gene_class and seq_side: #Deletion;Undefined_gene;<seq_type>;<side>...
-TEST_CASE("write2txt_v2 output contains seq_type field in correct position",
-          "[model_format][step5][write2txt_v2]")
+// Every event node of a written document targets its seq type; only a gene choice names a
+// library (counterpart of the v2 event line's seq_type field).
+TEST_CASE("write_model_parms_json: every event targets its seq type", "[model_format][step5][json]")
 {
     const std::string src  = TEST_DATA_DIR + "test_legacy_vdj_model_parms.txt";
     ScratchDir scratch;
-    const std::string dest = scratch.file("tmp_v2_format_check.txt");
+    const std::string dest = scratch.file("tmp_json_nodes.json");
 
     Model_Parms parms;
     REQUIRE_NOTHROW(parms.read_model_parms(src));
-    REQUIRE_NOTHROW(parms.write_model_parms_v2(dest));
+    REQUIRE_NOTHROW(parms.write_model_parms_json(dest));
 
-    std::ifstream f(dest);
-    REQUIRE(f.is_open());
-
-    bool found_deletion_v2_line = false;
-    bool found_insertion_v2_line = false;
-    bool found_genechoice_v2_line = false;
-    std::string line;
-    while (std::getline(f, line)) {
-        // Deletion v2: #Deletion;Undefined_gene;<seq_type>;<side>;<prio>;<nick>
-        if (line.size() > 1 && line[0] == '#' && line.find("Deletion") == 1) {
-            // Count semicolons — v2 has 5 fields after '#Deletion'
-            size_t count = std::count(line.begin(), line.end(), ';');
-            REQUIRE(count == 5);  // gene_class;seq_type;side;priority;nickname
-            REQUIRE(line.find("Undefined_gene") != std::string::npos);
-            REQUIRE(line.find("_seq") != std::string::npos);  // seq_type present
-            found_deletion_v2_line = true;
-        }
-        // Insertion v2: #Insertion;Undefined_gene;<seq_type>;...
-        if (line.size() > 1 && line[0] == '#' && line.find("Insertion") == 1) {
-            size_t count = std::count(line.begin(), line.end(), ';');
-            REQUIRE(count == 5);
-            REQUIRE(line.find("Undefined_gene") != std::string::npos);
-            REQUIRE(line.find("_seq") != std::string::npos);
-            found_insertion_v2_line = true;
-        }
-        // GeneChoice v2: #GeneChoice;<gene_class>;<seq_type>;...
-        if (line.size() > 1 && line[0] == '#' && line.find("GeneChoice") == 1) {
-            size_t count = std::count(line.begin(), line.end(), ';');
-            REQUIRE(count == 5);
-            REQUIRE(line.find("_seq") != std::string::npos);
-            found_genechoice_v2_line = true;
-        }
+    const nlohmann::json doc = read_json(dest);
+    const nlohmann::json &events = doc.at("structure").at("events");
+    REQUIRE(events.size() == parms.get_event_list().size());
+    for (const auto &[nickname, node] : events.items()) {
+        INFO("event " << nickname);
+        CHECK(node.at("targets").at(0).at("segment") == parms.get_event_pointer(nickname, true)->get_seq_type());
+        CHECK(node.contains("library") == (node.at("type") == "GeneChoice"));
     }
-    REQUIRE(found_deletion_v2_line);
-    REQUIRE(found_insertion_v2_line);
-    REQUIRE(found_genechoice_v2_line);
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// Step 8: @Edges full event name format change
+// Step 8: how a file names an event in its edges
 // ══════════════════════════════════════════════════════════════════════════════
 //
-// Current (legacy and v2 as written today):
+// A v1 file's @Edges names events by their v1 name:
 //   %GeneChoice_V_gene_Undefined_side_prio7_size1;Deletion_V_gene_Three_prime_prio5_size2
-//
-// Required v2 format (§7.11):
-//   %GeneChoice_V_gene_V_gene_seq_Undefined_side_prio7_size1;Deletion_V_gene_V_gene_seq_Three_prime_prio5_size2
-//
-// Impact: Rec_Event::update_event_name() must include seq_type between
-// gene_class and seq_side when the event carries a non-empty seq_type.
-// The parser must handle both formats.
+// which tells two events apart only where a v1 gene class does. A JSON document keys each
+// event by its nickname, the event's name (plan T2), and its conditioning names parents so. The
+// v2 format named them by a generated name carrying the seq type; it is retired.
 // ──────────────────────────────────────────────────────────────────────────────
 
-// Current (legacy) event names do NOT include seq_type.
-// This verifies the existing behaviour that must be preserved for legacy output.
-TEST_CASE("step8: legacy event names do not include seq_type",
+// v1 names do NOT include seq_type: they are what the v1 files carry.
+TEST_CASE("step8: v1 event names do not include seq_type",
           "[model_format][step8][event_name]")
 {
     Model_Parms parms;
     REQUIRE_NOTHROW(parms.read_model_parms(TEST_DATA_DIR + "test_legacy_model_parms.txt"));
 
     for (const auto &ev : parms.get_event_list()) {
-        const std::string &name = ev->get_name();
+        const std::string name = ev->get_v1_legacy_name();
         const std::string &st   = ev->get_seq_type();
-        // Legacy names: <type>_<class>_<side>_prio<N>_size<N>
-        // seq_type must NOT appear between class and side.
-        if (!st.empty()) {
-            // Find the position just after "<type>_<class>_"
-            size_t underscore_after_class = name.find('_', name.find('_') + 1);
-            if (underscore_after_class != std::string::npos) {
-                std::string after_class = name.substr(underscore_after_class + 1);
-                // The next token should be the seq_side, not the seq_type.
-                REQUIRE(after_class.find(st) == std::string::npos);
-            }
-        }
+        INFO("v1 name: " << name);
+        REQUIRE(!st.empty());
+        REQUIRE(name.find(st) == std::string::npos);
     }
 }
 
-// In v2 format the event name must embed seq_type so that edges can be
-// unambiguously resolved across models with different orderings.
-// get_v2_name() returns the seq_type-inclusive name; get_name() stays legacy.
-TEST_CASE("step8: v2 event names include seq_type between class and side",
-          "[model_format][step8][event_name]")
+// A JSON document names each event by its nickname, which is the event's name.
+TEST_CASE("step8: a JSON document names each event by its name",
+          "[model_format][step8][event_name][json]")
 {
-    // get_v2_name() must return a name of the form:
-    //   <type>_<class>_<seq_type>_<side>_prio<N>_size<N>
-    // (The internal get_name() stays in legacy format; get_v2_name() is the v2 API.)
     Model_Parms parms;
-    REQUIRE_NOTHROW(parms.read_model_parms(TEST_DATA_DIR + "test_v2_model_parms.txt"));
+    REQUIRE_NOTHROW(parms.read_model_parms(TEST_DATA_DIR + "test_legacy_model_parms.txt"));
+    const nlohmann::json doc = model_parms_to_json(parms);
 
-    for (const auto &ev : parms.get_event_list()) {
-        const std::string v2name = ev->get_v2_name();
-        const std::string &st   = ev->get_seq_type();
-        INFO("v2_name: " << v2name << "  seq_type: " << st);
-        if (!st.empty()) {
-            REQUIRE(v2name.find(st) != std::string::npos);
-        }
+    std::set<std::string> nicknames;
+    for (const auto &entry : doc.at("structure").at("events").items()) {
+        nicknames.insert(entry.key());
     }
+    std::set<std::string> names;
+    for (const auto &event : parms.get_event_list()) {
+        names.insert(event->get_name());
+    }
+    CHECK(nicknames == names);
 }
 
-// write_model_parms_v2() edge lines must use the seq_type-inclusive event names.
-TEST_CASE("step8: write_model_parms_v2 edge names include seq_type",
-          "[model_format][step8][event_name]")
+// write_model_parms_json() writes the conditioning, child to parents, by nickname.
+TEST_CASE("step8: write_model_parms_json writes the conditioning by nickname",
+          "[model_format][step8][event_name][json]")
 {
-    // Use the VJ model (test_legacy_model_parms.txt) which has actual edges.
     const std::string src  = TEST_DATA_DIR + "test_legacy_model_parms.txt";
     ScratchDir scratch;
-    const std::string dest = scratch.file("tmp_step8_edge_names.txt");
+    const std::string dest = scratch.file("tmp_step8_parents.json");
 
     Model_Parms parms;
     REQUIRE_NOTHROW(parms.read_model_parms(src));
-    REQUIRE_NOTHROW(parms.write_model_parms_v2(dest));
+    REQUIRE_NOTHROW(parms.write_model_parms_json(dest));
 
-    std::ifstream f(dest);
-    REQUIRE(f.is_open());
-
-    bool in_edges = false;
-    bool found_v2_edge = false;
-    std::string line;
-    while (std::getline(f, line)) {
-        if (line == "@Edges") { in_edges = true; continue; }
-        if (line[0] == '@') { in_edges = false; continue; }
-        if (in_edges && line[0] == '%') {
-            // Each edge token should contain a seq_type substring (ends in _seq)
-            REQUIRE(line.find("_seq") != std::string::npos);
-            found_v2_edge = true;
-        }
-    }
-    REQUIRE(found_v2_edge);
+    const auto parents = read_json(dest).at("structure").at("conditioning")
+                                 .get<std::map<std::string, std::vector<std::string>>>();
+    CHECK(parents == std::map<std::string, std::vector<std::string>>{ { "j_choice", { "v_choice" } },
+                                                                      { "v_3_del", { "v_choice" } } });
 }
 
-// A v2 file that uses the new (seq_type-inclusive) edge name format must be
-// parseable (get_event_pointer() accepts both legacy and v2 edge name formats).
-TEST_CASE("step8: v2 file with seq_type-inclusive edge names is parseable",
-          "[model_format][step8][parser]")
+// A JSON document's conditioning wires the model's edges.
+TEST_CASE("step8: a JSON document's conditioning wires the edges",
+          "[model_format][step8][parser][json]")
 {
-    // test_v2_new_edge_names.txt is a hand-crafted v2 file whose @Edges section
-    // uses the new format: GeneChoice_V_gene_V_gene_seq_Undefined_side_prio7_size1
-    const std::string file_path = TEST_DATA_DIR + "test_v2_new_edge_names.txt";
-
     Model_Parms parms;
-    REQUIRE_NOTHROW(parms.read_model_parms(file_path));
+    REQUIRE_NOTHROW(parms.read_model_parms(TEST_DATA_DIR + "vj_model.json"));
+    REQUIRE(parms.get_event_list().size() == 5);  // v_choice, j_choice, v_3_del, vj_ins, vj_dinucl
 
-    auto events = parms.get_event_list();
-    REQUIRE(events.size() == 5);  // v_choice, j_choice, v_3_del, vj_ins, vj_dinucl
+    const auto graph = children_by_nickname(parms);
+    CHECK(graph.at("v_choice") == std::set<std::string>{"j_choice", "v_3_del"});
+    CHECK(graph.at("j_choice").empty());
+}
 
-    // Edges must be wired: v_choice → v_3_del and v_choice → j_choice
-    auto edges = parms.get_edges();
-    REQUIRE(!edges.empty());
+// A parent the document does not name is refused.
+TEST_CASE("step8: a JSON parent no event is named is refused", "[model_format][step8][parser][json]")
+{
+    nlohmann::json doc = read_json(TEST_DATA_DIR + "vj_model.json");
+    doc["structure"]["conditioning"]["j_choice"] = {"v_gene"};
+    ScratchDir scratch;
+    Model_Parms parms;
+    REQUIRE_THROWS_WITH(parms.read_model_parms(scratch.file("unknown_parent.json", doc.dump())),
+                        Catch::Matchers::ContainsSubstring("unknown parent \"v_gene\""));
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -1026,7 +1254,7 @@ TEST_CASE("step9: tandem-D model seq_type_order has 7 elements in correct order"
 {
     // This part (reading + checking registry) is already implemented.
     Model_Parms parms;
-    REQUIRE_NOTHROW(parms.read_model_parms(TEST_DATA_DIR + "test_v2_tandem_d_parms.txt"));
+    REQUIRE_NOTHROW(parms.read_model_parms(TEST_DATA_DIR + "tandem_d_model.json"));
 
     const std::vector<std::string> expected = {
         "V_gene_seq", "VD1_ins_seq", "D1_gene_seq",
@@ -1041,7 +1269,7 @@ TEST_CASE("step9: build_scenario_sequence uses registry order for tandem D",
     // Load the tandem-D model to get its registry, then call the registry-based
     // build_scenario_sequence() and verify 7-segment assembly order.
     Model_Parms parms;
-    REQUIRE_NOTHROW(parms.read_model_parms(TEST_DATA_DIR + "test_v2_tandem_d_parms.txt"));
+    REQUIRE_NOTHROW(parms.read_model_parms(TEST_DATA_DIR + "tandem_d_model.json"));
     const SeqTypeRegistry &registry = parms.get_seq_type_registry();
 
     Int_Str v    = {0, 0, 0};
@@ -1144,7 +1372,7 @@ TEST_CASE("Seq_offsets_map accepts non-standard seq_types",
 //                     DJ_genes            → Five_prime  (left-to-right).
 //
 // Required: direction is explicit in seq_side.  The legacy converter must set
-// it on read; v2 files carry the explicit value verbatim.
+// it on read; JSON documents carry the explicit value verbatim.
 // ──────────────────────────────────────────────────────────────────────────────
 
 // Legacy VD DinucMarkov → Three_prime (right-to-left insertion).
@@ -1173,19 +1401,19 @@ TEST_CASE("step11: DinucMarkov DJ insertion has Five_prime side after legacy loa
     REQUIRE(dj_dinucl->get_side() == Five_prime);
 }
 
-// v2 DinucMarkov side must be stored verbatim from the file and survive
-// a write_model_parms_v2 → read round-trip.
-TEST_CASE("step11: DinucMarkov direction preserved through v2 round-trip",
-          "[model_format][step11][dinucl_direction]")
+// A DinucMarkov's side is stored verbatim in a JSON document and survives a
+// write_model_parms_json → read round-trip.
+TEST_CASE("step11: DinucMarkov direction preserved through JSON round-trip",
+          "[model_format][step11][dinucl_direction][json]")
 {
     const std::string src  = TEST_DATA_DIR + "test_legacy_vdj_model_parms.txt";
     ScratchDir scratch;
-    const std::string dest = scratch.file("tmp_step11_dinucl.txt");
+    const std::string dest = scratch.file("tmp_step11_dinucl.json");
 
     Model_Parms original;
     REQUIRE_NOTHROW(original.read_model_parms(src));
 
-    REQUIRE_NOTHROW(original.write_model_parms_v2(dest));
+    REQUIRE_NOTHROW(original.write_model_parms_json(dest));
 
     Model_Parms loaded;
     REQUIRE_NOTHROW(loaded.read_model_parms(dest));
@@ -1199,17 +1427,25 @@ TEST_CASE("step11: DinucMarkov direction preserved through v2 round-trip",
     REQUIRE(dj_loaded->get_side() == dj_orig->get_side());
 }
 
-// v2 file carries explicit seq_side for DinucMarkov; must be loaded verbatim.
-TEST_CASE("step11: DinucMarkov direction in v2 file is loaded verbatim",
-          "[model_format][step11][dinucl_direction]")
+// A JSON document carries a DinucMarkov's side explicitly; it is loaded verbatim, not derived.
+TEST_CASE("step11: DinucMarkov direction in a JSON document is loaded verbatim",
+          "[model_format][step11][dinucl_direction][json]")
 {
     Model_Parms parms;
-    REQUIRE_NOTHROW(parms.read_model_parms(TEST_DATA_DIR + "test_v2_model_parms.txt"));
+    REQUIRE_NOTHROW(parms.read_model_parms(TEST_DATA_DIR + "vj_model.json"));
 
-    // In the VJ v2 file, the DinucMarkov event for VJ insertion should be
-    // Three_prime (right-to-left, matching VJ_genes legacy convention).
+    // As the VJ_genes v1 convention gives it: Three_prime, the chain seeded from V.
     auto vj_dinucl = parms.get_event_pointer("vj_dinucl", true);
     REQUIRE(vj_dinucl != nullptr);
     REQUIRE(vj_dinucl->get_type() == Dinuclmarkov_t);
     REQUIRE(vj_dinucl->get_side() == Three_prime);
+
+    SECTION("whatever the convention would say") {
+        nlohmann::json doc = read_json(TEST_DATA_DIR + "vj_model.json");
+        doc["structure"]["events"]["vj_dinucl"]["targets"][0]["side"] = "5'";
+        ScratchDir scratch;
+        Model_Parms edited;
+        REQUIRE_NOTHROW(edited.read_model_parms(scratch.file("five_prime.json", doc.dump())));
+        CHECK(edited.get_event_pointer("vj_dinucl", true)->get_side() == Five_prime);
+    }
 }

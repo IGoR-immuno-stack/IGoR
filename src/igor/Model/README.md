@@ -291,11 +291,15 @@ Adding a new event type requires only a new handler class and a static
 `EventFactory` follows the same self-registering pattern for `Rec_Event`
 subclasses (`Gene_choice`, `Deletion`, `Insertion`, `Dinucl_markov`), used by
 `topology_from_json()` to build one node per event of the model document. Its
-creators take the event's json descriptor, so the event is complete as soon as
-it exists — there is no default construction followed by a run of setters:
+creators take the event's nickname, its key in the document, its json
+descriptor, and the document's library, where a gene choice finds its
+templates. The event is complete as soon as it exists — there is no default
+construction followed by a run of setters — and each constructor first checks
+its node against its type's JSON Schema (`ModelSchema.h`, `schemas/0.3/`):
 
 ```cpp
-using EventCreator = std::function<EventPtr(const nlohmann::json &)>;
+using EventCreator = std::function<EventPtr(const std::string &nickname, const nlohmann::json &node,
+                                            const nlohmann::json &library)>;
 
 // EventFactory.cpp — one line per concrete type
 const Registrar<Gene_choice>   gene_choice_registrar{ "GeneChoice" };
@@ -304,7 +308,7 @@ const Registrar<Insertion>     insertion_registrar{ "Insertion" };
 const Registrar<Dinucl_markov> dinucl_markov_registrar{ "DinucMarkov" };
 
 // Any caller — create() dispatches on node["type"]
-auto event = event_factory::create(node);
+auto event = event_factory::create("v_3_del", node, library);
 ```
 
 Registration is keyed by the type **name** the document carries, not by

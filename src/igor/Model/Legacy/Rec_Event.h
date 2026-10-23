@@ -238,14 +238,14 @@ public:
         return event_realizations;
     };
     const int get_priority() const { return priority; };
-    const Rec_Event_name get_name() const { return name; };
-    /// Returns the v2.0-format event name that includes seq_type between
-    /// gene_class and seq_side.  Used in @Edges sections of v2.0 files.
-    /// Falls back to get_name() when seq_type is empty.
-    Rec_Event_name get_v2_name() const;
-    /// Returns the legacy-format event name (without seq_type), even if the
-    /// internal name has been updated to include seq_type.
-    Rec_Event_name get_legacy_name() const;
+    /// The event's identity: its nickname, which a model requires and keeps unique (plan T2). It
+    /// keys the legacy maps until the migration's uid; a model file and the outputs name the event
+    /// by it too. Set it before the event joins a model, whose maps it keys from then on.
+    const Rec_Event_name get_name() const { return nickname; };
+    /// The name a v1 model file gives the event in its @Edges section: type, gene class, side,
+    /// priority and size. It names one event only where a v1 gene class does, which
+    /// Model_Parms::requires_extended_format() checks. Also the `legacy` output name (event_label()).
+    Rec_Event_name get_v1_legacy_name() const;
     const std::string get_nickname() const { return nickname; };
     void set_nickname(std::string name) { nickname = name; }
     Event_type get_type() const { return this->type; }
@@ -317,24 +317,12 @@ public:
     /// everywhere inside the scenario traversal, so the registry stays out of the hot path.
     SeqTypeId get_seq_type_id() const { return seq_type_id; }
     void set_seq_type_id(SeqTypeId id) { seq_type_id = id; }
-    /// Refreshes the generated name, like set_priority() and add_realization() do. It used not
-    /// to, which made the name depend on the order of the setters; see name_side() in
-    /// Rec_Event.cpp. A DinucMarkov's name is unaffected by the side, by design.
-    void set_event_side(Seq_side s)
-    {
-        event_side = s;
-        update_event_name();
-    }
-
-    bool operator==(const Rec_Event &) const;
+    void set_event_side(Seq_side s) { event_side = s; }
 
     /// The side token a generated name carries: the event's own side, except for DinucMarkov,
     /// whose name always says Undefined_side because its side is a direction, not an identity.
-    /// See the definition in Rec_Event.cpp. It sits next to update_event_name(), which is public
-    /// too, because the subclasses that override it have to apply the same rule.
+    /// See the definition in Rec_Event.cpp.
     static Seq_side name_side(Event_type type, Seq_side side);
-
-    virtual void update_event_name();
 
     ///@{ \name Generation (docs/GENERATION_REWRITE_PLAN.md)
     /// The legacy generator's step for this event: draw_realization(), then
@@ -389,18 +377,22 @@ public:
     ///@}
     virtual void write2txt(std::ofstream &) = 0;
     virtual void write2txt_legacy(std::ofstream &) = 0;
-    virtual void write2txt_v2(std::ofstream &) = 0;
 
     /**
-     * \brief Serialized form of this event: its header fields plus its realizations.
+     * \brief This event's node in a model document: type, priority, target and realizations.
+     *
+     * The nickname is not in it: it is the node's key in the document. Each realization is its
+     * index and its label, the label being its value for a deletion or an insertion and its name
+     * otherwise.
      *
      * Non-pure on purpose. The body in Rec_Event.cpp is generic over the four subclasses,
-     * because everything it writes is already on the base: type, seq_type, side, priority,
-     * nickname, and the realization map. A subclass only needs to override it if it grows
-     * state that is not a realization, as Gene_choice does with its gene class.
+     * because everything it writes is already on the base. A subclass only needs to override it
+     * if it grows state that is not a realization, as Gene_choice does with its library. A gene
+     * choice's templates are not in its node: they are the document's library's.
      *
      * Realizations come out sorted by index, since event_realizations is an unordered_map and
      * an unsorted dump would not be reproducible.
+     * \throws std::logic_error if the event has no seq_type yet: its target would name nothing.
      */
     virtual nlohmann::json to_json() const;
     virtual void ind_normalize(Marginal_array_p &, size_t) const;
@@ -576,6 +568,10 @@ public:
     void adopt_Len_proba_bound(const Rec_Event &source);
 
 protected:
+    /// The gene class token of the v1 name: event_class. An insertion and a Markov chain derive
+    /// theirs from the seq type instead, as the v1 format names their junction.
+    virtual std::string name_class_token() const;
+
     /**
      * \brief Build the `Retain` junction's decomposition, once the two halves are folded.
      *
@@ -748,7 +744,6 @@ protected:
     int priority;
     Gene_class event_class;
     Seq_side event_side;
-    Rec_Event_name name; //Construct the name in a smart way so that it is unique
     std::string nickname;
     Seq_type_String seq_type; // Seq_type for v2.0 format (e.g., "V_gene_seq", "VD_ins_seq")
     SeqTypeId seq_type_id = kNoSeqType; // resolved from seq_type by Model_Parms::finalize()
@@ -798,5 +793,15 @@ struct Event_comparator
         return event_p1->get_priority() > event_p2->get_priority();
     }
 };
+
+/// What a model document calls \a realization: its value for a deletion or an insertion, its name
+/// for a gene or a nucleotide. Its identity in the document's structure and parameters alike.
+MODEL_EXPORT nlohmann::json realization_label(const Event_realization &realization);
+
+/// "nickname" or "legacy", as the CLI spells them. Throws std::invalid_argument on anything else.
+MODEL_EXPORT Event_label str2EventLabel(const std::string &);
+
+/// The column header an output gives \a event.
+MODEL_EXPORT std::string event_label(const Rec_Event &event, Event_label labels);
 
 } // namespace igor::model::legacy

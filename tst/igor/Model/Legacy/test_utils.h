@@ -673,7 +673,6 @@ public:
     OffsetRole get_offset_role(SeqTypeId, Seq_side) const override { return OffsetRole::None; }
     void write2txt(std::ofstream &) override {}
     void write2txt_legacy(std::ofstream &) override {}
-    void write2txt_v2(std::ofstream &) override {}
     void add_to_marginals(long double, Marginal_array_p &) const override {}
     int length_delta(const Event_realization &) const override { return 0; }
 };
@@ -730,6 +729,14 @@ long double total_marginal_mass(const IterateTestState &state, std::size_t margi
 // ============================================================================
 // Event builders
 // ============================================================================
+
+/**
+ * A nickname from where the event sits: its type, seq type and side, as get_events_map() keys
+ * it. An event's nickname is its name, the key of every name-keyed map (plan T2), so the
+ * builders below give each event one, and a helper that moves an event onto another segment
+ * gives it a new one. Two events with the same key cannot share a model anyway.
+ */
+std::string default_nickname(const Rec_Event &event);
 
 /**
  * Build a Gene_choice carrying one realization per (name, sequence) pair.

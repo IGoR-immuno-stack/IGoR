@@ -40,6 +40,7 @@
 #include <sstream>
 
 #include <igor/Generation/Export.h>
+#include <igor/Model/Legacy/EventTypedefs.h>
 
 namespace igor::generation::legacy {
 namespace fast {
@@ -552,6 +553,8 @@ struct FastGeneratorConfig
     size_t io_buffer_size = 1024 * 1024; // 1MB
     bool show_progress = true;
     uint64_t base_seed = 0; // 0 = random seed
+    /// How the realizations file's header names the events (output.event_names).
+    igor::model::legacy::Event_label event_labels = igor::model::legacy::Event_label::Nickname;
 };
 
 /**

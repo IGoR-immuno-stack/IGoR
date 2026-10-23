@@ -29,6 +29,7 @@
 #include <igor/Model/Legacy/EventUtils.h>
 #include <igor/Model/Legacy/Scenario.h>  // For Scenario view construction
 #include <igor/Model/Legacy/BoundTightness.h>
+#include <igor/Model/Legacy/JsonDetail.h>
 #include <igor/Model/TraversalPlan.h>
 
 #include <nlohmann/json.hpp>
@@ -49,7 +50,6 @@ Rec_Event::Rec_Event(Gene_class gene, Seq_side side)
     : priority(0),
       event_class(gene),
       event_side(side),
-      name("Undefined_event_name"),
       len_min(INT16_MAX),
       len_max(INT16_MIN),
       type(Undefined_t),
@@ -89,46 +89,14 @@ Rec_Event::~Rec_Event()
     // TODO Auto-generated destructor stub
 }
 
-bool Rec_Event::operator==(const Rec_Event &other) const
-{
-    if (this->get_type() != other.get_type())
-        return 0;
-    if (this->event_class != other.event_class)
-        return 0;
-    if (this->event_side != other.event_side)
-        return 0;
-    if (this->priority != other.priority)
-        return 0;
-    if (this->event_realizations.size() != other.event_realizations.size())
-        return 0;
-    for (unordered_map<string, Event_realization>::const_iterator iter = this->event_realizations.begin();
-         iter != this->event_realizations.end(); ++iter) {
-        if (other.event_realizations.count((*iter).first) != 1)
-            return 0;
-    }
-    return 1;
-}
-
 /**
- * The side token a generated name carries. Shared, because Insertion and Dinucl_markov override
- * update_event_name() to derive the class token from their seq type (legacy_gene_class_of()).
- *
- * It is the event's own side, except for DinucMarkov, where it is always Undefined_side. Two
- * reasons, one of substance and one of robustness.
- *
- * Substance: the side does not identify a DinucMarkov event. Its seq_type already says which
- * junction it belongs to, and event_side only carries a direction. Model_Parms is already
- * explicit about this — get_events_map() keys DinucMarkov with Undefined_side, and
- * write2txt_legacy() writes Undefined_side in the event line whatever the in-memory side is.
- * Names now follow the same rule instead of contradicting it.
- *
- * Robustness: the name used to depend on the ORDER of the setters. set_priority() refreshes
- * the name, and read_model_parms() sets the side after the priority, so a DinucMarkov kept a
- * name saying Undefined_side while its side was Three_prime — the truth by accident. Anything
- * that called update_event_name() once more produced a different name for the same event, and
- * that name is the key of Model_marginals::get_index_map(), of Model_Parms::edges, and a
- * column header of the scenario and generation outputs. Making the rule explicit here is what
- * lets set_event_side() refresh the name like every other setter.
+ * The side token a generated name carries. It is the event's own side, except for DinucMarkov,
+ * where it is always Undefined_side: the side does not identify a DinucMarkov event. Its seq_type
+ * already says which junction it belongs to, and event_side only carries a direction.
+ * get_events_map() keys DinucMarkov with Undefined_side, and write2txt_legacy() writes
+ * Undefined_side in the event line whatever the in-memory side is; the v1 name follows the same
+ * rule. A v1 file read before the side was set wrote names saying Undefined_side, so keeping the
+ * rule keeps every v1 file's edges readable.
  */
 Seq_side Rec_Event::name_side(Event_type type, Seq_side side)
 {
@@ -138,7 +106,7 @@ Seq_side Rec_Event::name_side(Event_type type, Seq_side side)
 const igor::model::TraversalPlan &Rec_Event::traversal_plan() const
 {
     if (traversal_plan_ == nullptr) {
-        throw logic_error("Rec_Event " + this->name
+        throw logic_error("Rec_Event " + this->get_name()
                           + ": no traversal plan; the engine sets one before initialize_event()");
     }
     return *traversal_plan_;
@@ -149,11 +117,9 @@ const igor::model::EventPlacement &Rec_Event::placement() const
     return this->traversal_plan().placement(*this);
 }
 
-void Rec_Event::update_event_name()
+string Rec_Event::name_class_token() const
 {
-    this->name = string() + this->type + string("_") + this->event_class + string("_")
-            + name_side(this->type, this->event_side)
-            + string("_prio") + to_string(priority) + string("_size") + to_string(this->size());
+    return to_string(this->event_class);
 }
 
 queue<int> Rec_Event::draw_random_realization(
@@ -227,30 +193,30 @@ const Event_realization &Rec_Event::realization_at(int index) const
             return realization;
         }
     }
-    throw out_of_range("Rec_Event " + this->name + ": no realization has index " + to_string(index));
+    throw out_of_range("Rec_Event " + this->get_name() + ": no realization has index " + to_string(index));
 }
 
 nlohmann::json Rec_Event::to_json() const
 {
+    if (this->seq_type.empty())
+        throw logic_error("Rec_Event::to_json(): \"" + this->nickname + "\" acts on no segment yet");
+
     nlohmann::json out;
     out["type"] = string() + this->type;   // "GeneChoice", "Deletion", "Insertion", "DinucMarkov"
-    out["seq_type"] = this->seq_type;
-    out["side"] = to_string(this->event_side);
     out["priority"] = this->priority;
-    out["nickname"] = this->nickname;
+
+    nlohmann::json target;
+    target["segment"] = this->seq_type;
+    if (this->event_side != Undefined_side)
+        target["side"] = igor::model::legacy::json_detail::side_to_json(this->event_side);
+    out["targets"] = nlohmann::json::array({ std::move(target) });
 
     nlohmann::json realizations = nlohmann::json::array();
     for (const auto &entry : this->event_realizations) {
         const Event_realization &real = entry.second;
         nlohmann::json r;
         r["index"] = real.index;
-        r["name"] = real.name;
-        // INT16_MAX is the "no integer value" sentinel the gene-choice events carry, and an
-        // empty value_str is the "no sequence" one. Emitting either would not round-trip.
-        if (real.value_int != INT16_MAX)
-            r["value_int"] = real.value_int;
-        if (!real.value_str.empty())
-            r["value_str"] = real.value_str;
+        r["label"] = realization_label(real);
         realizations.push_back(std::move(r));
     }
     std::sort(realizations.begin(), realizations.end(),
@@ -261,18 +227,32 @@ nlohmann::json Rec_Event::to_json() const
     return out;
 }
 
-Rec_Event_name Rec_Event::get_v2_name() const
+nlohmann::json realization_label(const Event_realization &realization)
 {
-    if (seq_type.empty())
-        return name;
-    return string() + this->type + string("_") + this->event_class + string("_") + seq_type
-           + string("_") + name_side(this->type, this->event_side)
-           + string("_prio") + to_string(priority) + string("_size") + to_string(this->size());
+    // INT16_MAX is the "no integer value" sentinel of the realizations named rather than
+    // numbered: genes and nucleotides.
+    if (realization.value_int != INT16_MAX)
+        return realization.value_int;
+    return realization.name;
 }
 
-Rec_Event_name Rec_Event::get_legacy_name() const
+Event_label str2EventLabel(const string &str)
 {
-    return string() + this->type + string("_") + this->event_class + string("_")
+    if (str == "nickname")
+        return Event_label::Nickname;
+    if (str == "legacy")
+        return Event_label::Legacy;
+    throw invalid_argument("Unknown event label \"" + str + "\": expected nickname or legacy");
+}
+
+string event_label(const Rec_Event &event, Event_label labels)
+{
+    return (labels == Event_label::Nickname) ? event.get_nickname() : event.get_v1_legacy_name();
+}
+
+Rec_Event_name Rec_Event::get_v1_legacy_name() const
+{
+    return string() + this->type + string("_") + this->name_class_token() + string("_")
            + name_side(this->type, this->event_side)
            + string("_prio") + to_string(priority) + string("_size") + to_string(this->size());
 }
@@ -280,13 +260,11 @@ Rec_Event_name Rec_Event::get_legacy_name() const
 void Rec_Event::add_realization(const Event_realization &realization)
 {
     this->event_realizations.insert(make_pair((realization).name, (realization)));
-    this->update_event_name();
 }
 
 bool Rec_Event::set_priority(int new_priority)
 {
     this->priority = new_priority;
-    this->update_event_name();
     return 1;
 }
 
@@ -478,7 +456,7 @@ void Rec_Event::initialize_event_common(
     const auto downstream_layers = downstream_proba_map.claimed_layers();
     current_downstream_proba_memory_layers.assign(downstream_layers.begin(), downstream_layers.end());
 
-    processed_events.emplace(this->name);
+    processed_events.emplace(this->get_name());
 }
 
 void Rec_Event::ind_normalize(Marginal_array_p &marginal_array_p, size_t base_index) const

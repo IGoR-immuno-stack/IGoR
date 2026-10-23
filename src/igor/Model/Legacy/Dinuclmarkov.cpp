@@ -66,43 +66,28 @@ Dinucl_markov::Dinucl_markov(const Seq_type_String &seq_type) : Rec_Event(), tot
     event_realizations.emplace("T", Event_realization("T", INT16_MAX, "T", Int_Str(), 3));
 
     dinuc_proba_matrix = Matrix<double>(kIntNtCount, kIntNtCount);
-    this->update_event_name();
 }
 
-Dinucl_markov::Dinucl_markov(const nlohmann::json &node)
-    : Dinucl_markov(igor::model::legacy::json_detail::require(node, "seq_type").get<Seq_type_String>())
+Dinucl_markov::Dinucl_markov(const string &nickname, const nlohmann::json &node)
+    : Dinucl_markov(igor::model::legacy::json_detail::validated_target(node, "DinucMarkov").first)
 {
     using namespace igor::model::legacy::json_detail;
-    reject_unknown_keys(node, kEventKeys);
-    expect_type(node, "DinucMarkov");
+    this->set_priority(node.at("priority").get<int>());
+    this->set_nickname(nickname);
 
-    this->set_priority(require(node, "priority").get<int>());
-    this->set_nickname(require(node, "nickname").get<string>());
-
-    // The call order used to matter here, and it no longer does: name_side() in Rec_Event.cpp
-    // keeps a DinucMarkov's generated name on Undefined_side whatever its side, so the name
-    // this constructor produces is the text reader's. The side itself is load-bearing beyond
-    // the name — it is the traversal anchor, so Three_prime means the chain is seeded from the
-    // segment on its left.
-    this->set_event_side(str2SeqSide(require(node, "side").get<string>()));
+    // The side is the traversal anchor: Three_prime means the chain is seeded from the segment
+    // on its left.
+    this->set_event_side(single_target(node).second);
 
     // The four nucleotides are self-initialized above, so the document's realizations are
-    // verified rather than applied. Anything else means the document was not written by this
-    // schema, and building a chain over a different alphabet would need more than a loop here.
-    const auto realizations = realizations_in_index_order(node);
-    if (realizations.size() != this->event_realizations.size())
-        throw std::runtime_error("event json: a dinucleotide Markov chain has "
-                                 + std::to_string(this->event_realizations.size())
-                                 + " realizations, document has "
-                                 + std::to_string(realizations.size()));
-    for (const nlohmann::json *realization : realizations) {
-        const auto name = require(*realization, "name").get<string>();
+    // verified rather than applied: the schema holds them to A, C, G and T, and this to the
+    // indices the chain gives them.
+    for (const nlohmann::json *realization : realizations_in_index_order(node)) {
+        const auto name = realization->at("label").get<string>();
         const auto found = this->event_realizations.find(name);
-        if (found == this->event_realizations.end()
-            || found->second.index != require(*realization, "index").get<int>())
-            throw std::runtime_error("event json: unexpected dinucleotide realization \"" + name
-                                     + "\" at index "
-                                     + std::to_string(require(*realization, "index").get<int>()));
+        if (found == this->event_realizations.end() || found->second.index != realization->at("index").get<int>())
+            throw std::runtime_error("event json: unexpected dinucleotide realization \"" + name + "\" at index "
+                                     + std::to_string(realization->at("index").get<int>()));
     }
 }
 
@@ -150,7 +135,6 @@ shared_ptr<Rec_Event> Dinucl_markov::copy()
     new_dinucl_markov_p->priority = this->priority;
     new_dinucl_markov_p->nickname = this->nickname;
     new_dinucl_markov_p->fixed = this->fixed;
-    new_dinucl_markov_p->update_event_name();
     new_dinucl_markov_p->set_event_identifier(this->event_index);
     new_dinucl_markov_p->set_seq_type_id(this->get_seq_type_id());
     new_dinucl_markov_p->set_event_side(this->get_side());
@@ -262,7 +246,7 @@ void Dinucl_markov::iterate(
             //already a no-op on an empty junction, and data_seq_substr is read nowhere else.
         } else if (previous_seq.empty()) {
             const SeqTypeRegistry &registry = scenario.constructed_sequences.registry();
-            throw runtime_error("Dinucl_markov " + this->name + ": the anchor segment "
+            throw runtime_error("Dinucl_markov " + this->get_name() + ": the anchor segment "
                                 + registry.name(spec.anchor_id) + " carries no nucleotide to seed "
                                 "the Markov chain from. This scenario deleted it entirely -- a "
                                 "legal realization, but one that leaves " + registry.name(spec.target_id)
@@ -323,7 +307,7 @@ vector<int> Dinucl_markov::draw_realization(const Marginal_array_p &, const unor
     uniform_real_distribution<double> distribution(0.0, 1.0);
 
     const DinuclTraversalSpec spec = get_junction();
-    require_junction(spec, this->name);
+    require_junction(spec, this->get_name());
 
     //Copies: the draw reads what has been built and writes nothing. The chain runs away from
     //its anchor, so a chain seeded from the anchor's 5' end reads that anchor backwards.
@@ -392,7 +376,7 @@ vector<int> Dinucl_markov::draw_chain(const string &previous_seq, string &insert
 void Dinucl_markov::construct_realization(const vector<int> &chain, GenerationState &segments) const
 {
     const DinuclTraversalSpec spec = get_junction();
-    require_junction(spec, this->name);
+    require_junction(spec, this->get_name());
 
     //One chain entry per placeholder, in chain order; the chain then reads 5'->3' once turned
     //around for a chain that ran from the right.
@@ -421,15 +405,6 @@ void Dinucl_markov::write2txt_legacy(ofstream &outfile)
 {
     outfile << "#DinucMarkov;" << to_string(legacy_gene_class_of(Dinuclmarkov_t, seq_type)) << ";" << Undefined_side
             << ";" << priority << ";" << nickname << endl;
-    for (unordered_map<string, Event_realization>::const_iterator iter = event_realizations.begin();
-         iter != event_realizations.end(); ++iter) {
-        outfile << "%" << (*iter).second.value_str << ";" << (*iter).second.index << endl;
-    }
-}
-
-void Dinucl_markov::write2txt_v2(ofstream &outfile)
-{
-    outfile << "#DinucMarkov;Undefined_gene;" << seq_type << ";" << event_side << ";" << priority << ";" << nickname << endl;
     for (unordered_map<string, Event_realization>::const_iterator iter = event_realizations.begin();
          iter != event_realizations.end(); ++iter) {
         outfile << "%" << (*iter).second.value_str << ";" << (*iter).second.index << endl;
@@ -540,7 +515,7 @@ void Dinucl_markov::initialize_event(
 
     const DinuclTraversalSpec spec = get_junction();
     if (spec.anchor_id == kNoSeqType) {
-        throw invalid_argument("Dinucl_markov " + this->name
+        throw invalid_argument("Dinucl_markov " + this->get_name()
                                + ": no junction to fill. Its seq_type must be in the registry "
                                  "(Model_Parms::finalize() resolves that), it must declare which "
                                  "side its chain runs from, and that side must have a neighbour.");
@@ -752,14 +727,9 @@ void Dinucl_markov::prepare_span_proba_factor(const Marginal_array_p &model_para
     }
 }
 
-void Dinucl_markov::update_event_name()
+string Dinucl_markov::name_class_token() const
 {
-    // name_side() is what keeps this name on Undefined_side: the junction is already named by
-    // the class token, so the side would add a direction, not an identity. This override exists
-    // for that class token, and it has to apply the base class's side rule.
-    this->name = string() + this->type + "_" + to_string(legacy_gene_class_of(this->type, this->seq_type)) + "_"
-                 + to_string(name_side(this->type, this->event_side))
-                 + "_prio" + to_string(priority) + "_size" + to_string(this->size());
+    return to_string(legacy_gene_class_of(this->type, this->seq_type));
 }
 
 } // namespace igor::model::legacy

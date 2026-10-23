@@ -33,6 +33,7 @@
 #include <igor/Model/Legacy/Rec_Event.h>
 #include <igor/Model/Legacy/Singleerrorrate.h>
 #include <igor/Model/Legacy/Model_marginals.h>
+#include <igor/Model/Legacy/ModelJson.h>
 #include <igor/Alignment/Legacy/Aligner.h>
 #include <igor/Inference/Legacy/GenModel.h>
 #include <igor/Generation/Legacy/SequenceGenerator.h>
@@ -145,6 +146,9 @@ int igor_legacy_main(int argc, char *argv[])
 
     //Common vars
     string batchname = "";
+    //How the outputs' column headers name the events (output.event_names). Applied once every
+    //argument is read, so that it does not depend on its place on the command line.
+    Event_label cl_event_labels = Event_label::Nickname;
 
     //Working directory vars
     bool wd = false;
@@ -321,6 +325,18 @@ int igor_legacy_main(int argc, char *argv[])
             freopen(argv[++carg_i], "a+", stdout);
         }
 
+        else if (string(argv[carg_i]) == string("-event_names")) {
+            ++carg_i;
+            if (carg_i >= argc) {
+                return terminate_IGoR_with_error_message("Expected nickname or legacy after -event_names");
+            }
+            try {
+                cl_event_labels = str2EventLabel(string(argv[carg_i]));
+            } catch (exception &e) {
+                return terminate_IGoR_with_error_message(e.what());
+            }
+        }
+
         else if (string(argv[carg_i]) == string("-batch")) {
             ++carg_i;
             batchname = argv[carg_i];
@@ -400,7 +416,7 @@ int igor_legacy_main(int argc, char *argv[])
                 ++carg_i;
                 //Check if the next argument is a new command or the corresponding marginal file
                 try {
-                    cl_model_marginals.txt2marginals(string(argv[carg_i]), cl_model_parms);
+                    cl_model_marginals.read_marginals(string(argv[carg_i]), cl_model_parms);
                 } catch (exception &e) {
                     forward_list<string> error_messages;
                     error_messages.emplace_front("If you have altered the default model structure corresponding "
@@ -410,6 +426,15 @@ int igor_legacy_main(int argc, char *argv[])
                     error_messages.emplace_front(
                             "Exception caught while reading custom marginals after \"-set_custom_model\"");
                     return terminate_IGoR_with_error_message(error_messages, e);
+                }
+            } else if (model_file_has_parameters(argv[carg_i])) {
+                //A complete JSON model carries its marginals.
+                try {
+                    cl_model_marginals.read_marginals(string(argv[carg_i]), cl_model_parms);
+                } catch (exception &e) {
+                    return terminate_IGoR_with_error_message(
+                            "Exception caught while reading the parameters of the model after \"-set_custom_model\"",
+                            e);
                 }
             } else {
                 clog << "No model marginals file was provided with the custom model parameters, initializing "
@@ -1109,6 +1134,12 @@ int igor_legacy_main(int argc, char *argv[])
         ++carg_i;
     }
 
+    for (const auto &[index, counter] : cl_counters_list) {
+        if (auto best_scenarios = dynamic_pointer_cast<Best_scenarios_counter>(counter)) {
+            best_scenarios->set_event_labels(cl_event_labels);
+        }
+    }
+
     //Make sure the working directory is set somewhere before performing any action
     if (not wd) {
         cl_path = "/tmp/";
@@ -1312,9 +1343,13 @@ int igor_legacy_main(int argc, char *argv[])
     if (load_last_inferred_parms) {
         clog << "Loading last inferred model..." << endl;
         try {
-            cl_model_parms.read_model_parms(cl_path + batchname + "inference/final_parms.txt");
+            //An inference of a model the v1 format cannot hold wrote it, and its marginals, as JSON.
+            const string last_parms = cl_path + batchname + "inference/final_parms";
+            const string extension = std::filesystem::exists(last_parms + ".json") ? ".json" : ".txt";
+            cl_model_parms.read_model_parms(last_parms + extension);
             cl_model_marginals = Model_marginals(cl_model_parms);
-            cl_model_marginals.txt2marginals(cl_path + batchname + "inference/final_marginals.txt", cl_model_parms);
+            cl_model_marginals.read_marginals(cl_path + batchname + "inference/final_marginals" + extension,
+                                              cl_model_parms);
 
             //Check if the model contains a D gene event in order to load the alignments
             auto events_map = cl_model_parms.get_events_map();
@@ -1387,9 +1422,7 @@ int igor_legacy_main(int argc, char *argv[])
             }
             if (any_genomic_difference) {
                 //If any difference is detected reset the marginals
-                Rec_Event_name former_name = v_choice_gc->get_name();
                 v_choice_gc->set_genomic_templates(v_genomic);
-                cl_model_parms.update_edge_event_name(former_name, v_choice_gc->get_name());
                 any_custom_gene = true;
             } else {
                 //Else we set to 0 probability all the ones that were not found in the list of genomic templates
@@ -1426,9 +1459,7 @@ int igor_legacy_main(int argc, char *argv[])
             }
             if (any_genomic_difference) {
                 //If any difference is detected reset the marginals
-                Rec_Event_name former_name = d_choice_gc->get_name();
                 d_choice_gc->set_genomic_templates(d_genomic);
-                cl_model_parms.update_edge_event_name(former_name, d_choice_gc->get_name());
                 any_custom_gene = true;
             } else {
                 //Else we set to 0 probability all the ones that were not found in the list of genomic templates
@@ -1465,9 +1496,7 @@ int igor_legacy_main(int argc, char *argv[])
             }
             if (any_genomic_difference) {
                 //If any difference is detected reset the marginals
-                Rec_Event_name former_name = j_choice_gc->get_name();
                 j_choice_gc->set_genomic_templates(j_genomic);
-                cl_model_parms.update_edge_event_name(former_name, j_choice_gc->get_name());
                 any_custom_gene = true;
             } else {
                 //Else we set to 0 probability all the ones that were not found in the list of genomic templates
@@ -1763,7 +1792,8 @@ int igor_legacy_main(int argc, char *argv[])
         counters_list.emplace(4, coverage_counter_j_ptr);
 
         //Collect 10 best scenarios per sequence during the last iteration
-        shared_ptr<Counter> best_sc_ptr(new Best_scenarios_counter(10, cl_path + "/run_demo/", true));
+        shared_ptr<Best_scenarios_counter> best_sc_ptr(new Best_scenarios_counter(10, cl_path + "/run_demo/", true));
+        best_sc_ptr->set_event_labels(cl_event_labels);
         counters_list.emplace(1, best_sc_ptr);
 
         //Collect sequence generation probability during last iteration
@@ -1809,6 +1839,7 @@ int igor_legacy_main(int argc, char *argv[])
         //Generate sequences
         clog << "Generate sequences" << endl;
         SequenceGenerator generator(gen_model.get_model_parms(), gen_model.get_marginals());
+        generator.set_event_labels(cl_event_labels);
         auto generated_seq = generator.generate_sequences(100, false); //Without errors
         generator.write_seq_real2txt(string(cl_path + "/generated_seqs_indexed_demo.csv"),
                                      string(cl_path + "/generated_seqs_realizations_demo.csv"),
@@ -2249,6 +2280,7 @@ int igor_legacy_main(int argc, char *argv[])
             std::filesystem::create_directories(cl_path + batchname + "generated");
 
             SequenceGenerator genmodel(cl_model_parms, cl_model_marginals);
+            genmodel.set_event_labels(cl_event_labels);
 
             //TODO create generated folder
             string w_err_str;

@@ -3,6 +3,7 @@
 add_executable(model_tests
     test_EventFactory.cpp
     test_LegacyBridge.cpp
+    test_ModelSchema.cpp
     test_RecombinationModel.cpp
     test_Topology.cpp
     test_bound_tightness.cpp
@@ -20,6 +21,7 @@ target_sources(model_tests
         Legacy/test_dinucl_markov_iterate.cpp
         Legacy/test_error_rate_bound.cpp
         Legacy/test_event_capabilities.cpp
+        Legacy/test_event_names.cpp
         Legacy/test_event_seq_type.cpp
         Legacy/test_EventUtils.cpp
         Legacy/test_gene_choice_iterate.cpp
@@ -27,8 +29,9 @@ target_sources(model_tests
         Legacy/test_generation_state.cpp
         Legacy/test_genetic_code.cpp
         Legacy/test_insertion_iterate.cpp
-        Legacy/test_model_format_v2.cpp
+        Legacy/test_model_formats.cpp
         Legacy/test_model_json.cpp
+        Legacy/test_model_parameters.cpp
         Legacy/test_proba_bound_benchmark.cpp
         Legacy/test_tandem_junctions.cpp
         Legacy/test_utils.cpp
@@ -36,9 +39,11 @@ target_sources(model_tests
 
 set_target_properties(model_tests PROPERTIES CXX_STANDARD 23)
 
+# The validator directly too: test_ModelSchema.cpp checks the schemas against the draft-07 meta-schema.
 target_link_libraries(model_tests
     PRIVATE
         igor::Model
+        nlohmann_json_schema_validator::validator
         Catch2::Catch2WithMain
 )
 

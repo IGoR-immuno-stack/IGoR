@@ -41,7 +41,6 @@ using namespace std;
 Gene_choice::Gene_choice() : Gene_choice(Undefined_gene)
 {
     this->type = Event_type::GeneChoice_t;
-    this->update_event_name();
 }
 
 Gene_choice::Gene_choice(Gene_class gene)
@@ -61,7 +60,6 @@ Gene_choice::Gene_choice(Gene_class gene)
       memory_layer_off_fivep(-1)
 {
     this->type = Event_type::GeneChoice_t;
-    this->update_event_name();
 }
 
 /*
@@ -82,7 +80,6 @@ Gene_choice::Gene_choice(Gene_class gene, unordered_map<string, Event_realizatio
             this->len_min = str_len;
         }
     }
-    this->update_event_name();
 }
 
 Gene_choice::Gene_choice(Gene_class gene, vector<pair<string, string>> genomic_sequences) : Gene_choice(gene)
@@ -98,32 +95,40 @@ Gene_choice::Gene_choice(Gene_class gene, vector<pair<string, string>> genomic_s
         }
         this->add_realization((*seq_it).first, (*seq_it).second);
     }
-    this->update_event_name();
 }
 
-Gene_choice::Gene_choice(const nlohmann::json &node)
-    : Gene_choice(str2GeneClassNew(igor::model::legacy::json_detail::require(node, "gene_class").get<string>()))
+Gene_choice::Gene_choice(const string &nickname, const nlohmann::json &node, const nlohmann::json &library)
+    : Gene_choice(str2GeneClassNew(
+              igor::model::legacy::json_detail::validated(node, "GeneChoice").at("library").get<string>()))
 {
     using namespace igor::model::legacy::json_detail;
-    reject_unknown_keys(node, kGeneChoiceKeys);
-    expect_type(node, "GeneChoice");
+    const auto [segment, side] = single_target(node);
+    this->set_seq_type(segment);
+    this->set_event_side(side);
+    this->set_priority(node.at("priority").get<int>());
+    this->set_nickname(nickname);
 
-    this->set_seq_type(require(node, "seq_type").get<Seq_type_String>());
-    this->set_event_side(str2SeqSide(require(node, "side").get<string>()));
-    this->set_priority(require(node, "priority").get<int>());
-    this->set_nickname(require(node, "nickname").get<string>());
-
-    for (const nlohmann::json *realization : realizations_in_index_order(node))
-        this->add_realization(require(*realization, "name").get<string>(),
-                              require(*realization, "value_str").get<string>());
-
-    this->update_event_name();
+    // Each realization's template, from the document's library, under the realization's label.
+    const string &name = node.at("library").get_ref<const string &>();
+    const auto templates = library.find(name);
+    if (templates == library.end())
+        throw std::runtime_error("event json: the document has no library \"" + name + "\"");
+    igor::model::schema::validate(library, "library.schema.json", "the library");
+    for (const nlohmann::json *realization : realizations_in_index_order(node)) {
+        const auto label = realization->at("label").get<string>();
+        const auto entry = templates->find(label);
+        if (entry == templates->end())
+            throw std::runtime_error("event json: library \"" + name + "\" has no template \"" + label + "\"");
+        this->add_realization(label, entry->at("sequence").get<string>());
+    }
 }
 
+/// The library is the gene class: the key of the alignments the choice reads. The templates are
+/// the library's, which the document writes in its own section.
 nlohmann::json Gene_choice::to_json() const
 {
     nlohmann::json out = Rec_Event::to_json();
-    out["gene_class"] = to_string(this->event_class);
+    out["library"] = to_string(this->event_class);
     return out;
 }
 
@@ -139,7 +144,6 @@ shared_ptr<Rec_Event> Gene_choice::copy()
     new_gene_choice_p->priority = this->priority;
     new_gene_choice_p->nickname = this->nickname;
     new_gene_choice_p->fixed = this->fixed;
-    new_gene_choice_p->update_event_name();
     new_gene_choice_p->set_event_identifier(this->event_index);
     new_gene_choice_p->set_seq_type(this->get_seq_type());
     new_gene_choice_p->set_seq_type_id(this->get_seq_type_id());
@@ -156,7 +160,6 @@ bool Gene_choice::add_realization(string gene_name, string gene_sequence)
     }
     this->Rec_Event::add_realization(Event_realization(gene_name, INT16_MAX, gene_sequence, nt2int(gene_sequence),
                                                        this->event_realizations.size())); //FIXME nonsense new
-    this->update_event_name();
     return 1;
 }
 
@@ -715,14 +718,6 @@ void Gene_choice::write2txt(ofstream &outfile)
 void Gene_choice::write2txt_legacy(ofstream &outfile)
 {
     outfile << "#GeneChoice;" << event_class << ";" << event_side << ";" << priority << ";" << nickname << endl;
-    for (const auto &iter : event_realizations) {
-        outfile << "%" << iter.second.name << ";" << iter.second.value_str << ";" << iter.second.index << endl;
-    }
-}
-
-void Gene_choice::write2txt_v2(ofstream &outfile)
-{
-    outfile << "#GeneChoice;" << event_class << ";" << seq_type << ";" << event_side << ";" << priority << ";" << nickname << endl;
     for (const auto &iter : event_realizations) {
         outfile << "%" << iter.second.name << ";" << iter.second.value_str << ";" << iter.second.index << endl;
     }

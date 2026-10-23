@@ -202,9 +202,13 @@ public:
     void write_seq_real2txt(std::string, std::string,
                             std::forward_list<std::pair<std::string, std::queue<std::queue<int>>>>);
 
+    /// How the realizations files' headers name the events: by nickname (the default), or by legacy name.
+    void set_event_labels(Event_label labels) { this->event_labels = labels; }
+
 private:
     Model_Parms model_parms;
     Model_marginals model_marginals;
+    Event_label event_labels = Event_label::Nickname;
     std::unique_ptr<igor::generation::legacy::fast::FastGenerator> fast_generator_;
     std::pair<std::string, std::queue<std::queue<int>>> generate_unique_sequence(
             std::queue<std::shared_ptr<Rec_Event>>, std::unordered_map<Rec_Event_name, int>,

@@ -61,8 +61,8 @@ public:
     Insertion(const Seq_type_String &, std::pair<int, int>);
     explicit Insertion(const Seq_type_String &);
     Insertion(const Seq_type_String &, std::unordered_map<std::string, Event_realization> &);
-    /// From one event node of the JSON model schema. See ModelJson.h.
-    explicit Insertion(const nlohmann::json &);
+    /// From its nickname and its node in a model document. See ModelJson.h.
+    Insertion(const std::string &nickname, const nlohmann::json &);
 
     //Destructor
     ~Insertion() override;
@@ -81,9 +81,6 @@ public:
     void construct_realization(const std::vector<int> &, GenerationState &) const override;
     void write2txt(std::ofstream &) override;
     void write2txt_legacy(std::ofstream &) override;
-    void write2txt_v2(std::ofstream &) override;
-
-    void update_event_name() override;
 
     void initialize_event(
             std::unordered_set<Rec_Event_name> &,
@@ -105,6 +102,10 @@ public:
     OffsetRole get_offset_role(SeqTypeId, Seq_side) const override;
 
     int length_delta(const Event_realization &) const override;
+
+protected:
+    /// The junction class the v1 format names the insertion's seq type by, VD_genes for VD_ins_seq.
+    std::string name_class_token() const override;
 
 private:
     inline double iterate_common(

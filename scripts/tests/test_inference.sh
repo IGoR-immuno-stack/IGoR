@@ -7,6 +7,8 @@ OUTDIR="${1:-$(mktemp -d)}"
 IGORCALL="$IGORBIN -w $OUTDIR"
 
 $IGORCALL init
+# Outputs name events by nickname by default; the goldens carry the generated legacy names.
+$IGORCALL config set output.event_names legacy
 $IGORCALL config set model.source custom
 $IGORCALL config set model.parms "$TESTINPUT/TRB_model_parms.txt"
 $IGORCALL config set model.marginals "$TESTINPUT/TRB_uniform_model_marginals.txt"

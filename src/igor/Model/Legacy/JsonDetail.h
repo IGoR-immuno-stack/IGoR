@@ -2,98 +2,93 @@
 
 /**
  * \file JsonDetail.h
- * \brief Validation helpers shared by the events' JSON constructors.
+ * \brief Helpers shared by the events' JSON constructors.
  *
  * Internal header: it includes the full json.hpp, so it is included by .cpp files only and is
  * deliberately absent from Core's installed FILE_SET. An installed header that included this
  * one would put 25k lines of json.hpp in front of every consumer.
  *
- * The point of these helpers is that a JSON document moves errors from compile time to run
- * time, so every one of them has to be caught and named. A missing key, an unknown key and a
- * gap in the realization indices all raise, rather than producing an event that looks built
- * and is not.
+ * A constructor first checks its node against its type's schema (ModelSchema.h), which settles
+ * the node's shape: its keys, their types, the side's spelling, one target. What is left here is
+ * what a schema cannot say: that indices run from 0 without gaps, and that labels are unique.
  */
+
+#include <igor/Core/Types.h>
+#include <igor/Model/ModelSchema.h>
 
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
-#include <initializer_list>
+#include <set>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace igor::model::legacy::json_detail {
 
-/// Keys every event node may carry. "parents" is model-level, written and read by
-/// ModelJson, but it is listed here so that an event constructor does not reject it.
-inline constexpr std::initializer_list<const char *> kEventKeys = {
-        "type", "seq_type", "side", "priority", "nickname", "realizations", "parents"
-};
-
-/// A gene choice's keys: the common ones plus "gene_class", the gene library it draws from.
-/// No other event has a gene class of its own, so a node of another type carrying one is
-/// refused like any other unknown key.
-inline constexpr std::initializer_list<const char *> kGeneChoiceKeys = {
-        "type", "gene_class", "seq_type", "side", "priority", "nickname", "realizations", "parents"
-};
-
-inline const nlohmann::json &require(const nlohmann::json &node, const char *key)
+/// \a node, once checked against the schema of the event type \a type: what a constructor reads.
+inline const nlohmann::json &validated(const nlohmann::json &node, const std::string &type)
 {
-    const auto it = node.find(key);
-    if (it == node.end())
-        throw std::runtime_error(std::string("event json: missing key \"") + key + "\"");
-    return *it;
+    igor::model::schema::validate(node, "event-" + type + ".schema.json", "the " + type + " node");
+    return node;
 }
 
-inline void reject_unknown_keys(const nlohmann::json &node,
-                                std::initializer_list<const char *> allowed)
+/// "5'" and "3'", as the model document spells an end. An event that acts on no particular end
+/// leaves the side out.
+inline std::string side_to_json(core::SeqSide side)
 {
-    for (const auto &entry : node.items()) {
-        const bool known = std::any_of(allowed.begin(), allowed.end(),
-                                       [&](const char *a) { return entry.key() == a; });
-        if (!known)
-            throw std::runtime_error("event json: unknown key \"" + entry.key() + "\"");
-    }
+    return (side == core::Five_prime) ? "5'" : "3'";
 }
 
-inline void expect_type(const nlohmann::json &node, const char *expected)
+/// The one segment, and end, a validated node's event acts on: the legacy events act on one.
+inline std::pair<core::SeqTypeString, core::SeqSide> single_target(const nlohmann::json &node)
 {
-    const auto type = require(node, "type").get<std::string>();
-    if (type != expected)
-        throw std::runtime_error("event json: expected type \"" + std::string(expected)
-                                 + "\", got \"" + type + "\"");
+    const nlohmann::json &target = node.at("targets").front();
+    const auto side = target.find("side");
+    const core::SeqSide parsed = (side == target.end()) ? core::Undefined_side
+                                 : (*side == "5'")      ? core::Five_prime
+                                                        : core::Three_prime;
+    return { target.at("segment").get<core::SeqTypeString>(), parsed };
+}
+
+/// single_target() of \a node once validated: for a constructor's base-class arguments, whose order
+/// of evaluation is unspecified, so that each validates before it reads.
+inline std::pair<core::SeqTypeString, core::SeqSide> validated_target(const nlohmann::json &node,
+                                                                       const std::string &type)
+{
+    return single_target(validated(node, type));
 }
 
 /**
- * \brief The node's realizations, ordered by index.
+ * \brief A validated node's realizations, ordered by index.
  *
- * Also enforces the schema's one numbering rule: indices are exactly 0 to n-1. The rule is
- * not decoration. Every concrete add_realization() assigns the index itself, from the current
- * realization count, so a document with a gap or a duplicate would be silently renumbered and
- * would no longer match the marginal array it was written for. All six shipped models satisfy
- * the rule, so enforcing it costs nothing and closes that hole.
+ * Enforces the two rules a schema cannot: labels are unique, since a label is a realization's
+ * identity; and indices are exactly 0 to n-1. The second is not decoration. Every concrete
+ * add_realization() assigns the index itself, from the current realization count, so a document
+ * with a gap or a duplicate would be silently renumbered and would no longer match the marginal
+ * array it was written for.
  */
 inline std::vector<const nlohmann::json *> realizations_in_index_order(const nlohmann::json &node)
 {
-    const nlohmann::json &array = require(node, "realizations");
     std::vector<const nlohmann::json *> out;
-    out.reserve(array.size());
-    for (const auto &realization : array)
+    std::set<std::string> labels;
+    for (const auto &realization : node.at("realizations")) {
+        if (!labels.insert(realization.at("label").dump()).second)
+            throw std::runtime_error("event json: two realizations are labelled " + realization.at("label").dump());
         out.push_back(&realization);
+    }
 
-    std::sort(out.begin(), out.end(),
-              [](const nlohmann::json *a, const nlohmann::json *b) {
-                  return require(*a, "index").get<int>() < require(*b, "index").get<int>();
-              });
+    std::sort(out.begin(), out.end(), [](const nlohmann::json *a, const nlohmann::json *b) {
+        return a->at("index").get<int>() < b->at("index").get<int>();
+    });
 
     for (std::size_t position = 0; position != out.size(); ++position) {
-        const int index = require(*out[position], "index").get<int>();
+        const int index = out[position]->at("index").get<int>();
         if (index != static_cast<int>(position))
-            throw std::runtime_error(
-                    "event json: realization indices must run from 0 without gaps, found "
-                    + std::to_string(index) + " where " + std::to_string(position)
-                    + " was expected in event \""
-                    + require(node, "nickname").get<std::string>() + "\"");
+            throw std::runtime_error("event json: realization indices must run from 0 without gaps, found "
+                                     + std::to_string(index) + " where " + std::to_string(position)
+                                     + " was expected");
     }
     return out;
 }

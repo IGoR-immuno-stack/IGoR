@@ -1,0 +1,83 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/IGoR-immuno-stack/IGoR/master/src/igor/Model/schemas/0.3/parameters.schema.json",
+  "title": "IGoR model: parameters",
+  "description": "The model's probabilities, one node per event. Each axis names its event and, optionally, the labels of its coordinates, by which values are matched to realizations. Values are nested one level per axis.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "nodes"
+  ],
+  "properties": {
+    "nodes": {
+      "type": "object",
+      "propertyNames": {
+        "$ref": "common.schema.json#/definitions/nickname"
+      },
+      "description": "One node per event, keyed by nickname.",
+      "patternProperties": {
+        "": {
+          "$ref": "#/definitions/node"
+        }
+      }
+    }
+  },
+  "definitions": {
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "axes",
+        "values"
+      ],
+      "properties": {
+        "axes": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/definitions/axis"
+          },
+          "description": "The event's parents, in any order, then its own axis (a Markov chain's two, from then to)."
+        },
+        "values": {
+          "$ref": "#/definitions/values"
+        }
+      }
+    },
+    "axis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "event"
+      ],
+      "properties": {
+        "event": {
+          "$ref": "common.schema.json#/definitions/nickname"
+        },
+        "labels": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "common.schema.json#/definitions/label"
+          },
+          "description": "The labels of the axis's coordinates, in any order. Without them, the axis follows the model's index order."
+        }
+      }
+    },
+    "values": {
+      "if": {
+        "type": "array"
+      },
+      "then": {
+        "items": {
+          "$ref": "#/definitions/values"
+        }
+      },
+      "else": {
+        "type": "number",
+        "minimum": 0
+      },
+      "description": "A non-negative number, or a list of values: one level per axis."
+    }
+  }
+}

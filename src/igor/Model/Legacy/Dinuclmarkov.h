@@ -84,8 +84,8 @@ public:
     //Constructors
     //TODO should be scalable on one side easily (mono di tri quadri nucl)
     explicit Dinucl_markov(const Seq_type_String &);
-    /// From one event node of the JSON model schema. See ModelJson.h.
-    explicit Dinucl_markov(const nlohmann::json &);
+    /// From its nickname and its node in a model document. See ModelJson.h.
+    Dinucl_markov(const std::string &nickname, const nlohmann::json &);
     //Destructor
     ~Dinucl_markov() override;
 
@@ -129,10 +129,8 @@ public:
     {}
     void write2txt(std::ofstream &) override;
     void write2txt_legacy(std::ofstream &) override;
-    void write2txt_v2(std::ofstream &) override;
     void ind_normalize(Marginal_array_p &, size_t) const override;
-    
-    void update_event_name() override;
+
     void initialize_event(
             std::unordered_set<Rec_Event_name> &,
             const Events_map &,
@@ -153,6 +151,10 @@ public:
     int length_delta(const Event_realization &) const override;
     double span_proba_factor(SegmentSpan, const UnfilledSegmentLengths &) const override;
     void prepare_span_proba_factor(const Marginal_array_p &, const Index_map &) override;
+
+protected:
+    /// The junction class the v1 format names the chain's seq type by, as for an insertion.
+    std::string name_class_token() const override;
 
 private:
     Matrix<double> dinuc_proba_matrix;

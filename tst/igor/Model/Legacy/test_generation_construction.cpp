@@ -184,7 +184,7 @@ std::shared_ptr<Event> place(std::shared_ptr<Event> event, const SeqTypeRegistry
     const SeqTypeId id = registry.id(seq_type);
     event->set_seq_type_id(id);
     event->set_adjacent_segments(registry.left_neighbor(id), registry.right_neighbor(id));
-    event->update_event_name();
+    event->set_nickname(default_nickname(*event));
     return event;
 }
 

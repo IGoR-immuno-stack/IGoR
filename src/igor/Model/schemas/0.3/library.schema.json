@@ -1,0 +1,28 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/IGoR-immuno-stack/IGoR/master/src/igor/Model/schemas/0.3/library.schema.json",
+  "title": "IGoR model: template library",
+  "description": "Germline templates, by library and, in each, by label: what gene choices draw from.",
+  "type": "object",
+  "patternProperties": {
+    "": {
+      "type": "object",
+      "description": "A library's templates, by label.",
+      "patternProperties": {
+        "": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "sequence"
+          ],
+          "properties": {
+            "sequence": {
+              "type": "string",
+              "description": "The germline template, 5' to 3'."
+            }
+          }
+        }
+      }
+    }
+  }
+}

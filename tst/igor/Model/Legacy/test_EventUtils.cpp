@@ -26,7 +26,7 @@ using namespace igor::model::legacy::EventUtils;
 // Mock Rec_Event for testing
 class MockEvent : public Rec_Event {
 public:
-  MockEvent(string name) : Rec_Event() { this->name = name; }
+  MockEvent(string name) : Rec_Event() { this->set_nickname(name); }
   void
   iterate(QuerySequenceContext& query,
           const ModelContext& model,
@@ -37,7 +37,6 @@ public:
   void construct_realization(const vector<int> &, GenerationState &) const override {}
   void write2txt(ofstream &) override {}
   void write2txt_legacy(ofstream &) override {}
-  void write2txt_v2(ofstream &) override {}
   void initialize_event(
       unordered_set<Rec_Event_name> &,
       const Events_map &,

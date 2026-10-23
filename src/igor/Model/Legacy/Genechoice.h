@@ -72,8 +72,8 @@ public:
     Gene_choice(Gene_class);
     Gene_choice(Gene_class, std::unordered_map<std::string, Event_realization> &);
     Gene_choice(Gene_class, std::vector<std::pair<std::string, std::string>>);
-    /// From one event node of the JSON model schema. See ModelJson.h.
-    explicit Gene_choice(const nlohmann::json &);
+    /// From its nickname, its node, and the document's library, where its templates are. See ModelJson.h.
+    Gene_choice(const std::string &nickname, const nlohmann::json &node, const nlohmann::json &library);
     //Destructor
     ~Gene_choice() override;
     //Virtual methods overload
@@ -92,7 +92,6 @@ public:
     void construct_realization(const std::vector<int> &, GenerationState &) const override;
     void write2txt(std::ofstream &) override;
     void write2txt_legacy(std::ofstream &) override;
-    void write2txt_v2(std::ofstream &) override;
     /// The base class's node plus "gene_class", which only a gene choice carries: the gene
     /// library its realizations come from.
     nlohmann::json to_json() const override;

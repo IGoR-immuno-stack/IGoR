@@ -88,6 +88,7 @@ void FastGenerator::initialize(const Model_Parms &model_parms, const Model_margi
         sampler.gene_class = event->get_class();
         sampler.side = event->get_side();
         sampler.name = event->get_name();
+        sampler.event = event;
         sampler.seq_type = event->get_seq_type();
         sampler.event_index = event_idx;
         sampler.num_realizations = event->size();
@@ -710,7 +711,7 @@ void FastGenerator::generate_to_files(size_t num_sequences, const std::string &s
 
     real_file << "seq_index";
     for (const auto &sampler : event_samplers_) {
-        real_file << ";" << sampler.name;
+        real_file << ";" << event_label(*sampler.event, config.event_labels);
     }
     real_file << "\n";
 

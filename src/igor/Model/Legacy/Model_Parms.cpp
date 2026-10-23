@@ -29,12 +29,17 @@
 
 #include <igor/Model/Legacy/Model_Parms.h>
 #include <igor/Alignment/Legacy/Aligner.h>
+#include <map>
 #include <set>
+#include <tuple>
 
 #include <cassert>
 #include <igor/Model/Legacy/gene_to_seqtype_migr.h>
 #include <igor/Model/Legacy/EventUtils.h>
 #include <igor/Model/Legacy/LegacyFormat.h>
+#include <igor/Model/Legacy/ModelJson.h>
+
+#include <nlohmann/json.hpp>
 
 namespace igor::model::legacy {
 using namespace igor::core::legacy;
@@ -56,13 +61,8 @@ Model_Parms::Model_Parms()
  */
 Model_Parms::Model_Parms(list<shared_ptr<Rec_Event>> event_list)
 {
-    this->events = event_list;
-    //this->edges = *(new unordered_map<Rec_Event_name,Adjacency_list>()); //FIXME nonsense new
-    size_t event_identifier = 0;
-    for (list<shared_ptr<Rec_Event>>::const_iterator iter = this->events.begin(); iter != this->events.end(); ++iter) {
-        this->edges.emplace((*iter)->get_name(), Adjacency_list());
-        (*iter)->set_event_identifier(event_identifier);
-        ++event_identifier;
+    for (const shared_ptr<Rec_Event> &event : event_list) {
+        this->add_event(event);
     }
 }
 
@@ -76,32 +76,22 @@ Model_Parms::Model_Parms(const Model_Parms &other)
         this->events.push_back((*iter)->copy());
     }
 
-    for (unordered_map<Rec_Event_name, Adjacency_list>::const_iterator iter = other.edges.begin();
-         iter != other.edges.end(); ++iter) {
+    //Each edge's events are found again by name, which is unique in a model. They used to be
+    //found with Rec_Event::operator==, which ignored the seq type, so in a copy an edge to D2's
+    //deletion could land on D1's.
+    unordered_map<Rec_Event_name, shared_ptr<Rec_Event>> copy_named;
+    for (const shared_ptr<Rec_Event> &event : this->events) {
+        copy_named.emplace(event->get_name(), event);
+    }
+    for (const auto &[name, other_adjacency] : other.edges) {
         Adjacency_list adjacency_list;
-        //TODO very dirty need to be changed
-        for (list<shared_ptr<Rec_Event>>::const_iterator jiter = (*iter).second.children.begin();
-             jiter != (*iter).second.children.end(); ++jiter) {
-            for (list<shared_ptr<Rec_Event>>::const_iterator kiter = this->events.begin(); kiter != this->events.end();
-                 ++kiter) {
-                if ((**kiter) == (**jiter)) {
-                    adjacency_list.children.push_back((*kiter));
-                    break;
-                }
-            }
+        for (const shared_ptr<Rec_Event> &child : other_adjacency.children) {
+            adjacency_list.children.push_back(copy_named.at(child->get_name()));
         }
-        for (list<shared_ptr<Rec_Event>>::const_iterator jiter = (*iter).second.parents.begin();
-             jiter != (*iter).second.parents.end(); ++jiter) {
-            for (list<shared_ptr<Rec_Event>>::const_iterator kiter = this->events.begin(); kiter != this->events.end();
-                 ++kiter) {
-                if ((**kiter) == (**jiter)) {
-                    adjacency_list.parents.push_back((*kiter));
-                    break;
-                }
-            }
+        for (const shared_ptr<Rec_Event> &parent : other_adjacency.parents) {
+            adjacency_list.parents.push_back(copy_named.at(parent->get_name()));
         }
-
-        this->edges.emplace((*iter).first, adjacency_list);
+        this->edges.emplace(name, adjacency_list);
     }
     this->error_rate = other.error_rate->copy();
     //The registry holds no owning pointers, so a plain copy is a deep copy.
@@ -150,6 +140,17 @@ bool Model_Parms::add_event(shared_ptr<Rec_Event> event_point)
     //could require a seq_type the frozen registry no longer accepts.
     if (seq_type_registry.is_frozen()) {
         throw std::logic_error("Model_Parms::add_event(): the model has been finalized");
+    }
+    //The nickname is the event's name: the key of the edges and the marginals' maps, and what
+    //the files and outputs name the event by (plan T2). An event without one, or with one the
+    //model already has, would share every entry with another.
+    if (event_point->get_nickname().empty()) {
+        throw runtime_error("Model_Parms::add_event(): the " + (string() + event_point->get_type())
+                            + " event on \"" + event_point->get_seq_type() + "\" has no nickname");
+    }
+    if (this->edges.count(event_point->get_name()) != 0) {
+        throw runtime_error("Model_Parms::add_event(): the model already has an event named \""
+                            + event_point->get_name() + "\"");
     }
     event_point->set_event_identifier(this->events.size());
     this->events.emplace_back(event_point);
@@ -519,8 +520,7 @@ shared_ptr<Rec_Event> Model_Parms::get_event_pointer(const string &event_str, bo
                 return (*iter);
             }
         } else {
-            // Accept both legacy names (no seq_type) and v2 names (with seq_type)
-            if ((*iter)->get_name() == event_str || (*iter)->get_v2_name() == event_str) {
+            if ((*iter)->get_name() == event_str) {
                 return (*iter);
             }
         }
@@ -535,15 +535,6 @@ shared_ptr<Rec_Event> Model_Parms::get_event_pointer(const string &event_str, bo
 shared_ptr<Rec_Event> Model_Parms::get_event_pointer(const Rec_Event_name &event_name) const
 {
     return this->get_event_pointer(event_name, false);
-}
-
-void Model_Parms::update_edge_event_name(Rec_Event_name former_name, Rec_Event_name new_name)
-{
-    if (former_name != new_name) {
-        Adjacency_list adjacency_list = this->edges.at(former_name);
-        this->edges.emplace(new_name, adjacency_list);
-        this->edges.erase(former_name);
-    }
 }
 
 Events_map Model_Parms::get_events_map() const
@@ -576,13 +567,24 @@ Events_map Model_Parms::get_events_map()
     return events_map;
 }
 
-/**
- * Returns true if this model requires v2.0 format to be fully represented:
- * - any seq_type is outside the 6 standard legacy types, or
- * - the seq_type ordering is non-standard (neither VDJ nor VJ order)
- */
 void Model_Parms::finalize()
 {
+    //A name no longer stops two events of one type on one segment and side, and nothing in the
+    //model forbids them. The legacy engine does: get_events_map() holds one event per such key,
+    //and would drop the second without a word.
+    map<tuple<Event_type, Seq_type_String, Seq_side>, shared_ptr<Rec_Event>> at_place;
+    for (const shared_ptr<Rec_Event> &event : events) {
+        const Seq_side map_side = (event->get_type() == Dinuclmarkov_t) ? Undefined_side : event->get_side();
+        const auto [placed, inserted] =
+                at_place.emplace(make_tuple(event->get_type(), event->get_seq_type(), map_side), event);
+        if (not inserted) {
+            throw runtime_error("Model_Parms::finalize(): \"" + placed->second->get_nickname() + "\" and \""
+                                + event->get_nickname() + "\" are both " + (string() + event->get_type())
+                                + " events on \"" + event->get_seq_type() + "\" at " + (string() + map_side)
+                                + ": the legacy engine holds one event per type, segment and side");
+        }
+    }
+
     if (!seq_type_registry.is_frozen()) {
         //Pin the legacy ids first, so that an inferred ordering does not renumber them.
         seq_type_registry.register_legacy_seq_types();
@@ -633,6 +635,29 @@ void Model_Parms::finalize()
     needs_finalize = false;
 }
 
+namespace {
+
+/// Whether a v1 event line reads back as \a event. The reader derives a seq type from the line's
+/// gene class: a gene choice's own class, the class legacy_gene_class_of() gives the others. An
+/// event built in code with no seq type yet gets one from its class, so it reads back too.
+bool v1_line_names_its_segment(const Rec_Event &event)
+{
+    if (event.get_seq_type().empty())
+        return event.get_type() == GeneChoice_t;
+    const Gene_class_legacy v1_class = legacy_gene_class_of(event.get_type(), event.get_seq_type());
+    if (v1_class == Undefined_gene_legacy)
+        return false;
+    return event.get_type() != GeneChoice_t or gene_class_legacy_to_new(v1_class) == event.get_class();
+}
+
+}  // namespace
+
+/**
+ * Whether the model needs JSON, the v1 format being unable to write it and read it back as itself:
+ * - an event whose v1 line would read back as another segment, or two events sharing a v1 name;
+ * - a seq_type outside the six legacy ones;
+ * - an ordering other than VDJ or VJ.
+ */
 bool Model_Parms::requires_extended_format() const
 {
     static const std::unordered_set<Seq_type_String> legacy_seq_types = {
@@ -644,6 +669,16 @@ bool Model_Parms::requires_extended_format() const
     static const std::vector<Seq_type_String> vj_order = {
         "V_gene_seq", "VJ_ins_seq", "J_gene_seq"
     };
+
+    //A v1 file names each segment by an event line's gene class, and each event in @Edges by
+    //its v1 name. So every event's line has to read back as that event, and no two events may
+    //share a v1 name: an insertion on a gene segment has no v1 class, and two deletions on two
+    //junctions would get one name.
+    unordered_set<Rec_Event_name> v1_names;
+    for (const auto &event : events) {
+        if (not v1_line_names_its_segment(*event) or not v1_names.insert(event->get_v1_legacy_name()).second)
+            return true;
+    }
 
     const auto &ordered = seq_type_registry.get_ordered_types();
     if (ordered.empty())
@@ -658,7 +693,7 @@ bool Model_Parms::requires_extended_format() const
 void Model_Parms::write_model_parms(string filename)
 {
     if (requires_extended_format())
-        write_model_parms_v2(filename);
+        write_model_parms_json(filename);
     else
         write_model_parms_legacy(filename);
 }
@@ -674,49 +709,26 @@ void Model_Parms::write_model_parms_legacy(string filename)
     for (list<shared_ptr<Rec_Event>>::const_iterator iter = events.begin(); iter != events.end(); ++iter) {
         list<shared_ptr<Rec_Event>> children = edges[(*iter)->get_name()].children;
         for (list<shared_ptr<Rec_Event>>::const_iterator jiter = children.begin(); jiter != children.end(); ++jiter) {
-            outfile << "%" << (*iter)->get_name() << ";" << (*jiter)->get_name() << endl;
+            outfile << "%" << (*iter)->get_v1_legacy_name() << ";" << (*jiter)->get_v1_legacy_name() << endl;
         }
     }
     outfile << "@ErrorRate" << endl;
     error_rate->write2txt(outfile);
 }
 
-void Model_Parms::write_model_parms_v2(string filename)
+void Model_Parms::write_model_parms_json(string filename)
 {
     ofstream outfile(filename);
+    outfile << model_parms_to_json(*this).dump(2) << endl;
+}
 
-    // Header
-    outfile << "@Version" << endl;
-    outfile << "2.0" << endl;
-
-    // Seq_type_order from registry
-    outfile << "@Seq_type_order" << endl;
-    const auto &ordered = seq_type_registry.get_ordered_types();
-    outfile << "[";
-    for (size_t i = 0; i < ordered.size(); ++i) {
-        if (i > 0) outfile << ",";
-        outfile << ordered[i];
+void Model_Parms::set_seq_type_order(const vector<Seq_type_String> &order)
+{
+    //As read_model_parms() does: the legacy ids pinned first (see there), then the order.
+    seq_type_registry.register_legacy_seq_types();
+    if (not order.empty()) {
+        seq_type_registry.set_ordered_types(order);
     }
-    outfile << "]" << endl;
-
-    // Events in v2 format
-    outfile << "@Event_list" << endl;
-    for (const auto &ev : events) {
-        ev->write2txt_v2(outfile);
-    }
-
-    // Edges — use v2-format names (include seq_type between class and side)
-    outfile << "@Edges" << endl;
-    for (const auto &ev : events) {
-        const auto &children = edges[ev->get_name()].children;
-        for (const auto &child : children) {
-            outfile << "%" << ev->get_v2_name() << ";" << child->get_v2_name() << endl;
-        }
-    }
-
-    // Error rate
-    outfile << "@ErrorRate" << endl;
-    error_rate->write2txt(outfile);
 }
 
 void Model_Parms::read_model_parms(string filename)
@@ -726,7 +738,19 @@ void Model_Parms::read_model_parms(string filename)
         //Throw exception
         throw runtime_error("File not found : \"" + filename + "\"");
     }
-    
+
+    //A model the v1 format cannot hold is a JSON document (plan T2), told apart by its content.
+    if (starts_like_json_document(infile)) {
+        nlohmann::json doc;
+        try {
+            doc = parse_model_document(infile);
+        } catch (const nlohmann::json::exception &e) {
+            throw runtime_error("Model file \"" + filename + "\" is not valid JSON: " + e.what());
+        }
+        model_parms_from_json(doc, *this);
+        return;
+    }
+
     //Pin the six legacy seq_types to ids 0-5, matching the Seq_type enum, before any
     //ordering is applied. Code still keyed by the enum then addresses the same slots as
     //code keyed by SeqTypeId. See SeqTypeRegistry::register_legacy_seq_types().
@@ -734,36 +758,12 @@ void Model_Parms::read_model_parms(string filename)
 
     string line_str;
     getline(infile, line_str);
-    
-    // Check for version section (v2.0 format)
-    double format_version = 1.0;  // Default to legacy format
-    vector<Seq_type_String> seq_type_order;
-    
+
     if (line_str == string("@Version")) {
-        getline(infile, line_str);
-        format_version = stod(line_str);
-        getline(infile, line_str);
-        
-        // Check for @Seq_type_order section
-        if (line_str == string("@Seq_type_order")) {
-            getline(infile, line_str);
-            // Parse Seq_type_order: format is [type1,type2,...]
-            if (line_str.size() > 2 && line_str[0] == '[' && line_str[line_str.size() - 1] == ']') {
-                string order_content = line_str.substr(1, line_str.size() - 2);
-                size_t pos = 0;
-                while ((pos = order_content.find(",")) != string::npos) {
-                    seq_type_order.push_back(order_content.substr(0, pos));
-                    order_content.erase(0, pos + 1);
-                }
-                if (!order_content.empty()) {
-                    seq_type_order.push_back(order_content);
-                }
-                seq_type_registry.set_ordered_types(seq_type_order);
-            }
-            getline(infile, line_str);
-        }
+        throw runtime_error("Model file \"" + filename + "\" is in the v2 text format, which was retired before "
+                            "any release: a model the v1 format cannot hold is written as JSON");
     }
-    
+
     // Now parse @Event_list section
     if (line_str == string("@Event_list")) {
         getline(infile, line_str);
@@ -780,22 +780,8 @@ void Model_Parms::read_model_parms(string filename)
                                     + "\"");
             }
             
-            // For v2.0 format, check if there's a seq_type field
-            Seq_type_String seq_type_str;
-            size_t side_semicolon_index;
-            
-            if (format_version >= 2.0) {
-                // v2.0 format: event_type;gene_class;seq_type;seq_side;priority;nickname
-                semicolon_index = next_semicolon_index;
-                next_semicolon_index = line_str.find(";", semicolon_index + 1);
-                seq_type_str = line_str.substr(semicolon_index + 1, (next_semicolon_index - semicolon_index - 1));
-                side_semicolon_index = next_semicolon_index;
-            } else {
-                // Legacy format: event_type;gene_class;seq_side;priority;nickname
-                side_semicolon_index = next_semicolon_index;
-            }
-
-            semicolon_index = side_semicolon_index;
+            // event_type;gene_class;seq_side;priority;nickname
+            semicolon_index = next_semicolon_index;
             next_semicolon_index = line_str.find(";", semicolon_index + 1);
             string event_side_str = line_str.substr(semicolon_index + 1, (next_semicolon_index - semicolon_index - 1));
             Seq_side event_side;
@@ -807,57 +793,39 @@ void Model_Parms::read_model_parms(string filename)
 
             semicolon_index = next_semicolon_index;
             next_semicolon_index = line_str.find(";", semicolon_index + 1);
-            int priority;
-            string nickname;
-            if (next_semicolon_index == string::npos) {
-                //For retro-compatibility purposes
-                priority = stoi(line_str.substr(semicolon_index + 1, string::npos));
-            } else {
-                //Read the nickname along with the priority
-                priority = stoi(line_str.substr(semicolon_index + 1, next_semicolon_index - 1));
-                nickname = line_str.substr(next_semicolon_index + 1, string::npos);
+            //The nickname is the event's name (plan T2). Early model files could leave it out; none
+            //that IGoR ships does, and adding one is cheap.
+            if (next_semicolon_index == string::npos
+                or next_semicolon_index + 1 == line_str.size()) {
+                throw runtime_error("Event line \"" + line_str + "\" in model file \"" + filename
+                                    + "\" has no nickname: every event needs one, unique in its model");
             }
+            const int priority = stoi(line_str.substr(semicolon_index + 1, next_semicolon_index - 1));
+            const string nickname = line_str.substr(next_semicolon_index + 1, string::npos);
 
             cerr << event << " read" << endl;
             
-            // Determine seq_type, and the gene class a gene choice is built with. The other three
-            // events take only the seq type: a deletion derives its gene class from it.
-            Seq_type_String event_seq_type = seq_type_str;
-            Gene_class effective_gene_class = gene_class_legacy_to_new(event_class);
-            
-            if (format_version < 2.0) {
-                // For legacy format, infer seq_type from gene_class and event type
-                Event_type evt_type = (event == "GeneChoice") ? GeneChoice_t : 
-                    (event == "Deletion") ? Deletion_t :
-                    (event == "Insertion") ? Insertion_t : Dinuclmarkov_t;
-                event_seq_type = legacy_gene_class_to_seq_type(event_class);
-                // The two lines the event constructors used to refuse while turning the name back
-                // into a Seq_type, refused here where the gene class still means something: a
-                // class naming no segment, and a deletion on a junction. A gene choice was never
-                // refused for either, and is not now.
-                const bool junction_class =
-                        (event_class == VD_genes or event_class == DJ_genes or event_class == VJ_genes);
-                if ((evt_type != GeneChoice_t and event_seq_type == "Undefined_seq")
-                    or (evt_type == Deletion_t and junction_class)) {
-                    throw runtime_error("Gene class \"" + to_string(event_class) + "\" names no segment a "
-                                        + event + " event can act on, in model file \"" + filename + "\"");
-                }
-            } else {
-                if (event == "GeneChoice") {
-                    // In v2.0, GeneChoice gene_class must be an alignment target only:
-                    // V_gene, D_gene, J_gene, or Undefined_gene. Junction classes are illegal.
-                    if (event_class == VD_genes || event_class == DJ_genes ||
-                        event_class == VJ_genes || event_class == VDJ_genes) {
-                        throw runtime_error(
-                            "Invalid gene_class \"" + to_string(event_class) +
-                            "\" for GeneChoice event in v2.0 format file \"" + filename +
-                            "\". In v2.0, GeneChoice gene_class must be V_gene, D_gene, J_gene,"
-                            " or Undefined_gene. Junction classes (VD_genes, DJ_genes, VJ_genes,"
-                            " VDJ_genes) are reserved for legacy format only.");
-                    }
-                }
+            // The seq type comes from the gene class and the event type; a gene choice is also
+            // built with its class. The other three events take only the seq type: a deletion
+            // derives its gene class from it.
+            const Gene_class effective_gene_class = gene_class_legacy_to_new(event_class);
+            const Event_type evt_type = (event == "GeneChoice") ? GeneChoice_t
+                                        : (event == "Deletion") ? Deletion_t
+                                        : (event == "Insertion") ? Insertion_t
+                                                                 : Dinuclmarkov_t;
+            const Seq_type_String event_seq_type = legacy_gene_class_to_seq_type(event_class);
+            // The two lines the event constructors used to refuse while turning the name back
+            // into a Seq_type, refused here where the gene class still means something: a
+            // class naming no segment, and a deletion on a junction. A gene choice was never
+            // refused for either, and is not now.
+            const bool junction_class =
+                    (event_class == VD_genes or event_class == DJ_genes or event_class == VJ_genes);
+            if ((evt_type != GeneChoice_t and event_seq_type == "Undefined_seq")
+                or (evt_type == Deletion_t and junction_class)) {
+                throw runtime_error("Gene class \"" + to_string(event_class) + "\" names no segment a "
+                                    + event + " event can act on, in model file \"" + filename + "\"");
             }
-            
+
             if (event == string("Insertion")) {
                 unordered_map<string, Event_realization> event_realizations =
                         unordered_map<string, Event_realization>();
@@ -922,18 +890,15 @@ void Model_Parms::read_model_parms(string filename)
                 shared_ptr<Dinucl_markov> new_event_p = shared_ptr<Dinucl_markov>(new Dinucl_markov(event_seq_type));
                 new_event_p->set_priority(priority);
                 new_event_p->set_nickname(nickname);
-                // Propagate direction: for legacy files derive from gene_class; for v2 use the parsed event_side.
-                if (format_version < 2.0) {
-                    Seq_side dinucl_side = Undefined_side;
-                    if (event_class == VD_genes || event_class == VJ_genes) {
-                        dinucl_side = Three_prime;
-                    } else if (event_class == DJ_genes) {
-                        dinucl_side = Five_prime;
-                    }
-                    new_event_p->set_event_side(dinucl_side);
-                } else {
-                    new_event_p->set_event_side(event_side);
+                // The direction the chain runs in: a v1 line says Undefined_side, and the gene class
+                // gives it.
+                Seq_side dinucl_side = Undefined_side;
+                if (event_class == VD_genes || event_class == VJ_genes) {
+                    dinucl_side = Three_prime;
+                } else if (event_class == DJ_genes) {
+                    dinucl_side = Five_prime;
                 }
+                new_event_p->set_event_side(dinucl_side);
                 this->add_event(new_event_p);
                 getline(infile, line_str);
                 while (line_str[0] == '%') {
@@ -948,13 +913,35 @@ void Model_Parms::read_model_parms(string filename)
     }
 
     if (line_str == string("@Edges")) {
+        //An edge names its events by their v1 name. The token finds the event, and the edge is
+        //keyed by the event's name, its nickname. A token naming two events is refused: the v1
+        //name tells events apart only where a v1 gene class does.
+        const auto event_named = [&](const string &token) {
+            shared_ptr<Rec_Event> found;
+            for (const shared_ptr<Rec_Event> &event : this->events) {
+                if (event->get_v1_legacy_name() != token) {
+                    continue;
+                }
+                if (found) {
+                    throw runtime_error("Edge token \"" + token + "\" in model file \"" + filename
+                                        + "\" names two events, \"" + found->get_nickname() + "\" and \""
+                                        + event->get_nickname() + "\"");
+                }
+                found = event;
+            }
+            if (not found) {
+                throw runtime_error("Edge token \"" + token + "\" in model file \"" + filename
+                                    + "\" names no event");
+            }
+            return found;
+        };
         getline(infile, line_str);
         while (line_str[0] == '%') {
             size_t semicolon_index = line_str.find(";", 0);
-            string parent_name = line_str.substr(1, semicolon_index - 1);
-            string child_name = line_str.substr(semicolon_index + 1, string::npos);
-            edges[parent_name].children.emplace_back(get_event_pointer(child_name));
-            edges[child_name].parents.emplace_back(get_event_pointer(parent_name));
+            const shared_ptr<Rec_Event> parent = event_named(line_str.substr(1, semicolon_index - 1));
+            const shared_ptr<Rec_Event> child = event_named(line_str.substr(semicolon_index + 1, string::npos));
+            edges.at(parent->get_name()).children.emplace_back(child);
+            edges.at(child->get_name()).parents.emplace_back(parent);
             getline(infile, line_str);
         }
     } else {

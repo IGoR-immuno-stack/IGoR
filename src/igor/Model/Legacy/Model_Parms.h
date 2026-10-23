@@ -37,6 +37,7 @@
 #include <unordered_map>
 #include <string>
 #include <queue>
+#include <vector>
 #include <igor/Model/Legacy/Errorrate.h>
 #include <igor/Model/Legacy/Insertion.h>
 #include <igor/Model/Legacy/Deletion.h>
@@ -130,19 +131,25 @@ public:
     std::shared_ptr<Rec_Event> get_event_pointer(const Rec_Event_name &) const; //const Rec_Event*??
     std::shared_ptr<Rec_Event> get_event_pointer(const std::string &, bool by_nickname) const; //const Rec_Event*??
 
-    void update_edge_event_name(Rec_Event_name, Rec_Event_name);
 
     /// Seal the seq_type registry and resolve every event's SeqTypeId against it.
     /// Called at the end of read_model_parms(); programmatically built models must
     /// call it once the event list and the ordering are complete. Idempotent.
     void finalize();
 
+    /// Whether the model needs JSON rather than the v1 format; see the definition.
     bool requires_extended_format() const;
+    /// ".json" for a model that needs JSON, ".txt" otherwise: what an output file of it is named.
+    std::string model_file_extension() const { return requires_extended_format() ? ".json" : ".txt"; }
+    /// The v1 format, or JSON for a model the v1 format cannot hold.
     void write_model_parms(std::string);
     void write_model_parms_legacy(std::string);
-    void write_model_parms_v2(std::string);
+    void write_model_parms_json(std::string);
 
+    /// Reads a v1 file or a JSON document (model_parms_from_json()), told apart by content.
     void read_model_parms(std::string);
+    /// The segment order, 5' to 3', as a model file gives it. Before finalize().
+    void set_seq_type_order(const std::vector<Seq_type_String> &);
     void set_fixed_all_events(bool);
 
     //Accessors

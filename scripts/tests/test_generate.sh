@@ -7,6 +7,8 @@ OUTDIR="${1:-$(mktemp -d)}" # Create a temp dir if none passed
 IGORCALL="$IGORBIN -w $OUTDIR"
 
 $IGORCALL init
+# Outputs name events by nickname by default; the goldens carry the generated legacy names.
+$IGORCALL config set output.event_names legacy
 $IGORCALL config set model.source custom
 $IGORCALL config set model.parms "$TESTREF/demo_inference/final_parms.txt"
 $IGORCALL config set model.marginals "$TESTREF/demo_inference/final_marginals.txt"
