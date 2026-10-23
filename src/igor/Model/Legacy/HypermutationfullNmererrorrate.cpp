@@ -25,6 +25,7 @@
  */
 
 #include <igor/Model/Legacy/HypermutationfullNmererrorrate.h>
+#include <igor/Model/Legacy/vdj_ordering_migr.h>
 #include <igor/Alignment/Legacy/Aligner.h>
 #include <igor/Model/Legacy/EventUtils.h>
 
@@ -1080,6 +1081,13 @@ void Hypermutation_full_Nmer_errorrate::update()
 
     //Clean counters
     this->clean_all_counters();
+}
+
+void Hypermutation_full_Nmer_errorrate::check_admissible(const SeqTypeRegistry &registry) const
+{
+    //initialize() finds the V, D and J events by their legacy names, and the leaf assembles the
+    //read from V, D and J at the enum's ids.
+    igor::model::legacy::migration::require_vdj_or_vj_ordering(registry, this->type());
 }
 
 void Hypermutation_full_Nmer_errorrate::initialize(

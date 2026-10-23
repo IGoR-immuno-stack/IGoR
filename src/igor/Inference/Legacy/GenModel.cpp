@@ -139,6 +139,12 @@ bool GenModel::infer_model(
     //the model's structure, not each event on itself.
     const igor::model::TraversalPlan traversal_plan(model_parms.get_seq_type_registry(), in_queue_order(model_queue));
     traversal_plan.check_admissible();
+    //The error model and the counters read the model too, some of them a V-D-J or a V-J one only
+    //(T7a): each refuses what it cannot read, here rather than inside the threads.
+    model_parms.get_err_rate_p()->check_admissible(model_parms.get_seq_type_registry());
+    for (const auto &counter : this->counters_list) {
+        counter.second->check_admissible(model_parms.get_seq_type_registry());
+    }
     unordered_map<Rec_Event_name, int> index_map = model_marginals.get_index_map(model_parms, model_queue);
     unordered_map<Rec_Event_name, list<pair<shared_ptr<const Rec_Event>, int>>> inv_offset_map =
             model_marginals.get_inverse_offset_map(model_parms, model_queue);

@@ -24,6 +24,7 @@
  */
 
 #include <igor/Inference/Legacy/Errorscounter.h>
+#include <igor/Model/Legacy/vdj_ordering_migr.h>
 
 
 namespace igor::inference::legacy {
@@ -82,6 +83,12 @@ Errors_counter::~Errors_counter()
 }
 
 // ===== CONTEXT-BASED INTERFACE =====
+
+void Errors_counter::check_admissible(const SeqTypeRegistry &registry) const
+{
+    //It counts the nucleotides and mismatches of V, D and J at the enum's ids.
+    igor::model::legacy::migration::require_vdj_or_vj_ordering(registry, this->type());
+}
 
 void Errors_counter::initialize(const ModelContext& model) {
     if (not fstreams_created) {

@@ -26,6 +26,7 @@
 
 #include <igor/Model/Legacy/EventUtils.h>
 #include <igor/Inference/Legacy/Pgencounter.h>
+#include <igor/Model/Legacy/vdj_ordering_migr.h>
 
 
 namespace igor::inference::legacy {
@@ -66,6 +67,12 @@ Pgen_counter::~Pgen_counter()
 }
 
 // ===== CONTEXT-BASED INTERFACE =====
+
+void Pgen_counter::check_admissible(const SeqTypeRegistry &registry) const
+{
+    //It assembles the scenario from V, D, J and their junctions at the enum's ids.
+    igor::model::legacy::migration::require_vdj_or_vj_ordering(registry, this->type());
+}
 
 void Pgen_counter::initialize(const ModelContext& model) {
     // Initialize output file

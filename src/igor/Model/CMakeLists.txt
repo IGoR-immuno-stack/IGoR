@@ -82,6 +82,7 @@ target_sources(${PROJECT_NAME}
     Legacy/Model_marginals.cpp
     Legacy/Rec_Event.cpp
     Legacy/Singleerrorrate.cpp
+    Legacy/vdj_ordering_migr.cpp
   PUBLIC FILE_SET HEADERS
     BASE_DIRS
       ${CMAKE_SOURCE_DIR}/src
@@ -117,6 +118,7 @@ target_sources(${PROJECT_NAME}
       ${LAYER_DIR}/Legacy/Singleerrorrate.h
       ${LAYER_DIR}/Legacy/SpanProfile.h
       ${LAYER_DIR}/Legacy/UnfilledSegmentLengths.h
+      ${LAYER_DIR}/Legacy/vdj_ordering_migr.h
       ${LAYER_DIR}/Legacy/FoldFrontier.h
 )
 
