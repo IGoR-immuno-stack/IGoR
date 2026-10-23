@@ -64,16 +64,19 @@ struct FlankCheck {
 };
 
 /**
- * The checks of `placed.target` against the neighbours whose facing end is placed when its event
- * runs, on `side` of it, or on both sides for `Undefined_side`.
+ * The checks of `placed.target` against its nearest neighbour whose facing end is placed when its
+ * event runs, on `side` of it, or on both sides for `Undefined_side`: at most one per side.
  *
+ * - **Nearest only** (ITER section 2.3, decision O1): a pair further away follows from the near
+ *   ones, and a safe verdict propagates along the row, so it is never computed. A completed
+ *   scenario violating it violates one of the near pairs too, and whoever checks that pair prunes
+ *   it. A layout with alternative paths makes the nearest neighbour depend on the scenario (B10).
  * - **Order:** 5' to 3'. In a VDJ model, a D gene choice gets the former
  *   `memory_layer_safety_1` / `_2` pair in that order, which keeps the claimed layers where they
  *   were.
- * - **Safety layers:** one claim per *row*, not per check. Two neighbours on the same side name
- *   two cells of one row, which share a word and therefore a layer. Claiming twice would leave the
- *   second layer unwritten, and an unwritten layer is unreadable by design (section 7.9). A
- *   downstream deletion checking the same pair reads this layer as the one before its own.
+ * - **Safety layers:** one claim per check. The 5' neighbour's pair sits in its row and the 3'
+ *   one's in the target's, so the two never share one. A downstream event checking the same pair
+ *   reads this layer as the one before its own.
  * - **Partner offsets:** each check records the layer its partner's facing end was claimed at.
  */
 MODEL_EXPORT std::vector<FlankCheck> resolve_flank_checks(const EventPlacement &placed, core::SeqSide side,

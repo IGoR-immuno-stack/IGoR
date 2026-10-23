@@ -724,30 +724,15 @@ TEST_CASE("Deletion: overlap verdicts (G2/G3)", "[deletion][iterate]")
         }
     }
 
-    SECTION("The J arm checks both of its flanks too")
-    {
-        // The mirror of the V section below: J compares against D on one side and V on the
-        // other, and reads two safety flags rather than one.
-        JDel fixture;
-        fixture.state.preset_safety(V_gene_seq, J_gene_seq, false);
-        auto v_stub = make_gene_choice(V_gene, {{"V1", "ACGTACG"}}, /*id=*/7);
-        fixture.state.add_event(v_stub);
-        fixture.state.mark_chosen(v_stub);
-        fixture.state.preset_segment(V_gene_seq, 0, 6, read_run(0, 6));
-        fixture.state.add_event(make_deletion(V_gene_seq, Three_prime, 0, 4, /*id=*/8));
+    // The V and J arms compare their nearest placed gene only, D, and leave V-J alone (ITER
+    // section 2.3): the legacy arms compared both. That J's deletion does not compare V, nor a
+    // junction built beyond D, is the case after this one.
 
-        const auto next = call_iterate_recording(fixture.deletion, fixture.state);
-        REQUIRE(next->call_count() == 5);
-        for (const ScenarioSnapshot &call : next->calls) {
-            CHECK(call.safety.at({D_gene_seq, J_gene_seq}) == true);
-            CHECK(call.safety.at({V_gene_seq, J_gene_seq}) == true);
-        }
-    }
-
-    SECTION("...and the V flank can be the one that discards")
+    SECTION("A V the J arm's far flank overlaps is left to the V-D pair")
     {
-        // One value changed from the section above: V reaches far enough right that J's 5' end
-        // sits inside the interval its deletions can still cover.
+        // V reaches past D's 5' end: the scenario breaks V-D, which D's gene choice and its
+        // deletions check. J's deletion compares D only, so it discards nothing for V, and the
+        // V-J verdict stays as V's gene choice left it.
         JDel fixture(/*d_three=*/14, /*j_five=*/18, /*min_del=*/0, /*max_del=*/5);
         fixture.state.preset_safety(V_gene_seq, J_gene_seq, false);
         auto v_stub = make_gene_choice(V_gene, {{"V1", "ACGTACG"}}, /*id=*/7);
@@ -757,77 +742,36 @@ TEST_CASE("Deletion: overlap verdicts (G2/G3)", "[deletion][iterate]")
         fixture.state.add_event(make_deletion(V_gene_seq, Three_prime, 0, 4, /*id=*/8));
 
         const auto next = call_iterate_recording(fixture.deletion, fixture.state);
-        REQUIRE(next->call_count() == 5); // the narrowest deletion lands on V's furthest reach
-
-        // The widest deletion clears V's interval; the four narrower ones sit inside it.
-        CHECK(next->calls[0].five_prime(J_gene_seq) == 23);
-        CHECK(next->calls[0].safety.at({V_gene_seq, J_gene_seq}) == true);
-        for (std::size_t i = 1; i != 5; ++i) {
-            INFO("hand-off " << i);
-            CHECK(next->calls[i].safety.at({V_gene_seq, J_gene_seq}) == false);
+        REQUIRE(next->call_count() == 6);
+        for (const ScenarioSnapshot &call : next->calls) {
+            CHECK(call.safety.at({ V_gene_seq, J_gene_seq }) == false);
         }
     }
 
-    SECTION("The V arm checks both of its flanks")
+    SECTION("The V arm compares D, and its safe verdict carries to V-J")
     {
-        // D on the 3' side and J on the 5' side of the same V end. The VD comparison clears,
-        // the VJ one does not, and it is the VJ verdict that decides.
+        // V's 3' end, at 10 to 14, clears D's 5' end, which its pending deletion can only push
+        // forward from 16. V-D is established safe, and the write marks the rest of V's row, J
+        // among it: the V-J pair follows from V-D and D-J, so it is not compared.
         VDel fixture(/*v_three=*/14, /*d_five=*/16);
         fixture.state.preset_safety(V_gene_seq, J_gene_seq, false);
         auto j_stub = make_gene_choice(J_gene, {{"J1", "ACGTAC"}}, /*id=*/7);
         fixture.state.add_event(j_stub);
         fixture.state.mark_chosen(j_stub);
-        fixture.state.preset_segment(J_gene_seq, 8, 13, read_run(8, 13));
+        fixture.state.preset_segment(J_gene_seq, 22, 27, read_run(22, 27));
         fixture.state.add_event(make_deletion(J_gene_seq, Five_prime, 0, 4, /*id=*/8));
 
         const auto next = call_iterate_recording(fixture.deletion, fixture.state);
-
-        REQUIRE(next->call_count() == 2);
+        REQUIRE(next->call_count() == 5);
         for (const ScenarioSnapshot &call : next->calls) {
             CHECK(call.safety.at({V_gene_seq, D_gene_seq}) == true);
-            CHECK(call.safety.at({V_gene_seq, J_gene_seq}) == false);
-        }
-    }
-
-    SECTION("An already-safe VJ flank short-circuits in both arms that read it")
-    {
-        // The V and J arms each carry a second short-circuit for the V<->J flank, distinct from
-        // the one on their D flank. One value changed from the two sections above.
-        {
-            VDel fixture(/*v_three=*/14, /*d_five=*/16);
-            fixture.state.preset_safety(V_gene_seq, J_gene_seq, true);
-            auto j_stub = make_gene_choice(J_gene, {{"J1", "ACGTAC"}}, /*id=*/7);
-            fixture.state.add_event(j_stub);
-            fixture.state.mark_chosen(j_stub);
-            fixture.state.preset_segment(J_gene_seq, 8, 13, read_run(8, 13));
-            fixture.state.add_event(make_deletion(J_gene_seq, Five_prime, 0, 4, /*id=*/8));
-
-            const auto next = call_iterate_recording(fixture.deletion, fixture.state);
-            REQUIRE(next->call_count() == 5); // nothing discarded: the flank is not compared
-            for (const ScenarioSnapshot &call : next->calls) {
-                CHECK(call.safety.at({V_gene_seq, J_gene_seq}) == true);
-            }
-        }
-        {
-            JDel fixture(/*d_three=*/14, /*j_five=*/18, /*min_del=*/0, /*max_del=*/5);
-            fixture.state.preset_safety(V_gene_seq, J_gene_seq, true);
-            auto v_stub = make_gene_choice(V_gene, {{"V1", "ACGTACG"}}, /*id=*/7);
-            fixture.state.add_event(v_stub);
-            fixture.state.mark_chosen(v_stub);
-            fixture.state.preset_segment(V_gene_seq, 0, 22, read_run(0, 22));
-            fixture.state.add_event(make_deletion(V_gene_seq, Three_prime, 0, 4, /*id=*/8));
-
-            const auto next = call_iterate_recording(fixture.deletion, fixture.state);
-            REQUIRE(next->call_count() == 6); // the one V discarded above is back
-            for (const ScenarioSnapshot &call : next->calls) {
-                CHECK(call.safety.at({V_gene_seq, J_gene_seq}) == true);
-            }
+            CHECK(call.safety.at({ V_gene_seq, J_gene_seq }) == true);
         }
     }
 }
 
 TEST_CASE("Deletion: only the nearest placed neighbour on the side it trims is compared",
-          "[deletion][iterate][tandem_d][!shouldfail]")
+          "[deletion][iterate][tandem_d]")
 {
     // ITER section 2.3 (decision O1): an event compares its moving end with its nearest
     // already-placed neighbour, and a safe verdict propagates along the row. A pair further away

@@ -362,22 +362,23 @@ TEST_CASE("TraversalPlan: one plan serves every copy of the model", "[traversal_
     }
 }
 
-TEST_CASE("resolve_flank_checks: the placed neighbours, 5' to 3', one safety layer per row",
+TEST_CASE("resolve_flank_checks: the nearest placed neighbour on each side, 5' to 3', one safety layer each",
           "[traversal_plan][tandem_d]")
 {
     // Gene_choice and Deletion build their overlap checks with this one function. A tandem order
-    // is the first to give a segment two placed neighbours on its 5' side, which is where the
-    // order of the checks shows: Gene_choice takes the last 5' check as its nearest neighbour.
+    // is the first to give a segment two placed neighbours on its 5' side, V and D1 for D2: only
+    // the nearest is checked (ITER section 2.3). The pair with the far one follows from the near
+    // ones, and a safe verdict propagates along the row.
     const Tandem model;
     const TraversalPlan plan(model.r, model.order());
     const SeqTypeId d1 = model.id("D1_gene_seq");
     const SeqTypeId d2 = model.id("D2_gene_seq");
     SafetyMatrix safety(model.r);
     SeqOffsetsMap offsets(model.r);
-    // The partners' facing ends, claimed by the events that placed them; V's 3' end twice, so
-    // that its layer differs from D1's.
+    // The partners' facing ends, claimed by the events that placed them; D1's 3' end twice, so
+    // that its layer is not the first.
     offsets.request_layer(V_gene_seq, Three_prime);
-    offsets.request_layer(V_gene_seq, Three_prime);
+    offsets.request_layer(d1, Three_prime);
     offsets.request_layer(d1, Three_prime);
     offsets.request_layer(d2, Five_prime);
     offsets.request_layer(J_gene_seq, Five_prime);
@@ -390,38 +391,38 @@ TEST_CASE("resolve_flank_checks: the placed neighbours, 5' to 3', one safety lay
         return ids;
     };
 
-    SECTION("a gene choice: both sides, 5' to 3'") {
+    SECTION("a gene choice: the nearest on each side, 5' to 3'")
+    {
         const std::vector<FlankCheck> checks =
                 resolve_flank_checks(plan.placement(*model.d2), Undefined_side, safety, offsets);
-        REQUIRE(partners(checks) == std::vector<SeqTypeId>{V_gene_seq, d1, J_gene_seq});
+        REQUIRE(partners(checks) == std::vector<SeqTypeId>{ d1, J_gene_seq });
         CHECK_FALSE(checks[0].this_is_left);
-        CHECK_FALSE(checks[1].this_is_left);
-        CHECK(checks[2].this_is_left);
-        CHECK(checks[1].partner_side == Three_prime);
-        CHECK(checks[2].partner_side == Five_prime);
-        CHECK(checks[1].safety_cell == safety.cell(d2, d1));
-        CHECK(checks[0].partner_offset_layer == offsets.claimed_layer(V_gene_seq, Three_prime));
-        CHECK(checks[1].partner_offset_layer == offsets.claimed_layer(d1, Three_prime));
-        CHECK(checks[0].partner_offset_layer != checks[1].partner_offset_layer);
-        // Three cells in three rows (V's, D1's and D2's): three claims.
+        CHECK(checks[1].this_is_left);
+        CHECK(checks[0].partner_side == Three_prime);
+        CHECK(checks[1].partner_side == Five_prime);
+        CHECK(checks[0].safety_cell == safety.cell(d2, d1));
+        CHECK(checks[0].partner_offset_layer == offsets.claimed_layer(d1, Three_prime));
+        CHECK(checks[1].partner_offset_layer == offsets.claimed_layer(J_gene_seq, Five_prime));
+        // Two cells in two rows, D1's and D2's: two claims.
+        CHECK(checks[0].safety_cell.row != checks[1].safety_cell.row);
         CHECK(checks[0].safety_layer == safety.claimed_layer(checks[0].safety_cell));
-        CHECK(checks[2].safety_layer == safety.claimed_layer(checks[2].safety_cell));
+        CHECK(checks[1].safety_layer == safety.claimed_layer(checks[1].safety_cell));
     }
 
-    SECTION("a 3' deletion: only the neighbours it trims toward, which share one row") {
+    SECTION("a 3' deletion: only the nearest neighbour it trims toward")
+    {
         const std::vector<FlankCheck> checks =
                 resolve_flank_checks(plan.placement(*model.d1_3), Three_prime, safety, offsets);
-        REQUIRE(partners(checks) == std::vector<SeqTypeId>{d2, J_gene_seq});
+        REQUIRE(partners(checks) == std::vector<SeqTypeId>{ d2 });
         CHECK(checks[0].this_is_left);
-        CHECK(checks[0].safety_cell.row == checks[1].safety_cell.row);
-        CHECK(checks[0].safety_layer == checks[1].safety_layer);
         CHECK(checks[0].safety_layer == safety.claimed_layer(checks[0].safety_cell));
     }
 
-    SECTION("a 5' deletion: only the neighbours to its 5' side, 5' to 3'") {
+    SECTION("a 5' deletion: only the nearest neighbour to its 5' side")
+    {
         const std::vector<FlankCheck> checks =
                 resolve_flank_checks(plan.placement(*model.d2_5), Five_prime, safety, offsets);
-        CHECK(partners(checks) == std::vector<SeqTypeId>{V_gene_seq, d1});
+        CHECK(partners(checks) == std::vector<SeqTypeId>{ d1 });
     }
 
     SECTION("the overlap verdict is oriented by the side the partner is on") {
@@ -430,9 +431,9 @@ TEST_CASE("resolve_flank_checks: the placed neighbours, 5' to 3', one safety lay
         const JunctionGeometry::OffsetInterval low{2, 3};
         const JunctionGeometry::OffsetInterval high{10, 12};
         // D1 sits 5' of D2: D2's 5' end at 10..12 is clear of D1's 3' end at 2..3.
-        CHECK(checks[1].overlap(high, low) == JunctionGeometry::Overlap::Safe);
-        CHECK(checks[1].overlap(low, high) == JunctionGeometry::Overlap::Infeasible);
+        CHECK(checks[0].overlap(high, low) == JunctionGeometry::Overlap::Safe);
+        CHECK(checks[0].overlap(low, high) == JunctionGeometry::Overlap::Infeasible);
         // J sits 3' of D2: the other way round.
-        CHECK(checks[2].overlap(low, high) == JunctionGeometry::Overlap::Safe);
+        CHECK(checks[1].overlap(low, high) == JunctionGeometry::Overlap::Safe);
     }
 }
