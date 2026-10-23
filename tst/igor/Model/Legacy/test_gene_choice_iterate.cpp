@@ -603,7 +603,7 @@ TEST_CASE("Gene_choice::iterate realization branching and probability",
 }
 
 TEST_CASE("Gene_choice::iterate passes over an alignment of a template it does not hold",
-          "[gene_choice][iterate][tandem_d][!shouldfail]")
+          "[gene_choice][iterate][tandem_d]")
 {
     // Two gene choices of one library can each hold a part of it, as a tandem TRB's D1 holds
     // TRBD1 and its D2 TRBD2. Both read the library's alignments, keyed by library, so each sees

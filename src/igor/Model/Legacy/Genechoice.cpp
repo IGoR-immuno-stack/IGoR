@@ -215,7 +215,14 @@ void Gene_choice::iterate(
     no_alignment_survived = true;
 
     for (const Alignment_data &alignment : query.gene_alignments.at(this->event_class)) {
-        const Event_realization &realization = this->event_realizations.at(alignment.gene_name);
+        //The alignments are the library's, and two gene choices of one library may each hold a
+        //part of it, as a tandem D1 and D2 can: an alignment of a template this event does not
+        //hold is no placement of it.
+        const auto held = this->event_realizations.find(alignment.gene_name);
+        if (held == this->event_realizations.end()) {
+            continue;
+        }
+        const Event_realization &realization = held->second;
 
         //Clip the template to the read. Only a gene at an end of the ordering can overhang it,
         //and the two ends clip on opposite sides -- an asymmetry T0 pins in two sections, and
