@@ -157,7 +157,7 @@ TEST_CASE("Single_error_rate leaves a junction's nucleotides uncharged", "[error
     CHECK_THAT(leaf.charge(), Catch::Matchers::WithinRel(leaf_value(1, 20), 1e-12));
 }
 
-TEST_CASE("Single_error_rate charges both Ds of a tandem scenario", "[error_rate][single][tandem_d][!shouldfail]")
+TEST_CASE("Single_error_rate charges both Ds of a tandem scenario", "[error_rate][single][tandem_d]")
 {
     const std::vector<Gene> genes = {
             {"V_gene_seq", 0, 7, {3}},

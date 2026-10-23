@@ -123,29 +123,19 @@ double Single_error_rate::compute_scenario_error_probability(
         ScenarioContext& scenario,
         ExplorationContext& exploration)
 {
-    // Count genomic nucleotides and mismatches
+    // Count genomic nucleotides and mismatches over every segment that carries a mismatch list:
+    // the genes, whose gene choices and deletions write one, and not the junctions. Read by id
+    // over the ordering rather than at the V, D and J enumerators, so a tandem model's D1 and D2
+    // are charged too, as the bounds their gene choices write already assume (T7a). The counts are
+    // integers, so the order does not move them.
     number_errors = 0;
     genomic_nucl = 0;
-
-    // V gene (always exists)
-    Int_Str& v_gene_seq = (*scenario.constructed_sequences.get(V_gene_seq));
-    std::vector<size_t>& v_mismatch_list = *scenario.mismatches_lists.get(V_gene_seq);
-    genomic_nucl += v_gene_seq.size();
-    number_errors += v_mismatch_list.size();
-
-    // D gene (may not exist)
-    if (scenario.mismatches_lists.exists(D_gene_seq)) {
-        Int_Str& d_gene_seq = (*scenario.constructed_sequences.get(D_gene_seq));
-        std::vector<size_t>& d_mismatch_list = *scenario.mismatches_lists.get(D_gene_seq);
-        number_errors += d_mismatch_list.size();
-        genomic_nucl += d_gene_seq.size();
+    for (const SeqTypeId segment : scenario.mismatches_lists.registry().ordering()) {
+        if (scenario.mismatches_lists.exists(segment)) {
+            genomic_nucl += scenario.constructed_sequences.get(segment)->size();
+            number_errors += scenario.mismatches_lists.get(segment)->size();
+        }
     }
-
-    // J gene (always exists)
-    Int_Str& j_gene_seq = (*scenario.constructed_sequences.get(J_gene_seq));
-    std::vector<size_t>& j_mismatch_list = *scenario.mismatches_lists.get(J_gene_seq);
-    genomic_nucl += j_gene_seq.size();
-    number_errors += j_mismatch_list.size();
 
     // Compute error-weighted probability
     // P(errors | model) = (rate/3)^n_err * (1-rate)^(n_genomic - n_err)
