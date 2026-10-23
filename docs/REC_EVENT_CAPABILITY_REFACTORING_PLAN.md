@@ -173,7 +173,7 @@ The order across every plan, with hard and soft blocks told apart, is drawn in
 | 3 | 🟡 **T4**: generation keyed by `SeqTypeId`, legacy generator first, then `FastGenerator`; **T6b** deletes the rest of the module. The legacy generator is done (#74, Oct 5 2026, [GENERATION_REWRITE_PLAN.md](GENERATION_REWRITE_PLAN.md)); `FastGenerator` and T6b are not | `feature/tandemD` | the legacy generator yes; `FastGenerator` no (see T4) |
 | 4 | ✅ **T0**: merge `integration/model-on-tandemD` into `feature/tandemD`; the Linux gate (#70, Oct 2 2026) | `feature/tandemD` | the gate itself |
 | 5 | ✅ **T1** (Oct 5 2026), then ✅ **T2** (Oct 21 2026): the nickname names an event, and JSON replaces the v2 text format | the merged branch | yes, with the legacy output names |
-| 6 | **T7a**: `Single_error_rate` counts every segment with a mismatch list, over the ordering; the hypermutation models and the V/D/J-shaped counters refuse a tandem model (see *T7*) | the merged branch | yes |
+| 6 | ✅ **T7a** (Oct 23 2026): `Single_error_rate` counts every segment with a mismatch list, over the ordering; the hypermutation models and the V/D/J-shaped counters refuse a tandem model (see *T7*) | `feature/tandemD-T7a-errors`, stacked on T2's | yes, measured |
 | 7 | **T5**: milestone 1, on the legacy DFS | the merged branch | new tests |
 | 8 | **Part I** of [ERROR_MODEL_REWRITE_PLAN.md](ERROR_MODEL_REWRITE_PLAN.md) (E0–E4): `Single_error_rate` through a shared core, called by the legacy class and by a new-architecture node | its own feature branch, after milestone 1 | yes, except ER1 (X13), which moves every inference golden once |
 | 9 | **T7b** and **Part II** of the error-model plan: the hypermutation models, the unpinning. T7b's counter half is CT2a of [COUNTER_REWRITE_PLAN.md](COUNTER_REWRITE_PLAN.md) | after milestone 1 | yes on the five tracks and the new hypermutation track; a VJ model is measured (see *T7*) |
@@ -692,7 +692,8 @@ Tests: the layout against the array and the text file's `$Dim`, the round trip a
 normalization on read, complete documents and fragments, axes and labels rearranged, a model listing its events in
 another order (whose text file differs, while every labelled value agrees), the refusals, and an
 inference's output names. An inference on a tandem model itself waits for T7a: `Single_error_rate`
-reads the mismatches of the legacy D id, which a tandem model does not fill. A CLI run generates
+reads the mismatches of the legacy D id, which a tandem model does not fill. *(Oct 23 2026: T7a is
+in. An iteration on the fixture now stops at its gene choices instead; see "T7a, delivered".)* A CLI run generates
 from a fragment, and from a complete document without a marginals file, what their parameters say.
 
 **The JSON Schema (decided and delivered Oct 22 2026).** REVIEW §14.3 plans a two-phase load: the
@@ -814,7 +815,8 @@ CT2a of the counter plan):
    the same.
 4. **The pinning goes.** The two calls in `Model_Parms` (`finalize()` and `read_model_parms()`)
    are removed, and so are `register_legacy_seq_types()` and `legacy_seq_type_registry()`. Ids
-   follow the ordering. The tests look ids up by name.
+   follow the ordering. The tests look ids up by name. T7a's guard leaves the hypermutation
+   models, and `vdj_ordering_migr.{h,cpp}` goes if CT2a has already moved the counters.
 
 **Effect on T3's bound keys.**
 - **VDJ:** the registry has five ids, and V→J takes key 5. The bound is multiplied in the same
@@ -841,7 +843,59 @@ The enum goes with `FastGenerator` and T6b.
 **Branch:** `feature/tandemD-T7-pinning`. The code needed T1 and T3 merged into
 `feature/tandemD`, as they are since Oct 20 2026: T3's tests call the pinning, and its bound
 keys are the ones that move. T7b
-comes later, after milestone 1.
+comes later, after milestone 1. *(Oct 23 2026: T7a is on `feature/tandemD-T7a-errors`, stacked on
+T2's branch.)*
+
+**T7a, delivered (Oct 23 2026).**
+- **The leaf.** `Single_error_rate::compute_scenario_error_probability()` sums, by id over
+  `registry.ordering()`, the nucleotides and mismatches of every segment that carries a mismatch
+  list: the genes, not the junctions. The counts are integers, so the five tracks stay bitwise. The
+  deprecated `compare_sequences_error_prob()` keeps the enumerators; E1 deletes it.
+- **Test first.** The `[tandem_d]` case was committed `[!shouldfail]`. Before the fix, a tandem leaf
+  charged V and J only: 1 mismatch over 10 nucleotides where the scenario has 4 over 18. That is
+  above the product of the four segments' error bounds, which is X2. The case also checks that the
+  M-step learns 4/18.
+- **The guards are `check_admissible(const SeqTypeRegistry &)`, not `initialize()`.**
+  - The method is on `Error_rate` and `Counter`, and accepts by default. The two hypermutation
+    models and the four counters override it, through
+    `migration::require_vdj_or_vj_ordering()`. That function is migration code, in a file of its own,
+    `src/igor/Model/Legacy/vdj_ordering_migr.{h,cpp}`. The file is deleted once T7b and CT2a have
+    both landed.
+  - `GenModel::infer_model()` asks the error model and every counter right after the
+    TraversalPlan's check, so a refused run writes none of their files and starts no thread.
+  - Why not `initialize()`, as planned: neither one is handed the registry, and the error model's
+    runs inside the parallel region, where an exception terminates the process.
+  - The name is the one CT2a and L1 give the check. CT2a replaces the registry with its
+    `ModelView`.
+- **The message** names the reader by its `type()` and gives the ordering. It then names the first
+  segment where the ordering leaves the shape it follows longest, or the segment the ordering
+  lacks. Example: "BestScenarioCounter reads a V-D-J or a V-J model only, by the legacy segment
+  names; this model's ordering is V_gene_seq, VD1_ins_seq, …, J_gene_seq, where it cannot place
+  VD1_ins_seq".
+- **Who can reach the guards.**
+  - The counters: from the CLI, on any model.
+  - The hypermutation models: only through the API today. A tandem model needs JSON, whose reader
+    knows `Single_error_rate` only until HJ.
+- **Tests.**
+  - The leaf on VDJ, VJ, a junction a chain has built, and tandem.
+  - The message: V-D-J and V-J accepted, and where it places the refusal in four others.
+  - One case per guard, and `Single_error_rate` accepting the tandem ordering.
+  - An inference on the tandem fixture refused for a counter, and for a hypermutation model,
+    before either writes a file.
+- **Mutations**, all 19 caught: five of the leaf, six of the message, the six overrides, and
+  either half of GenModel's call.
+- **Gate:** unit 542/542; integration 10/10; regression bitwise on cli, align, inference,
+  no_d_align and generate; convergence 2/2.
+- **Found on the way, not T7a's.** An iteration on the tandem fixture still stops, now in
+  `Gene_choice::iterate()`:
+  - `d1_choice` holds `D1_test` only and `d2_choice` holds `D2_test` only, but both enumerate every
+    `D_gene` alignment. `event_realizations.at()` then throws on the other D's template
+    ([Genechoice.cpp:218](../src/igor/Model/Legacy/Genechoice.cpp#L218)).
+  - The legacy code assumes that every alignment of a gene class names one of the event's own
+    templates. That holds when the gene choices of a class share the library's templates, as T5's
+    TRB-derived model does.
+  - It fails when they draw disjoint parts of a library, as the fixture's do. The fix is to skip an
+    alignment of another gene, or to file the alignments per event. Recorded for T5.
 
 ### T5: milestone 1 on a synthetic V-D1-D2-J model (decided Oct 16 2026; v2 route Oct 19 2026; JSON route Oct 21 2026)
 

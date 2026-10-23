@@ -22,7 +22,8 @@ branch" marks `origin/feature/AA_PGEN`, which is not merged.
 ## 0. Summary
 
 The error models are the last part of the inference core still written for one V(D)J layout:
-- `Single_error_rate` reads V, D and J at the ids the `Seq_type` enum pins (T7);
+- `Single_error_rate` reads V, D and J at the ids the `Seq_type` enum pins (T7). *(Oct 23 2026:
+  its leaf no longer does; T7a.)*
 - the two hypermutation models find the V, D and J events by name and reach into them through
   `friend` declarations to read the germline template outside the read;
 - nothing tests the hypermutation models: no unit case, no regression track.
@@ -169,8 +170,8 @@ undecided.
 
 | # | Finding | Category | Owner |
 |---|---|---|---|
-| X1 | Single charges ids 0, 2 and 4 only: a tandem model's D1 and D2 mismatches are free | confirmed | T7a |
-| X2 | Tandem: D1 and D2 bound slots are below 1 while the leaf charges no D, so the bound product can fall below the leaf value — pruning is unsound | confirmed | T7a; E3 for a segment left out of `apply_to` |
+| X1 | Single charges ids 0, 2 and 4 only: a tandem model's D1 and D2 mismatches are free | confirmed | T7a; **fixed Oct 23 2026** |
+| X2 | Tandem: D1 and D2 bound slots are below 1 while the leaf charges no D, so the bound product can fall below the leaf value — pruning is unsound | confirmed | T7a, **fixed Oct 23 2026**: the leaf charges every segment whose bound it writes; E3 for a segment left out of `apply_to` |
 | X4 | Threshold gating inside the error model: Single gates, the hypermutation models do not | confirmed (engine's job) | E2 |
 | X5 | Viterbi inside the error model; the hypermutation models keep the last leaf, not the best | confirmed (engine's job) | E2 |
 | X13 | Single's M-step averages per-read rates; the EM estimate is Σ posterior errors / Σ posterior positions | confirmed | ER1 |
@@ -192,7 +193,7 @@ undecided.
 | X12 | `type()` strings differ from the file tags; the full N-mer reader's errors name the global model | cosmetic | H2 |
 | X14 | `update()` never invalidates the bound cache (latent: per-iteration copies hide it) | latent | H2 |
 | X16 | Iterator comparisons across three different vectors (undefined behaviour) | confirmed | H2 |
-| X17 | Tandem: no `D_gene_seq` event, so the sequence is assembled as V+J and read positions misalign | confirmed | refused by T7a's guard; fixed by H4 |
+| X17 | Tandem: no `D_gene_seq` event, so the sequence is assembled as V+J and read positions misalign | confirmed | refused by T7a's guard (Oct 23 2026); fixed by H4 |
 | X18 | Generation draws errors on insertions, the likelihood charges genomic positions only | odd | Q5 |
 | X19 | `generate_errors` is const but writes `mutable` scratch: not thread-safe | confirmed | H2 |
 | X21 | Junction segments have no mismatch list (the iterate plan's open defect) | known | iterate plan |
@@ -447,7 +448,7 @@ Occurrences outside comments and string literals, measured Oct 16 2026:
 
 | File | `Seq_type` | gene class | Removed by |
 |---|---|---|---|
-| `Singleerrorrate.cpp` | 14 | 0 | T7a (the leaf), E1 (the dead path) |
+| `Singleerrorrate.cpp` | 14 | 0 | T7a (the leaf's 7, Oct 23 2026), E1 (the dead path) |
 | `Hypermutationglobalerrorrate.cpp` | 39 | 27 | T7b, H2–H4 |
 | `HypermutationfullNmererrorrate.cpp` | 45 | 27 | T7b, H2–H4 |
 | the four counters, `Scenario.h`, `EventUtils.cpp` | 89 | 3 | CT2a and CT3 of the counter plan; T7b for the enum `build_scenario_sequence()` |
@@ -535,8 +536,12 @@ Candidates the port will need next:
 
 | Step | Content | Bitwise |
 |---|---|---|
-| T7a | Single counts every segment that has a mismatch list, over the ordering; its `[tandem_d]` case is written first, `[!shouldfail]` (capability plan) | yes |
-| T7a guards | The two hypermutation models and the four V/D/J-shaped counters refuse, at initialisation, a model whose ordering is neither V-D-J nor V-J, with a message naming the segment they cannot place; one case each | yes |
+| ✅ T7a | Single counts every segment that has a mismatch list, over the ordering; its `[tandem_d]` case is written first, `[!shouldfail]` (capability plan) | yes, measured |
+| ✅ T7a guards | The two hypermutation models and the four V/D/J-shaped counters refuse, at initialisation, a model whose ordering is neither V-D-J nor V-J, with a message naming the segment they cannot place; one case each | yes, measured |
+
+**Delivered Oct 23 2026** on `feature/tandemD-T7a-errors`; the capability plan's *T7a, delivered*
+records it. The guards are a `check_admissible()` that `GenModel::infer_model()` calls before it
+starts, not a refusal inside `initialize()`, which runs in the threads.
 
 ### 4.2 Part I — `Single_error_rate`, after milestone 1, on its own branch
 

@@ -18,7 +18,8 @@
 
 The plans hold the content of each step; this document holds only the order.
 **Status**: as of Oct 21 2026, `origin/feature/tandemD` @ `c56fd7e`, where T1 (#78), T3 (#76)
-and the plans are merged. T2 is delivered on `feature/tandemD-T2-names`.
+and the plans are merged. T2 is delivered on `feature/tandemD-T2-names`, and T7a on
+`feature/tandemD-T7a-errors`, stacked on it (Oct 23 2026).
 
 ---
 
@@ -65,10 +66,10 @@ flowchart LR
 
   subgraph REV["Delivered, awaiting review"]
     T2["T2 · the nickname names an event;<br/>JSON replaces v2<br/>feature/tandemD-T2-names"]
+    T7a["T7a · Single over the ordering;<br/>hypermutation and counter guards<br/>feature/tandemD-T7a-errors"]
   end
 
   subgraph TAN["Tandem D, milestone 1 · CAP"]
-    T7a["T7a · Single over the ordering;<br/>hypermutation and counter guards"]
     T5a["T5a · V-D1-D2-J built from human TRB, in JSON"]
     T5b["T5b · reads generated and frozen"]
     T5["T5 · round trip; cost against TRB;<br/>mayfail off the tandem cases"]
@@ -352,7 +353,7 @@ flowchart LR
   classDef optional stroke-dasharray:5 5
   classDef milestone fill:#fde7c8,stroke:#c26100,stroke-width:2px,color:#000
   classDef decision fill:#fbdcdc,stroke:#b42318,color:#000
-  class T2 review
+  class T2,T7a review
   class ER1,HR,CR3,CR,CT1b,CRP,L7,SYN4b golden
   class S4d,PERF,NC optional
   class M1,M2,CP2,CP5,CP8 milestone
@@ -399,11 +400,11 @@ landed · **pending** — ready once its hard blocks land · **gated** — waits
 | Node | Source | Hard blocks | Status |
 |---|---|---|---|
 | T2 | CAP *T2* | — | review |
+| T7a | CAP *T7*, ERR §4.1 | — | review; stacked on T2 |
 
 ### Tandem D, milestone 1
 | Node | Source | Hard blocks | Soft | Status |
 |---|---|---|---|---|
-| T7a | CAP *T7*, ERR §4.1 | — | — | ready |
 | T5a | CAP *T5* | T2 | — | pending; the fixture script, the JSON model with its parameters, by label |
 | T5b | CAP *T5* | T5a | — | pending |
 | T5 | CAP *T5* | T5b, T7a | — | pending |

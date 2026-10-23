@@ -20,7 +20,8 @@ record, the driver). The order across all plans is in
 - **None of the four counters has a unit test.** Three are pinned by sorted 6-digit goldens on two
   regression tracks, coverage for V and J only; `Errors_counter` is pinned by nothing.
 - **On a tandem-D model** they return wrong values without any error, and D coverage terminates
-  the process. T7a's guards will refuse such a model until this plan lands.
+  the process. T7a's guards refuse such a model until this plan lands (since Oct 23 2026: each
+  counter's `check_admissible()`, which `GenModel::infer_model()` calls before it starts).
 - **`Errors_counter` should go** (§2). It is not contained in the coverage counter, but nearly all
   of it is already computed elsewhere: by the error model per read, and by the best-scenarios
   counter per scenario. What remains moves into the per-read summary.
@@ -415,7 +416,7 @@ until CR-P.
 | CT0 | milestone 1 | Characterization suite at the counter API: `Scenario` and contexts built by hand, no DFS needed. One tiny end-to-end model per counter. VJ and tandem fixtures. Best scenarios: tie settings, viterbi. Pgen: all three modes. Coverage: D (`[!shouldfail]`), `Npoint > 1`, per-read mode, palindromic V and J (CX3). `Errors_counter`'s per-read values on the tiny model, as the oracle for CT1b. Thread-count determinism at full precision (`[!shouldfail]` until CT4). Coverage report and mutations (ITERATE_TEST_GUIDE §7) | tests only |
 | CT1 | CT0 | Dead code out (CX7, CX15) | yes |
 | CT1b | CT0; MIG L1 for `ReadSummary`, softly | `Errors_counter` deleted (§2.3); the per-read summary gains E[n_gen] and E[n_mis/n_gen], checked against CT0's oracle | the per-read output moves once (QC1) |
-| CT2a | CT0 | T7b's counter half, on the legacy DFS: the snapshot sized from the registry and indexed by `SeqTypeId` (A7); the events a counter reads resolved through `SegmentIndex` rather than by enum (A1); best scenarios' mismatches in ordering order; `check_admissible` with coverage's interim requirements (§4.3), which take over T7a's guards for the counters | yes |
+| CT2a | CT0 | T7b's counter half, on the legacy DFS: the snapshot sized from the registry and indexed by `SeqTypeId` (A7); the events a counter reads resolved through `SegmentIndex` rather than by enum (A1); best scenarios' mismatches in ordering order; `check_admissible` with coverage's interim requirements (§4.3), which take over T7a's guards for the counters; `vdj_ordering_migr.{h,cpp}` goes if T7b has already moved the hypermutation models | yes |
 | CT2b | CT2a, MIG L3 | The record (§3.3) and the provenance (§4.2): `Gene_choice` and `Deletion` write the provenance; the counters read the record and the provenance instead of the slots, the scratch reads, the copied realization map and the re-derived geometry (A2–A5); coverage's requirements take their capability form | yes |
 | CT3 | CT2a and ERR E3 for best scenarios and Pgen; CT2b for coverage | §7, which lifts the remaining guards counter by counter | yes on VDJ; new tandem cases |
 | CT4 | MIG L1, L4a | The lifecycle in the driver: the per-read hook takes a `ReadSummary`; an output sink ordered by read index; summing counters in `AccumulatorSet` chunk slots, sparse (QC4); `last_iter_only` applied by the driver | yes, except the coverage summary's last bits (CX4), measured |

@@ -24,6 +24,7 @@
  */
 
 #include <igor/Inference/Legacy/Bestscenarioscounter.h>
+#include <igor/Model/Legacy/vdj_ordering_migr.h>
 
 #include <cmath>
 #include <limits>
@@ -136,6 +137,12 @@ void Best_scenarios_counter::record_scenario(double scenario_seq_joint_proba)
 }
 
 // ===== CONTEXT-BASED INTERFACE =====
+
+void Best_scenarios_counter::check_admissible(const SeqTypeRegistry &registry) const
+{
+    //It collects the mismatches of V, D and J at the enum's ids.
+    igor::model::legacy::migration::require_vdj_or_vj_ordering(registry, this->type());
+}
 
 void Best_scenarios_counter::initialize(const ModelContext& model) {
     if (not fstreams_created) {

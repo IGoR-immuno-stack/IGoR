@@ -57,6 +57,8 @@ public:
 
     // Context-based interface
     void initialize(const ModelContext& model) override;
+    /// Refuses a model that is neither V-D-J nor V-J: it reads V, D and J by their legacy names.
+    void check_admissible(const SeqTypeRegistry &registry) const override;
     void count_scenario(
         const Scenario& scenario,
         const QuerySequenceContext& query,

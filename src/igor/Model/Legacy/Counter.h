@@ -82,7 +82,19 @@ public:
      * @param model Model configuration context
      */
     virtual void initialize(const ModelContext& model) = 0;
-    
+
+    /**
+     * @brief Refuse a model this counter cannot read, before an inference runs it
+     *
+     * The four counters read V, D and J by their legacy names, so each takes a V-D-J or a V-J
+     * model only (T7a); CT2a of docs/COUNTER_REWRITE_PLAN.md replaces this with requirements
+     * checked against the model's segments. Called by GenModel::infer_model() beside the
+     * TraversalPlan's own check, before any thread starts. Accepts any model by default.
+     *
+     * @throws std::invalid_argument naming what it cannot read
+     */
+    virtual void check_admissible(const SeqTypeRegistry &) const {}
+
     /**
      * @brief Count a completed scenario
      * 

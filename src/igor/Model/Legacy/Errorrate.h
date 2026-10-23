@@ -160,6 +160,15 @@ public:
             const Events_map &,
             Mismatch_vectors_map &, double &, const double &) = 0;
     virtual void update() = 0;
+    /**
+     * \brief Refuse a model this error model cannot read, before an inference runs it.
+     *
+     * Single_error_rate reads any ordering. The hypermutation models read V, D and J by their
+     * legacy names, so they take a V-D-J or a V-J model only (T7a; T7b lifts it). Called by
+     * GenModel::infer_model() beside the TraversalPlan's own check, before any thread starts.
+     * \throws std::invalid_argument naming what it cannot read
+     */
+    virtual void check_admissible(const SeqTypeRegistry &) const {}
     virtual void
     initialize(const Events_map &);
     bool is_updated() const { return updated; }
