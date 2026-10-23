@@ -4,8 +4,8 @@
  * JSON documents named .json.
  *
  * No iteration is needed either: the initial and final files are written outside the EM loop, and
- * each iteration's through the same names. An iteration on a tandem model waits for T7a, which makes
- * Single_error_rate read the mismatches of every segment rather than of the legacy ids.
+ * each iteration's through the same names. An iteration on this fixture stops at its gene choices:
+ * each D holds one template, and both enumerate every D alignment (recorded for T5).
  */
 
 #include <catch2/catch_test_macros.hpp>

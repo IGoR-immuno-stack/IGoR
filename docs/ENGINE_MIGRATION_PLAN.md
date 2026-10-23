@@ -261,7 +261,7 @@ at the cost of redoing work.
 |---|---|---|---|---|---|
 | L0 | Milestone 1, on the synthetic V-D1-D2-J model | CAP T5 | pending | hard | the migration starts after it |
 | L1 | T3 merged (`SegmentIndex`, `TraversalPlan`, `FlankCheck`) | CAP T3 | merged Oct 20 2026 (#76) | hard | the TraversalPlan is the engine's `check_admissible`; without it L1 splits code that T3 replaces |
-| L1 | T7a and its two guards | CAP T7, ERR §4.1 | planned | hard | the guards are admissibility conditions; without T7a pruning is unsound on tandem (X2) |
+| L1 | T7a and its two guards | CAP T7, ERR §4.1 | delivered Oct 23 2026 (`feature/tandemD-T7a-errors`) | hard | the guards are admissibility conditions; without T7a pruning is unsound on tandem (X2) |
 | L1 | ER1 placed before L1 | ERR §4.2 | after milestone 1 | soft | keeps every golden move outside the migration |
 | L1, hypermutation | H0, the hypermutation track | ERR §4.3 | not started | hard for those models | the split of the leaf would be unverified on them |
 | L2 | E2: gating and viterbi out of the error model | ERR §4.2 | after milestone 1 | soft | otherwise the engine's leaf inherits the error model's gating (X4, X5) |
