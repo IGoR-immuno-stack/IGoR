@@ -342,11 +342,11 @@ void RecordingEvent::iterate(QuerySequenceContext &, const ModelContext &, Scena
             }
             return found->second[key];
         };
-        //"Written at its own layer" cannot be phrased as "it raised a claim": only Deletion
-        //ever requests a constructed_sequences layer. A creator -- Gene_choice, Insertion --
-        //writes at layer 0, which it owns implicitly because nothing stands beneath it, so its
-        //claimed mark is still -1 when the baseline is taken. The checkable statement is that
-        //the event *touched* the key, which is the exact complement of the None clause below.
+        //"Written at its own layer" cannot be phrased as "it raised a claim": since R3b every
+        //writer claims its layers in initialize_event(), so a claim is in the baseline whether
+        //or not the event then writes, and it is the layer contract above that holds the event
+        //to the promise. The checkable statement is that the event *touched* the key -- moved
+        //its current mark -- which is the exact complement of the None clause below.
         const auto touched = [&](const std::string &map_name, std::size_t key,
                                  const std::vector<int> &current_now) {
             return key >= current_now.size()
@@ -498,7 +498,7 @@ void call_iterate(const std::shared_ptr<Rec_Event> &event, IterateTestState &sta
 {
     //The order below mirrors GenModel's setup. It is not incidental: the length-proba
     //bounds are built by a reverse pass over the queue *after* every event is initialized,
-    //and omitting it leaves the *_length_best_proba_map members empty, which makes the
+    //and omitting it leaves every junction table empty, which makes the
     //junction-length guard discard every scenario. That is the single easiest way to write
     //a test that passes for the wrong reason.
 
@@ -548,7 +548,7 @@ void call_iterate(const std::shared_ptr<Rec_Event> &event, IterateTestState &sta
     //neighbour's current layer to 1 while preset_segment() writes at 0, and the event under
     //test would read an unwritten layer. Registering them in events_map and in
     //processed_events reproduces everything the code under test actually queries about them
-    //-- existence, chosen-ness, and their offsets -- with the layer numbering pinned.
+    //-- existence, that they have run, and their offsets -- with the layer numbering pinned.
     std::queue<std::shared_ptr<Rec_Event>> queue;
     std::stack<std::shared_ptr<Rec_Event>> init_stack;
     queue.push(event);
@@ -598,7 +598,7 @@ void call_iterate(const std::shared_ptr<Rec_Event> &event, IterateTestState &sta
 
     //Step 3: initialize_event() in queue order. Note the aliasing: processed_events is the
     //state's own set, so the chosen events stay marked while the event under test
-    //initializes, which is exactly what drives its *_chosen flags.
+    //initializes, which is how it finds their travel no longer pending.
     {
         std::queue<std::shared_ptr<Rec_Event>> init_queue = queue;
         while (!init_queue.empty()) {

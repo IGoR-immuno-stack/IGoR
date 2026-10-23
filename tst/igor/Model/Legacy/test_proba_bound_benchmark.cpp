@@ -2,14 +2,14 @@
  * test_proba_bound_benchmark.cpp
  *
  *  Catch2 benchmarks for the junction-length probability bound precomputation --
- *  the reverse initialize_Len_proba_bound() sweep GenModel runs once per thread per
- *  EM iteration, before the per-sequence loop.
+ *  the reverse initialize_Len_proba_bound() sweep GenModel runs once per EM iteration,
+ *  on one thread, before the per-sequence loop; the other threads copy its result.
  *
  *  Why this is worth measuring rather than assuming: the cost is *model-only*, so it
  *  amortises to nothing over a large batch but is paid in full by a CLI user querying
- *  one sequence at a time. Measured on the VDJ TRB regression corpus it is ~0.7 s per
- *  thread per iteration, which dominates a single-sequence query by orders of
- *  magnitude. See docs/PROBA_BOUND_MACHINERY.md.
+ *  one sequence at a time. Single-threaded it was last measured at 55 ms on the VDJ TRB
+ *  regression model and 1.0 s on human BCR-heavy, and at 24.5 s on the tandem TRB model
+ *  of T5. See docs/PROBA_BOUND_MACHINERY.md, section 1.
  *
  *  Hidden by default (tag starts with '.'); run explicitly with:
  *      igor_tests "[.benchmark][proba_bound]"
@@ -203,7 +203,8 @@ TEST_CASE("Junction-length bound initialization", "[.benchmark][proba_bound]")
     }
 }
 
-//A tandem-D model cannot be benchmarked yet: iterate_initialize_Len_proba is reached
-//through Seq_type-named maps, so a D1D2 junction throws before the sweep runs. Add the
-//case with S4c, which is the step that removes that ceiling -- the benchmark is then the
-//evidence that the generalisation did not cost throughput.
+//No tandem-D case yet, though nothing in the sweep refuses one any more: since S4c an event
+//holds junction handles rather than VD / DJ / VJ maps, and since T3 its junctions and their
+//keys come from the engine's TraversalPlan. A case would load
+//tst/test_data/tandem_d/trb_tandem_d_model.json, which read_model_parms() recognises as JSON.
+//T5 measured that sweep through the CLI instead (scripts/tandem_d/compare_cost.py): 24.5 s.
