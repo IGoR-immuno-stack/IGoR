@@ -826,6 +826,47 @@ TEST_CASE("Deletion: overlap verdicts (G2/G3)", "[deletion][iterate]")
     }
 }
 
+TEST_CASE("Deletion: only the nearest placed neighbour on the side it trims is compared",
+          "[deletion][iterate][tandem_d][!shouldfail]")
+{
+    // ITER section 2.3 (decision O1): an event compares its moving end with its nearest
+    // already-placed neighbour, and a safe verdict propagates along the row. A pair further away
+    // follows from the near ones, so it is never computed: in a completed scenario that violates
+    // it, one of the near pairs is violated too, and whoever checks that pair prunes it.
+    //
+    // J's 5' deletion with D, the VD junction and V placed to its left: D is the nearest.
+    SECTION("a junction built beyond it is not compared")
+    {
+        // A tandem model run in the order the segments join builds D1D2 before J's 5' end is
+        // cut, and no gene choice checks a junction: comparing J with it read a safety row no
+        // event before had claimed, at layer -1.
+        JDel fixture; // D at [10, 14], J from 18, deletions of 0 to 4
+        fixture.state.preset_segment(V_gene_seq, 0, 6, read_run(0, 6));
+        fixture.state.preset_safety(V_gene_seq, J_gene_seq, false);
+        fixture.state.preset_junction(VD_ins_seq, 7, 3);
+
+        const auto next = call_iterate_recording(fixture.deletion, fixture.state);
+        REQUIRE(next->call_count() == 5);
+        CHECK_FALSE(has_safety(fixture.state, VD_ins_seq, J_gene_seq));
+    }
+    SECTION("a gene beyond it is not compared, and keeps the verdict the enclosing depth left")
+    {
+        // J's 5' end, at 18 to 22, clears D's 3' end, which its pending deletion can only pull
+        // back: the D-J pair is established safe, in D's row. The V-J pair sits in V's row, which
+        // nothing here writes: it stays as V's gene choice left it.
+        JDel fixture;
+        fixture.state.preset_segment(V_gene_seq, 0, 6, read_run(0, 6));
+        fixture.state.preset_safety(V_gene_seq, J_gene_seq, false);
+
+        const auto next = call_iterate_recording(fixture.deletion, fixture.state);
+        REQUIRE(next->call_count() == 5);
+        for (const ScenarioSnapshot &call : next->calls) {
+            CHECK(call.safety.at({ D_gene_seq, J_gene_seq }) == true);
+            CHECK(call.safety.at({ V_gene_seq, J_gene_seq }) == false);
+        }
+    }
+}
+
 // =======================================================================================
 // Row 5 -- neighbour dependence
 // =======================================================================================
