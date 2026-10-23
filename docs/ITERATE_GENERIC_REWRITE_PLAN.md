@@ -317,7 +317,9 @@ below — and the design recorded here is the reviewed one.)*
 > where the 32-position limit is checked, that a write is read-modify-write (which this section
 > does not say, and which is what keeps `layer − 1` meaning what it did), and that a layer is
 > claimed once per *row* rather than once per check. §6.17 also measures the corollary's cost
-> (none) and explains why it is structurally inert in a VDJ ordering.
+> (none) and explains why it is structurally inert in a VDJ ordering. **Oct 23 2026:** §6.17 also
+> records a fourth departure, found by CAP T5 and repaired: the delivered code compared every
+> placed neighbour, not the nearest.
 
 **Where it is today**: `Event_safety`'s three values are the three unordered pairs of gene
 segments. `V_del` consults both `VD_safe` and `VJ_safe`; `J_del` consults both `VJ_safe` and
@@ -4487,6 +4489,19 @@ the seed forced fresh, the seed forced to the layer below, `cell()` not ordering
 32-position check disabled. 4a's `Deletion` sections pass with their expectations unchanged; only
 the spelling of the key moved, from `Event_safety::VD_safe` to `{V_gene_seq, D_gene_seq}`.
 
+**A fourth departure, not recorded at the time, repaired Oct 23 2026 (CAP T5).** §2.3 has an
+event compare its *nearest* already-placed neighbour on each side and leave the rest of the row to
+propagation. S5, then 4b and B11, implemented the propagation but kept the legacy arms' work: every
+segment placed on a side was compared, which in V-D-J order cost the V and J deletions a second
+comparison, against the far gene, and is why "(V, J) is then rewritten explicitly" above. A tandem
+TRB model run in the order its segments join builds D1D2 before J's 5′ end is cut: J's deletion
+compared J with that junction, a pair no gene choice checks, held that safety row's first layer,
+and read its enclosing verdict at layer −1. `resolve_flank_checks()` now keeps the first entry of
+each of the plan's nearest-first lists (`199ce6d`): at most two checks for a gene choice, one for a
+deletion, on rows that never coincide. Bitwise on the five regression tracks, as the corollary
+predicts. On a layout with alternative paths the nearest neighbour depends on the path taken; that
+is B10's (CAP *B10*, the DAG ordering).
+
 One cleanup rode along: seventeen commented-out lines in `Deletion.cpp` calling into
 `unordered_set<Event_safety> safety_set`, the container two generations back. One of them named the
 wrong pair for the write it sat above.
@@ -5100,6 +5115,14 @@ nowhere else.
 The `[.]` is off and the case runs with the suite, joined by a second one for the skip. Both are
 `[empty_anchor]`, and the first could not even carry `[dinucl]` while it segfaulted, since Catch2
 runs a hidden test whenever a filter names one of its tags.
+
+**The layer the anchor is read at (Oct 23 2026, CAP T5).** The chain read its anchor at the
+current layer. That is the right one only while no event writes the anchor after the chain, which
+V-D-J order guarantees and the tandem TRB model's joining order does not: D1's 5' deletion comes
+after D1D2's chain. When the traversal came back up past the chain, D1's current layer was that
+deletion's write from the branch before, and the chain seeded from another branch's D1, or threw
+on one the deletion had cut away. The chain now reads the layer its anchor's last writer before it
+claimed (`01d298a`). Bitwise on every V-D-J and V-J model.
 
 **The walk is not here.** G9's `first_occupied_*` walk would seed from the next non-empty segment
 instead of rejecting, and it remains the better answer — but per §7.11 it needs absence to have a
