@@ -82,9 +82,25 @@ cxx_compiler = ["vs2022"]
 name = "pixi-build-cmake"
 version = "*"
 
+#[package.build.config]
+#extra-args = ["-DCMAKE_BUILD_TYPE=Release"]
+#env = { MACOSX_DEPLOYMENT_TARGET = "13.4" }
+
 [package.build.config]
 extra-args = ["-DCMAKE_BUILD_TYPE=Release"]
-env = { MACOSX_DEPLOYMENT_TARGET = "13.4" }
+env = {
+  MACOSX_DEPLOYMENT_TARGET = "13.4"
+}
+
+[package.build.target.osx-64.config]
+env = {
+  CXXFLAGS = "-D_LIBCPP_DISABLE_AVAILABILITY"
+}
+
+[package.build.target.osx-arm64.config]
+env = {
+  CXXFLAGS = "-D_LIBCPP_DISABLE_AVAILABILITY"
+}
 
 
 [package.build-dependencies]
