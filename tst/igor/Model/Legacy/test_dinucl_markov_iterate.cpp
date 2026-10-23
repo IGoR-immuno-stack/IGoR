@@ -531,15 +531,16 @@ private:
 } // namespace
 
 TEST_CASE("Dinucl_markov: it seeds from the anchor as the events before it left it",
-          "[dinucl][iterate][layers][tandem_d][!shouldfail]")
+          "[dinucl][iterate][layers][tandem_d]")
 {
     // A tandem model run in the order the segments join cuts D1's 3' end, fills D1D2 from D1's
     // last nucleotide, and cuts D1's 5' end only at the V joint, after. That deletion writes D1
     // again, above the layer the chain read. When the traversal comes back up past the chain and
-    // down again, D1's current layer is still that write, from the branch before: a chain reading
-    // the current layer seeds from it. If the deletion cut D1 away, the chain throws (section
-    // 7.12) on a scenario whose D1 holds nucleotides. In V-D-J order no event writes an anchor
-    // after its chain, so the current layer was always the right one.
+    // down again, D1's current layer is still that write, from the branch before. A chain reading
+    // the current layer seeded from it, and threw (section 7.12) when the deletion had cut D1
+    // away, on a scenario whose D1 holds nucleotides. It reads the layer its anchor's last writer
+    // before it claimed. In V-D-J order no event writes an anchor after its chain, so the current
+    // layer was always that one.
     //
     // Seeded as in "the seed really comes from the anchor": a V ending in C chains into G at 0.5,
     // one ending in A at 0.25. The recorder is a plain one: the later write is outside the chain's
