@@ -489,6 +489,90 @@ TEST_CASE("Dinucl_markov: an empty anchor is not read when the junction needs no
     CHECK(next->calls.front().sequences.at(VD_ins_seq).empty());
 }
 
+namespace {
+
+/**
+ * An event after the chain in the engine's order that writes the anchor again, as D1's 5'
+ * deletion does after D1D2's chain in a tandem model run in the order the segments join.
+ *
+ * It claims its layer after the chain has claimed its own, as initialize_event() runs in the
+ * engine's order, and leaves `stale` there: what the traversal finds when it comes back up past
+ * the chain after that deletion ran on an earlier branch. It never iterates: the recorder takes
+ * the hand-off first.
+ */
+class LaterAnchorWriter : public RecordingEvent
+{
+public:
+    LaterAnchorWriter(int event_id, SeqTypeId anchor, const std::string &stale)
+        : RecordingEvent(event_id), anchor_(anchor), stale_(nt2int(stale))
+    {
+    }
+
+    void initialize_event(
+            std::unordered_set<Rec_Event_name> &processed_events, const Events_map &events_map,
+            const std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>>
+                    &offset_map,
+            Downstream_scenario_proba_bound_map &downstream_proba_map, Seq_type_str_p_map &constructed_sequences,
+            SafetyMatrix &safety_set, std::shared_ptr<Error_rate> error_rate_p, Mismatch_vectors_map &mismatches_list,
+            Seq_offsets_map &seq_offsets, Index_map &index_map) override
+    {
+        constructed_sequences.request_layer(anchor_);
+        constructed_sequences.set(anchor_, &stale_, constructed_sequences.claimed_layer(anchor_));
+        Rec_Event::initialize_event(processed_events, events_map, offset_map, downstream_proba_map,
+                                    constructed_sequences, safety_set, error_rate_p, mismatches_list, seq_offsets,
+                                    index_map);
+    }
+
+private:
+    SeqTypeId anchor_;
+    Int_Str stale_;
+};
+
+} // namespace
+
+TEST_CASE("Dinucl_markov: it seeds from the anchor as the events before it left it",
+          "[dinucl][iterate][layers][tandem_d]")
+{
+    // A tandem model run in the order the segments join cuts D1's 3' end, fills D1D2 from D1's
+    // last nucleotide, and cuts D1's 5' end only at the V joint, after. That deletion writes D1
+    // again, above the layer the chain read. When the traversal comes back up past the chain and
+    // down again, D1's current layer is still that write, from the branch before. A chain reading
+    // the current layer seeded from it, and threw (section 7.12) when the deletion had cut D1
+    // away, on a scenario whose D1 holds nucleotides. It reads the layer its anchor's last writer
+    // before it claimed. In V-D-J order no event writes an anchor after its chain, so the current
+    // layer was always that one.
+    //
+    // Seeded as in "the seed really comes from the anchor": a V ending in C chains into G at 0.5,
+    // one ending in A at 0.25. The recorder is a plain one: the later write is outside the chain's
+    // claims, which the automatic layer checks would hold against the chain.
+    const auto run = [](const std::string &stale) {
+        VdFill fixture(/*junction_length=*/1, /*v_three_prime=*/9, "ACGTACGTAC");
+        for (std::size_t i = 0; i != 32; ++i) {
+            fixture.state.set_marginal(i, 0.0L);
+        }
+        fixture.state.set_marginal(1 * 4 + 2, 0.5L); // (C, G)
+        fixture.state.set_marginal(0 * 4 + 2, 0.25L); // (A, G)
+        fixture.state.add_downstream_event(std::make_shared<LaterAnchorWriter>(/*event_id=*/2, V_gene_seq, stale));
+        const auto next = std::make_shared<RecordingEvent>(/*event_id=*/3);
+        call_iterate(fixture.dinucl, fixture.state, next);
+        return next;
+    };
+
+    SECTION("a later write of another nucleotide is not the seed")
+    {
+        const auto next = run("ACGTACGTAA");
+        REQUIRE(next->call_count() == 1);
+        CHECK(next->calls.front().scenario_proba == Approx(0.5));
+    }
+    SECTION("a later write that cuts the anchor away is not read")
+    {
+        const auto next = run("");
+        REQUIRE(next->call_count() == 1);
+        CHECK(next->calls.front().scenario_proba == Approx(0.5));
+        CHECK(next->calls.front().sequences.at(VD_ins_seq) == "G");
+    }
+}
+
 TEST_CASE("Dinucl_markov: the junction it writes is one it created, at a layer it claimed",
           "[dinucl][iterate][layers]")
 {

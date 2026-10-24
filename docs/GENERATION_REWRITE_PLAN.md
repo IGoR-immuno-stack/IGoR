@@ -128,7 +128,7 @@ G0 compares the two directly.
 | D3 | V or J deleted to empty | keeps one nucleotide: drops the realization | an empty segment | **fixed** with D2: a segment on an end of the sequence keeps one nucleotide, read off the ordering as inference reads it |
 | D4 | CDF walk boundaries | — | `>=` picks a zero-mass realization at u = 0. When the row's mass stays below u, nothing is written, `()` is recorded, and the next reader throws. G0's fixture hit the second case for real: a misordered marginals file gave an insertion an all-zero row, and its chain then threw on the missing segment | **left** to the sampling handlers: a `FIXME` in the code, the two `[!shouldfail]` cases stay (§5.8) |
 | D5 | an insertion with no Markov chain | — | its `'I'` placeholders reach the output | **kept**: sound as is; the parent plan's Phase C may refuse such a model at load |
-| D6 | an empty chain anchor (a fully deleted D1 anchoring D1D2) | throws (§7.12, R2) | throws `out_of_range` from `substr` | consistent; waits on B10, which decides for both |
+| D6 | an empty chain anchor (a fully deleted D1 anchoring D1D2) | throws (§7.12, R2) | throws `out_of_range` from `substr` | consistent; waits on B10, which decides for both. **Oct 23 2026:** T5's tandem TRB model does not reach it, by its event order (§5.8) |
 
 None of these can move the regression corpus. The `generate` track's model is inferred, so it puts
 no mass on scenarios inference drops, and no shipped model has a V 5′ or a J 3′ deletion.
@@ -300,6 +300,11 @@ lost their tags.
 - **D5: kept.** The behaviour is sound. A load-time rule, the parent plan's Phase C, may refuse
   such a model.
 - **D6: waits on B10.** Generation and inference behave the same, and B10 decides for both.
+  **Oct 23 2026 (CAP T5):** the tandem TRB model of milestone 1 runs its events in the order the
+  segments join, D1 to D2 first, and stops D1's 3' deletion one short of the shortest D. D1D2's
+  chain then reads D1 before its 5' deletion, so no scenario of that model has an empty anchor, in
+  generation or in inference. A model whose order lets an anchor be emptied before its chain still
+  throws in both; that is B10's.
 
 **Tests.**
 - The trim and palindrome cases assert the refusal and its message, on both sides, for internal

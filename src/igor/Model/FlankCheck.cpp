@@ -41,31 +41,21 @@ std::vector<FlankCheck> resolve_flank_checks(const EventPlacement &placed, SeqSi
         check.safety_cell = safety_set.cell(placed.target, partner);
         checks.push_back(check);
     };
-    //The plan lists each side nearest first: the 5' side is walked backwards, so the checks run
-    //5' to 3'.
-    if (side != core::Three_prime) {
-        for (auto partner = placed.placed_left.rbegin(); partner != placed.placed_left.rend(); ++partner) {
-            check_against(*partner, /*this_is_left=*/false);
-        }
+    //The nearest placed neighbour on each side, and no other (ITER section 2.3): a pair further
+    //away follows from the near ones, and a safe verdict written here propagates along the row
+    //(SafetyMatrix::set()). The plan lists each side nearest first. The checks run 5' to 3'.
+    if (side != core::Three_prime and not placed.placed_left.empty()) {
+        check_against(placed.placed_left.front(), /*this_is_left=*/false);
     }
-    if (side != core::Five_prime) {
-        for (const SeqTypeId partner : placed.placed_right) {
-            check_against(partner, /*this_is_left=*/true);
-        }
+    if (side != core::Five_prime and not placed.placed_right.empty()) {
+        check_against(placed.placed_right.front(), /*this_is_left=*/true);
     }
 
-    for (std::size_t i = 0; i != checks.size(); ++i) {
-        FlankCheck &check = checks[i];
-        std::size_t earlier = 0;
-        while (earlier != i and checks[earlier].safety_cell.row != check.safety_cell.row) {
-            ++earlier;
-        }
-        if (earlier != i) {
-            check.safety_layer = checks[earlier].safety_layer;
-        } else {
-            safety_set.request_layer(check.safety_cell);
-            check.safety_layer = safety_set.claimed_layer(check.safety_cell);
-        }
+    //One claim per check: the 5' neighbour's pair sits in that neighbour's row, the 3' one's in
+    //the target's, so the two never share a row.
+    for (FlankCheck &check : checks) {
+        safety_set.request_layer(check.safety_cell);
+        check.safety_layer = safety_set.claimed_layer(check.safety_cell);
         check.partner_offset_layer = seq_offsets.claimed_layer(check.partner_id, check.partner_side);
     }
     return checks;

@@ -646,13 +646,11 @@ void Deletion::initialize_event(
     constructed_sequences.request_layer(this->seq_type_id);
     this->memory_layer_cs = constructed_sequences.claimed_layer(this->seq_type_id);
 
-    //The neighbours this deletion is checked against: the segments placed **on the side it
-    //trims**, 5' to 3'. The other side of the segment is not moving, so nothing there can newly
-    //collide -- which is why each of the four arms checked one or two partners and never all
-    //three. The engine's plan says which are placed when this event runs (TraversalPlan); they
-    //used to be the legacy V, D and J by name, which left a tandem model's D1 and D2 out.
-    //A 3' deletion's partners all sit in the row of its own segment, so they share one safety
-    //layer (resolve_flank_checks()).
+    //The neighbour this deletion is checked against: the nearest one placed **on the side it
+    //trims** (resolve_flank_checks()). The other side of the segment is not moving, so nothing
+    //there can newly collide, and a pair further away on the trimmed side follows from the near
+    //ones (ITER section 2.3). The four legacy arms checked one or two partners, the far gene too;
+    //the engine's plan now says which is placed when this event runs (TraversalPlan).
     const EventPlacement &placed = this->placement();
     flank_checks_ = resolve_flank_checks(placed, trims_three_prime_ ? Three_prime : Five_prime, safety_set,
                                          seq_offsets);
@@ -677,11 +675,14 @@ void Deletion::initialize_event(
                 junction_partner_ = static_cast<int>(i);
             }
         }
-        //Built content has its ends placed, so the far end is one of the checks; iterate() reads
-        //its offset to measure the gap.
+        //Built content has its ends placed, so the far end is placed; iterate() reads its offset
+        //to measure the gap, from the one check. It is the nearest placed neighbour unless a
+        //segment placed but not built sits between: a junction an insertion sized before this
+        //deletion, on the deletion's own flank, which an order that joins segments in turn never
+        //does.
         if (junction_partner_ < 0) {
-            throw logic_error("Deletion " + this->get_name() + ": the gap it widens ends at "
-                              + registry.name(far_end) + ", which the plan does not list as placed");
+            throw logic_error("Deletion " + this->get_name() + ": the gap it widens ends at " + registry.name(far_end)
+                              + ", which is not its nearest placed neighbour");
         }
         const SeqTypeId junction_key = this->traversal_plan().gap_key(*gap);
         downstream_proba_map.request_layer(junction_key);

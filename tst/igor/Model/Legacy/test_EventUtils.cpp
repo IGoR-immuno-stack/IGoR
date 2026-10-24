@@ -455,13 +455,18 @@ public:
     initialize_after({});
     REQUIRE(del_event.flank_checks_.empty());
 
-    // D and J placed: a V 3' deletion is checked against both, 5' to 3', and nothing 5' of V.
+    // D and J placed: a V 3' deletion is checked against the nearest, D, and nothing 5' of V.
+    // The V-J pair follows from V-D and D-J (ITER section 2.3).
     const auto d_choice = IgorTestUtils::make_gene_choice(D_gene, {{"D1", "ACGT"}}, 1);
     const auto j_choice = IgorTestUtils::make_gene_choice(J_gene, {{"J1", "ACGT"}}, 2);
     initialize_after({d_choice.get(), j_choice.get()});
-    REQUIRE(del_event.flank_checks_.size() == 2);
+    REQUIRE(del_event.flank_checks_.size() == 1);
     CHECK(del_event.flank_checks_[0].partner_id == registry.id("D_gene_seq"));
-    CHECK(del_event.flank_checks_[1].partner_id == registry.id("J_gene_seq"));
+
+    // J alone placed: the nearest placed neighbour is J, however far.
+    initialize_after({ j_choice.get() });
+    REQUIRE(del_event.flank_checks_.size() == 1);
+    CHECK(del_event.flank_checks_[0].partner_id == registry.id("J_gene_seq"));
   }
 };
 } // namespace igor::model::legacy

@@ -567,6 +567,17 @@ Events_map Model_Parms::get_events_map()
     return events_map;
 }
 
+list<shared_ptr<Gene_choice>> Model_Parms::get_gene_choices(Gene_class library) const
+{
+    list<shared_ptr<Gene_choice>> gene_choices;
+    for (const shared_ptr<Rec_Event> &event : this->events) {
+        if (event->get_type() == GeneChoice_t and event->get_class() == library) {
+            gene_choices.push_back(dynamic_pointer_cast<Gene_choice>(event));
+        }
+    }
+    return gene_choices;
+}
+
 void Model_Parms::finalize()
 {
     //A name no longer stops two events of one type on one segment and side, and nothing in the

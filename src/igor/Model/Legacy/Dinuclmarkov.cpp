@@ -179,7 +179,7 @@ void Dinucl_markov::iterate(
     //backstop B6 removed from Insertion::iterate.
     {
         const DinuclTraversalSpec spec = get_junction();
-        previous_seq = (*scenario.constructed_sequences.get(spec.anchor_id));
+        previous_seq = (*scenario.constructed_sequences.get(spec.anchor_id, memory_layer_anchor_seq));
 
         //The junction is *created* here, not filled here (O12 decision (a'), plan section
         //7.13). Its length comes from the offsets the Insertion placed, which is a property of
@@ -539,6 +539,12 @@ void Dinucl_markov::initialize_event(
     //storage.
     constructed_sequences.request_layer(spec.target_id);
     memory_layer_seq = constructed_sequences.claimed_layer(spec.target_id);
+
+    //The anchor as the events before this one leave it. Layers are claimed in the engine's
+    //order, so the anchor's claim stands at its last writer before this event; a writer after it
+    //claims above. In V-D-J order no event writes an anchor after its chain, so this is the
+    //layer the current one always was.
+    memory_layer_anchor_seq = constructed_sequences.claimed_layer(spec.anchor_id);
 
     //One index slot per position the junction can ever hold, taken from the Insertion that
     //allocates it, so the per-scenario push_backs never reallocate.

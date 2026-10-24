@@ -162,6 +162,11 @@ public:
     Events_map get_events_map() const;
     Events_map get_events_map();
 
+    /// The gene choices that draw from \a library, in event-list order: one for V, one for J, and
+    /// for D one in a VDJ model, two in a tandem one. A gene choice is found by its library, the
+    /// key of its alignments, not by its segment, which a tandem model names.
+    std::list<std::shared_ptr<Gene_choice>> get_gene_choices(Gene_class library) const;
+
     void set_error_ratep(Error_rate *Er_r)
     {
         error_rate = std::shared_ptr<Error_rate>(Er_r, null_delete<Error_rate>());

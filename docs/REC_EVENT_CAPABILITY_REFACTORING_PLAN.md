@@ -144,7 +144,7 @@ constructors call `str2SeqType()` too.
 | **T2** ✅ | **Generated names collide.** Delivered Oct 21 2026, see *T2* below. The name is type + gene class + side + priority + size ([Rec_Event.cpp:104](../src/igor/Core/Rec_Event.cpp#L104)), and it keys `Model_Parms::edges`, `Index_map`, `processed_events` and `offset_map` | In the fixture, `d1_choice` and `d2_choice` are both D, priority 6, size 1; `d1_5_del` and `d2_5_del` collide the same way | *T2* below; synthesis step 2 |
 | **T3** | **V, D and J are still named in the span and safety set-up.** `affects_length_of` on `Gene_choice`, `Insertion` and `Deletion`, and `Dinucl_markov`'s `affects_proba_of` and `span_proba_factor`, go through `legacy_junction_of()` or a VD/DJ/VJ switch; the flank checks list the gene segments in `kGeneSegments` ([Deletion.cpp:746](../src/igor/Core/Deletion.cpp#L746), [Genechoice.cpp:785](../src/igor/Core/Genechoice.cpp#L785)) | `legacy_junction_of()` throws on any span other than VD, DJ and VJ ([SegmentSpan.h:184](../src/igor/Core/SegmentSpan.h#L184)), and so does `Dinucl_markov` on any other insertion ([Dinuclmarkov.cpp:634](../src/igor/Core/Dinuclmarkov.cpp#L634), 661). On V→J the `Insertion` table leaves out `VD1_ins` and `D1D2_ins`. D1 and D2 are never checked against each other for overlap. The junction slots of the downstream bound map are addressed by an insertion's seq type id, with `VJ_ins_seq` standing in for V→J ([Genechoice.cpp:884](../src/igor/Core/Genechoice.cpp#L884), [Deletion.cpp:817](../src/igor/Core/Deletion.cpp#L817)), so a span such as D1→J has no slot | **R12**, and the literal B9 step 3 was to replace |
 | **T4** | **Tandem-D sequences cannot be generated** for the round-trip test. `draw_random_realization()` writes an `unordered_map<Seq_type, string>`, `Dinucl_markov` throws "see B9", `FastGenerator` names `D_gene_seq` | read from the code | **B9 step 5**: option (a), decided; see *T4* below |
-| **T5** | **Milestone 1 itself:** a synthetic V-D1-D2-J model built from human TRB by duplicating its D block (see *T5* below), a generate-then-infer round trip, the cost against the source TRB model, `[!mayfail]` off the `[tandem_d]` cases | — | *T5* below; step 1 of the execution plan below |
+| **T5** ✅ | **Milestone 1 itself:** a synthetic V-D1-D2-J model built from human TRB by duplicating its D block (see *T5* below), a generate-then-infer round trip, the cost against the source TRB model, `[!mayfail]` off the `[tandem_d]` cases | — | *T5* below; step 1 of the execution plan below |
 | **T6** | **`gene_to_seqtype_migr` is still built**, a temporary bridge from #59 | GCC 15 rejected it until T6a, and most of it had no caller | B1's leftovers; see *T6* below |
 | **T7** | **Segment ids are pinned to the `Seq_type` enum, and the error model reads V, D and J through it.** `register_legacy_seq_types()` gives the six legacy names ids 0 to 5 in every model, whatever its ordering | Found Oct 15 2026. `Single_error_rate` counts mismatches at ids 0, 2 and 4 only. The tandem fixture writes nothing at id 2, so neither D's mismatches count, and pruning is unsound (X2) | B2's pinning (`7549a4d`); see *T7* below. **Split Oct 16 2026:** T7a blocks T5; T7b does not |
 
@@ -174,7 +174,7 @@ The order across every plan, with hard and soft blocks told apart, is drawn in
 | 4 | ✅ **T0**: merge `integration/model-on-tandemD` into `feature/tandemD`; the Linux gate (#70, Oct 2 2026) | `feature/tandemD` | the gate itself |
 | 5 | ✅ **T1** (Oct 5 2026), then ✅ **T2** (Oct 21 2026): the nickname names an event, and JSON replaces the v2 text format | the merged branch | yes, with the legacy output names |
 | 6 | ✅ **T7a** (Oct 23 2026): `Single_error_rate` counts every segment with a mismatch list, over the ordering; the hypermutation models and the V/D/J-shaped counters refuse a tandem model (see *T7*) | `feature/tandemD-T7a-errors`, stacked on T2's | yes, measured |
-| 7 | **T5**: milestone 1, on the legacy DFS | the merged branch | new tests |
+| 7 | ✅ **T5** (Oct 23 2026): milestone 1, on the legacy DFS; the timings for Q14 (see *T5*) | `feature/tandemD-T5`, stacked on T7a's | yes, measured |
 | 8 | **Part I** of [ERROR_MODEL_REWRITE_PLAN.md](ERROR_MODEL_REWRITE_PLAN.md) (E0–E4): `Single_error_rate` through a shared core, called by the legacy class and by a new-architecture node | its own feature branch, after milestone 1 | yes, except ER1 (X13), which moves every inference golden once |
 | 9 | **T7b** and **Part II** of the error-model plan: the hypermutation models, the unpinning. T7b's counter half is CT2a of [COUNTER_REWRITE_PLAN.md](COUNTER_REWRITE_PLAN.md) | after milestone 1 | yes on the five tracks and the new hypermutation track; a VJ model is measured (see *T7*) |
 | 10 | **The migration** to drivers and engines, [ENGINE_MIGRATION_PLAN.md](ENGINE_MIGRATION_PLAN.md): the EM driver and `LegacyDfsEngine`, the scenario record, the parameters in `RecombinationModel`, generation; beside it the counters' steps CT0–CT5 of [COUNTER_REWRITE_PLAN.md](COUNTER_REWRITE_PLAN.md) | `feature/engine-migration`, after milestone 1 | yes at every step, against a full-precision oracle; the golden moves are placed outside it |
@@ -896,6 +896,8 @@ T2's branch.)*
     TRB-derived model does.
   - It fails when they draw disjoint parts of a library, as the fixture's do. The fix is to skip an
     alignment of another gene, or to file the alignments per event. Recorded for T5.
+  - **Fixed with T5 (Oct 23 2026)** by the first: a gene choice passes over an alignment of a
+    template it does not hold (`c275c42`). The fixture's inference runs an iteration.
 
 ### T5: milestone 1 on a synthetic V-D1-D2-J model (decided Oct 16 2026; v2 route Oct 19 2026; JSON route Oct 21 2026)
 
@@ -910,6 +912,8 @@ duplicated by a script that writes the result as a JSON document:
 - `d_gene` becomes two gene choices on `D1_gene_seq` and `D2_gene_seq`, both drawing from TRB's D
   library, both conditioned on V and J as `d_gene` is;
 - each D gets its two deletions, the 3′ one conditioned on its own gene and 5′ deletion, as in TRB;
+  *(Oct 23 2026: D1's the other way round, in the order the segments join; see* T5, delivered
+  *below.)*
 - the insertions and their Dinucl chains become VD1, D1D2 and D2J. D1D2's copy one of TRB's two
   junctions, a choice recorded with the fixture;
 - the segment order `[V, VD1_ins, D1, D1D2_ins, D2, D2J_ins, J]`, and the edges;
@@ -948,6 +952,86 @@ source TRB model, for the comparison.
   build time. If the legacy DFS turns out prohibitive on this layout, real tandem data waits for the
   DP engine (synthesis step 9), and B10 is placed with it (Q14).
 - The removal of `[!mayfail]` from the `[tandem_d]` cases.
+
+**T5, delivered (Oct 23 2026)**, on `feature/tandemD-T5`, stacked on T7a's.
+- **T5a, the model.**
+  - `scripts/tandem_d/make_tandem_d_model.py` writes `tst/test_data/tandem_d/trb_tandem_d_model.json`
+    from TRB's v1 files: its structure, library, parameters by label and error rate. The v1 files
+    are read with the standard library only, and the output is deterministic.
+  - D1D2 copies TRB's VD junction, so its chain runs 5′ to 3′ from D1, as the unit fixture's. The
+    D2-J junction is `D2J_ins_seq`.
+  - The script's priorities and D1's deletions follow the joining order, next.
+- **The joining order (Quentin, Oct 23 2026).**
+  - In TRB's order both of D1's deletions came before D1D2's chain, which is seeded from D1's last
+    nucleotide. A D1 they deleted entirely, in 7 % of the generated reads, left the chain no seed:
+    generation threw, and inference threw inside its threads, which terminated the process, even
+    from a model that gave the case zero probability (GENERATION_REWRITE_PLAN D6).
+  - The events now run in the order the segments join, as reported for a tandem TRB
+    rearrangement: the gene choices, then D1 to D2, D1D2 to J, and V to D1D2J, each joint's two
+    deletions right before its insertion. D1D2's chain reads D1 before D1's 5′ end is cut, at the
+    V joint. Generation draws in the same order.
+  - D1's two deletions come the other way round from TRB's, so their edge flips:
+    P(d3 | D1) P(d5 | D1, d3), TRB's joint read the other way.
+  - The 3′ deletion stops at 11, one short of TRBD1, so that D1 keeps the nucleotide its chain
+    needs. A D1 cut away before it joins D2 is no D1: milestone 1 has both Ds present, and absence
+    is B10's.
+  - Each deletion cuts the segment the one before it left, so some pairs TRB allows are illegal in
+    this order, a 5′ palindrome the 3′ deletion reached into for one. They lose their mass, and
+    each D's joint is normalized again: 3.5 % of TRBD1's, 4.1 % of TRBD2\*01's, 16 % of
+    TRBD2\*02's, whose 3′ deletions run longest.
+- **What that order exposed, fixed test first**, both bitwise on the five tracks: two readers
+  assumed V-D-J order.
+  - Every event compared its moving end with every segment placed on a side, where ITER §2.3
+    (decision O1) has it compare the nearest only and propagate a safe verdict along the row: a
+    far pair follows from the near ones. J's 5′ deletion runs after D1D2 is built and compared J
+    with that junction too, a pair no gene choice checks, so it held that safety row's first layer
+    and read layer −1. The flank checks are now the nearest placed neighbour on each side
+    (`199ce6d`; ITER §6.17). In the joining order every deletion runs before its own junction's
+    insertion, so its nearest placed neighbour is a gene that a gene choice checked first.
+  - A Markov chain read its anchor at the current layer. D1's 5′ deletion writes D1 again after
+    D1D2's chain, so on the way back down the current layer was another branch's D1. The chain
+    now reads the layer its anchor's last writer before it claimed (`01d298a`; ITER §7.12).
+- **Found on the way.**
+  - The CLI read D alignments only for a gene choice on the segment named `D_gene_seq`, so a
+    tandem model's Ds got none and the inference terminated. `Model_Parms::get_gene_choices()`
+    finds them by library, and custom D templates go to each (`0a8a753`).
+  - T7a's: a gene choice now passes over an alignment of a template it does not hold
+    (`c275c42`). The tandem fixture's inference runs an iteration.
+- **T5b, the reads.** `scripts/tandem_d/make_tandem_d_reads.py`, through the CLI on one thread:
+  200 reads, seed 42, errors included, aligned against TRB's templates with the CLI's default
+  settings. For each read it keeps the alignments an inference reads: within 55 of the best score
+  for V, 35 for D, 10 for J. They are frozen in `tst/test_data/tandem_d/reads`, 2.5 MB, 2.4 of it
+  D alignments (170 a read). The matched TRB reads are generated by the same script, not frozen.
+- **Tests.**
+  - The model against TRB, six cases: each copy is its TRB source, the queue is the joining order,
+    D1's conditioning is flipped and its joint is TRB's over the legal pairs. Ten corruptions of
+    the file or the script, all caught.
+  - A smoke case, in the integration label: five frozen reads, one iteration from the generating
+    model, each read explained. 25 s, most of it the fold.
+  - A recorded run, hidden from CI (`[.][slow][recorded_run]`, about 10 minutes on 22 cores): ten
+    iterations from uniform on the 200 reads, the comparison table printed, nothing checked but
+    that it runs. 200 reads are too few to judge convergence by. EM drives the realizations they do
+    not show to 1e-45 and below, and a divergence from the truth charges each without bound:
+    `j_5_del` came out at 4.50 bits, 0.05 of it from the bins a table can show. The round trip
+    proper waits for the DP engine.
+  - `[!mayfail]`: no `[tandem_d]` case has carried it since T1.
+- **The cost**, `scripts/tandem_d/compare_cost.py`: one iteration on the 200 frozen reads and on
+  200 TRB reads generated the same way, each from its generating model, CLI defaults, 8 threads
+  of a 22-core machine.
+
+  | | TRB | tandem | ratio |
+  |---|---|---|---|
+  | junction fold's build (s), single-threaded | 0.055 | 24.5 | 445 |
+  | iteration, wall (s) | 0.64 | 165 | 256 |
+  | iteration, CPU (s) | 5.3 | 1084 | 203 |
+  | per read (s) | 0.016 | 5.3 | 323 |
+  | scenarios per read, mean / median | 3189 / 2588 | 58310 / 36620 | 18 / 14 |
+
+  TRB's fold takes tens of milliseconds, so the fold's ratio moves with it: 385 to 445 over two
+  runs. From uniform marginals a tandem read costs more: 7.8 s and 188 000 scenarios, on 100 of
+  the reads. The input to Q14, which stays open.
+- **Gate:** unit 553/553; integration 11/11; regression bitwise on cli, align, inference,
+  no_d_align and generate after each source change; the script's run.
 
 ### Not on the milestone-1 path
 
@@ -2371,6 +2455,21 @@ So option (b) needs one of:
    what `restore_layer()` was presumably meant for and which currently has **no callers at all**.
 
 Option (c), forbidding the configuration, is unaffected by any of this.
+
+**The overlap checks join the list (Oct 23 2026, T5).** An event compares its moving end with its
+nearest placed neighbour on each side (ITER §2.3), resolved once from the engine's plan. On a
+layout with alternative paths three things depend on the path taken:
+- **the nearest neighbour**: the first entry of the plan's nearest-first list that is placed on
+  this path, D2 on one and D1 on the other for J's 5′ deletion. `resolve_flank_checks()` is the one
+  place that chooses it, from lists the plan already keeps whole;
+- **the propagation**: the row-suffix write marks every column right of the checked one in the
+  ordering. The proof needs the segment between to be on the same path as the far column, so the
+  mask must cover the path's columns only, unless a scenario never holds both branches and each
+  column's existence is settled before its cell is read;
+- **the safety layers**: one event would write different rows on different paths, and a row
+  claimed but not written on a path is unreadable, as above.
+
+Option (c) keeps all three static.
 
 **Take this as an input to the (b)-versus-(c) decision, not as a verdict.** It does not make (b)
 impossible, but it adds a container-level cost the earlier estimate did not account for, and (3)

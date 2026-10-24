@@ -443,9 +443,9 @@ int igor_legacy_main(int argc, char *argv[])
                 cl_model_marginals.uniform_initialize(cl_model_parms);
             }
 
-            //Check if the model contains a D gene event in order to load the alignments
-            auto events_map = cl_model_parms.get_events_map();
-            if (events_map.count(make_tuple(GeneChoice_t, string("D_gene_seq"), Undefined_side)) > 0) {
+            //Check if the model contains a D gene event in order to load the alignments: a gene
+            //choice drawing from the D library, on whichever segment (a tandem model has two)
+            if (not cl_model_parms.get_gene_choices(D_gene).empty()) {
                 has_D = true;
             }
         }
@@ -1351,9 +1351,9 @@ int igor_legacy_main(int argc, char *argv[])
             cl_model_marginals.read_marginals(cl_path + batchname + "inference/final_marginals" + extension,
                                               cl_model_parms);
 
-            //Check if the model contains a D gene event in order to load the alignments
-            auto events_map = cl_model_parms.get_events_map();
-            if (events_map.count(make_tuple(GeneChoice_t, string("D_gene_seq"), Undefined_side)) > 0) {
+            //Check if the model contains a D gene event in order to load the alignments: a gene
+            //choice drawing from the D library, on whichever segment (a tandem model has two)
+            if (not cl_model_parms.get_gene_choices(D_gene).empty()) {
                 has_D = true;
             }
         } catch (exception &e) {
@@ -1432,39 +1432,40 @@ int igor_legacy_main(int argc, char *argv[])
             }
         }
         if (has_D and custom_d) {
-            shared_ptr<Rec_Event> d_choice =
-                    tmp_events_map.at(make_tuple(GeneChoice_t, string("D_gene_seq"), Undefined_side));
-            shared_ptr<Gene_choice> d_choice_gc = dynamic_pointer_cast<Gene_choice>(d_choice);
-            bool any_genomic_difference = false;
-            unordered_map<string, Event_realization> realization_map_copy = d_choice_gc->get_realizations_map();
-            /*
-			 * We loop over provided genomic templates and check if they are contained in the current model
-			 */
-            for (pair<string, string> genomic_template : d_genomic) {
-                if (realization_map_copy.count(genomic_template.first) > 0) {
-                    Event_realization &ev_real = realization_map_copy.at(genomic_template.first);
-                    if (ev_real.value_str == genomic_template.second) {
-                        //Remove the genomic template from the unseen list
-                        //FIXME this will fail if the same genomic template has been read several times
-                        realization_map_copy.erase(genomic_template.first);
+            //Every gene choice drawing from the D library: a tandem model has two, on segments of
+            //their own
+            for (const shared_ptr<Gene_choice> &d_choice_gc : cl_model_parms.get_gene_choices(D_gene)) {
+                bool any_genomic_difference = false;
+                unordered_map<string, Event_realization> realization_map_copy = d_choice_gc->get_realizations_map();
+                /*
+                 * We loop over provided genomic templates and check if they are contained in the current model
+                 */
+                for (pair<string, string> genomic_template : d_genomic) {
+                    if (realization_map_copy.count(genomic_template.first) > 0) {
+                        Event_realization &ev_real = realization_map_copy.at(genomic_template.first);
+                        if (ev_real.value_str == genomic_template.second) {
+                            //Remove the genomic template from the unseen list
+                            //FIXME this will fail if the same genomic template has been read several times
+                            realization_map_copy.erase(genomic_template.first);
+                        } else {
+                            any_genomic_difference = true;
+                        }
                     } else {
                         any_genomic_difference = true;
                     }
-                } else {
-                    any_genomic_difference = true;
+                    if (any_genomic_difference) {
+                        break;
+                    }
                 }
                 if (any_genomic_difference) {
-                    break;
-                }
-            }
-            if (any_genomic_difference) {
-                //If any difference is detected reset the marginals
-                d_choice_gc->set_genomic_templates(d_genomic);
-                any_custom_gene = true;
-            } else {
-                //Else we set to 0 probability all the ones that were not found in the list of genomic templates
-                for (pair<string, Event_realization> ev_real : realization_map_copy) {
-                    cl_model_marginals.set_realization_proba(ev_real.first, d_choice, 0.0, cl_model_parms);
+                    //If any difference is detected reset the marginals
+                    d_choice_gc->set_genomic_templates(d_genomic);
+                    any_custom_gene = true;
+                } else {
+                    //Else we set to 0 probability all the ones that were not found in the list of genomic templates
+                    for (pair<string, Event_realization> ev_real : realization_map_copy) {
+                        cl_model_marginals.set_realization_proba(ev_real.first, d_choice_gc, 0.0, cl_model_parms);
+                    }
                 }
             }
         }

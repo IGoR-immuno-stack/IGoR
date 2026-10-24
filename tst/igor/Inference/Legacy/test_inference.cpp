@@ -30,9 +30,11 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cmath>
 #include <cstdlib>
 #include <forward_list>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <limits>
@@ -822,4 +824,171 @@ TEST_CASE("Inference recovers ground truth model - convergence", "[convergence][
 
         run_inference_recovery_test(cfg);
     }
+}
+
+// ---------------------------------------------------------------------------
+// The tandem TRB model of milestone 1 (capability plan T5), on its frozen reads
+// ---------------------------------------------------------------------------
+
+static const std::string TANDEM_DIR = std::string(IGOR_SOURCE_DIR) + "/tst/test_data/tandem_d/";
+
+/// The model the reads were generated from, its parameters read from its own document.
+static std::pair<Model_Parms, Model_marginals> read_tandem_model()
+{
+    Model_Parms parms;
+    parms.read_model_parms(TANDEM_DIR + "trb_tandem_d_model.json");
+    Model_marginals marginals(parms);
+    marginals.read_marginals(TANDEM_DIR + "trb_tandem_d_model.json", parms);
+    return { parms, marginals };
+}
+
+/// The first \a count frozen reads with their alignments, read as igor_legacy_main() reads them,
+/// within the same score ranges, which the frozen files already keep to.
+static std::vector<std::tuple<int, std::string, std::unordered_map<Gene_class, std::vector<Alignment_data>>>>
+read_frozen_reads(std::size_t count)
+{
+    const auto all = read_indexed_csv(TANDEM_DIR + "reads/sequences.csv");
+    const std::vector<std::pair<const int, const std::string>> sequences(
+            all.begin(), all.begin() + static_cast<std::ptrdiff_t>(std::min(count, all.size())));
+    auto sorted =
+            read_alignments_seq_csv_score_range(TANDEM_DIR + "reads/V_alignments.csv", V_gene, 55, false, sequences);
+    sorted = read_alignments_seq_csv_score_range(TANDEM_DIR + "reads/D_alignments.csv", D_gene, 35, false, sequences,
+                                                 sorted);
+    sorted = read_alignments_seq_csv_score_range(TANDEM_DIR + "reads/J_alignments.csv", J_gene, 10, false, sequences,
+                                                 sorted);
+    return map2vect(sorted);
+}
+
+static std::vector<std::string> split(const std::string &text, char separator)
+{
+    std::vector<std::string> fields;
+    for (std::size_t start = 0, end; start <= text.size(); start = end + 1) {
+        end = std::min(text.find(separator, start), text.size());
+        fields.push_back(text.substr(start, end - start));
+    }
+    return fields;
+}
+
+/// The scenario that generated each frozen read, as SequenceGenerator hands them out: one queue
+/// of realization indices per event, in the model's queue order. The file names its columns by
+/// nickname.
+static std::forward_list<std::pair<std::string, std::queue<std::queue<int>>>>
+read_frozen_scenarios(const Model_Parms &parms)
+{
+    std::map<std::string, std::size_t> position;
+    for (auto queue = parms.get_model_queue(); not queue.empty(); queue.pop()) {
+        const std::size_t next = position.size();
+        position[queue.front()->get_nickname()] = next;
+    }
+
+    std::ifstream in(TANDEM_DIR + "reads/realizations.csv");
+    std::string line;
+    REQUIRE(std::getline(in, line));
+    const std::vector<std::string> columns = split(line, ';');
+    std::forward_list<std::pair<std::string, std::queue<std::queue<int>>>> scenarios;
+    while (std::getline(in, line)) {
+        const std::vector<std::string> fields = split(line, ';');
+        REQUIRE(fields.size() == columns.size());
+        std::vector<std::queue<int>> by_position(position.size());
+        for (std::size_t c = 1; c != columns.size(); ++c) {
+            const auto event = position.find(columns[c]);
+            if (event == position.end()) {
+                continue; // the errors
+            }
+            for (const std::string &index : split(fields[c].substr(1, fields[c].size() - 2), ',')) {
+                if (not index.empty()) {
+                    by_position[event->second].push(std::stoi(index));
+                }
+            }
+        }
+        std::queue<std::queue<int>> scenario;
+        for (std::queue<int> &realizations : by_position) {
+            scenario.push(std::move(realizations));
+        }
+        scenarios.emplace_front(fields[0], std::move(scenario));
+    }
+    return scenarios;
+}
+
+TEST_CASE("Inference on the tandem TRB model - smoke", "[integration][inference][tandem_d]")
+{
+    // One iteration from the model that generated the reads. Most of the time is the junction
+    // fold's, built once for the iteration.
+    auto [parms, marginals] = read_tandem_model();
+    const auto reads = read_frozen_reads(5);
+    REQUIRE(reads.size() == 5);
+
+    const std::string dir = "/tmp/igor_tandem_inference_smoke/";
+    std::system(("mkdir -p " + dir).c_str());
+    GenModel model(parms, marginals);
+    REQUIRE_FALSE(model.infer_model(reads, /*iterations=*/1, dir, /*fast_iter=*/true,
+                                    /*likelihood_threshold=*/0.0, /*viterbi_like=*/false,
+                                    /*proba_threshold_factor=*/1e-4));
+
+    // iteration_n;seq_processed;seq_index;nt_sequence;n_V_aligns;n_J_aligns;seq_likelihood;
+    // seq_mean_n_errors;seq_n_scenarios;seq_best_scenario;time
+    std::ifstream log(dir + "inference_logs.txt");
+    std::string line;
+    REQUIRE(std::getline(log, line));
+    std::size_t explained = 0;
+    while (std::getline(log, line)) {
+        const std::vector<std::string> fields = split(line, ';');
+        REQUIRE(fields.size() == 11);
+        INFO("read " << fields[2]);
+        const double likelihood = std::stod(fields[6]);
+        CHECK(std::isfinite(likelihood));
+        CHECK(likelihood > 0.0);
+        CHECK(std::stoul(fields[8]) > 0);
+        ++explained;
+    }
+    CHECK(explained == 5);
+}
+
+// A recorded run, not a test: hidden, and tagged so that no label CI runs selects it. It takes
+// about 10 minutes on 22 cores. Run it by name, or with "[recorded_run]".
+TEST_CASE("Inference on the tandem TRB model from uniform marginals - recorded run", "[.][slow][recorded_run]")
+{
+    // From uniform marginals, ten EM iterations on the 200 frozen reads; the inferred marginals
+    // printed against the generating ones and against the reads' own realizations (the sampling
+    // baseline). 200 reads are too few to judge convergence by: unseen realizations are driven
+    // towards zero, and a divergence from the truth charges each without bound. So nothing is
+    // checked but that the inference runs; the table and the wall time are what it records. The
+    // real round trip waits for the DP engine (capability plan T5).
+    constexpr int kReads = 200;
+    constexpr int kIterations = 10;
+
+    auto [truth_parms, truth_marginals] = read_tandem_model();
+    auto truth_events = build_event_info(truth_parms, truth_marginals);
+    compute_combined_insertion_dinuc_entropy(truth_events, truth_parms, /*print=*/true);
+
+    const auto scenarios = read_frozen_scenarios(truth_parms);
+    REQUIRE(std::distance(scenarios.begin(), scenarios.end()) == kReads);
+    const auto empirical = compute_all_empirical_marginals(scenarios, truth_events, kReads);
+    std::map<size_t, double> sampling_baseline_kl;
+    for (const auto &ev : truth_events) {
+        if (not ev.is_dinuc_markov) {
+            sampling_baseline_kl[ev.queue_position] = kl_divergence(ev.model_marginal, empirical.at(ev.queue_position));
+        }
+    }
+
+    const auto reads = read_frozen_reads(kReads);
+    REQUIRE(reads.size() == static_cast<std::size_t>(kReads));
+    Model_marginals initial_marginals(truth_parms);
+    initial_marginals.uniform_initialize(truth_parms);
+    GenModel model(truth_parms, initial_marginals);
+    const std::string dir = "/tmp/igor_tandem_inference_recorded_run/";
+    std::system(("mkdir -p " + dir).c_str());
+    const auto start = std::chrono::steady_clock::now();
+    REQUIRE_FALSE(model.infer_model(reads, kIterations, dir, /*fast_iter=*/true, /*likelihood_threshold=*/0.0,
+                                    /*viterbi_like=*/false, /*proba_threshold_factor=*/1e-4));
+    const std::chrono::duration<double> elapsed = std::chrono::steady_clock::now() - start;
+
+    // No thresholds: every row passes, and the table's last column is no verdict.
+    constexpr double kNone = std::numeric_limits<double>::infinity();
+    const auto rows = compare_inference_to_ground_truth(truth_events, model.get_marginals(), truth_parms,
+                                                        sampling_baseline_kl, kNone, kNone, kNone);
+    std::cout << "\nA recorded run, without thresholds: the Pass column is no verdict." << std::endl;
+    print_comparison_table(rows, "H_truth", "H_infer", /*show_sampling_baseline=*/true);
+    std::cout << "\n"
+              << kIterations << " iterations on " << kReads << " reads: " << elapsed.count() << " s wall" << std::endl;
 }

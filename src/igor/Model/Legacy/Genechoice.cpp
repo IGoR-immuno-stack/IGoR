@@ -215,7 +215,14 @@ void Gene_choice::iterate(
     no_alignment_survived = true;
 
     for (const Alignment_data &alignment : query.gene_alignments.at(this->event_class)) {
-        const Event_realization &realization = this->event_realizations.at(alignment.gene_name);
+        //The alignments are the library's, and two gene choices of one library may each hold a
+        //part of it, as a tandem D1 and D2 can: an alignment of a template this event does not
+        //hold is no placement of it.
+        const auto held = this->event_realizations.find(alignment.gene_name);
+        if (held == this->event_realizations.end()) {
+            continue;
+        }
+        const Event_realization &realization = held->second;
 
         //Clip the template to the read. Only a gene at an end of the ordering can overhang it,
         //and the two ends clip on opposite sides -- an asymmetry T0 pins in two sections, and
@@ -752,11 +759,12 @@ void Gene_choice::initialize_event(
     exhaustive_position_fallback_ = not at_left_end and not at_right_end;
     publishes_alignment_state_ = at_left_end or at_right_end;
 
-    //The neighbours this placement is checked against: every segment whose facing end is placed
-    //before this event runs, 5' to 3', which is the order the claimed safety layers were in. The
-    //engine's plan says which, from the order it runs the events in (TraversalPlan). They used to
-    //be the legacy V, D and J by name, placed or not, which left a tandem model's D1 and D2 out;
-    //a neighbour placed later checks against this one itself.
+    //The neighbours this placement is checked against: on each side, the nearest segment whose
+    //facing end is placed before this event runs (resolve_flank_checks()), 5' to 3', which is the
+    //order the claimed safety layers were in. The engine's plan says which, from the order it runs
+    //the events in (TraversalPlan). They used to be the legacy V, D and J by name, placed or not,
+    //which left a tandem model's D1 and D2 out; a neighbour placed later checks against this one
+    //itself.
     const EventPlacement &placed = this->placement();
     flank_checks_ = resolve_flank_checks(placed, /*both sides*/ Undefined_side, safety_set, seq_offsets);
 
@@ -770,8 +778,7 @@ void Gene_choice::initialize_event(
     this->memory_layer_cs = constructed_sequences.claimed_layer(this->seq_type_id);
 
     //The nearest placed neighbour on each side: what bounds the sliding window when there is no
-    //span to decompose. flank_checks_ is in 5'->3' order, so the last partner to the 5' side and
-    //the first to the 3' side are the nearest ones.
+    //span to decompose. flank_checks_ holds at most one per side, in 5'->3' order.
     nearest_left_check_ = -1;
     nearest_right_check_ = -1;
     for (std::size_t i = 0; i != flank_checks_.size(); ++i) {

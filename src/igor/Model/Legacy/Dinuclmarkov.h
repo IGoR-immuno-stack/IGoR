@@ -193,6 +193,10 @@ private:
     /// Layer claimed in the constructed-sequence map for that same junction, which this event
     /// now creates rather than filling in place.
     int memory_layer_seq = -1;
+    /// The layer of the anchor's sequence this chain seeds from: the one its last writer before
+    /// this event claimed. An event after this one may write the anchor again, a 5' deletion of
+    /// D1 after D1D2's chain in a tandem model, and the current layer is then that write.
+    int memory_layer_anchor_seq = -1;
 
     //std::pair<Seq_type,Seq_side> v_5_pair = std::make_pair (V_gene_seq,Five_prime);
     //std::pair<Seq_type,Seq_side> j_5_pair = std::make_pair (J_gene_seq,Five_prime);
