@@ -39,6 +39,7 @@
 #include <igor/Model/Legacy/Model_Parms.h>
 #include <igor/Model/Legacy/Model_marginals.h>
 #include <igor/Model/Legacy/Rec_Event.h>
+#include <igor/Model/TraversalPlan.h>
 #include <igor/Core/Legacy/Utils.h>
 
 #include <filesystem>
@@ -103,6 +104,19 @@ public:
         events_map_ = parms_.get_events_map();
         const auto offset_map = marginals_.get_offsets_map(parms_, model_queue_);
 
+        //The engine's plan for the queue's order, which initialize_event() reads the gaps each
+        //event bounds and their keys from (T3). Built and checked as GenModel::infer_model builds
+        //and checks it, and kept for as long as the events are: they hold a pointer to it.
+        std::vector<const Rec_Event *> order;
+        for (std::queue<std::shared_ptr<Rec_Event>> walk = model_queue_; not walk.empty(); walk.pop()) {
+            order.push_back(walk.front().get());
+        }
+        plan_ = std::make_unique<igor::model::TraversalPlan>(parms_.get_seq_type_registry(), order);
+        plan_->check_admissible();
+        for (auto &event : events_) {
+            event->set_traversal_plan(*plan_);
+        }
+
         //The forward initialize_event() pass, which the sweep depends on: it is where each
         //event resolves *which* junctions it reads a bound for. Skipping it used to be harmless
         //because the sweep picked its junctions from an enum switch; since S4c it would measure
@@ -112,7 +126,10 @@ public:
         Seq_type_str_p_map constructed_sequences(parms_.get_seq_type_registry());
         Mismatch_vectors_map mismatches_lists(parms_.get_seq_type_registry());
         Seq_offsets_map seq_offsets(parms_.get_seq_type_registry());
-        Downstream_scenario_proba_bound_map downstream_proba_map(parms_.get_seq_type_registry());
+        //Sized from the plan, as in GenModel: past the registry's ids, a gap may have a key of its
+        //own.
+        Downstream_scenario_proba_bound_map downstream_proba_map(parms_.get_seq_type_registry(), 1,
+                                                                 plan_->bound_key_count());
         downstream_proba_map.init_first_layer(1.0);
         std::shared_ptr<Error_rate> err_rate = parms_.get_err_rate_p();
 
@@ -166,6 +183,8 @@ private:
     std::list<std::shared_ptr<Rec_Event>> events_;
     Index_map index_map_{0};
     Events_map events_map_;
+    //After parms_, whose registry it refers to, so that it is destroyed first.
+    std::unique_ptr<igor::model::TraversalPlan> plan_;
 };
 
 } // namespace
