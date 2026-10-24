@@ -229,7 +229,8 @@ private:
     AccumulationStorage accumulation_storage;
 
     /// Passed to initialize_event(). An event listed here reads to the code under test as
-    /// "already chosen"/"already processed", which is what drives every *_chosen flag.
+    /// already run: PendingModifierBounds no longer counts its travel, and a deletion no longer
+    /// waits for it to move the other end of its segment.
     std::unordered_set<Rec_Event_name> processed_events_;
 
     /// Stable backing store for sequences handed to the scenario by preset_segment().
@@ -320,7 +321,8 @@ public:
         return std::make_tuple(event->get_type(), event->get_seq_type(), map_side);
     }
 
-    /// Mark an event as already processed, so *_chosen is true for the event under test.
+    /// Mark an event as already run: it is in processed_events, and call_iterate() puts it
+    /// before the event under test in the plan's order.
     void mark_chosen(const std::shared_ptr<Rec_Event> &event)
     {
         processed_events_.insert(event->get_name());
@@ -436,10 +438,10 @@ public:
      * Register an event that sits *after* the event under test in the model queue.
      *
      * These are never iterated -- the recorder intercepts first -- but they are what the
-     * reverse initialize_Len_proba_bound() pass walks to populate the junction-length
-     * maps. Without any, the map collapses to {0: 1.0} and the junction-length guard
-     * discards every scenario whose neighbours are not exactly adjacent, which silently
-     * turns a safety-check test into a test of the junction guard.
+     * reverse initialize_Len_proba_bound() pass folds into the junction tables. Without any, a
+     * table holds nothing but its reader's own length -- {0: 1.0} for a gene choice -- and
+     * the junction-length guard discards every scenario whose gap that length does not
+     * match, which silently turns a safety-check test into a test of the junction guard.
      */
     void add_downstream_event(const std::shared_ptr<Rec_Event> &event)
     {
@@ -488,7 +490,8 @@ IterateTestState create_iterate_state(const std::string &sequence,
                                       const SeqTypeRegistry &registry = vdj_seq_type_registry());
 
 /// Decode an Int_Str back to letters: the four bases as themselves, an ambiguity code as 'N',
-/// and an unfilled position (int_undefined, written by Insertion) as '.'.
+/// and an unfilled position (int_undefined) as '.'. No event hands one on since R1, where
+/// Dinucl_markov came to create the junction it fills, so a '.' in a snapshot is a defect.
 std::string int_str_to_nt(const Int_Str &seq);
 
 /**
@@ -680,10 +683,11 @@ public:
 /**
  * @brief Run the production initialization sequence, then call iterate() on `event`.
  *
- * Mirrors GenModel::infer_model / compute_Pgen ordering, which matters: the length-proba
+ * Mirrors GenModel::infer_model's ordering, which matters: the length-proba
  * bounds are built by a *reverse* pass over the queue after every event is initialized,
- * and skipping it leaves vd/dj/vj_length_best_proba_map empty, which silently discards
- * every scenario at the junction-length guard.
+ * and skipping it leaves every junction table empty, which silently discards every
+ * scenario at the junction-length guard. Like GenModel, it builds the TraversalPlan the
+ * events read in initialize_event(), over the order described in the definition.
  *
  * `event` is initialized last, so anything marked with mark_chosen() is already in
  * processed_events when its initialize_event() runs.

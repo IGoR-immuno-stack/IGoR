@@ -2,14 +2,14 @@
  * test_proba_bound_benchmark.cpp
  *
  *  Catch2 benchmarks for the junction-length probability bound precomputation --
- *  the reverse initialize_Len_proba_bound() sweep GenModel runs once per thread per
- *  EM iteration, before the per-sequence loop.
+ *  the reverse initialize_Len_proba_bound() sweep GenModel runs once per EM iteration,
+ *  on one thread, before the per-sequence loop; the other threads copy its result.
  *
  *  Why this is worth measuring rather than assuming: the cost is *model-only*, so it
  *  amortises to nothing over a large batch but is paid in full by a CLI user querying
- *  one sequence at a time. Measured on the VDJ TRB regression corpus it is ~0.7 s per
- *  thread per iteration, which dominates a single-sequence query by orders of
- *  magnitude. See docs/PROBA_BOUND_MACHINERY.md.
+ *  one sequence at a time. Single-threaded it was last measured at 55 ms on the VDJ TRB
+ *  regression model and 1.0 s on human BCR-heavy, and at 24.5 s on the tandem TRB model
+ *  of T5. See docs/PROBA_BOUND_MACHINERY.md, section 1.
  *
  *  Hidden by default (tag starts with '.'); run explicitly with:
  *      igor_tests "[.benchmark][proba_bound]"
@@ -39,6 +39,7 @@
 #include <igor/Model/Legacy/Model_Parms.h>
 #include <igor/Model/Legacy/Model_marginals.h>
 #include <igor/Model/Legacy/Rec_Event.h>
+#include <igor/Model/TraversalPlan.h>
 #include <igor/Core/Legacy/Utils.h>
 
 #include <filesystem>
@@ -103,6 +104,19 @@ public:
         events_map_ = parms_.get_events_map();
         const auto offset_map = marginals_.get_offsets_map(parms_, model_queue_);
 
+        //The engine's plan for the queue's order, which initialize_event() reads the gaps each
+        //event bounds and their keys from (T3). Built and checked as GenModel::infer_model builds
+        //and checks it, and kept for as long as the events are: they hold a pointer to it.
+        std::vector<const Rec_Event *> order;
+        for (std::queue<std::shared_ptr<Rec_Event>> walk = model_queue_; not walk.empty(); walk.pop()) {
+            order.push_back(walk.front().get());
+        }
+        plan_ = std::make_unique<igor::model::TraversalPlan>(parms_.get_seq_type_registry(), order);
+        plan_->check_admissible();
+        for (auto &event : events_) {
+            event->set_traversal_plan(*plan_);
+        }
+
         //The forward initialize_event() pass, which the sweep depends on: it is where each
         //event resolves *which* junctions it reads a bound for. Skipping it used to be harmless
         //because the sweep picked its junctions from an enum switch; since S4c it would measure
@@ -112,7 +126,10 @@ public:
         Seq_type_str_p_map constructed_sequences(parms_.get_seq_type_registry());
         Mismatch_vectors_map mismatches_lists(parms_.get_seq_type_registry());
         Seq_offsets_map seq_offsets(parms_.get_seq_type_registry());
-        Downstream_scenario_proba_bound_map downstream_proba_map(parms_.get_seq_type_registry());
+        //Sized from the plan, as in GenModel: past the registry's ids, a gap may have a key of its
+        //own.
+        Downstream_scenario_proba_bound_map downstream_proba_map(parms_.get_seq_type_registry(), 1,
+                                                                 plan_->bound_key_count());
         downstream_proba_map.init_first_layer(1.0);
         std::shared_ptr<Error_rate> err_rate = parms_.get_err_rate_p();
 
@@ -166,6 +183,8 @@ private:
     std::list<std::shared_ptr<Rec_Event>> events_;
     Index_map index_map_{0};
     Events_map events_map_;
+    //After parms_, whose registry it refers to, so that it is destroyed first.
+    std::unique_ptr<igor::model::TraversalPlan> plan_;
 };
 
 } // namespace
@@ -203,7 +222,8 @@ TEST_CASE("Junction-length bound initialization", "[.benchmark][proba_bound]")
     }
 }
 
-//A tandem-D model cannot be benchmarked yet: iterate_initialize_Len_proba is reached
-//through Seq_type-named maps, so a D1D2 junction throws before the sweep runs. Add the
-//case with S4c, which is the step that removes that ceiling -- the benchmark is then the
-//evidence that the generalisation did not cost throughput.
+//No tandem-D case yet, though nothing in the sweep refuses one any more: since S4c an event
+//holds junction handles rather than VD / DJ / VJ maps, and since T3 its junctions and their
+//keys come from the engine's TraversalPlan. A case would load
+//tst/test_data/tandem_d/trb_tandem_d_model.json, which read_model_parms() recognises as JSON.
+//T5 measured that sweep through the CLI instead (scripts/tandem_d/compare_cost.py): 24.5 s.
