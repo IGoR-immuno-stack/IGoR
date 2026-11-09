@@ -36,7 +36,7 @@ namespace igor::model {
  * \brief Which events create and which modify each segment of a model: its two ends, and its
  * content.
  *
- * Read from the events' A0 roles (`get_offset_role()`, `get_seq_construction_role()`), over the
+ * Read from the events' A0 roles (`get_segment_end_role()`, `get_seq_construction_role()`), over the
  * segments of the registry's ordering. It does not depend on the order the events run in, so every
  * engine reads the same index; what does depend on it is TraversalPlan's. This is the synthesis'
  * "SegmentIndex (creators and modifiers per segment and end)" (ARCHITECTURE_SYNTHESIS §2).
@@ -59,10 +59,15 @@ public:
         for (const legacy::Rec_Event *event : events) {
             for (const core::SegmentId segment : registry.ordering()) {
                 for (const core::SeqSide side : {core::Five_prime, core::Three_prime}) {
-                    switch (event->get_offset_role(segment, side)) {
-                    case legacy::OffsetRole::Creates: end_creators_[end(segment, side)].push_back(event); break;
-                    case legacy::OffsetRole::Modifies: end_modifiers_[end(segment, side)].push_back(event); break;
-                    case legacy::OffsetRole::None: break;
+                    switch (event->get_segment_end_role(segment, side)) {
+                    case legacy::SegmentEndRole::Creates:
+                        end_creators_[end(segment, side)].push_back(event);
+                        break;
+                    case legacy::SegmentEndRole::Modifies:
+                        end_modifiers_[end(segment, side)].push_back(event);
+                        break;
+                    case legacy::SegmentEndRole::None:
+                        break;
                     }
                 }
                 switch (event->get_seq_construction_role(segment)) {
@@ -104,7 +109,7 @@ public:
         }
         for (const legacy::Rec_Event *creator : content_creators(segment)) {
             for (const core::SeqSide side : {core::Five_prime, core::Three_prime}) {
-                if (creator->get_offset_role(segment, side) == legacy::OffsetRole::Creates) {
+                if (creator->get_segment_end_role(segment, side) == legacy::SegmentEndRole::Creates) {
                     return true;
                 }
             }

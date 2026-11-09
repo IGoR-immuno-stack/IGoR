@@ -37,8 +37,8 @@ CORE_LEGACY = ["Event_type", "GeneChoice_t", "Deletion_t", "Insertion_t", "Dinuc
                "int_A", "int_C", "int_G", "int_T", "int_R", "int_Y", "int_K", "int_M", "int_S", "int_W",
                "int_B", "int_D", "int_H", "int_V", "int_N", "int_undefined"]
 MODEL_LEGACY = ["Rec_Event", "Events_map", "Next_event_ptr", "Gene_choice", "Deletion", "Insertion",
-                "Dinucl_markov", "Event_realization", "Error_rate", "OffsetDelta", "LengthContribution",
-                "SeqConstructionRole", "OffsetRole", "Model_Parms", "Model_marginals", "Counter",
+                "Dinucl_markov", "Event_realization", "Error_rate", "SegmentEndShift", "LengthContribution",
+                "SeqConstructionRole", "SegmentEndRole", "Model_Parms", "Model_marginals", "Counter",
                 "EventUtils"]
 
 

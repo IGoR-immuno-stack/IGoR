@@ -97,8 +97,7 @@ public:
     PendingModifierBounds() = default;
 
     /// Sized for `seq_type_count` ids with nothing pending anywhere.
-    explicit PendingModifierBounds(std::size_t seq_type_count)
-        : offset_(seq_type_count * 2), length_(seq_type_count)
+    explicit PendingModifierBounds(std::size_t seq_type_count) : end_shift_(seq_type_count * 2), length_(seq_type_count)
     {
     }
 
@@ -113,7 +112,7 @@ public:
                  const std::unordered_set<core::EventName> &processed_events)
     {
         const std::size_t count = registry.total_count();
-        offset_.assign(count * 2, legacy::OffsetDelta{});
+        end_shift_.assign(count * 2, legacy::SegmentEndShift{});
         length_.assign(count, legacy::LengthContribution{});
 
         for (const auto &[key, event] : events_map) {
@@ -124,10 +123,9 @@ public:
             for (std::size_t id = 0; id != count; ++id) {
                 const auto type_id = static_cast<core::SegmentId>(id);
                 for (const core::SeqSide side : {core::Five_prime, core::Three_prime}) {
-                    const legacy::OffsetDelta delta = event->get_offset_delta_bounds(type_id, side);
-                    check_ordered(delta.min, delta.max, *event, registry, type_id,
-                                  "get_offset_delta_bounds");
-                    legacy::OffsetDelta &accumulated = offset_[end_index(id, side)];
+                    const legacy::SegmentEndShift delta = event->get_segment_end_shift_bounds(type_id, side);
+                    check_ordered(delta.min, delta.max, *event, registry, type_id, "get_segment_end_shift_bounds");
+                    legacy::SegmentEndShift &accumulated = end_shift_[end_index(id, side)];
                     accumulated.min += delta.min;
                     accumulated.max += delta.max;
                 }
@@ -142,10 +140,10 @@ public:
     }
 
     /// Signed range by which `(type_id, side)` can still be shifted. `{0, 0}` if it cannot.
-    legacy::OffsetDelta offset_delta(core::SegmentId type_id, core::SeqSide side) const
+    legacy::SegmentEndShift segment_end_shift(core::SegmentId type_id, core::SeqSide side) const
     {
-        check_id(type_id, "offset_delta");
-        return offset_[end_index(type_id, checked_side(side))];
+        check_id(type_id, "segment_end_shift");
+        return end_shift_[end_index(type_id, checked_side(side))];
     }
 
     /// Signed range of nucleotides still to be added to or removed from `type_id`.
@@ -161,7 +159,7 @@ public:
      * The sign flip is already absorbed by the delta -- a 3' end whose delta is `{-4, 0}`
      * reaches `[current - 4, current]`, a 5' end whose delta is `{0, 3}` reaches
      * `[current, current + 3]`, and a palindromic range spans both ways -- so this is a plain
-     * translation. It does *not* re-sort the two bounds: `OffsetDelta` is contractually
+     * translation. It does *not* re-sort the two bounds: `SegmentEndShift` is contractually
      * ordered, and rebuild() rejects a provider that breaks that rather than papering over it.
      *
      * Degenerates to the point `[current, current]` exactly when nothing pending bears on the
@@ -172,7 +170,7 @@ public:
      */
     OffsetInterval reachable(core::SegmentId type_id, core::SeqSide side, core::SeqOffset current) const
     {
-        const legacy::OffsetDelta delta = offset_delta(type_id, side);
+        const legacy::SegmentEndShift delta = segment_end_shift(type_id, side);
         return {current + delta.min, current + delta.max};
     }
 
@@ -218,7 +216,7 @@ private:
     }
 
     /// Indexed [id * 2 + side]; the two ends of a segment move independently.
-    std::vector<legacy::OffsetDelta> offset_;
+    std::vector<legacy::SegmentEndShift> end_shift_;
     /// Indexed [id].
     std::vector<legacy::LengthContribution> length_;
 };

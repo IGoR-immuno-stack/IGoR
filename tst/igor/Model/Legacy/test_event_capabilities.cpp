@@ -69,16 +69,16 @@ TEST_CASE("Deletion capability queries", "[capabilities][deletion]")
         // and its *minimum* corresponds to the largest deletion.
         auto del = make_deletion(V_gene_seq, Three_prime, 0, 16, /*id=*/0);
 
-        CHECK(del->get_offset_delta_bounds(id_of(V_gene_seq), Three_prime) == OffsetDelta{-16, 0});
+        CHECK(del->get_segment_end_shift_bounds(id_of(V_gene_seq), Three_prime) == SegmentEndShift{ -16, 0 });
         CHECK(del->get_length_contribution(id_of(V_gene_seq)) == LengthContribution{-16, 0});
         CHECK(del->get_seq_construction_role(id_of(V_gene_seq)) == SeqConstructionRole::Modifies);
-        CHECK(del->get_offset_role(id_of(V_gene_seq), Three_prime) == OffsetRole::Modifies);
+        CHECK(del->get_segment_end_role(id_of(V_gene_seq), Three_prime) == SegmentEndRole::Modifies);
 
         // The other end of the same segment is untouched.
-        CHECK(del->get_offset_delta_bounds(id_of(V_gene_seq), Five_prime) == OffsetDelta{});
-        CHECK(del->get_offset_role(id_of(V_gene_seq), Five_prime) == OffsetRole::None);
+        CHECK(del->get_segment_end_shift_bounds(id_of(V_gene_seq), Five_prime) == SegmentEndShift{});
+        CHECK(del->get_segment_end_role(id_of(V_gene_seq), Five_prime) == SegmentEndRole::None);
         // So is every other segment.
-        CHECK(del->get_offset_delta_bounds(kOtherId, Three_prime) == OffsetDelta{});
+        CHECK(del->get_segment_end_shift_bounds(kOtherId, Three_prime) == SegmentEndShift{});
         CHECK(del->get_length_contribution(kOtherId) == LengthContribution{});
         CHECK(del->get_seq_construction_role(kOtherId) == SeqConstructionRole::None);
     }
@@ -89,12 +89,12 @@ TEST_CASE("Deletion capability queries", "[capabilities][deletion]")
         // spell out by hand. A 5' end moves *right* as nucleotides are removed.
         auto del = make_deletion(D_gene_seq, Five_prime, 0, 16, /*id=*/0);
 
-        CHECK(del->get_offset_delta_bounds(id_of(D_gene_seq), Five_prime) == OffsetDelta{0, 16});
+        CHECK(del->get_segment_end_shift_bounds(id_of(D_gene_seq), Five_prime) == SegmentEndShift{ 0, 16 });
         // Removing nucleotides shortens the segment whichever end they come from, so the
-        // length contribution keeps the sign the offset delta just flipped.
+        // length contribution keeps the sign the segment end shift just flipped.
         CHECK(del->get_length_contribution(id_of(D_gene_seq)) == LengthContribution{-16, 0});
-        CHECK(del->get_offset_role(id_of(D_gene_seq), Five_prime) == OffsetRole::Modifies);
-        CHECK(del->get_offset_delta_bounds(id_of(D_gene_seq), Three_prime) == OffsetDelta{});
+        CHECK(del->get_segment_end_role(id_of(D_gene_seq), Five_prime) == SegmentEndRole::Modifies);
+        CHECK(del->get_segment_end_shift_bounds(id_of(D_gene_seq), Three_prime) == SegmentEndShift{});
     }
 
     SECTION("Palindromic insertions move the end the other way")
@@ -102,13 +102,11 @@ TEST_CASE("Deletion capability queries", "[capabilities][deletion]")
         // Range [-4, 16]: a negative deletion adds nucleotides, so a 3' end can travel four
         // positions to the right and a 5' end four to the left.
         auto three_prime = make_deletion(V_gene_seq, Three_prime, -4, 16, /*id=*/0);
-        CHECK(three_prime->get_offset_delta_bounds(id_of(V_gene_seq), Three_prime)
-              == OffsetDelta{-16, 4});
+        CHECK(three_prime->get_segment_end_shift_bounds(id_of(V_gene_seq), Three_prime) == SegmentEndShift{ -16, 4 });
         CHECK(three_prime->get_length_contribution(id_of(V_gene_seq)) == LengthContribution{-16, 4});
 
         auto five_prime = make_deletion(D_gene_seq, Five_prime, -4, 16, /*id=*/0);
-        CHECK(five_prime->get_offset_delta_bounds(id_of(D_gene_seq), Five_prime)
-              == OffsetDelta{-4, 16});
+        CHECK(five_prime->get_segment_end_shift_bounds(id_of(D_gene_seq), Five_prime) == SegmentEndShift{ -4, 16 });
         CHECK(five_prime->get_length_contribution(id_of(D_gene_seq)) == LengthContribution{-16, 4});
     }
 
@@ -118,8 +116,8 @@ TEST_CASE("Deletion capability queries", "[capabilities][deletion]")
              std::vector<std::pair<int, int>>{{0, 1}, {0, 16}, {-4, 16}, {-4, -1}, {3, 3}}) {
             auto del = make_deletion(V_gene_seq, Three_prime, min_del, max_del, /*id=*/0);
             INFO("deletion range [" << min_del << ", " << max_del << "]");
-            CHECK(del->get_offset_delta_bounds(id_of(V_gene_seq), Three_prime)
-                  == OffsetDelta{-max_del, -min_del});
+            CHECK(del->get_segment_end_shift_bounds(id_of(V_gene_seq), Three_prime)
+                  == SegmentEndShift{ -max_del, -min_del });
         }
     }
 
@@ -148,14 +146,14 @@ TEST_CASE("Deletion capability queries", "[capabilities][deletion]")
         // The legacy accessor is left at its sentinel.
         REQUIRE(del.get_len_max() == std::numeric_limits<int16_t>::min());
         // The capability query is not.
-        CHECK(del.get_offset_delta_bounds(id_of(V_gene_seq), Three_prime) == OffsetDelta{-2, 0});
+        CHECK(del.get_segment_end_shift_bounds(id_of(V_gene_seq), Three_prime) == SegmentEndShift{ -2, 0 });
         CHECK(del.get_length_contribution(id_of(V_gene_seq)) == LengthContribution{-2, 0});
     }
 
     SECTION("A single-realization deletion gives a degenerate, non-empty range")
     {
         auto del = make_deletion(V_gene_seq, Three_prime, 5, 5, /*id=*/0);
-        CHECK(del->get_offset_delta_bounds(id_of(V_gene_seq), Three_prime) == OffsetDelta{-5, -5});
+        CHECK(del->get_segment_end_shift_bounds(id_of(V_gene_seq), Three_prime) == SegmentEndShift{ -5, -5 });
     }
 }
 
@@ -166,11 +164,11 @@ TEST_CASE("Gene_choice capability queries", "[capabilities][gene_choice]")
         auto gc = make_gene_choice(V_gene, {{"V1", "ACGTACGT"}, {"V2", "ACGTACGTACGT"}}, 0);
 
         CHECK(gc->get_seq_construction_role(id_of(V_gene_seq)) == SeqConstructionRole::Creates);
-        CHECK(gc->get_offset_role(id_of(V_gene_seq), Five_prime) == OffsetRole::Creates);
-        CHECK(gc->get_offset_role(id_of(V_gene_seq), Three_prime) == OffsetRole::Creates);
+        CHECK(gc->get_segment_end_role(id_of(V_gene_seq), Five_prime) == SegmentEndRole::Creates);
+        CHECK(gc->get_segment_end_role(id_of(V_gene_seq), Three_prime) == SegmentEndRole::Creates);
         // An alignment fixes the position outright, so there is no travel to report.
-        CHECK(gc->get_offset_delta_bounds(id_of(V_gene_seq), Five_prime) == OffsetDelta{});
-        CHECK(gc->get_offset_delta_bounds(id_of(V_gene_seq), Three_prime) == OffsetDelta{});
+        CHECK(gc->get_segment_end_shift_bounds(id_of(V_gene_seq), Five_prime) == SegmentEndShift{});
+        CHECK(gc->get_segment_end_shift_bounds(id_of(V_gene_seq), Three_prime) == SegmentEndShift{});
     }
 
     SECTION("The length contribution spans the shortest and longest templates")
@@ -204,14 +202,14 @@ TEST_CASE("Insertion capability queries", "[capabilities][insertion]")
         // Both ends, since iterate() derives and writes both. Plain Creates: the
         // Anchors/Derives split once proposed here is the wrong answer, because whether a
         // span is zero-width is a consumer question and not a property of the segment.
-        CHECK(ins->get_offset_role(id_of(VD_ins_seq), Five_prime) == OffsetRole::Creates);
-        CHECK(ins->get_offset_role(id_of(VD_ins_seq), Three_prime) == OffsetRole::Creates);
-        CHECK(ins->get_offset_role(kOtherId, Five_prime) == OffsetRole::None);
+        CHECK(ins->get_segment_end_role(id_of(VD_ins_seq), Five_prime) == SegmentEndRole::Creates);
+        CHECK(ins->get_segment_end_role(id_of(VD_ins_seq), Three_prime) == SegmentEndRole::Creates);
+        CHECK(ins->get_segment_end_role(kOtherId, Five_prime) == SegmentEndRole::None);
 
         // Still nothing here, and for a reason that is not "it has no offsets": this asks how
         // far an end can still be *shifted*, and the span is derived from where the neighbours
         // already sit -- which is what makes the generic B6 rule possible.
-        CHECK(ins->get_offset_delta_bounds(id_of(VD_ins_seq), Five_prime) == OffsetDelta{});
+        CHECK(ins->get_segment_end_shift_bounds(id_of(VD_ins_seq), Five_prime) == SegmentEndShift{});
     }
 
     SECTION("The length contribution is the insertion count range, and is non-negative")
@@ -236,8 +234,8 @@ TEST_CASE("Dinucl_markov capability queries", "[capabilities][dinuclmarkov]")
         CHECK(dinuc->get_seq_construction_role(id_of(VD_ins_seq)) == SeqConstructionRole::Creates);
         CHECK(dinuc->get_seq_construction_role(kOtherId) == SeqConstructionRole::None);
         CHECK(dinuc->get_length_contribution(id_of(VD_ins_seq)) == LengthContribution{});
-        CHECK(dinuc->get_offset_role(id_of(VD_ins_seq), Five_prime) == OffsetRole::None);
-        CHECK(dinuc->get_offset_delta_bounds(id_of(VD_ins_seq), Three_prime) == OffsetDelta{});
+        CHECK(dinuc->get_segment_end_role(id_of(VD_ins_seq), Five_prime) == SegmentEndRole::None);
+        CHECK(dinuc->get_segment_end_shift_bounds(id_of(VD_ins_seq), Three_prime) == SegmentEndShift{});
     }
 
     SECTION("This is the subclass whose len_min / len_max were never set")
@@ -269,9 +267,9 @@ TEST_CASE("Capability queries agree across the subclasses that share a segment",
         int creates_v_three_prime = 0;
         int modifies_v_three_prime = 0;
         for (const auto &event : events) {
-            const OffsetRole role = event->get_offset_role(id_of(V_gene_seq), Three_prime);
-            creates_v_three_prime += (role == OffsetRole::Creates);
-            modifies_v_three_prime += (role == OffsetRole::Modifies);
+            const SegmentEndRole role = event->get_segment_end_role(id_of(V_gene_seq), Three_prime);
+            creates_v_three_prime += (role == SegmentEndRole::Creates);
+            modifies_v_three_prime += (role == SegmentEndRole::Modifies);
         }
         CHECK(creates_v_three_prime == 1);
         CHECK(modifies_v_three_prime == 1);
@@ -288,9 +286,9 @@ TEST_CASE("Capability queries agree across the subclasses that share a segment",
 
     SECTION("Only the deletion reports travel for V's 3' end")
     {
-        CHECK(v_choice->get_offset_delta_bounds(id_of(V_gene_seq), Three_prime) == OffsetDelta{});
-        CHECK(vd_ins->get_offset_delta_bounds(id_of(V_gene_seq), Three_prime) == OffsetDelta{});
-        CHECK(v_del->get_offset_delta_bounds(id_of(V_gene_seq), Three_prime) == OffsetDelta{-4, 0});
+        CHECK(v_choice->get_segment_end_shift_bounds(id_of(V_gene_seq), Three_prime) == SegmentEndShift{});
+        CHECK(vd_ins->get_segment_end_shift_bounds(id_of(V_gene_seq), Three_prime) == SegmentEndShift{});
+        CHECK(v_del->get_segment_end_shift_bounds(id_of(V_gene_seq), Three_prime) == SegmentEndShift{ -4, 0 });
     }
 }
 
@@ -310,7 +308,7 @@ TEST_CASE("A gap runs between two segment ends", "[capabilities][span]")
 
 TEST_CASE("Span effect queries", "[capabilities][span]")
 {
-    // One rule answers for every event, from the offset roles it declares and the ordering
+    // One rule answers for every event, from the segment end roles it declares and the ordering
     // (R12): a realization changes a span's length when it creates or modifies an end of a
     // segment strictly inside the span, or modifies one of the span's two ends.
     const SegmentRegistry &registry = vdj_segment_registry();

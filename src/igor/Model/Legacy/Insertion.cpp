@@ -185,7 +185,7 @@ void Insertion::iterate(
         //stops existing anywhere in the program.
         //
         //Recording the offsets is the repair itself (R3, plan section 6.9). The old comment
-        //beside get_offset_delta_bounds() ran two claims together: *the span is derived from
+        //beside get_segment_end_shift_bounds() ran two claims together: *the span is derived from
         //where the neighbours already sit* is true and is B6's whole point, *and therefore no
         //offsets are recorded* was the defect. A consumer is supposed to ask the segment where
         //it is rather than know which event produced it -- that is what A0 exists for.
@@ -375,7 +375,7 @@ void Insertion::require_dinucl_markov(const Events_map &events_map) const
     }
 }
 
-OffsetDelta Insertion::get_offset_delta_bounds(SegmentId, Seq_side) const
+SegmentEndShift Insertion::get_segment_end_shift_bounds(SegmentId, Seq_side) const
 {
     //Nothing, and for a reason that is *not* "this event has no offsets" -- it writes both of
     //them (R3). This query asks how far an end can still be *shifted* from where it already
@@ -408,12 +408,12 @@ SeqConstructionRole Insertion::get_seq_construction_role(SegmentId) const
     return SeqConstructionRole::None;
 }
 
-OffsetRole Insertion::get_offset_role(SegmentId type_id, Seq_side) const
+SegmentEndRole Insertion::get_segment_end_role(SegmentId type_id, Seq_side) const
 {
     //Both ends, since iterate() derives and writes both. Plain `Creates`: the Anchors/Derives
     //split first proposed for this is the wrong answer, because whether a span is zero-width
     //is a *consumer* question and not a property of the segment (plan section 2.5).
-    return type_id == this->seq_type_id ? OffsetRole::Creates : OffsetRole::None;
+    return type_id == this->seq_type_id ? SegmentEndRole::Creates : SegmentEndRole::None;
 }
 
 int Insertion::length_delta(const Event_realization &realization) const

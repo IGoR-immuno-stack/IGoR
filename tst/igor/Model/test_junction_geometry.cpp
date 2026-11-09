@@ -28,7 +28,7 @@
  *
  * The load-bearing claim is therefore an *equivalence*: for every end, the interval this
  * reports must be the one the legacy scalars produce when fed through the legacy offset
- * arithmetic. `legacy_offset_delta()` below spells that arithmetic out, reading the legacy
+ * arithmetic. `legacy_segment_end_shift()` below spells that arithmetic out, reading the legacy
  * accessors off the same event objects, so the comparison is against the old code's own
  * convention rather than against numbers typed into this file.
  *
@@ -89,7 +89,7 @@ void add_event(Events_map &events_map, const std::shared_ptr<Rec_Event> &event)
  * so get_len_min() / get_len_max() are trustworthy here -- unlike the map-based constructor
  * the model reader uses (plan section 7.4).
  */
-OffsetDelta legacy_offset_delta(const Deletion &deletion, Seq_side side)
+SegmentEndShift legacy_segment_end_shift(const Deletion &deletion, Seq_side side)
 {
     const int min_del = deletion.get_len_max();
     const int max_del = deletion.get_len_min();
@@ -154,18 +154,22 @@ TEST_CASE("PendingModifierBounds: every end matches the legacy scalar arithmetic
     const PendingModifierBounds bounds = model.build();
 
     // The four ends a deletion bears on, each against the legacy formula for its own side.
-    CHECK(bounds.offset_delta(id_of(V_gene_seq), Three_prime) == legacy_offset_delta(*model.del_v_3, Three_prime));
-    CHECK(bounds.offset_delta(id_of(D_gene_seq), Five_prime) == legacy_offset_delta(*model.del_d_5, Five_prime));
-    CHECK(bounds.offset_delta(id_of(D_gene_seq), Three_prime) == legacy_offset_delta(*model.del_d_3, Three_prime));
-    CHECK(bounds.offset_delta(id_of(J_gene_seq), Five_prime) == legacy_offset_delta(*model.del_j_5, Five_prime));
+    CHECK(bounds.segment_end_shift(id_of(V_gene_seq), Three_prime)
+          == legacy_segment_end_shift(*model.del_v_3, Three_prime));
+    CHECK(bounds.segment_end_shift(id_of(D_gene_seq), Five_prime)
+          == legacy_segment_end_shift(*model.del_d_5, Five_prime));
+    CHECK(bounds.segment_end_shift(id_of(D_gene_seq), Three_prime)
+          == legacy_segment_end_shift(*model.del_d_3, Three_prime));
+    CHECK(bounds.segment_end_shift(id_of(J_gene_seq), Five_prime)
+          == legacy_segment_end_shift(*model.del_j_5, Five_prime));
 
     // The same four, as literals, so a sign flip on *both* sides of the comparison above
     // cannot pass unnoticed. A 3' end retreats (negative), a 5' end advances (positive), and
     // the palindromic D-5' range reaches two positions back the other way.
-    CHECK(bounds.offset_delta(id_of(V_gene_seq), Three_prime) == OffsetDelta{-4, 0});
-    CHECK(bounds.offset_delta(id_of(D_gene_seq), Five_prime) == OffsetDelta{-2, 3});
-    CHECK(bounds.offset_delta(id_of(D_gene_seq), Three_prime) == OffsetDelta{-5, 0});
-    CHECK(bounds.offset_delta(id_of(J_gene_seq), Five_prime) == OffsetDelta{0, 8});
+    CHECK(bounds.segment_end_shift(id_of(V_gene_seq), Three_prime) == SegmentEndShift{ -4, 0 });
+    CHECK(bounds.segment_end_shift(id_of(D_gene_seq), Five_prime) == SegmentEndShift{ -2, 3 });
+    CHECK(bounds.segment_end_shift(id_of(D_gene_seq), Three_prime) == SegmentEndShift{ -5, 0 });
+    CHECK(bounds.segment_end_shift(id_of(J_gene_seq), Five_prime) == SegmentEndShift{ 0, 8 });
 }
 
 TEST_CASE("PendingModifierBounds: an end no undecided event bears on cannot move", "[junction_geometry][s2]")
@@ -176,8 +180,8 @@ TEST_CASE("PendingModifierBounds: an end no undecided event bears on cannot move
     {
         // Indistinguishable from a pinned end by design -- both mean "will not move again".
         const PendingModifierBounds bounds = model.build();
-        CHECK(bounds.offset_delta(id_of(V_gene_seq), Five_prime) == OffsetDelta{});
-        CHECK(bounds.offset_delta(id_of(J_gene_seq), Three_prime) == OffsetDelta{});
+        CHECK(bounds.segment_end_shift(id_of(V_gene_seq), Five_prime) == SegmentEndShift{});
+        CHECK(bounds.segment_end_shift(id_of(J_gene_seq), Three_prime) == SegmentEndShift{});
     }
 
     SECTION("Insertion segments have no offsets of their own")
@@ -186,8 +190,8 @@ TEST_CASE("PendingModifierBounds: an end no undecided event bears on cannot move
         // its neighbours sit, so neither of its ends is a modifiable offset.
         const PendingModifierBounds bounds = model.build();
         for (const Seq_type junction : {VD_ins_seq, DJ_ins_seq}) {
-            CHECK(bounds.offset_delta(id_of(junction), Five_prime) == OffsetDelta{});
-            CHECK(bounds.offset_delta(id_of(junction), Three_prime) == OffsetDelta{});
+            CHECK(bounds.segment_end_shift(id_of(junction), Five_prime) == SegmentEndShift{});
+            CHECK(bounds.segment_end_shift(id_of(junction), Three_prime) == SegmentEndShift{});
         }
     }
 
@@ -196,10 +200,10 @@ TEST_CASE("PendingModifierBounds: an end no undecided event bears on cannot move
         // Its realization was fixed further up the scenario tree. This is the branch the
         // legacy `processed_events.count(...) != 0 ? 0 : range` test takes.
         const PendingModifierBounds bounds = model.build({model.del_v_3->get_name()});
-        CHECK(bounds.offset_delta(id_of(V_gene_seq), Three_prime) == OffsetDelta{});
+        CHECK(bounds.segment_end_shift(id_of(V_gene_seq), Three_prime) == SegmentEndShift{});
         // Positive control: the other three ends are untouched by that decision.
-        CHECK(bounds.offset_delta(id_of(D_gene_seq), Five_prime) == OffsetDelta{-2, 3});
-        CHECK(bounds.offset_delta(id_of(J_gene_seq), Five_prime) == OffsetDelta{0, 8});
+        CHECK(bounds.segment_end_shift(id_of(D_gene_seq), Five_prime) == SegmentEndShift{ -2, 3 });
+        CHECK(bounds.segment_end_shift(id_of(J_gene_seq), Five_prime) == SegmentEndShift{ 0, 8 });
     }
 
     SECTION("The event asking is not yet processed, so its own travel is included")
@@ -209,7 +213,7 @@ TEST_CASE("PendingModifierBounds: an end no undecided event bears on cannot move
         // legacy blocks behave the same way; pinned here because it is the kind of detail a
         // rewrite silently changes.
         const PendingModifierBounds bounds = model.build();
-        REQUIRE(bounds.offset_delta(id_of(V_gene_seq), Three_prime) == OffsetDelta{-4, 0});
+        REQUIRE(bounds.segment_end_shift(id_of(V_gene_seq), Three_prime) == SegmentEndShift{ -4, 0 });
     }
 }
 
@@ -277,14 +281,14 @@ TEST_CASE("PendingModifierBounds: a VJ model has no D ends at all", "[junction_g
     bounds.rebuild(registry, events_map, {});
 
     // The ends that exist behave exactly as in the VDJ model.
-    CHECK(bounds.offset_delta(id_of(V_gene_seq), Three_prime) == legacy_offset_delta(*del_v_3, Three_prime));
-    CHECK(bounds.offset_delta(id_of(J_gene_seq), Five_prime) == legacy_offset_delta(*del_j_5, Five_prime));
+    CHECK(bounds.segment_end_shift(id_of(V_gene_seq), Three_prime) == legacy_segment_end_shift(*del_v_3, Three_prime));
+    CHECK(bounds.segment_end_shift(id_of(J_gene_seq), Five_prime) == legacy_segment_end_shift(*del_j_5, Five_prime));
     CHECK(bounds.length(id_of(VJ_ins_seq)) == LengthContribution{0, 9});
 
     // The D ends read as immobile rather than as an error -- which is what lets the same
     // generic body serve both topologies, and what the legacy `d_5_min_del = 0` fallback did.
-    CHECK(bounds.offset_delta(id_of(D_gene_seq), Five_prime) == OffsetDelta{});
-    CHECK(bounds.offset_delta(id_of(D_gene_seq), Three_prime) == OffsetDelta{});
+    CHECK(bounds.segment_end_shift(id_of(D_gene_seq), Five_prime) == SegmentEndShift{});
+    CHECK(bounds.segment_end_shift(id_of(D_gene_seq), Three_prime) == SegmentEndShift{});
     CHECK(bounds.length(id_of(D_gene_seq)) == LengthContribution{});
     // ...and the junctions a VDJ model would have are equally empty.
     CHECK(bounds.length(id_of(VD_ins_seq)) == LengthContribution{});
@@ -315,12 +319,12 @@ TEST_CASE("PendingModifierBounds: two modifiers on one end sum", "[junction_geom
 
     PendingModifierBounds bounds;
     bounds.rebuild(registry, events_map, {});
-    CHECK(bounds.offset_delta(id_of(D_gene_seq), Five_prime) == OffsetDelta{0, 8});
+    CHECK(bounds.segment_end_shift(id_of(D_gene_seq), Five_prime) == SegmentEndShift{ 0, 8 });
     CHECK(bounds.length(id_of(D_gene_seq)) == LengthContribution{-8, 0});
 
     // Pinning one of the two leaves the other's travel behind, rather than all or nothing.
     bounds.rebuild(registry, events_map, {del_a->get_name()});
-    CHECK(bounds.offset_delta(id_of(D_gene_seq), Five_prime) == OffsetDelta{0, 5});
+    CHECK(bounds.segment_end_shift(id_of(D_gene_seq), Five_prime) == SegmentEndShift{ 0, 5 });
 }
 
 TEST_CASE("PendingModifierBounds: rebuild discards the previous accumulation", "[junction_geometry][s2]")
@@ -330,9 +334,9 @@ TEST_CASE("PendingModifierBounds: rebuild discards the previous accumulation", "
     const VdjModel model;
     PendingModifierBounds bounds;
     bounds.rebuild(model.registry, model.events_map, {});
-    const OffsetDelta once = bounds.offset_delta(id_of(J_gene_seq), Five_prime);
+    const SegmentEndShift once = bounds.segment_end_shift(id_of(J_gene_seq), Five_prime);
     bounds.rebuild(model.registry, model.events_map, {});
-    CHECK(bounds.offset_delta(id_of(J_gene_seq), Five_prime) == once);
+    CHECK(bounds.segment_end_shift(id_of(J_gene_seq), Five_prime) == once);
     CHECK(bounds.length(id_of(D_gene_seq)) == LengthContribution{-3, 10});
 }
 
@@ -345,22 +349,22 @@ TEST_CASE("PendingModifierBounds: queries outside the contract throw", "[junctio
     {
         // Dinucl_markov is keyed with Undefined_side in the events map, so the value is in
         // circulation; it is not an end anything can be anchored against.
-        CHECK_THROWS_AS(bounds.offset_delta(id_of(V_gene_seq), Undefined_side), std::invalid_argument);
+        CHECK_THROWS_AS(bounds.segment_end_shift(id_of(V_gene_seq), Undefined_side), std::invalid_argument);
     }
 
     SECTION("An id the instance was not built for")
     {
         const auto beyond = static_cast<SegmentId>(model.registry.total_count());
-        CHECK_THROWS_AS(bounds.offset_delta(beyond, Three_prime), std::out_of_range);
+        CHECK_THROWS_AS(bounds.segment_end_shift(beyond, Three_prime), std::out_of_range);
         CHECK_THROWS_AS(bounds.length(beyond), std::out_of_range);
-        CHECK_THROWS_AS(bounds.offset_delta(kNoSegment, Three_prime), std::out_of_range);
+        CHECK_THROWS_AS(bounds.segment_end_shift(kNoSegment, Three_prime), std::out_of_range);
     }
 
     SECTION("A default-constructed instance holds no ids")
     {
         const PendingModifierBounds empty;
         CHECK(empty.seq_type_count() == 0);
-        CHECK_THROWS_AS(empty.offset_delta(0, Three_prime), std::out_of_range);
+        CHECK_THROWS_AS(empty.segment_end_shift(0, Three_prime), std::out_of_range);
     }
 }
 
@@ -685,16 +689,16 @@ public:
         this->set_nickname(break_offset ? "bad_offset_event" : "bad_length_event");
     }
 
-    OffsetDelta get_offset_delta_bounds(SegmentId, Seq_side) const override
+    SegmentEndShift get_segment_end_shift_bounds(SegmentId, Seq_side) const override
     {
-        return break_offset_ ? OffsetDelta{4, -4} : OffsetDelta{};
+        return break_offset_ ? SegmentEndShift{ 4, -4 } : SegmentEndShift{};
     }
     LengthContribution get_length_contribution(SegmentId) const override
     {
         return break_offset_ ? LengthContribution{} : LengthContribution{4, -4};
     }
     SeqConstructionRole get_seq_construction_role(SegmentId) const override { return SeqConstructionRole::None; }
-    OffsetRole get_offset_role(SegmentId, Seq_side) const override { return OffsetRole::None; }
+    SegmentEndRole get_segment_end_role(SegmentId, Seq_side) const override { return SegmentEndRole::None; }
 
     // Everything below is inert: this event exists only to be asked the four queries above.
     void iterate(QuerySequenceContext &, const ModelContext &, ScenarioContext &, ExplorationContext &,
@@ -723,14 +727,14 @@ private:
 
 TEST_CASE("An unordered range from a provider is rejected, not silently sorted", "[junction_geometry][s3]")
 {
-    // OffsetDelta and LengthContribution are contractually ordered intervals. reachable()
+    // SegmentEndShift and LengthContribution are contractually ordered intervals. reachable()
     // used to re-sort them, which made a provider bug invisible *and* made the re-sorting
     // itself untestable: no real subclass can produce an unordered pair, so nothing exercised
     // it. The guard belongs where the value enters, and it belongs as an error.
     const SegmentRegistry registry = make_registry({ "V_gene_seq", "D_gene_seq", "J_gene_seq" });
     PendingModifierBounds bounds;
 
-    SECTION("An unordered offset delta")
+    SECTION("An unordered segment end shift")
     {
         Events_map events_map;
         events_map.emplace(std::make_tuple(Deletion_t, Seq_type_String("V_gene_seq"), Three_prime),
@@ -757,8 +761,8 @@ TEST_CASE("An unordered range from a provider is rejected, not silently sorted",
             (void)key;
             for (SegmentId id = 0; id != static_cast<SegmentId>(model.registry.total_count()); ++id) {
                 for (const Seq_side side : {Five_prime, Three_prime}) {
-                    const OffsetDelta delta = event->get_offset_delta_bounds(id, side);
-                    INFO(event->get_name() << " offset delta on id " << id << " side " << side);
+                    const SegmentEndShift delta = event->get_segment_end_shift_bounds(id, side);
+                    INFO(event->get_name() << " segment end shift on id " << id << " side " << side);
                     REQUIRE(delta.min <= delta.max);
                 }
                 const LengthContribution length = event->get_length_contribution(id);

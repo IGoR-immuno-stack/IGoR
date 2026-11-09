@@ -609,7 +609,7 @@ void Dinucl_markov::update_event_internal_probas(const Marginal_array_p &margina
     }
 }
 
-OffsetDelta Dinucl_markov::get_offset_delta_bounds(SegmentId, Seq_side) const
+SegmentEndShift Dinucl_markov::get_segment_end_shift_bounds(SegmentId, Seq_side) const
 {
     return {};
 }
@@ -632,9 +632,9 @@ SeqConstructionRole Dinucl_markov::get_seq_construction_role(SegmentId type_id) 
     return type_id == this->seq_type_id ? SeqConstructionRole::Creates : SeqConstructionRole::None;
 }
 
-OffsetRole Dinucl_markov::get_offset_role(SegmentId, Seq_side) const
+SegmentEndRole Dinucl_markov::get_segment_end_role(SegmentId, Seq_side) const
 {
-    return OffsetRole::None;
+    return SegmentEndRole::None;
 }
 
 bool Dinucl_markov::affects_proba_of(SegmentSpan span, const SegmentRegistry &registry) const

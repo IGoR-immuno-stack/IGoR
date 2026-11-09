@@ -123,7 +123,7 @@ TEST_CASE("Dinucl_markov: baseline fill, forward traversal (G9)", "[dinucl][iter
 
     // The anchor is handed on untouched, and so is the junction's placement: this event reads
     // those offsets to size the segment and never writes one, which is what its
-    // OffsetRole::None declares.
+    // SegmentEndRole::None declares.
     CHECK(call.three_prime(V_gene_seq) == 9);
     CHECK(call.five_prime(VD_ins_seq) == 10);
     CHECK(call.three_prime(VD_ins_seq) == 12);
@@ -715,7 +715,7 @@ TEST_CASE("first_unplaced_segment_end: the offsets half of the same invariant", 
 
     SECTION("One end placed and not the other")
     {
-        // The key is per (SegmentId, Seq_side) and not per segment, because get_offset_role is
+        // The key is per (SegmentId, Seq_side) and not per segment, because get_segment_end_role is
         // side-taking: the two ends can in principle be created by different events.
         Seq_offsets_map offsets(vdj_segment_registry(), 4);
         for (const Seq_type type : {V_gene_seq, VD_ins_seq, D_gene_seq, DJ_ins_seq, J_gene_seq}) {

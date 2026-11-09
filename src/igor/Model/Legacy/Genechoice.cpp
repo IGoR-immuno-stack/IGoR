@@ -501,8 +501,8 @@ void Gene_choice::iterate(
                                                       : read_end;
             //Loop-invariant, and hoisted out of the scan because the two scalars this replaces
             //were member reads: how far this segment's own ends can still be trimmed.
-            const int five_prime_max_travel = pending_.offset_delta(this->seq_type_id, Five_prime).max;
-            const int three_prime_min_travel = pending_.offset_delta(this->seq_type_id, Three_prime).min;
+            const int five_prime_max_travel = pending_.segment_end_shift(this->seq_type_id, Five_prime).max;
+            const int three_prime_min_travel = pending_.segment_end_shift(this->seq_type_id, Three_prime).min;
 
             for (unordered_map<string, Event_realization>::const_iterator gene_iter =
                          this->event_realizations.begin();
@@ -855,7 +855,7 @@ void Gene_choice::add_to_marginals(long double scenario_proba, Marginal_array_p 
     }
 }
 
-OffsetDelta Gene_choice::get_offset_delta_bounds(SegmentId, Seq_side) const
+SegmentEndShift Gene_choice::get_segment_end_shift_bounds(SegmentId, Seq_side) const
 {
     //A gene choice *sets* both offsets from the alignment; it never shifts an existing one,
     //so it contributes no travel to any end. What its templates make possible is a length,
@@ -887,10 +887,10 @@ SeqConstructionRole Gene_choice::get_seq_construction_role(SegmentId type_id) co
     return type_id == this->seq_type_id ? SeqConstructionRole::Creates : SeqConstructionRole::None;
 }
 
-OffsetRole Gene_choice::get_offset_role(SegmentId type_id, Seq_side) const
+SegmentEndRole Gene_choice::get_segment_end_role(SegmentId type_id, Seq_side) const
 {
     //Both ends, since the alignment fixes the segment's position outright.
-    return type_id == this->seq_type_id ? OffsetRole::Creates : OffsetRole::None;
+    return type_id == this->seq_type_id ? SegmentEndRole::Creates : SegmentEndRole::None;
 }
 
 

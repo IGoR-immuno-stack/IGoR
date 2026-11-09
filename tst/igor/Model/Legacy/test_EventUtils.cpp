@@ -47,10 +47,10 @@ public:
       Seq_offsets_map &, Index_map &) override {}
   void add_to_marginals(long double, Marginal_array_p &) const override {}
   shared_ptr<Rec_Event> copy() override { return nullptr; }
-  OffsetDelta get_offset_delta_bounds(SegmentId, Seq_side) const override { return {}; }
+  SegmentEndShift get_segment_end_shift_bounds(SegmentId, Seq_side) const override { return {}; }
   LengthContribution get_length_contribution(SegmentId) const override { return {}; }
   SeqConstructionRole get_seq_construction_role(SegmentId) const override { return SeqConstructionRole::None; }
-  OffsetRole get_offset_role(SegmentId, Seq_side) const override { return OffsetRole::None; }
+  SegmentEndRole get_segment_end_role(SegmentId, Seq_side) const override { return SegmentEndRole::None; }
   int length_delta(const Event_realization &) const override { return 0; }
 };
 

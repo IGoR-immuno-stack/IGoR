@@ -25,7 +25,7 @@ The plans are cited by short names (CAP, ITER, PBM, MIG, ERR, CNT, GEN, SYN), li
 | Group | Members | Provided by | Called by |
 |---|---|---|---|
 | Identity and facts set from outside | nickname, event identifier, seq type and its id, neighbours, traversal plan, priority, side, realizations | the model and the engine (§1) | everything |
-| Declarations | `get_offset_role()`, `get_seq_construction_role()`, `get_offset_delta_bounds()`, `get_length_contribution()`, `length_delta()`, `affects_proba_of()`, `span_proba_factor()`, `prepare_span_proba_factor()` | each event type (§2) | `SegmentIndex`, `TraversalPlan`, `PendingModifierBounds`, the fold |
+| Declarations | `get_segment_end_role()`, `get_seq_construction_role()`, `get_segment_end_shift_bounds()`, `get_length_contribution()`, `length_delta()`, `affects_proba_of()`, `span_proba_factor()`, `prepare_span_proba_factor()` | each event type (§2) | `SegmentIndex`, `TraversalPlan`, `PendingModifierBounds`, the fold |
 | Set-up | constructors, `copy()`, `initialize_event()` | each event type (§3.1, §3.2) | the readers, `GenModel` |
 | Once per iteration | `initialize_Len_proba_bound()`, `adopt_Len_proba_bound()` (base, not virtual); `update_event_internal_probas()`; `set_crude_upper_bound_proba()` | the base, plus the declarations | `GenModel` (§3.3) |
 | Exploration | `iterate()` | each event type (§3.4) | the previous event's `iterate_wrap_up()` |
@@ -77,9 +77,9 @@ All four are pure virtual.
 
 | Query | Answers | Values |
 |---|---|---|
-| `get_offset_role(id, side)` | what the event does to one end of segment `id` | `None`; `Creates` (sets the initial offset); `Modifies` (shifts an existing one) |
+| `get_segment_end_role(id, side)` | what the event does to one end of segment `id` | `None`; `Creates` (sets the initial offset); `Modifies` (shifts an existing one) |
 | `get_seq_construction_role(id)` | what it does to the content of segment `id` | `None`; `Creates` (allocates it); `Modifies` (truncates or extends it); `Fills` (fills placeholders in it; no event answers this since R1) |
-| `get_offset_delta_bounds(id, side)` | how far the event can still **shift** an end, signed | `OffsetDelta{min, max}`. A 3′ end moves left as nucleotides are removed, a 5′ end right. `{0, 0}` if the event cannot move it |
+| `get_segment_end_shift_bounds(id, side)` | how far the event can still **shift** an end, signed | `SegmentEndShift{min, max}`. A 3′ end moves left as nucleotides are removed, a 5′ end right. `{0, 0}` if the event cannot move it |
 | `get_length_contribution(id)` | how many nucleotides the event adds to or removes from segment `id`, over all its realizations | `LengthContribution{min, max}`. Positive for content supplied, negative for content removed |
 
 Rules:
@@ -94,7 +94,7 @@ Rules:
 - **A segment is complete when the model's order ends**: both ends placed, content built. The two
   can come from different events: an insertion places a junction, and the Markov chain after it
   creates the content (R1, R3, ITER decision O12).
-- `SeqConstructionRole::Creates` and `OffsetRole::Creates` are separate statements. They coincide
+- `SeqConstructionRole::Creates` and `SegmentEndRole::Creates` are separate statements. They coincide
   for a gene choice, but not for an N region: the insertion creates its ends, and the Markov chain
   its content. Do not merge them.
 
@@ -108,12 +108,12 @@ Rules:
 | `prepare_span_proba_factor(marginals, index_map)` | virtual, default nothing | Precomputes what `span_proba_factor()` reads, from this iteration's marginals. Runs before any table the event takes part in is folded |
 
 The base class derives the rest. These are not virtual:
-- `affects_length_of(span, registry)`: one rule for every event, read off its offset roles and the
+- `affects_length_of(span, registry)`: one rule for every event, read off its segment end roles and the
   ordering. A realization changes the span's length when the event creates or modifies an end of a
   segment strictly inside the span, or modifies one of the span's two ends (R12).
 - `participates_in_span()` is `affects_length_of() or affects_proba_of()`, the filter the fold
   applies.
-- `creates_own_offsets()` decides whether the event publishes an unfilled length in the fold. An
+- `places_own_ends()` decides whether the event publishes an unfilled length in the fold. An
   event that creates its segment's offsets but not its content publishes the length it decided; one
   that creates both publishes 0; one that creates neither publishes nothing.
 
@@ -123,9 +123,9 @@ On their own segment (`id == seq_type_id`); every query answers `None` or `{0, 0
 
 | | `Gene_choice` | `Deletion` | `Insertion` | `Dinucl_markov` |
 |---|---|---|---|---|
-| `get_offset_role` | `Creates`, both ends | `Modifies`, on its side | `Creates`, both ends | `None` |
+| `get_segment_end_role` | `Creates`, both ends | `Modifies`, on its side | `Creates`, both ends | `None` |
 | `get_seq_construction_role` | `Creates` | `Modifies` | `None` | `Creates` |
-| `get_offset_delta_bounds` | `{0, 0}` | its side: 3′ `{−max, −min}`, 5′ `{min, max}` of its deletion values | `{0, 0}` | `{0, 0}` |
+| `get_segment_end_shift_bounds` | `{0, 0}` | its side: 3′ `{−max, −min}`, 5′ `{min, max}` of its deletion values | `{0, 0}` | `{0, 0}` |
 | `get_length_contribution` | `{shortest, longest}` template | `{−max, −min}` | `{fewest, most}` insertions | `{0, 0}` |
 | `length_delta(r)` | template length | `−value` | `+value` | 0, never called |
 | `affects_proba_of` | false | false | false | its segment lies strictly inside the span |

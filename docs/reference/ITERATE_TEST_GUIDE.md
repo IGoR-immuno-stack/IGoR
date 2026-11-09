@@ -186,7 +186,7 @@ for every key this event claimed a layer for:
 failure. No event is exempt any more.
 
 **Declarations: the event did what its A0 roles say, and nothing else.** Before the event runs,
-the recorder reads its `get_seq_construction_role()` and `get_offset_role()`. At each hand-off it
+the recorder reads its `get_seq_construction_role()` and `get_segment_end_role()`. At each hand-off it
 checks that this event wrote every content and every end it declares it `Creates` or `Modifies`
 (a `Fills` must also leave no undetermined nucleotide), and that it left untouched every one it
 declares `None` (ITER §2.5, tier 3). The check is for consistency, not correctness: an event that
@@ -250,7 +250,7 @@ Covered in [test_deletion_iterate.cpp](../../tst/igor/Model/Legacy/test_deletion
 - the insertion count is derived from the neighbours' facing offsets, not from a stored value;
 - a count outside the realization range: **zero hand-offs**, no state written;
 - it writes **both offsets** of its junction and **no sequence**: the `Dinucl_markov` after it
-  creates the segment (R1, R3). Its declarations say so (`OffsetRole::Creates`,
+  creates the segment (R1, R3). Its declarations say so (`SegmentEndRole::Creates`,
   `SeqConstructionRole::None`), and §4.1 checks them;
 - it reads `profile_for(its realization)` at the gap between its neighbours, and **throws** when no
   completion reaches it, where the other events skip the realization. Pin it; changing it is an open
@@ -406,7 +406,7 @@ What to assert:
 5. **`proba_threshold_factor` cannot be changed after construction**: `ExplorationContext` holds it
    by value. The harness pins it at 1 and moves `seq_max_prob` instead, which is held by reference.
    That is what `set_pruning_threshold()` does.
-6. **An `OffsetDelta` is signed by the end it moves.** A deletion of `k` moves a 3′ end by `−k` and
+6. **A `SegmentEndShift` is signed by the end it moves.** A deletion of `k` moves a 3′ end by `−k` and
    a 5′ end by `+k`, so a 3′ deletion over `[0, 4]` reports `{−4, 0}`, ordered. Getting this
    backwards produces fixtures that look right and test nothing. (The `*_min_del` / `*_max_del`
    scalars that used to carry this went with R10; the bounds come from `PendingModifierBounds`.)

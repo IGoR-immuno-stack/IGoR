@@ -246,7 +246,7 @@ CORE_EXPORT SegmentId first_unfilled_segment(const Seq_type_str_p_map &construct
  * because that stopped being true (plan section 2.5).
  *
  * The key is per (`SegmentId`, `Seq_side`) rather than per `SegmentId`, because
- * `get_offset_role` is side-taking and the two ends of a segment can in principle be created
+ * `get_segment_end_role` is side-taking and the two ends of a segment can in principle be created
  * by different events.
  *
  * **Swept over `registry.ordering()`, not over every registered id.** The registry pins all six

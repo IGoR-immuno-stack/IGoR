@@ -134,11 +134,12 @@ struct Event_realization
  * instead of being silently normalised; JunctionGeometry::PendingModifierBounds::rebuild()
  * is where it is enforced.
  */
-struct OffsetDelta {
+struct SegmentEndShift
+{
     int min = 0;
     int max = 0;
 
-    bool operator==(const OffsetDelta &) const = default;
+    bool operator==(const SegmentEndShift &) const = default;
 };
 
 /**
@@ -147,7 +148,7 @@ struct OffsetDelta {
  * Positive for an event that supplies sequence (a genomic template, an insertion), negative
  * for one that removes it (a deletion), zero for one that only fills placeholders.
  *
- * **Invariant: `min <= max`**, as for OffsetDelta.
+ * **Invariant: `min <= max`**, as for SegmentEndShift.
  *
  * This is a *contribution*, not a length: several events compose onto one segment, and the
  * junction-length DP already sums them. It replaces `get_len_min()` / `get_len_max()`, whose
@@ -172,7 +173,7 @@ enum class SeqConstructionRole {
 };
 
 /// What an event does to one end of a segment.
-enum class OffsetRole {
+enum class SegmentEndRole {
     None,
     Creates, ///< sets the initial offset
     Modifies ///< shifts an existing one
@@ -268,7 +269,7 @@ public:
      */
 
     /// How far this event can still shift `(type_id, side)`. `{0, 0}` if it cannot.
-    virtual OffsetDelta get_offset_delta_bounds(SegmentId type_id, Seq_side side) const = 0;
+    virtual SegmentEndShift get_segment_end_shift_bounds(SegmentId type_id, Seq_side side) const = 0;
 
     /// How many nucleotides this event contributes to `type_id`. `{0, 0}` if none.
     virtual LengthContribution get_length_contribution(SegmentId type_id) const = 0;
@@ -277,7 +278,7 @@ public:
     virtual SeqConstructionRole get_seq_construction_role(SegmentId type_id) const = 0;
 
     /// What this event does to one end of the `type_id` segment.
-    virtual OffsetRole get_offset_role(SegmentId type_id, Seq_side side) const = 0;
+    virtual SegmentEndRole get_segment_end_role(SegmentId type_id, Seq_side side) const = 0;
 
     /**
      * The segments immediately 5' and 3' of this event's own, in the registry ordering.
@@ -464,7 +465,7 @@ public:
      * a probability factor to a span while contributing no length answers affects_proba_of()
      * instead; conflating the two is what made the predecessor has_effect_on() misleading.
      *
-     * One rule for every event, read off the offset roles it already declares and the model's
+     * One rule for every event, read off the segment end roles it already declares and the model's
      * ordering (R12): a realization changes the span's length when the event **creates or
      * modifies an end of a segment strictly inside the span**, or **modifies one of the span's
      * two ends**. Creating one of the two ends does not count -- that is anchoring, and the span
@@ -710,7 +711,7 @@ protected:
     /// True for an event that positions its own segment -- an Insertion, a gene choice -- and
     /// false for one that only moves an end of a segment already placed -- a Deletion. Only the
     /// first kind writes a length into a fold's `lengths`.
-    bool creates_own_offsets() const;
+    bool places_own_ends() const;
 
     /**
      * \brief Which junction a JunctionBound slot holds, relative to this event's own segment.

@@ -640,7 +640,7 @@ public:
     struct Declarations {
         bool active = false;
         std::map<Seq_type, SeqConstructionRole> construction;
-        std::map<std::pair<Seq_type, Seq_side>, OffsetRole> offsets;
+        std::map<std::pair<Seq_type, Seq_side>, SegmentEndRole> segment_end_roles;
     };
     Declarations declarations;
 
@@ -664,10 +664,10 @@ public:
     //Unused surface, present only because Rec_Event declares it pure virtual.
     std::shared_ptr<Rec_Event> copy() override;
     void construct_realization(const std::vector<int> &, GenerationState &) const override {}
-    OffsetDelta get_offset_delta_bounds(SegmentId, Seq_side) const override { return {}; }
+    SegmentEndShift get_segment_end_shift_bounds(SegmentId, Seq_side) const override { return {}; }
     LengthContribution get_length_contribution(SegmentId) const override { return {}; }
     SeqConstructionRole get_seq_construction_role(SegmentId) const override { return SeqConstructionRole::None; }
-    OffsetRole get_offset_role(SegmentId, Seq_side) const override { return OffsetRole::None; }
+    SegmentEndRole get_segment_end_role(SegmentId, Seq_side) const override { return SegmentEndRole::None; }
     void write2txt(std::ofstream &) override {}
     void write2txt_legacy(std::ofstream &) override {}
     void add_to_marginals(long double, Marginal_array_p &) const override {}

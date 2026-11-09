@@ -32,7 +32,7 @@
  * \brief One end of one segment: the addressing unit for everything side-taking.
  *
  * Already the de facto key in about twenty signatures -- Seq_offsets_map's eight accessors,
- * Rec_Event::get_offset_role() and get_offset_delta_bounds() on all four subclasses, and
+ * Rec_Event::get_segment_end_role() and get_segment_end_shift_bounds() on all four subclasses, and
  * PendingModifierBounds, which flattens the pair by hand into `end_index(id, side)`. Naming it
  * is what lets a span address a segment's own extent rather than only the gap between two
  * segments (decision O11).

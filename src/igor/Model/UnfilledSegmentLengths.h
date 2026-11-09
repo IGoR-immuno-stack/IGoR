@@ -54,7 +54,7 @@
  * `Insertion`, which is the coupling this refactor exists to remove.
  *
  * The publisher follows from it: **whoever creates a segment's offsets but not its sequence**,
- * which is `get_offset_role` and `get_seq_construction_role` together and needs no new
+ * which is `get_segment_end_role` and `get_seq_construction_role` together and needs no new
  * capability. Each key still has exactly one writer on any path, and a published value is
  * still non-negative -- a `Deletion` modifies an offset rather than creating one, and
  * contributes its negative delta to the span total without ever touching this.

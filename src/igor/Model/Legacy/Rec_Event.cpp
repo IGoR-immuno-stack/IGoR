@@ -502,10 +502,10 @@ namespace {
 //segment its offsets imply that nobody has chosen yet (see the body below for the three cases).
 //Shared by the body, for a participant, and by initialize_Len_proba_bound(), for the reader: the
 //reader publishes exactly as any participant would -- it is only its probability that stays out.
-void publish_unfilled_length(SegmentId seq_type_id, int delta, bool creates_offsets, bool creates_sequence,
+void publish_unfilled_length(SegmentId seq_type_id, int delta, bool places_ends, bool creates_sequence,
                              UnfilledSegmentLengths &lengths)
 {
-    if (creates_offsets) {
+    if (places_ends) {
         lengths.set(seq_type_id, creates_sequence ? 0 : delta);
     }
 }
@@ -545,8 +545,8 @@ bool Rec_Event::affects_length_of(SegmentSpan span, const SegmentRegistry &regis
 {
     //The span's own two ends: moving one changes the length, creating one is where the span is
     //measured from.
-    if (this->get_offset_role(span.left.id, span.left.side) == OffsetRole::Modifies
-        or this->get_offset_role(span.right.id, span.right.side) == OffsetRole::Modifies) {
+    if (this->get_segment_end_role(span.left.id, span.left.side) == SegmentEndRole::Modifies
+        or this->get_segment_end_role(span.right.id, span.right.side) == SegmentEndRole::Modifies) {
         return true;
     }
     //Every end of every segment strictly inside: creating it adds the segment, moving it trims it.
@@ -554,8 +554,8 @@ bool Rec_Event::affects_length_of(SegmentSpan span, const SegmentRegistry &regis
         if (not lies_strictly_inside(registry, inner, span)) {
             continue;
         }
-        if (this->get_offset_role(inner, Five_prime) != OffsetRole::None
-            or this->get_offset_role(inner, Three_prime) != OffsetRole::None) {
+        if (this->get_segment_end_role(inner, Five_prime) != SegmentEndRole::None
+            or this->get_segment_end_role(inner, Three_prime) != SegmentEndRole::None) {
             return true;
         }
     }
@@ -588,7 +588,7 @@ void Rec_Event::fold_step(const SpanFold &fold, std::size_t cursor, const FoldSt
     //                  rather than changing one anybody sees.
     //  - Deletion   -- modifies an offset rather than creating one: publishes nothing, and
     //                  contributes its negative delta to the span total instead.
-    const bool creates_offsets = this->creates_own_offsets();
+    const bool places_ends = this->places_own_ends();
     const bool creates_sequence =
             this->get_seq_construction_role(this->seq_type_id) == SeqConstructionRole::Creates;
 
@@ -612,7 +612,7 @@ void Rec_Event::fold_step(const SpanFold &fold, std::size_t cursor, const FoldSt
         //Read above, and by nobody after: clearing it is what lets two paths that reached this
         //participant from different parents merge from here on.
         successor.parent_offsets[cursor] = 0;
-        publish_unfilled_length(this->seq_type_id, delta, creates_offsets, creates_sequence, successor.lengths);
+        publish_unfilled_length(this->seq_type_id, delta, places_ends, creates_sequence, successor.lengths);
         for (const auto &[child, stride] : conditioning.children) {
             successor.parent_offsets[child] += realization.index * stride;
         }
@@ -700,10 +700,10 @@ Rec_Event::SpanConditioning Rec_Event::conditioning_within(const SpanParticipant
     return conditioning;
 }
 
-bool Rec_Event::creates_own_offsets() const
+bool Rec_Event::places_own_ends() const
 {
-    return this->get_offset_role(this->seq_type_id, Five_prime) == OffsetRole::Creates
-           || this->get_offset_role(this->seq_type_id, Three_prime) == OffsetRole::Creates;
+    return this->get_segment_end_role(this->seq_type_id, Five_prime) == SegmentEndRole::Creates
+            || this->get_segment_end_role(this->seq_type_id, Three_prime) == SegmentEndRole::Creates;
 }
 
 /*
@@ -780,7 +780,7 @@ void Rec_Event::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &model_q
             continue;
         }
 
-        const bool creates_offsets = this->creates_own_offsets();
+        const bool places_ends = this->places_own_ends();
         const bool creates_sequence =
                 this->get_seq_construction_role(this->seq_type_id) == SeqConstructionRole::Creates;
         for (std::unordered_map<std::string, Event_realization>::const_iterator iter = this->event_realizations.begin();
@@ -788,7 +788,7 @@ void Rec_Event::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &model_q
             const Event_realization &realization = iter->second;
             const int delta = this->length_delta(realization);
             FoldState start{delta, std::vector<int>(participants.size(), 0), UnfilledSegmentLengths(seq_type_count)};
-            publish_unfilled_length(this->seq_type_id, delta, creates_offsets, creates_sequence, start.lengths);
+            publish_unfilled_length(this->seq_type_id, delta, places_ends, creates_sequence, start.lengths);
             for (const auto &[child, stride] : conditioning.reader_children) {
                 start.parent_offsets[child] += realization.index * stride;
             }

@@ -96,10 +96,10 @@ public:
 
     //Proba bound related computation methods
     //Capability queries (task A0)
-    OffsetDelta get_offset_delta_bounds(SegmentId, Seq_side) const override;
+    SegmentEndShift get_segment_end_shift_bounds(SegmentId, Seq_side) const override;
     LengthContribution get_length_contribution(SegmentId) const override;
     SeqConstructionRole get_seq_construction_role(SegmentId) const override;
-    OffsetRole get_offset_role(SegmentId, Seq_side) const override;
+    SegmentEndRole get_segment_end_role(SegmentId, Seq_side) const override;
 
     int length_delta(const Event_realization &) const override;
 

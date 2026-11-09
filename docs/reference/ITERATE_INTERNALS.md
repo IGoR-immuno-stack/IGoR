@@ -263,7 +263,7 @@ each event before `initialize_event()`. Nothing in this section names a gene or 
 ### 4.1 `SegmentIndex`
 
 [SegmentIndex.h](../../src/igor/Model/SegmentIndex.h) records, for each segment of the ordering:
-- which events create or modify each end, from `get_offset_role()`;
+- which events create or modify each end, from `get_segment_end_role()`;
 - which events create or modify its content, from `get_seq_construction_role()`.
 
 It does not depend on the order, so every engine can share it. `has_own_factor(segment)` is true
@@ -349,7 +349,7 @@ on events still to come.
 
 `JunctionGeometry::PendingModifierBounds`
 ([JunctionGeometry.h](../../src/igor/Model/JunctionGeometry.h)) is rebuilt by each gene choice and
-deletion in `initialize_event()`. For every segment end, it sums `get_offset_delta_bounds()`
+deletion in `initialize_event()`. For every segment end, it sums `get_segment_end_shift_bounds()`
 over the events not yet processed, and for every segment, it sums `get_length_contribution()`. The
 deltas add up, so a model with more than one deletion on an end needs no new code. A range with
 `min > max` is refused.
@@ -473,7 +473,7 @@ the events after it in the queue.
 **Participants.** An event after the reader takes part in a span when
 `participates_in_span(span) = affects_length_of(span) ∨ affects_proba_of(span)`. The filter runs
 once per table, not once per node.
-- `affects_length_of()` is one rule for every event, read off its offset roles and the ordering
+- `affects_length_of()` is one rule for every event, read off its segment end roles and the ordering
   (R12): the event changes the span's length if it creates or modifies an end of a segment strictly
   inside the span, or if it modifies one of the span's two ends. Creating one of the two ends does
   not count: that end is where the span is measured from. So a gene inside the span adds its
@@ -638,7 +638,7 @@ threshold, updates the best scenario, calls each counter with a `Scenario` view,
 | the order is coherent | before inference | `TraversalPlan::check_admissible()` | `std::invalid_argument` |
 | the error model and counters can read the model | before inference | `check_admissible()` (§7) | `std::invalid_argument` |
 | the event's own target and set-up | `initialize_event()` | each event: seq type id against the registry, a side for a deletion, a Markov chain for an insertion, a junction for a chain | exception |
-| `min ≤ max` for offset deltas and length contributions | `initialize_event()` | `PendingModifierBounds::rebuild()` | `std::logic_error` |
+| `min ≤ max` for segment end shifts and length contributions | `initialize_event()` | `PendingModifierBounds::rebuild()` | `std::logic_error` |
 | writes land on claimed layers; reads find a write | run time | `LayeredArray` | `std::out_of_range` |
 | at most 32 segments in the ordering | iteration set-up | `SafetyMatrix` | `std::length_error` |
 | nothing unfilled, every end placed | each leaf | `iterate_wrap_up()` | assertion, debug builds only |

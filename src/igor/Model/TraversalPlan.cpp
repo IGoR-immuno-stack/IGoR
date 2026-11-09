@@ -185,7 +185,7 @@ TraversalPlan::TraversalPlan(const core::SegmentRegistry &registry, std::span<co
 
         for (const SegmentId segment : ordering) {
             for (const SeqSide side : {core::Five_prime, core::Three_prime}) {
-                if (event.get_offset_role(segment, side) == legacy::OffsetRole::Creates) {
+                if (event.get_segment_end_role(segment, side) == legacy::SegmentEndRole::Creates) {
                     end_created[end_index(segment, side)] = true;
                 }
             }
@@ -275,14 +275,14 @@ void TraversalPlan::check_admissible() const
             const std::string &name = registry_.name(segment);
             bool creates_an_end = false;
             for (const SeqSide side : {core::Five_prime, core::Three_prime}) {
-                const legacy::OffsetRole role = event.get_offset_role(segment, side);
-                if (role == legacy::OffsetRole::Creates) {
+                const legacy::SegmentEndRole role = event.get_segment_end_role(segment, side);
+                if (role == legacy::SegmentEndRole::Creates) {
                     creates_an_end = true;
                     if (end_created[end_index(segment, side)]) {
                         refuse(event, "it creates the " + side_label(side) + " end of " + name
                                               + ", which an earlier event created");
                     }
-                } else if (role == legacy::OffsetRole::Modifies and not end_created[end_index(segment, side)]) {
+                } else if (role == legacy::SegmentEndRole::Modifies and not end_created[end_index(segment, side)]) {
                     refuse(event, "it modifies the " + side_label(side) + " end of " + name
                                           + " before any event creates it");
                 }
@@ -338,7 +338,7 @@ void TraversalPlan::check_admissible() const
 
         for (const SegmentId segment : ordering) {
             for (const SeqSide side : {core::Five_prime, core::Three_prime}) {
-                if (event.get_offset_role(segment, side) == legacy::OffsetRole::Creates) {
+                if (event.get_segment_end_role(segment, side) == legacy::SegmentEndRole::Creates) {
                     end_created[end_index(segment, side)] = true;
                 }
             }

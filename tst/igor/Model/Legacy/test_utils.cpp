@@ -409,31 +409,30 @@ void RecordingEvent::iterate(QuerySequenceContext &, const ModelContext &, Scena
 
         const std::vector<int> five_layers = current_layers_of(scenario.seq_offsets.five_prime);
         const std::vector<int> three_layers = current_layers_of(scenario.seq_offsets.three_prime);
-        for (const auto &[key_pair, role] : declarations.offsets) {
+        for (const auto &[key_pair, role] : declarations.segment_end_roles) {
             const auto [seq_type, side] = key_pair;
             const std::size_t key = static_cast<std::size_t>(seq_type);
             const std::string map_name = side == Five_prime ? "seq_offsets.five_prime"
                                                             : "seq_offsets.three_prime";
             const std::vector<int> &layers = side == Five_prime ? five_layers : three_layers;
             switch (role) {
-            case OffsetRole::Creates:
+            case SegmentEndRole::Creates:
                 if (!scenario.seq_offsets.exists(seq_type, side)) {
-                    note(map_name, seq_type, "OffsetRole::Creates", "that end was never written");
+                    note(map_name, seq_type, "SegmentEndRole::Creates", "that end was never written");
                 } else if (!touched(map_name, key, layers)) {
-                    note(map_name, seq_type, "OffsetRole::Creates",
+                    note(map_name, seq_type, "SegmentEndRole::Creates",
                          "that end was already standing where it stands now -- this event did "
                          "not write it");
                 }
                 break;
-            case OffsetRole::Modifies:
+            case SegmentEndRole::Modifies:
                 if (!touched(map_name, key, layers)) {
-                    note(map_name, seq_type, "OffsetRole::Modifies",
-                         "this event did not write that end");
+                    note(map_name, seq_type, "SegmentEndRole::Modifies", "this event did not write that end");
                 }
                 break;
-            case OffsetRole::None:
+            case SegmentEndRole::None:
                 if (key < layers.size() && layers[key] != current_before(map_name, key)) {
-                    note(map_name, seq_type, "OffsetRole::None",
+                    note(map_name, seq_type, "SegmentEndRole::None",
                          "it advanced that end's layer to " + std::to_string(layers[key]));
                 }
                 break;
@@ -459,8 +458,8 @@ std::shared_ptr<RecordingEvent> call_iterate_recording(const std::shared_ptr<Rec
         const SegmentId id = static_cast<SegmentId>(seq_type);
         recorder->declarations.construction.emplace(seq_type, event->get_seq_construction_role(id));
         for (Seq_side side : {Five_prime, Three_prime}) {
-            recorder->declarations.offsets.emplace(std::make_pair(seq_type, side),
-                                                   event->get_offset_role(id, side));
+            recorder->declarations.segment_end_roles.emplace(std::make_pair(seq_type, side),
+                                                             event->get_segment_end_role(id, side));
         }
     }
 

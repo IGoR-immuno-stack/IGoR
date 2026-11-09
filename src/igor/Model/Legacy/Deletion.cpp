@@ -634,7 +634,7 @@ void Deletion::initialize_event(
         if (event->get_name() == this->get_name()) {
             continue;
         }
-        if (event->get_offset_role(this->seq_type_id, opposite_side) == OffsetRole::Modifies) {
+        if (event->get_segment_end_role(this->seq_type_id, opposite_side) == SegmentEndRole::Modifies) {
             opposite_end_still_moves_ = true;
         }
     }
@@ -720,7 +720,7 @@ std::pair<int, int> deletion_range(const std::unordered_map<std::string, Event_r
 
 } // namespace
 
-OffsetDelta Deletion::get_offset_delta_bounds(SegmentId type_id, Seq_side side) const
+SegmentEndShift Deletion::get_segment_end_shift_bounds(SegmentId type_id, Seq_side side) const
 {
     if (type_id != this->seq_type_id || side != this->event_side) {
         return {};
@@ -751,12 +751,12 @@ SeqConstructionRole Deletion::get_seq_construction_role(SegmentId type_id) const
     return type_id == this->seq_type_id ? SeqConstructionRole::Modifies : SeqConstructionRole::None;
 }
 
-OffsetRole Deletion::get_offset_role(SegmentId type_id, Seq_side side) const
+SegmentEndRole Deletion::get_segment_end_role(SegmentId type_id, Seq_side side) const
 {
     if (type_id != this->seq_type_id || side != this->event_side) {
-        return OffsetRole::None;
+        return SegmentEndRole::None;
     }
-    return OffsetRole::Modifies;
+    return SegmentEndRole::Modifies;
 }
 
 void Deletion::add_to_marginals(long double scenario_proba, Marginal_array_p &updated_marginals) const
