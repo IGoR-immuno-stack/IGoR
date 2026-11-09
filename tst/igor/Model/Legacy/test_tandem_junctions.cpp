@@ -27,10 +27,10 @@ namespace {
 
 const std::string kRead = "ACGTACGTACGTACGTACGTACGT"; // 24 nt
 
-const SeqTypeRegistry &tandem_registry()
+const SegmentRegistry &tandem_registry()
 {
-    static const SeqTypeRegistry registry = [] {
-        SeqTypeRegistry built;
+    static const SegmentRegistry registry = [] {
+        SegmentRegistry built;
         built.register_legacy_seq_types();
         built.set_ordered_types({"V_gene_seq", "VD1_ins_seq", "D1_gene_seq", "D1D2_ins_seq", "D2_gene_seq",
                                  "DJ_ins_seq", "J_gene_seq"});
@@ -40,7 +40,10 @@ const SeqTypeRegistry &tandem_registry()
     return registry;
 }
 
-SeqTypeId id_of(const char *seq_type) { return tandem_registry().id(seq_type); }
+SegmentId id_of(const char *seq_type)
+{
+    return tandem_registry().id(seq_type);
+}
 
 /// Move an event built on a legacy name onto a segment of the tandem layout.
 template <class Event>
@@ -87,7 +90,7 @@ struct TandemModel {
         state.add_downstream_event(on(make_dinucl_markov(VD_ins_seq, event_id + 1, Three_prime), junction));
     }
 
-    SeqTypeId key(const char *left, const char *right) const
+    SegmentId key(const char *left, const char *right) const
     {
         return state.plan().gap_key(SegmentSpan::gap(id_of(left), id_of(right)));
     }
@@ -144,7 +147,7 @@ TEST_CASE("Tandem D: D1's 3' deletion is checked against D2 and widens the D1->D
     // 2, 1 and 0 leave a gap of 2, 1 and 0 for the pending insertion to fill; -1 collides with D2.
     // Checked against nothing, -1 would be handed off too.
     REQUIRE(next->call_count() == 3);
-    const SeqTypeId d1_to_d2 = model.key("D1_gene_seq", "D2_gene_seq");
+    const SegmentId d1_to_d2 = model.key("D1_gene_seq", "D2_gene_seq");
     for (const ScenarioSnapshot &call : next->calls) {
         CHECK(call.downstream_bounds.count(d1_to_d2) == 1);
     }

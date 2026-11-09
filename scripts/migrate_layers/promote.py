@@ -45,7 +45,7 @@ MODEL_LEGACY = ["Rec_Event", "Events_map", "Next_event_ptr", "Gene_choice", "Del
 # Core vocabulary promoted under a new name (Core/Types.h, Core/IntStr.h): old -> new. Promoted
 # and new code uses the new name; the stubs alias the old one for legacy code.
 CORE_RENAMED = {"Event_type": "EventType", "Seq_side": "SeqSide", "Seq_type": "SeqType",
-                "Seq_type_String": "SeqTypeString", "Rec_Event_name": "EventName",
+                "Seq_type_String": "SegmentName", "Rec_Event_name": "EventName",
                 "Marginal_array_p": "MarginalArrayPtr", "Seq_Offset": "SeqOffset",
                 "UMCodonTable": "CodonTable", "Int_Str": "IntStr"}
 # Core vocabulary promoted under its own name.
@@ -70,7 +70,7 @@ class Symbol:
 PROMOTIONS = {
     "core-containers": ("Core", [
         ("LayeredArray", [Symbol("LayeredArray")], {}),
-        ("SeqTypeRegistry", [Symbol("SeqTypeRegistry"), Symbol("SeqTypeId"), Symbol("kNoSeqType"),
+        ("SegmentRegistry", [Symbol("SegmentRegistry"), Symbol("SegmentId"), Symbol("kNoSegment"),
                              Symbol("kLegacySeqTypeCount"), Symbol("legacy_seq_type_registry")], {}),
         ("DynamicSequenceMap", [Symbol("SeqSegmentEmptiness"), Symbol("DynamicSequenceMap")], {}),
         ("SeqOffsetsMap", [Symbol("SeqOffsetsMap", "alias", "Seq_offsets_map")],

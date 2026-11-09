@@ -29,7 +29,7 @@
 // been promoted yet; it goes when its last consumer switches.
 namespace igor::core::legacy {
 
-using Seq_type_String = igor::core::SeqTypeString;
+using Seq_type_String = igor::core::SegmentName;
 using Rec_Event_name = igor::core::EventName;
 using Marginal_array_p = igor::core::MarginalArrayPtr;
 using Seq_Offset = igor::core::SeqOffset;

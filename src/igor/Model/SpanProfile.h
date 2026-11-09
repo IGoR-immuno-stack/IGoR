@@ -23,7 +23,7 @@
 #pragma once
 
 #include <igor/Core/SegmentSpan.h>
-#include <igor/Core/SeqTypeRegistry.h>
+#include <igor/Core/SegmentRegistry.h>
 
 #include <algorithm>
 #include <cassert>
@@ -390,7 +390,7 @@ public:
 
     JunctionBound() = default;
 
-    void resolve(core::SegmentSpan span, core::SeqTypeId proba_key, int memory_layer, Fold fold)
+    void resolve(core::SegmentSpan span, core::SegmentId proba_key, int memory_layer, Fold fold)
     {
         span_ = span;
         proba_key_ = proba_key;
@@ -400,12 +400,12 @@ public:
 
     /// False for a slot this event has no junction on -- a V gene choice has no left junction,
     /// and in a VJ model no event has a D-flanked one.
-    bool resolved() const { return proba_key_ != core::kNoSeqType; }
+    bool resolved() const { return proba_key_ != core::kNoSegment; }
     bool folded() const { return fold_ == Fold::Yes; }
     bool retained() const { return fold_ == Fold::Retain; }
 
     core::SegmentSpan span() const { return span_; }
-    core::SeqTypeId proba_key() const { return proba_key_; }
+    core::SegmentId proba_key() const { return proba_key_; }
     int memory_layer() const { return memory_layer_; }
 
     /// The table, for a reader whose realization does not change this span's length -- a gene
@@ -453,7 +453,7 @@ public:
 
 private:
     core::SegmentSpan span_{};
-    core::SeqTypeId proba_key_ = core::kNoSeqType;
+    core::SegmentId proba_key_ = core::kNoSegment;
     int memory_layer_ = -1;
     Fold fold_ = Fold::No;
     bool conditioned_ = false;

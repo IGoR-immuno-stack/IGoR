@@ -631,9 +631,11 @@ This module has **no parser of the text format**. `igor::Core` owns the only
 tokenizer, and the Model layer reads a json document produced from it. Two
 consequences worth knowing about:
 
-* The v2 sections (`@Version`, `@Seq_type_order`, the six-field event lines)
-  come for free, and `@Seq_type_order` travels with the document into
-  `Topology::seqTypeOrder()`, so an exported model keeps its segment order.
+* A v2 text file (`@Version`, `@Seq_type_order`) is refused: the v2 format was
+  retired at CAP T2, and a model the v1 format cannot hold is written as JSON.
+  A v1 file states no segment order; `Model_Parms::finalize()` infers it, and
+  it travels into `Topology::seqTypeOrder()`, so an exported model keeps its
+  segment order.
 * Edges are carried per event as a list of parent nicknames, not as an
   `@Edges` section keyed by the generated event names. That is deliberate:
   the legacy and v2 naming schemes disagree, and the generated names of `D1`

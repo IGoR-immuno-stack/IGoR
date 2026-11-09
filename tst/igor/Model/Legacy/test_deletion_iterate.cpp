@@ -284,7 +284,7 @@ struct JDelBare {
 /// The VJ arm: a model with no D, where a V deletion widens the V->J span.
 /// Fold contributors: the J 5' deletion and the VJ insertion -> 2.
 struct VJDel {
-    IterateTestState state = create_iterate_state(kRead, 1000, 32, vj_seq_type_registry());
+    IterateTestState state = create_iterate_state(kRead, 1000, 32, vj_segment_registry());
     std::shared_ptr<Deletion> deletion;
     std::shared_ptr<Gene_choice> j_stub = make_gene_choice(J_gene, {{"J1", "ACGTACGT"}}, /*id=*/1);
     static constexpr int kContributors = 2;
@@ -1951,7 +1951,7 @@ TEST_CASE("Deletion: a model the generic body cannot read is rejected before it 
         auto deletion = make_deletion(D_gene_seq, Five_prime, /*min_del=*/0, /*max_del=*/4,
                                       /*id=*/0);
         const std::vector<const Rec_Event *> order{deletion.get()};
-        const igor::model::TraversalPlan plan(vj_seq_type_registry(), order);
+        const igor::model::TraversalPlan plan(vj_segment_registry(), order);
         CHECK_THROWS_WITH(plan.check_admissible(),
                           Catch::Matchers::ContainsSubstring("is not in the model's 5'->3' ordering"));
     }

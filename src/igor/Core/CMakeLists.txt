@@ -57,7 +57,7 @@ target_sources(${PROJECT_NAME}
       ${LAYER_DIR}/LayeredArray.h
       ${LAYER_DIR}/SegmentSpan.h
       ${LAYER_DIR}/SeqOffsetsMap.h
-      ${LAYER_DIR}/SeqTypeRegistry.h
+      ${LAYER_DIR}/SegmentRegistry.h
 )
 
 # Legacy files: everything under Legacy/, the stubs of promoted headers included.
@@ -77,7 +77,7 @@ target_sources(${PROJECT_NAME}
       ${LAYER_DIR}/Legacy/LayeredArray.h
       ${LAYER_DIR}/Legacy/SegmentSpan.h
       ${LAYER_DIR}/Legacy/SeqOffsetsMap.h
-      ${LAYER_DIR}/Legacy/SeqTypeRegistry.h
+      ${LAYER_DIR}/Legacy/SegmentRegistry.h
       ${LAYER_DIR}/Legacy/StdTypedefs.h
       ${LAYER_DIR}/Legacy/Typedef.h
       ${LAYER_DIR}/Legacy/Utils.h

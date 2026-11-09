@@ -24,7 +24,7 @@
 
 #include <igor/Core/Types.h>
 #include <igor/Model/Legacy/Rec_Event.h>
-#include <igor/Core/SeqTypeRegistry.h>
+#include <igor/Core/SegmentRegistry.h>
 #include <igor/Core/Legacy/Utils.h>
 
 #include <cstddef>
@@ -105,11 +105,11 @@ public:
     /**
      * Accumulate the bounds over every event of `events_map` not in `processed_events`.
      *
-     * Sized from `registry.total_count()`, so ids and `SeqTypeId` agree with every other
+     * Sized from `registry.total_count()`, so ids and `SegmentId` agree with every other
      * id-keyed map in the traversal. Previous contents are discarded: calling this twice is
      * the same as building it fresh.
      */
-    void rebuild(const core::SeqTypeRegistry &registry, const legacy::Events_map &events_map,
+    void rebuild(const core::SegmentRegistry &registry, const legacy::Events_map &events_map,
                  const std::unordered_set<core::EventName> &processed_events)
     {
         const std::size_t count = registry.total_count();
@@ -122,7 +122,7 @@ public:
                 continue;
             }
             for (std::size_t id = 0; id != count; ++id) {
-                const auto type_id = static_cast<core::SeqTypeId>(id);
+                const auto type_id = static_cast<core::SegmentId>(id);
                 for (const core::SeqSide side : {core::Five_prime, core::Three_prime}) {
                     const legacy::OffsetDelta delta = event->get_offset_delta_bounds(type_id, side);
                     check_ordered(delta.min, delta.max, *event, registry, type_id,
@@ -142,14 +142,14 @@ public:
     }
 
     /// Signed range by which `(type_id, side)` can still be shifted. `{0, 0}` if it cannot.
-    legacy::OffsetDelta offset_delta(core::SeqTypeId type_id, core::SeqSide side) const
+    legacy::OffsetDelta offset_delta(core::SegmentId type_id, core::SeqSide side) const
     {
         check_id(type_id, "offset_delta");
         return offset_[end_index(type_id, checked_side(side))];
     }
 
     /// Signed range of nucleotides still to be added to or removed from `type_id`.
-    legacy::LengthContribution length(core::SeqTypeId type_id) const
+    legacy::LengthContribution length(core::SegmentId type_id) const
     {
         check_id(type_id, "length");
         return length_[type_id];
@@ -170,7 +170,7 @@ public:
      * `Deletion::iterate` the event being consumed *is* that modifier, so its own end has
      * collapsed by the time the check runs.
      */
-    OffsetInterval reachable(core::SeqTypeId type_id, core::SeqSide side, core::SeqOffset current) const
+    OffsetInterval reachable(core::SegmentId type_id, core::SeqSide side, core::SeqOffset current) const
     {
         const legacy::OffsetDelta delta = offset_delta(type_id, side);
         return {current + delta.min, current + delta.max};
@@ -197,8 +197,8 @@ private:
     /// A provider returning `min > max` would make every interval derived from it nonsense --
     /// and, being merely *narrow* rather than obviously wrong, would survive a long way. This
     /// runs once per event per id at initialization, never in the hot loop.
-    static void check_ordered(int min, int max, const legacy::Rec_Event &event, const core::SeqTypeRegistry &registry,
-                              core::SeqTypeId type_id, const char *query)
+    static void check_ordered(int min, int max, const legacy::Rec_Event &event, const core::SegmentRegistry &registry,
+                              core::SegmentId type_id, const char *query)
     {
         if (min > max) {
             throw std::logic_error("PendingModifierBounds: " + event.get_name() + "::" + query
@@ -208,7 +208,7 @@ private:
         }
     }
 
-    void check_id(core::SeqTypeId type_id, const char *what) const
+    void check_id(core::SegmentId type_id, const char *what) const
     {
         if (static_cast<std::size_t>(type_id) >= length_.size()) {
             throw std::out_of_range("PendingModifierBounds::" + std::string(what) + "(): seq_type id "

@@ -79,10 +79,10 @@ Alignment_data create_mock_alignment_data(
 // iterate() test harness
 // ============================================================================
 
-const SeqTypeRegistry &vdj_seq_type_registry()
+const SegmentRegistry &vdj_segment_registry()
 {
-    static const SeqTypeRegistry registry = [] {
-        SeqTypeRegistry built;
+    static const SegmentRegistry registry = [] {
+        SegmentRegistry built;
         built.register_legacy_seq_types();
         built.set_ordered_types({"V_gene_seq", "VD_ins_seq", "D_gene_seq", "DJ_ins_seq", "J_gene_seq"});
         built.freeze();
@@ -91,10 +91,10 @@ const SeqTypeRegistry &vdj_seq_type_registry()
     return registry;
 }
 
-const SeqTypeRegistry &vj_seq_type_registry()
+const SegmentRegistry &vj_segment_registry()
 {
-    static const SeqTypeRegistry registry = [] {
-        SeqTypeRegistry built;
+    static const SegmentRegistry registry = [] {
+        SegmentRegistry built;
         built.register_legacy_seq_types();
         built.set_ordered_types({"V_gene_seq", "VJ_ins_seq", "J_gene_seq"});
         built.freeze();
@@ -104,7 +104,7 @@ const SeqTypeRegistry &vj_seq_type_registry()
 }
 
 IterateTestState create_iterate_state(const std::string &sequence, std::size_t marginal_array_size,
-                                      std::size_t max_events, const SeqTypeRegistry &registry)
+                                      std::size_t max_events, const SegmentRegistry &registry)
 {
     return IterateTestState(sequence, marginal_array_size, max_events, registry);
 }
@@ -239,7 +239,7 @@ void RecordingEvent::iterate(QuerySequenceContext &, const ModelContext &, Scena
         }
     }
     for (std::size_t key = 0; key != exploration.downstream_proba_map.count(); ++key) {
-        const auto type_id = static_cast<SeqTypeId>(key);
+        const auto type_id = static_cast<SegmentId>(key);
         if (exploration.downstream_proba_map.exists(type_id)) {
             snapshot.downstream_bounds.emplace(type_id, exploration.downstream_proba_map.get(type_id));
         }
@@ -251,12 +251,12 @@ void RecordingEvent::iterate(QuerySequenceContext &, const ModelContext &, Scena
     for (const auto &[left, right] : {std::pair<Seq_type, Seq_type>{V_gene_seq, D_gene_seq},
                                       std::pair<Seq_type, Seq_type>{V_gene_seq, J_gene_seq},
                                       std::pair<Seq_type, Seq_type>{D_gene_seq, J_gene_seq}}) {
-        if (not exploration.safety_set.addresses(static_cast<SeqTypeId>(left))
-            or not exploration.safety_set.addresses(static_cast<SeqTypeId>(right))) {
+        if (not exploration.safety_set.addresses(static_cast<SegmentId>(left))
+            or not exploration.safety_set.addresses(static_cast<SegmentId>(right))) {
             continue; //a VJ model has no D: the pair does not exist, rather than being unset
         }
-        const SafetyCell cell = exploration.safety_set.cell(static_cast<SeqTypeId>(left),
-                                                            static_cast<SeqTypeId>(right));
+        const SafetyCell cell =
+                exploration.safety_set.cell(static_cast<SegmentId>(left), static_cast<SegmentId>(right));
         if (exploration.safety_set.exists(cell)) {
             snapshot.safety.emplace(std::make_pair(left, right), exploration.safety_set.get(cell));
         }
@@ -456,7 +456,7 @@ std::shared_ptr<RecordingEvent> call_iterate_recording(const std::shared_ptr<Rec
                                             DJ_ins_seq, J_gene_seq, VJ_ins_seq};
     recorder->declarations.active = true;
     for (Seq_type seq_type : kAllSeqTypes) {
-        const SeqTypeId id = static_cast<SeqTypeId>(seq_type);
+        const SegmentId id = static_cast<SegmentId>(seq_type);
         recorder->declarations.construction.emplace(seq_type, event->get_seq_construction_role(id));
         for (Seq_side side : {Five_prime, Three_prime}) {
             recorder->declarations.offsets.emplace(std::make_pair(seq_type, side),
@@ -524,14 +524,14 @@ void call_iterate(const std::shared_ptr<Rec_Event> &event, IterateTestState &sta
     //where production resolves it. These fixtures build an events_map directly and never
     //construct a Model_Parms, so the improvising belongs here -- not in an event method
     //compensating for a model that was never finalized.
-    const SeqTypeRegistry &registry = state.scenario.constructed_sequences.registry();
+    const SegmentRegistry &registry = state.scenario.constructed_sequences.registry();
     for (const auto &[key, ev] : events_map) {
         (void)key;
-        const SeqTypeId type_id = ev->get_seq_type_id();
-        if (type_id != kNoSeqType && static_cast<std::size_t>(type_id) < registry.total_count()) {
+        const SegmentId type_id = ev->get_seq_type_id();
+        if (type_id != kNoSegment && static_cast<std::size_t>(type_id) < registry.total_count()) {
             ev->set_adjacent_segments(registry.left_neighbor(type_id), registry.right_neighbor(type_id));
         } else {
-            ev->set_adjacent_segments(kNoSeqType, kNoSeqType);
+            ev->set_adjacent_segments(kNoSegment, kNoSegment);
         }
         const int event_index = ev->get_event_identifier();
         state.exploration.index_map.request_layer(event_index);
@@ -693,8 +693,7 @@ std::vector<std::size_t> get_mismatches(const IterateTestState &state, Seq_type 
 namespace {
 SafetyCell safety_cell_of(const IterateTestState &state, Seq_type left, Seq_type right)
 {
-    return state.exploration.safety_set.cell(static_cast<SeqTypeId>(left),
-                                             static_cast<SeqTypeId>(right));
+    return state.exploration.safety_set.cell(static_cast<SegmentId>(left), static_cast<SegmentId>(right));
 }
 } // namespace
 

@@ -74,7 +74,7 @@ using OffsetMap =
  */
 class Generator {
 public:
-    explicit Generator(const SeqTypeRegistry &registry = vdj_seq_type_registry())
+    explicit Generator(const SegmentRegistry &registry = vdj_segment_registry())
         : registry_(registry), segments_(registry)
     {}
 
@@ -98,7 +98,7 @@ public:
     {
         std::size_t count = 0;
         for (std::size_t id = 0; id != registry_.total_count(); ++id) {
-            count += segments_.built(static_cast<SeqTypeId>(id)) ? 1 : 0;
+            count += segments_.built(static_cast<SegmentId>(id)) ? 1 : 0;
         }
         return count;
     }
@@ -134,7 +134,7 @@ public:
     }
 
 private:
-    const SeqTypeRegistry &registry_;
+    const SegmentRegistry &registry_;
     GenerationState segments_;
 };
 
@@ -177,11 +177,10 @@ int index_of_name(const Rec_Event &event, const std::string &name)
 /// Tell an event where it sits, as Model_Parms::finalize() does: its seq_type, the id the
 /// registry gives that name, and the ids on either side of it in the ordering.
 template <class Event>
-std::shared_ptr<Event> place(std::shared_ptr<Event> event, const SeqTypeRegistry &registry,
-                             const std::string &seq_type)
+std::shared_ptr<Event> place(std::shared_ptr<Event> event, const SegmentRegistry &registry, const std::string &seq_type)
 {
     event->set_seq_type(seq_type);
-    const SeqTypeId id = registry.id(seq_type);
+    const SegmentId id = registry.id(seq_type);
     event->set_seq_type_id(id);
     event->set_adjacent_segments(registry.left_neighbor(id), registry.right_neighbor(id));
     event->set_nickname(default_nickname(*event));
@@ -195,7 +194,7 @@ std::string generated_trim(Seq_type target, Seq_side side, int value, const std:
 {
     Generator state;
     const std::string name = EventUtils::seq_type_to_string(target);
-    auto deletion = place(make_deletion(target, side, value, value, /*id=*/0), vdj_seq_type_registry(), name);
+    auto deletion = place(make_deletion(target, side, value, value, /*id=*/0), vdj_segment_registry(), name);
     state.preset(name, content);
     state.put_mass(*deletion, 0, 0);
     state.draw(*deletion);
@@ -204,9 +203,8 @@ std::string generated_trim(Seq_type target, Seq_side side, int value, const std:
 
 /// A Markov chain over A,C,G,T whose every transition is certain: A->C, C->G, G->T, T->A. Its
 /// ambiguous rows follow from update_event_internal_probas(), as in a real run.
-std::shared_ptr<Dinucl_markov> cyclic_chain(Generator &state, Seq_type target,
-                                            const SeqTypeRegistry &registry, int base,
-                                            const std::string &seq_type = "")
+std::shared_ptr<Dinucl_markov> cyclic_chain(Generator &state, Seq_type target, const SegmentRegistry &registry,
+                                            int base, const std::string &seq_type = "")
 {
     auto chain = make_dinucl_markov(target, /*id=*/9);
     place(chain, registry, seq_type.empty() ? EventUtils::seq_type_to_string(target) : seq_type);
@@ -221,10 +219,10 @@ std::shared_ptr<Dinucl_markov> cyclic_chain(Generator &state, Seq_type target,
 }
 
 /// V, two D slots and J: the milestone-1 layout.
-const SeqTypeRegistry &tandem_registry()
+const SegmentRegistry &tandem_registry()
 {
-    static const SeqTypeRegistry registry = [] {
-        SeqTypeRegistry r;
+    static const SegmentRegistry registry = [] {
+        SegmentRegistry r;
         r.register_legacy_seq_types();
         r.set_ordered_types({"V_gene_seq", "VD1_ins_seq", "D1_gene_seq", "D1D2_ins_seq", "D2_gene_seq",
                              "D2J_ins_seq", "J_gene_seq"});
@@ -395,7 +393,7 @@ TEST_CASE("Generation: the draw writes nothing, and the construction draws nothi
     SECTION("Markov chain")
     {
         Generator state;
-        auto chain = cyclic_chain(state, DJ_ins_seq, vdj_seq_type_registry(), 0);
+        auto chain = cyclic_chain(state, DJ_ins_seq, vdj_segment_registry(), 0);
         state.preset("J_gene_seq", "CAAA");
         state.preset("DJ_ins_seq", "III");
         CHECK(state.draw_indices(*chain) == std::vector<int>{2, 3, 0});
@@ -642,7 +640,7 @@ TEST_CASE("Generation: a Markov chain fills its insertion from the anchor's end"
     SECTION("seeded from the 3' end of the segment on its left")
     {
         Generator state;
-        auto chain = cyclic_chain(state, VD_ins_seq, vdj_seq_type_registry(), 0);
+        auto chain = cyclic_chain(state, VD_ins_seq, vdj_segment_registry(), 0);
         state.preset("V_gene_seq", "GGGA");
         state.preset("VD_ins_seq", "III");
         CHECK(as_vector(state.draw(*chain)) == std::vector<int>{1, 2, 3});
@@ -655,7 +653,7 @@ TEST_CASE("Generation: a Markov chain fills its insertion from the anchor's end"
         //The chain runs leftwards from J: C, then G, T, A. The draws are recorded in the order
         //they were made, and the segment is that chain read 5'->3'.
         Generator state;
-        auto chain = cyclic_chain(state, DJ_ins_seq, vdj_seq_type_registry(), 0);
+        auto chain = cyclic_chain(state, DJ_ins_seq, vdj_segment_registry(), 0);
         state.preset("J_gene_seq", "CAAA");
         state.preset("DJ_ins_seq", "III");
         CHECK(as_vector(state.draw(*chain)) == std::vector<int>{2, 3, 0});
@@ -664,8 +662,8 @@ TEST_CASE("Generation: a Markov chain fills its insertion from the anchor's end"
 
     SECTION("a VJ junction, seeded from V")
     {
-        Generator state(vj_seq_type_registry());
-        auto chain = cyclic_chain(state, VJ_ins_seq, vj_seq_type_registry(), 0);
+        Generator state(vj_segment_registry());
+        auto chain = cyclic_chain(state, VJ_ins_seq, vj_segment_registry(), 0);
         state.preset("V_gene_seq", "TTTG");
         state.preset("VJ_ins_seq", "III");
         state.draw(*chain);
@@ -675,7 +673,7 @@ TEST_CASE("Generation: a Markov chain fills its insertion from the anchor's end"
     SECTION("an empty insertion draws nothing and consumes nothing")
     {
         Generator state;
-        auto chain = cyclic_chain(state, VD_ins_seq, vdj_seq_type_registry(), 0);
+        auto chain = cyclic_chain(state, VD_ins_seq, vdj_segment_registry(), 0);
         state.preset("V_gene_seq", "GGGA");
         state.preset("VD_ins_seq", "");
         CHECK(as_vector(state.draw(*chain)).empty());
@@ -689,7 +687,7 @@ TEST_CASE("Generation: a Markov chain fills its insertion from the anchor's end"
         //the split (G1) has to reproduce it: a draw that returned a plain chain and a
         //construction that overwrote every position would differ exactly here.
         Generator state;
-        auto chain = cyclic_chain(state, VD_ins_seq, vdj_seq_type_registry(), 0);
+        auto chain = cyclic_chain(state, VD_ins_seq, vdj_segment_registry(), 0);
         state.preset("V_gene_seq", "GGGA");
         state.preset("VD_ins_seq", "IAI");
         CHECK(as_vector(state.draw(*chain)) == std::vector<int>{1, 1});
@@ -702,7 +700,7 @@ TEST_CASE("Generation: a Markov chain fills its insertion from the anchor's end"
         //Plan D6: inference throws here too (§7.12, R2). What a chain should seed from when its
         //anchor is empty is B10's question, for both.
         Generator state;
-        auto chain = cyclic_chain(state, VD_ins_seq, vdj_seq_type_registry(), 0);
+        auto chain = cyclic_chain(state, VD_ins_seq, vdj_segment_registry(), 0);
         state.preset("V_gene_seq", "");
         state.preset("VD_ins_seq", "II");
         CHECK_THROWS_AS(state.draw(*chain), std::out_of_range);
@@ -711,7 +709,7 @@ TEST_CASE("Generation: a Markov chain fills its insertion from the anchor's end"
     SECTION("a chain whose insertion was not drawn throws")
     {
         Generator state;
-        auto chain = cyclic_chain(state, VD_ins_seq, vdj_seq_type_registry(), 0);
+        auto chain = cyclic_chain(state, VD_ins_seq, vdj_segment_registry(), 0);
         state.preset("V_gene_seq", "GGGA");
         CHECK_THROWS_AS(state.draw(*chain), std::out_of_range);
     }
@@ -726,7 +724,7 @@ TEST_CASE("Generation: a Markov chain fills its insertion from the anchor's end"
 TEST_CASE("Generation on a tandem-D layout: each D slot's gene choice writes its own segment",
           "[generation][tandem_d]")
 {
-    const SeqTypeRegistry &registry = tandem_registry();
+    const SegmentRegistry &registry = tandem_registry();
     Generator state(registry);
     auto d1 = place(make_gene_choice(D_gene, {{"D1", "GGGTTT"}}, /*id=*/0), registry, "D1_gene_seq");
     auto d2 = place(make_gene_choice(D_gene, {{"D1", "GGGTTT"}, {"D2", "CCCAAA"}}, /*id=*/1), registry,
@@ -742,7 +740,7 @@ TEST_CASE("Generation on a tandem-D layout: each D slot's gene choice writes its
 TEST_CASE("Generation on a tandem-D layout: an insertion writes its own junction",
           "[generation][tandem_d]")
 {
-    const SeqTypeRegistry &registry = tandem_registry();
+    const SegmentRegistry &registry = tandem_registry();
     Generator state(registry);
     auto insertion = place(make_insertion(VD_ins_seq, 0, 3, /*id=*/0), registry, "D1D2_ins_seq");
     state.put_mass(*insertion, 0, index_of_value(*insertion, 2));
@@ -753,7 +751,7 @@ TEST_CASE("Generation on a tandem-D layout: an insertion writes its own junction
 TEST_CASE("Generation on a tandem-D layout: a deletion trims its own D slot",
           "[generation][tandem_d]")
 {
-    const SeqTypeRegistry &registry = tandem_registry();
+    const SegmentRegistry &registry = tandem_registry();
     Generator state(registry);
     auto deletion = place(make_deletion(D_gene_seq, Five_prime, 2, 2, /*id=*/0), registry, "D2_gene_seq");
     state.preset("D1_gene_seq", "GGGTTT");
@@ -767,7 +765,7 @@ TEST_CASE("Generation on a tandem-D layout: a deletion trims its own D slot",
 TEST_CASE("Generation on a tandem-D layout: the D1-D2 chain seeds from D1's 3' end",
           "[generation][tandem_d]")
 {
-    const SeqTypeRegistry &registry = tandem_registry();
+    const SegmentRegistry &registry = tandem_registry();
     Generator state(registry);
     auto chain = cyclic_chain(state, VD_ins_seq, registry, 0, "D1D2_ins_seq");
     state.preset("D1_gene_seq", "GGGTTA");
@@ -781,7 +779,7 @@ TEST_CASE("Generation on a tandem-D layout: one sequence, end to end", "[generat
     //Every event a milestone-1 model has, each with its mass on one realization, drawn in a
     //legacy queue order: genes, then deletions, then insertions, then the chains. Priorities
     //are distinct so that no two events share a generated name (T2).
-    const SeqTypeRegistry &registry = tandem_registry();
+    const SegmentRegistry &registry = tandem_registry();
     Generator state(registry);
     int base = 0;
     int priority = 30;

@@ -14,7 +14,7 @@
 
 #include <igor/Core/DynamicSequenceMap.h>
 #include <igor/Core/Legacy/IntStr.h>
-#include <igor/Core/SeqTypeRegistry.h>
+#include <igor/Core/SegmentRegistry.h>
 #include <igor/Core/Legacy/Utils.h>
 
 #include <stdexcept>
@@ -25,18 +25,18 @@ using namespace igor::core::legacy;
 namespace {
 
 /// Standard VDJ ordering, frozen and ready to size a map from.
-SeqTypeRegistry vdj_registry()
+SegmentRegistry vdj_registry()
 {
-    SeqTypeRegistry r;
+    SegmentRegistry r;
     r.set_ordered_types({"V_gene_seq", "VD_ins_seq", "D_gene_seq", "DJ_ins_seq", "J_gene_seq"});
     r.freeze();
     return r;
 }
 
 /// Tandem-D ordering from the B7 worked example.
-SeqTypeRegistry tandem_d_registry()
+SegmentRegistry tandem_d_registry()
 {
-    SeqTypeRegistry r;
+    SegmentRegistry r;
     r.set_ordered_types({"V_gene_seq", "VD1_ins_seq", "D1_gene_seq",
                          "D1D2_ins_seq", "D2_gene_seq", "D2J_ins_seq", "J_gene_seq"});
     r.freeze();
@@ -47,7 +47,7 @@ SeqTypeRegistry tandem_d_registry()
 
 TEST_CASE("DynamicSequenceMap: requires a frozen registry", "[dynamic_sequence_map]")
 {
-    SeqTypeRegistry unfrozen;
+    SegmentRegistry unfrozen;
     unfrozen.set_ordered_types({"V_gene_seq", "VJ_ins_seq", "J_gene_seq"});
     // The map sizes itself from the id space, so that space must not be able to grow
     // underneath it.
@@ -59,7 +59,7 @@ TEST_CASE("DynamicSequenceMap: requires a frozen registry", "[dynamic_sequence_m
 
 TEST_CASE("DynamicSequenceMap: sizes itself from the registry", "[dynamic_sequence_map]")
 {
-    const SeqTypeRegistry r = vdj_registry();
+    const SegmentRegistry r = vdj_registry();
     DynamicSequenceMap<Seq_Offset> m(r);
     CHECK(m.count() == r.total_count());
     CHECK(m.count() == 5);
@@ -71,15 +71,15 @@ TEST_CASE("DynamicSequenceMap: sizes itself from the registry", "[dynamic_sequen
 
 TEST_CASE("DynamicSequenceMap: occupied() separates the three states", "[dynamic_sequence_map][b10]")
 {
-    const SeqTypeRegistry r = vdj_registry();
+    const SegmentRegistry r = vdj_registry();
     DynamicSequenceMap<Int_Str *> m(r);
 
     Int_Str present = {0, 1, 2};
     Int_Str absent;   // zero length: written, but nothing there
 
-    const SeqTypeId v = r.id("V_gene_seq");
-    const SeqTypeId vd = r.id("VD_ins_seq");
-    const SeqTypeId d = r.id("D_gene_seq");
+    const SegmentId v = r.id("V_gene_seq");
+    const SegmentId vd = r.id("VD_ins_seq");
+    const SegmentId d = r.id("D_gene_seq");
 
     // Layer 0 is claimed, not assumed: see claim_layer_zero().
     claim_layer_zero(m, v);
@@ -111,9 +111,9 @@ TEST_CASE("DynamicSequenceMap: non-segment values are occupied once written",
 {
     // Offsets, probabilities and mismatch lists cannot be "absent": the written/unwritten
     // distinction is the whole story for them.
-    const SeqTypeRegistry r = vdj_registry();
+    const SegmentRegistry r = vdj_registry();
     DynamicSequenceMap<Seq_Offset> m(r);
-    const SeqTypeId v = r.id("V_gene_seq");
+    const SegmentId v = r.id("V_gene_seq");
 
     CHECK_FALSE(m.occupied(v));
     claim_layer_zero(m, v);
@@ -124,28 +124,28 @@ TEST_CASE("DynamicSequenceMap: non-segment values are occupied once written",
 TEST_CASE("DynamicSequenceMap: traversal over a fully populated ordering",
           "[dynamic_sequence_map][traversal]")
 {
-    const SeqTypeRegistry r = vdj_registry();
+    const SegmentRegistry r = vdj_registry();
     DynamicSequenceMap<Int_Str *> m(r);
 
     Int_Str seg = {0};
-    for (SeqTypeId id : r.ordering()) {
+    for (SegmentId id : r.ordering()) {
         claim_layer_zero(m, id);
         m.set(id, &seg, 0);
     }
 
-    const SeqTypeId d = r.id("D_gene_seq");
+    const SegmentId d = r.id("D_gene_seq");
     CHECK(m.first_occupied_left(d) == r.id("VD_ins_seq"));
     CHECK(m.first_occupied_right(d) == r.id("DJ_ins_seq"));
 
-    // The ends of the ordering report kNoSeqType rather than wrapping.
-    CHECK(m.first_occupied_left(r.id("V_gene_seq")) == kNoSeqType);
-    CHECK(m.first_occupied_right(r.id("J_gene_seq")) == kNoSeqType);
+    // The ends of the ordering report kNoSegment rather than wrapping.
+    CHECK(m.first_occupied_left(r.id("V_gene_seq")) == kNoSegment);
+    CHECK(m.first_occupied_right(r.id("J_gene_seq")) == kNoSegment);
 }
 
 TEST_CASE("DynamicSequenceMap: traversal skips unwritten and absent segments alike",
           "[dynamic_sequence_map][traversal][b10]")
 {
-    const SeqTypeRegistry r = vdj_registry();
+    const SegmentRegistry r = vdj_registry();
     DynamicSequenceMap<Int_Str *> m(r);
 
     Int_Str present = {0};
@@ -169,7 +169,7 @@ TEST_CASE("DynamicSequenceMap: traversal skips unwritten and absent segments ali
 TEST_CASE("DynamicSequenceMap: tandem-D falls back to D1 when D2 is absent",
           "[dynamic_sequence_map][traversal][tandem_d][b10]")
 {
-    const SeqTypeRegistry r = tandem_d_registry();
+    const SegmentRegistry r = tandem_d_registry();
     DynamicSequenceMap<Int_Str *> m(r);
 
     Int_Str v_seq = {0, 0};
@@ -201,7 +201,7 @@ TEST_CASE("DynamicSequenceMap: tandem-D falls back to D1 when D2 is absent",
 
 TEST_CASE("DynamicSequenceMap: traversal follows the layer stack", "[dynamic_sequence_map][traversal]")
 {
-    const SeqTypeRegistry r = vdj_registry();
+    const SegmentRegistry r = vdj_registry();
     DynamicSequenceMap<Int_Str *> m(r);
 
     Int_Str present = {0};
@@ -227,14 +227,14 @@ TEST_CASE("DynamicSequenceMap: traversal follows the layer stack", "[dynamic_seq
 TEST_CASE("DynamicSequenceMap: a type outside the ordering has no neighbours",
           "[dynamic_sequence_map][traversal]")
 {
-    SeqTypeRegistry r;
+    SegmentRegistry r;
     r.set_ordered_types({"V_gene_seq", "VJ_ins_seq", "J_gene_seq"});
-    const SeqTypeId orphan = r.register_type("left_flank_seq");
+    const SegmentId orphan = r.register_type("left_flank_seq");
     r.freeze();
 
     DynamicSequenceMap<Int_Str *> m(r);
     Int_Str seg = {0};
-    for (SeqTypeId id : r.ordering()) {
+    for (SegmentId id : r.ordering()) {
         claim_layer_zero(m, id);
         m.set(id, &seg, 0);
     }
@@ -243,6 +243,6 @@ TEST_CASE("DynamicSequenceMap: a type outside the ordering has no neighbours",
 
     // Registered but unordered: reachable by id, invisible to the traversal.
     CHECK(m.occupied(orphan));
-    CHECK(m.first_occupied_left(orphan) == kNoSeqType);
-    CHECK(m.first_occupied_right(orphan) == kNoSeqType);
+    CHECK(m.first_occupied_left(orphan) == kNoSegment);
+    CHECK(m.first_occupied_right(orphan) == kNoSegment);
 }

@@ -22,7 +22,7 @@
 
 #pragma once
 
-#include <igor/Core/SeqTypeRegistry.h>
+#include <igor/Core/SegmentRegistry.h>
 
 #include <cstddef>
 #include <functional>
@@ -81,23 +81,22 @@ public:
     explicit UnfilledSegmentLengths(std::size_t seq_type_count) : lengths_(seq_type_count, kAbsent) {}
 
     /// Publish how many of `id`'s positions are still to be chosen on this path.
-    void set(core::SeqTypeId id, int length)
+    void set(core::SegmentId id, int length)
     {
-        if (id == core::kNoSeqType || static_cast<std::size_t>(id) >= lengths_.size()) {
+        if (id == core::kNoSegment || static_cast<std::size_t>(id) >= lengths_.size()) {
             return; //an event whose seq_type never resolved publishes nothing
         }
         lengths_[id] = length;
     }
 
     /// Whether anyone has published a count for `id` on this path.
-    bool has(core::SeqTypeId id) const
+    bool has(core::SegmentId id) const
     {
-        return id != core::kNoSeqType && static_cast<std::size_t>(id) < lengths_.size()
-               && lengths_[id] != kAbsent;
+        return id != core::kNoSegment && static_cast<std::size_t>(id) < lengths_.size() && lengths_[id] != kAbsent;
     }
 
     /// The published count. Undefined unless has(id); callers guard, as the dinucl factor does.
-    int length_of(core::SeqTypeId id) const { return lengths_[id]; }
+    int length_of(core::SegmentId id) const { return lengths_[id]; }
 
     /// Forget every published count, for a fold that starts over.
     void reset() { lengths_.assign(lengths_.size(), kAbsent); }

@@ -130,7 +130,7 @@ double Single_error_rate::compute_scenario_error_probability(
     // integers, so the order does not move them.
     number_errors = 0;
     genomic_nucl = 0;
-    for (const SeqTypeId segment : scenario.mismatches_lists.registry().ordering()) {
+    for (const SegmentId segment : scenario.mismatches_lists.registry().ordering()) {
         if (scenario.mismatches_lists.exists(segment)) {
             genomic_nucl += scenario.constructed_sequences.get(segment)->size();
             number_errors += scenario.mismatches_lists.get(segment)->size();

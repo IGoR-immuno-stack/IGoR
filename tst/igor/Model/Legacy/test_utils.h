@@ -41,7 +41,7 @@
 #include <igor/Model/Legacy/QuerySequenceContext.h>
 #include <igor/Model/Legacy/Rec_Event.h>
 #include <igor/Model/Legacy/ScenarioContext.h>
-#include <igor/Core/Legacy/SeqTypeRegistry.h>
+#include <igor/Core/Legacy/SegmentRegistry.h>
 #include <igor/Model/Legacy/Singleerrorrate.h>
 #include <igor/Core/Legacy/Utils.h>
 #include <igor/Model/TraversalPlan.h>
@@ -137,7 +137,7 @@ struct ModelStorage {
  * The two orderings a legacy model can have, as frozen registries.
  *
  * `legacy_seq_type_registry()` registers the six standard seq_types but sets **no ordering**,
- * so `left_neighbor()` / `right_neighbor()` answer kNoSeqType for everything. That is enough
+ * so `left_neighbor()` / `right_neighbor()` answer kNoSegment for everything. That is enough
  * for an event that addresses seq_types by name, and not enough for one that asks who its
  * neighbours are -- which is what every generic body does. Fixtures therefore pick an
  * ordering, exactly as Model_Parms::finalize() does for a real model.
@@ -145,18 +145,18 @@ struct ModelStorage {
  * Both keep the standard enum ids (register_legacy_seq_types() runs first), so preset_segment()
  * and the Seq_type-keyed accessors stay valid under either.
  */
-const SeqTypeRegistry &vdj_seq_type_registry();
-const SeqTypeRegistry &vj_seq_type_registry();
+const SegmentRegistry &vdj_segment_registry();
+const SegmentRegistry &vj_segment_registry();
 
 /// Storage for ScenarioContext. All three maps are sized from the frozen legacy registry,
-/// so SeqTypeId == Seq_type for the six standard types and enum-keyed access is valid.
+/// so SegmentId == Seq_type for the six standard types and enum-keyed access is valid.
 struct ScenarioStorage {
     double scenario_proba;
     Seq_type_str_p_map constructed_sequences;
     Seq_offsets_map seq_offsets;
     Mismatch_vectors_map mismatches_lists;
 
-    explicit ScenarioStorage(const SeqTypeRegistry &registry)
+    explicit ScenarioStorage(const SegmentRegistry &registry)
         : scenario_proba(1.0),
           constructed_sequences(registry, kTestLayers),
           seq_offsets(registry, kTestLayers),
@@ -179,7 +179,7 @@ struct ExplorationStorage {
     /// harness refuses a plan that needs more than this.
     static constexpr std::size_t kSpareBoundKeys = 8;
 
-    ExplorationStorage(std::size_t max_events, const SeqTypeRegistry &registry)
+    ExplorationStorage(std::size_t max_events, const SegmentRegistry &registry)
         : downstream_proba_map(registry, kTestLayers, registry.total_count() + kSpareBoundKeys),
           //ExplorationContext copies proba_threshold_factor by value, so it can only be set
           //here. Fixing it at 1 makes seq_max_prob itself the pruning threshold, and it is a
@@ -189,8 +189,7 @@ struct ExplorationStorage {
           seq_max_prob(0.0),
           proba_threshold(1.0),
           index_map(max_events, kTestLayers),
-          next_event_ptr_arr(new Next_event_ptr[max_events](),
-                             std::default_delete<Next_event_ptr[]>()),
+          next_event_ptr_arr(new Next_event_ptr[max_events](), std::default_delete<Next_event_ptr[]>()),
           safety_set(registry, kTestLayers),
           pruning_mismatch_floor(registry, kTestLayers)
     {
@@ -264,7 +263,7 @@ public:
     AccumulationContext accumulation;
 
     IterateTestState(const std::string &seq, std::size_t marginal_array_size, std::size_t max_events,
-                     const SeqTypeRegistry &registry)
+                     const SegmentRegistry &registry)
         : query_storage(seq),
           model_storage(marginal_array_size),
           scenario_storage(registry),
@@ -350,9 +349,8 @@ public:
      * Pair this with mark_chosen() on the corresponding Gene_choice; mark_chosen() alone
      * makes the code *look* for the offsets, and they have to be there.
      */
-    void preset_segment(SeqTypeId seq_type, Seq_Offset five_prime, Seq_Offset three_prime,
-                        const std::string &segment = "",
-                        const std::vector<std::size_t> &mismatches = {})
+    void preset_segment(SegmentId seq_type, Seq_Offset five_prime, Seq_Offset three_prime,
+                        const std::string &segment = "", const std::vector<std::size_t> &mismatches = {})
     {
         preset_.built.push_back(seq_type);
         claim_layer_zero(scenario_storage.seq_offsets, seq_type, Five_prime);
@@ -379,7 +377,7 @@ public:
      *
      * An empty junction is `3' == 5' - 1`, which is what `length == 0` writes.
      */
-    void preset_junction(SeqTypeId seq_type, Seq_Offset five_prime, std::size_t length)
+    void preset_junction(SegmentId seq_type, Seq_Offset five_prime, std::size_t length)
     {
         preset_.placed.push_back(seq_type);
         claim_layer_zero(scenario_storage.seq_offsets, seq_type, Five_prime);
@@ -458,10 +456,10 @@ public:
     ///
     /// A `true` verdict propagates along the row -- see SafetyMatrix -- so presetting a
     /// near pair safe also presets everything further 3' of the same left segment.
-    void preset_safety(SeqTypeId left, SeqTypeId right, bool value)
+    void preset_safety(SegmentId left, SegmentId right, bool value)
     {
-        const SafetyCell cell = exploration_storage.safety_set.cell(
-                static_cast<SeqTypeId>(left), static_cast<SeqTypeId>(right));
+        const SafetyCell cell =
+                exploration_storage.safety_set.cell(static_cast<SegmentId>(left), static_cast<SegmentId>(right));
         claim_layer_zero(exploration_storage.safety_set, cell);
         exploration_storage.safety_set.set(cell, value, 0);
     }
@@ -483,11 +481,10 @@ public:
     std::queue<std::shared_ptr<Rec_Event>> &model_queue() { return model_storage.model_queue; }
 };
 
-/// Factory. Defaults to the VDJ ordering; pass vj_seq_type_registry() for a model with no D.
-IterateTestState create_iterate_state(const std::string &sequence,
-                                      std::size_t marginal_array_size = 1000,
+/// Factory. Defaults to the VDJ ordering; pass vj_segment_registry() for a model with no D.
+IterateTestState create_iterate_state(const std::string &sequence, std::size_t marginal_array_size = 1000,
                                       std::size_t max_events = 32,
-                                      const SeqTypeRegistry &registry = vdj_seq_type_registry());
+                                      const SegmentRegistry &registry = vdj_segment_registry());
 
 /// Decode an Int_Str back to letters: the four bases as themselves, an ambiguity code as 'N',
 /// and an unfilled position (int_undefined) as '.'. No event hands one on since R1, where
@@ -600,7 +597,7 @@ struct ScenarioSnapshot {
     std::map<std::pair<Seq_type, Seq_type>, bool> safety;
     /// Every key of the downstream map, so a gap's own key past the registry ids is there too
     /// (TraversalPlan). A Seq_type converts to its key.
-    std::map<SeqTypeId, double> downstream_bounds;
+    std::map<SegmentId, double> downstream_bounds;
 
     /// Convenience: the 5' offset of a segment, or throws if it was never written.
     Seq_Offset five_prime(Seq_type seq_type) const { return offsets.at(seq_type).first; }
@@ -667,13 +664,10 @@ public:
     //Unused surface, present only because Rec_Event declares it pure virtual.
     std::shared_ptr<Rec_Event> copy() override;
     void construct_realization(const std::vector<int> &, GenerationState &) const override {}
-    OffsetDelta get_offset_delta_bounds(SeqTypeId, Seq_side) const override { return {}; }
-    LengthContribution get_length_contribution(SeqTypeId) const override { return {}; }
-    SeqConstructionRole get_seq_construction_role(SeqTypeId) const override
-    {
-        return SeqConstructionRole::None;
-    }
-    OffsetRole get_offset_role(SeqTypeId, Seq_side) const override { return OffsetRole::None; }
+    OffsetDelta get_offset_delta_bounds(SegmentId, Seq_side) const override { return {}; }
+    LengthContribution get_length_contribution(SegmentId) const override { return {}; }
+    SeqConstructionRole get_seq_construction_role(SegmentId) const override { return SeqConstructionRole::None; }
+    OffsetRole get_offset_role(SegmentId, Seq_side) const override { return OffsetRole::None; }
     void write2txt(std::ofstream &) override {}
     void write2txt_legacy(std::ofstream &) override {}
     void add_to_marginals(long double, Marginal_array_p &) const override {}
@@ -796,7 +790,7 @@ Alignment_data create_alignment_with_mismatches(const std::string &gene_name, in
 
 } // namespace IgorTestUtils
 
-#include <igor/Core/Legacy/SeqTypeRegistry.h>
+#include <igor/Core/Legacy/SegmentRegistry.h>
 
 /**
  * A frozen registry holding the six legacy seq_types at their Seq_type enum ids, with no
@@ -804,5 +798,5 @@ Alignment_data create_alignment_with_mismatches(const std::string &gene_name, in
  * enum-keyed access; tests exercising the ordered traversal build their own registry with
  * an explicit ordering.
  */
-//legacy_seq_type_registry() now lives in SeqTypeRegistry.h; kept included here so that
+//legacy_seq_type_registry() now lives in SegmentRegistry.h; kept included here so that
 //tests including test_utils.h continue to see it.

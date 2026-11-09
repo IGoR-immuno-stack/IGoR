@@ -101,8 +101,7 @@ struct DjJunction {
 
 /// The VJ arm: the whole V-to-J span, as a model with no D declares it.
 struct VjJunction {
-    IterateTestState state = create_iterate_state("ACGTACGTACGTACGTACGTACGTACGT", 1000, 32,
-                                                  vj_seq_type_registry());
+    IterateTestState state = create_iterate_state("ACGTACGTACGTACGTACGTACGTACGT", 1000, 32, vj_segment_registry());
     std::shared_ptr<Insertion> insertion = make_insertion(VJ_ins_seq, 0, 6, /*event_id=*/0);
 
     explicit VjJunction(Seq_Offset v_three_prime = 10, Seq_Offset j_five_prime = 14)
@@ -471,9 +470,9 @@ TEST_CASE("Insertion: a junction with no segment on one side is rejected", "[ins
     // B6 resolves the neighbours from the ordering at initialize_event() instead of naming
     // them per seq_type, which introduces a case the string comparisons could not have: an
     // insertion sitting at the end of the ordering, with nothing beyond it to bound the
-    // junction. Caught at initialization rather than as a kNoSeqType subscript in the hot loop.
-    static const SeqTypeRegistry truncated = [] {
-        SeqTypeRegistry built;
+    // junction. Caught at initialization rather than as a kNoSegment subscript in the hot loop.
+    static const SegmentRegistry truncated = [] {
+        SegmentRegistry built;
         built.register_legacy_seq_types();
         built.set_ordered_types({"V_gene_seq", "VD_ins_seq"});   // nothing to the 3' side
         built.freeze();
@@ -517,10 +516,10 @@ TEST_CASE("Insertion: the seq_type name and its registry id must agree", "[inser
     SECTION("An id never resolved against a registry")
     {
         // What an event holds before Model_Parms::finalize() runs. Reaching iterate() in that
-        // state would subscript every scenario map with kNoSeqType.
+        // state would subscript every scenario map with kNoSegment.
         IterateTestState state = create_iterate_state("ACGTACGTACGTACGT");
         auto insertion = make_insertion(VD_ins_seq, 0, 6, /*event_id=*/0);
-        insertion->set_seq_type_id(kNoSeqType);
+        insertion->set_seq_type_id(kNoSegment);
         CHECK_THROWS_AS(call_iterate(insertion, state), std::runtime_error);
     }
 }

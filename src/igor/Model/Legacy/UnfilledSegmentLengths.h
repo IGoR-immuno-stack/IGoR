@@ -23,7 +23,7 @@
 #pragma once
 
 #include <igor/Model/UnfilledSegmentLengths.h>
-#include <igor/Core/Legacy/SeqTypeRegistry.h>
+#include <igor/Core/Legacy/SegmentRegistry.h>
 
 // UnfilledSegmentLengths.h was promoted out of Legacy/ (step 1c of doc/LAYER_REFACTORING_PROPOSAL.md).
 // This stub keeps the legacy include path and the legacy names for the code that has not

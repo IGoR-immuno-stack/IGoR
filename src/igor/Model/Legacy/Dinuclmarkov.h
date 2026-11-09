@@ -59,8 +59,8 @@ using namespace igor::core::legacy;
 using namespace igor::alignment::legacy;
 
 struct DinuclTraversalSpec {
-    SeqTypeId target_id = kNoSeqType;
-    SeqTypeId anchor_id = kNoSeqType;
+    SegmentId target_id = kNoSegment;
+    SegmentId anchor_id = kNoSegment;
     Seq_side anchor_side = Undefined_side;
 };
 
@@ -99,7 +99,7 @@ public:
      * chain runs and is therefore the event's own fact, not the topology's. Nothing to
      * resolve, nothing to keep in sync, nothing to make idempotent.
      *
-     * `anchor_id` is `kNoSeqType` when the model does not define one: no ordering, no
+     * `anchor_id` is `kNoSegment` when the model does not define one: no ordering, no
      * declared direction, or nothing on the side the chain runs from. initialize_event()
      * refuses that; iterate() may then assume it.
      */
@@ -142,12 +142,12 @@ public:
 
     //Proba bound related computation methods
     //Capability queries (task A0)
-    OffsetDelta get_offset_delta_bounds(SeqTypeId, Seq_side) const override;
-    LengthContribution get_length_contribution(SeqTypeId) const override;
-    SeqConstructionRole get_seq_construction_role(SeqTypeId) const override;
-    OffsetRole get_offset_role(SeqTypeId, Seq_side) const override;
+    OffsetDelta get_offset_delta_bounds(SegmentId, Seq_side) const override;
+    LengthContribution get_length_contribution(SegmentId) const override;
+    SeqConstructionRole get_seq_construction_role(SegmentId) const override;
+    OffsetRole get_offset_role(SegmentId, Seq_side) const override;
 
-    bool affects_proba_of(SegmentSpan, const SeqTypeRegistry &) const override;
+    bool affects_proba_of(SegmentSpan, const SegmentRegistry &) const override;
     int length_delta(const Event_realization &) const override;
     double span_proba_factor(SegmentSpan, const UnfilledSegmentLengths &) const override;
     void prepare_span_proba_factor(const Marginal_array_p &, const Index_map &) override;
@@ -189,7 +189,7 @@ private:
     int memory_layer_junction = -1;
     /// Where the gap this chain fills is bounded, from the engine's plan: the gap's factor, which
     /// filling it settles to 1.
-    SeqTypeId junction_key_ = kNoSeqType;
+    SegmentId junction_key_ = kNoSegment;
     /// Layer claimed in the constructed-sequence map for that same junction, which this event
     /// now creates rather than filling in place.
     int memory_layer_seq = -1;

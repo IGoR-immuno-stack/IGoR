@@ -22,7 +22,7 @@
 #include <igor/Model/Legacy/Insertion.h>
 #include <igor/Model/Legacy/Dinuclmarkov.h>
 #include <igor/Model/Legacy/Singleerrorrate.h>
-#include <igor/Core/Legacy/SeqTypeRegistry.h>
+#include <igor/Core/Legacy/SegmentRegistry.h>
 #include <igor/Core/Legacy/Utils.h>
 #include <igor/Model/Legacy/EventUtils.h>
 #include <igor/Model/Legacy/ModelJson.h>
@@ -495,9 +495,9 @@ TEST_CASE("A v2 text file is refused, and the message names JSON", "[model_forma
                                 && Catch::Matchers::ContainsSubstring("JSON"));
 }
 
-// A JSON document's layout populates the SeqTypeRegistry with exactly the declared order,
+// A JSON document's layout populates the SegmentRegistry with exactly the declared order,
 // including non-standard seq_type names that cannot exist in the v1 format.
-TEST_CASE("SeqTypeRegistry populated from a JSON document's layout",
+TEST_CASE("SegmentRegistry populated from a JSON document's layout",
           "[model_format][json][seq_type_registry][tandem_d]")
 {
     const std::string file_path = TEST_DATA_DIR + "tandem_d_model.json";
@@ -505,7 +505,7 @@ TEST_CASE("SeqTypeRegistry populated from a JSON document's layout",
     Model_Parms parms;
     REQUIRE_NOTHROW(parms.read_model_parms(file_path));
 
-    const SeqTypeRegistry &registry = parms.get_seq_type_registry();
+    const SegmentRegistry &registry = parms.get_seq_type_registry();
 
     // Registry must reflect exactly the seven segments the layout lists
     const std::vector<std::string> expected = {
@@ -527,30 +527,30 @@ TEST_CASE("SeqTypeRegistry populated from a JSON document's layout",
 }
 
 // Test that reading a legacy VJ file (no @Version / no @Seq_type_order) produces
-// the inferred VJ ordering in the SeqTypeRegistry.
-TEST_CASE("SeqTypeRegistry inferred as VJ order from legacy format", "[model_format][legacy][seq_type_registry]")
+// the inferred VJ ordering in the SegmentRegistry.
+TEST_CASE("SegmentRegistry inferred as VJ order from legacy format", "[model_format][legacy][seq_type_registry]")
 {
     const std::string file_path = TEST_DATA_DIR + "test_legacy_model_parms.txt";
 
     Model_Parms parms;
     REQUIRE_NOTHROW(parms.read_model_parms(file_path));
 
-    const SeqTypeRegistry &registry = parms.get_seq_type_registry();
+    const SegmentRegistry &registry = parms.get_seq_type_registry();
 
     const std::vector<std::string> expected = {"V_gene_seq", "VJ_ins_seq", "J_gene_seq"};
     REQUIRE(registry.get_ordered_types() == expected);
 }
 
 // Test that reading a legacy VDJ file (no @Version / no @Seq_type_order) produces
-// the inferred VDJ ordering in the SeqTypeRegistry.
-TEST_CASE("SeqTypeRegistry inferred as VDJ order from legacy format", "[model_format][legacy][seq_type_registry]")
+// the inferred VDJ ordering in the SegmentRegistry.
+TEST_CASE("SegmentRegistry inferred as VDJ order from legacy format", "[model_format][legacy][seq_type_registry]")
 {
     const std::string file_path = TEST_DATA_DIR + "test_legacy_vdj_model_parms.txt";
 
     Model_Parms parms;
     REQUIRE_NOTHROW(parms.read_model_parms(file_path));
 
-    const SeqTypeRegistry &registry = parms.get_seq_type_registry();
+    const SegmentRegistry &registry = parms.get_seq_type_registry();
 
     const std::vector<std::string> expected = {
         "V_gene_seq", "VD_ins_seq", "D_gene_seq", "DJ_ins_seq", "J_gene_seq"
@@ -559,11 +559,11 @@ TEST_CASE("SeqTypeRegistry inferred as VDJ order from legacy format", "[model_fo
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// SeqTypeId: the runtime handle layer (plan decisions D1 / D5, B2 step 4)
+// SegmentId: the runtime handle layer (plan decisions D1 / D5, B2 step 4)
 // ══════════════════════════════════════════════════════════════════════════════
 
 // The invariant the whole B8 migration rests on: for the six legacy seq_types the
-// registry id equals the Seq_type enum value, so a map keyed by SeqTypeId and code still
+// registry id equals the Seq_type enum value, so a map keyed by SegmentId and code still
 // keyed by the enum address the same slot. Without the pre-registration this holds for a
 // VDJ model by accident of ordering and fails for a VJ one -- J_gene_seq would take id 2
 // while the enum says 4, silently aliasing two segments.
@@ -571,14 +571,14 @@ TEST_CASE("Loaded models pin legacy seq_type ids to the Seq_type enum",
           "[model_format][seq_type_id][b8]")
 {
     auto check_enum_alignment = [](const Model_Parms &parms) {
-        const SeqTypeRegistry &r = parms.get_seq_type_registry();
+        const SegmentRegistry &r = parms.get_seq_type_registry();
         REQUIRE(r.total_count() >= 6);
-        CHECK(r.id("V_gene_seq")  == static_cast<SeqTypeId>(V_gene_seq));
-        CHECK(r.id("VD_ins_seq")  == static_cast<SeqTypeId>(VD_ins_seq));
-        CHECK(r.id("D_gene_seq")  == static_cast<SeqTypeId>(D_gene_seq));
-        CHECK(r.id("DJ_ins_seq")  == static_cast<SeqTypeId>(DJ_ins_seq));
-        CHECK(r.id("J_gene_seq")  == static_cast<SeqTypeId>(J_gene_seq));
-        CHECK(r.id("VJ_ins_seq")  == static_cast<SeqTypeId>(VJ_ins_seq));
+        CHECK(r.id("V_gene_seq") == static_cast<SegmentId>(V_gene_seq));
+        CHECK(r.id("VD_ins_seq") == static_cast<SegmentId>(VD_ins_seq));
+        CHECK(r.id("D_gene_seq") == static_cast<SegmentId>(D_gene_seq));
+        CHECK(r.id("DJ_ins_seq") == static_cast<SegmentId>(DJ_ins_seq));
+        CHECK(r.id("J_gene_seq") == static_cast<SegmentId>(J_gene_seq));
+        CHECK(r.id("VJ_ins_seq") == static_cast<SegmentId>(VJ_ins_seq));
     };
 
     SECTION("VDJ model")
@@ -606,9 +606,9 @@ TEST_CASE("Loaded models pin legacy seq_type ids to the Seq_type enum",
     }
 }
 
-TEST_CASE("SeqTypeRegistry: ids are dense and stable", "[seq_type_registry][seq_type_id]")
+TEST_CASE("SegmentRegistry: ids are dense and stable", "[seq_type_registry][seq_type_id]")
 {
-    SeqTypeRegistry registry;
+    SegmentRegistry registry;
     registry.set_ordered_types({"V_gene_seq", "VD_ins_seq", "D_gene_seq"});
 
     REQUIRE(registry.total_count() == 3);
@@ -620,49 +620,49 @@ TEST_CASE("SeqTypeRegistry: ids are dense and stable", "[seq_type_registry][seq_
     CHECK(registry.name(0) == "V_gene_seq");
     CHECK(registry.name(2) == "D_gene_seq");
 
-    const std::vector<SeqTypeId> expected_ordering = {0, 1, 2};
+    const std::vector<SegmentId> expected_ordering = { 0, 1, 2 };
     CHECK(registry.ordering() == expected_ordering);
 
     CHECK_THROWS_AS(registry.id("nonexistent_seq"), std::out_of_range);
     CHECK_THROWS_AS(registry.name(7), std::out_of_range);
 }
 
-TEST_CASE("SeqTypeRegistry: register_type is idempotent", "[seq_type_registry][seq_type_id]")
+TEST_CASE("SegmentRegistry: register_type is idempotent", "[seq_type_registry][seq_type_id]")
 {
-    SeqTypeRegistry registry;
-    const SeqTypeId first = registry.register_type("D1_gene_seq");
-    const SeqTypeId again = registry.register_type("D1_gene_seq");
+    SegmentRegistry registry;
+    const SegmentId first = registry.register_type("D1_gene_seq");
+    const SegmentId again = registry.register_type("D1_gene_seq");
     CHECK(first == again);
     CHECK(registry.total_count() == 1);
 
-    const SeqTypeId other = registry.register_type("D2_gene_seq");
+    const SegmentId other = registry.register_type("D2_gene_seq");
     CHECK(other != first);
     CHECK(registry.total_count() == 2);
 }
 
-TEST_CASE("SeqTypeRegistry: id-keyed neighbour lookups", "[seq_type_registry][seq_type_id]")
+TEST_CASE("SegmentRegistry: id-keyed neighbour lookups", "[seq_type_registry][seq_type_id]")
 {
-    SeqTypeRegistry registry;
+    SegmentRegistry registry;
     registry.set_ordered_types({"V_gene_seq", "VD1_ins_seq", "D1_gene_seq",
                                 "D1D2_ins_seq", "D2_gene_seq", "DJ_ins_seq", "J_gene_seq"});
 
-    const SeqTypeId d1 = registry.id("D1_gene_seq");
+    const SegmentId d1 = registry.id("D1_gene_seq");
     CHECK(registry.left_neighbor(d1)  == registry.id("VD1_ins_seq"));
     CHECK(registry.right_neighbor(d1) == registry.id("D1D2_ins_seq"));
 
-    // The ends of the ordering report kNoSeqType rather than an optional.
-    CHECK(registry.left_neighbor(registry.id("V_gene_seq")) == kNoSeqType);
-    CHECK(registry.right_neighbor(registry.id("J_gene_seq")) == kNoSeqType);
+    // The ends of the ordering report kNoSegment rather than an optional.
+    CHECK(registry.left_neighbor(registry.id("V_gene_seq")) == kNoSegment);
+    CHECK(registry.right_neighbor(registry.id("J_gene_seq")) == kNoSegment);
 
     // A type registered but absent from the ordering has no neighbours.
-    const SeqTypeId orphan = registry.register_type("left_flank_seq");
-    CHECK(registry.left_neighbor(orphan) == kNoSeqType);
-    CHECK(registry.right_neighbor(orphan) == kNoSeqType);
+    const SegmentId orphan = registry.register_type("left_flank_seq");
+    CHECK(registry.left_neighbor(orphan) == kNoSegment);
+    CHECK(registry.right_neighbor(orphan) == kNoSegment);
 }
 
-TEST_CASE("SeqTypeRegistry: freezing seals the id space", "[seq_type_registry][seq_type_id]")
+TEST_CASE("SegmentRegistry: freezing seals the id space", "[seq_type_registry][seq_type_id]")
 {
-    SeqTypeRegistry registry;
+    SegmentRegistry registry;
     registry.set_ordered_types({"V_gene_seq", "VJ_ins_seq", "J_gene_seq"});
     REQUIRE_FALSE(registry.is_frozen());
 
@@ -679,14 +679,13 @@ TEST_CASE("SeqTypeRegistry: freezing seals the id space", "[seq_type_registry][s
     CHECK(registry.is_frozen());
 }
 
-TEST_CASE("Model_Parms::finalize resolves every event's SeqTypeId",
-          "[model_format][seq_type_id]")
+TEST_CASE("Model_Parms::finalize resolves every event's SegmentId", "[model_format][seq_type_id]")
 {
     Model_Parms parms;
     REQUIRE_NOTHROW(parms.read_model_parms(TEST_DATA_DIR + "test_legacy_vdj_model_parms.txt"));
 
     // read_model_parms() finalizes, so the registry is sealed on return.
-    const SeqTypeRegistry &registry = parms.get_seq_type_registry();
+    const SegmentRegistry &registry = parms.get_seq_type_registry();
     REQUIRE(registry.is_frozen());
 
     for (const auto &event : parms.get_event_list()) {
@@ -696,7 +695,7 @@ TEST_CASE("Model_Parms::finalize resolves every event's SeqTypeId",
         }
         INFO("event " << event->get_nickname() << " seq_type " << name);
         CHECK(event->get_seq_type_id() == registry.id(name));
-        CHECK(event->get_seq_type_id() != kNoSeqType);
+        CHECK(event->get_seq_type_id() != kNoSegment);
     }
 }
 
@@ -708,12 +707,12 @@ TEST_CASE("Model_Parms: adding an event after finalize is refused",
 
     auto extra = std::make_shared<Gene_choice>(V_gene);
     extra->set_nickname("late_addition");
-    // It would carry an unresolved SeqTypeId, and might need a type the frozen registry
+    // It would carry an unresolved SegmentId, and might need a type the frozen registry
     // can no longer accept.
     CHECK_THROWS_AS(parms.add_event(extra), std::logic_error);
 }
 
-TEST_CASE("Rec_Event::copy carries the resolved SeqTypeId", "[model_format][seq_type_id]")
+TEST_CASE("Rec_Event::copy carries the resolved SegmentId", "[model_format][seq_type_id]")
 {
     Model_Parms original;
     REQUIRE_NOTHROW(original.read_model_parms(TEST_DATA_DIR + "test_legacy_vdj_model_parms.txt"));
@@ -767,7 +766,7 @@ TEST_CASE("Model_Parms copy constructor preserves the seq_type registry",
 
         // Neighbour lookups exercise the registry's name->index map, not just the
         // ordered vector, so this also catches a partial copy.
-        const SeqTypeRegistry &copied = copy.get_seq_type_registry();
+        const SegmentRegistry &copied = copy.get_seq_type_registry();
         CHECK(copied.index_of("D_gene_seq") == 2);
         CHECK(copied.get_left_neighbor("D_gene_seq") == std::optional<std::string>("VD_ins_seq"));
         CHECK(copied.get_right_neighbor("D_gene_seq") == std::optional<std::string>("DJ_ins_seq"));
@@ -1260,7 +1259,7 @@ TEST_CASE("step8: a JSON parent no event is named is refused", "[model_format][s
 // Current: EventUtils::build_scenario_sequence() uses boolean flags and
 // hardcoded seq_type names (V_gene_seq, VD_ins_seq, …).
 //
-// Required: must traverse the SeqTypeRegistry linked list in order so that
+// Required: must traverse the SegmentRegistry linked list in order so that
 // non-standard orderings (tandem D: V→VD1ins→D1→D1D2ins→D2→DJins→J) work.
 // ──────────────────────────────────────────────────────────────────────────────
 
@@ -1300,7 +1299,7 @@ TEST_CASE("step9: build_scenario_sequence uses registry order for tandem D",
     // build_scenario_sequence() and verify 7-segment assembly order.
     Model_Parms parms;
     REQUIRE_NOTHROW(parms.read_model_parms(TEST_DATA_DIR + "tandem_d_model.json"));
-    const SeqTypeRegistry &registry = parms.get_seq_type_registry();
+    const SegmentRegistry &registry = parms.get_seq_type_registry();
 
     Int_Str v    = {0, 0, 0};
     Int_Str vd1  = {1};
@@ -1358,19 +1357,19 @@ TEST_CASE("step10: standard seq_types accessible in Seq_offsets_map",
 }
 
 // Non-standard seq_types are addressable in the real Seq_offsets_map, which is keyed by
-// SeqTypeId and sized from the registry. This supersedes the Str_Seq_offsets_map prototype
+// SegmentId and sized from the registry. This supersedes the Str_Seq_offsets_map prototype
 // (a nested hash map) that used to stand in for it here.
 TEST_CASE("Seq_offsets_map accepts non-standard seq_types",
           "[model_format][seq_offsets][tandem_d]")
 {
-    SeqTypeRegistry registry;
+    SegmentRegistry registry;
     registry.set_ordered_types({"V_gene_seq", "VD1_ins_seq", "D1_gene_seq",
                                 "D1D2_ins_seq", "D2_gene_seq", "D2J_ins_seq", "J_gene_seq"});
     registry.freeze();
 
     Seq_offsets_map offsets(registry);
-    const SeqTypeId d1 = registry.id("D1_gene_seq");
-    const SeqTypeId d2 = registry.id("D2_gene_seq");
+    const SegmentId d1 = registry.id("D1_gene_seq");
+    const SegmentId d2 = registry.id("D2_gene_seq");
 
     CHECK_FALSE(offsets.exists(d1, Five_prime));
 

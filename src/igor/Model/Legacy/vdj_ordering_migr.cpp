@@ -7,7 +7,7 @@
 namespace igor::model::legacy {
 namespace migration {
 
-void require_vdj_or_vj_ordering(const igor::core::SeqTypeRegistry &registry, const std::string &reader)
+void require_vdj_or_vj_ordering(const igor::core::SegmentRegistry &registry, const std::string &reader)
 {
   static const std::vector<std::string> vdj = {"V_gene_seq", "VD_ins_seq", "D_gene_seq", "DJ_ins_seq", "J_gene_seq"};
   static const std::vector<std::string> vj = {"V_gene_seq", "VJ_ins_seq", "J_gene_seq"};

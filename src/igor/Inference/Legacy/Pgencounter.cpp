@@ -68,7 +68,7 @@ Pgen_counter::~Pgen_counter()
 
 // ===== CONTEXT-BASED INTERFACE =====
 
-void Pgen_counter::check_admissible(const SeqTypeRegistry &registry) const
+void Pgen_counter::check_admissible(const SegmentRegistry &registry) const
 {
     //It assembles the scenario from V, D, J and their junctions at the enum's ids.
     igor::model::legacy::migration::require_vdj_or_vj_ordering(registry, this->type());

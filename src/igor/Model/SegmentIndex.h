@@ -22,7 +22,7 @@
 
 #pragma once
 
-#include <igor/Core/SeqTypeRegistry.h>
+#include <igor/Core/SegmentRegistry.h>
 #include <igor/Core/Types.h>
 #include <igor/Model/Legacy/Rec_Event.h>
 
@@ -50,14 +50,14 @@ class SegmentIndex
 public:
     using Events = std::vector<const legacy::Rec_Event *>;
 
-    SegmentIndex(const core::SeqTypeRegistry &registry, std::span<const legacy::Rec_Event *const> events)
+    SegmentIndex(const core::SegmentRegistry &registry, std::span<const legacy::Rec_Event *const> events)
         : end_creators_(2 * registry.total_count()),
           end_modifiers_(2 * registry.total_count()),
           content_creators_(registry.total_count()),
           content_modifiers_(registry.total_count())
     {
         for (const legacy::Rec_Event *event : events) {
-            for (const core::SeqTypeId segment : registry.ordering()) {
+            for (const core::SegmentId segment : registry.ordering()) {
                 for (const core::SeqSide side : {core::Five_prime, core::Three_prime}) {
                     switch (event->get_offset_role(segment, side)) {
                     case legacy::OffsetRole::Creates: end_creators_[end(segment, side)].push_back(event); break;
@@ -75,16 +75,16 @@ public:
         }
     }
 
-    const Events &end_creators(core::SeqTypeId segment, core::SeqSide side) const
+    const Events &end_creators(core::SegmentId segment, core::SeqSide side) const
     {
         return end_creators_.at(end(segment, side));
     }
-    const Events &end_modifiers(core::SeqTypeId segment, core::SeqSide side) const
+    const Events &end_modifiers(core::SegmentId segment, core::SeqSide side) const
     {
         return end_modifiers_.at(end(segment, side));
     }
-    const Events &content_creators(core::SeqTypeId segment) const { return content_creators_.at(segment); }
-    const Events &content_modifiers(core::SeqTypeId segment) const { return content_modifiers_.at(segment); }
+    const Events &content_creators(core::SegmentId segment) const { return content_creators_.at(segment); }
+    const Events &content_modifiers(core::SegmentId segment) const { return content_modifiers_.at(segment); }
 
     /**
      * Does the segment carry a factor of its own in the downstream bound, apart from the gaps on
@@ -97,7 +97,7 @@ public:
      * own: its bound is the bound of the gap it fills. TraversalPlan's key layout reads this, and
      * nothing else does.
      */
-    bool has_own_factor(core::SeqTypeId segment) const
+    bool has_own_factor(core::SegmentId segment) const
     {
         if (not content_modifiers(segment).empty()) {
             return true;
@@ -113,7 +113,7 @@ public:
     }
 
 private:
-    static std::size_t end(core::SeqTypeId segment, core::SeqSide side)
+    static std::size_t end(core::SegmentId segment, core::SeqSide side)
     {
         return 2 * static_cast<std::size_t>(segment) + (side == core::Three_prime ? 1 : 0);
     }

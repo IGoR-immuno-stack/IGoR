@@ -36,7 +36,7 @@
  * ownership harnesses snapshot before `iterate()` and quietly widen what they accept.
  *
  * Variadic over the key so it works for every map shape the tests touch: one key for
- * `DynamicSequenceMap`, a `(SeqTypeId, Seq_side)` pair for `Seq_offsets_map`, a `SafetyCell`
+ * `DynamicSequenceMap`, a `(SegmentId, Seq_side)` pair for `Seq_offsets_map`, a `SafetyCell`
  * for `SafetyMatrix`.
  */
 template <typename Map, typename... Key>

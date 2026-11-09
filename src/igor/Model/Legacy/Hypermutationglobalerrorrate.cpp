@@ -1508,7 +1508,7 @@ void Hypermutation_global_errorrate::increment_base_10_and_4(int &base_10_counte
     }
 }
 
-void Hypermutation_global_errorrate::check_admissible(const SeqTypeRegistry &registry) const
+void Hypermutation_global_errorrate::check_admissible(const SegmentRegistry &registry) const
 {
     //initialize() finds the V, D and J events by their legacy names, and the leaf assembles the
     //read from V, D and J at the enum's ids.

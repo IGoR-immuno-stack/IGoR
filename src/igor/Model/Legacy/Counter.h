@@ -93,7 +93,7 @@ public:
      *
      * @throws std::invalid_argument naming what it cannot read
      */
-    virtual void check_admissible(const SeqTypeRegistry &) const {}
+    virtual void check_admissible(const SegmentRegistry &) const { }
 
     /**
      * @brief Count a completed scenario

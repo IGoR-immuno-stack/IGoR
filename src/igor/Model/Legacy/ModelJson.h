@@ -105,7 +105,7 @@ MODEL_EXPORT bool model_file_has_parameters(const std::string &filename);
 /// The structure of a document, checked: what model_parms_from_json() and topology_from_json()
 /// both build from.
 struct DocumentStructure {
-    std::vector<core::SeqTypeString> segments;           ///< the Linear layout, 5' to 3'
+    std::vector<core::SegmentName> segments; ///< the Linear layout, 5' to 3'
     std::vector<std::shared_ptr<Rec_Event>> events;      ///< built by the event factory, in build order
     std::vector<std::pair<std::string, std::string>> edges;  ///< (parent, child) nicknames
 };

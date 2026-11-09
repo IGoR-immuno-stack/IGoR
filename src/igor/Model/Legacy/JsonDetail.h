@@ -42,20 +42,19 @@ inline std::string side_to_json(core::SeqSide side)
 }
 
 /// The one segment, and end, a validated node's event acts on: the legacy events act on one.
-inline std::pair<core::SeqTypeString, core::SeqSide> single_target(const nlohmann::json &node)
+inline std::pair<core::SegmentName, core::SeqSide> single_target(const nlohmann::json &node)
 {
     const nlohmann::json &target = node.at("targets").front();
     const auto side = target.find("side");
     const core::SeqSide parsed = (side == target.end()) ? core::Undefined_side
                                  : (*side == "5'")      ? core::Five_prime
                                                         : core::Three_prime;
-    return { target.at("segment").get<core::SeqTypeString>(), parsed };
+    return { target.at("segment").get<core::SegmentName>(), parsed };
 }
 
 /// single_target() of \a node once validated: for a constructor's base-class arguments, whose order
 /// of evaluation is unspecified, so that each validates before it reads.
-inline std::pair<core::SeqTypeString, core::SeqSide> validated_target(const nlohmann::json &node,
-                                                                       const std::string &type)
+inline std::pair<core::SegmentName, core::SeqSide> validated_target(const nlohmann::json &node, const std::string &type)
 {
     return single_target(validated(node, type));
 }

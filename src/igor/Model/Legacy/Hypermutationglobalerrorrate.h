@@ -82,7 +82,7 @@ public:
             Mismatch_vectors_map &, double &, const double &) override;
     void update() override;
     /// Refuses a model that is neither V-D-J nor V-J: it finds V, D and J by their legacy names.
-    void check_admissible(const SeqTypeRegistry &) const override;
+    void check_admissible(const SegmentRegistry &) const override;
     void
     initialize(const Events_map &) override;
     void add_to_norm_counter() override;

@@ -37,7 +37,7 @@
 
 #include "test_utils.h"
 
-#include <igor/Core/Legacy/SeqTypeRegistry.h>
+#include <igor/Core/Legacy/SegmentRegistry.h>
 #include <igor/Model/Legacy/Singleerrorrate.h>
 
 #include <catch2/catch_test_macros.hpp>
@@ -59,10 +59,10 @@ const std::string kRead = "ACGTACGTACGTACGTACGTACGT"; // 24 nt
 
 /// The tandem fixture's layout (tst/test_data/model_formats/tandem_d_model.json), over the
 /// pinned legacy ids, as Model_Parms::finalize() registers it.
-const SeqTypeRegistry &tandem_registry()
+const SegmentRegistry &tandem_registry()
 {
-    static const SeqTypeRegistry registry = [] {
-        SeqTypeRegistry built;
+    static const SegmentRegistry registry = [] {
+        SegmentRegistry built;
         built.register_legacy_seq_types();
         built.set_ordered_types({"V_gene_seq", "VD1_ins_seq", "D1_gene_seq", "D1D2_ins_seq", "D2_gene_seq",
                                  "DJ_ins_seq", "J_gene_seq"});
@@ -91,9 +91,9 @@ double leaf_value(int mismatches, int nucleotides)
 /// A leaf over `genes`: each preset with its sequence and mismatch list, then the error model asked.
 struct Leaf {
     IterateTestState state;
-    const SeqTypeRegistry &registry;
+    const SegmentRegistry &registry;
 
-    explicit Leaf(const SeqTypeRegistry &registry_)
+    explicit Leaf(const SegmentRegistry &registry_)
         : state(create_iterate_state(kRead, 1000, 32, registry_)), registry(registry_)
     {
         state.set_error_rate(kRate);
@@ -119,7 +119,7 @@ struct Leaf {
 
 TEST_CASE("Single_error_rate charges V, D and J in a VDJ scenario", "[error_rate][single]")
 {
-    Leaf leaf(vdj_seq_type_registry());
+    Leaf leaf(vdj_segment_registry());
     leaf.preset({"V_gene_seq", 0, 7, {3}});
     leaf.preset({"D_gene_seq", 10, 13, {11}});
     leaf.preset({"J_gene_seq", 16, 23, {}});
@@ -132,7 +132,7 @@ TEST_CASE("Single_error_rate charges V, D and J in a VDJ scenario", "[error_rate
 
 TEST_CASE("Single_error_rate charges V and J in a VJ scenario", "[error_rate][single]")
 {
-    Leaf leaf(vj_seq_type_registry());
+    Leaf leaf(vj_segment_registry());
     leaf.preset({"V_gene_seq", 0, 9, {1, 4}});
     leaf.preset({"J_gene_seq", 14, 23, {20}});
     leaf.state.preset_junction(VJ_ins_seq, 10, 4);
@@ -144,7 +144,7 @@ TEST_CASE("Single_error_rate leaves a junction's nucleotides uncharged", "[error
 {
     // The Markov chain has built the junction: it has a sequence, read off the read, and no
     // mismatch list. Only the genes count.
-    Leaf leaf(vdj_seq_type_registry());
+    Leaf leaf(vdj_segment_registry());
     leaf.preset({"V_gene_seq", 0, 7, {3}});
     leaf.preset({"D_gene_seq", 10, 13, {}});
     leaf.preset({"J_gene_seq", 16, 23, {}});

@@ -84,7 +84,7 @@ Errors_counter::~Errors_counter()
 
 // ===== CONTEXT-BASED INTERFACE =====
 
-void Errors_counter::check_admissible(const SeqTypeRegistry &registry) const
+void Errors_counter::check_admissible(const SegmentRegistry &registry) const
 {
     //It counts the nucleotides and mismatches of V, D and J at the enum's ids.
     igor::model::legacy::migration::require_vdj_or_vj_ordering(registry, this->type());

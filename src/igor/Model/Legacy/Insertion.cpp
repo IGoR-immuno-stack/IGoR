@@ -300,9 +300,8 @@ void Insertion::initialize_event(
     //resolved from it. Everything downstream addresses the id, so a disagreement aliases this
     //event's whole scenario state onto another segment's keys and shows up as a wrong answer,
     //not as a failure -- the trap B2 hit with VJ. Checked once, here, where both are in hand.
-    const SeqTypeRegistry &registry = constructed_sequences.registry();
-    if (this->seq_type_id == kNoSeqType
-        || static_cast<std::size_t>(this->seq_type_id) >= registry.total_count()
+    const SegmentRegistry &registry = constructed_sequences.registry();
+    if (this->seq_type_id == kNoSegment || static_cast<std::size_t>(this->seq_type_id) >= registry.total_count()
         || registry.name(this->seq_type_id) != this->seq_type) {
         throw runtime_error("Insertion " + this->get_name() + ": seq_type \"" + this->seq_type
                             + "\" does not match the registry entry for its id");
@@ -320,7 +319,7 @@ void Insertion::initialize_event(
     //The neighbours come from Model_Parms::finalize(), which is the one place that reads the
     //ordering. A tandem-D D1D2_ins is told about D1 and D2 by the same pass that tells this
     //event about V and D.
-    if (get_left_adjacent_id() == kNoSeqType || get_right_adjacent_id() == kNoSeqType) {
+    if (get_left_adjacent_id() == kNoSegment || get_right_adjacent_id() == kNoSegment) {
         throw runtime_error("Insertion " + this->get_name() + " has no segment on one side: an "
                             "insertion is defined by the two segments it sits between, and "
                             "Model_Parms::finalize() must have resolved them");
@@ -336,7 +335,7 @@ void Insertion::initialize_event(
         throw runtime_error("Insertion " + this->get_name() + " sits in no gap: nothing is built on one side "
                             "of it when it runs");
     }
-    const SeqTypeId junction_key = this->traversal_plan().gap_key(*gap);
+    const SegmentId junction_key = this->traversal_plan().gap_key(*gap);
     downstream_proba_map.request_layer(junction_key);
     junction_bound(kEnclosingJunction)
             .resolve(*gap, junction_key, downstream_proba_map.claimed_layer(junction_key), JunctionBound::Fold::Yes);
@@ -376,7 +375,7 @@ void Insertion::require_dinucl_markov(const Events_map &events_map) const
     }
 }
 
-OffsetDelta Insertion::get_offset_delta_bounds(SeqTypeId, Seq_side) const
+OffsetDelta Insertion::get_offset_delta_bounds(SegmentId, Seq_side) const
 {
     //Nothing, and for a reason that is *not* "this event has no offsets" -- it writes both of
     //them (R3). This query asks how far an end can still be *shifted* from where it already
@@ -386,7 +385,7 @@ OffsetDelta Insertion::get_offset_delta_bounds(SeqTypeId, Seq_side) const
     return {};
 }
 
-LengthContribution Insertion::get_length_contribution(SeqTypeId type_id) const
+LengthContribution Insertion::get_length_contribution(SegmentId type_id) const
 {
     if (type_id != this->seq_type_id || this->event_realizations.empty()) {
         return {};
@@ -401,7 +400,7 @@ LengthContribution Insertion::get_length_contribution(SeqTypeId type_id) const
     return {fewest, most};
 }
 
-SeqConstructionRole Insertion::get_seq_construction_role(SeqTypeId) const
+SeqConstructionRole Insertion::get_seq_construction_role(SegmentId) const
 {
     //None, for any seq_type including its own. O12 (a'): this event decides the junction's
     //length and position, and the Dinucl_markov that follows creates the segment. Saying
@@ -409,7 +408,7 @@ SeqConstructionRole Insertion::get_seq_construction_role(SeqTypeId) const
     return SeqConstructionRole::None;
 }
 
-OffsetRole Insertion::get_offset_role(SeqTypeId type_id, Seq_side) const
+OffsetRole Insertion::get_offset_role(SegmentId type_id, Seq_side) const
 {
     //Both ends, since iterate() derives and writes both. Plain `Creates`: the Anchors/Derives
     //split first proposed for this is the wrong answer, because whether a span is zero-width

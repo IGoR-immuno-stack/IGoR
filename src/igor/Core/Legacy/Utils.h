@@ -212,13 +212,13 @@ struct null_delete
     void operator()(T *) const { }
 };
 
-//Keyed by SeqTypeId. This is the one map whose values can be *actively absent*: a
+//Keyed by SegmentId. This is the one map whose values can be *actively absent*: a
 //zero-length segment means an event ran and produced nothing, which the ordered traversal
 //distinguishes from a segment that has not been written yet (see SeqSegmentEmptiness).
 typedef DynamicSequenceMap<Int_Str_ptr> Seq_type_str_p_map;
 
 /**
- * The first segment still holding an `int_undefined` position, or `kNoSeqType` if none does.
+ * The first segment still holding an `int_undefined` position, or `kNoSegment` if none does.
  *
  * `int_undefined` is a placeholder inside one scenario, not a value: a `Dinucl_markov`
  * creates a junction of the right length holding it, and fills it before handing on. By the
@@ -230,10 +230,10 @@ typedef DynamicSequenceMap<Int_Str_ptr> Seq_type_str_p_map;
  * scenario's length and the default build is RelWithDebInfo, which defines `NDEBUG`. Exposed
  * rather than hidden in that assert so it can be unit-tested without a debug build.
  */
-CORE_EXPORT SeqTypeId first_unfilled_segment(const Seq_type_str_p_map &constructed_sequences);
+CORE_EXPORT SegmentId first_unfilled_segment(const Seq_type_str_p_map &constructed_sequences);
 
 /**
- * The first segment end with no offset written, or `{kNoSeqType, Undefined_side}` if every
+ * The first segment end with no offset written, or `{kNoSegment, Undefined_side}` if every
  * end is placed.
  *
  * The offsets counterpart of first_unfilled_segment(), and the other half of one invariant:
@@ -245,7 +245,7 @@ CORE_EXPORT SeqTypeId first_unfilled_segment(const Seq_type_str_p_map &construct
  * have fired on every scenario that has a junction, which is every scenario; the check exists
  * because that stopped being true (plan section 2.5).
  *
- * The key is per (`SeqTypeId`, `Seq_side`) rather than per `SeqTypeId`, because
+ * The key is per (`SegmentId`, `Seq_side`) rather than per `SegmentId`, because
  * `get_offset_role` is side-taking and the two ends of a segment can in principle be created
  * by different events.
  *
@@ -259,10 +259,9 @@ CORE_EXPORT SeqTypeId first_unfilled_segment(const Seq_type_str_p_map &construct
  * branch of `Rec_Event::iterate_wrap_up`, assertions only. Exposed rather than hidden in that
  * assert so it can be unit-tested without a debug build.
  */
-CORE_EXPORT std::pair<SeqTypeId, Seq_side> first_unplaced_segment_end(
-        const Seq_offsets_map &seq_offsets);
+CORE_EXPORT std::pair<SegmentId, Seq_side> first_unplaced_segment_end(const Seq_offsets_map &seq_offsets);
 
-//Keyed by SeqTypeId. An empty mismatch vector means "zero mismatches", which is present,
+//Keyed by SegmentId. An empty mismatch vector means "zero mismatches", which is present,
 //not absent -- so the default SeqSegmentEmptiness (never empty) is the right one here.
 typedef DynamicSequenceMap<std::vector<size_t> *> Mismatch_vectors_map;
 
@@ -277,7 +276,7 @@ typedef DynamicSequenceMap<std::vector<size_t> *> Pruning_mismatch_floor_map;
 //layered container rather than the registry-aware DynamicSequenceMap (plan D5).
 typedef LayeredArray<size_t> Index_map;
 
-//Keyed by SeqTypeId; the legacy Seq_type enum values are pinned to the same ids by
+//Keyed by SegmentId; the legacy Seq_type enum values are pinned to the same ids by
 //Model_Parms::read_model_parms(), so enum-keyed call sites still address the right slot.
 typedef DynamicSequenceMap<double> Downstream_scenario_proba_bound_map;
 

@@ -60,9 +60,9 @@ using JunctionGeometry::PendingModifierBounds;
 
 namespace {
 
-SeqTypeId id_of(Seq_type seq_type)
+SegmentId id_of(Seq_type seq_type)
 {
-    return static_cast<SeqTypeId>(seq_type);
+    return static_cast<SegmentId>(seq_type);
 }
 
 /// Key an event exactly as Model_Parms::get_events_map() does, so the map under test is the
@@ -99,9 +99,9 @@ OffsetDelta legacy_offset_delta(const Deletion &deletion, Seq_side side)
     return {-min_del, -max_del};
 }
 
-SeqTypeRegistry make_registry(const std::vector<Seq_type_String> &ordering)
+SegmentRegistry make_registry(const std::vector<Seq_type_String> &ordering)
 {
-    SeqTypeRegistry registry;
+    SegmentRegistry registry;
     //As Model_Parms does: the six standard types keep their Seq_type enum ids whatever the
     //model's ordering, so a VJ model does not silently alias J_gene_seq onto D_gene_seq's id.
     registry.register_legacy_seq_types();
@@ -124,7 +124,7 @@ struct VdjModel {
     std::shared_ptr<Insertion> ins_dj = make_insertion(DJ_ins_seq, 0, 7, 8);
     std::shared_ptr<Dinucl_markov> dinucl = std::make_shared<Dinucl_markov>(Seq_type_String("VD_ins_seq"));
 
-    SeqTypeRegistry registry = make_registry({"V_gene_seq", "VD_ins_seq", "D_gene_seq", "DJ_ins_seq", "J_gene_seq"});
+    SegmentRegistry registry = make_registry({ "V_gene_seq", "VD_ins_seq", "D_gene_seq", "DJ_ins_seq", "J_gene_seq" });
     Events_map events_map;
 
     VdjModel()
@@ -266,7 +266,7 @@ TEST_CASE("PendingModifierBounds: a VJ model has no D ends at all", "[junction_g
     auto del_j_5 = make_deletion(J_gene_seq, Five_prime, 0, 8, 3);
     auto ins_vj = make_insertion(VJ_ins_seq, 0, 9, 4);
 
-    const SeqTypeRegistry registry = make_registry({"V_gene_seq", "VJ_ins_seq", "J_gene_seq"});
+    const SegmentRegistry registry = make_registry({ "V_gene_seq", "VJ_ins_seq", "J_gene_seq" });
     Events_map events_map;
     for (const std::shared_ptr<Rec_Event> &event :
          std::vector<std::shared_ptr<Rec_Event>>{v_choice, j_choice, del_v_3, del_j_5, ins_vj}) {
@@ -307,7 +307,7 @@ TEST_CASE("PendingModifierBounds: two modifiers on one end sum", "[junction_geom
     del_a->set_nickname("d_5_del_a");
     del_b->set_nickname("d_5_del_b");
 
-    const SeqTypeRegistry registry = make_registry({"V_gene_seq", "D_gene_seq", "J_gene_seq"});
+    const SegmentRegistry registry = make_registry({ "V_gene_seq", "D_gene_seq", "J_gene_seq" });
     Events_map events_map;
     events_map.emplace(std::make_tuple(Deletion_t, Seq_type_String("D_gene_seq"), Five_prime), del_a);
     events_map.emplace(std::make_tuple(Deletion_t, Seq_type_String("D2_synthetic"), Five_prime), del_b);
@@ -350,10 +350,10 @@ TEST_CASE("PendingModifierBounds: queries outside the contract throw", "[junctio
 
     SECTION("An id the instance was not built for")
     {
-        const auto beyond = static_cast<SeqTypeId>(model.registry.total_count());
+        const auto beyond = static_cast<SegmentId>(model.registry.total_count());
         CHECK_THROWS_AS(bounds.offset_delta(beyond, Three_prime), std::out_of_range);
         CHECK_THROWS_AS(bounds.length(beyond), std::out_of_range);
-        CHECK_THROWS_AS(bounds.offset_delta(kNoSeqType, Three_prime), std::out_of_range);
+        CHECK_THROWS_AS(bounds.offset_delta(kNoSegment, Three_prime), std::out_of_range);
     }
 
     SECTION("A default-constructed instance holds no ids")
@@ -685,16 +685,16 @@ public:
         this->set_nickname(break_offset ? "bad_offset_event" : "bad_length_event");
     }
 
-    OffsetDelta get_offset_delta_bounds(SeqTypeId, Seq_side) const override
+    OffsetDelta get_offset_delta_bounds(SegmentId, Seq_side) const override
     {
         return break_offset_ ? OffsetDelta{4, -4} : OffsetDelta{};
     }
-    LengthContribution get_length_contribution(SeqTypeId) const override
+    LengthContribution get_length_contribution(SegmentId) const override
     {
         return break_offset_ ? LengthContribution{} : LengthContribution{4, -4};
     }
-    SeqConstructionRole get_seq_construction_role(SeqTypeId) const override { return SeqConstructionRole::None; }
-    OffsetRole get_offset_role(SeqTypeId, Seq_side) const override { return OffsetRole::None; }
+    SeqConstructionRole get_seq_construction_role(SegmentId) const override { return SeqConstructionRole::None; }
+    OffsetRole get_offset_role(SegmentId, Seq_side) const override { return OffsetRole::None; }
 
     // Everything below is inert: this event exists only to be asked the four queries above.
     void iterate(QuerySequenceContext &, const ModelContext &, ScenarioContext &, ExplorationContext &,
@@ -727,7 +727,7 @@ TEST_CASE("An unordered range from a provider is rejected, not silently sorted",
     // used to re-sort them, which made a provider bug invisible *and* made the re-sorting
     // itself untestable: no real subclass can produce an unordered pair, so nothing exercised
     // it. The guard belongs where the value enters, and it belongs as an error.
-    const SeqTypeRegistry registry = make_registry({"V_gene_seq", "D_gene_seq", "J_gene_seq"});
+    const SegmentRegistry registry = make_registry({ "V_gene_seq", "D_gene_seq", "J_gene_seq" });
     PendingModifierBounds bounds;
 
     SECTION("An unordered offset delta")
@@ -755,7 +755,7 @@ TEST_CASE("An unordered range from a provider is rejected, not silently sorted",
         CHECK_NOTHROW(model.build());
         for (const auto &[key, event] : model.events_map) {
             (void)key;
-            for (SeqTypeId id = 0; id != static_cast<SeqTypeId>(model.registry.total_count()); ++id) {
+            for (SegmentId id = 0; id != static_cast<SegmentId>(model.registry.total_count()); ++id) {
                 for (const Seq_side side : {Five_prime, Three_prime}) {
                     const OffsetDelta delta = event->get_offset_delta_bounds(id, side);
                     INFO(event->get_name() << " offset delta on id " << id << " side " << side);

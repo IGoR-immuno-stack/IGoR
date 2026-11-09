@@ -23,7 +23,7 @@
 #pragma once
 
 #include <igor/Core/DynamicSequenceMap.h>
-#include <igor/Core/SeqTypeRegistry.h>
+#include <igor/Core/SegmentRegistry.h>
 #include <igor/Core/Types.h>
 
 /**
@@ -53,7 +53,7 @@ namespace igor::core {
 class SeqOffsetsMap
 {
 public:
-    explicit SeqOffsetsMap(const SeqTypeRegistry &registry, std::size_t initial_layers = 1)
+    explicit SeqOffsetsMap(const SegmentRegistry &registry, std::size_t initial_layers = 1)
         : five_prime(registry, initial_layers), three_prime(registry, initial_layers)
     { }
 
@@ -76,33 +76,30 @@ public:
         }
     }
 
-    SeqOffset get(SeqTypeId type_id, SeqSide seq_side) const { return side(seq_side).get(type_id); }
+    SeqOffset get(SegmentId type_id, SeqSide seq_side) const { return side(seq_side).get(type_id); }
 
-    SeqOffset get(SeqTypeId type_id, SeqSide seq_side, std::size_t layer) const
+    SeqOffset get(SegmentId type_id, SeqSide seq_side, std::size_t layer) const
     {
         return side(seq_side).get(type_id, layer);
     }
 
-    void set(SeqTypeId type_id, SeqSide seq_side, SeqOffset offset, std::size_t layer)
+    void set(SegmentId type_id, SeqSide seq_side, SeqOffset offset, std::size_t layer)
     {
         side(seq_side).set(type_id, offset, layer);
     }
 
-    void set_current(SeqTypeId type_id, SeqSide seq_side, SeqOffset offset)
+    void set_current(SegmentId type_id, SeqSide seq_side, SeqOffset offset)
     {
         side(seq_side).set_current(type_id, offset);
     }
 
-    bool exists(SeqTypeId type_id, SeqSide seq_side) const { return side(seq_side).exists(type_id); }
+    bool exists(SegmentId type_id, SeqSide seq_side) const { return side(seq_side).exists(type_id); }
 
-    int claimed_layer(SeqTypeId type_id, SeqSide seq_side) const
-    {
-        return side(seq_side).claimed_layer(type_id);
-    }
+    int claimed_layer(SegmentId type_id, SeqSide seq_side) const { return side(seq_side).claimed_layer(type_id); }
 
-    void request_layer(SeqTypeId type_id, SeqSide seq_side) { side(seq_side).request_layer(type_id); }
+    void request_layer(SegmentId type_id, SeqSide seq_side) { side(seq_side).request_layer(type_id); }
 
-    void restore_layer(SeqTypeId type_id, SeqSide seq_side) { side(seq_side).restore_layer(type_id); }
+    void restore_layer(SegmentId type_id, SeqSide seq_side) { side(seq_side).restore_layer(type_id); }
 
     DynamicSequenceMap<SeqOffset> five_prime;
     DynamicSequenceMap<SeqOffset> three_prime;

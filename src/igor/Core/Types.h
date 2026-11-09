@@ -49,14 +49,14 @@ enum EventType { GeneChoice_t, Deletion_t, Insertion_t, Dinuclmarkov_t, Undefine
 enum SeqSide { Five_prime = 0, Three_prime = 1, Undefined_side = 2 };
 
 /**
- * The six sequence types of the legacy VDJ topology. Their values are the SeqTypeIds the
+ * The six sequence types of the legacy VDJ topology. Their values are the SegmentIds the
  * legacy registry assigns, which Model_Parms::read_model_parms() relies on, so enum-keyed code
  * still addresses the right slots.
  */
 enum SeqType { V_gene_seq = 0, VD_ins_seq = 1, D_gene_seq = 2, DJ_ins_seq = 3, J_gene_seq = 4, VJ_ins_seq = 5 };
 
 /// Name of a sequence type, as written in model files.
-using SeqTypeString = std::string;
+using SegmentName = std::string;
 
 /// Type used as key for unordered maps, since an event cannot be instantiated.
 using EventName = std::string;
@@ -74,7 +74,7 @@ using CodonTable = std::unordered_map<std::string, std::string>;
 using index_type = std::int64_t;
 
 /// Textual forms of the vocabulary enums, as written in model files and messages.
-CORE_EXPORT SeqTypeString to_string(const SeqType);
+CORE_EXPORT SegmentName to_string(const SeqType);
 CORE_EXPORT std::string to_string(const SeqSide);
 CORE_EXPORT std::ostream &operator<<(std::ostream &, SeqSide);
 CORE_EXPORT std::string operator+(const std::string &, SeqSide);

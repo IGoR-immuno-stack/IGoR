@@ -136,7 +136,7 @@ Model_Parms::~Model_Parms()
 bool Model_Parms::add_event(shared_ptr<Rec_Event> event_point)
 {
     needs_finalize = true;
-    //Adding an event after finalize() would leave it with an unresolved SeqTypeId, and
+    //Adding an event after finalize() would leave it with an unresolved SegmentId, and
     //could require a seq_type the frozen registry no longer accepts.
     if (seq_type_registry.is_frozen()) {
         throw std::logic_error("Model_Parms::add_event(): the model has been finalized");
@@ -620,7 +620,7 @@ void Model_Parms::finalize()
         seq_type_registry.freeze();
     }
     //Resolve each event's seq_type name to its runtime handle. Events whose seq_type is not
-    //in the registry keep kNoSeqType: legacy models that never declared an ordering, and
+    //in the registry keep kNoSegment: legacy models that never declared an ordering, and
     //error-rate-only parameter sets, are both legitimate in that state.
     for (const auto &event : events) {
         const Seq_type_String &name = event->get_seq_type();
@@ -634,9 +634,9 @@ void Model_Parms::finalize()
     //than given a registry to ask, so "who is my neighbour" has one owner and one moment.
     //Separate from the loop above because it reads ids the first pass may not have set yet.
     for (const auto &event : events) {
-        const SeqTypeId id = event->get_seq_type_id();
-        if (id == kNoSeqType) {
-            event->set_adjacent_segments(kNoSeqType, kNoSeqType);
+        const SegmentId id = event->get_seq_type_id();
+        if (id == kNoSegment) {
+            event->set_adjacent_segments(kNoSegment, kNoSegment);
             continue;
         }
         event->set_adjacent_segments(seq_type_registry.left_neighbor(id),
@@ -764,7 +764,7 @@ void Model_Parms::read_model_parms(string filename)
 
     //Pin the six legacy seq_types to ids 0-5, matching the Seq_type enum, before any
     //ordering is applied. Code still keyed by the enum then addresses the same slots as
-    //code keyed by SeqTypeId. See SeqTypeRegistry::register_legacy_seq_types().
+    //code keyed by SegmentId. See SegmentRegistry::register_legacy_seq_types().
     seq_type_registry.register_legacy_seq_types();
 
     string line_str;
@@ -1074,7 +1074,7 @@ void Model_Parms::read_model_parms(string filename)
         throw runtime_error("Unknown format for model file: " + filename);
     }
 
-    //Seal the registry and resolve every event's SeqTypeId (plan decision D1b).
+    //Seal the registry and resolve every event's SegmentId (plan decision D1b).
     this->finalize();
 }
 

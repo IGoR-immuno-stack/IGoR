@@ -105,10 +105,10 @@ public:
 
     //Proba bound related computation methods
     //Capability queries (task A0)
-    OffsetDelta get_offset_delta_bounds(SeqTypeId, Seq_side) const override;
-    LengthContribution get_length_contribution(SeqTypeId) const override;
-    SeqConstructionRole get_seq_construction_role(SeqTypeId) const override;
-    OffsetRole get_offset_role(SeqTypeId, Seq_side) const override;
+    OffsetDelta get_offset_delta_bounds(SegmentId, Seq_side) const override;
+    LengthContribution get_length_contribution(SegmentId) const override;
+    SeqConstructionRole get_seq_construction_role(SegmentId) const override;
+    OffsetRole get_offset_role(SegmentId, Seq_side) const override;
 
     int length_delta(const Event_realization &) const override;
 
@@ -160,7 +160,7 @@ private:
     std::vector<FlankCheck> flank_checks_;
 
     /// What each checked neighbour's facing end can still reach, and where it sits. Indexed by
-    /// the neighbour's SeqTypeId; filled once per scenario by the preamble of iterate().
+    /// the neighbour's SegmentId; filled once per scenario by the preamble of iterate().
     std::vector<JunctionGeometry::OffsetInterval> neighbour_reach_;
     std::vector<Seq_Offset> neighbour_offset_;
 

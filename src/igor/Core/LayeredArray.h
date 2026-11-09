@@ -80,7 +80,7 @@ namespace layered_array_detail {
  *
  * Replacement for Enum_fast_memory_map (see docs/REC_EVENT_CAPABILITY_REFACTORING_PLAN.md,
  * decision D5). It is a pure container: it knows nothing about sequence types or the
- * SeqTypeRegistry. DynamicSequenceMap adds the registry-aware ordered traversal on top,
+ * SegmentRegistry. DynamicSequenceMap adds the registry-aware ordered traversal on top,
  * while Index_map -- keyed by event index -- uses this class directly.
  *
  * ### Memory layers

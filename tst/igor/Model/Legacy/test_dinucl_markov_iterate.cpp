@@ -318,7 +318,7 @@ TEST_CASE("Dinucl_markov: the VJ arm behaves as the other two", "[dinucl][iterat
 {
     // The third arm of the switch B7 collapses. It needs the VJ ordering, since a junction
     // event addresses seq_types that a VDJ registry orders differently.
-    IterateTestState state = create_iterate_state(kRead, 1000, 32, vj_seq_type_registry());
+    IterateTestState state = create_iterate_state(kRead, 1000, 32, vj_segment_registry());
     auto dinucl = make_dinucl_markov(VJ_ins_seq, /*event_id=*/0);
     state.preset_segment(V_gene_seq, 0, 9, segment_run(0, 9));
     state.preset_junction(VJ_ins_seq, 10, 3);
@@ -397,7 +397,7 @@ TEST_CASE("Dinucl_markov: a junction with nothing to seed from is rejected", "[d
     {
         IterateTestState state = create_iterate_state(kRead);
         auto dinucl = make_dinucl_markov(VD_ins_seq, /*event_id=*/0);
-        dinucl->set_seq_type_id(kNoSeqType);
+        dinucl->set_seq_type_id(kNoSegment);
         CHECK_THROWS_AS(call_iterate(dinucl, state), std::invalid_argument);
     }
 }
@@ -503,7 +503,7 @@ namespace {
 class LaterAnchorWriter : public RecordingEvent
 {
 public:
-    LaterAnchorWriter(int event_id, SeqTypeId anchor, const std::string &stale)
+    LaterAnchorWriter(int event_id, SegmentId anchor, const std::string &stale)
         : RecordingEvent(event_id), anchor_(anchor), stale_(nt2int(stale))
     {
     }
@@ -524,7 +524,7 @@ public:
     }
 
 private:
-    SeqTypeId anchor_;
+    SegmentId anchor_;
     Int_Str stale_;
 };
 
@@ -621,7 +621,7 @@ TEST_CASE("first_unfilled_segment: reports the placeholder, not the ambiguity co
 
     SECTION("Nothing written at all")
     {
-        CHECK(first_unfilled_segment(sequences) == kNoSeqType);
+        CHECK(first_unfilled_segment(sequences) == kNoSegment);
     }
 
     SECTION("Determined segments, ambiguity codes included")
@@ -635,7 +635,7 @@ TEST_CASE("first_unfilled_segment: reports the placeholder, not the ambiguity co
         claim_layer_zero(sequences, D_gene_seq);
         sequences.set(V_gene_seq, &gene, 0);
         sequences.set(D_gene_seq, &ambiguous, 0);
-        CHECK(first_unfilled_segment(sequences) == kNoSeqType);
+        CHECK(first_unfilled_segment(sequences) == kNoSegment);
     }
 
     SECTION("A junction still holding placeholders")
@@ -646,7 +646,7 @@ TEST_CASE("first_unfilled_segment: reports the placeholder, not the ambiguity co
         claim_layer_zero(sequences, VD_ins_seq);
         sequences.set(V_gene_seq, &gene, 0);
         sequences.set(VD_ins_seq, &junction, 0);
-        CHECK(first_unfilled_segment(sequences) == static_cast<SeqTypeId>(VD_ins_seq));
+        CHECK(first_unfilled_segment(sequences) == static_cast<SegmentId>(VD_ins_seq));
     }
 
     SECTION("A single unfilled position among filled ones is enough")
@@ -655,7 +655,7 @@ TEST_CASE("first_unfilled_segment: reports the placeholder, not the ambiguity co
         partly.at(2) = int_undefined;
         claim_layer_zero(sequences, DJ_ins_seq);
         sequences.set(DJ_ins_seq, &partly, 0);
-        CHECK(first_unfilled_segment(sequences) == static_cast<SeqTypeId>(DJ_ins_seq));
+        CHECK(first_unfilled_segment(sequences) == static_cast<SegmentId>(DJ_ins_seq));
     }
 
     SECTION("An empty segment and a null pointer are not unfilled")
@@ -667,7 +667,7 @@ TEST_CASE("first_unfilled_segment: reports the placeholder, not the ambiguity co
         claim_layer_zero(sequences, DJ_ins_seq);
         sequences.set(VD_ins_seq, &empty, 0);
         sequences.set(DJ_ins_seq, nullptr, 0);
-        CHECK(first_unfilled_segment(sequences) == kNoSeqType);
+        CHECK(first_unfilled_segment(sequences) == kNoSegment);
     }
 }
 
@@ -679,11 +679,11 @@ TEST_CASE("Dinucl_markov leaves no unfilled position behind", "[dinucl][invarian
     // below is what changed -- it used to assert that the placeholders were there.
     VdFill fixture;
     REQUIRE_FALSE(fixture.state.scenario.constructed_sequences.exists(VD_ins_seq));
-    REQUIRE(first_unfilled_segment(fixture.state.scenario.constructed_sequences) == kNoSeqType);
+    REQUIRE(first_unfilled_segment(fixture.state.scenario.constructed_sequences) == kNoSegment);
 
     const auto next = call_iterate_recording(fixture.dinucl, fixture.state);
     REQUIRE(next->call_count() == 1);
-    CHECK(first_unfilled_segment(fixture.state.scenario.constructed_sequences) == kNoSeqType);
+    CHECK(first_unfilled_segment(fixture.state.scenario.constructed_sequences) == kNoSegment);
 }
 
 TEST_CASE("first_unplaced_segment_end: the offsets half of the same invariant", "[dinucl][invariant]")
@@ -695,36 +695,36 @@ TEST_CASE("first_unplaced_segment_end: the offsets half of the same invariant", 
 
     SECTION("Nothing placed at all")
     {
-        Seq_offsets_map offsets(vdj_seq_type_registry(), 4);
+        Seq_offsets_map offsets(vdj_segment_registry(), 4);
         const auto [id, side] = first_unplaced_segment_end(offsets);
-        CHECK(id == static_cast<SeqTypeId>(V_gene_seq));
+        CHECK(id == static_cast<SegmentId>(V_gene_seq));
         CHECK(side == Five_prime);
     }
 
     SECTION("A complete VDJ scenario")
     {
-        Seq_offsets_map offsets(vdj_seq_type_registry(), 4);
+        Seq_offsets_map offsets(vdj_segment_registry(), 4);
         for (const Seq_type type : {V_gene_seq, VD_ins_seq, D_gene_seq, DJ_ins_seq, J_gene_seq}) {
             claim_layer_zero(offsets, type, Five_prime);
             claim_layer_zero(offsets, type, Three_prime);
             offsets.set(type, Five_prime, 0, 0);
             offsets.set(type, Three_prime, 0, 0);
         }
-        CHECK(first_unplaced_segment_end(offsets).first == kNoSeqType);
+        CHECK(first_unplaced_segment_end(offsets).first == kNoSegment);
     }
 
     SECTION("One end placed and not the other")
     {
-        // The key is per (SeqTypeId, Seq_side) and not per segment, because get_offset_role is
+        // The key is per (SegmentId, Seq_side) and not per segment, because get_offset_role is
         // side-taking: the two ends can in principle be created by different events.
-        Seq_offsets_map offsets(vdj_seq_type_registry(), 4);
+        Seq_offsets_map offsets(vdj_segment_registry(), 4);
         for (const Seq_type type : {V_gene_seq, VD_ins_seq, D_gene_seq, DJ_ins_seq, J_gene_seq}) {
             claim_layer_zero(offsets, type, Five_prime);
             claim_layer_zero(offsets, type, Three_prime);
             offsets.set(type, Five_prime, 0, 0);
             offsets.set(type, Three_prime, 0, 0);
         }
-        Seq_offsets_map missing_three_prime(vdj_seq_type_registry(), 4);
+        Seq_offsets_map missing_three_prime(vdj_segment_registry(), 4);
         for (const Seq_type type : {V_gene_seq, VD_ins_seq, D_gene_seq, DJ_ins_seq, J_gene_seq}) {
             claim_layer_zero(missing_three_prime, type, Five_prime);
             missing_three_prime.set(type, Five_prime, 0, 0);
@@ -734,7 +734,7 @@ TEST_CASE("first_unplaced_segment_end: the offsets half of the same invariant", 
             }
         }
         const auto [id, side] = first_unplaced_segment_end(missing_three_prime);
-        CHECK(id == static_cast<SeqTypeId>(DJ_ins_seq));
+        CHECK(id == static_cast<SegmentId>(DJ_ins_seq));
         CHECK(side == Three_prime);
     }
 
@@ -742,7 +742,7 @@ TEST_CASE("first_unplaced_segment_end: the offsets half of the same invariant", 
     {
         // `3' == 5' - 1` is the encoding, and the reason this predicate cannot be written as
         // "no width" -- an insertion that inserted nothing has placed both its ends.
-        Seq_offsets_map offsets(vdj_seq_type_registry(), 4);
+        Seq_offsets_map offsets(vdj_segment_registry(), 4);
         for (const Seq_type type : {V_gene_seq, D_gene_seq, DJ_ins_seq, J_gene_seq}) {
             claim_layer_zero(offsets, type, Five_prime);
             claim_layer_zero(offsets, type, Three_prime);
@@ -753,7 +753,7 @@ TEST_CASE("first_unplaced_segment_end: the offsets half of the same invariant", 
         claim_layer_zero(offsets, VD_ins_seq, Three_prime);
         offsets.set(VD_ins_seq, Five_prime, 11, 0);
         offsets.set(VD_ins_seq, Three_prime, 10, 0);
-        CHECK(first_unplaced_segment_end(offsets).first == kNoSeqType);
+        CHECK(first_unplaced_segment_end(offsets).first == kNoSegment);
     }
 
     SECTION("A VJ model is not held to the segments it does not have")
@@ -762,14 +762,14 @@ TEST_CASE("first_unplaced_segment_end: the offsets half of the same invariant", 
         // D_gene_seq and both flanking junctions as ids no event in it will ever place. The
         // sweep is over registry.ordering(), which is the model's actual segment layout; over
         // every registered id this would fire on every VJ scenario.
-        Seq_offsets_map offsets(vj_seq_type_registry(), 4);
+        Seq_offsets_map offsets(vj_segment_registry(), 4);
         for (const Seq_type type : {V_gene_seq, VJ_ins_seq, J_gene_seq}) {
             claim_layer_zero(offsets, type, Five_prime);
             claim_layer_zero(offsets, type, Three_prime);
             offsets.set(type, Five_prime, 0, 0);
             offsets.set(type, Three_prime, 0, 0);
         }
-        CHECK(first_unplaced_segment_end(offsets).first == kNoSeqType);
+        CHECK(first_unplaced_segment_end(offsets).first == kNoSegment);
     }
 }
 
@@ -782,13 +782,13 @@ TEST_CASE("Dinucl_markov: a junction no Seq_type enum names still resolves", "[d
     // The event is told its neighbours, exactly as Model_Parms::finalize() tells them: the
     // registry is read in one place, and the event only combines that answer with its own
     // direction.
-    SeqTypeRegistry tandem;
+    SegmentRegistry tandem;
     tandem.register_legacy_seq_types();
     tandem.set_ordered_types({"V_gene_seq", "VD_ins_seq", "D_gene_seq", "D1D2_ins_seq",
                               "D2_gene_seq", "DJ_ins_seq", "J_gene_seq"});
     tandem.freeze();
 
-    const SeqTypeId junction_id = tandem.id("D1D2_ins_seq");
+    const SegmentId junction_id = tandem.id("D1D2_ins_seq");
     Dinucl_markov dinucl(Seq_type_String("D1D2_ins_seq"));
     dinucl.set_seq_type_id(junction_id);
     dinucl.set_adjacent_segments(tandem.left_neighbor(junction_id), tandem.right_neighbor(junction_id));
@@ -819,6 +819,6 @@ TEST_CASE("Dinucl_markov: a junction no Seq_type enum names still resolves", "[d
         Dinucl_markov unresolved(Seq_type_String("D1D2_ins_seq"));
         unresolved.set_seq_type_id(junction_id);
         unresolved.set_event_side(Three_prime);
-        CHECK(unresolved.get_junction().anchor_id == kNoSeqType);
+        CHECK(unresolved.get_junction().anchor_id == kNoSegment);
     }
 }

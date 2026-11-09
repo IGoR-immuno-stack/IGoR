@@ -66,15 +66,15 @@ public:
      *
      * Empty when the Topology was built by hand rather than from a model.
      */
-    const std::vector<core::SeqTypeString>& seqTypeOrder() const { return m_seq_type_order; }
-    void setSeqTypeOrder(std::vector<core::SeqTypeString> order) { m_seq_type_order = std::move(order); }
+    const std::vector<core::SegmentName> &seqTypeOrder() const { return m_seq_type_order; }
+    void setSeqTypeOrder(std::vector<core::SegmentName> order) { m_seq_type_order = std::move(order); }
 
 private:
     std::vector<std::shared_ptr<legacy::Rec_Event>>     m_events;
     std::vector<std::vector<core::index_type>>         m_children;
     std::vector<std::vector<core::index_type>>         m_parents;
     std::unordered_map<std::string, core::index_type>  m_name_to_id;
-    std::vector<core::SeqTypeString>                 m_seq_type_order;
+    std::vector<core::SegmentName> m_seq_type_order;
 };
 
 /**

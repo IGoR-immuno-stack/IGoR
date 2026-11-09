@@ -2,7 +2,7 @@
 
 #include <forward_list>
 #include <igor/Model/Legacy/Rec_Event.h>
-#include <igor/Core/Legacy/SeqTypeRegistry.h>
+#include <igor/Core/Legacy/SegmentRegistry.h>
 #include <igor/Core/Legacy/Utils.h>
 #include <igor/Model/Legacy/EventTypedefs.h>
 #include <memory>
@@ -55,13 +55,13 @@ MODEL_EXPORT Int_Str build_scenario_sequence(Seq_type_str_p_map &constructed_seq
                                 bool has_vd_ins, bool has_dj_ins,
                                 bool has_vj_ins);
 
-/// Registry-based overload — assembles in the order defined by the SeqTypeRegistry.
+/// Registry-based overload — assembles in the order defined by the SegmentRegistry.
 /// @param registry   Ordered seq_type names (e.g. from Model_Parms::get_seq_type_registry()).
 /// @param constructed_sequences  Map from seq_type string to the corresponding
 ///                               sequence fragment (nullptr entries are skipped).
-MODEL_EXPORT Int_Str build_scenario_sequence(
-    const SeqTypeRegistry &registry,
-    const std::unordered_map<Seq_type_String, const Int_Str *> &constructed_sequences);
+MODEL_EXPORT Int_Str
+build_scenario_sequence(const SegmentRegistry &registry,
+                        const std::unordered_map<Seq_type_String, const Int_Str *> &constructed_sequences);
 
 MODEL_EXPORT void initialize_offset_memory(
     const std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>

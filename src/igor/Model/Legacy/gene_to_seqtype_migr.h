@@ -4,6 +4,12 @@
 
 #include <igor/Model/Export.h>
 
+/**
+ * Migration code (#59, CAP B1): the legacy `Seq_type` of a gene class's gene or N region segment.
+ * Deleted, with its source, at CAP T6b, once nothing calls the two `try_*` families:
+ * FastGenerator after CAP T4b, and the test helper make_gene_choice().
+ */
+
 namespace igor::model::legacy {
 using namespace igor::core::legacy;
 namespace migration {

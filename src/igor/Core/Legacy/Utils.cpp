@@ -636,11 +636,11 @@ string translate(const string &seq)
     }
 }
 
-SeqTypeId first_unfilled_segment(const Seq_type_str_p_map &constructed_sequences)
+SegmentId first_unfilled_segment(const Seq_type_str_p_map &constructed_sequences)
 {
-    const SeqTypeRegistry &registry = constructed_sequences.registry();
+    const SegmentRegistry &registry = constructed_sequences.registry();
     for (std::size_t id = 0; id != registry.total_count(); ++id) {
-        const auto type_id = static_cast<SeqTypeId>(id);
+        const auto type_id = static_cast<SegmentId>(id);
         if (!constructed_sequences.exists(type_id)) {
             continue;
         }
@@ -654,20 +654,20 @@ SeqTypeId first_unfilled_segment(const Seq_type_str_p_map &constructed_sequences
             }
         }
     }
-    return kNoSeqType;
+    return kNoSegment;
 }
 
-std::pair<SeqTypeId, Seq_side> first_unplaced_segment_end(const Seq_offsets_map &seq_offsets)
+std::pair<SegmentId, Seq_side> first_unplaced_segment_end(const Seq_offsets_map &seq_offsets)
 {
-    const SeqTypeRegistry &registry = seq_offsets.five_prime.registry();
-    for (const SeqTypeId type_id : registry.ordering()) {
+    const SegmentRegistry &registry = seq_offsets.five_prime.registry();
+    for (const SegmentId type_id : registry.ordering()) {
         for (const Seq_side side : {Five_prime, Three_prime}) {
             if (!seq_offsets.exists(type_id, side)) {
                 return {type_id, side};
             }
         }
     }
-    return {kNoSeqType, Undefined_side};
+    return { kNoSegment, Undefined_side };
 }
 
 } // namespace igor::core::legacy

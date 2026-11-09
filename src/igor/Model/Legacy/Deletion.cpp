@@ -516,7 +516,7 @@ void Deletion::construct_realization(const vector<int> &indices, GenerationState
     //into the next junction, or a palindrome read past its gene, is a question for neighbour
     //types, not something to settle here.
     const int length = static_cast<int>(segment.size());
-    const bool anchored = (this->left_adjacent_id == kNoSeqType or this->right_adjacent_id == kNoSeqType);
+    const bool anchored = (this->left_adjacent_id == kNoSegment or this->right_adjacent_id == kNoSegment);
     if (deletions > length or (anchored and deletions == length) or -deletions > length) {
         string what;
         if (deletions > length) {
@@ -603,7 +603,7 @@ void Deletion::initialize_event(
     //because the deltas sum. It reads each pending event's realization set rather than its
     //accumulated `len_min` / `len_max`, which is the whole of §7.4 and the reason R10 moves
     //the no_d_align reference.
-    const SeqTypeRegistry &registry = constructed_sequences.registry();
+    const SegmentRegistry &registry = constructed_sequences.registry();
     pending_.rebuild(registry, events_map, processed_events);
 
     trims_three_prime_ = (this->event_side == Three_prime);
@@ -612,8 +612,8 @@ void Deletion::initialize_event(
     //three used to be spelled "V or J". Read off the ordering, so a tandem D1/D2 pair gets the
     //internal behaviour without either of them being named -- the same resolution B11a gave
     //`Gene_choice`.
-    const bool at_read_end = registry.left_neighbor(this->seq_type_id) == kNoSeqType
-                          or registry.right_neighbor(this->seq_type_id) == kNoSeqType;
+    const bool at_read_end = registry.left_neighbor(this->seq_type_id) == kNoSegment
+            or registry.right_neighbor(this->seq_type_id) == kNoSegment;
     keep_one_nucleotide_ = at_read_end;
     early_prune_stage_ = at_read_end;
     guard_palindrome_positions_ = not at_read_end;
@@ -669,7 +669,7 @@ void Deletion::initialize_event(
     const std::optional<SegmentSpan> gap =
             placed.target_built ? placed.gap_toward(trims_three_prime_ ? Three_prime : Five_prime) : std::nullopt;
     if (gap) {
-        const SeqTypeId far_end = trims_three_prime_ ? gap->right.id : gap->left.id;
+        const SegmentId far_end = trims_three_prime_ ? gap->right.id : gap->left.id;
         for (std::size_t i = 0; i != flank_checks_.size(); ++i) {
             if (flank_checks_[i].partner_id == far_end) {
                 junction_partner_ = static_cast<int>(i);
@@ -684,7 +684,7 @@ void Deletion::initialize_event(
             throw logic_error("Deletion " + this->get_name() + ": the gap it widens ends at " + registry.name(far_end)
                               + ", which is not its nearest placed neighbour");
         }
-        const SeqTypeId junction_key = this->traversal_plan().gap_key(*gap);
+        const SegmentId junction_key = this->traversal_plan().gap_key(*gap);
         downstream_proba_map.request_layer(junction_key);
         resolve_junction(*gap, junction_key, downstream_proba_map.claimed_layer(junction_key));
     }
@@ -720,7 +720,7 @@ std::pair<int, int> deletion_range(const std::unordered_map<std::string, Event_r
 
 } // namespace
 
-OffsetDelta Deletion::get_offset_delta_bounds(SeqTypeId type_id, Seq_side side) const
+OffsetDelta Deletion::get_offset_delta_bounds(SegmentId type_id, Seq_side side) const
 {
     if (type_id != this->seq_type_id || side != this->event_side) {
         return {};
@@ -736,7 +736,7 @@ OffsetDelta Deletion::get_offset_delta_bounds(SeqTypeId type_id, Seq_side side) 
     return {min_del, max_del};
 }
 
-LengthContribution Deletion::get_length_contribution(SeqTypeId type_id) const
+LengthContribution Deletion::get_length_contribution(SegmentId type_id) const
 {
     if (type_id != this->seq_type_id) {
         return {};
@@ -746,12 +746,12 @@ LengthContribution Deletion::get_length_contribution(SeqTypeId type_id) const
     return {-max_del, -min_del};
 }
 
-SeqConstructionRole Deletion::get_seq_construction_role(SeqTypeId type_id) const
+SeqConstructionRole Deletion::get_seq_construction_role(SegmentId type_id) const
 {
     return type_id == this->seq_type_id ? SeqConstructionRole::Modifies : SeqConstructionRole::None;
 }
 
-OffsetRole Deletion::get_offset_role(SeqTypeId type_id, Seq_side side) const
+OffsetRole Deletion::get_offset_role(SegmentId type_id, Seq_side side) const
 {
     if (type_id != this->seq_type_id || side != this->event_side) {
         return OffsetRole::None;
@@ -843,7 +843,7 @@ int Deletion::length_delta(const Event_realization &realization) const
  * finding 3). Resolving the junction in initialize_event() removes the choice, so nothing is
  * built that nothing reads.
  */
-void Deletion::resolve_junction(SegmentSpan span, SeqTypeId proba_key, int memory_layer)
+void Deletion::resolve_junction(SegmentSpan span, SegmentId proba_key, int memory_layer)
 {
     junction_bound(this->event_side == Five_prime ? kLeftJunction : kRightJunction)
             .resolve(span, proba_key, memory_layer, JunctionBound::Fold::Yes);

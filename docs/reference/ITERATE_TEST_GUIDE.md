@@ -54,7 +54,7 @@ CHECK(rec->calls.at(0).five_prime(V_gene_seq) == 0);
 neither copyable nor movable: the contexts hold references into its own storage.
 
 `create_iterate_state(read, marginal_size, max_events, registry)` sizes every map from
-`registry`. The default is `vdj_seq_type_registry()`; `vj_seq_type_registry()` gives a model with no
+`registry`. The default is `vdj_segment_registry()`; `vj_segment_registry()` gives a model with no
 D, and a test on another layout builds and freezes its own registry (§6).
 
 | Setter | Effect |
@@ -99,7 +99,7 @@ std::map<Seq_type, std::pair<Seq_Offset, Seq_Offset>> offsets;   // .five_prime(
 std::map<Seq_type, std::string> sequences;   // ACGT; an ambiguity code as 'N', int_undefined as '.'
 std::map<Seq_type, std::vector<std::size_t>> mismatches;
 std::map<std::pair<Seq_type, Seq_type>, bool> safety;             // .at({V_gene_seq, D_gene_seq})
-std::map<SeqTypeId, double> downstream_bounds;                    // every key, gap keys included
+std::map<SegmentId, double> downstream_bounds;                    // every key, gap keys included
 ```
 
 `downstream_bounds` holds every key of the downstream map, including a gap's own key past the
@@ -300,7 +300,7 @@ state.preset_junction(VD_ins_seq, /*5'=*/8, /*length=*/3);
 ordering, freeze it, and move each event onto its segment:
 
 ```cpp
-SeqTypeRegistry r;
+SegmentRegistry r;
 r.register_legacy_seq_types();
 r.set_ordered_types({"V_gene_seq", "VD1_ins_seq", "D1_gene_seq", "D1D2_ins_seq", "D2_gene_seq",
                      "DJ_ins_seq", "J_gene_seq"});

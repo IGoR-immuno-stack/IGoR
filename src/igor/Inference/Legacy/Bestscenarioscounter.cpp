@@ -138,7 +138,7 @@ void Best_scenarios_counter::record_scenario(double scenario_seq_joint_proba)
 
 // ===== CONTEXT-BASED INTERFACE =====
 
-void Best_scenarios_counter::check_admissible(const SeqTypeRegistry &registry) const
+void Best_scenarios_counter::check_admissible(const SegmentRegistry &registry) const
 {
     //It collects the mismatches of V, D and J at the enum's ids.
     igor::model::legacy::migration::require_vdj_or_vj_ordering(registry, this->type());

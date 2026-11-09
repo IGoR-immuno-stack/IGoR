@@ -51,13 +51,13 @@ using namespace IgorTestUtils;
 
 namespace {
 
-SeqTypeId id_of(Seq_type seq_type)
+SegmentId id_of(Seq_type seq_type)
 {
-    return static_cast<SeqTypeId>(seq_type);
+    return static_cast<SegmentId>(seq_type);
 }
 
 /// The id of a seq_type this event does not target, for the "everything else is zero" checks.
-constexpr SeqTypeId kOtherId = static_cast<SeqTypeId>(J_gene_seq);
+constexpr SegmentId kOtherId = static_cast<SegmentId>(J_gene_seq);
 
 } // namespace
 
@@ -313,7 +313,7 @@ TEST_CASE("Span effect queries", "[capabilities][span]")
     // One rule answers for every event, from the offset roles it declares and the ordering
     // (R12): a realization changes a span's length when it creates or modifies an end of a
     // segment strictly inside the span, or modifies one of the span's two ends.
-    const SeqTypeRegistry &registry = vdj_seq_type_registry();
+    const SegmentRegistry &registry = vdj_segment_registry();
     const SegmentSpan vd = SegmentSpan::gap(id_of(V_gene_seq), id_of(D_gene_seq));
     const SegmentSpan dj = SegmentSpan::gap(id_of(D_gene_seq), id_of(J_gene_seq));
     const SegmentSpan vj = SegmentSpan::gap(id_of(V_gene_seq), id_of(J_gene_seq));
@@ -415,13 +415,13 @@ TEST_CASE("Span effect queries", "[capabilities][span]")
         // A topology no enum names. The case that used to stand here asserted the opposite of
         // this one -- that a Dinucl_markov on a D1D2 junction was rejected -- because the enum
         // the rule replaced had no entry for it.
-        SeqTypeRegistry tandem;
+        SegmentRegistry tandem;
         tandem.register_legacy_seq_types();
         tandem.set_ordered_types({"V_gene_seq", "VD_ins_seq", "D_gene_seq", "D1D2_ins_seq",
                                   "D2_gene_seq", "DJ_ins_seq", "J_gene_seq"});
         tandem.freeze();
-        const SeqTypeId d2 = tandem.id("D2_gene_seq");
-        const SeqTypeId d1d2 = tandem.id("D1D2_ins_seq");
+        const SegmentId d2 = tandem.id("D2_gene_seq");
+        const SegmentId d1d2 = tandem.id("D1D2_ins_seq");
         const SegmentSpan v_to_j = SegmentSpan::gap(tandem.id("V_gene_seq"), tandem.id("J_gene_seq"));
         const SegmentSpan d1_to_d2 = SegmentSpan::gap(tandem.id("D_gene_seq"), d2);
         const SegmentSpan d2_to_j = SegmentSpan::gap(d2, tandem.id("J_gene_seq"));

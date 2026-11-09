@@ -111,7 +111,7 @@ Dinucl_markov::~Dinucl_markov()
 DinuclTraversalSpec Dinucl_markov::get_junction() const
 {
     DinuclTraversalSpec spec;
-    if (this->seq_type_id == kNoSeqType) {
+    if (this->seq_type_id == kNoSegment) {
         return spec;
     }
     spec.target_id = this->seq_type_id;
@@ -245,7 +245,7 @@ void Dinucl_markov::iterate(
             //also empty. Bitwise for every case that worked before: iterate_common() was
             //already a no-op on an empty junction, and data_seq_substr is read nowhere else.
         } else if (previous_seq.empty()) {
-            const SeqTypeRegistry &registry = scenario.constructed_sequences.registry();
+            const SegmentRegistry &registry = scenario.constructed_sequences.registry();
             throw runtime_error("Dinucl_markov " + this->get_name() + ": the anchor segment "
                                 + registry.name(spec.anchor_id) + " carries no nucleotide to seed "
                                 "the Markov chain from. This scenario deleted it entirely -- a "
@@ -269,7 +269,7 @@ void Dinucl_markov::iterate(
                            model.model_parameters);
         }
 
-        if (junction_key_ != kNoSeqType) {
+        if (junction_key_ != kNoSegment) {
             exploration.downstream_proba_map.set(junction_key_, 1.0, memory_layer_junction);
         }
     }
@@ -291,7 +291,7 @@ namespace {
 
 void require_junction(const DinuclTraversalSpec &spec, const string &name)
 {
-    if (spec.target_id == kNoSeqType or spec.anchor_id == kNoSeqType) {
+    if (spec.target_id == kNoSegment or spec.anchor_id == kNoSegment) {
         throw invalid_argument("Dinucl_markov " + name
                                + ": generation needs the junction this chain fills and the segment "
                                  "it seeds from. Model_Parms::finalize() resolves both, from the "
@@ -514,7 +514,7 @@ void Dinucl_markov::initialize_event(
 {
 
     const DinuclTraversalSpec spec = get_junction();
-    if (spec.anchor_id == kNoSeqType) {
+    if (spec.anchor_id == kNoSegment) {
         throw invalid_argument("Dinucl_markov " + this->get_name()
                                + ": no junction to fill. Its seq_type must be in the registry "
                                  "(Model_Parms::finalize() resolves that), it must declare which "
@@ -527,8 +527,8 @@ void Dinucl_markov::initialize_event(
     //nothing built on one side there is no gap, so no factor to settle; an engine's order always
     //has one (TraversalPlan::check_admissible()), a fixture writing only the anchor need not.
     const std::optional<SegmentSpan> gap = this->placement().enclosing_gap();
-    junction_key_ = gap ? this->traversal_plan().gap_key(*gap) : kNoSeqType;
-    if (junction_key_ != kNoSeqType) {
+    junction_key_ = gap ? this->traversal_plan().gap_key(*gap) : kNoSegment;
+    if (junction_key_ != kNoSegment) {
         downstream_proba_map.request_layer(junction_key_);
         memory_layer_junction = downstream_proba_map.claimed_layer(junction_key_);
     }
@@ -609,12 +609,12 @@ void Dinucl_markov::update_event_internal_probas(const Marginal_array_p &margina
     }
 }
 
-OffsetDelta Dinucl_markov::get_offset_delta_bounds(SeqTypeId, Seq_side) const
+OffsetDelta Dinucl_markov::get_offset_delta_bounds(SegmentId, Seq_side) const
 {
     return {};
 }
 
-LengthContribution Dinucl_markov::get_length_contribution(SeqTypeId) const
+LengthContribution Dinucl_markov::get_length_contribution(SegmentId) const
 {
     //Nothing, even though this event now creates the segment: its realizations are single
     //nucleotides, and how many of them there are was decided by the offsets its Insertion
@@ -624,7 +624,7 @@ LengthContribution Dinucl_markov::get_length_contribution(SeqTypeId) const
     return {};
 }
 
-SeqConstructionRole Dinucl_markov::get_seq_construction_role(SeqTypeId type_id) const
+SeqConstructionRole Dinucl_markov::get_seq_construction_role(SegmentId type_id) const
 {
     //Creates, not Fills (O12 (a')). The segment it writes is one it allocated itself, at a
     //layer it claimed, sized from offsets that were already placed -- so a sibling scenario
@@ -632,12 +632,12 @@ SeqConstructionRole Dinucl_markov::get_seq_construction_role(SeqTypeId type_id) 
     return type_id == this->seq_type_id ? SeqConstructionRole::Creates : SeqConstructionRole::None;
 }
 
-OffsetRole Dinucl_markov::get_offset_role(SeqTypeId, Seq_side) const
+OffsetRole Dinucl_markov::get_offset_role(SegmentId, Seq_side) const
 {
     return OffsetRole::None;
 }
 
-bool Dinucl_markov::affects_proba_of(SegmentSpan span, const SeqTypeRegistry &registry) const
+bool Dinucl_markov::affects_proba_of(SegmentSpan span, const SegmentRegistry &registry) const
 {
     //True exactly where the segment this model fills lies inside the span: the p^L factor scales
     //with that segment's length, so it belongs to every span containing it. The same ordering
@@ -663,7 +663,7 @@ double Dinucl_markov::span_proba_factor(SegmentSpan, const UnfilledSegmentLength
     //p^L over the segment this model creates, whose length was published by whoever placed its
     //offsets -- the Insertion, which under O12 (a') creates the offsets and not the sequence.
     //Absent means nobody placed them on this path, and the contribution is 1.
-    const SeqTypeId filled = this->seq_type_id;
+    const SegmentId filled = this->seq_type_id;
     if (not lengths.has(filled)) {
         return 1.0;
     }

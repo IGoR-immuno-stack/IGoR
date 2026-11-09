@@ -9,7 +9,7 @@
 #include <igor/Core/AlignmentData.h>
 
 #include <igor/Core/LayeredArray.h>
-#include <igor/Core/SeqTypeRegistry.h>
+#include <igor/Core/SegmentRegistry.h>
 #include <igor/Core/DynamicSequenceMap.h>
 #include <igor/Core/SeqOffsetsMap.h>
 #include <igor/Core/SegmentSpan.h>

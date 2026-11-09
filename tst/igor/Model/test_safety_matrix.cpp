@@ -40,9 +40,9 @@ using namespace igor::model::legacy;
 
 namespace {
 
-SeqTypeRegistry vdj_registry()
+SegmentRegistry vdj_registry()
 {
-    SeqTypeRegistry registry;
+    SegmentRegistry registry;
     registry.register_legacy_seq_types();
     registry.set_ordered_types({"V_gene_seq", "VD_ins_seq", "D_gene_seq", "DJ_ins_seq", "J_gene_seq"});
     registry.freeze();
@@ -52,9 +52,9 @@ SeqTypeRegistry vdj_registry()
 /// A VJ model: the ordering puts VJ_ins_seq at position 1, while its legacy id is 5 and
 /// J_gene_seq's is 4. Ordering position and id disagree here, which is the whole reason the
 /// matrix is keyed by the former.
-SeqTypeRegistry vj_registry()
+SegmentRegistry vj_registry()
 {
-    SeqTypeRegistry registry;
+    SegmentRegistry registry;
     registry.register_legacy_seq_types();
     registry.set_ordered_types({"V_gene_seq", "VJ_ins_seq", "J_gene_seq"});
     registry.freeze();
@@ -68,7 +68,7 @@ TEST_CASE("SafetyMatrix names a pair by ordering position, not by seq_type id",
 {
     SECTION("The 5'-most member is the row, whichever way round the pair is given")
     {
-        const SeqTypeRegistry registry = vdj_registry();
+        const SegmentRegistry registry = vdj_registry();
         SafetyMatrix matrix(registry);
 
         const SafetyCell vd = matrix.cell(V_gene_seq, D_gene_seq);
@@ -82,7 +82,7 @@ TEST_CASE("SafetyMatrix names a pair by ordering position, not by seq_type id",
         // J_gene_seq is id 4 and VJ_ins_seq id 5, but in this ordering J sits *after* the
         // junction. Keying the bitmask by id would put J's column left of the insertion's and
         // make "the rest of the row" mean the wrong set of segments.
-        const SeqTypeRegistry registry = vj_registry();
+        const SegmentRegistry registry = vj_registry();
         SafetyMatrix matrix(registry);
 
         const SafetyCell vj = matrix.cell(V_gene_seq, J_gene_seq);
@@ -93,17 +93,17 @@ TEST_CASE("SafetyMatrix names a pair by ordering position, not by seq_type id",
 
     SECTION("A segment the ordering leaves out is not half of any pair")
     {
-        const SeqTypeRegistry registry = vj_registry();
+        const SegmentRegistry registry = vj_registry();
         SafetyMatrix matrix(registry);
 
-        CHECK(matrix.addresses(static_cast<SeqTypeId>(V_gene_seq)));
-        CHECK_FALSE(matrix.addresses(static_cast<SeqTypeId>(D_gene_seq)));
+        CHECK(matrix.addresses(static_cast<SegmentId>(V_gene_seq)));
+        CHECK_FALSE(matrix.addresses(static_cast<SegmentId>(D_gene_seq)));
         CHECK_THROWS_AS(matrix.cell(V_gene_seq, D_gene_seq), std::out_of_range);
     }
 
     SECTION("A segment does not overlap itself")
     {
-        const SeqTypeRegistry registry = vdj_registry();
+        const SegmentRegistry registry = vdj_registry();
         SafetyMatrix matrix(registry);
         CHECK_THROWS_AS(matrix.cell(V_gene_seq, V_gene_seq), std::invalid_argument);
     }
@@ -113,7 +113,7 @@ TEST_CASE("SafetyMatrix names a pair by ordering position, not by seq_type id",
         // The documented ceiling of the bitmask form. Tandem D needs 7 positions; going past
         // 32 is a modelling change that has to move the container, and silently aliasing
         // columns 32 and 0 would make two unrelated pairs the same flag.
-        SeqTypeRegistry registry;
+        SegmentRegistry registry;
         std::vector<Seq_type_String> many;
         for (int i = 0; i != 33; ++i) {
             many.push_back("seg_" + std::to_string(i));
@@ -126,7 +126,7 @@ TEST_CASE("SafetyMatrix names a pair by ordering position, not by seq_type id",
 
 TEST_CASE("SafetyMatrix: a row word is the whole state of that row", "[safety_matrix]")
 {
-    const SeqTypeRegistry registry = vdj_registry();
+    const SegmentRegistry registry = vdj_registry();
     SafetyMatrix matrix(registry);
     const SafetyCell vd = matrix.cell(V_gene_seq, D_gene_seq);
     const SafetyCell vj = matrix.cell(V_gene_seq, J_gene_seq);
@@ -186,7 +186,7 @@ TEST_CASE("SafetyMatrix: a row word is the whole state of that row", "[safety_ma
 TEST_CASE("SafetyMatrix: establishing a near pair marks the rest of the row",
           "[safety_matrix]")
 {
-    const SeqTypeRegistry registry = vdj_registry();
+    const SegmentRegistry registry = vdj_registry();
     SafetyMatrix matrix(registry);
     const SafetyCell vd = matrix.cell(V_gene_seq, D_gene_seq);
     const SafetyCell vj = matrix.cell(V_gene_seq, J_gene_seq);
@@ -237,7 +237,7 @@ TEST_CASE("SafetyMatrix: propagation moves where a bad scenario dies, not whethe
                != JunctionGeometry::Overlap::Infeasible;
     };
 
-    const SeqTypeRegistry registry = vdj_registry();
+    const SegmentRegistry registry = vdj_registry();
     SafetyMatrix matrix(registry);
     const SafetyCell vd = matrix.cell(V_gene_seq, D_gene_seq);
     const SafetyCell vj = matrix.cell(V_gene_seq, J_gene_seq);

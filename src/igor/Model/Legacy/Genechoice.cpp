@@ -358,8 +358,8 @@ void Gene_choice::iterate(
             //Both flanks placed. Every way this segment can sit between them, at the distance
             //they actually leave, best first -- §2.5's `⊗ᵉⁿᵘᵐ`, built at initialization by the
             //`Fold::Retain` mode and read here by total distance.
-            const SeqTypeId left_id = enclosing.span().left.id;
-            const SeqTypeId right_id = enclosing.span().right.id;
+            const SegmentId left_id = enclosing.span().left.id;
+            const SegmentId right_id = enclosing.span().right.id;
             const int span_len = neighbour_offset_[right_id] - neighbour_offset_[left_id] - 1;
 
             //What every placement's first-stage bound shares: the probability this event
@@ -741,7 +741,7 @@ void Gene_choice::initialize_event(
     //Everything topological is settled here, so iterate() reads answers instead of asking
     //event_class again. The three switch arms of layer requests collapse because they only ever
     //differed in which seq_type they named.
-    const SeqTypeRegistry &registry = constructed_sequences.registry();
+    const SegmentRegistry &registry = constructed_sequences.registry();
     pending_.rebuild(registry, events_map, processed_events);
     neighbour_reach_.assign(registry.total_count(), JunctionGeometry::OffsetInterval{});
     neighbour_offset_.assign(registry.total_count(), 0);
@@ -752,8 +752,8 @@ void Gene_choice::initialize_event(
     //finds nothing (decision O6). Read off the ordering, so a tandem D1/D2 pair gets the
     //internal behaviour without either of them being named anywhere. (It also used to pick the
     //arm of section 7.1's credited length; R5a gave every gene the one derivation.)
-    const bool at_left_end = registry.left_neighbor(this->seq_type_id) == kNoSeqType;
-    const bool at_right_end = registry.right_neighbor(this->seq_type_id) == kNoSeqType;
+    const bool at_left_end = registry.left_neighbor(this->seq_type_id) == kNoSegment;
+    const bool at_right_end = registry.right_neighbor(this->seq_type_id) == kNoSegment;
     clip_template_before_read_ = at_left_end;
     clip_template_after_read_ = at_right_end;
     exhaustive_position_fallback_ = not at_left_end and not at_right_end;
@@ -809,7 +809,7 @@ void Gene_choice::initialize_event(
     //plan's: a gap is one factor, refined by every event that changes it.
     const TraversalPlan &plan = this->traversal_plan();
     auto resolve_junction = [&](JunctionSlot slot, SegmentSpan span, JunctionBound::Fold fold) {
-        const SeqTypeId junction_key = plan.gap_key(span);
+        const SegmentId junction_key = plan.gap_key(span);
         downstream_proba_map.request_layer(junction_key);
         junction_bound(slot).resolve(span, junction_key, downstream_proba_map.claimed_layer(junction_key),
                                      fold);
@@ -855,7 +855,7 @@ void Gene_choice::add_to_marginals(long double scenario_proba, Marginal_array_p 
     }
 }
 
-OffsetDelta Gene_choice::get_offset_delta_bounds(SeqTypeId, Seq_side) const
+OffsetDelta Gene_choice::get_offset_delta_bounds(SegmentId, Seq_side) const
 {
     //A gene choice *sets* both offsets from the alignment; it never shifts an existing one,
     //so it contributes no travel to any end. What its templates make possible is a length,
@@ -863,7 +863,7 @@ OffsetDelta Gene_choice::get_offset_delta_bounds(SeqTypeId, Seq_side) const
     return {};
 }
 
-LengthContribution Gene_choice::get_length_contribution(SeqTypeId type_id) const
+LengthContribution Gene_choice::get_length_contribution(SegmentId type_id) const
 {
     if (type_id != this->seq_type_id || this->event_realizations.empty()) {
         return {};
@@ -882,12 +882,12 @@ LengthContribution Gene_choice::get_length_contribution(SeqTypeId type_id) const
     return {shortest, longest};
 }
 
-SeqConstructionRole Gene_choice::get_seq_construction_role(SeqTypeId type_id) const
+SeqConstructionRole Gene_choice::get_seq_construction_role(SegmentId type_id) const
 {
     return type_id == this->seq_type_id ? SeqConstructionRole::Creates : SeqConstructionRole::None;
 }
 
-OffsetRole Gene_choice::get_offset_role(SeqTypeId type_id, Seq_side) const
+OffsetRole Gene_choice::get_offset_role(SegmentId type_id, Seq_side) const
 {
     //Both ends, since the alignment fixes the segment's position outright.
     return type_id == this->seq_type_id ? OffsetRole::Creates : OffsetRole::None;

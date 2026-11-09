@@ -23,7 +23,7 @@
 #pragma once
 
 #include <igor/Core/LayeredArray.h>
-#include <igor/Core/SeqTypeRegistry.h>
+#include <igor/Core/SegmentRegistry.h>
 
 #include <cstdint>
 #include <stdexcept>
@@ -41,7 +41,7 @@ inline constexpr std::uint8_t kNoOrderingPosition = 0xFF;
  * \brief One pair of segments in the overlap-safety matrix, named by ordering position.
  *
  * `row` is the 5'-most of the two, `column` the 3'-most, both as positions in the model's
- * 5'->3' ordering -- not as `SeqTypeId`s, whose numbering is the legacy enum's and puts
+ * 5'->3' ordering -- not as `SegmentId`s, whose numbering is the legacy enum's and puts
  * `VJ_ins_seq` at 5 in a VJ model whose ordering position is 1. Resolved once, at
  * `initialize_event()`, and read in the hot loop; `SafetyMatrix::cell()` is what resolves it.
  */
@@ -74,7 +74,7 @@ struct SafetyCell {
  *
  * The cost is a limit of 32 positions in the ordering -- 5 for VDJ, 7 for tandem D -- which
  * the constructor rejects rather than silently truncating. Section 2.3 proposed checking it
- * at `SeqTypeRegistry::freeze()`; it lives here instead, because the limit belongs to this
+ * at `SegmentRegistry::freeze()`; it lives here instead, because the limit belongs to this
  * container and not to the registry, and because the bound is on the *ordering*, which is a
  * subset of what the registry holds.
  *
@@ -116,11 +116,10 @@ public:
 
     /// \param registry        frozen registry whose ordering supplies the positions
     /// \param initial_layers  layers to allocate up front; grows on demand
-    explicit SafetyMatrix(const core::SeqTypeRegistry &registry, std::size_t initial_layers = 1)
-        : rows_(registry.ordering().size(), initial_layers),
-          position_(registry.total_count(), kNoOrderingPosition)
+    explicit SafetyMatrix(const core::SegmentRegistry &registry, std::size_t initial_layers = 1)
+        : rows_(registry.ordering().size(), initial_layers), position_(registry.total_count(), kNoOrderingPosition)
     {
-        const std::vector<core::SeqTypeId> &ordering = registry.ordering();
+        const std::vector<core::SegmentId> &ordering = registry.ordering();
         if (ordering.size() > kMaxPositions) {
             throw std::length_error("SafetyMatrix: the ordering has " + std::to_string(ordering.size())
                                     + " segments, and a row bitmask addresses at most "
@@ -139,7 +138,7 @@ public:
     /// False for a type the model registered but left out -- `VJ_ins_seq` in a VDJ model,
     /// `D_gene_seq` in a VJ one -- which is what a caller enumerating legacy pairs must ask
     /// before naming one.
-    bool addresses(core::SeqTypeId type_id) const noexcept
+    bool addresses(core::SegmentId type_id) const noexcept
     {
         return static_cast<std::size_t>(type_id) < position_.size()
                && position_[type_id] != kNoOrderingPosition;
@@ -153,7 +152,7 @@ public:
      * \throws std::invalid_argument if the two are the same segment: a segment does not
      *         overlap itself, and asking is a resolution bug rather than a query.
      */
-    SafetyCell cell(core::SeqTypeId a, core::SeqTypeId b) const
+    SafetyCell cell(core::SegmentId a, core::SegmentId b) const
     {
         const std::uint8_t pa = position_of(a);
         const std::uint8_t pb = position_of(b);
@@ -232,7 +231,7 @@ private:
         return (word & column_mask(column)) != 0;
     }
 
-    std::uint8_t position_of(core::SeqTypeId type_id) const
+    std::uint8_t position_of(core::SegmentId type_id) const
     {
         if (static_cast<std::size_t>(type_id) >= position_.size()
             || position_[type_id] == kNoOrderingPosition) {
@@ -274,7 +273,7 @@ private:
     }
 
     core::LayeredArray<std::uint32_t> rows_;
-    /// SeqTypeId -> ordering position, kNoOrderingPosition for a type outside the ordering.
+    /// SegmentId -> ordering position, kNoOrderingPosition for a type outside the ordering.
     std::vector<std::uint8_t> position_;
 };
 

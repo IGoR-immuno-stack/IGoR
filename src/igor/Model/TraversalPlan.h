@@ -23,7 +23,7 @@
 #pragma once
 
 #include <igor/Core/SegmentSpan.h>
-#include <igor/Core/SeqTypeRegistry.h>
+#include <igor/Core/SegmentRegistry.h>
 #include <igor/Core/Types.h>
 #include <igor/Model/SegmentIndex.h>
 
@@ -56,11 +56,11 @@ class Rec_Event;
  *     segment stays unfilled, and the gap one, until the Markov chain builds it.
  */
 struct MODEL_EXPORT EventPlacement {
-    core::SeqTypeId target = core::kNoSeqType;
-    std::vector<core::SeqTypeId> placed_left;  ///< 3' end created before this event, nearest first
-    std::vector<core::SeqTypeId> placed_right; ///< 5' end created before this event, nearest first
-    core::SeqTypeId built_left = core::kNoSeqType;  ///< nearest built content to the 5' side
-    core::SeqTypeId built_right = core::kNoSeqType; ///< nearest built content to the 3' side
+    core::SegmentId target = core::kNoSegment;
+    std::vector<core::SegmentId> placed_left; ///< 3' end created before this event, nearest first
+    std::vector<core::SegmentId> placed_right; ///< 5' end created before this event, nearest first
+    core::SegmentId built_left = core::kNoSegment; ///< nearest built content to the 5' side
+    core::SegmentId built_right = core::kNoSegment; ///< nearest built content to the 3' side
     bool target_built = false; ///< the target's content is built once this event has run
 
     /// The gap the target sits in, between the nearest built content on each side.
@@ -79,8 +79,8 @@ struct MODEL_EXPORT EventPlacement {
  * segment instead of running the event that would create it.
  */
 struct MODEL_EXPORT InitialState {
-    std::vector<core::SeqTypeId> placed; ///< unfilled: both ends created, the content not built
-    std::vector<core::SeqTypeId> built;  ///< both ends created and the content built
+    std::vector<core::SegmentId> placed; ///< unfilled: both ends created, the content not built
+    std::vector<core::SegmentId> built; ///< both ends created and the content built
 };
 
 /**
@@ -101,7 +101,7 @@ struct MODEL_EXPORT InitialState {
  *
  * ### Keys
  *
- * A segment's own factor is held at its SeqTypeId, as before. A gap is held at the id of the one
+ * A segment's own factor is held at its SegmentId, as before. A gap is held at the id of the one
  * segment strictly inside it when there is exactly one and it has no factor of its own (the N
  * region an insertion places, which then bounds the same gap at that key); otherwise at a key of
  * its own, past the registry's ids, in the order the walk first meets it. The first rule is a
@@ -111,7 +111,7 @@ struct MODEL_EXPORT InitialState {
 class MODEL_EXPORT TraversalPlan
 {
 public:
-    TraversalPlan(const core::SeqTypeRegistry &registry, std::span<const legacy::Rec_Event *const> order,
+    TraversalPlan(const core::SegmentRegistry &registry, std::span<const legacy::Rec_Event *const> order,
                   InitialState initial = {});
 
     const SegmentIndex &index() const { return index_; }
@@ -122,7 +122,7 @@ public:
 
     /// \throws std::out_of_range for a span that is never an open gap needing a bound in this
     ///         order: the event asking and the plan disagree about the model's structure.
-    core::SeqTypeId gap_key(core::SegmentSpan gap) const;
+    core::SegmentId gap_key(core::SegmentSpan gap) const;
 
     /// Every gap that needs a bound, in the order the walk first meets it.
     const std::vector<core::SegmentSpan> &gaps() const { return gaps_; }
@@ -146,13 +146,13 @@ public:
     void check_admissible() const;
 
 private:
-    const core::SeqTypeRegistry &registry_;
+    const core::SegmentRegistry &registry_;
     std::vector<const legacy::Rec_Event *> order_;
     InitialState initial_;
     SegmentIndex index_;
     std::unordered_map<int, EventPlacement> placements_; ///< by event identifier
     std::vector<core::SegmentSpan> gaps_;
-    std::map<std::pair<core::SeqTypeId, core::SeqTypeId>, core::SeqTypeId> gap_keys_;
+    std::map<std::pair<core::SegmentId, core::SegmentId>, core::SegmentId> gap_keys_;
     std::size_t bound_key_count_ = 0;
 };
 

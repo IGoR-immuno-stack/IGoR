@@ -79,18 +79,18 @@ Every node receives the same five contexts, by reference:
 
 ## 2. Segments: the registry and its ids
 
-### 2.1 `SeqTypeRegistry`
+### 2.1 `SegmentRegistry`
 
 A model's segments have names: `V_gene_seq`, `VD_ins_seq`, …, or `D1_gene_seq`, `D1D2_ins_seq` in a
-tandem model. The registry ([SeqTypeRegistry.h](../../src/igor/Core/SeqTypeRegistry.h)) gives each
-name a dense `SeqTypeId` (`uint16_t`), and holds the **ordering**: the segments of the model's
+tandem model. The registry ([SegmentRegistry.h](../../src/igor/Core/SegmentRegistry.h)) gives each
+name a dense `SegmentId` (`uint16_t`), and holds the **ordering**: the segments of the model's
 layout, from 5′ to 3′.
 
 - **Name and id.** `register_type()`, `id()` and `name()` convert between them. Ids are dense from
   0, so they index arrays directly. The name identifies a segment in files and in messages. The id
   identifies it at run time. The walk never looks a name up.
 - **Ordering and neighbours.** `ordering()` lists the ids 5′ to 3′. `left_neighbor()` and
-  `right_neighbor()` are array lookups. They return `kNoSeqType` at the ends of the ordering and for
+  `right_neighbor()` are array lookups. They return `kNoSegment` at the ends of the ordering and for
   a type the ordering does not hold.
 - **Freezing.** After `freeze()`, registering a new name throws. A map sized from the registry
   requires a frozen one (the `DynamicSequenceMap` constructor checks), so the id space cannot grow
@@ -187,7 +187,7 @@ class: building an error message inline was enough to stop GCC inlining the chec
 ### 3.2 `DynamicSequenceMap` and `SeqOffsetsMap`
 
 [DynamicSequenceMap.h](../../src/igor/Core/DynamicSequenceMap.h) is a `LayeredArray` keyed by
-`SeqTypeId` and sized from a frozen registry. The downstream bound map is created larger, with
+`SegmentId` and sized from a frozen registry. The downstream bound map is created larger, with
 `TraversalPlan::bound_key_count()` keys (§4.3). For sequences, the map tells three states apart:
 - **not processed yet**: never written;
 - **absent**: written, as an empty segment;
@@ -250,7 +250,7 @@ the leaf.
 > map, `processed_events`) are keyed by uid.
 
 > **Subject to change — CAP T7.** `ScenarioContext`'s wrappers still take a `Seq_type`, and events
-> cast their id to it. They will take a `SeqTypeId`. Only the types change, with T7 or later.
+> cast their id to it. They will take a `SegmentId`. Only the types change, with T7 or later.
 
 ---
 
@@ -610,7 +610,7 @@ threshold, updates the best scenario, calls each counter with a `Scenario` view,
   has a mismatch list, by id: the genes, not the junctions (T7a). The counts are integers, so the
   order of the sum does not matter. Before T7a it read ids 0, 2 and 4 only, and charged no mismatch
   to a tandem model's D segments.
-- **`check_admissible(const SeqTypeRegistry &)`** exists on `Error_rate` and on `Counter`, and
+- **`check_admissible(const SegmentRegistry &)`** exists on `Error_rate` and on `Counter`, and
   accepts any model by default. The two hypermutation error models and four counters (errors,
   coverage, best scenarios, Pgen) still read V, D and J at their pinned ids. They refuse an ordering
   that is neither V-D-J nor V-J through `migration::require_vdj_or_vj_ordering()`

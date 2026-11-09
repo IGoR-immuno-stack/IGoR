@@ -113,7 +113,7 @@ Coverage_err_counter::~Coverage_err_counter()
 
 // ===== CONTEXT-BASED INTERFACE =====
 
-void Coverage_err_counter::check_admissible(const SeqTypeRegistry &registry) const
+void Coverage_err_counter::check_admissible(const SegmentRegistry &registry) const
 {
     //It finds the V, D and J events and their deletions by their legacy names.
     igor::model::legacy::migration::require_vdj_or_vj_ordering(registry, this->type());

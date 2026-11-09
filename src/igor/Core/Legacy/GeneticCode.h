@@ -10,7 +10,7 @@
  * These declarations deliberately remain in `namespace EventUtils` (namespaces
  * are open) so that existing call sites compile unchanged, while living in
  * their own translation unit: EventUtils.h is under active rework for the
- * SeqTypeRegistry migration, and the genetic code has no reason to share its
+ * SegmentRegistry migration, and the genetic code has no reason to share its
  * merge surface.
  *
  * Nothing here depends on Rec_Event, Gene_class, or any event machinery.

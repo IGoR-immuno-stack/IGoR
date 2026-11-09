@@ -31,7 +31,7 @@
 #include <igor/Core/Legacy/AlignmentData.h>
 #include <igor/Core/Legacy/SegmentSpan.h>
 #include <igor/Model/Legacy/SafetyMatrix.h>
-#include <igor/Core/Legacy/SeqTypeRegistry.h>
+#include <igor/Core/Legacy/SegmentRegistry.h>
 #include <igor/Model/Legacy/UnfilledSegmentLengths.h>
 #include <igor/Model/Legacy/FoldFrontier.h>
 #include <igor/Model/Legacy/GenerationState.h>
@@ -268,21 +268,21 @@ public:
      */
 
     /// How far this event can still shift `(type_id, side)`. `{0, 0}` if it cannot.
-    virtual OffsetDelta get_offset_delta_bounds(SeqTypeId type_id, Seq_side side) const = 0;
+    virtual OffsetDelta get_offset_delta_bounds(SegmentId type_id, Seq_side side) const = 0;
 
     /// How many nucleotides this event contributes to `type_id`. `{0, 0}` if none.
-    virtual LengthContribution get_length_contribution(SeqTypeId type_id) const = 0;
+    virtual LengthContribution get_length_contribution(SegmentId type_id) const = 0;
 
     /// What this event does to the `type_id` segment.
-    virtual SeqConstructionRole get_seq_construction_role(SeqTypeId type_id) const = 0;
+    virtual SeqConstructionRole get_seq_construction_role(SegmentId type_id) const = 0;
 
     /// What this event does to one end of the `type_id` segment.
-    virtual OffsetRole get_offset_role(SeqTypeId type_id, Seq_side side) const = 0;
+    virtual OffsetRole get_offset_role(SegmentId type_id, Seq_side side) const = 0;
 
     /**
      * The segments immediately 5' and 3' of this event's own, in the registry ordering.
      *
-     * Set by Model_Parms::finalize() for every event, once per model, and `kNoSeqType` where
+     * Set by Model_Parms::finalize() for every event, once per model, and `kNoSegment` where
      * the ordering runs out or the event has no seq_type. **Topology is the model's fact, not
      * the event's**: events are told what is next to them rather than asking a registry, so
      * there is exactly one place that reads the ordering and one moment at which it is read.
@@ -291,13 +291,13 @@ public:
      * a Dinucl_markov seeds from whichever side its Markov chain runs from, a Gene_choice
      * ignores them.
      */
-    void set_adjacent_segments(SeqTypeId left, SeqTypeId right)
+    void set_adjacent_segments(SegmentId left, SegmentId right)
     {
         left_adjacent_id = left;
         right_adjacent_id = right;
     }
-    SeqTypeId get_left_adjacent_id() const { return left_adjacent_id; }
-    SeqTypeId get_right_adjacent_id() const { return right_adjacent_id; }
+    SegmentId get_left_adjacent_id() const { return left_adjacent_id; }
+    SegmentId get_right_adjacent_id() const { return right_adjacent_id; }
 
     /**
      * The engine's plan for the order it runs the events in (TraversalPlan.h): what is placed and
@@ -313,10 +313,10 @@ public:
     const Seq_type_String get_seq_type() const { return seq_type; };
     void set_seq_type(const Seq_type_String &st) { seq_type = st; }
     /// Runtime handle for seq_type, resolved against the model's frozen registry by
-    /// Model_Parms::finalize(). kNoSeqType until then. Used in place of the name
+    /// Model_Parms::finalize(). kNoSegment until then. Used in place of the name
     /// everywhere inside the scenario traversal, so the registry stays out of the hot path.
-    SeqTypeId get_seq_type_id() const { return seq_type_id; }
-    void set_seq_type_id(SeqTypeId id) { seq_type_id = id; }
+    SegmentId get_seq_type_id() const { return seq_type_id; }
+    void set_seq_type_id(SegmentId id) { seq_type_id = id; }
     void set_event_side(Seq_side s) { event_side = s; }
 
     /// The side token a generated name carries: the event's own side, except for DinucMarkov,
@@ -477,7 +477,7 @@ public:
      * D's deletions on V->J, which the tables left out and which made J's V->J table no bound
      * (plan section 7.22, R16).
      */
-    bool affects_length_of(SegmentSpan span, const SeqTypeRegistry &registry) const;
+    bool affects_length_of(SegmentSpan span, const SegmentRegistry &registry) const;
 
     /**
      * \brief Does this event contribute a probability factor to \a span?
@@ -486,14 +486,14 @@ public:
      * adding to it. Default false, so an event whose whole contribution is length need not
      * say anything.
      */
-    virtual bool affects_proba_of(SegmentSpan, const SeqTypeRegistry &) const { return false; }
+    virtual bool affects_proba_of(SegmentSpan, const SegmentRegistry &) const { return false; }
 
     /**
      * \brief Whether the Len_proba traversal must visit this event for \a span at all.
      *
      * The filter the traversal applies, at the queue rather than inside each override.
      */
-    bool participates_in_span(SegmentSpan span, const SeqTypeRegistry &registry) const
+    bool participates_in_span(SegmentSpan span, const SegmentRegistry &registry) const
     {
         return this->affects_length_of(span, registry) or this->affects_proba_of(span, registry);
     }
@@ -545,8 +545,8 @@ public:
      * queue of events that follow this one.
      */
     void initialize_Len_proba_bound(std::queue<std::shared_ptr<Rec_Event>> &model_queue,
-                                    const Marginal_array_p &model_parameters_point,
-                                    const Index_map &base_index_map, const SeqTypeRegistry &registry);
+                                    const Marginal_array_p &model_parameters_point, const Index_map &base_index_map,
+                                    const SegmentRegistry &registry);
 
     /**
      * \brief Take this iteration's folded bounds from \a source instead of folding them again.
@@ -705,7 +705,7 @@ protected:
     /// Which parents of each participant in `participants` the fold over `span` chooses itself.
     /// `reader_conditioned` says whether the table is conditioned on this event's realization.
     SpanConditioning conditioning_within(const SpanParticipants &participants, SegmentSpan span,
-                                         const SeqTypeRegistry &registry, bool reader_conditioned) const;
+                                         const SegmentRegistry &registry, bool reader_conditioned) const;
 
     /// True for an event that positions its own segment -- an Insertion, a gene choice -- and
     /// false for one that only moves an end of a segment already placed -- a Deletion. Only the
@@ -746,10 +746,10 @@ protected:
     Seq_side event_side;
     std::string nickname;
     Seq_type_String seq_type; // Seq_type for v2.0 format (e.g., "V_gene_seq", "VD_ins_seq")
-    SeqTypeId seq_type_id = kNoSeqType; // resolved from seq_type by Model_Parms::finalize()
+    SegmentId seq_type_id = kNoSegment; // resolved from seq_type by Model_Parms::finalize()
     /// Neighbours in the registry ordering, also resolved by Model_Parms::finalize().
-    SeqTypeId left_adjacent_id = kNoSeqType;
-    SeqTypeId right_adjacent_id = kNoSeqType;
+    SegmentId left_adjacent_id = kNoSegment;
+    SegmentId right_adjacent_id = kNoSegment;
     /// Not owned, and not carried by copy(): an engine sets its own, per thread.
     const igor::model::TraversalPlan *traversal_plan_ = nullptr;
     int len_min;

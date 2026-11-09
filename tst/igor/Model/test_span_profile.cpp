@@ -152,20 +152,19 @@ TEST_CASE("JunctionBound starts unresolved", "[unit][span_profile]")
     REQUIRE_FALSE(bound.resolved());
     REQUIRE_FALSE(bound.folded());
 
-    const SegmentSpan span = SegmentSpan::gap(static_cast<SeqTypeId>(V_gene_seq),
-                                              static_cast<SeqTypeId>(D_gene_seq));
-    bound.resolve(span, static_cast<SeqTypeId>(VD_ins_seq), 2, JunctionBound::Fold::Yes);
+    const SegmentSpan span = SegmentSpan::gap(static_cast<SegmentId>(V_gene_seq), static_cast<SegmentId>(D_gene_seq));
+    bound.resolve(span, static_cast<SegmentId>(VD_ins_seq), 2, JunctionBound::Fold::Yes);
 
     REQUIRE(bound.resolved());
     REQUIRE(bound.folded());
     REQUIRE(bound.span() == span);
-    REQUIRE(bound.proba_key() == static_cast<SeqTypeId>(VD_ins_seq));
+    REQUIRE(bound.proba_key() == static_cast<SegmentId>(VD_ins_seq));
     REQUIRE(bound.memory_layer() == 2);
 
     //A junction an event splits rather than measures is resolved but carries no folded profile.
     JunctionBound enclosing;
-    enclosing.resolve(SegmentSpan::gap(static_cast<SeqTypeId>(V_gene_seq), static_cast<SeqTypeId>(J_gene_seq)),
-                      static_cast<SeqTypeId>(VJ_ins_seq), 1, JunctionBound::Fold::No);
+    enclosing.resolve(SegmentSpan::gap(static_cast<SegmentId>(V_gene_seq), static_cast<SegmentId>(J_gene_seq)),
+                      static_cast<SegmentId>(VJ_ins_seq), 1, JunctionBound::Fold::No);
     REQUIRE(enclosing.resolved());
     REQUIRE_FALSE(enclosing.folded());
 }

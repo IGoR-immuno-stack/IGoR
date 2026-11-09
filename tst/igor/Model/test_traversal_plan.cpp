@@ -34,7 +34,7 @@ namespace {
 
 /// Move an event built on a legacy name onto another segment of `registry`.
 template <class Event>
-std::shared_ptr<Event> on(std::shared_ptr<Event> event, const SeqTypeRegistry &registry, const char *seq_type)
+std::shared_ptr<Event> on(std::shared_ptr<Event> event, const SegmentRegistry &registry, const char *seq_type)
 {
     event->set_seq_type(seq_type);
     event->set_seq_type_id(registry.id(seq_type));
@@ -42,9 +42,12 @@ std::shared_ptr<Event> on(std::shared_ptr<Event> event, const SeqTypeRegistry &r
     return event;
 }
 
-SegmentSpan gap(SeqTypeId left, SeqTypeId right) { return SegmentSpan::gap(left, right); }
+SegmentSpan gap(SegmentId left, SegmentId right)
+{
+    return SegmentSpan::gap(left, right);
+}
 
-bool contains(const std::vector<SeqTypeId> &ids, SeqTypeId id)
+bool contains(const std::vector<SegmentId> &ids, SegmentId id)
 {
     return std::find(ids.begin(), ids.end(), id) != ids.end();
 }
@@ -71,10 +74,10 @@ struct Vdj {
     }
 };
 
-const SeqTypeRegistry &tandem_registry()
+const SegmentRegistry &tandem_registry()
 {
-    static const SeqTypeRegistry registry = [] {
-        SeqTypeRegistry built;
+    static const SegmentRegistry registry = [] {
+        SegmentRegistry built;
         built.register_legacy_seq_types();
         built.set_ordered_types({"V_gene_seq", "VD1_ins_seq", "D1_gene_seq", "D1D2_ins_seq", "D2_gene_seq",
                                  "DJ_ins_seq", "J_gene_seq"});
@@ -86,7 +89,7 @@ const SeqTypeRegistry &tandem_registry()
 
 /// A V-D1-D2-J model's events, built on legacy names and moved onto the tandem segments.
 struct Tandem {
-    const SeqTypeRegistry &r = tandem_registry();
+    const SegmentRegistry &r = tandem_registry();
     std::shared_ptr<Gene_choice> v = make_gene_choice(V_gene, {{"V1", "ACGTACGT"}}, 0);
     std::shared_ptr<Gene_choice> d1 = on(make_gene_choice(D_gene, {{"D1", "ACGT"}}, 1), r, "D1_gene_seq");
     std::shared_ptr<Gene_choice> d2 = on(make_gene_choice(D_gene, {{"D2", "ACGT"}}, 2), r, "D2_gene_seq");
@@ -100,7 +103,7 @@ struct Tandem {
     std::shared_ptr<Insertion> dj_ins = make_insertion(DJ_ins_seq, 0, 6, 10);
     std::shared_ptr<Dinucl_markov> dj_chain = make_dinucl_markov(DJ_ins_seq, 11);
 
-    SeqTypeId id(const char *seq_type) const { return r.id(seq_type); }
+    SegmentId id(const char *seq_type) const { return r.id(seq_type); }
 
     std::vector<const Rec_Event *> order(bool d1_first = true) const
     {
@@ -118,7 +121,7 @@ TEST_CASE("SegmentIndex: who creates and who modifies each end and each content"
 {
     const Vdj model;
     const std::vector<const Rec_Event *> events = model.order();
-    const SegmentIndex index(vdj_seq_type_registry(), events);
+    const SegmentIndex index(vdj_segment_registry(), events);
 
     CHECK(index.end_creators(V_gene_seq, Three_prime) == SegmentIndex::Events{model.v.get()});
     CHECK(index.end_modifiers(V_gene_seq, Three_prime) == SegmentIndex::Events{model.v_3.get()});
@@ -140,23 +143,23 @@ TEST_CASE("SegmentIndex: who creates and who modifies each end and each content"
 TEST_CASE("TraversalPlan: what each event finds placed and built, in a VDJ order", "[traversal_plan]")
 {
     const Vdj model;
-    const TraversalPlan plan(vdj_seq_type_registry(), model.order());
+    const TraversalPlan plan(vdj_segment_registry(), model.order());
 
     // V runs first: nothing to check against, nothing to bound.
     CHECK(plan.placement(*model.v).placed_left.empty());
     CHECK(plan.placement(*model.v).placed_right.empty());
     // J finds V.
-    CHECK(plan.placement(*model.j).placed_left == std::vector<SeqTypeId>{V_gene_seq});
+    CHECK(plan.placement(*model.j).placed_left == std::vector<SegmentId>{ V_gene_seq });
     // D finds both, and splits the gap V->J they leave.
     const EventPlacement &d = plan.placement(*model.d);
-    CHECK(d.placed_left == std::vector<SeqTypeId>{V_gene_seq});
-    CHECK(d.placed_right == std::vector<SeqTypeId>{J_gene_seq});
+    CHECK(d.placed_left == std::vector<SegmentId>{ V_gene_seq });
+    CHECK(d.placed_right == std::vector<SegmentId>{ J_gene_seq });
     CHECK(d.enclosing_gap() == gap(V_gene_seq, J_gene_seq));
     CHECK(d.gap_toward(Five_prime) == gap(V_gene_seq, D_gene_seq));
     CHECK(d.gap_toward(Three_prime) == gap(D_gene_seq, J_gene_seq));
     // V's 3' deletion is checked against D and J, nearest first, and widens V->D.
     const EventPlacement &v_3 = plan.placement(*model.v_3);
-    CHECK(v_3.placed_right == std::vector<SeqTypeId>{D_gene_seq, J_gene_seq});
+    CHECK(v_3.placed_right == std::vector<SegmentId>{ D_gene_seq, J_gene_seq });
     CHECK(v_3.gap_toward(Three_prime) == gap(V_gene_seq, D_gene_seq));
     // The insertion sits in V->D, unbuilt; the chain fills the same gap.
     CHECK(plan.placement(*model.vd_ins).enclosing_gap() == gap(V_gene_seq, D_gene_seq));
@@ -169,10 +172,10 @@ TEST_CASE("TraversalPlan: what each event finds placed and built, in a VDJ order
         auto order = model.order();
         order.erase(std::find(order.begin(), order.end(), model.d_5.get()));
         order.insert(std::find(order.begin(), order.end(), model.vd_chain.get()), model.d_5.get());
-        const TraversalPlan reordered(vdj_seq_type_registry(), order);
+        const TraversalPlan reordered(vdj_segment_registry(), order);
         CHECK_NOTHROW(reordered.check_admissible());
         const EventPlacement &d_5 = reordered.placement(*model.d_5);
-        CHECK(d_5.placed_left == std::vector<SeqTypeId>{VD_ins_seq, V_gene_seq});
+        CHECK(d_5.placed_left == std::vector<SegmentId>{ VD_ins_seq, V_gene_seq });
         CHECK(d_5.built_left == V_gene_seq);
         CHECK(d_5.gap_toward(Five_prime) == gap(V_gene_seq, D_gene_seq));
     }
@@ -183,7 +186,7 @@ TEST_CASE("TraversalPlan: what each event finds placed and built, in a VDJ order
                                        static_cast<const Rec_Event *>(model.d_5.get()), static_cast<const Rec_Event *>(model.d_3.get()),
                                        static_cast<const Rec_Event *>(model.j_5.get())}) {
             const EventPlacement &placed = plan.placement(*event);
-            for (const SeqTypeId junction : {SeqTypeId{VD_ins_seq}, SeqTypeId{DJ_ins_seq}}) {
+            for (const SegmentId junction : { SegmentId{ VD_ins_seq }, SegmentId{ DJ_ins_seq } }) {
                 CHECK_FALSE(contains(placed.placed_left, junction));
                 CHECK_FALSE(contains(placed.placed_right, junction));
             }
@@ -195,7 +198,7 @@ TEST_CASE("TraversalPlan: a gap is held at the slot inside it, unless it enclose
 {
     SECTION("VDJ: V->D and D->J at their insertions' ids, V->J at a key of its own") {
         const Vdj model;
-        const SeqTypeRegistry &registry = vdj_seq_type_registry();
+        const SegmentRegistry &registry = vdj_segment_registry();
         const TraversalPlan plan(registry, model.order());
         CHECK(plan.gaps() == std::vector<SegmentSpan>{gap(V_gene_seq, J_gene_seq), gap(V_gene_seq, D_gene_seq),
                                                       gap(D_gene_seq, J_gene_seq)});
@@ -209,7 +212,7 @@ TEST_CASE("TraversalPlan: a gap is held at the slot inside it, unless it enclose
     }
 
     SECTION("VJ: V->J at the VJ insertion's id, nothing past the registry") {
-        const SeqTypeRegistry &registry = vj_seq_type_registry();
+        const SegmentRegistry &registry = vj_segment_registry();
         const auto v = make_gene_choice(V_gene, {{"V1", "ACGTACGT"}}, 0);
         const auto j = make_gene_choice(J_gene, {{"J1", "ACGTACGT"}}, 1);
         const auto v_3 = make_deletion(V_gene_seq, Three_prime, 0, 4, 2);
@@ -239,8 +242,8 @@ TEST_CASE("TraversalPlan: tandem D", "[traversal_plan][tandem_d]")
         CHECK(key(plan, "D1_gene_seq", "D2_gene_seq") == model.id("D1D2_ins_seq"));
         CHECK(key(plan, "D2_gene_seq", "J_gene_seq") == model.id("DJ_ins_seq"));
         // ...and the two this order opens around a D at keys of their own.
-        const SeqTypeId v_to_j = key(plan, "V_gene_seq", "J_gene_seq");
-        const SeqTypeId d1_to_j = key(plan, "D1_gene_seq", "J_gene_seq");
+        const SegmentId v_to_j = key(plan, "V_gene_seq", "J_gene_seq");
+        const SegmentId d1_to_j = key(plan, "D1_gene_seq", "J_gene_seq");
         CHECK(v_to_j >= model.r.total_count());
         CHECK(d1_to_j >= model.r.total_count());
         CHECK(v_to_j != d1_to_j);
@@ -249,12 +252,12 @@ TEST_CASE("TraversalPlan: tandem D", "[traversal_plan][tandem_d]")
 
         // D2 is checked against D1 and V to its left, J to its right, and splits D1->J.
         const EventPlacement &d2 = plan.placement(*model.d2);
-        CHECK(d2.placed_left == std::vector<SeqTypeId>{model.id("D1_gene_seq"), V_gene_seq});
-        CHECK(d2.placed_right == std::vector<SeqTypeId>{J_gene_seq});
+        CHECK(d2.placed_left == std::vector<SegmentId>{ model.id("D1_gene_seq"), V_gene_seq });
+        CHECK(d2.placed_right == std::vector<SegmentId>{ J_gene_seq });
         CHECK(d2.enclosing_gap() == gap(model.id("D1_gene_seq"), J_gene_seq));
         // D1's 3' deletion is checked against D2 and J, and widens D1->D2.
         const EventPlacement &d1_3 = plan.placement(*model.d1_3);
-        CHECK(d1_3.placed_right == std::vector<SeqTypeId>{model.id("D2_gene_seq"), J_gene_seq});
+        CHECK(d1_3.placed_right == std::vector<SegmentId>{ model.id("D2_gene_seq"), J_gene_seq });
         CHECK(d1_3.gap_toward(Three_prime) == gap(model.id("D1_gene_seq"), model.id("D2_gene_seq")));
     }
 
@@ -269,7 +272,7 @@ TEST_CASE("TraversalPlan: tandem D", "[traversal_plan][tandem_d]")
 TEST_CASE("TraversalPlan: an order the events cannot run in is refused", "[traversal_plan]")
 {
     const Vdj model;
-    const SeqTypeRegistry &registry = vdj_seq_type_registry();
+    const SegmentRegistry &registry = vdj_segment_registry();
     const auto refused = [&](std::vector<const Rec_Event *> order) {
         return TraversalPlan(registry, order);
     };
@@ -313,7 +316,7 @@ TEST_CASE("TraversalPlan: a deletion on a junction, after the chain filled it", 
     // trims content the chain built, so the junction now has a factor of its own, and the gap
     // V->D can no longer be held at its id.
     const Vdj model;
-    const SeqTypeRegistry &registry = vdj_seq_type_registry();
+    const SegmentRegistry &registry = vdj_segment_registry();
     const auto trims_junction = on(make_deletion(D_gene_seq, Three_prime, 0, 2, 11), registry, "VD_ins_seq");
     auto order = model.order();
     order.insert(std::find(order.begin(), order.end(), model.dj_ins.get()), trims_junction.get());
@@ -341,14 +344,14 @@ TEST_CASE("TraversalPlan: one plan serves every copy of the model", "[traversal_
     // GenModel builds the plan once and shares it with every thread, whose events are copies.
     // copy() keeps an event's identifier, and the plan files placements by identifier.
     const Vdj model;
-    const TraversalPlan plan(vdj_seq_type_registry(), model.order());
+    const TraversalPlan plan(vdj_segment_registry(), model.order());
 
     const std::shared_ptr<Rec_Event> d_copy = model.d->copy();
     const std::shared_ptr<Rec_Event> v_3_copy = model.v_3->copy();
     REQUIRE(d_copy.get() != model.d.get());
     CHECK(plan.placement(*d_copy).placed_left == plan.placement(*model.d).placed_left);
     CHECK(plan.placement(*d_copy).enclosing_gap() == gap(V_gene_seq, J_gene_seq));
-    CHECK(plan.placement(*v_3_copy).placed_right == std::vector<SeqTypeId>{D_gene_seq, J_gene_seq});
+    CHECK(plan.placement(*v_3_copy).placed_right == std::vector<SegmentId>{ D_gene_seq, J_gene_seq });
 
     SECTION("an event whose identifier is not in the order has no placement") {
         const auto stranger = make_gene_choice(V_gene, {{"V9", "ACGT"}}, 42);
@@ -358,7 +361,7 @@ TEST_CASE("TraversalPlan: one plan serves every copy of the model", "[traversal_
         const auto twin = make_gene_choice(V_gene, {{"V2", "ACGT"}}, model.v->get_event_identifier());
         auto order = model.order();
         order.push_back(twin.get());
-        CHECK_THROWS_WITH(TraversalPlan(vdj_seq_type_registry(), order), ContainsSubstring("shares its identifier"));
+        CHECK_THROWS_WITH(TraversalPlan(vdj_segment_registry(), order), ContainsSubstring("shares its identifier"));
     }
 }
 
@@ -371,8 +374,8 @@ TEST_CASE("resolve_flank_checks: the nearest placed neighbour on each side, 5' t
     // ones, and a safe verdict propagates along the row.
     const Tandem model;
     const TraversalPlan plan(model.r, model.order());
-    const SeqTypeId d1 = model.id("D1_gene_seq");
-    const SeqTypeId d2 = model.id("D2_gene_seq");
+    const SegmentId d1 = model.id("D1_gene_seq");
+    const SegmentId d2 = model.id("D2_gene_seq");
     SafetyMatrix safety(model.r);
     SeqOffsetsMap offsets(model.r);
     // The partners' facing ends, claimed by the events that placed them; D1's 3' end twice, so
@@ -384,7 +387,7 @@ TEST_CASE("resolve_flank_checks: the nearest placed neighbour on each side, 5' t
     offsets.request_layer(J_gene_seq, Five_prime);
 
     const auto partners = [](const std::vector<FlankCheck> &checks) {
-        std::vector<SeqTypeId> ids;
+        std::vector<SegmentId> ids;
         for (const FlankCheck &check : checks) {
             ids.push_back(check.partner_id);
         }
@@ -395,7 +398,7 @@ TEST_CASE("resolve_flank_checks: the nearest placed neighbour on each side, 5' t
     {
         const std::vector<FlankCheck> checks =
                 resolve_flank_checks(plan.placement(*model.d2), Undefined_side, safety, offsets);
-        REQUIRE(partners(checks) == std::vector<SeqTypeId>{ d1, J_gene_seq });
+        REQUIRE(partners(checks) == std::vector<SegmentId>{ d1, J_gene_seq });
         CHECK_FALSE(checks[0].this_is_left);
         CHECK(checks[1].this_is_left);
         CHECK(checks[0].partner_side == Three_prime);
@@ -413,7 +416,7 @@ TEST_CASE("resolve_flank_checks: the nearest placed neighbour on each side, 5' t
     {
         const std::vector<FlankCheck> checks =
                 resolve_flank_checks(plan.placement(*model.d1_3), Three_prime, safety, offsets);
-        REQUIRE(partners(checks) == std::vector<SeqTypeId>{ d2 });
+        REQUIRE(partners(checks) == std::vector<SegmentId>{ d2 });
         CHECK(checks[0].this_is_left);
         CHECK(checks[0].safety_layer == safety.claimed_layer(checks[0].safety_cell));
     }
@@ -422,7 +425,7 @@ TEST_CASE("resolve_flank_checks: the nearest placed neighbour on each side, 5' t
     {
         const std::vector<FlankCheck> checks =
                 resolve_flank_checks(plan.placement(*model.d2_5), Five_prime, safety, offsets);
-        CHECK(partners(checks) == std::vector<SeqTypeId>{ d1 });
+        CHECK(partners(checks) == std::vector<SegmentId>{ d1 });
     }
 
     SECTION("the overlap verdict is oriented by the side the partner is on") {

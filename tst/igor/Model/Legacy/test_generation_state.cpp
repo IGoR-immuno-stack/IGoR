@@ -35,9 +35,9 @@ using namespace igor::model::legacy;
 
 namespace {
 
-SeqTypeRegistry frozen(const std::vector<Seq_type_String> &ordering)
+SegmentRegistry frozen(const std::vector<Seq_type_String> &ordering)
 {
-    SeqTypeRegistry registry;
+    SegmentRegistry registry;
     registry.register_legacy_seq_types();
     registry.set_ordered_types(ordering);
     registry.freeze();
@@ -48,9 +48,9 @@ SeqTypeRegistry frozen(const std::vector<Seq_type_String> &ordering)
 
 TEST_CASE("GenerationState: a segment no event built does not exist", "[generation]")
 {
-    const SeqTypeRegistry registry = frozen({"V_gene_seq", "VJ_ins_seq", "J_gene_seq"});
+    const SegmentRegistry registry = frozen({ "V_gene_seq", "VJ_ins_seq", "J_gene_seq" });
     GenerationState state(registry);
-    const SeqTypeId v = registry.id("V_gene_seq");
+    const SegmentId v = registry.id("V_gene_seq");
 
     CHECK_FALSE(state.built(v));
     CHECK_THROWS_AS(state.read(v), std::out_of_range);
@@ -59,9 +59,9 @@ TEST_CASE("GenerationState: a segment no event built does not exist", "[generati
 
 TEST_CASE("GenerationState: built and empty is not the same as not built", "[generation]")
 {
-    const SeqTypeRegistry registry = frozen({"V_gene_seq", "VJ_ins_seq", "J_gene_seq"});
+    const SegmentRegistry registry = frozen({ "V_gene_seq", "VJ_ins_seq", "J_gene_seq" });
     GenerationState state(registry);
-    const SeqTypeId vj = registry.id("VJ_ins_seq");
+    const SegmentId vj = registry.id("VJ_ins_seq");
 
     state.create(vj, "");
     CHECK(state.built(vj));
@@ -70,9 +70,9 @@ TEST_CASE("GenerationState: built and empty is not the same as not built", "[gen
 
 TEST_CASE("GenerationState: a modifier edits the segment in place", "[generation]")
 {
-    const SeqTypeRegistry registry = frozen({"V_gene_seq", "VJ_ins_seq", "J_gene_seq"});
+    const SegmentRegistry registry = frozen({ "V_gene_seq", "VJ_ins_seq", "J_gene_seq" });
     GenerationState state(registry);
-    const SeqTypeId v = registry.id("V_gene_seq");
+    const SegmentId v = registry.id("V_gene_seq");
 
     state.create(v, "AACCGG");
     state.modify(v).erase(4);
@@ -89,8 +89,8 @@ TEST_CASE("GenerationState: assembly follows the registry's ordering", "[generat
 {
     SECTION("VDJ, segments created out of order")
     {
-        const SeqTypeRegistry registry =
-                frozen({"V_gene_seq", "VD_ins_seq", "D_gene_seq", "DJ_ins_seq", "J_gene_seq"});
+        const SegmentRegistry registry =
+                frozen({ "V_gene_seq", "VD_ins_seq", "D_gene_seq", "DJ_ins_seq", "J_gene_seq" });
         GenerationState state(registry);
         state.create(registry.id("J_gene_seq"), "JJ");
         state.create(registry.id("D_gene_seq"), "DD");
@@ -102,7 +102,7 @@ TEST_CASE("GenerationState: assembly follows the registry's ordering", "[generat
 
     SECTION("a segment nobody built is skipped")
     {
-        const SeqTypeRegistry registry = frozen({"V_gene_seq", "VJ_ins_seq", "J_gene_seq"});
+        const SegmentRegistry registry = frozen({ "V_gene_seq", "VJ_ins_seq", "J_gene_seq" });
         GenerationState state(registry);
         state.create(registry.id("V_gene_seq"), "VV");
         state.create(registry.id("J_gene_seq"), "JJ");
@@ -114,7 +114,7 @@ TEST_CASE("GenerationState: assembly follows the registry's ordering", "[generat
         //register_legacy_seq_types() registers all six legacy names in every model, so a VJ
         //registry has an id for D_gene_seq. Nothing should build it; if something did, it is
         //not part of the sequence.
-        const SeqTypeRegistry registry = frozen({"V_gene_seq", "VJ_ins_seq", "J_gene_seq"});
+        const SegmentRegistry registry = frozen({ "V_gene_seq", "VJ_ins_seq", "J_gene_seq" });
         GenerationState state(registry);
         state.create(registry.id("V_gene_seq"), "VV");
         state.create(registry.id("D_gene_seq"), "DD");
@@ -123,8 +123,8 @@ TEST_CASE("GenerationState: assembly follows the registry's ordering", "[generat
 
     SECTION("a tandem-D layout")
     {
-        const SeqTypeRegistry registry = frozen({"V_gene_seq", "VD1_ins_seq", "D1_gene_seq", "D1D2_ins_seq",
-                                                 "D2_gene_seq", "D2J_ins_seq", "J_gene_seq"});
+        const SegmentRegistry registry = frozen({ "V_gene_seq", "VD1_ins_seq", "D1_gene_seq", "D1D2_ins_seq",
+                                                  "D2_gene_seq", "D2J_ins_seq", "J_gene_seq" });
         GenerationState state(registry);
         for (const auto &name : registry.get_ordered_types()) {
             state.create(registry.id(name), name.substr(0, 2));
@@ -135,7 +135,7 @@ TEST_CASE("GenerationState: assembly follows the registry's ordering", "[generat
 
 TEST_CASE("GenerationState: the registry must be frozen", "[generation]")
 {
-    SeqTypeRegistry registry;
+    SegmentRegistry registry;
     registry.register_legacy_seq_types();
     CHECK_THROWS_AS(GenerationState(registry), std::logic_error);
 }

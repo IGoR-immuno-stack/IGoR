@@ -204,7 +204,7 @@ TEST_CASE("ExplorationContext construction and pruning", "[Context][ExplorationC
         new Next_event_ptr[1](),  // () initializes all to nullptr
         default_delete<Next_event_ptr[]>()
     );
-    SafetyMatrix safety_set(vdj_seq_type_registry());  // For exploration decisions
+    SafetyMatrix safety_set(vdj_segment_registry()); // For exploration decisions
     Pruning_mismatch_floor_map pruning_floor(legacy_seq_type_registry());  // Conservative pruning track
 
     SECTION("Basic construction") {
@@ -371,7 +371,7 @@ TEST_CASE("Multiple contexts work together", "[Context][Integration]") {
         new Next_event_ptr[1](),  // () initializes all to nullptr
         default_delete<Next_event_ptr[]>()
     );
-    SafetyMatrix safety_set(vdj_seq_type_registry());  // For exploration decisions
+    SafetyMatrix safety_set(vdj_segment_registry()); // For exploration decisions
     Pruning_mismatch_floor_map pruning_floor(legacy_seq_type_registry());  // Conservative pruning track
 
     // Setup accumulation

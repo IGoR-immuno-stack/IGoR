@@ -24,7 +24,7 @@
 
 #include <igor/Core/IntStr.h>
 #include <igor/Core/LayeredArray.h>
-#include <igor/Core/SeqTypeRegistry.h>
+#include <igor/Core/SegmentRegistry.h>
 
 #include <cstddef>
 #include <stdexcept>
@@ -56,7 +56,7 @@ struct SeqSegmentEmptiness<IntStr *>
 
 /**
  * \class DynamicSequenceMap DynamicSequenceMap.h
- * \brief A LayeredArray keyed by SeqTypeId, with ordered traversal over the registry.
+ * \brief A LayeredArray keyed by SegmentId, with ordered traversal over the registry.
  *
  * This is the runtime-sized replacement for the Enum_fast_memory_map instantiations that
  * are keyed by Seq_type (constructed sequences, offsets, mismatch lists, downstream proba
@@ -96,9 +96,7 @@ public:
     ///                        id space (planned use: excluding flank types, task B3), or a
     ///                        larger one for keys past it (the downstream bound map's gaps,
     ///                        TraversalPlan::bound_key_count()).
-    explicit DynamicSequenceMap(const SeqTypeRegistry &registry,
-                                std::size_t initial_layers = 1,
-                                std::size_t count = 0)
+    explicit DynamicSequenceMap(const SegmentRegistry &registry, std::size_t initial_layers = 1, std::size_t count = 0)
         : Base(count != 0 ? count : registry.total_count(), initial_layers), registry_(registry)
     {
         if (!registry.is_frozen()) {
@@ -107,7 +105,7 @@ public:
         }
     }
 
-    // The container surface, keyed by SeqTypeId.
+    // The container surface, keyed by SegmentId.
     using Base::count;
     using Base::claimed_layer;
     using Base::claimed_layers;
@@ -125,7 +123,7 @@ public:
     using Base::set_current_layer;
     using Base::current_layer;
 
-    const SeqTypeRegistry &registry() const { return registry_; }
+    const SegmentRegistry &registry() const { return registry_; }
 
     /**
      * True when this seq_type has been written **and** holds a present segment.
@@ -134,45 +132,43 @@ public:
      * must stay distinguishable: an unwritten key means the event has not run yet, while a
      * written empty one means it ran and produced nothing.
      */
-    bool occupied(SeqTypeId type_id) const
+    bool occupied(SegmentId type_id) const
     {
         return Base::exists(type_id) && !SeqSegmentEmptiness<V>::is_empty(Base::get(type_id));
     }
 
     /**
      * Nearest occupied seq_type strictly to the 5' side, walking the registry ordering.
-     * Returns kNoSeqType when the ordering runs out.
+     * Returns kNoSegment when the ordering runs out.
      *
      * This is how an event finds its left-hand neighbour without knowing the topology: an
      * insertion asks for the segment bounding it, a Dinucl_markov for the segment holding
      * its seed nucleotide. Absent segments are skipped, so a tandem-D model missing its
      * second D reaches the first one with no conditional logic.
      */
-    SeqTypeId first_occupied_left(SeqTypeId from) const
+    SegmentId first_occupied_left(SegmentId from) const
     {
-        for (SeqTypeId cur = registry_.left_neighbor(from); cur != kNoSeqType;
-             cur = registry_.left_neighbor(cur)) {
+        for (SegmentId cur = registry_.left_neighbor(from); cur != kNoSegment; cur = registry_.left_neighbor(cur)) {
             if (occupied(cur)) {
                 return cur;
             }
         }
-        return kNoSeqType;
+        return kNoSegment;
     }
 
     /// Nearest occupied seq_type strictly to the 3' side. See first_occupied_left().
-    SeqTypeId first_occupied_right(SeqTypeId from) const
+    SegmentId first_occupied_right(SegmentId from) const
     {
-        for (SeqTypeId cur = registry_.right_neighbor(from); cur != kNoSeqType;
-             cur = registry_.right_neighbor(cur)) {
+        for (SegmentId cur = registry_.right_neighbor(from); cur != kNoSegment; cur = registry_.right_neighbor(cur)) {
             if (occupied(cur)) {
                 return cur;
             }
         }
-        return kNoSeqType;
+        return kNoSegment;
     }
 
 private:
-    const SeqTypeRegistry &registry_;
+    const SegmentRegistry &registry_;
 };
 
 } // namespace igor::core

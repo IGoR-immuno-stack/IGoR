@@ -44,7 +44,7 @@ An event never works these out for itself. It is told, once, and reads the answe
 | **nickname** | the model file; `set_nickname()` | `get_name()`, `get_nickname()` | The event's identity, required and unique in its model (T2). It keys `Model_Parms::edges`, the marginals' index and offset maps and `processed_events`, and names the event in model files and in outputs |
 | **event identifier** | `Model_Parms`; `set_event_identifier()` | `get_event_identifier()`, the protected `event_index` | Indexes `Index_map` and the next-event array. `copy()` keeps it, which is how the shared plan finds every thread's copy |
 | **seq type** | the constructor | `get_seq_type()` | The name of the segment the event acts on, as the model gives it. The only copy since T1 |
-| **seq type id** | `Model_Parms::finalize()` | `get_seq_type_id()` | The run-time handle (ITERATE_INTERNALS §2). `kNoSeqType` until resolved |
+| **seq type id** | `Model_Parms::finalize()` | `get_seq_type_id()` | The run-time handle (ITERATE_INTERNALS §2). `kNoSegment` until resolved |
 | **neighbours** | `Model_Parms::finalize()` | `get_left_adjacent_id()`, `get_right_adjacent_id()` | The segments 5′ and 3′ of the event's own in the ordering. What the event does with them is its own business: an insertion spans both, a Markov chain seeds from the side it runs from |
 | **traversal plan** | the engine, before `initialize_event()`; `set_traversal_plan()` | the protected `traversal_plan()`, `placement()` | What is placed and built when the event runs, and the key of each gap (ITERATE_INTERNALS §4). Not carried by `copy()`: the engine sets it on each thread's copy |
 | **priority, side** | the model file | `get_priority()`, `get_side()` | A deletion's side is the end it trims; a Markov chain's side is the end of its anchor the chain starts from |
@@ -288,7 +288,7 @@ What every body must respect:
   nothing. The base draws one index from the event's marginal row (`pick_realization()`).
   `Dinucl_markov` overrides it to draw its chain, seeded by its anchor and as long as its junction.
 - **`construct_realization(indices, state)`**, pure virtual, builds what the indices stand for into
-  the `GenerationState`, keyed by `SeqTypeId`. It uses no RNG, marginals or index map: it is the
+  the `GenerationState`, keyed by `SegmentId`. It uses no RNG, marginals or index map: it is the
   event's *apply*. The sequence is assembled in the order of `registry.ordering()`.
 - **`propagate_realization(indices, index_map, offset_map)`** moves each child's row by the drawn
   realization times the child's stride.
@@ -371,7 +371,7 @@ longer than its template, a gene at an end of the sequence deleted away (GEN D2,
 | `Error_rate` and the hypermutation models | an error node, then a Probe event with handlers | ERR E0–E4, H0–H5; SYN step 8 |
 | `Counter` | `Observer`, reading typed records through sinks | CNT, MIG L8 |
 | `event_class` on the base | `Gene_choice`'s library | CAP T2 note, after T4b |
-| `ScenarioContext` methods take a `Seq_type` | they take a `SeqTypeId` | CAP T7 |
+| `ScenarioContext` methods take a `Seq_type` | they take a `SegmentId` | CAP T7 |
 | ids 0–5 pinned to the legacy names | ids follow the ordering | CAP T7b |
 | context dependencies, `is_branching`, `is_multi_realization` | `context_reads()`, the engine's `candidates()`, the domain's arity | CAP Phases C/D, B10 |
 | every segment present in every scenario | optional segments in a layout DAG, adjacency per scenario | CAP B10, SYN step 5 |

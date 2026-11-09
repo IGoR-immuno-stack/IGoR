@@ -103,9 +103,9 @@ RecombinationModel<T> recombination_model_from_files(
     const std::string& file_model_parms,
     const std::string& file_model_marginals)
 {
-    // 1. Core reads. It is the only tokenizer of the text format, so the v2 sections come for
-    //    free: @Version, @Seq_type_order, and the six-field event lines that carry the
-    //    seq_type. Both calls throw std::runtime_error when a file is missing or malformed.
+    // 1. Core reads. It is the only tokenizer of the text format, and refuses a v2 file
+    //    (@Version), retired at CAP T2. Both calls throw std::runtime_error when a file is
+    //    missing or malformed.
     legacy::Model_Parms parms;
     parms.read_model_parms(file_model_parms);
 

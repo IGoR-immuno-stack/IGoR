@@ -29,16 +29,16 @@
 
 namespace igor::model {
 
-using core::kNoSeqType;
+using core::kNoSegment;
+using core::SegmentId;
 using core::SegmentSpan;
 using core::SeqSide;
-using core::SeqTypeId;
 
 namespace {
 
 constexpr std::size_t kNotInOrdering = std::numeric_limits<std::size_t>::max();
 
-std::size_t end_index(SeqTypeId segment, SeqSide side)
+std::size_t end_index(SegmentId segment, SeqSide side)
 {
     return 2 * static_cast<std::size_t>(segment) + (side == core::Three_prime ? 1 : 0);
 }
@@ -51,7 +51,7 @@ std::string event_label(const legacy::Rec_Event &event)
 std::string side_label(SeqSide side) { return side == core::Five_prime ? "5'" : "3'"; }
 
 /// Ordering positions by id, kNotInOrdering for an id outside the ordering.
-std::vector<std::size_t> positions(const core::SeqTypeRegistry &registry)
+std::vector<std::size_t> positions(const core::SegmentRegistry &registry)
 {
     std::vector<std::size_t> position(registry.total_count(), kNotInOrdering);
     const auto &ordering = registry.ordering();
@@ -61,20 +61,20 @@ std::vector<std::size_t> positions(const core::SeqTypeRegistry &registry)
     return position;
 }
 
-bool in_ordering(const std::vector<std::size_t> &position, SeqTypeId segment)
+bool in_ordering(const std::vector<std::size_t> &position, SegmentId segment)
 {
-    return segment != kNoSeqType and static_cast<std::size_t>(segment) < position.size()
-           and position[segment] != kNotInOrdering;
+    return segment != kNoSegment and static_cast<std::size_t>(segment) < position.size()
+            and position[segment] != kNotInOrdering;
 }
 
 /// Mark what exists before the first event runs.
 void apply(const InitialState &initial, std::vector<bool> &end_created, std::vector<bool> &built)
 {
-    for (const SeqTypeId segment : initial.placed) {
+    for (const SegmentId segment : initial.placed) {
         end_created.at(end_index(segment, core::Five_prime)) = true;
         end_created.at(end_index(segment, core::Three_prime)) = true;
     }
-    for (const SeqTypeId segment : initial.built) {
+    for (const SegmentId segment : initial.built) {
         end_created.at(end_index(segment, core::Five_prime)) = true;
         end_created.at(end_index(segment, core::Three_prime)) = true;
         built.at(segment) = true;
@@ -85,7 +85,7 @@ void apply(const InitialState &initial, std::vector<bool> &end_created, std::vec
 
 std::optional<SegmentSpan> EventPlacement::enclosing_gap() const
 {
-    if (built_left == kNoSeqType or built_right == kNoSeqType) {
+    if (built_left == kNoSegment or built_right == kNoSegment) {
         return std::nullopt;
     }
     return SegmentSpan::gap(built_left, built_right);
@@ -97,13 +97,13 @@ std::optional<SegmentSpan> EventPlacement::gap_toward(SeqSide side) const
         return enclosing_gap();
     }
     if (side == core::Five_prime) {
-        return built_left == kNoSeqType ? std::nullopt : std::optional(SegmentSpan::gap(built_left, target));
+        return built_left == kNoSegment ? std::nullopt : std::optional(SegmentSpan::gap(built_left, target));
     }
-    return built_right == kNoSeqType ? std::nullopt : std::optional(SegmentSpan::gap(target, built_right));
+    return built_right == kNoSegment ? std::nullopt : std::optional(SegmentSpan::gap(target, built_right));
 }
 
-TraversalPlan::TraversalPlan(const core::SeqTypeRegistry &registry,
-                             std::span<const legacy::Rec_Event *const> order, InitialState initial)
+TraversalPlan::TraversalPlan(const core::SegmentRegistry &registry, std::span<const legacy::Rec_Event *const> order,
+                             InitialState initial)
     : registry_(registry), order_(order.begin(), order.end()), initial_(std::move(initial)), index_(registry, order)
 {
     const auto &ordering = registry.ordering();
@@ -115,12 +115,12 @@ TraversalPlan::TraversalPlan(const core::SeqTypeRegistry &registry,
     //The stretches between consecutive built segments, 5' to 3'.
     const auto open_gaps = [&]() {
         std::vector<SegmentSpan> gaps;
-        SeqTypeId previous = kNoSeqType;
-        for (const SeqTypeId segment : ordering) {
+        SegmentId previous = kNoSegment;
+        for (const SegmentId segment : ordering) {
             if (not built[segment]) {
                 continue;
             }
-            if (previous != kNoSeqType) {
+            if (previous != kNoSegment) {
                 gaps.push_back(SegmentSpan::gap(previous, segment));
             }
             previous = segment;
@@ -149,7 +149,7 @@ TraversalPlan::TraversalPlan(const core::SeqTypeRegistry &registry,
         for (const SegmentSpan &gap : open_gaps()) {
             const auto key = std::make_pair(gap.left.id, gap.right.id);
             if (gap_keys_.count(key) == 0 and needs_bound(gap, from)) {
-                gap_keys_.emplace(key, kNoSeqType);
+                gap_keys_.emplace(key, kNoSegment);
                 gaps_.push_back(gap);
             }
         }
@@ -162,20 +162,20 @@ TraversalPlan::TraversalPlan(const core::SeqTypeRegistry &registry,
         if (in_ordering(position, placed.target)) {
             const std::size_t here = position[placed.target];
             for (std::size_t p = here; p-- > 0;) {
-                const SeqTypeId segment = ordering[p];
+                const SegmentId segment = ordering[p];
                 if (end_created[end_index(segment, core::Three_prime)]) {
                     placed.placed_left.push_back(segment);
                 }
-                if (built[segment] and placed.built_left == kNoSeqType) {
+                if (built[segment] and placed.built_left == kNoSegment) {
                     placed.built_left = segment;
                 }
             }
             for (std::size_t p = here + 1; p < ordering.size(); ++p) {
-                const SeqTypeId segment = ordering[p];
+                const SegmentId segment = ordering[p];
                 if (end_created[end_index(segment, core::Five_prime)]) {
                     placed.placed_right.push_back(segment);
                 }
-                if (built[segment] and placed.built_right == kNoSeqType) {
+                if (built[segment] and placed.built_right == kNoSegment) {
                     placed.built_right = segment;
                 }
             }
@@ -183,7 +183,7 @@ TraversalPlan::TraversalPlan(const core::SeqTypeRegistry &registry,
 
         record(i); //the gaps open while it runs, itself among what is still to run
 
-        for (const SeqTypeId segment : ordering) {
+        for (const SegmentId segment : ordering) {
             for (const SeqSide side : {core::Five_prime, core::Three_prime}) {
                 if (event.get_offset_role(segment, side) == legacy::OffsetRole::Creates) {
                     end_created[end_index(segment, side)] = true;
@@ -212,14 +212,14 @@ TraversalPlan::TraversalPlan(const core::SeqTypeRegistry &registry,
     for (const SegmentSpan &gap : gaps_) {
         const std::size_t first_inside = position[gap.left.id] + 1;
         const std::size_t past_inside = position[gap.right.id];
-        SeqTypeId key = kNoSeqType;
+        SegmentId key = kNoSegment;
         if (past_inside == first_inside + 1 and not index_.has_own_factor(ordering[first_inside])) {
             key = ordering[first_inside];
         } else {
-            if (next_key >= static_cast<std::size_t>(kNoSeqType)) {
-                throw std::length_error("TraversalPlan: too many gap keys for the SeqTypeId range");
+            if (next_key >= static_cast<std::size_t>(kNoSegment)) {
+                throw std::length_error("TraversalPlan: too many gap keys for the SegmentId range");
             }
-            key = static_cast<SeqTypeId>(next_key++);
+            key = static_cast<SegmentId>(next_key++);
         }
         gap_keys_.at({gap.left.id, gap.right.id}) = key;
     }
@@ -237,11 +237,11 @@ const EventPlacement &TraversalPlan::placement(const legacy::Rec_Event &event) c
     return it->second;
 }
 
-SeqTypeId TraversalPlan::gap_key(SegmentSpan gap) const
+SegmentId TraversalPlan::gap_key(SegmentSpan gap) const
 {
     const auto it = gap_keys_.find({gap.left.id, gap.right.id});
     if (it == gap_keys_.end()) {
-        const auto name = [this](SeqTypeId id) {
+        const auto name = [this](SegmentId id) {
             return id < registry_.total_count() ? registry_.name(id) : std::to_string(id);
         };
         throw std::out_of_range("TraversalPlan::gap_key(): " + name(gap.left.id) + " -> " + name(gap.right.id)
@@ -264,13 +264,14 @@ void TraversalPlan::check_admissible() const
 
     for (const legacy::Rec_Event *event_p : order_) {
         const legacy::Rec_Event &event = *event_p;
-        const SeqTypeId target = event.get_seq_type_id();
+        const SegmentId target = event.get_seq_type_id();
         if (not in_ordering(position, target)) {
-            refuse(event, "its segment " + (target == kNoSeqType ? std::string("is unresolved") : registry_.name(target))
-                                  + " is not in the model's 5'->3' ordering");
+            refuse(event,
+                   "its segment " + (target == kNoSegment ? std::string("is unresolved") : registry_.name(target))
+                           + " is not in the model's 5'->3' ordering");
         }
 
-        for (const SeqTypeId segment : ordering) {
+        for (const SegmentId segment : ordering) {
             const std::string &name = registry_.name(segment);
             bool creates_an_end = false;
             for (const SeqSide side : {core::Five_prime, core::Three_prime}) {
@@ -305,17 +306,19 @@ void TraversalPlan::check_admissible() const
                 //An N region, whose ends and content come from different events: its ends are
                 //derived from its neighbours' facing ends, so those come first
                 //(B10 decides what "neighbour" means once a segment can be absent)...
-                const SeqTypeId left = registry_.left_neighbor(segment);
-                const SeqTypeId right = registry_.right_neighbor(segment);
-                if (left == kNoSeqType or not end_created[end_index(left, core::Three_prime)]) {
-                    refuse(event, "it places " + name + " before the 3' end of "
-                                          + (left == kNoSeqType ? std::string("a 5' neighbour") : registry_.name(left))
-                                          + " is placed");
+                const SegmentId left = registry_.left_neighbor(segment);
+                const SegmentId right = registry_.right_neighbor(segment);
+                if (left == kNoSegment or not end_created[end_index(left, core::Three_prime)]) {
+                    refuse(event,
+                           "it places " + name + " before the 3' end of "
+                                   + (left == kNoSegment ? std::string("a 5' neighbour") : registry_.name(left))
+                                   + " is placed");
                 }
-                if (right == kNoSeqType or not end_created[end_index(right, core::Five_prime)]) {
-                    refuse(event, "it places " + name + " before the 5' end of "
-                                          + (right == kNoSeqType ? std::string("a 3' neighbour") : registry_.name(right))
-                                          + " is placed");
+                if (right == kNoSegment or not end_created[end_index(right, core::Five_prime)]) {
+                    refuse(event,
+                           "it places " + name + " before the 5' end of "
+                                   + (right == kNoSegment ? std::string("a 3' neighbour") : registry_.name(right))
+                                   + " is placed");
                 }
                 //...and it has to sit in a gap, between built content on both sides.
                 bool built_before = false;
@@ -333,7 +336,7 @@ void TraversalPlan::check_admissible() const
             }
         }
 
-        for (const SeqTypeId segment : ordering) {
+        for (const SegmentId segment : ordering) {
             for (const SeqSide side : {core::Five_prime, core::Three_prime}) {
                 if (event.get_offset_role(segment, side) == legacy::OffsetRole::Creates) {
                     end_created[end_index(segment, side)] = true;
@@ -346,7 +349,7 @@ void TraversalPlan::check_admissible() const
         }
     }
 
-    for (const SeqTypeId segment : ordering) {
+    for (const SegmentId segment : ordering) {
         const std::string &name = registry_.name(segment);
         for (const SeqSide side : {core::Five_prime, core::Three_prime}) {
             if (not end_created[end_index(segment, side)]) {

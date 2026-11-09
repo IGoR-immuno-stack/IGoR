@@ -26,14 +26,14 @@
 
 namespace igor::model {
 
+using core::SegmentId;
 using core::SeqSide;
-using core::SeqTypeId;
 
 std::vector<FlankCheck> resolve_flank_checks(const EventPlacement &placed, SeqSide side, SafetyMatrix &safety_set,
                                              const core::SeqOffsetsMap &seq_offsets)
 {
     std::vector<FlankCheck> checks;
-    const auto check_against = [&](SeqTypeId partner, bool this_is_left) {
+    const auto check_against = [&](SegmentId partner, bool this_is_left) {
         FlankCheck check;
         check.partner_id = partner;
         check.this_is_left = this_is_left;

@@ -734,7 +734,7 @@ TEST_CASE("Gene_choice::iterate J's V->J bound counts what D's deletions trim (R
     dump(rec, "J over a gap only a trimmed D fills");
     REQUIRE(rec->call_count() == 1);
     // V->J has a key of its own in a VDJ model; VJ_ins_seq's is a VJ model's junction (plan T3).
-    const SeqTypeId v_to_j = state.plan().gap_key(SegmentSpan::gap(V_gene_seq, J_gene_seq));
+    const SegmentId v_to_j = state.plan().gap_key(SegmentSpan::gap(V_gene_seq, J_gene_seq));
     REQUIRE(rec->calls.at(0).downstream_bounds.count(v_to_j) == 1);
     CHECK_THAT(rec->calls.at(0).downstream_bounds.at(v_to_j), Catch::Matchers::WithinRel(best, 1e-12));
 }

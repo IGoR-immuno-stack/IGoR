@@ -23,7 +23,7 @@
 #pragma once
 
 #include <igor/Core/SeqOffsetsMap.h>
-#include <igor/Core/SeqTypeRegistry.h>
+#include <igor/Core/SegmentRegistry.h>
 #include <igor/Core/Types.h>
 #include <igor/Model/JunctionGeometry.h>
 #include <igor/Model/SafetyMatrix.h>
@@ -45,7 +45,7 @@ struct EventPlacement;
  * the side it trims. What either reads per scenario stays with it.
  */
 struct FlankCheck {
-    core::SeqTypeId partner_id = core::kNoSeqType;
+    core::SegmentId partner_id = core::kNoSegment;
     bool this_is_left = true;                       ///< the partner sits 3' of the checked segment
     core::SeqSide partner_side = core::Five_prime;  ///< the partner end facing the checked segment
     SafetyCell safety_cell;                         ///< the pair, by ordering position (S5)

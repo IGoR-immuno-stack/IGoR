@@ -173,11 +173,11 @@ TEST_CASE("A tandem-D event resolves its seq type and its neighbours from the mo
 {
     Model_Parms parms;
     REQUIRE_NOTHROW(parms.read_model_parms(kTestDataDir + "tandem_d_model.json"));
-    const SeqTypeRegistry &registry = parms.get_seq_type_registry();
+    const SegmentRegistry &registry = parms.get_seq_type_registry();
 
     for (const auto &event : parms.get_event_list()) {
         INFO("event " << event->get_nickname());
-        const SeqTypeId id = registry.id(event->get_seq_type());
+        const SegmentId id = registry.id(event->get_seq_type());
         CHECK(event->get_seq_type_id() == id);
         CHECK(event->get_left_adjacent_id() == registry.left_neighbor(id));
         CHECK(event->get_right_adjacent_id() == registry.right_neighbor(id));

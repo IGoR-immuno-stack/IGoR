@@ -30,7 +30,7 @@
 #pragma once
 
 #include <igor/Model/Legacy/Rec_Event.h>
-#include <igor/Core/Legacy/SeqTypeRegistry.h>
+#include <igor/Core/Legacy/SegmentRegistry.h>
 #include <igor/Core/Legacy/Utils.h>
 #include <igor/Core/Legacy/IntStr.h>
 #include <list>
@@ -131,8 +131,7 @@ public:
     std::shared_ptr<Rec_Event> get_event_pointer(const Rec_Event_name &) const; //const Rec_Event*??
     std::shared_ptr<Rec_Event> get_event_pointer(const std::string &, bool by_nickname) const; //const Rec_Event*??
 
-
-    /// Seal the seq_type registry and resolve every event's SeqTypeId against it.
+    /// Seal the seq_type registry and resolve every event's SegmentId against it.
     /// Called at the end of read_model_parms(); programmatically built models must
     /// call it once the event list and the ordering are complete. Idempotent.
     void finalize();
@@ -157,7 +156,7 @@ public:
 
     std::unordered_map<Rec_Event_name, Adjacency_list> get_edges() const { return edges; }
 
-    const SeqTypeRegistry &get_seq_type_registry() const { return seq_type_registry; }
+    const SegmentRegistry &get_seq_type_registry() const { return seq_type_registry; }
 
     Events_map get_events_map() const;
     Events_map get_events_map();
@@ -179,7 +178,7 @@ private:
     std::list<std::shared_ptr<Rec_Event>> events;
     std::unordered_map<Rec_Event_name, Adjacency_list> edges;
     std::shared_ptr<Error_rate> error_rate;
-    SeqTypeRegistry seq_type_registry;
+    SegmentRegistry seq_type_registry;
 
     /// True once an event has been added or renamed since the last finalize(). Events carry
     /// resolved ids and adjacency, so a model handed out in this state would give its

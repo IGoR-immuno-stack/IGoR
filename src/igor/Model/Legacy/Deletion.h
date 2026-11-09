@@ -102,10 +102,10 @@ public:
     void add_to_marginals(long double, Marginal_array_p &) const override;
 
     //Capability queries (task A0)
-    OffsetDelta get_offset_delta_bounds(SeqTypeId, Seq_side) const override;
-    LengthContribution get_length_contribution(SeqTypeId) const override;
-    SeqConstructionRole get_seq_construction_role(SeqTypeId) const override;
-    OffsetRole get_offset_role(SeqTypeId, Seq_side) const override;
+    OffsetDelta get_offset_delta_bounds(SegmentId, Seq_side) const override;
+    LengthContribution get_length_contribution(SegmentId) const override;
+    SeqConstructionRole get_seq_construction_role(SegmentId) const override;
+    OffsetRole get_offset_role(SegmentId, Seq_side) const override;
 
     //Proba bound related computation methods
     int length_delta(const Event_realization &) const override;
@@ -113,7 +113,7 @@ public:
 private:
     /// Record \a span as the junction this deletion widens, in the slot matching the side it
     /// trims. Called from initialize_event() once the neighbour is known.
-    void resolve_junction(SegmentSpan span, SeqTypeId proba_key, int memory_layer);
+    void resolve_junction(SegmentSpan span, SegmentId proba_key, int memory_layer);
 
     /// Keep the mismatches that survive the trim. See the definition for the direction.
     void trim_mismatches(const std::vector<std::size_t> &previous_mismatches);

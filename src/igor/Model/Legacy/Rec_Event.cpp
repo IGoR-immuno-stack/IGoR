@@ -346,8 +346,7 @@ void Rec_Event::iterate_wrap_up(
         // the junction it fills -- so this has gone from a leaf property to a global one, and
         // the leaf is now the last place it could possibly fail rather than the only place it
         // was ever true.
-        if (const SeqTypeId unfilled = first_unfilled_segment(scenario.constructed_sequences);
-            unfilled != kNoSeqType) {
+        if (const SegmentId unfilled = first_unfilled_segment(scenario.constructed_sequences); unfilled != kNoSegment) {
             std::cerr << "Scenario leaf reached with unfilled nucleotides in "
                       << scenario.constructed_sequences.registry().name(unfilled)
                       << std::endl;
@@ -359,8 +358,7 @@ void Rec_Event::iterate_wrap_up(
         // consumer can locate on the read, and the only reason that did not bite is that every
         // consumer today knows an insertion's span runs between its neighbours -- exactly the
         // coupling the capability queries exist to remove.
-        if (const auto [unplaced, side] = first_unplaced_segment_end(scenario.seq_offsets);
-            unplaced != kNoSeqType) {
+        if (const auto [unplaced, side] = first_unplaced_segment_end(scenario.seq_offsets); unplaced != kNoSegment) {
             std::cerr << "Scenario leaf reached with no "
                       << (side == Five_prime ? "5'" : "3'") << " offset for "
                       << scenario.seq_offsets.five_prime.registry().name(unplaced) << std::endl;
@@ -504,7 +502,7 @@ namespace {
 //segment its offsets imply that nobody has chosen yet (see the body below for the three cases).
 //Shared by the body, for a participant, and by initialize_Len_proba_bound(), for the reader: the
 //reader publishes exactly as any participant would -- it is only its probability that stays out.
-void publish_unfilled_length(SeqTypeId seq_type_id, int delta, bool creates_offsets, bool creates_sequence,
+void publish_unfilled_length(SegmentId seq_type_id, int delta, bool creates_offsets, bool creates_sequence,
                              UnfilledSegmentLengths &lengths)
 {
     if (creates_offsets) {
@@ -543,7 +541,7 @@ void Rec_Event::SpanFold::run(FoldState start) const
  * "contributes a probability factor without enumerating" -- which is exactly the
  * affects_length_of / affects_proba_of split.
  */
-bool Rec_Event::affects_length_of(SegmentSpan span, const SeqTypeRegistry &registry) const
+bool Rec_Event::affects_length_of(SegmentSpan span, const SegmentRegistry &registry) const
 {
     //The span's own two ends: moving one changes the length, creating one is where the span is
     //measured from.
@@ -552,7 +550,7 @@ bool Rec_Event::affects_length_of(SegmentSpan span, const SeqTypeRegistry &regis
         return true;
     }
     //Every end of every segment strictly inside: creating it adds the segment, moving it trims it.
-    for (const SeqTypeId inner : registry.ordering()) {
+    for (const SegmentId inner : registry.ordering()) {
         if (not lies_strictly_inside(registry, inner, span)) {
             continue;
         }
@@ -661,7 +659,7 @@ std::vector<int> Rec_Event::parent_offsets_free_of(const std::vector<std::pair<i
 }
 
 Rec_Event::SpanConditioning Rec_Event::conditioning_within(const SpanParticipants &participants, SegmentSpan span,
-                                                           const SeqTypeRegistry &registry,
+                                                           const SegmentRegistry &registry,
                                                            bool reader_conditioned) const
 {
     //Who indexes whom, read off the parents' side: an event's memory_and_offsets lists its
@@ -714,7 +712,7 @@ bool Rec_Event::creates_own_offsets() const
  */
 void Rec_Event::initialize_Len_proba_bound(queue<shared_ptr<Rec_Event>> &model_queue,
                                            const Marginal_array_p &model_parameters_point,
-                                           const Index_map &base_index_map, const SeqTypeRegistry &registry)
+                                           const Index_map &base_index_map, const SegmentRegistry &registry)
 {
     //Before any reader folds a table this event takes part in: the sweep runs in reverse queue
     //order, so every participant of a table has been here before the table's reader is.

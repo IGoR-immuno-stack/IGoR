@@ -47,14 +47,10 @@ public:
       Seq_offsets_map &, Index_map &) override {}
   void add_to_marginals(long double, Marginal_array_p &) const override {}
   shared_ptr<Rec_Event> copy() override { return nullptr; }
-  OffsetDelta get_offset_delta_bounds(SeqTypeId, Seq_side) const override { return {}; }
-  LengthContribution get_length_contribution(SeqTypeId) const override { return {}; }
-  SeqConstructionRole get_seq_construction_role(SeqTypeId) const override {
-    return SeqConstructionRole::None;
-  }
-  OffsetRole get_offset_role(SeqTypeId, Seq_side) const override {
-    return OffsetRole::None;
-  }
+  OffsetDelta get_offset_delta_bounds(SegmentId, Seq_side) const override { return {}; }
+  LengthContribution get_length_contribution(SegmentId) const override { return {}; }
+  SeqConstructionRole get_seq_construction_role(SegmentId) const override { return SeqConstructionRole::None; }
+  OffsetRole get_offset_role(SegmentId, Seq_side) const override { return OffsetRole::None; }
   int length_delta(const Event_realization &) const override { return 0; }
 };
 
@@ -129,7 +125,7 @@ TEST_CASE("EventUtils BuildScenarioSequence", "[EventUtils]") {
   }
 }
 
-// Step 9: build_scenario_sequence must eventually use SeqTypeRegistry order
+// Step 9: build_scenario_sequence must eventually use SegmentRegistry order
 // rather than hardcoded boolean flags.  These tests document both the current
 // (working) standard behaviour and the desired (not yet implemented) registry-
 // based behaviour.
@@ -181,7 +177,7 @@ TEST_CASE("step9: build_scenario_sequence tandem-D uses registry-based API",
 {
     // The registry-based overload supports arbitrary orderings, including 7-segment
     // tandem D:   V → VD1_ins → D1 → D1D2_ins → D2 → DJ_ins → J
-    SeqTypeRegistry registry;
+    SegmentRegistry registry;
     registry.set_ordered_types({"V_gene_seq", "VD1_ins_seq", "D1_gene_seq",
                                  "D1D2_ins_seq", "D2_gene_seq", "DJ_ins_seq", "J_gene_seq"});
 
@@ -413,7 +409,7 @@ public:
     del_event.event_class = V_gene;
     //B5 addresses the scenario maps by seq_type id rather than by the legacy enum, so an event
     //assembled by hand has to carry one -- exactly as IgorTestUtils::make_deletion() does.
-    del_event.set_seq_type_id(IgorTestUtils::vdj_seq_type_registry().id("V_gene_seq"));
+    del_event.set_seq_type_id(IgorTestUtils::vdj_segment_registry().id("V_gene_seq"));
 
     // Create mock objects for initialize_event — use string-keyed Events_map
     std::unordered_set<Rec_Event_name> processed_events;
@@ -426,7 +422,7 @@ public:
     //A registry with an *ordering*, not the bare legacy one: since B5 initialize_event() reads
     //the topology off it -- which neighbours to check, and whether the segment is anchored on
     //an end of the read -- exactly as Gene_choice has since B11a.
-    const SeqTypeRegistry &registry = IgorTestUtils::vdj_seq_type_registry();
+    const SegmentRegistry &registry = IgorTestUtils::vdj_segment_registry();
     std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> offset_map;
     Downstream_scenario_proba_bound_map downstream_proba_map(registry);
     Seq_type_str_p_map constructed_sequences(registry);

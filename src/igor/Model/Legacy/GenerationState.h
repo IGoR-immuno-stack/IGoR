@@ -1,7 +1,7 @@
 /*
  * GenerationState.h
  *
- *  The segments of one generated sequence, by SeqTypeId.
+ *  The segments of one generated sequence, by SegmentId.
  *
  *  This source code is distributed as part of the IGoR software.
  *  IGoR (Inference and Generation of Repertoires) is a versatile software to analyze and model immune receptors
@@ -25,7 +25,7 @@
 #pragma once
 
 #include <igor/Core/Legacy/DynamicSequenceMap.h>
-#include <igor/Core/Legacy/SeqTypeRegistry.h>
+#include <igor/Core/Legacy/SegmentRegistry.h>
 
 #include <stdexcept>
 #include <string>
@@ -57,8 +57,7 @@ using namespace igor::core::legacy;
 class GenerationState {
 public:
     /// \param registry frozen; must outlive this state
-    explicit GenerationState(const SeqTypeRegistry &registry)
-        : segments_(registry), buffers_(registry.total_count())
+    explicit GenerationState(const SegmentRegistry &registry) : segments_(registry), buffers_(registry.total_count())
     {
         //One layer per segment, claimed up front and written by whichever event creates it.
         for (std::size_t id = 0; id != segments_.count(); ++id) {
@@ -72,8 +71,8 @@ public:
     /// Create the segment `id` with `content`, as an event that constructs it does. Replaces
     /// whatever was there.
     /// \throws std::out_of_range if `id` is not one of the registry's, which is what an event
-    ///         whose seq_type Model_Parms::finalize() never resolved holds (kNoSeqType)
-    std::string &create(SeqTypeId id, std::string content)
+    ///         whose seq_type Model_Parms::finalize() never resolved holds (kNoSegment)
+    std::string &create(SegmentId id, std::string content)
     {
         if (id >= buffers_.size()) {
             throw std::out_of_range("GenerationState::create(): seq_type id " + std::to_string(id)
@@ -88,18 +87,18 @@ public:
 
     /// A segment some event has created, to be edited in place.
     /// \throws std::out_of_range if no event has created it
-    std::string &modify(SeqTypeId id) { return *segments_.get(id); }
+    std::string &modify(SegmentId id) { return *segments_.get(id); }
 
     /// \throws std::out_of_range if no event has created it
-    const std::string &read(SeqTypeId id) const { return *segments_.get(id); }
+    const std::string &read(SegmentId id) const { return *segments_.get(id); }
 
-    bool built(SeqTypeId id) const { return segments_.exists(id); }
+    bool built(SegmentId id) const { return segments_.exists(id); }
 
     /// The segments in the registry's 5'->3' order, skipping those no event built.
     std::string assemble() const
     {
         std::string sequence;
-        for (const SeqTypeId id : segments_.registry().ordering()) {
+        for (const SegmentId id : segments_.registry().ordering()) {
             if (built(id)) {
                 sequence += read(id);
             }
@@ -107,7 +106,7 @@ public:
         return sequence;
     }
 
-    const SeqTypeRegistry &registry() const { return segments_.registry(); }
+    const SegmentRegistry &registry() const { return segments_.registry(); }
 
 private:
     DynamicSequenceMap<std::string *> segments_;

@@ -23,7 +23,7 @@
 #pragma once
 
 #include <igor/Core/Types.h>
-#include <igor/Core/SeqTypeRegistry.h>
+#include <igor/Core/SegmentRegistry.h>
 
 #include <stdexcept>
 #include <string>
@@ -55,7 +55,7 @@
 namespace igor::core {
 
 struct SegmentBoundary {
-    SeqTypeId id = kNoSeqType;
+    SegmentId id = kNoSegment;
     SeqSide side = Undefined_side;
 
     friend bool operator==(SegmentBoundary, SegmentBoundary) = default;
@@ -133,7 +133,7 @@ struct SegmentSpan {
      * Today's only meaning, and what every caller wants -- an event that trims one of those
      * two boundaries widens the span rather than shortening the anchor.
      */
-    static constexpr SegmentSpan gap(SeqTypeId l, SeqTypeId r)
+    static constexpr SegmentSpan gap(SegmentId l, SegmentId r)
     {
         return SegmentSpan{SegmentBoundary{l, Three_prime}, SegmentBoundary{r, Five_prime}};
     }
@@ -146,10 +146,10 @@ struct SegmentSpan {
  * D inside V->J, or both of a tandem pair's genes inside the span their flanks bound. A segment
  * the ordering does not place is inside nothing.
  */
-inline bool lies_strictly_inside(const SeqTypeRegistry &registry, SeqTypeId id, SegmentSpan span)
+inline bool lies_strictly_inside(const SegmentRegistry &registry, SegmentId id, SegmentSpan span)
 {
-    const std::vector<SeqTypeId> &ordering = registry.ordering();
-    const auto position = [&ordering](SeqTypeId segment) -> long {
+    const std::vector<SegmentId> &ordering = registry.ordering();
+    const auto position = [&ordering](SegmentId segment) -> long {
         for (std::size_t pos = 0; pos != ordering.size(); ++pos) {
             if (ordering[pos] == segment) {
                 return static_cast<long>(pos);

@@ -1,5 +1,5 @@
 /*
- * SeqTypeRegistry.h
+ * SegmentRegistry.h
  *
  *  This source code is distributed as part of the IGoR software.
  *  IGoR (Inference and Generation of Repertoires) is a versatile software to analyze and model immune receptors
@@ -22,16 +22,17 @@
 
 #pragma once
 
-#include <igor/Core/SeqTypeRegistry.h>
+#include <igor/Core/SegmentRegistry.h>
 
-// SeqTypeRegistry.h was promoted out of Legacy/ (step 1c of doc/LAYER_REFACTORING_PROPOSAL.md).
+// SegmentRegistry.h was promoted out of Legacy/ as SeqTypeRegistry.h (step 1c of
+// doc/LAYER_REFACTORING_PROPOSAL.md), and renamed with its types since.
 // This stub keeps the legacy include path and the legacy names for the code that has not
 // been promoted yet; it goes when its last consumer switches.
 namespace igor::core::legacy {
 
-using igor::core::SeqTypeRegistry;
-using igor::core::SeqTypeId;
-using igor::core::kNoSeqType;
+using igor::core::kNoSegment;
 using igor::core::legacy_seq_type_registry;
+using igor::core::SegmentId;
+using igor::core::SegmentRegistry;
 
 } // namespace igor::core::legacy

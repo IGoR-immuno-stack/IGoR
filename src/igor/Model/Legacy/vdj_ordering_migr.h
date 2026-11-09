@@ -1,6 +1,6 @@
 #pragma once
 
-#include <igor/Core/Legacy/SeqTypeRegistry.h>
+#include <igor/Core/Legacy/SegmentRegistry.h>
 
 #include <igor/Model/Export.h>
 
@@ -28,7 +28,7 @@ namespace migration {
  * \throws std::invalid_argument naming the ordering and the first segment of it the reader cannot
  *         place, or the segment it lacks
  */
-MODEL_EXPORT void require_vdj_or_vj_ordering(const igor::core::SeqTypeRegistry &registry, const std::string &reader);
+MODEL_EXPORT void require_vdj_or_vj_ordering(const igor::core::SegmentRegistry &registry, const std::string &reader);
 
 } // namespace migration
 } // namespace igor::model::legacy

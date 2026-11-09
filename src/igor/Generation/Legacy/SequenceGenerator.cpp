@@ -204,7 +204,7 @@ pair<string, queue<queue<int>>> SequenceGenerator::generate_unique_sequence(
 
     //The segments are assembled in the model's 5'->3' order, so a model without one cannot be
     //generated from. Model_Parms::finalize() sets it, inferring VDJ or VJ for a legacy file.
-    const SeqTypeRegistry &registry = this->model_parms.get_seq_type_registry();
+    const SegmentRegistry &registry = this->model_parms.get_seq_type_registry();
     if (registry.ordering().empty()) {
         throw runtime_error("SequenceGenerator::generate_unique_sequence(): the model has no segment order to "
                             "assemble a sequence in; Model_Parms::finalize() sets it");
