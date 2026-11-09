@@ -172,6 +172,7 @@ struct OutputOptions
     int scenario_tie_digits = 12;
     bool scenario_keep_ties = true;
     std::string coverage;
+    std::string event_names = "nickname";
 };
 
 struct PipelineOptions
@@ -262,6 +263,8 @@ const std::vector<ConfigKey> &config_schema()
             { "output.scenario_keep_ties", "bool", "true",
               "Record every scenario tied with the last one, even beyond output.scenarios." },
             { "output.coverage", "string", "", "Coverage counter target such as VJ_gene." },
+            { "output.event_names", "enum(nickname,legacy)", "nickname",
+              "How output column headers name events: by nickname, or by IGoR's generated legacy name." },
             { "pipeline.steps", "csv", "import-seqs,align,infer", "Comma-separated steps for `igor run`." },
         };
     }();
@@ -316,6 +319,10 @@ void validate_config_value(const ConfigKey &key, const std::string &value)
         } else if (key.key == "model.source") {
             if (value != "custom" && value != "builtin" && value != "last_inferred") {
                 throw std::invalid_argument("unsupported model source");
+            }
+        } else if (key.key == "output.event_names") {
+            if (value != "nickname" && value != "legacy") {
+                throw std::invalid_argument("unsupported event names");
             }
         }
     } catch (const std::exception &) {
@@ -454,6 +461,7 @@ ResolvedOptions resolve_config(const Config &config)
         config_int(config, "output.scenario_tie_digits"),
         config.get_bool("output.scenario_keep_ties"),
         config.get("output.coverage"),
+        config.get("output.event_names"),
     };
     options.pipeline = PipelineOptions{ split_csv(config.get("pipeline.steps")) };
     return options;
@@ -774,6 +782,7 @@ std::vector<std::string> base_legacy_args(const GlobalOptions &global, const Res
     if (!options.output.coverage.empty()) {
         args.insert(args.end(), { "-output", "--coverage", options.output.coverage });
     }
+    args.insert(args.end(), { "-event_names", options.output.event_names });
     return args;
 }
 

@@ -22,7 +22,7 @@
 #include <sstream>
 #include <stdexcept>
 
-namespace igor {
+namespace igor::streaming {
 
 int ParquetWriter::get_arrow_compression(CompressionType compression)
 {
@@ -63,8 +63,8 @@ std::string ParquetWriter::compression_name(CompressionType compression)
 void ParquetWriter::write_sequences(
         const std::string &output_path,
         const std::vector<std::tuple<int, std::string,
-                                     std::unordered_map<Gene_class,
-                                                        std::vector<Alignment_data>>>>
+                                     std::unordered_map<igor::core::legacy::Gene_class,
+                                                        std::vector<igor::core::AlignmentData>>>>
                 &sequences,
         CompressionType compression)
 {
@@ -160,4 +160,4 @@ void ParquetWriter::write_batch(const std::string &output_path,
     }
 }
 
-} // namespace igor
+} // namespace igor::streaming

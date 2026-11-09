@@ -7,6 +7,8 @@ OUTDIR="${1:-$(mktemp -d)}"
 IGORCALL="$IGORBIN -w $OUTDIR"
 
 $IGORCALL init
+# Outputs name events by nickname by default; the goldens carry the generated legacy names.
+$IGORCALL config set output.event_names legacy
 $IGORCALL config set model.source custom
 $IGORCALL config set model.parms "$TESTINPUT/TRB_model_parms.txt"
 $IGORCALL config set model.marginals "$TESTINPUT/TRB_uniform_model_marginals.txt"
@@ -81,7 +83,7 @@ do
 
     assert_regression "$TESTREF/${batch}_inference" "$OUTDIR/${batch}_inference" "$LOGFILE"
 
-    # Drop not always reproducible scenario ranks (possible likelihood ties)
+    # Drop the scenario rank: the golden data is stored without it
     tmp="$(mktemp)"                                   # create a safe temp name
     cut -d';' -f 1,3-  "$OUTDIR/${batch}_output/best_scenarios_counts.csv" >"$tmp"
     mv "$tmp" "$OUTDIR/${batch}_output/best_scenarios_counts.csv"

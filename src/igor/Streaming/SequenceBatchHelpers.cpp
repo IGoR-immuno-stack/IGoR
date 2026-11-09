@@ -17,7 +17,7 @@
 #include <algorithm>
 #include <iterator>
 
-namespace igor {
+namespace igor::streaming {
 
 // Helper function implementations
 
@@ -71,16 +71,25 @@ int get_int_value(const sparrow::record_batch &batch, const std::string &column_
         const auto &column = batch.get_column(column_name);
         auto value = column[row_index];
 
-        // Use visitor pattern to extract int from nullable_variant
+        // Use generic extraction pattern for nullable_variant
         return std::visit([&default_value](auto&& arg) -> int {
             using T = std::decay_t<decltype(arg)>;
-            // Handle various integer types that sparrow might use
-            if constexpr (std::is_same_v<T, sparrow::nullable<const int&>> ||
-                          std::is_same_v<T, sparrow::nullable<const int32_t&>> ||
-                          std::is_same_v<T, sparrow::nullable<const long long&>>) {
-                if (arg.has_value()) {
-                    return static_cast<int>(arg.get());
+            if constexpr (requires { arg.has_value(); arg.get(); }) {
+                using ValT = std::decay_t<decltype(arg.get())>;
+                if constexpr (std::is_arithmetic_v<ValT>) {
+                    if (arg.has_value()) {
+                        return static_cast<int>(arg.get());
+                    }
                 }
+            } else if constexpr (requires { arg.has_value(); arg.value(); }) {
+                using ValT = std::decay_t<decltype(arg.value())>;
+                if constexpr (std::is_arithmetic_v<ValT>) {
+                    if (arg.has_value()) {
+                        return static_cast<int>(arg.value());
+                    }
+                }
+            } else if constexpr (std::is_arithmetic_v<T>) {
+                return static_cast<int>(arg);
             }
             return default_value;
         }, value);
@@ -101,14 +110,25 @@ double get_double_value(const sparrow::record_batch &batch, const std::string &c
         const auto &column = batch.get_column(column_name);
         auto value = column[row_index];
 
-        // Use visitor pattern to extract double from nullable_variant
+        // Use generic extraction pattern for nullable_variant
         return std::visit([&default_value](auto&& arg) -> double {
             using T = std::decay_t<decltype(arg)>;
-            if constexpr (std::is_same_v<T, sparrow::nullable<const double&>> ||
-                          std::is_same_v<T, sparrow::nullable<const float&>>) {
-                if (arg.has_value()) {
-                    return static_cast<double>(arg.get());
+            if constexpr (requires { arg.has_value(); arg.get(); }) {
+                using ValT = std::decay_t<decltype(arg.get())>;
+                if constexpr (std::is_arithmetic_v<ValT>) {
+                    if (arg.has_value()) {
+                        return static_cast<double>(arg.get());
+                    }
                 }
+            } else if constexpr (requires { arg.has_value(); arg.value(); }) {
+                using ValT = std::decay_t<decltype(arg.value())>;
+                if constexpr (std::is_arithmetic_v<ValT>) {
+                    if (arg.has_value()) {
+                        return static_cast<double>(arg.value());
+                    }
+                }
+            } else if constexpr (std::is_arithmetic_v<T>) {
+                return static_cast<double>(arg);
             }
             return default_value;
         }, value);
@@ -129,17 +149,25 @@ size_t get_size_t_value(const sparrow::record_batch &batch, const std::string &c
         const auto &column = batch.get_column(column_name);
         auto value = column[row_index];
 
-        // Use visitor pattern to extract size_t from nullable_variant
+        // Use generic extraction pattern for nullable_variant
         return std::visit([&default_value](auto&& arg) -> size_t {
             using T = std::decay_t<decltype(arg)>;
-            // Handle various unsigned integer types that sparrow might use
-            if constexpr (std::is_same_v<T, sparrow::nullable<const uint64_t&>> ||
-                          std::is_same_v<T, sparrow::nullable<const size_t&>> ||
-                          std::is_same_v<T, sparrow::nullable<const unsigned long long&>> ||
-                          std::is_same_v<T, sparrow::nullable<const uint32_t&>>) {
-                if (arg.has_value()) {
-                    return static_cast<size_t>(arg.get());
+            if constexpr (requires { arg.has_value(); arg.get(); }) {
+                using ValT = std::decay_t<decltype(arg.get())>;
+                if constexpr (std::is_arithmetic_v<ValT>) {
+                    if (arg.has_value()) {
+                        return static_cast<size_t>(arg.get());
+                    }
                 }
+            } else if constexpr (requires { arg.has_value(); arg.value(); }) {
+                using ValT = std::decay_t<decltype(arg.value())>;
+                if constexpr (std::is_arithmetic_v<ValT>) {
+                    if (arg.has_value()) {
+                        return static_cast<size_t>(arg.value());
+                    }
+                }
+            } else if constexpr (std::is_arithmetic_v<T>) {
+                return static_cast<size_t>(arg);
             }
             return default_value;
         }, value);
@@ -197,20 +225,20 @@ std::vector<size_t> get_size_t_list_value(const sparrow::record_batch &batch,
     }
 }
 
-std::unordered_map<Gene_class, std::vector<Alignment_data>>
+std::unordered_map<igor::core::legacy::Gene_class, std::vector<igor::core::AlignmentData>>
 parse_alignments_from_columns(const sparrow::record_batch &batch, size_t row_index)
 {
 
-    std::unordered_map<Gene_class, std::vector<Alignment_data>> alignments;
+    std::unordered_map<igor::core::legacy::Gene_class, std::vector<igor::core::AlignmentData>> alignments;
 
     // Look for common alignment column patterns for V, D, and J genes:
     // - v_gene_name, v_gene_offset, v_gene_score, etc.
     // - d_gene_name, d_gene_offset, d_gene_score, etc.
     // - j_gene_name, j_gene_offset, j_gene_score, etc.
 
-    const std::vector<std::pair<std::string, Gene_class>> gene_prefixes = { { "v_gene", V_gene },
-                                                                            { "d_gene", D_gene },
-                                                                            { "j_gene", J_gene } };
+    const std::vector<std::pair<std::string, igor::core::legacy::Gene_class>> gene_prefixes = { { "v_gene", igor::core::legacy::V_gene },
+                                                                            { "d_gene", igor::core::legacy::D_gene },
+                                                                            { "j_gene", igor::core::legacy::J_gene } };
 
     for (const auto &[prefix, gene_class] : gene_prefixes) {
         std::string name_col = prefix + "_name";
@@ -240,7 +268,7 @@ parse_alignments_from_columns(const sparrow::record_batch &batch, size_t row_ind
                 std::vector<size_t> mismatches_vec = get_size_t_list_value(batch, mismatches_col, row_index);
 
                 // Create complete alignment data structure with all 9 fields
-                Alignment_data align(gene_name, offset, five_p_offset, three_p_offset,
+                igor::core::AlignmentData align(gene_name, offset, five_p_offset, three_p_offset,
                                    align_length, insertions_vec, deletions_vec, mismatches_vec, score);
 
                 alignments[gene_class].push_back(align);
@@ -293,7 +321,7 @@ SequenceData row_to_sequence_data(const sparrow::record_batch &batch, size_t row
 
 sparrow::record_batch vector_to_batch(
         const std::vector<std::tuple<int, std::string,
-                                     std::unordered_map<Gene_class, std::vector<Alignment_data>>>>
+                                     std::unordered_map<igor::core::legacy::Gene_class, std::vector<igor::core::AlignmentData>>>>
                 &sequences)
 {
 
@@ -318,18 +346,18 @@ sparrow::record_batch vector_to_batch(
 
     // Prepare alignment data containers for each gene class
     // List fields (insertions, deletions, mismatches) use native Arrow list<int32> arrays
-    std::unordered_map<Gene_class, std::vector<std::string>> v_gene_names;
-    std::unordered_map<Gene_class, std::vector<int32_t>> v_offsets;
-    std::unordered_map<Gene_class, std::vector<uint64_t>> v_five_p_offsets;
-    std::unordered_map<Gene_class, std::vector<uint64_t>> v_three_p_offsets;
-    std::unordered_map<Gene_class, std::vector<uint64_t>> v_align_lengths;
-    std::unordered_map<Gene_class, std::vector<double>> v_scores;
-    std::unordered_map<Gene_class, std::vector<std::vector<int32_t>>> v_insertions;  // Native list arrays
-    std::unordered_map<Gene_class, std::vector<std::vector<int32_t>>> v_deletions;   // Native list arrays
-    std::unordered_map<Gene_class, std::vector<std::vector<int32_t>>> v_mismatches;  // Native list arrays
+    std::unordered_map<igor::core::legacy::Gene_class, std::vector<std::string>> v_gene_names;
+    std::unordered_map<igor::core::legacy::Gene_class, std::vector<int32_t>> v_offsets;
+    std::unordered_map<igor::core::legacy::Gene_class, std::vector<uint64_t>> v_five_p_offsets;
+    std::unordered_map<igor::core::legacy::Gene_class, std::vector<uint64_t>> v_three_p_offsets;
+    std::unordered_map<igor::core::legacy::Gene_class, std::vector<uint64_t>> v_align_lengths;
+    std::unordered_map<igor::core::legacy::Gene_class, std::vector<double>> v_scores;
+    std::unordered_map<igor::core::legacy::Gene_class, std::vector<std::vector<int32_t>>> v_insertions;  // Native list arrays
+    std::unordered_map<igor::core::legacy::Gene_class, std::vector<std::vector<int32_t>>> v_deletions;   // Native list arrays
+    std::unordered_map<igor::core::legacy::Gene_class, std::vector<std::vector<int32_t>>> v_mismatches;  // Native list arrays
 
     // Preallocate for gene classes we expect
-    for (auto gc : { V_gene, D_gene, J_gene }) {
+    for (auto gc : { igor::core::legacy::V_gene, igor::core::legacy::D_gene, igor::core::legacy::J_gene }) {
         v_gene_names[gc].reserve(sequences.size());
         v_offsets[gc].reserve(sequences.size());
         v_five_p_offsets[gc].reserve(sequences.size());
@@ -349,7 +377,7 @@ sparrow::record_batch vector_to_batch(
         const auto &alignments = std::get<2>(seq_tuple);
 
         // For each gene class, add alignment data (or empty values if no alignments)
-        for (auto gc : { V_gene, D_gene, J_gene }) {
+        for (auto gc : { igor::core::legacy::V_gene, igor::core::legacy::D_gene, igor::core::legacy::J_gene }) {
             auto it = alignments.find(gc);
             if (it != alignments.end() && !it->second.empty()) {
                 // Take the first (best) alignment for this gene class
@@ -414,16 +442,16 @@ sparrow::record_batch vector_to_batch(
     arrays.push_back(std::move(seq_array));
 
     // Add alignment columns for each gene class
-    for (auto gc : { V_gene, D_gene, J_gene }) {
+    for (auto gc : { igor::core::legacy::V_gene, igor::core::legacy::D_gene, igor::core::legacy::J_gene }) {
         std::string prefix;
         switch (gc) {
-        case V_gene:
+        case igor::core::legacy::V_gene:
             prefix = "v_gene";
             break;
-        case D_gene:
+        case igor::core::legacy::D_gene:
             prefix = "d_gene";
             break;
-        case J_gene:
+        case igor::core::legacy::J_gene:
             prefix = "j_gene";
             break;
         default:
@@ -505,4 +533,4 @@ sparrow::record_batch vector_to_batch(
     return sparrow::record_batch(std::move(column_names), std::move(arrays));
 }
 
-} // namespace igor
+} // namespace igor::streaming

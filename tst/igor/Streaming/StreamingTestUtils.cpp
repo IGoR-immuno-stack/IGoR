@@ -9,7 +9,7 @@
 
 #include "StreamingTestUtils.h"
 
-namespace igor::test {
+namespace igor::streaming::test {
 
 std::vector<SequenceTuple> load_murugan_dataset()
 {
@@ -31,7 +31,7 @@ std::vector<SequenceTuple> load_murugan_dataset()
     }
 
     // Parse alignments for each gene class
-    std::unordered_map<int, std::unordered_map<Gene_class, std::vector<Alignment_data>>> all_alignments;
+    std::unordered_map<int, std::unordered_map<Gene_class, std::vector<igor::core::AlignmentData>>> all_alignments;
 
     auto parse_alignment_file = [&](const std::string& filename, Gene_class gene_class) {
         std::ifstream file(test_data_dir + filename);
@@ -89,7 +89,7 @@ std::vector<SequenceTuple> load_murugan_dataset()
             size_t three_p_offset = std::stoull(fields[9]);
 
             // Use 9-argument constructor
-            Alignment_data align(gene_name, offset, five_p_offset, three_p_offset,
+            igor::core::AlignmentData align(gene_name, offset, five_p_offset, three_p_offset,
                                align_length, insertions_vec, deletions_vec, mismatches, score);
 
             all_alignments[seq_index][gene_class].push_back(align);
@@ -109,4 +109,4 @@ std::vector<SequenceTuple> load_murugan_dataset()
     return result;
 }
 
-} // namespace igor::test
+} // namespace igor::streaming::test

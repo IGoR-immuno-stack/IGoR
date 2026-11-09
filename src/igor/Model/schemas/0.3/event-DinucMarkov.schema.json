@@ -1,0 +1,50 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/IGoR-immuno-stack/IGoR/master/src/igor/Model/schemas/0.3/event-DinucMarkov.schema.json",
+  "title": "DinucMarkov",
+  "description": "Fills a junction with a Markov chain over the four nucleotides, seeded from the segment on the side it names.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "type",
+    "priority",
+    "targets",
+    "realizations"
+  ],
+  "properties": {
+    "type": {
+      "const": "DinucMarkov"
+    },
+    "priority": {
+      "$ref": "common.schema.json#/definitions/priority"
+    },
+    "targets": {
+      "$ref": "common.schema.json#/definitions/sided_targets"
+    },
+    "realizations": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {
+        "allOf": [
+          {
+            "$ref": "common.schema.json#/definitions/named_realization"
+          },
+          {
+            "properties": {
+              "label": {
+                "enum": [
+                  "A",
+                  "C",
+                  "G",
+                  "T"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "description": "The four nucleotides, A, C, G, T at indices 0 to 3."
+    }
+  }
+}

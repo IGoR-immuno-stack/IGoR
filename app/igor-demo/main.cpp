@@ -29,26 +29,33 @@
  *  - Generating sequences from the obtained model
  */
 
-#include <igor/Core/Deletion.h>
-#include <igor/Core/Insertion.h>
-#include <igor/Core/Genechoice.h>
-#include <igor/Core/Model_Parms.h>
-#include <igor/Core/Rec_Event.h>
-#include <igor/Core/Singleerrorrate.h>
-#include <igor/Core/Model_marginals.h>
-#include <igor/Core/Aligner.h>
-#include <igor/Core/GenModel.h>
-#include <igor/Core/Dinuclmarkov.h>
-#include <igor/Core/Counter.h>
-#include <igor/Core/Coverageerrcounter.h>
-#include <igor/Core/Bestscenarioscounter.h>
-#include <igor/Core/Pgencounter.h>
-#include <igor/Core/Errorscounter.h>
-#include <igor/Core/Utils.h>
+#include <igor/Model/Legacy/Deletion.h>
+#include <igor/Model/Legacy/Insertion.h>
+#include <igor/Model/Legacy/Genechoice.h>
+#include <igor/Model/Legacy/Model_Parms.h>
+#include <igor/Model/Legacy/Rec_Event.h>
+#include <igor/Model/Legacy/Singleerrorrate.h>
+#include <igor/Model/Legacy/Model_marginals.h>
+#include <igor/Alignment/Legacy/Aligner.h>
+#include <igor/Inference/Legacy/GenModel.h>
+#include <igor/Generation/Legacy/SequenceGenerator.h>
+#include <igor/Model/Legacy/Dinuclmarkov.h>
+#include <igor/Model/Legacy/Counter.h>
+#include <igor/Inference/Legacy/Coverageerrcounter.h>
+#include <igor/Inference/Legacy/Bestscenarioscounter.h>
+#include <igor/Inference/Legacy/Pgencounter.h>
+#include <igor/Inference/Legacy/Errorscounter.h>
+#include <igor/Core/Legacy/Utils.h>
 
 #include <iostream>
 #include <chrono>
 #include <string>
+
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+using namespace igor::model::legacy;
+using namespace igor::generation::legacy;
+using namespace igor::inference::legacy;
 
 using namespace std;
 
@@ -168,31 +175,31 @@ int main(int argc, char* argv[]) {
 	j_choice.set_nickname("j_choice");
 	j_choice.set_priority(7);
 
-	Deletion v_3_del(V_gene_seq,Three_prime,make_pair(-4,16));//16
+	Deletion v_3_del("V_gene_seq",Three_prime,make_pair(-4,16));//16
 	v_3_del.set_nickname("v_3_del");
 	v_3_del.set_priority(5);
-	Deletion d_5_del(D_gene_seq,Five_prime,make_pair(-4,16));
+	Deletion d_5_del("D_gene_seq",Five_prime,make_pair(-4,16));
 	d_5_del.set_nickname("d_5_del");
 	d_5_del.set_priority(5);
-	Deletion d_3_del(D_gene_seq,Three_prime,make_pair(-4,16));
+	Deletion d_3_del("D_gene_seq",Three_prime,make_pair(-4,16));
 	d_3_del.set_nickname("d_3_del");
 	d_3_del.set_priority(5);
-	Deletion j_5_del(J_gene_seq,Five_prime,make_pair(-4,18));
+	Deletion j_5_del("J_gene_seq",Five_prime,make_pair(-4,18));
 	j_5_del.set_nickname("j_5_del");
 	j_5_del.set_priority(5);
 
-	Insertion vd_ins(VD_ins_seq,make_pair(0,30));
+	Insertion vd_ins("VD_ins_seq",make_pair(0,30));
 	vd_ins.set_nickname("vd_ins");
 	vd_ins.set_priority(4);
-	Insertion dj_ins(DJ_ins_seq,make_pair(0,30));
+	Insertion dj_ins("DJ_ins_seq",make_pair(0,30));
 	dj_ins.set_nickname("dj_ins");
 	dj_ins.set_priority(2);
 
-	Dinucl_markov markov_model_vd(VD_ins_seq);
+	Dinucl_markov markov_model_vd(string("VD_ins_seq"));
 	markov_model_vd.set_nickname("vd_dinucl");
 	markov_model_vd.set_priority(3);
 
-	Dinucl_markov markov_model_dj(DJ_ins_seq);
+	Dinucl_markov markov_model_dj(string("DJ_ins_seq"));
 	markov_model_dj.set_nickname("dj_dinucl");
 	markov_model_dj.set_priority(1);
 
@@ -293,8 +300,9 @@ int main(int argc, char* argv[]) {
 
 	//Generate sequences
 	clog<<"Generate sequences"<<endl;
-	auto generated_seq =  gen_model.generate_sequences(100,false);//Without errors
-	gen_model.write_seq_real2txt(string(cl_path + "/generated_seqs_indexed_demo.csv"), string(cl_path + "/generated_seqs_realizations_demo.csv") , generated_seq);//Member function will be changed
+	SequenceGenerator generator(gen_model.get_model_parms(), gen_model.get_marginals());
+	auto generated_seq =  generator.generate_sequences(100,false);//Without errors
+	generator.write_seq_real2txt(string(cl_path + "/generated_seqs_indexed_demo.csv"), string(cl_path + "/generated_seqs_realizations_demo.csv") , generated_seq);//Member function will be changed
 
 	clog<<"Demo completed successfully!"<<endl;
 	return EXIT_SUCCESS;

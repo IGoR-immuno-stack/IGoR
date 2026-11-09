@@ -1,0 +1,56 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/IGoR-immuno-stack/IGoR/master/src/igor/Model/schemas/0.3/error-rate.schema.json",
+  "title": "IGoR model: error rate",
+  "description": "The error model, by kind. Only SingleErrorRate has a JSON form yet; the hypermutation models' is step HJ of ERROR_MODEL_REWRITE_PLAN.md.",
+  "type": "object",
+  "required": [
+    "type"
+  ],
+  "properties": {
+    "type": {
+      "enum": [
+        "SingleErrorRate"
+      ],
+      "description": "The kind of error model."
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": [
+          "type"
+        ],
+        "properties": {
+          "type": {
+            "const": "SingleErrorRate"
+          }
+        }
+      },
+      "then": {
+        "$ref": "#/definitions/SingleErrorRate"
+      }
+    }
+  ],
+  "definitions": {
+    "SingleErrorRate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "rate"
+      ],
+      "properties": {
+        "type": {
+          "const": "SingleErrorRate"
+        },
+        "rate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "The probability that a nucleotide is read wrong."
+        }
+      }
+    }
+  }
+}

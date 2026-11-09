@@ -29,9 +29,16 @@
 #include <vector>
 #include <ostream>
 
-#include <igorCoreExport.h>
+#include <igor/Core/Export.h>
 
-class CORE_EXPORT Int_Str : public std::vector<int>
+// Not a dllexport class on purpose: exporting a class that derives from an STL template makes
+// MSVC export the std::vector<int> instantiation from the DLL, and every consumer that
+// instantiates std::vector<int> on its own then fails to link (LNK2005). Only the members
+// defined in IntStr.cpp are exported.
+
+namespace igor::core {
+
+class IntStr : public std::vector<int>
 {
 
 public:
@@ -39,31 +46,31 @@ public:
 
     static const std::size_t npos = -1;
 
-    Int_Str &operator+=(const Int_Str &);
-    Int_Str &operator+=(const int &);
-    Int_Str &operator+=(int &&);
-    //Int_Str& operator+=(int);
-    Int_Str &append(const Int_Str &);
-    Int_Str &append(const int &);
+    CORE_EXPORT IntStr &operator+=(const IntStr &);
+    CORE_EXPORT IntStr &operator+=(const int &);
+    CORE_EXPORT IntStr &operator+=(int &&);
+    //IntStr& operator+=(int);
+    CORE_EXPORT IntStr &append(const IntStr &);
+    CORE_EXPORT IntStr &append(const int &);
 
-    Int_Str operator+(const Int_Str &) const;
-    Int_Str operator+(const int &) const;
-    Int_Str operator+(int) const;
+    CORE_EXPORT IntStr operator+(const IntStr &) const;
+    // IntStr operator+(const int &) const; // Dead code
+    // IntStr operator+(int) const; // Dead code
 
-    bool operator==(const Int_Str &other) const {
+    bool operator==(const IntStr &other) const {
         return static_cast<const std::vector<int> &>(*this) ==
                static_cast<const std::vector<int> &>(other);
     }
 
-    Int_Str substr(std::size_t pos = 0, std::size_t len = npos) const; //TODO correct this with aproper value
-    void substr(Int_Str &, std::size_t pos = 0, std::size_t len = npos) const; //TODO correct this with aproper value
+    CORE_EXPORT IntStr substr(std::size_t pos = 0, std::size_t len = npos) const; //TODO correct this with aproper value
+    CORE_EXPORT void substr(IntStr &, std::size_t pos = 0, std::size_t len = npos) const; //TODO correct this with aproper value
 
     using std::vector<int>::erase;
-    Int_Str &erase(std::size_t pos, std::size_t len);
+    CORE_EXPORT IntStr &erase(std::size_t pos, std::size_t len);
 
-    /*	Int_Str();
-	//Int_Str (const std::string& str);//cannot be unambiguously identified
-	Int_Str (const Int_Str&);
+    /*	IntStr();
+	//IntStr (const std::string& str);//cannot be unambiguously identified
+	IntStr (const IntStr&);
 	//string (const string& str, size_t pos, size_t len = npos);//substring (3)
 	//string (const char* s);//from c-string (4)
 	//string (const char* s, size_t n);//from buffer (5)
@@ -71,8 +78,8 @@ public:
 	//template <class InputIterator> string  (InputIterator first, InputIterator last);//range (7)
 	//string (initializer_list<char> il);//initializer list (8)
 	//string (string&& str) noexcept;//move (9)
-	virtual ~Int_Str();
-	Int_Str& operator=(const Int_Str&);*/
+	virtual ~IntStr();
+	IntStr& operator=(const IntStr&);*/
 
     //Iterators
 
@@ -106,12 +113,13 @@ public:
 	std::vector<int> int_vector;*/
 };
 
+} // namespace igor::core
 namespace std {
 
 template <>
-struct hash<Int_Str>
+struct hash<igor::core::IntStr>
 {
-    std::size_t operator()(Int_Str const &int_str) const
+    std::size_t operator()(igor::core::IntStr const &int_str) const
     {
         std::size_t seed = int_str.size();
         for (auto &i : int_str) {
@@ -122,3 +130,6 @@ struct hash<Int_Str>
 };
 
 } // namespace std
+namespace igor::core {
+
+} // namespace igor::core

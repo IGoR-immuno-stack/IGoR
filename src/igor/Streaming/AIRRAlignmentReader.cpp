@@ -36,7 +36,7 @@
 #include <optional>
 #include <cctype>
 
-namespace igor::airr::alignment {
+namespace igor::streaming::airr::alignment {
 
 //==============================================================================
 // Internal helpers (anonymous namespace)
@@ -113,7 +113,7 @@ std::optional<T> parse_numeric(const std::optional<std::string>& str_val)
 }
 
 // Map segment string to Gene_class
-std::optional<Gene_class> parse_segment(const std::string& segment)
+std::optional<igor::core::legacy::Gene_class> parse_segment(const std::string& segment)
 {
     if (segment.empty()) {
         return std::nullopt;
@@ -121,9 +121,9 @@ std::optional<Gene_class> parse_segment(const std::string& segment)
 
     char first = std::toupper(segment[0]);
     switch (first) {
-        case 'V': return Gene_class::V_gene;
-        case 'D': return Gene_class::D_gene;
-        case 'J': return Gene_class::J_gene;
+        case 'V': return igor::core::legacy::Gene_class::V_gene;
+        case 'D': return igor::core::legacy::Gene_class::D_gene;
+        case 'J': return igor::core::legacy::Gene_class::J_gene;
         case 'C': return std::nullopt; // C genes not supported in IGoR
         default: return std::nullopt;
     }
@@ -281,7 +281,7 @@ std::vector<SequenceData> read_sequences(const std::string& filepath, Delimiter 
     }
 
     // Group alignments by sequence_id
-    std::unordered_map<std::string, std::vector<std::tuple<Gene_class, Alignment_data>>>
+    std::unordered_map<std::string, std::vector<std::tuple<igor::core::legacy::Gene_class, igor::core::AlignmentData>>>
         alignment_map;
 
     // Read all alignment rows
@@ -320,7 +320,7 @@ std::vector<SequenceData> read_sequences(const std::string& filepath, Delimiter 
         }
 
         // Create Alignment_data using simple constructor
-        Alignment_data align(*call, offset);
+        igor::core::AlignmentData align(*call, offset);
 
         // Parse optional fields
         if (auto score = get_field(fields, col_index, "score")) {
@@ -440,4 +440,4 @@ bool parse_cigar(
     return true;
 }
 
-} // namespace igor::airr::alignment
+} // namespace igor::streaming::airr::alignment

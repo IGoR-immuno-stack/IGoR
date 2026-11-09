@@ -1,0 +1,117 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/IGoR-immuno-stack/IGoR/master/src/igor/Model/schemas/0.3/common.schema.json",
+  "title": "IGoR model: shared definitions",
+  "description": "Definitions the other schemas refer to.",
+  "definitions": {
+    "nickname": {
+      "type": "string",
+      "minLength": 1,
+      "description": "An event's identity: its key among the events, and how every other section names it."
+    },
+    "segment": {
+      "type": "string",
+      "minLength": 1,
+      "description": "A segment of the layout, by name."
+    },
+    "side": {
+      "enum": [
+        "5'",
+        "3'"
+      ],
+      "description": "The end of the segment the event acts on."
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "segment"
+      ],
+      "properties": {
+        "segment": {
+          "$ref": "#/definitions/segment"
+        },
+        "side": {
+          "$ref": "#/definitions/side"
+        }
+      }
+    },
+    "targets": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "items": {
+        "$ref": "#/definitions/target"
+      },
+      "description": "The segment, and end, the event acts on. A list, as an event of the new model may act on several; the legacy events act on one."
+    },
+    "sided_targets": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/targets"
+        },
+        {
+          "items": {
+            "required": [
+              "side"
+            ]
+          }
+        }
+      ]
+    },
+    "priority": {
+      "type": "integer",
+      "description": "The legacy engine's order, higher first: an engine hint."
+    },
+    "index": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "The realization's coordinate in the parameters: 0 to n-1, without gaps."
+    },
+    "label": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "string",
+          "minLength": 1
+        }
+      ],
+      "description": "A realization's identity: its value for a deletion or an insertion, its name otherwise."
+    },
+    "integer_realization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "index",
+        "label"
+      ],
+      "properties": {
+        "index": {
+          "$ref": "#/definitions/index"
+        },
+        "label": {
+          "type": "integer"
+        }
+      }
+    },
+    "named_realization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "index",
+        "label"
+      ],
+      "properties": {
+        "index": {
+          "$ref": "#/definitions/index"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

@@ -79,6 +79,12 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: pixi run build_debug
 
+      # Before the unit tests, which currently fail on Windows and would skip it. Not yet
+      # verified on Windows, hence continue-on-error there until a run has shown it green.
+      - name: Test the installed CMake package
+        run: pixi run test_package
+        continue-on-error: ${{ matrix.os == 'windows-latest' }}
+
       - name: Run C++ tests
         if: matrix.os != 'ubuntu-latest'
         run: pixi run test_unit

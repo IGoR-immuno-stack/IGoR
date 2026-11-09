@@ -1,0 +1,62 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/IGoR-immuno-stack/IGoR/master/src/igor/Model/schemas/0.3/model.schema.json",
+  "title": "IGoR model document",
+  "description": "A recombination model: its structure, the template library, its parameters and its error rate. Every section is optional here: a reader requires the ones it reads. A document holding only its version and its parameters is a fragment, which a marginals file is. Schema version 0.3 is a pre-release one: no reader keeps support for it once the next exists.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "The schema this document follows, for editors."
+    },
+    "schema_version": {
+      "const": "0.3",
+      "description": "The version of this schema the document follows."
+    },
+    "structure": {
+      "$ref": "structure.schema.json"
+    },
+    "library": {
+      "$ref": "library.schema.json"
+    },
+    "parameters": {
+      "$ref": "parameters.schema.json"
+    },
+    "error_rate": {
+      "$ref": "error-rate.schema.json"
+    },
+    "engine_hints": {
+      "$ref": "#/definitions/engine_hints"
+    }
+  },
+  "definitions": {
+    "engine_hints": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "What an engine may follow and the model does not mean.",
+      "properties": {
+        "legacy_dfs": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "event_order"
+          ],
+          "properties": {
+            "event_order": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "$ref": "common.schema.json#/definitions/nickname"
+              },
+              "description": "The legacy engine's event list, every event once: it breaks ties of priority, and lays out the legacy marginals. Without it, events come in nickname order."
+            }
+          }
+        }
+      }
+    }
+  }
+}

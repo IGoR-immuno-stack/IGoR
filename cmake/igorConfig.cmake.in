@@ -2,6 +2,61 @@
 
 @PACKAGE_INIT@
 
+# ################################################################################
+#
+# One component per layer: Core, Math, Alignment, Model, Inference, Generation,
+# Streaming. A component is whatever <name>Targets.cmake file sits next to this one,
+# so a new layer needs no change here.
+#
+#   find_package(@PROJECT_NAME@ REQUIRED)                    # every component
+#   find_package(@PROJECT_NAME@ REQUIRED COMPONENTS Model)   # Model and what it depends on
+#   target_link_libraries(app PRIVATE @PROJECT_NAME@::Model)
+#
+# ################################################################################
+
+# Collects, for a component, the components it depends on (itself last, so the list is
+# in dependency order) and the external targets its link interface names. Both come
+# from the INTERFACE_LINK_LIBRARIES lines of its exported Targets file.
+function(_scan_dependencies _comp _intern_deps _extern_deps)
+  set(_int ${${_intern_deps}})
+  set(_ext ${${_extern_deps}})
+  if(EXISTS "${CMAKE_CURRENT_LIST_DIR}/@PROJECT_NAME@${_comp}Targets.cmake")
+    file(STRINGS "${CMAKE_CURRENT_LIST_DIR}/@PROJECT_NAME@${_comp}Targets.cmake" data)
+    foreach(line ${data})
+      string(FIND "${line}" "INTERFACE_LINK_LIBRARIES" _LINE_FOUND)
+      if (_LINE_FOUND GREATER -1)
+        string(REPLACE "INTERFACE_LINK_LIBRARIES" "" _line "${line}")
+        string(REPLACE "\"" "" _line_ "${_line}")
+        foreach(word ${_line_})
+          string(REGEX MATCHALL "@PROJECT_NAME@::([^:]+)" _word_ "${word}")
+          string(LENGTH "${_word_}" len)
+          if(len GREATER 0)
+            string(REPLACE "@PROJECT_NAME@::" "" _word "${_word_}")
+            _scan_dependencies(${_word} _int _ext)
+          else()
+            string(STRIP "${word}" word1)
+            list(APPEND _ext "${word1}")
+          endif()
+        endforeach()
+      endif()
+    endforeach()
+    list(APPEND _int "${_comp}")
+  else()
+    list(REMOVE_ITEM _int "${_comp}")
+    list(APPEND _ext "${_comp}")
+  endif()
+
+  set(${_intern_deps} ${_int} PARENT_SCOPE)
+  set(${_extern_deps} ${_ext} PARENT_SCOPE)
+endfunction()
+
+# ################################################################################
+
+list(LENGTH @PROJECT_NAME@_FIND_COMPONENTS len)
+list(FIND @PROJECT_NAME@_FIND_COMPONENTS "ALL" ALL_FOUND)
+set(_COMPONENTS_AND_DEPS "")
+set(_EXTERNAL_DEPS "")
+
 ## #############################################################################
 ## Search for all components whether ALL is specified or no components are specified
 ## #############################################################################
@@ -22,6 +77,27 @@ if(len EQUAL 0 OR ALL_FOUND GREATER -1)
 endif()
 
 ## #############################################################################
+## A requested component that is not installed is reported, not silently dropped
+## #############################################################################
+
+foreach(_comp ${@PROJECT_NAME@_FIND_COMPONENTS})
+  if(_comp IN_LIST __@PROJECT_NAME@_all_components)
+    set(@PROJECT_NAME@_${_comp}_FOUND TRUE)
+  else()
+    set(@PROJECT_NAME@_${_comp}_FOUND FALSE)
+  endif()
+endforeach()
+# check_required_components() only ever sets the variable to FALSE.
+set(@PROJECT_NAME@_FOUND TRUE)
+check_required_components(@PROJECT_NAME@)
+if(NOT @PROJECT_NAME@_FOUND)
+  string(REPLACE ";" ", " __@PROJECT_NAME@_available "${__@PROJECT_NAME@_all_components}")
+  set(@PROJECT_NAME@_NOT_FOUND_MESSAGE
+    "unknown @PROJECT_NAME@ component requested; the available ones are: ${__@PROJECT_NAME@_available}")
+  return()
+endif()
+
+## #############################################################################
 ## Scan internal dependencies for every required components
 ## #############################################################################
 
@@ -32,18 +108,58 @@ foreach(_comp ${@PROJECT_NAME@_FIND_COMPONENTS})
   list(REMOVE_DUPLICATES _COMPONENTS_AND_DEPS)
   list(REMOVE_DUPLICATES _EXTERNAL_DEPS)
 endforeach()
-message(STATUS "@PROJECT_NAME@ required components: ${_COMPONENTS_AND_DEPS}")
-message(STATUS "@PROJECT_NAME@ required external dependencies: ${_EXTERNAL_DEPS}")
+if(NOT @PROJECT_NAME@_FIND_QUIETLY)
+  message(STATUS "@PROJECT_NAME@ required components: ${_COMPONENTS_AND_DEPS}")
+  message(STATUS "@PROJECT_NAME@ required external dependencies: ${_EXTERNAL_DEPS}")
+endif()
+
+## #############################################################################
+## External dependencies
+## #############################################################################
+
+# Before the Targets files: each of them checks that the targets it references exist.
+include(CMakeFindDependencyMacro)
+
+if ("OpenMP::OpenMP_CXX" IN_LIST _EXTERNAL_DEPS AND NOT TARGET OpenMP::OpenMP_CXX)
+  find_dependency(OpenMP COMPONENTS CXX)
+endif()
+
+if ("GSL::gsl" IN_LIST _EXTERNAL_DEPS AND NOT TARGET GSL::gsl)
+  find_dependency(GSL)
+endif()
+
+if ("nlohmann_json::nlohmann_json" IN_LIST _EXTERNAL_DEPS AND NOT TARGET nlohmann_json::nlohmann_json)
+  find_dependency(nlohmann_json)
+endif()
+
+if ("sparrow::sparrow" IN_LIST _EXTERNAL_DEPS AND NOT TARGET sparrow::sparrow)
+  find_dependency(sparrow)
+endif()
 
 ## #############################################################################
 ## Include every required components with dependencies
 ## #############################################################################
 
-foreach(_comp ${@PROJECT_NAME@_FIND_COMPONENTS})
+# _COMPONENTS_AND_DEPS, not the requested list: it holds the dependencies too, each
+# before the components that need it.
+foreach(_comp ${_COMPONENTS_AND_DEPS})
   if (NOT TARGET @PROJECT_NAME@::${_comp})
     include("${CMAKE_CURRENT_LIST_DIR}/@PROJECT_NAME@${_comp}Targets.cmake")
   endif()
 endforeach()
+
+## #############################################################################
+## Global convenient target @PROJECT_NAME@::@PROJECT_NAME@
+## #############################################################################
+
+# Links every component that was loaded, so it means "all of IGoR" only when no
+# component list restricted the request.
+if (NOT TARGET @PROJECT_NAME@::@PROJECT_NAME@)
+  add_library(@PROJECT_NAME@::@PROJECT_NAME@ INTERFACE IMPORTED)
+  foreach(_comp ${_COMPONENTS_AND_DEPS})
+    set_property(TARGET @PROJECT_NAME@::@PROJECT_NAME@ APPEND PROPERTY INTERFACE_LINK_LIBRARIES @PROJECT_NAME@::${_comp})
+  endforeach()
+endif()
 
 ######################################################################
 ### igorConfig.cmake.in ends here

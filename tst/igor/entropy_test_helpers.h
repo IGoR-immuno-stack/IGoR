@@ -8,10 +8,10 @@
 
 #pragma once
 
-#include <igor/Core/Model_Parms.h>
-#include <igor/Core/Model_marginals.h>
-#include <igor/Core/Rec_Event.h>
-#include <igor/Core/FastGenerator.h>
+#include <igor/Model/Legacy/Model_Parms.h>
+#include <igor/Model/Legacy/Model_marginals.h>
+#include <igor/Model/Legacy/Rec_Event.h>
+#include <igor/Generation/Legacy/FastGenerator.h>
 
 #include <algorithm>
 #include <array>
@@ -27,6 +27,11 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
+
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+using namespace igor::model::legacy;
+using namespace igor::generation::legacy;
 
 // ---------------------------------------------------------------------------
 // Event metadata structure
@@ -133,7 +138,7 @@ static inline std::map<size_t, std::vector<double>> compute_all_empirical_margin
  * contains a single element: the realization index.
  */
 static inline std::map<size_t, std::vector<double>> compute_all_empirical_marginals(
-        const std::vector<igor::fast::GeneratedSequence> &sequences,
+        const std::vector<igor::generation::legacy::fast::GeneratedSequence> &sequences,
         const std::vector<EventInfo> &event_infos,
         size_t total_sequences)
 {

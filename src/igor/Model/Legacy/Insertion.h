@@ -1,0 +1,140 @@
+/*
+ * Insertion.h
+ *
+ *  Created on: Dec 9, 2014
+ *      Author: Quentin Marcou
+ *
+ *  This source code is distributed as part of the IGoR software.
+ *  IGoR (Inference and Generation of Repertoires) is a versatile software to analyze and model immune receptors
+ *  generation, selection, mutation and all other processes.
+ *   Copyright (C) 2017  Quentin Marcou
+ *
+ *   This program is free software: you can redistribute it and/or modify
+ *   it under the terms of the GNU General Public License as published by
+ *   the Free Software Foundation, either version 3 of the License, or
+ *   (at your option) any later version.
+ *
+ *   This program is distributed in the hope that it will be useful,
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *   GNU General Public License for more details.
+
+ *   You should have received a copy of the GNU General Public License
+ *   along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ *
+ */
+
+#pragma once
+
+#include <igor/Model/Legacy/Rec_Event.h>
+#include <igor/Core/Legacy/Utils.h>
+#include <forward_list>
+#include <unordered_map>
+#include <string>
+#include <list>
+#include <queue>
+#include <utility>
+#include <igor/Model/Legacy/Errorrate.h>
+#include <random>
+#include <map>
+
+#include <igor/Model/Export.h>
+
+/**
+ * \class Insertion Insertion.h
+ * \brief Insertion recombination events.
+ * \author Q.Marcou
+ * \version 1.0
+ *
+ *  The Insertion RecEvent models the distribution of junctional insertion length during the V(D)J recombination process.
+ *
+ */
+
+namespace igor::model::legacy {
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+
+class MODEL_EXPORT Insertion : public Rec_Event
+{
+public:
+    //Constructors
+    Insertion(const Seq_type_String &, std::pair<int, int>);
+    explicit Insertion(const Seq_type_String &);
+    Insertion(const Seq_type_String &, std::unordered_map<std::string, Event_realization> &);
+    /// From its nickname and its node in a model document. See ModelJson.h.
+    Insertion(const std::string &nickname, const nlohmann::json &);
+
+    //Destructor
+    ~Insertion() override;
+
+    //virtual methods
+    std::shared_ptr<Rec_Event> copy() override;
+    // Context-based iterate() interface
+    inline void
+    iterate(QuerySequenceContext& query,
+            const ModelContext& model,
+            ScenarioContext& scenario,
+            ExplorationContext& exploration,
+            AccumulationContext& accumulation) override;
+
+    bool add_realization(int);
+    void construct_realization(const std::vector<int> &, GenerationState &) const override;
+    void write2txt(std::ofstream &) override;
+    void write2txt_legacy(std::ofstream &) override;
+
+    void initialize_event(
+            std::unordered_set<Rec_Event_name> &,
+            const Events_map &,
+            const std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &,
+            Downstream_scenario_proba_bound_map &, Seq_type_str_p_map &, SafetyMatrix &, std::shared_ptr<Error_rate>,
+            Mismatch_vectors_map &, Seq_offsets_map &, Index_map &) override;
+    void add_to_marginals(long double, Marginal_array_p &) const override;
+
+    /// Throws unless `events_map` holds the Dinucl_markov that fills this event's junction.
+    /// Called by initialize_event(); public so the check can be tested without the rest of it.
+    void require_dinucl_markov(const Events_map &events_map) const;
+
+    //Proba bound related computation methods
+    //Capability queries (task A0)
+    SegmentEndShift get_segment_end_shift_bounds(SegmentId, Seq_side) const override;
+    LengthContribution get_length_contribution(SegmentId) const override;
+    SeqConstructionRole get_seq_construction_role(SegmentId) const override;
+    SegmentEndRole get_segment_end_role(SegmentId, Seq_side) const override;
+
+    int length_delta(const Event_realization &) const override;
+
+protected:
+    /// The junction class the v1 format names the insertion's seq type by, VD_genes for VD_ins_seq.
+    std::string name_class_token() const override;
+
+private:
+    inline double iterate_common(
+            double, int, int, Index_map &,
+            const std::unordered_map<Rec_Event_name, std::vector<std::pair<std::shared_ptr<const Rec_Event>, int>>> &,
+            const Marginal_array_p &);
+
+    std::map<int, Event_realization> ordered_realization_map;
+
+    mutable int base_index;
+    double new_scenario_proba;
+    double proba_contribution;
+    int insertions;
+    int new_index;
+    int previous_index;
+
+    //Iterate common
+    int realization_index;
+    std::string insertions_str;
+
+    /// Layers claimed for the two ends of the junction this event places (O12 (a'), R3).
+    int memory_layer_offset_fivep = -1;
+    int memory_layer_offset_threep = -1;
+
+    //Pre create pairs to call segment_ends (otherwise cost of creating a pair at each call)
+    //std::pair<Seq_type,Seq_side> d_5_pair = std::make_pair (D_gene_seq,Five_prime);
+    //std::pair<Seq_type,Seq_side> v_3_pair = std::make_pair (V_gene_seq,Three_prime);
+    //std::pair<Seq_type,Seq_side> j_5_pair = std::make_pair (J_gene_seq,Five_prime);
+    //std::pair<Seq_type,Seq_side> d_3_pair = std::make_pair (D_gene_seq,Three_prime);
+};
+
+} // namespace igor::model::legacy

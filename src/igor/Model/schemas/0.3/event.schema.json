@@ -1,0 +1,83 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/IGoR-immuno-stack/IGoR/master/src/igor/Model/schemas/0.3/event.schema.json",
+  "title": "IGoR model: event",
+  "description": "An event, of the kind its \"type\" names.",
+  "type": "object",
+  "required": [
+    "type"
+  ],
+  "properties": {
+    "type": {
+      "enum": [
+        "GeneChoice",
+        "Deletion",
+        "Insertion",
+        "DinucMarkov"
+      ],
+      "description": "The kind of event: it selects the constructor."
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": [
+          "type"
+        ],
+        "properties": {
+          "type": {
+            "const": "GeneChoice"
+          }
+        }
+      },
+      "then": {
+        "$ref": "event-GeneChoice.schema.json"
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "type"
+        ],
+        "properties": {
+          "type": {
+            "const": "Deletion"
+          }
+        }
+      },
+      "then": {
+        "$ref": "event-Deletion.schema.json"
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "type"
+        ],
+        "properties": {
+          "type": {
+            "const": "Insertion"
+          }
+        }
+      },
+      "then": {
+        "$ref": "event-Insertion.schema.json"
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "type"
+        ],
+        "properties": {
+          "type": {
+            "const": "DinucMarkov"
+          }
+        }
+      },
+      "then": {
+        "$ref": "event-DinucMarkov.schema.json"
+      }
+    }
+  ]
+}

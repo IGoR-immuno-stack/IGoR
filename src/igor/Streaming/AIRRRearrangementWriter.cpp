@@ -31,7 +31,7 @@
 #include <stdexcept>
 #include <iterator>
 
-namespace igor::airr::rearrangement {
+namespace igor::streaming::airr::rearrangement {
 
 //==============================================================================
 // Internal helpers
@@ -42,9 +42,9 @@ namespace {
 /**
  * @brief Get alignment for a specific gene class, or nullptr if not present
  */
-const Alignment_data* get_alignment(
-    const std::unordered_map<Gene_class, std::vector<Alignment_data>>& alignments,
-    Gene_class gene_class)
+const igor::core::AlignmentData* get_alignment(
+    const std::unordered_map<igor::core::legacy::Gene_class, std::vector<igor::core::AlignmentData>>& alignments,
+    igor::core::legacy::Gene_class gene_class)
 {
     auto it = alignments.find(gene_class);
     if (it == alignments.end() || it->second.empty()) {
@@ -58,7 +58,7 @@ const Alignment_data* get_alignment(
  */
 void write_alignment_fields(
     std::ostream& out,
-    const Alignment_data* align,
+    const igor::core::AlignmentData* align,
     char delim)
 {
     if (align) {
@@ -119,9 +119,9 @@ void write_sequence_row(
     out << seq.index << delim << seq.sequence;
 
     // V, D, J alignments
-    write_alignment_fields(out, get_alignment(seq.alignments, Gene_class::V_gene), delim);
-    write_alignment_fields(out, get_alignment(seq.alignments, Gene_class::D_gene), delim);
-    write_alignment_fields(out, get_alignment(seq.alignments, Gene_class::J_gene), delim);
+    write_alignment_fields(out, get_alignment(seq.alignments, igor::core::legacy::Gene_class::V_gene), delim);
+    write_alignment_fields(out, get_alignment(seq.alignments, igor::core::legacy::Gene_class::D_gene), delim);
+    write_alignment_fields(out, get_alignment(seq.alignments, igor::core::legacy::Gene_class::J_gene), delim);
 
     out << "\n";
 }
@@ -132,7 +132,7 @@ void write_sequence_row(
 // Public API
 //==============================================================================
 
-std::string make_cigar(const Alignment_data& alignment)
+std::string make_cigar(const igor::core::AlignmentData& alignment)
 {
     if (alignment.align_length == 0) {
         return "";
@@ -217,7 +217,7 @@ void write_csv(const std::string& filepath, const std::vector<SequenceData>& seq
 void write_legacy_tsv(
     const std::string& filepath,
     const std::vector<std::tuple<int, std::string,
-                                 std::unordered_map<Gene_class, std::vector<Alignment_data>>>>& sequences)
+                                 std::unordered_map<igor::core::legacy::Gene_class, std::vector<igor::core::AlignmentData>>>>& sequences)
 {
     // Convert legacy tuples to SequenceData
     std::vector<SequenceData> seq_data;
@@ -265,5 +265,5 @@ void write_batch(
     }
 }
 
-} // namespace igor::airr::rearrangement
+} // namespace igor::streaming::airr::rearrangement
 

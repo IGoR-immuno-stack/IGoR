@@ -26,24 +26,26 @@
 
 //#include "../config.h"
 
-#include <igor/Core/Deletion.h>
-#include <igor/Core/Insertion.h>
-#include <igor/Core/Genechoice.h>
-#include <igor/Core/Model_Parms.h>
-#include <igor/Core/Rec_Event.h>
-#include <igor/Core/Singleerrorrate.h>
-#include <igor/Core/Model_marginals.h>
-#include <igor/Core/Aligner.h>
-#include <igor/Core/GenModel.h>
-#include <igor/Core/Dinuclmarkov.h>
-#include <igor/Core/Counter.h>
-#include <igor/Core/Coverageerrcounter.h>
-#include <igor/Core/Bestscenarioscounter.h>
-#include <igor/Core/Pgencounter.h>
-#include <igor/Core/Errorscounter.h>
-#include <igor/Core/Utils.h>
-#include <igor/Core/CDR3SeqData.h>
-#include <igor/Core/ExtractFeatures.h>
+#include <igor/Model/Legacy/Deletion.h>
+#include <igor/Model/Legacy/Insertion.h>
+#include <igor/Model/Legacy/Genechoice.h>
+#include <igor/Model/Legacy/Model_Parms.h>
+#include <igor/Model/Legacy/Rec_Event.h>
+#include <igor/Model/Legacy/Singleerrorrate.h>
+#include <igor/Model/Legacy/Model_marginals.h>
+#include <igor/Model/Legacy/ModelJson.h>
+#include <igor/Alignment/Legacy/Aligner.h>
+#include <igor/Inference/Legacy/GenModel.h>
+#include <igor/Generation/Legacy/SequenceGenerator.h>
+#include <igor/Model/Legacy/Dinuclmarkov.h>
+#include <igor/Model/Legacy/Counter.h>
+#include <igor/Inference/Legacy/Coverageerrcounter.h>
+#include <igor/Inference/Legacy/Bestscenarioscounter.h>
+#include <igor/Inference/Legacy/Pgencounter.h>
+#include <igor/Inference/Legacy/Errorscounter.h>
+#include <igor/Core/Legacy/Utils.h>
+#include <igor/Alignment/Legacy/CDR3SeqData.h>
+#include <igor/Alignment/Legacy/ExtractFeatures.h>
 
 #include <igor/Core/Config.h>
 
@@ -52,6 +54,12 @@
 #include <set>
 #include <string>
 #include <filesystem>
+
+using namespace igor::core::legacy;
+using namespace igor::alignment::legacy;
+using namespace igor::model::legacy;
+using namespace igor::generation::legacy;
+using namespace igor::inference::legacy;
 
 using namespace std;
 
@@ -138,6 +146,9 @@ int igor_legacy_main(int argc, char *argv[])
 
     //Common vars
     string batchname = "";
+    //How the outputs' column headers name the events (output.event_names). Applied once every
+    //argument is read, so that it does not depend on its place on the command line.
+    Event_label cl_event_labels = Event_label::Nickname;
 
     //Working directory vars
     bool wd = false;
@@ -314,6 +325,18 @@ int igor_legacy_main(int argc, char *argv[])
             freopen(argv[++carg_i], "a+", stdout);
         }
 
+        else if (string(argv[carg_i]) == string("-event_names")) {
+            ++carg_i;
+            if (carg_i >= argc) {
+                return terminate_IGoR_with_error_message("Expected nickname or legacy after -event_names");
+            }
+            try {
+                cl_event_labels = str2EventLabel(string(argv[carg_i]));
+            } catch (exception &e) {
+                return terminate_IGoR_with_error_message(e.what());
+            }
+        }
+
         else if (string(argv[carg_i]) == string("-batch")) {
             ++carg_i;
             batchname = argv[carg_i];
@@ -393,7 +416,7 @@ int igor_legacy_main(int argc, char *argv[])
                 ++carg_i;
                 //Check if the next argument is a new command or the corresponding marginal file
                 try {
-                    cl_model_marginals.txt2marginals(string(argv[carg_i]), cl_model_parms);
+                    cl_model_marginals.read_marginals(string(argv[carg_i]), cl_model_parms);
                 } catch (exception &e) {
                     forward_list<string> error_messages;
                     error_messages.emplace_front("If you have altered the default model structure corresponding "
@@ -404,6 +427,15 @@ int igor_legacy_main(int argc, char *argv[])
                             "Exception caught while reading custom marginals after \"-set_custom_model\"");
                     return terminate_IGoR_with_error_message(error_messages, e);
                 }
+            } else if (model_file_has_parameters(argv[carg_i])) {
+                //A complete JSON model carries its marginals.
+                try {
+                    cl_model_marginals.read_marginals(string(argv[carg_i]), cl_model_parms);
+                } catch (exception &e) {
+                    return terminate_IGoR_with_error_message(
+                            "Exception caught while reading the parameters of the model after \"-set_custom_model\"",
+                            e);
+                }
             } else {
                 clog << "No model marginals file was provided with the custom model parameters, initializing "
                         "corresponding marginals to a uniform distribution!"
@@ -411,9 +443,9 @@ int igor_legacy_main(int argc, char *argv[])
                 cl_model_marginals.uniform_initialize(cl_model_parms);
             }
 
-            //Check if the model contains a D gene event in order to load the alignments
-            auto events_map = cl_model_parms.get_events_map();
-            if (events_map.count(make_tuple(GeneChoice_t, string("D_gene_seq"), Undefined_side)) > 0) {
+            //Check if the model contains a D gene event in order to load the alignments: a gene
+            //choice drawing from the D library, on whichever segment (a tandem model has two)
+            if (not cl_model_parms.get_gene_choices(D_gene).empty()) {
                 has_D = true;
             }
         }
@@ -1102,6 +1134,12 @@ int igor_legacy_main(int argc, char *argv[])
         ++carg_i;
     }
 
+    for (const auto &[index, counter] : cl_counters_list) {
+        if (auto best_scenarios = dynamic_pointer_cast<Best_scenarios_counter>(counter)) {
+            best_scenarios->set_event_labels(cl_event_labels);
+        }
+    }
+
     //Make sure the working directory is set somewhere before performing any action
     if (not wd) {
         cl_path = "/tmp/";
@@ -1305,13 +1343,17 @@ int igor_legacy_main(int argc, char *argv[])
     if (load_last_inferred_parms) {
         clog << "Loading last inferred model..." << endl;
         try {
-            cl_model_parms.read_model_parms(cl_path + batchname + "inference/final_parms.txt");
+            //An inference of a model the v1 format cannot hold wrote it, and its marginals, as JSON.
+            const string last_parms = cl_path + batchname + "inference/final_parms";
+            const string extension = std::filesystem::exists(last_parms + ".json") ? ".json" : ".txt";
+            cl_model_parms.read_model_parms(last_parms + extension);
             cl_model_marginals = Model_marginals(cl_model_parms);
-            cl_model_marginals.txt2marginals(cl_path + batchname + "inference/final_marginals.txt", cl_model_parms);
+            cl_model_marginals.read_marginals(cl_path + batchname + "inference/final_marginals" + extension,
+                                              cl_model_parms);
 
-            //Check if the model contains a D gene event in order to load the alignments
-            auto events_map = cl_model_parms.get_events_map();
-            if (events_map.count(make_tuple(GeneChoice_t, string("D_gene_seq"), Undefined_side)) > 0) {
+            //Check if the model contains a D gene event in order to load the alignments: a gene
+            //choice drawing from the D library, on whichever segment (a tandem model has two)
+            if (not cl_model_parms.get_gene_choices(D_gene).empty()) {
                 has_D = true;
             }
         } catch (exception &e) {
@@ -1380,9 +1422,7 @@ int igor_legacy_main(int argc, char *argv[])
             }
             if (any_genomic_difference) {
                 //If any difference is detected reset the marginals
-                Rec_Event_name former_name = v_choice_gc->get_name();
                 v_choice_gc->set_genomic_templates(v_genomic);
-                cl_model_parms.update_edge_event_name(former_name, v_choice_gc->get_name());
                 any_custom_gene = true;
             } else {
                 //Else we set to 0 probability all the ones that were not found in the list of genomic templates
@@ -1392,41 +1432,40 @@ int igor_legacy_main(int argc, char *argv[])
             }
         }
         if (has_D and custom_d) {
-            shared_ptr<Rec_Event> d_choice =
-                    tmp_events_map.at(make_tuple(GeneChoice_t, string("D_gene_seq"), Undefined_side));
-            shared_ptr<Gene_choice> d_choice_gc = dynamic_pointer_cast<Gene_choice>(d_choice);
-            bool any_genomic_difference = false;
-            unordered_map<string, Event_realization> realization_map_copy = d_choice_gc->get_realizations_map();
-            /*
-			 * We loop over provided genomic templates and check if they are contained in the current model
-			 */
-            for (pair<string, string> genomic_template : d_genomic) {
-                if (realization_map_copy.count(genomic_template.first) > 0) {
-                    Event_realization &ev_real = realization_map_copy.at(genomic_template.first);
-                    if (ev_real.value_str == genomic_template.second) {
-                        //Remove the genomic template from the unseen list
-                        //FIXME this will fail if the same genomic template has been read several times
-                        realization_map_copy.erase(genomic_template.first);
+            //Every gene choice drawing from the D library: a tandem model has two, on segments of
+            //their own
+            for (const shared_ptr<Gene_choice> &d_choice_gc : cl_model_parms.get_gene_choices(D_gene)) {
+                bool any_genomic_difference = false;
+                unordered_map<string, Event_realization> realization_map_copy = d_choice_gc->get_realizations_map();
+                /*
+                 * We loop over provided genomic templates and check if they are contained in the current model
+                 */
+                for (pair<string, string> genomic_template : d_genomic) {
+                    if (realization_map_copy.count(genomic_template.first) > 0) {
+                        Event_realization &ev_real = realization_map_copy.at(genomic_template.first);
+                        if (ev_real.value_str == genomic_template.second) {
+                            //Remove the genomic template from the unseen list
+                            //FIXME this will fail if the same genomic template has been read several times
+                            realization_map_copy.erase(genomic_template.first);
+                        } else {
+                            any_genomic_difference = true;
+                        }
                     } else {
                         any_genomic_difference = true;
                     }
-                } else {
-                    any_genomic_difference = true;
+                    if (any_genomic_difference) {
+                        break;
+                    }
                 }
                 if (any_genomic_difference) {
-                    break;
-                }
-            }
-            if (any_genomic_difference) {
-                //If any difference is detected reset the marginals
-                Rec_Event_name former_name = d_choice_gc->get_name();
-                d_choice_gc->set_genomic_templates(d_genomic);
-                cl_model_parms.update_edge_event_name(former_name, d_choice_gc->get_name());
-                any_custom_gene = true;
-            } else {
-                //Else we set to 0 probability all the ones that were not found in the list of genomic templates
-                for (pair<string, Event_realization> ev_real : realization_map_copy) {
-                    cl_model_marginals.set_realization_proba(ev_real.first, d_choice, 0.0, cl_model_parms);
+                    //If any difference is detected reset the marginals
+                    d_choice_gc->set_genomic_templates(d_genomic);
+                    any_custom_gene = true;
+                } else {
+                    //Else we set to 0 probability all the ones that were not found in the list of genomic templates
+                    for (pair<string, Event_realization> ev_real : realization_map_copy) {
+                        cl_model_marginals.set_realization_proba(ev_real.first, d_choice_gc, 0.0, cl_model_parms);
+                    }
                 }
             }
         }
@@ -1458,9 +1497,7 @@ int igor_legacy_main(int argc, char *argv[])
             }
             if (any_genomic_difference) {
                 //If any difference is detected reset the marginals
-                Rec_Event_name former_name = j_choice_gc->get_name();
                 j_choice_gc->set_genomic_templates(j_genomic);
-                cl_model_parms.update_edge_event_name(former_name, j_choice_gc->get_name());
                 any_custom_gene = true;
             } else {
                 //Else we set to 0 probability all the ones that were not found in the list of genomic templates
@@ -1669,31 +1706,31 @@ int igor_legacy_main(int argc, char *argv[])
         j_choice.set_nickname("j_choice");
         j_choice.set_priority(7);
 
-        Deletion v_3_del(V_gene_seq, Three_prime, make_pair(-4, 16)); //16
+        Deletion v_3_del("V_gene_seq", Three_prime, make_pair(-4, 16)); //16
         v_3_del.set_nickname("v_3_del");
         v_3_del.set_priority(5);
-        Deletion d_5_del(D_gene_seq, Five_prime, make_pair(-4, 16));
+        Deletion d_5_del("D_gene_seq", Five_prime, make_pair(-4, 16));
         d_5_del.set_nickname("d_5_del");
         d_5_del.set_priority(5);
-        Deletion d_3_del(D_gene_seq, Three_prime, make_pair(-4, 16));
+        Deletion d_3_del("D_gene_seq", Three_prime, make_pair(-4, 16));
         d_3_del.set_nickname("d_3_del");
         d_3_del.set_priority(5);
-        Deletion j_5_del(J_gene_seq, Five_prime, make_pair(-4, 18));
+        Deletion j_5_del("J_gene_seq", Five_prime, make_pair(-4, 18));
         j_5_del.set_nickname("j_5_del");
         j_5_del.set_priority(5);
 
-        Insertion vd_ins(VD_ins_seq, make_pair(0, 30));
+        Insertion vd_ins("VD_ins_seq", make_pair(0, 30));
         vd_ins.set_nickname("vd_ins");
         vd_ins.set_priority(4);
-        Insertion dj_ins(DJ_ins_seq, make_pair(0, 30));
+        Insertion dj_ins("DJ_ins_seq", make_pair(0, 30));
         dj_ins.set_nickname("dj_ins");
         dj_ins.set_priority(2);
 
-        Dinucl_markov markov_model_vd(VD_ins_seq);
+        Dinucl_markov markov_model_vd(string("VD_ins_seq"));
         markov_model_vd.set_nickname("vd_dinucl");
         markov_model_vd.set_priority(3);
 
-        Dinucl_markov markov_model_dj(DJ_ins_seq);
+        Dinucl_markov markov_model_dj(string("DJ_ins_seq"));
         markov_model_dj.set_nickname("dj_dinucl");
         markov_model_dj.set_priority(1);
 
@@ -1756,7 +1793,8 @@ int igor_legacy_main(int argc, char *argv[])
         counters_list.emplace(4, coverage_counter_j_ptr);
 
         //Collect 10 best scenarios per sequence during the last iteration
-        shared_ptr<Counter> best_sc_ptr(new Best_scenarios_counter(10, cl_path + "/run_demo/", true));
+        shared_ptr<Best_scenarios_counter> best_sc_ptr(new Best_scenarios_counter(10, cl_path + "/run_demo/", true));
+        best_sc_ptr->set_event_labels(cl_event_labels);
         counters_list.emplace(1, best_sc_ptr);
 
         //Collect sequence generation probability during last iteration
@@ -1801,8 +1839,10 @@ int igor_legacy_main(int argc, char *argv[])
 
         //Generate sequences
         clog << "Generate sequences" << endl;
-        auto generated_seq = gen_model.generate_sequences(100, false); //Without errors
-        gen_model.write_seq_real2txt(string(cl_path + "/generated_seqs_indexed_demo.csv"),
+        SequenceGenerator generator(gen_model.get_model_parms(), gen_model.get_marginals());
+        generator.set_event_labels(cl_event_labels);
+        auto generated_seq = generator.generate_sequences(100, false); //Without errors
+        generator.write_seq_real2txt(string(cl_path + "/generated_seqs_indexed_demo.csv"),
                                      string(cl_path + "/generated_seqs_realizations_demo.csv"),
                                      generated_seq); //Member function will be changed
 
@@ -2240,7 +2280,8 @@ int igor_legacy_main(int argc, char *argv[])
 
             std::filesystem::create_directories(cl_path + batchname + "generated");
 
-            GenModel genmodel(cl_model_parms, cl_model_marginals, cl_counters_list);
+            SequenceGenerator genmodel(cl_model_parms, cl_model_marginals);
+            genmodel.set_event_labels(cl_event_labels);
 
             //TODO create generated folder
             string w_err_str;

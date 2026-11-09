@@ -1,0 +1,32 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/IGoR-immuno-stack/IGoR/master/src/igor/Model/schemas/0.3/event-Deletion.schema.json",
+  "title": "Deletion",
+  "description": "Trims one end of a segment by its value; a negative value adds palindromic nucleotides.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "type",
+    "priority",
+    "targets",
+    "realizations"
+  ],
+  "properties": {
+    "type": {
+      "const": "Deletion"
+    },
+    "priority": {
+      "$ref": "common.schema.json#/definitions/priority"
+    },
+    "targets": {
+      "$ref": "common.schema.json#/definitions/sided_targets"
+    },
+    "realizations": {
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/definitions/integer_realization"
+      },
+      "description": "The numbers of nucleotides trimmed."
+    }
+  }
+}
