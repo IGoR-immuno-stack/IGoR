@@ -165,8 +165,8 @@ void Insertion::iterate(
 
     //One junction, whoever its neighbours are. The three hardcoded seq_type comparisons this
     //replaces ran per scenario; the neighbour ids are resolved once at initialize_event().
-    insertions = scenario.seq_offsets.get(get_right_adjacent_id(), Five_prime)
-                 - scenario.seq_offsets.get(get_left_adjacent_id(), Three_prime) - 1;
+    insertions = scenario.segment_ends.get(get_right_adjacent_id(), Five_prime)
+            - scenario.segment_ends.get(get_left_adjacent_id(), Three_prime) - 1;
 
     proba_contribution = iterate_common(proba_contribution, insertions, base_index, exploration.index_map,
                                         model.offset_map, model.model_parameters);
@@ -192,12 +192,10 @@ void Insertion::iterate(
         //
         //An empty junction is `3' == 5' - 1`, a pair of offsets rather than their absence,
         //which is the encoding B10 needs and the one the length below reads straight back.
-        const Seq_Offset junction_five_prime =
-                scenario.seq_offsets.get(get_left_adjacent_id(), Three_prime) + 1;
-        scenario.seq_offsets.set(seq_type_id, Five_prime, junction_five_prime,
-                                 memory_layer_offset_fivep);
-        scenario.seq_offsets.set(seq_type_id, Three_prime, junction_five_prime + insertions - 1,
-                                 memory_layer_offset_threep);
+        const Seq_Offset junction_five_prime = scenario.segment_ends.get(get_left_adjacent_id(), Three_prime) + 1;
+        scenario.segment_ends.set(seq_type_id, Five_prime, junction_five_prime, memory_layer_offset_fivep);
+        scenario.segment_ends.set(seq_type_id, Three_prime, junction_five_prime + insertions - 1,
+                                  memory_layer_offset_threep);
 
         const JunctionBound &junction = junction_bound(kEnclosingJunction);
         //One descent, where the other 18 consumption sites in Gene_choice and Deletion took two
@@ -289,12 +287,11 @@ void Insertion::write2txt_legacy(ofstream &outfile)
 }
 
 void Insertion::initialize_event(
-        unordered_set<Rec_Event_name> &processed_events,
-        const Events_map &events_map,
+        unordered_set<Rec_Event_name> &processed_events, const Events_map &events_map,
         const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
         Downstream_scenario_proba_bound_map &downstream_proba_map, Seq_type_str_p_map &constructed_sequences,
         SafetyMatrix &safety_set, shared_ptr<Error_rate> error_rate_p, Mismatch_vectors_map &mismatches_list,
-        Seq_offsets_map &seq_offsets, Index_map &index_map)
+        Seq_offsets_map &segment_ends, Index_map &index_map)
 {
     //An event carries its seq_type twice: as the serialization name and as the registry id
     //resolved from it. Everything downstream addresses the id, so a disagreement aliases this
@@ -311,10 +308,10 @@ void Insertion::initialize_event(
     //beneath them today -- no other event writes an insertion's offsets -- so the claimed
     //layer is 0 and the write lands where a set_current() would have. Requesting it anyway is
     //what makes the layer *owned*, which is the rule the harness holds every other event to.
-    seq_offsets.request_layer(this->seq_type_id, Five_prime);
-    this->memory_layer_offset_fivep = seq_offsets.claimed_layer(this->seq_type_id, Five_prime);
-    seq_offsets.request_layer(this->seq_type_id, Three_prime);
-    this->memory_layer_offset_threep = seq_offsets.claimed_layer(this->seq_type_id, Three_prime);
+    segment_ends.request_layer(this->seq_type_id, Five_prime);
+    this->memory_layer_offset_fivep = segment_ends.claimed_layer(this->seq_type_id, Five_prime);
+    segment_ends.request_layer(this->seq_type_id, Three_prime);
+    this->memory_layer_offset_threep = segment_ends.claimed_layer(this->seq_type_id, Three_prime);
 
     //The neighbours come from Model_Parms::finalize(), which is the one place that reads the
     //ordering. A tandem-D D1D2_ins is told about D1 and D2 by the same pass that tells this
@@ -352,7 +349,7 @@ void Insertion::initialize_event(
     }
 
     this->Rec_Event::initialize_event(processed_events, events_map, offset_map, downstream_proba_map,
-                                      constructed_sequences, safety_set, error_rate_p, mismatches_list, seq_offsets,
+                                      constructed_sequences, safety_set, error_rate_p, mismatches_list, segment_ends,
                                       index_map);
 }
 

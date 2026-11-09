@@ -210,7 +210,7 @@ address that map directly.
 | Map | Type | Key | Written by | Read by |
 |---|---|---|---|---|
 | constructed sequences | `Seq_type_str_p_map` (`DynamicSequenceMap<Int_Str*>`) | segment | gene choice (template), deletion (trimmed copy), Markov chain (the junction it creates) | Markov chain (its anchor), error rate, counters |
-| offsets | `Seq_offsets_map` (`SeqOffsetsMap`) | segment, end | gene choice (both ends), insertion (both ends of its junction), deletion (the end it trims) | every geometry check, insertion length, counters |
+| segment ends | `Seq_offsets_map` (`SeqOffsetsMap`) | segment, end | gene choice (both ends), insertion (both ends of its junction), deletion (the end it trims) | every geometry check, insertion length, counters |
 | mismatch lists | `Mismatch_vectors_map` | segment | gene choice (from the alignment), deletion (trimmed list) | error rate, counters |
 | pruning mismatch floor | `Pruning_mismatch_floor_map` | segment | nothing yet (see below) | nothing yet |
 | downstream bounds | `Downstream_scenario_proba_bound_map` (`DynamicSequenceMap<double>`) | segment or gap key (§4.3) | every event, for the factors it owns | `compute_upper_bound()` (§6.1) |

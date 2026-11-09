@@ -731,12 +731,11 @@ void Gene_choice::write2txt_legacy(ofstream &outfile)
 }
 
 void Gene_choice::initialize_event(
-        unordered_set<Rec_Event_name> &processed_events,
-        const Events_map &events_map,
+        unordered_set<Rec_Event_name> &processed_events, const Events_map &events_map,
         const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
         Downstream_scenario_proba_bound_map &downstream_proba_map, Seq_type_str_p_map &constructed_sequences,
         SafetyMatrix &safety_set, shared_ptr<Error_rate> error_rate_p, Mismatch_vectors_map &mismatches_list,
-        Seq_offsets_map &seq_offsets, Index_map &index_map)
+        Seq_offsets_map &segment_ends, Index_map &index_map)
 {
     //Everything topological is settled here, so iterate() reads answers instead of asking
     //event_class again. The three switch arms of layer requests collapse because they only ever
@@ -766,12 +765,12 @@ void Gene_choice::initialize_event(
     //which left a tandem model's D1 and D2 out; a neighbour placed later checks against this one
     //itself.
     const EventPlacement &placed = this->placement();
-    flank_checks_ = resolve_flank_checks(placed, /*both sides*/ Undefined_side, safety_set, seq_offsets);
+    flank_checks_ = resolve_flank_checks(placed, /*both sides*/ Undefined_side, safety_set, segment_ends);
 
-    seq_offsets.request_layer(this->seq_type_id, Three_prime);
-    this->memory_layer_off_threep = seq_offsets.claimed_layer(this->seq_type_id, Three_prime);
-    seq_offsets.request_layer(this->seq_type_id, Five_prime);
-    this->memory_layer_off_fivep = seq_offsets.claimed_layer(this->seq_type_id, Five_prime);
+    segment_ends.request_layer(this->seq_type_id, Three_prime);
+    this->memory_layer_off_threep = segment_ends.claimed_layer(this->seq_type_id, Three_prime);
+    segment_ends.request_layer(this->seq_type_id, Five_prime);
+    this->memory_layer_off_fivep = segment_ends.claimed_layer(this->seq_type_id, Five_prime);
     mismatches_list.request_layer(this->seq_type_id);
     this->memory_layer_mismatches = mismatches_list.claimed_layer(this->seq_type_id);
     constructed_sequences.request_layer(this->seq_type_id);
@@ -837,9 +836,8 @@ void Gene_choice::initialize_event(
 
     //downstream_proba_map.get_all_current_memory_layer(current_downstream_proba_memory_layers);
 
-
     this->Rec_Event::initialize_event(processed_events, events_map, offset_map, downstream_proba_map,
-                                      constructed_sequences, safety_set, error_rate_p, mismatches_list, seq_offsets,
+                                      constructed_sequences, safety_set, error_rate_p, mismatches_list, segment_ends,
                                       index_map);
 }
 

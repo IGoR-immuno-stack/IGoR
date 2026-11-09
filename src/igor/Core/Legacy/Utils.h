@@ -259,7 +259,7 @@ CORE_EXPORT SegmentId first_unfilled_segment(const Seq_type_str_p_map &construct
  * branch of `Rec_Event::iterate_wrap_up`, assertions only. Exposed rather than hidden in that
  * assert so it can be unit-tested without a debug build.
  */
-CORE_EXPORT std::pair<SegmentId, Seq_side> first_unplaced_segment_end(const Seq_offsets_map &seq_offsets);
+CORE_EXPORT std::pair<SegmentId, Seq_side> first_unplaced_segment_end(const Seq_offsets_map &segment_ends);
 
 //Keyed by SegmentId. An empty mismatch vector means "zero mismatches", which is present,
 //not absent -- so the default SeqSegmentEmptiness (never empty) is the right one here.

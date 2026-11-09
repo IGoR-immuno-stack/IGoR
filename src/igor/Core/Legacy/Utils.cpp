@@ -657,12 +657,12 @@ SegmentId first_unfilled_segment(const Seq_type_str_p_map &constructed_sequences
     return kNoSegment;
 }
 
-std::pair<SegmentId, Seq_side> first_unplaced_segment_end(const Seq_offsets_map &seq_offsets)
+std::pair<SegmentId, Seq_side> first_unplaced_segment_end(const Seq_offsets_map &segment_ends)
 {
-    const SegmentRegistry &registry = seq_offsets.five_prime.registry();
+    const SegmentRegistry &registry = segment_ends.five_prime.registry();
     for (const SegmentId type_id : registry.ordering()) {
         for (const Seq_side side : {Five_prime, Three_prime}) {
-            if (!seq_offsets.exists(type_id, side)) {
+            if (!segment_ends.exists(type_id, side)) {
                 return {type_id, side};
             }
         }

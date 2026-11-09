@@ -173,7 +173,7 @@ nothing to write.**
 can write without clobbering the previous value, and so that downstream readers of `layer − 1` see
 that value. Request-without-write leaves the next reader on unwritten storage, which `LayeredArray`
 refuses. That was ITER §7.9: the `no_d_align` path requested the safety layers and never wrote
-them. The check, over `constructed_sequences`, both ends of `seq_offsets`, `mismatches_lists`,
+them. The check, over `constructed_sequences`, both ends of `segment_ends`, `mismatches_lists`,
 `downstream_proba_map`, `safety_set` and `pruning_mismatch_floor`:
 
 ```

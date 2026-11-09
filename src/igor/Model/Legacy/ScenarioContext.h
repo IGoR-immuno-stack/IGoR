@@ -38,7 +38,7 @@ struct ScenarioContext {
     Seq_type_str_p_map& constructed_sequences;
 
     // Offsets of each sequence fragment (5'/3' positions)
-    Seq_offsets_map& seq_offsets;
+    Seq_offsets_map &segment_ends;
 
     // Mismatch positions for error rate calculation
     Mismatch_vectors_map& mismatches_lists;
@@ -49,16 +49,13 @@ struct ScenarioContext {
      * All parameters are references to existing state that will be
      * modified during scenario exploration.
      */
-    ScenarioContext(
-        double& scenario_proba_,
-        Seq_type_str_p_map& constructed_sequences_,
-        Seq_offsets_map& seq_offsets_,
-        Mismatch_vectors_map& mismatches_lists_
-    ) : scenario_proba(scenario_proba_),
-        scenario_error_w_proba(0.0),  // Initialize to 0 (set at leaf nodes)
-        constructed_sequences(constructed_sequences_),
-        seq_offsets(seq_offsets_),
-        mismatches_lists(mismatches_lists_)
+    ScenarioContext(double &scenario_proba_, Seq_type_str_p_map &constructed_sequences_, Seq_offsets_map &segment_ends_,
+                    Mismatch_vectors_map &mismatches_lists_)
+        : scenario_proba(scenario_proba_),
+          scenario_error_w_proba(0.0), // Initialize to 0 (set at leaf nodes)
+          constructed_sequences(constructed_sequences_),
+          segment_ends(segment_ends_),
+          mismatches_lists(mismatches_lists_)
     {}
 
     // Prevent copying (would create dangling references)
@@ -82,7 +79,7 @@ struct ScenarioContext {
     /**
      * @brief Set sequence offset for a gene/junction
      *
-     * Wrapper for seq_offsets.set() with semantic naming.
+     * Wrapper for segment_ends.set() with semantic naming.
      *
      * @param seq_type Type of sequence (V_gene_seq, D_gene_seq, etc.)
      * @param side Which end (Five_prime or Three_prime)
@@ -97,13 +94,13 @@ struct ScenarioContext {
         Seq_Offset offset,
         size_t memory_layer
     ) {
-        seq_offsets.set(seq_type, side, offset, memory_layer);
+        segment_ends.set(seq_type, side, offset, memory_layer);
     }
 
     /**
      * @brief Get sequence offset for a gene/junction
      *
-     * Wrapper for seq_offsets.get() with semantic naming.
+     * Wrapper for segment_ends.get() with semantic naming.
      *
      * @param seq_type Type of sequence
      * @param side Which end (Five_prime or Three_prime)
@@ -117,7 +114,7 @@ struct ScenarioContext {
         Seq_side side,
         size_t memory_layer
     ) const {
-        return seq_offsets.get(seq_type, side, memory_layer);
+        return segment_ends.get(seq_type, side, memory_layer);
     }
 
     /**
@@ -209,12 +206,7 @@ struct ScenarioContext {
      * @param side Which end (Five_prime or Three_prime)
      * @return Offset at current memory layer
      */
-    inline Seq_Offset get_offset(
-        Seq_type seq_type,
-        Seq_side side
-    ) const {
-        return seq_offsets.get(seq_type, side);
-    }
+    inline Seq_Offset get_offset(Seq_type seq_type, Seq_side side) const { return segment_ends.get(seq_type, side); }
 
     /**
      * @brief Get sequence segment using current memory layer

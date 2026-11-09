@@ -429,7 +429,7 @@ public:
     SafetyMatrix safety_set(registry);
     std::shared_ptr<Error_rate> error_rate_p;
     Mismatch_vectors_map mismatches_list(registry);
-    Seq_offsets_map seq_offsets(registry);
+    Seq_offsets_map segment_ends(registry);
     Index_map index_map(6);
 
     // Force stale state in, to verify that initialize_event actually rebuilds it. The three
@@ -442,9 +442,8 @@ public:
       const igor::model::TraversalPlan plan(registry, order);
       del_event.set_traversal_plan(plan);
       del_event.flank_checks_.resize(7);
-      del_event.initialize_event(processed_events, events_map, offset_map, downstream_proba_map,
-                                 constructed_sequences, safety_set, error_rate_p, mismatches_list,
-                                 seq_offsets, index_map);
+      del_event.initialize_event(processed_events, events_map, offset_map, downstream_proba_map, constructed_sequences,
+                                 safety_set, error_rate_p, mismatches_list, segment_ends, index_map);
     };
 
     // Nothing placed before it: nothing to check against.

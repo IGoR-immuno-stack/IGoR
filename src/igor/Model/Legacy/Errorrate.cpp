@@ -112,16 +112,9 @@ double Error_rate::compute_scenario_error_probability(
         ExplorationContext& exploration
 ){
     // Do nothing, temporary to allow per error rate migration before setting it to pure virtual again.
-    return this->compare_sequences_error_prob(
-        scenario.scenario_proba,
-        query.sequence,
-        scenario.constructed_sequences,
-        scenario.seq_offsets,
-        model.events_map,
-        scenario.mismatches_lists,
-        exploration.seq_max_prob_scenario,
-        exploration.proba_threshold_factor
-    );
+    return this->compare_sequences_error_prob(scenario.scenario_proba, query.sequence, scenario.constructed_sequences,
+                                              scenario.segment_ends, model.events_map, scenario.mismatches_lists,
+                                              exploration.seq_max_prob_scenario, exploration.proba_threshold_factor);
 }
 
 } // namespace igor::model::legacy

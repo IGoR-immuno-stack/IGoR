@@ -369,14 +369,8 @@ double Hypermutation_global_errorrate::compute_scenario_error_probability(
 {
     (void) model;
     double result = this->compute_error_probability_impl(
-        scenario.scenario_proba,
-        query.sequence,
-        scenario.constructed_sequences,
-        scenario.seq_offsets,
-        scenario.mismatches_lists,
-        exploration.seq_max_prob_scenario,
-        exploration.proba_threshold_factor
-    );
+            scenario.scenario_proba, query.sequence, scenario.constructed_sequences, scenario.segment_ends,
+            scenario.mismatches_lists, exploration.seq_max_prob_scenario, exploration.proba_threshold_factor);
 
     // Store in ScenarioContext for Counter access
     scenario.scenario_error_w_proba = result;

@@ -194,8 +194,8 @@ void Dinucl_markov::iterate(
         //The offsets are Insertion's own, so a negative width would mean it handed on a
         //realization its own realization map does not hold. It discards those instead
         //(iterate_common returns 0), hence the assert rather than a branch.
-        const int junction_length = scenario.seq_offsets.get(spec.target_id, Three_prime)
-                                    - scenario.seq_offsets.get(spec.target_id, Five_prime) + 1;
+        const int junction_length = scenario.segment_ends.get(spec.target_id, Three_prime)
+                - scenario.segment_ends.get(spec.target_id, Five_prime) + 1;
         assert(junction_length >= 0 && "junction offsets cross over");
         junction_str.assign(static_cast<std::size_t>(std::max(junction_length, 0)), int_undefined);
         Int_Str &target_seq = junction_str;
@@ -252,8 +252,7 @@ void Dinucl_markov::iterate(
                                 "legal realization, but one that leaves " + registry.name(spec.target_id)
                                 + " unscoreable.");
         } else if (reverse_traversal) {
-            const size_t char_index =
-                    scenario.seq_offsets.get(spec.anchor_id, spec.anchor_side) - target_seq.size();
+            const size_t char_index = scenario.segment_ends.get(spec.anchor_id, spec.anchor_side) - target_seq.size();
             data_seq_substr = query.int_sequence.substr(char_index, target_seq.size());
             previous_nt_str = previous_seq.front();
             reverse(data_seq_substr.begin(), data_seq_substr.end());
@@ -261,8 +260,7 @@ void Dinucl_markov::iterate(
                            model.model_parameters);
             reverse(target_seq.begin(), target_seq.end());
         } else {
-            const size_t start_index =
-                    scenario.seq_offsets.get(spec.anchor_id, spec.anchor_side) + 1;
+            const size_t start_index = scenario.segment_ends.get(spec.anchor_id, spec.anchor_side) + 1;
             data_seq_substr = query.int_sequence.substr(start_index, target_seq.size());
             previous_nt_str = previous_seq.back();
             iterate_common(realization_indices, previous_nt_str, target_seq,
@@ -505,12 +503,11 @@ void Dinucl_markov::ind_normalize(Marginal_array_p &marginal_array_p, size_t bas
 }
 
 void Dinucl_markov::initialize_event(
-        unordered_set<Rec_Event_name> &processed_events,
-        const Events_map &events_map,
+        unordered_set<Rec_Event_name> &processed_events, const Events_map &events_map,
         const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
         Downstream_scenario_proba_bound_map &downstream_proba_map, Seq_type_str_p_map &constructed_sequences,
         SafetyMatrix &safety_set, shared_ptr<Error_rate> error_rate_p, Mismatch_vectors_map &mismatches_list,
-        Seq_offsets_map &seq_offsets, Index_map &index_map)
+        Seq_offsets_map &segment_ends, Index_map &index_map)
 {
 
     const DinuclTraversalSpec spec = get_junction();
@@ -557,7 +554,7 @@ void Dinucl_markov::initialize_event(
     unmutable_base_index = index_map.get(this->event_index);
 
     this->Rec_Event::initialize_event(processed_events, events_map, offset_map, downstream_proba_map,
-                                      constructed_sequences, safety_set, error_rate_p, mismatches_list, seq_offsets,
+                                      constructed_sequences, safety_set, error_rate_p, mismatches_list, segment_ends,
                                       index_map);
 }
 

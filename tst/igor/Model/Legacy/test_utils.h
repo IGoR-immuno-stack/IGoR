@@ -153,13 +153,13 @@ const SegmentRegistry &vj_segment_registry();
 struct ScenarioStorage {
     double scenario_proba;
     Seq_type_str_p_map constructed_sequences;
-    Seq_offsets_map seq_offsets;
+    Seq_offsets_map segment_ends;
     Mismatch_vectors_map mismatches_lists;
 
     explicit ScenarioStorage(const SegmentRegistry &registry)
         : scenario_proba(1.0),
           constructed_sequences(registry, kTestLayers),
-          seq_offsets(registry, kTestLayers),
+          segment_ends(registry, kTestLayers),
           mismatches_lists(registry, kTestLayers)
     {}
 };
@@ -279,7 +279,7 @@ public:
           model(model_storage.model_marginals, model_storage.offset_map, model_storage.events_map,
                 model_storage.model_queue),
           scenario(scenario_storage.scenario_proba, scenario_storage.constructed_sequences,
-                   scenario_storage.seq_offsets, scenario_storage.mismatches_lists),
+                   scenario_storage.segment_ends, scenario_storage.mismatches_lists),
           exploration(exploration_storage.downstream_proba_map, exploration_storage.seq_max_prob,
                       exploration_storage.proba_threshold, exploration_storage.index_map,
                       exploration_storage.next_event_ptr_arr, exploration_storage.safety_set,
@@ -353,12 +353,12 @@ public:
                         const std::string &segment = "", const std::vector<std::size_t> &mismatches = {})
     {
         preset_.built.push_back(seq_type);
-        claim_layer_zero(scenario_storage.seq_offsets, seq_type, Five_prime);
-        claim_layer_zero(scenario_storage.seq_offsets, seq_type, Three_prime);
+        claim_layer_zero(scenario_storage.segment_ends, seq_type, Five_prime);
+        claim_layer_zero(scenario_storage.segment_ends, seq_type, Three_prime);
         claim_layer_zero(scenario_storage.constructed_sequences, seq_type);
         claim_layer_zero(scenario_storage.mismatches_lists, seq_type);
-        scenario_storage.seq_offsets.set(seq_type, Five_prime, five_prime, 0);
-        scenario_storage.seq_offsets.set(seq_type, Three_prime, three_prime, 0);
+        scenario_storage.segment_ends.set(seq_type, Five_prime, five_prime, 0);
+        scenario_storage.segment_ends.set(seq_type, Three_prime, three_prime, 0);
         preset_sequences_.push_back(nt2int(segment));
         scenario_storage.constructed_sequences.set(seq_type, &preset_sequences_.back(), 0);
         preset_mismatches_.push_back(mismatches);
@@ -380,11 +380,10 @@ public:
     void preset_junction(SegmentId seq_type, Seq_Offset five_prime, std::size_t length)
     {
         preset_.placed.push_back(seq_type);
-        claim_layer_zero(scenario_storage.seq_offsets, seq_type, Five_prime);
-        claim_layer_zero(scenario_storage.seq_offsets, seq_type, Three_prime);
-        scenario_storage.seq_offsets.set(seq_type, Five_prime, five_prime, 0);
-        scenario_storage.seq_offsets.set(seq_type, Three_prime,
-                                         five_prime + static_cast<Seq_Offset>(length) - 1, 0);
+        claim_layer_zero(scenario_storage.segment_ends, seq_type, Five_prime);
+        claim_layer_zero(scenario_storage.segment_ends, seq_type, Three_prime);
+        scenario_storage.segment_ends.set(seq_type, Five_prime, five_prime, 0);
+        scenario_storage.segment_ends.set(seq_type, Three_prime, five_prime + static_cast<Seq_Offset>(length) - 1, 0);
     }
 
     /// The probability the event under test inherits from upstream. Defaults to 1.

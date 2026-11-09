@@ -30,7 +30,7 @@ using core::SegmentId;
 using core::SeqSide;
 
 std::vector<FlankCheck> resolve_flank_checks(const EventPlacement &placed, SeqSide side, SafetyMatrix &safety_set,
-                                             const core::SeqOffsetsMap &seq_offsets)
+                                             const core::SeqOffsetsMap &segment_ends)
 {
     std::vector<FlankCheck> checks;
     const auto check_against = [&](SegmentId partner, bool this_is_left) {
@@ -56,7 +56,7 @@ std::vector<FlankCheck> resolve_flank_checks(const EventPlacement &placed, SeqSi
     for (FlankCheck &check : checks) {
         safety_set.request_layer(check.safety_cell);
         check.safety_layer = safety_set.claimed_layer(check.safety_cell);
-        check.partner_offset_layer = seq_offsets.claimed_layer(check.partner_id, check.partner_side);
+        check.partner_offset_layer = segment_ends.claimed_layer(check.partner_id, check.partner_side);
     }
     return checks;
 }

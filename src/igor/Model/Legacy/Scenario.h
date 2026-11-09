@@ -71,12 +71,12 @@ struct Scenario {
             }
             // else: remains nullptr (already initialized)
         }
-        
-        // Flatten seq_offsets map → vector of pairs
+
+        // Flatten segment_ends map → vector of pairs
         // NOTE: Offsets only exist for initialized sequences
         for (size_t seq_type_idx = 0; seq_type_idx < 6; ++seq_type_idx) {
             Seq_type seq_type = static_cast<Seq_type>(seq_type_idx);
-            if (ctx.seq_offsets.exists(seq_type, Five_prime) &&  ctx.seq_offsets.exists(seq_type, Three_prime)) {
+            if (ctx.segment_ends.exists(seq_type, Five_prime) && ctx.segment_ends.exists(seq_type, Three_prime)) {
                 offsets[seq_type_idx] = {
                     ctx.get_offset(seq_type, Five_prime),
                     ctx.get_offset(seq_type, Three_prime)

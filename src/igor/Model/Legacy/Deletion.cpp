@@ -569,12 +569,11 @@ void Deletion::write2txt_legacy(ofstream &outfile)
 }
 
 void Deletion::initialize_event(
-        unordered_set<Rec_Event_name> &processed_events,
-        const Events_map &events_map,
+        unordered_set<Rec_Event_name> &processed_events, const Events_map &events_map,
         const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
         Downstream_scenario_proba_bound_map &downstream_proba_map, Seq_type_str_p_map &constructed_sequences,
         SafetyMatrix &safety_set, shared_ptr<Error_rate> error_rate_p, Mismatch_vectors_map &mismatches_list,
-        Seq_offsets_map &seq_offsets, Index_map &index_map)
+        Seq_offsets_map &segment_ends, Index_map &index_map)
 {
     //A deletion trims one end of one segment, so a model that does not say which end is not a
     //model this event can run in. Rejected here rather than at the scenario node the four-arm
@@ -639,8 +638,8 @@ void Deletion::initialize_event(
         }
     }
 
-    seq_offsets.request_layer(this->seq_type_id, this->event_side);
-    memory_layer_offset_del = seq_offsets.claimed_layer(this->seq_type_id, this->event_side);
+    segment_ends.request_layer(this->seq_type_id, this->event_side);
+    memory_layer_offset_del = segment_ends.claimed_layer(this->seq_type_id, this->event_side);
     mismatches_list.request_layer(this->seq_type_id);
     this->memory_layer_mismatches = mismatches_list.claimed_layer(this->seq_type_id);
     constructed_sequences.request_layer(this->seq_type_id);
@@ -652,8 +651,8 @@ void Deletion::initialize_event(
     //ones (ITER section 2.3). The four legacy arms checked one or two partners, the far gene too;
     //the engine's plan now says which is placed when this event runs (TraversalPlan).
     const EventPlacement &placed = this->placement();
-    flank_checks_ = resolve_flank_checks(placed, trims_three_prime_ ? Three_prime : Five_prime, safety_set,
-                                         seq_offsets);
+    flank_checks_ =
+            resolve_flank_checks(placed, trims_three_prime_ ? Three_prime : Five_prime, safety_set, segment_ends);
     flank_states_.assign(flank_checks_.size(), FlankState{});
 
     downstream_proba_map.request_layer(this->seq_type_id);
@@ -690,8 +689,8 @@ void Deletion::initialize_event(
     }
 
     this->Rec_Event::initialize_event(processed_events, events_map, offset_map, downstream_proba_map,
-                                      constructed_sequences, safety_set, error_rate_p, mismatches_list,
-                                      seq_offsets, index_map);
+                                      constructed_sequences, safety_set, error_rate_p, mismatches_list, segment_ends,
+                                      index_map);
 }
 
 namespace {

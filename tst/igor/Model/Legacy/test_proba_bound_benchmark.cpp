@@ -125,7 +125,7 @@ public:
         SafetyMatrix safety_set(parms_.get_seq_type_registry());
         Seq_type_str_p_map constructed_sequences(parms_.get_seq_type_registry());
         Mismatch_vectors_map mismatches_lists(parms_.get_seq_type_registry());
-        Seq_offsets_map seq_offsets(parms_.get_seq_type_registry());
+        Seq_offsets_map segment_ends(parms_.get_seq_type_registry());
         //Sized from the plan, as in GenModel: past the registry's ids, a gap may have a key of its
         //own.
         Downstream_scenario_proba_bound_map downstream_proba_map(parms_.get_seq_type_registry(), 1,
@@ -139,7 +139,7 @@ public:
             std::shared_ptr<Rec_Event> event = init_queue.front();
             init_queue.pop();
             event->initialize_event(processed_events, events_map_, offset_map, downstream_proba_map,
-                                    constructed_sequences, safety_set, err_rate, mismatches_lists, seq_offsets,
+                                    constructed_sequences, safety_set, err_rate, mismatches_lists, segment_ends,
                                     index_map_);
         }
     }

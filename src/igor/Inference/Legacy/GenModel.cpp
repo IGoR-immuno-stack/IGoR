@@ -352,7 +352,7 @@ bool GenModel::infer_model(
             // mismatch count that no choice of query branch can reduce.
             Pruning_mismatch_floor_map pruning_mismatch_floor(
                     single_thread_model_parms.get_seq_type_registry());
-            Seq_offsets_map seq_offsets(single_thread_model_parms.get_seq_type_registry());
+            Seq_offsets_map segment_ends(single_thread_model_parms.get_seq_type_registry());
 
             //This thread's copies of the events read the shared plan, before initialize_event().
             for (const shared_ptr<Rec_Event> &event : single_thread_model_parms.get_event_list()) {
@@ -401,9 +401,9 @@ bool GenModel::infer_model(
                 init_single_thread_stack.push(first_init_event);
                 init_single_thread_model_queue.pop();
                 (*first_init_event)
-                    .initialize_event(init_processed_events, events_map, single_thread_offset_map,
+                        .initialize_event(init_processed_events, events_map, single_thread_offset_map,
                                           downstream_proba_map, constructed_sequences, safety_set,
-                                          single_thread_err_rate, mismatches_lists, seq_offsets, index_mapp);
+                                          single_thread_err_rate, mismatches_lists, segment_ends, index_mapp);
                 (*first_init_event).set_viterbi_run(viterbi_like);
             }
 
@@ -560,11 +560,10 @@ bool GenModel::infer_model(
                         single_thread_model_queue                              // model_queue
                     );
 
-                    ScenarioContext scenario(
-                        init_proba,              // scenario_proba
-                        constructed_sequences,   // constructed_sequences
-                        seq_offsets,            // seq_offsets
-                        mismatches_lists        // mismatches_lists
+                    ScenarioContext scenario(init_proba, // scenario_proba
+                                             constructed_sequences, // constructed_sequences
+                                             segment_ends, // segment_ends
+                                             mismatches_lists // mismatches_lists
                     );
 
                     ExplorationContext exploration(

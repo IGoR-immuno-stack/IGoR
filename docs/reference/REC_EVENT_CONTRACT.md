@@ -186,7 +186,7 @@ at the end. An override does, in this order:
    from (`Dinucl_markov`). Coherence across events is the plan's, already checked.
 2. **Read its placement** (`placement()`), never search `events_map` for neighbours or partners.
 3. **Claim every layer it will write**, and store the layer granted:
-   - each offset it creates or modifies (`seq_offsets.request_layer(id, side)`);
+   - each offset it creates or modifies (`segment_ends.request_layer(id, side)`);
    - the content it creates or modifies (`constructed_sequences`), and the mismatch list if it has
      one;
    - its own downstream-bound slot, at its id, if it has a factor of its own;

@@ -514,12 +514,12 @@ public:
                     &offset_map,
             Downstream_scenario_proba_bound_map &downstream_proba_map, Seq_type_str_p_map &constructed_sequences,
             SafetyMatrix &safety_set, std::shared_ptr<Error_rate> error_rate_p, Mismatch_vectors_map &mismatches_list,
-            Seq_offsets_map &seq_offsets, Index_map &index_map) override
+            Seq_offsets_map &segment_ends, Index_map &index_map) override
     {
         constructed_sequences.request_layer(anchor_);
         constructed_sequences.set(anchor_, &stale_, constructed_sequences.claimed_layer(anchor_));
         Rec_Event::initialize_event(processed_events, events_map, offset_map, downstream_proba_map,
-                                    constructed_sequences, safety_set, error_rate_p, mismatches_list, seq_offsets,
+                                    constructed_sequences, safety_set, error_rate_p, mismatches_list, segment_ends,
                                     index_map);
     }
 

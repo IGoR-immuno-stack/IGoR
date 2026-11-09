@@ -358,10 +358,9 @@ void Rec_Event::iterate_wrap_up(
         // consumer can locate on the read, and the only reason that did not bite is that every
         // consumer today knows an insertion's span runs between its neighbours -- exactly the
         // coupling the capability queries exist to remove.
-        if (const auto [unplaced, side] = first_unplaced_segment_end(scenario.seq_offsets); unplaced != kNoSegment) {
-            std::cerr << "Scenario leaf reached with no "
-                      << (side == Five_prime ? "5'" : "3'") << " offset for "
-                      << scenario.seq_offsets.five_prime.registry().name(unplaced) << std::endl;
+        if (const auto [unplaced, side] = first_unplaced_segment_end(scenario.segment_ends); unplaced != kNoSegment) {
+            std::cerr << "Scenario leaf reached with no " << (side == Five_prime ? "5'" : "3'") << " offset for "
+                      << scenario.segment_ends.five_prime.registry().name(unplaced) << std::endl;
             assert(false && "unplaced segment end in a completed scenario");
         }
 #endif
@@ -418,12 +417,11 @@ void Rec_Event::iterate_wrap_up(
 }
 
 void Rec_Event::initialize_event(
-        unordered_set<Rec_Event_name> &processed_events,
-        const Events_map &events_map,
+        unordered_set<Rec_Event_name> &processed_events, const Events_map &events_map,
         const unordered_map<Rec_Event_name, vector<pair<shared_ptr<const Rec_Event>, int>>> &offset_map,
         Downstream_scenario_proba_bound_map &downstream_proba_map, Seq_type_str_p_map &constructed_sequences,
         SafetyMatrix &safety_set, shared_ptr<Error_rate> error_rate_p, Mismatch_vectors_map &mismatches_list,
-        Seq_offsets_map &seq_offsets, Index_map &index_map)
+        Seq_offsets_map &segment_ends, Index_map &index_map)
 {
     initialize_event_common(processed_events, offset_map, downstream_proba_map, index_map);
 }

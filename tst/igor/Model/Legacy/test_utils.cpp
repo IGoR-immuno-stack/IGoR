@@ -165,8 +165,8 @@ LayerSnapshot capture_layers(const IterateTestState &state)
         snapshot.current.emplace(name, current_layers_of(map));
     };
     add("constructed_sequences", state.scenario.constructed_sequences);
-    add("seq_offsets.five_prime", state.scenario.seq_offsets.five_prime);
-    add("seq_offsets.three_prime", state.scenario.seq_offsets.three_prime);
+    add("segment_ends.five_prime", state.scenario.segment_ends.five_prime);
+    add("segment_ends.three_prime", state.scenario.segment_ends.three_prime);
     add("mismatches_lists", state.scenario.mismatches_lists);
     add("downstream_proba_map", state.exploration.downstream_proba_map);
     add("safety_set", state.exploration.safety_set);
@@ -221,8 +221,7 @@ void RecordingEvent::iterate(QuerySequenceContext &, const ModelContext &, Scena
     snapshot.scenario_proba = scenario.scenario_proba;
 
     for (Seq_type seq_type : kAllSeqTypes) {
-        if (scenario.seq_offsets.exists(seq_type, Five_prime)
-            && scenario.seq_offsets.exists(seq_type, Three_prime)) {
+        if (scenario.segment_ends.exists(seq_type, Five_prime) && scenario.segment_ends.exists(seq_type, Three_prime)) {
             snapshot.offsets.emplace(seq_type,
                                      std::make_pair(scenario.get_offset(seq_type, Five_prime),
                                                     scenario.get_offset(seq_type, Three_prime)));
@@ -286,8 +285,8 @@ void RecordingEvent::iterate(QuerySequenceContext &, const ModelContext &, Scena
         }
     };
     check_map("constructed_sequences", current_layers_of(scenario.constructed_sequences));
-    check_map("seq_offsets.five_prime", current_layers_of(scenario.seq_offsets.five_prime));
-    check_map("seq_offsets.three_prime", current_layers_of(scenario.seq_offsets.three_prime));
+    check_map("segment_ends.five_prime", current_layers_of(scenario.segment_ends.five_prime));
+    check_map("segment_ends.three_prime", current_layers_of(scenario.segment_ends.three_prime));
     check_map("mismatches_lists", current_layers_of(scenario.mismatches_lists));
     check_map("downstream_proba_map", current_layers_of(exploration.downstream_proba_map));
     check_map("safety_set", current_layers_of(exploration.safety_set));
@@ -317,8 +316,8 @@ void RecordingEvent::iterate(QuerySequenceContext &, const ModelContext &, Scena
         }
     };
     check_ownership("constructed_sequences", current_layers_of(scenario.constructed_sequences));
-    check_ownership("seq_offsets.five_prime", current_layers_of(scenario.seq_offsets.five_prime));
-    check_ownership("seq_offsets.three_prime", current_layers_of(scenario.seq_offsets.three_prime));
+    check_ownership("segment_ends.five_prime", current_layers_of(scenario.segment_ends.five_prime));
+    check_ownership("segment_ends.three_prime", current_layers_of(scenario.segment_ends.three_prime));
     check_ownership("mismatches_lists", current_layers_of(scenario.mismatches_lists));
     check_ownership("downstream_proba_map", current_layers_of(exploration.downstream_proba_map));
     check_ownership("safety_set", current_layers_of(exploration.safety_set));
@@ -407,17 +406,16 @@ void RecordingEvent::iterate(QuerySequenceContext &, const ModelContext &, Scena
             }
         }
 
-        const std::vector<int> five_layers = current_layers_of(scenario.seq_offsets.five_prime);
-        const std::vector<int> three_layers = current_layers_of(scenario.seq_offsets.three_prime);
+        const std::vector<int> five_layers = current_layers_of(scenario.segment_ends.five_prime);
+        const std::vector<int> three_layers = current_layers_of(scenario.segment_ends.three_prime);
         for (const auto &[key_pair, role] : declarations.segment_end_roles) {
             const auto [seq_type, side] = key_pair;
             const std::size_t key = static_cast<std::size_t>(seq_type);
-            const std::string map_name = side == Five_prime ? "seq_offsets.five_prime"
-                                                            : "seq_offsets.three_prime";
+            const std::string map_name = side == Five_prime ? "segment_ends.five_prime" : "segment_ends.three_prime";
             const std::vector<int> &layers = side == Five_prime ? five_layers : three_layers;
             switch (role) {
             case SegmentEndRole::Creates:
-                if (!scenario.seq_offsets.exists(seq_type, side)) {
+                if (!scenario.segment_ends.exists(seq_type, side)) {
                     note(map_name, seq_type, "SegmentEndRole::Creates", "that end was never written");
                 } else if (!touched(map_name, key, layers)) {
                     note(map_name, seq_type, "SegmentEndRole::Creates",
@@ -604,11 +602,10 @@ void call_iterate(const std::shared_ptr<Rec_Event> &event, IterateTestState &sta
             std::shared_ptr<Rec_Event> ev = init_queue.front();
             init_queue.pop();
             init_stack.push(ev);
-            ev->initialize_event(state.processed_events(), events_map, offset_map,
-                                 state.exploration.downstream_proba_map,
-                                 state.scenario.constructed_sequences, state.exploration.safety_set,
-                                 state.accumulation.error_rate, state.scenario.mismatches_lists,
-                                 state.scenario.seq_offsets, state.exploration.index_map);
+            ev->initialize_event(
+                    state.processed_events(), events_map, offset_map, state.exploration.downstream_proba_map,
+                    state.scenario.constructed_sequences, state.exploration.safety_set, state.accumulation.error_rate,
+                    state.scenario.mismatches_lists, state.scenario.segment_ends, state.exploration.index_map);
 
             //The layer contract baseline, captured the instant the event under test has
             //requested its layers and before any downstream event requests more. Downstream
@@ -663,12 +660,12 @@ void call_iterate(const std::shared_ptr<Rec_Event> &event, IterateTestState &sta
 Seq_Offset get_seq_offset(const IterateTestState &state, Seq_type seq_type, Seq_side side,
                           std::size_t layer)
 {
-    return state.scenario.seq_offsets.get(seq_type, side, layer);
+    return state.scenario.segment_ends.get(seq_type, side, layer);
 }
 
 bool has_seq_offset(const IterateTestState &state, Seq_type seq_type, Seq_side side)
 {
-    return state.scenario.seq_offsets.exists(seq_type, side);
+    return state.scenario.segment_ends.exists(seq_type, side);
 }
 
 const Int_Str *get_constructed_sequence(const IterateTestState &state, Seq_type seq_type,

@@ -81,6 +81,6 @@ struct FlankCheck {
  */
 MODEL_EXPORT std::vector<FlankCheck> resolve_flank_checks(const EventPlacement &placed, core::SeqSide side,
                                                           SafetyMatrix &safety_set,
-                                                          const core::SeqOffsetsMap &seq_offsets);
+                                                          const core::SeqOffsetsMap &segment_ends);
 
 } // namespace igor::model

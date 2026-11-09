@@ -130,7 +130,7 @@ private:
     int memory_layer_offset_fivep = -1;
     int memory_layer_offset_threep = -1;
 
-    //Pre create pairs to call seq_offsets (otherwise cost of creating a pair at each call)
+    //Pre create pairs to call segment_ends (otherwise cost of creating a pair at each call)
     //std::pair<Seq_type,Seq_side> d_5_pair = std::make_pair (D_gene_seq,Five_prime);
     //std::pair<Seq_type,Seq_side> v_3_pair = std::make_pair (V_gene_seq,Three_prime);
     //std::pair<Seq_type,Seq_side> j_5_pair = std::make_pair (J_gene_seq,Five_prime);

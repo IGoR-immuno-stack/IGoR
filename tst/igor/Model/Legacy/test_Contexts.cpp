@@ -138,21 +138,21 @@ TEST_CASE("ModelContext construction and immutability", "[Context][ModelContext]
 TEST_CASE("ScenarioContext construction and mutability", "[Context][ScenarioContext]") {
     double proba = 1.0;
     Seq_type_str_p_map constructed_sequences(legacy_seq_type_registry());
-    Seq_offsets_map seq_offsets(legacy_seq_type_registry());
+    Seq_offsets_map segment_ends(legacy_seq_type_registry());
     Mismatch_vectors_map mismatches(legacy_seq_type_registry());
 
     SECTION("Basic construction") {
-        ScenarioContext scenario(proba, constructed_sequences, seq_offsets, mismatches);
+        ScenarioContext scenario(proba, constructed_sequences, segment_ends, mismatches);
 
         // Verify references are bound correctly
         REQUIRE(&scenario.scenario_proba == &proba);
         REQUIRE(&scenario.constructed_sequences == &constructed_sequences);
-        REQUIRE(&scenario.seq_offsets == &seq_offsets);
+        REQUIRE(&scenario.segment_ends == &segment_ends);
         REQUIRE(&scenario.mismatches_lists == &mismatches);
     }
 
     SECTION("Modify probability through context") {
-        ScenarioContext scenario(proba, constructed_sequences, seq_offsets, mismatches);
+        ScenarioContext scenario(proba, constructed_sequences, segment_ends, mismatches);
 
         scenario.scenario_proba *= 0.5;
 
@@ -161,7 +161,7 @@ TEST_CASE("ScenarioContext construction and mutability", "[Context][ScenarioCont
     }
 
     SECTION("Modify constructed sequences") {
-        ScenarioContext scenario(proba, constructed_sequences, seq_offsets, mismatches);
+        ScenarioContext scenario(proba, constructed_sequences, segment_ends, mismatches);
 
         auto v_seq = make_shared<Int_Str>(nt2int("ACGT"));
         claim_layer_zero(scenario.constructed_sequences, V_gene_seq);
@@ -172,7 +172,7 @@ TEST_CASE("ScenarioContext construction and mutability", "[Context][ScenarioCont
     }
 
     SECTION("Hot-path unified access") {
-        ScenarioContext scenario(proba, constructed_sequences, seq_offsets, mismatches);
+        ScenarioContext scenario(proba, constructed_sequences, segment_ends, mismatches);
 
         // Simulate hot-path operations: probability and sequence together
         scenario.scenario_proba *= 0.8;
@@ -181,13 +181,13 @@ TEST_CASE("ScenarioContext construction and mutability", "[Context][ScenarioCont
         claim_layer_zero(scenario.constructed_sequences, J_gene_seq);
         scenario.constructed_sequences.set(J_gene_seq, j_seq.get(), 0);
 
-        claim_layer_zero(scenario.seq_offsets, J_gene_seq, Five_prime);
-        scenario.seq_offsets.set(J_gene_seq, Five_prime, 60, 0);
+        claim_layer_zero(scenario.segment_ends, J_gene_seq, Five_prime);
+        scenario.segment_ends.set(J_gene_seq, Five_prime, 60, 0);
 
         // All modifications visible
         REQUIRE(proba == 0.8);
         REQUIRE(scenario.constructed_sequences.get(J_gene_seq, 0)->size() == 2);
-        REQUIRE(scenario.seq_offsets.get(J_gene_seq, Five_prime, 0) == 60);
+        REQUIRE(scenario.segment_ends.get(J_gene_seq, Five_prime, 0) == 60);
     }
 }
 
@@ -359,7 +359,7 @@ TEST_CASE("Multiple contexts work together", "[Context][Integration]") {
     // Setup scenario
     double proba = 1.0;
     Seq_type_str_p_map constructed_sequences(legacy_seq_type_registry());
-    Seq_offsets_map seq_offsets(legacy_seq_type_registry());
+    Seq_offsets_map segment_ends(legacy_seq_type_registry());
     Mismatch_vectors_map mismatches(legacy_seq_type_registry());
 
     // Setup exploration
@@ -382,7 +382,7 @@ TEST_CASE("Multiple contexts work together", "[Context][Integration]") {
     SECTION("Create all five contexts") {
         QuerySequenceContext query(seq, int_seq, alignments);
         ModelContext model(model_params, offset_map, events_map, model_queue);
-        ScenarioContext scenario(proba, constructed_sequences, seq_offsets, mismatches);
+        ScenarioContext scenario(proba, constructed_sequences, segment_ends, mismatches);
         ExplorationContext exploration(proba_map, max_prob, threshold, index_map, next_event_ptr, safety_set, pruning_floor);
         AccumulationContext accumulation(marginals, counters, error_rate);
 
@@ -399,7 +399,7 @@ TEST_CASE("Multiple contexts work together", "[Context][Integration]") {
     SECTION("Contexts don't interfere with each other") {
         QuerySequenceContext query(seq, int_seq, alignments);
         ModelContext model(model_params, offset_map, events_map, model_queue);
-        ScenarioContext scenario(proba, constructed_sequences, seq_offsets, mismatches);
+        ScenarioContext scenario(proba, constructed_sequences, segment_ends, mismatches);
         ExplorationContext exploration(proba_map, max_prob, threshold, index_map, next_event_ptr, safety_set, pruning_floor);
         AccumulationContext accumulation(marginals, counters, error_rate);
 
