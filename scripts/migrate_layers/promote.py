@@ -75,7 +75,7 @@ PROMOTIONS = {
         ("DynamicSequenceMap", [Symbol("SeqSegmentEmptiness"), Symbol("DynamicSequenceMap")], {}),
         ("SeqOffsetsMap", [Symbol("SeqOffsetsMap", "alias", "Seq_offsets_map")],
          {"Seq_offsets_map": "SeqOffsetsMap"}),
-        ("SegmentSpan", [Symbol("SegmentBoundary"), Symbol("SegmentSpan"), Symbol("cut_position"),
+        ("SegmentSpan", [Symbol("SegmentEnd"), Symbol("SegmentSpan"), Symbol("cut_position"),
                          Symbol("lies_strictly_inside"), Symbol("legacy_span_of"),
                          Symbol("legacy_junction_of")], {}),
     ]),

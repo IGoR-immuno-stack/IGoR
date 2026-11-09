@@ -39,12 +39,12 @@
  *
  * ### The coordinate convention, stated once
  *
- * A boundary is a **half-open range bound**, not a nucleotide index: cut_position() turns it
- * into the `begin` or `end` you would slice the read with. So a span's two boundaries are
+ * A span measures its ends as **half-open range bounds**, not nucleotide indices: cut_position()
+ * turns an end into the `begin` or `end` you would slice the read with. So a span's two ends are
  * exactly a `[begin, end)` pair, its length is `end - begin`, and two adjacent spans compose
  * because `[a, b)` and `[b, c)` make `[a, c)` -- the ordinary property, not a new algebra.
  *
- * This is why boundaries are not simply offsets. `Seq_Offset` is a *closed*-interval index,
+ * This is why a span is not measured on the offsets directly. `Seq_Offset` is a *closed*-interval index,
  * and closed intervals do not compose by subtraction: taking a segment as `[5', 3']` and the
  * gap after it as `(3', 5')` mixes two conventions, so every measurement needs its own +/-1
  * and the two cannot be added. Sections 7.1 and 7.8 are both off-by-one bugs in this area,
@@ -54,11 +54,12 @@
 
 namespace igor::core {
 
-struct SegmentBoundary {
+struct SegmentEnd
+{
     SegmentId id = kNoSegment;
     SeqSide side = Undefined_side;
 
-    friend bool operator==(SegmentBoundary, SegmentBoundary) = default;
+    friend bool operator==(SegmentEnd, SegmentEnd) = default;
 };
 
 /**
@@ -70,8 +71,8 @@ struct SegmentBoundary {
  *     5' -> the offset itself   (the first nucleotide is included: it is `begin`)
  *     3' -> the offset plus one (`end` is one past the last nucleotide)
  *
- * Use it in pairs. For a span, `cut_position()` of the left boundary is `begin` and of the
- * right boundary is `end`, so the region is `str.substr(begin, end - begin)` for a
+ * Use it in pairs. For a span, `cut_position()` of the left end is `begin` and of the
+ * right end is `end`, so the region is `str.substr(begin, end - begin)` for a
  * std::string, or `{seq.begin() + begin, seq.begin() + end}` for an Int_Str, and the span's
  * length is `end - begin`.
  *
@@ -111,31 +112,31 @@ inline SeqOffset cut_position(SeqSide side, SeqOffset segment_end_offset)
  * already committed to at the consumer's position -- and the bound is one used as a key into
  * the other.
  *
- * That also means a span's profile is relative to *where it is read*: a boundary is a slot
+ * That also means a span's profile is relative to *where it is read*: a segment end is a slot
  * that a `Creates` event writes and a `Modifies` event moves, so the same span has different
  * profiles at different points in the model queue. See section 2.5 of
  * docs/ITERATE_GENERIC_REWRITE_PLAN.md.
  *
  * ### Constructing one
  *
- * Use gap(), which is the only shape any current caller needs. The general two-boundary form
+ * Use gap(), which is the only shape any current caller needs. The general form, any two ends,
  * is representable so that Phase D and 5b need no type migration, but it has no consumer yet
  * and the query semantics for it are deliberately not implemented (O11, step 3).
  */
 struct SegmentSpan {
-    SegmentBoundary left{};
-    SegmentBoundary right{};
+    SegmentEnd left{};
+    SegmentEnd right{};
 
     friend bool operator==(SegmentSpan, SegmentSpan) = default;
 
     /**
      * The span *between* two segments, excluding both: from \a l's 3' end to \a r's 5' end.
      * Today's only meaning, and what every caller wants -- an event that trims one of those
-     * two boundaries widens the span rather than shortening the anchor.
+     * two ends widens the span rather than shortening the anchor.
      */
     static constexpr SegmentSpan gap(SegmentId l, SegmentId r)
     {
-        return SegmentSpan{SegmentBoundary{l, Three_prime}, SegmentBoundary{r, Five_prime}};
+        return SegmentSpan{ SegmentEnd{ l, Three_prime }, SegmentEnd{ r, Five_prime } };
     }
 };
 

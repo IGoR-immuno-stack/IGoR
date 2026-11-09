@@ -130,7 +130,7 @@ It runs once per model, after the events are added:
 ### 2.3 Spans and boundaries
 
 [SegmentSpan.h](../../src/igor/Core/SegmentSpan.h):
-- `SegmentBoundary{id, side}` is one end of one segment.
+- `SegmentEnd{id, side}` is one end of one segment.
 - `SegmentSpan{left, right}` is a pair of boundaries. `SegmentSpan::gap(l, r)` is the span between
   two segments, from `l`'s 3′ end to `r`'s 5′ end. No caller builds any other shape.
 - `cut_position()` turns an offset into a half-open bound: a 5′ offset stays as it is, a 3′ offset

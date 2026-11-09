@@ -302,8 +302,8 @@ TEST_CASE("A gap runs between two segment ends", "[capabilities][span]")
     // two ends widens the span rather than shortening its own segment. (The legacy junction
     // seq_types used to name these spans; a gap's key is now the engine's plan's, T3.)
     const SegmentSpan vd = SegmentSpan::gap(id_of(V_gene_seq), id_of(D_gene_seq));
-    CHECK(vd.left == SegmentBoundary{id_of(V_gene_seq), Three_prime});
-    CHECK(vd.right == SegmentBoundary{id_of(D_gene_seq), Five_prime});
+    CHECK(vd.left == SegmentEnd{ id_of(V_gene_seq), Three_prime });
+    CHECK(vd.right == SegmentEnd{ id_of(D_gene_seq), Five_prime });
 }
 
 TEST_CASE("Span effect queries", "[capabilities][span]")

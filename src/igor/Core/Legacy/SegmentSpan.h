@@ -30,9 +30,9 @@
 // been promoted yet; it goes when its last consumer switches.
 namespace igor::core::legacy {
 
-using igor::core::SegmentBoundary;
-using igor::core::SegmentSpan;
 using igor::core::cut_position;
 using igor::core::lies_strictly_inside;
+using igor::core::SegmentEnd;
+using igor::core::SegmentSpan;
 
 } // namespace igor::core::legacy
