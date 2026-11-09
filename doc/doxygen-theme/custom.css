@@ -219,6 +219,9 @@ tt, code, kbd, samp {
   font-weight: 550;
 }
 
+/* inline code in Markdown tables wraps, so that wide tables fit the page */
+table.markdownTable span.tt { white-space: pre-wrap; overflow-wrap: anywhere; }
+
 /* list for file members */
 div.contents {
 font-family: "Lucida Grande", "Geneva", "Helvetica", Arial, sans-serif;
