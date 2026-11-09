@@ -329,7 +329,7 @@ void Insertion::initialize_event(
     //The junction this insertion fills: the gap it sits in, between the nearest built content on
     //each side -- in every model today the two segments it sits between, the pair iterate()
     //measures the observed distance across. Which gap, and the key it is held at, are the
-    //engine's plan's; the key is this slot's own id when nothing else factors on it. Resolved here
+    //engine's plan's; the key is this N region's own id when nothing else factors on it. Resolved here
     //and never again: the profile is reached through the handle, not by asking which span this is.
     const std::optional<SegmentSpan> gap = this->placement().enclosing_gap();
     if (not gap) {

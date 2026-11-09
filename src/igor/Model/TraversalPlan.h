@@ -52,8 +52,8 @@ class Rec_Event;
  *     or a deletion is checked against for overlap.
  *   - **built**: segments whose content has been created. A *gap* is the stretch between two built
  *     segments with nothing built in between; its downstream bound is one factor, refined by every
- *     event that changes it. An insertion places a slot inside a gap without building it, so the
- *     gap stays one until the Markov chain fills the slot.
+ *     event that changes it. An insertion places an N region inside a gap without building it: the
+ *     segment stays unfilled, and the gap one, until the Markov chain builds it.
  */
 struct MODEL_EXPORT EventPlacement {
     core::SeqTypeId target = core::kNoSeqType;
@@ -79,7 +79,7 @@ struct MODEL_EXPORT EventPlacement {
  * segment instead of running the event that would create it.
  */
 struct MODEL_EXPORT InitialState {
-    std::vector<core::SeqTypeId> placed; ///< both ends created, the content not built (a slot)
+    std::vector<core::SeqTypeId> placed; ///< unfilled: both ends created, the content not built
     std::vector<core::SeqTypeId> built;  ///< both ends created and the content built
 };
 
@@ -102,11 +102,11 @@ struct MODEL_EXPORT InitialState {
  * ### Keys
  *
  * A segment's own factor is held at its SeqTypeId, as before. A gap is held at the id of the one
- * segment strictly inside it when there is exactly one and it has no factor of its own (the slot
- * an insertion places, which then bounds the same gap at that key); otherwise at a key of its own,
- * past the registry's ids, in the order the walk first meets it. The first rule is a layout rule,
- * not a meaning: the bound is a product taken in key order, and it is what keeps every shipped
- * model's product, and so its pruning, unchanged.
+ * segment strictly inside it when there is exactly one and it has no factor of its own (the N
+ * region an insertion places, which then bounds the same gap at that key); otherwise at a key of
+ * its own, past the registry's ids, in the order the walk first meets it. The first rule is a
+ * layout rule, not a meaning: the bound is a product taken in key order, and it is what keeps
+ * every shipped model's product, and so its pruning, unchanged.
  */
 class MODEL_EXPORT TraversalPlan
 {
@@ -137,8 +137,9 @@ public:
      *   - every event's target is a segment of the ordering;
      *   - every end and every content is created by exactly one event;
      *   - an end or a content is modified only after it is created;
-     *   - content filled into a slot comes after the slot's ends are created;
-     *   - a slot comes after its neighbours' facing ends, which its own are derived from, and
+     *   - a segment whose ends and content come from different events (an N region) is filled
+     *     only after both its ends are created;
+     *   - its ends come after its neighbours' facing ends, which they are derived from, and it
      *     sits inside a gap, between built content on both sides.
      * \throws std::invalid_argument naming the event and the reason.
      */

@@ -58,7 +58,7 @@
  * ### It belongs to a span *and* to a reading position
  *
  * Not to a span alone. A boundary is a slot that a `Creates` event writes and a `Modifies` event
- * moves, so the same span has a different profile at each point of the priority ordering -- each
+ * moves, so the same span has a different profile at each point of the model queue -- each
  * owner folds the events after it, never itself (R8), and the contributors therefore differ.
  * Section 2.5 of docs/ITERATE_GENERIC_REWRITE_PLAN.md has the derivation and the worked V->D
  * example. Hence one profile per consuming event rather than one per span.

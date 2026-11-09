@@ -523,7 +523,7 @@ void Dinucl_markov::initialize_event(
 
     //The gap this chain fills, bounded until now by the Insertion that sized it: filling it is the
     //chain's own factor, so the gap's is settled to 1. Which gap and its key are the engine's
-    //plan's -- the slot's own id when nothing else factors on it, as in every model today. With
+    //plan's -- the N region's own id when nothing else factors on it, as in every model today. With
     //nothing built on one side there is no gap, so no factor to settle; an engine's order always
     //has one (TraversalPlan::check_admissible()), a fixture writing only the anchor need not.
     const std::optional<SegmentSpan> gap = this->placement().enclosing_gap();

@@ -42,7 +42,7 @@ namespace igor::model {
  * "SegmentIndex (creators and modifiers per segment and end)" (ARCHITECTURE_SYNTHESIS §2).
  *
  * Nothing here knows a gene from a junction. A gene choice creates a segment's ends and its
- * content at once; an insertion creates the ends of a slot, and the Markov chain after it the
+ * content at once; an insertion creates the ends of an N region, and the Markov chain after it the
  * content; a deletion modifies an end and the content. Those are the facts the index holds.
  */
 class SegmentIndex
@@ -92,9 +92,10 @@ public:
      *
      * It does when its content can still change against the read: an event modifies it (a
      * deletion trims it), or the event creating its content also places it (a gene choice aligns a
-     * template, which can mismatch the read). Content filled into a slot another event placed (the
-     * Markov chain's nucleotides, read off the read itself) has no factor of its own: its bound is
-     * the bound of the gap it fills. TraversalPlan's key layout reads this, and nothing else does.
+     * template, which can mismatch the read). Content created in a segment another event placed (an
+     * N region's nucleotides, which the Markov chain reads off the read itself) has no factor of its
+     * own: its bound is the bound of the gap it fills. TraversalPlan's key layout reads this, and
+     * nothing else does.
      */
     bool has_own_factor(core::SeqTypeId segment) const
     {

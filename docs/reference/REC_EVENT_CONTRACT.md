@@ -94,8 +94,9 @@ Rules:
 - **A segment is complete when the model's order ends**: both ends placed, content built. The two
   can come from different events: an insertion places a junction, and the Markov chain after it
   creates the content (R1, R3, ITER decision O12).
-- `SeqConstructionRole::Creates` and `OffsetRole::Creates` coincide for every event today but are
-  separate statements. Do not merge them.
+- `SeqConstructionRole::Creates` and `OffsetRole::Creates` are separate statements. They coincide
+  for a gene choice, but not for an N region: the insertion creates its ends, and the Markov chain
+  its content. Do not merge them.
 
 ### 2.2 Per-realization and span hooks
 
@@ -346,7 +347,7 @@ longer than its template, a gene at an end of the sequence deleted away (GEN D2,
   at most 32 segments;
 - the legacy engine holds one event per (type, segment, side);
 - the hypermutation error models and the errors, coverage, best-scenarios and Pgen counters refuse
-  any ordering other than V-D-J or V-J, until CNT CT2a and CAP T7b;
+  any layout other than V-D-J or V-J, until CNT CT2a and CAP T7b;
 - order the events so that every segment a chain or a deletion reads is still there when it runs.
   The tandem TRB model joins its segments D1 to D2 first, then D1D2 to J, then V, each joint's
   deletions right before its insertion (CAP *T5*). If a fully deleted anchor can reach its chain,

@@ -83,7 +83,8 @@ Every node receives the same five contexts, by reference:
 
 A model's segments have names: `V_gene_seq`, `VD_ins_seq`, …, or `D1_gene_seq`, `D1D2_ins_seq` in a
 tandem model. The registry ([SeqTypeRegistry.h](../../src/igor/Core/SeqTypeRegistry.h)) gives each
-name a dense `SeqTypeId` (`uint16_t`), and holds the **ordering**: the segments from 5′ to 3′.
+name a dense `SeqTypeId` (`uint16_t`), and holds the **ordering**: the segments of the model's
+layout, from 5′ to 3′.
 
 - **Name and id.** `register_type()`, `id()` and `name()` convert between them. Ids are dense from
   0, so they index arrays directly. The name identifies a segment in files and in messages. The id
@@ -115,11 +116,13 @@ It runs once per model, after the events are added:
 > model also has ids for the six legacy names, whether its ordering uses them or not. Code that
 > visits the segments must walk `ordering()`, not `[0, total_count())`.
 
-> **Subject to change — MIG L5, SYN step 5, CAP B10.** L5 moves the registry, the ordering and the
-> layout, with `finalize()`'s work, into `RecombinationModel`. `Model_Parms` then remains only as
-> the v1 importer. SYN step 5 makes the layout a DAG of segments with existence guards (milestone 2,
-> optional segments). The ordering then becomes one path among several, and a segment's neighbour
-> depends on the scenario.
+> **Subject to change — MIG L5, SYN step 5, CAP B10.** L5 moves the registry and the layout, with
+> `finalize()`'s work, into `RecombinationModel`. `Model_Parms` then remains only as the v1
+> importer. SYN step 5 moves the layout out of the registry, into `SegmentLayout`, and makes it a
+> DAG of segments with existence guards (milestone 2, optional segments). Each scenario then follows
+> one path of the layout, and a segment's neighbour depends on the scenario. The ordering becomes a
+> topological order of all the segments, not one path: the safety matrix and the plan still number
+> segments by their position in it (CAP B10).
 
 > **Subject to change — ITER §9.** Point 1 above is a limit of the legacy engine, not of the model.
 > It goes when the events are queried by capability rather than looked up by key.
@@ -141,6 +144,11 @@ It runs once per model, after the events are added:
 A span has no single length while some of the events that change it are still to run. It has a
 **profile**, the best probability for each length it can still reach (§6.3), and the scenario has
 committed to one **observed distance** (PBM §2).
+
+> **Subject to change — CAP B10, SYN step 5.** `lies_strictly_inside()` reads positions in the
+> ordering, which holds every segment. On a layout DAG, a span will hold the segments of every path
+> between its two ends, and exist only in a scenario whose path holds both: the support of D1→J
+> becomes the union of its lengths with D2 and without it (CAP B10).
 
 > **Subject to change — ITER O11 step 3, CAP Phase D.** A span over a segment's own extent, rather
 > than a gap, can be represented but has no consumer yet, so the queries do not handle it. It comes
@@ -260,9 +268,9 @@ each event before `initialize_event()`. Nothing in this section names a gene or 
 
 It does not depend on the order, so every engine can share it. `has_own_factor(segment)` is true
 when the segment's content can still change against the read: an event modifies it (a deletion), or
-the event that creates its content also places it (a templated gene). Content filled into a slot
-that another event placed, the Markov chain's nucleotides, has no factor of its own. The gap it
-fills carries its bound.
+the event that creates its content also places it (a templated gene). Content created in a segment
+that another event placed, an N region's nucleotides from its Markov chain, has no factor of its
+own. The gap it fills carries its bound.
 
 ### 4.2 `TraversalPlan` and `EventPlacement`
 
@@ -279,12 +287,13 @@ each event, an `EventPlacement`:
 | `gap_toward(side)` | once the target is built, the gap from it to the nearest built content on `side`; until then, the gap it sits in |
 
 *Placed* and *built* coincide for gene choices and deletions in every shipped model. An insertion
-places a slot without building it, so the gap around it stays a single gap until the Markov chain
-fills the slot.
+places the ends of its N region without building it: the segment stays unfilled, and the gap around
+it a single gap, until the Markov chain builds it.
 
-`InitialState` lists segments that exist before the first event runs. A test fixture uses it when
-it writes a segment directly instead of running the event that creates it. A later Phase D cluster
-will use it too, with its neighbours' boundaries given.
+`InitialState` lists segments that exist before the first event runs: in `placed`, unfilled ones,
+both ends placed and no content; in `built`, built ones. A test fixture uses it when it writes a
+segment directly instead of running the event that creates it. A later Phase D cluster will use it
+too, with its neighbours' boundaries given.
 
 The plan is built once per run, in `GenModel::infer_model()`, from the queue order. It is never
 modified afterwards, so all threads read it concurrently. It files placements by event identifier,
@@ -296,12 +305,12 @@ placement with `placement()`.
 The bound is a product over the map's keys (§6.1). Each factor needs a key:
 - **a segment's own factor** is held at the segment's id;
 - **a gap** is held at the id of the single segment inside it, when there is exactly one and it has
-  no factor of its own (the slot an insertion places). Otherwise the gap gets a key of its own, past
-  the registry's ids, in the order the walk first meets it.
+  no factor of its own (the N region an insertion places). Otherwise the gap gets a key of its own,
+  past the registry's ids, in the order the walk first meets it.
 
 `gap_key(span)` returns the key, and throws for a span that is never an open gap in this order: the
 event asking and the plan then disagree about the model. `gaps()` lists the gaps, and
-`bound_key_count()` sizes the map. The first rule is a choice of layout, not of meaning. It keeps
+`bound_key_count()` sizes the map. The first rule is a choice of numbering, not of meaning. It keeps
 the product's order, and so the pruning of every shipped model, bitwise. In VDJ, V→D and D→J stay at
 their insertions' ids and V→J gets a key of its own; in VJ, V→J stays at `VJ_ins_seq`.
 
@@ -312,9 +321,10 @@ and the reason. It replaces the checks the events used to make on themselves:
 - every event's target is a segment of the ordering;
 - every end and every content is created by exactly one event;
 - an end or a content is modified only after it is created;
-- content is filled into a slot only after the slot's ends are created;
-- a slot comes after its neighbours' facing ends, and sits inside a gap, with built content on both
-  sides;
+- a segment whose ends and content come from different events (an N region) is filled only after
+  both its ends are placed;
+- its ends are placed only after its neighbours' facing ends, and inside a gap, with built content
+  on both sides;
 - every segment is complete when the order ends.
 
 > **Subject to change — MIG L1, L5.** L1 makes `check_admissible()` the engine's. L5 builds the plan

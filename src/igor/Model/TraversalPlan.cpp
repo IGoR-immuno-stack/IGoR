@@ -302,7 +302,8 @@ void TraversalPlan::check_admissible() const
                 refuse(event, "it fills " + name + " before both its ends are placed");
             }
             if (creates_an_end and not creates_content) {
-                //A slot: its ends are derived from its neighbours' facing ends, so those come first
+                //An N region, whose ends and content come from different events: its ends are
+                //derived from its neighbours' facing ends, so those come first
                 //(B10 decides what "neighbour" means once a segment can be absent)...
                 const SeqTypeId left = registry_.left_neighbor(segment);
                 const SeqTypeId right = registry_.right_neighbor(segment);

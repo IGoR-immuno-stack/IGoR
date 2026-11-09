@@ -96,7 +96,7 @@ inline SeqOffset cut_position(SeqSide side, SeqOffset segment_end_offset)
 }
 
 /**
- * \brief An ordered range of the registry ordering, delimited by two boundaries.
+ * \brief A stretch of the constructed sequence between two segment ends, the 5' one first.
  *
  * The addressing unit for junction-length bounds (G5), for the effect queries
  * Rec_Event::affects_length_of() / affects_proba_of(), and -- once it lands -- for Phase D's
@@ -113,7 +113,7 @@ inline SeqOffset cut_position(SeqSide side, SeqOffset segment_end_offset)
  *
  * That also means a span's profile is relative to *where it is read*: a boundary is a slot
  * that a `Creates` event writes and a `Modifies` event moves, so the same span has different
- * profiles at different points in the priority ordering. See section 2.5 of
+ * profiles at different points in the model queue. See section 2.5 of
  * docs/ITERATE_GENERIC_REWRITE_PLAN.md.
  *
  * ### Constructing one
