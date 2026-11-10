@@ -17,10 +17,8 @@
 - the landing of AA Pgen.
 
 The plans hold the content of each step; this document holds only the order.
-**Status**: as of Oct 21 2026, `origin/feature/tandemD` @ `c56fd7e`, where T1 (#78), T3 (#76)
-and the plans are merged. T2 is delivered on `feature/tandemD-T2-names`, T7a on
-`feature/tandemD-T7a-errors`, stacked on it, and T5 with T5a and T5b on `feature/tandemD-T5`,
-stacked on T7a's (Oct 23 2026).
+**Status**: as of Nov 10 2026, `develop` @ `a39fd3c`, where tandem D is merged up to milestone 1
+(#85).
 
 ---
 
@@ -49,9 +47,8 @@ flowchart LR
 - **Soft block** (dotted): it can, at the cost of redoing work or of a golden move inside a
   bitwise block.
 - **Natural order** (plain): no dependency, only the order the decisions or the file sets make
-  sensible. For example, everything after milestone 1 waits for it because tandem D comes first,
-  not because of the code.
-- **Milestones** (hexagons) are the states the plans name: milestone 1 and 2, and the migration's
+  sensible.
+- **Milestones** (hexagons) are the states the plans name: milestone 2 and the migration's
   checkpoints into `develop`.
 - **Decisions** (diamonds) are the open questions that gate a step.
 
@@ -65,16 +62,7 @@ sequence; steps in different lanes run in parallel.
 ```mermaid
 flowchart LR
 
-  subgraph REV["Delivered, awaiting review"]
-    T2["T2 · the nickname names an event;<br/>JSON replaces v2<br/>feature/tandemD-T2-names"]
-    T7a["T7a · Single over the ordering;<br/>hypermutation and counter guards<br/>feature/tandemD-T7a-errors"]
-    T5a["T5a · V-D1-D2-J built from human TRB, in JSON;<br/>events in the joining order"]
-    T5b["T5b · reads generated and frozen"]
-    T5["T5 · smoke; cost against TRB;<br/>recorded run from uniform<br/>feature/tandemD-T5"]
-  end
-
-  subgraph TAN["Tandem D, milestone 1 · CAP"]
-    M1{{"Milestone 1<br/>tandem D on the legacy DFS"}}
+  subgraph TAN["Tandem D · CAP"]
     DT5{"T5 timings, in:<br/>is the legacy DFS fast enough?"}
   end
 
@@ -184,22 +172,6 @@ flowchart LR
     NC["Non-canonical biology,<br/>VDJ review"]
   end
 
-  %% The milestone-1 path
-  T2 ==> T5a
-  T5a ==> T5b
-  T5b ==> T5
-  T7a ==> T5
-  T5 ==> M1
-  T5 ==> DT5
-
-  %% Tandem first: the rest starts after milestone 1
-  M1 --> L0
-  M1 --> CT0
-  M1 --> E0
-  M1 --> H0
-  M1 --> MCUT
-  M1 --> MREG
-
   %% Error models, Part I
   E0 ==> E1
   E1 ==> ER1
@@ -214,7 +186,6 @@ flowchart LR
   H0 --> H1
   H0 ==> T7b
   H1 ==> T7b
-  T7a ==> T7b
   H1 ==> H2
   T7b --> H2
   H2 --> H3
@@ -241,7 +212,6 @@ flowchart LR
   CT0 ==> CR
   E2 -. "CX13" .-> CR
   CT0 ==> CT2a
-  T7a --> CT2a
   CT2a ==> CT3a
   E3 ==> CT3a
   CT2a ==> CT2b
@@ -260,13 +230,11 @@ flowchart LR
   L0 ==> L1
   CT0 ==> L1
   H0 == "hypermutation models" ==> L1
-  T7a ==> L1
   ER1 -.-> L1
   L1 ==> L2
   E2 -.-> L2
   L2 ==> CP2
   L2 ==> L3
-  T2 ==> L3
   QD ==> MAX
   MAX ==> L3
   L3 ==> L4a
@@ -302,7 +270,6 @@ flowchart LR
   L0 ==> L7
   E1 ==> L7
   E4 ==> L7
-  T2 ==> L7
   L7 ==> R4
   L7 --> QFG
   QFG -- "kept" --> T4b
@@ -354,18 +321,15 @@ flowchart LR
   classDef optional stroke-dasharray:5 5
   classDef milestone fill:#fde7c8,stroke:#c26100,stroke-width:2px,color:#000
   classDef decision fill:#fbdcdc,stroke:#b42318,color:#000
-  class T2,T7a,T5a,T5b,T5 review
   class ER1,HR,CR3,CR,CT1b,CRP,L7,SYN4b golden
   class S4d,PERF,NC optional
-  class M1,M2,CP2,CP5,CP8 milestone
+  class M2,CP2,CP5,CP8 milestone
   class DT5,QE7,QE5,QD,Q7,Q1516,QPR,QFG,QB10,INTU,Q13,QC1 decision
 ```
 
 ---
 
 ## 3. The paths that matter
-
-**To milestone 1.** The longest chain is T2 → T5a → T5b → T5. T7a joins it at T5. Nothing in the error-model plan or the migration is on it. All of it is delivered, awaiting review (Oct 23 2026); what remains is decision Q14, on T5's timings.
 
 **To the migration's end.** The chain is lane D: L0 → L1 → L2 → L3 → L4a → L4b → L4c → L5 → L8.
 Each other lane must arrive in time:
@@ -385,9 +349,10 @@ ER1, the one golden move on the way, lands before L1 so that every lane-D step s
 
 B10's representation (CAP B10, options (b) and (c)) is decided at the same time.
 
-**Steps that can start right after milestone 1, in parallel.**
+**Steps that can start now, in parallel.**
 - Lane T, the tests: L0, CT0, E0, H0.
 - Lane M: MCUT, MREG.
+- Lane G: the Markov sampler.
 - In lane C, the CX3 repair as soon as CT0 confirms the defect: it can corrupt memory on long reads.
 
 ---
@@ -397,28 +362,18 @@ B10's representation (CAP B10, options (b) and (c)) is decided at the same time.
 Status: **review** — delivered on its branch, awaiting merge · **ready** — its hard blocks have
 landed · **pending** — ready once its hard blocks land · **gated** — waits on a decision or on a step of another plan · **optional**.
 
-### Delivered, awaiting review
-| Node | Source | Hard blocks | Status |
-|---|---|---|---|
-| T2 | CAP *T2* | — | review |
-| T7a | CAP *T7*, ERR §4.1 | — | review; stacked on T2 |
-| T5a | CAP *T5* | — | review; the model in the joining order |
-| T5b | CAP *T5* | — | review; 200 frozen reads |
-| T5 | CAP *T5* | — | review; stacked on T7a; the timings are in |
-
-### Tandem D, milestone 1
+### Tandem D
 | Node | Source | Hard blocks | Soft | Status |
 |---|---|---|---|---|
-| Milestone 1 | CAP | T5 | — | — |
-| T5 timings | MIG Q14 | T5 | — | decision; the timings are in (CAP *T5*) |
+| T5 timings | MIG Q14 | — | — | decision; the timings are in (CAP *T5*) |
 
 ### Lane T, tests first
 | Node | Source | Hard blocks | Soft | Status |
 |---|---|---|---|---|
-| L0 | MIG §3 | — | milestone 1 (priority) | pending |
-| CT0 | CNT §8 | — | milestone 1 | pending |
-| E0 | ERR §4.2 | — | milestone 1 | pending |
-| H0 | ERR §4.3 | — | milestone 1 | pending |
+| L0 | MIG §3 | — | — | ready; first |
+| CT0 | CNT §8 | — | — | ready |
+| E0 | ERR §4.2 | — | — | ready |
+| H0 | ERR §4.3 | — | — | ready |
 | H1 | ERR §4.3 | — | H0 | pending |
 
 ### Lane E, error models
@@ -429,7 +384,7 @@ landed · **pending** — ready once its hard blocks land · **gated** — waits
 | E2 | ERR §4.2 | — | after ER1 | pending |
 | E3 | ERR §4.2 | E1 | after E2 | pending |
 | E4 | ERR §4.2, X20 | E1, ER1 | after E3 | pending |
-| T7b | CAP *T7*, ERR §4.3 | H0, H1, T7a | — | gated on H0, H1 |
+| T7b | CAP *T7*, ERR §4.3 | H0, H1 | — | gated on H0, H1 |
 | H2 | ERR §4.3 | H1 | after T7b | pending |
 | HJ | ERR §4.3 | H1 | after H2, whose parameterization it writes | pending |
 | H3 | ERR §4.3, CAP B3 | ERR Q7 | after H2 | gated on Q7 |
@@ -444,7 +399,7 @@ landed · **pending** — ready once its hard blocks land · **gated** — waits
 | CT1 | CNT §8 | CT0 | — | pending |
 | CT1b | CNT §2.3 | CT0, QC1 | L1's `ReadSummary`; after E1 | gated on QC1; the per-read output moves once |
 | CR | CNT §8 | CT0 | E2 (CX13) | pending; each repair names the outputs it moves |
-| CT2a | CNT §8, §4.3; T7b's counter half | CT0 | after T7a | pending |
+| CT2a | CNT §8, §4.3; T7b's counter half | CT0 | — | pending |
 | CT3a | CNT §7 | CT2a, E3 | — | pending |
 | CT2b | CNT §3.3, §4.2 | CT2a, L3 | — | gated on L3 |
 | CT3b | CNT §7 | CT2b | after CT3a | gated on L3 |
@@ -456,9 +411,9 @@ landed · **pending** — ready once its hard blocks land · **gated** — waits
 ### Lane D, driver and engine
 | Node | Source | Hard blocks | Soft | Status |
 |---|---|---|---|---|
-| L1 | MIG §3 | L0, CT0, T7a; H0 for hypermutation models | ER1 | pending |
+| L1 | MIG §3 | L0, CT0; H0 for hypermutation models | ER1 | pending |
 | L2 | MIG §3 | L1 | E2 | pending |
-| L3 | MIG §3 | L2, T2, labelled axes | — | gated on Q3–Q5 |
+| L3 | MIG §3 | L2, labelled axes | — | gated on Q3–Q5 |
 | L4a | MIG §3 | L3, AccumulatorSet | — | pending |
 | L4b | MIG §3 | L4a, handler M-step, E4, Q7 | — | gated on Q7 |
 | L4c | MIG §3 | L4b | — | pending |
@@ -472,15 +427,15 @@ landed · **pending** — ready once its hard blocks land · **gated** — waits
 |---|---|---|---|---|
 | Labelled tensor axes | MIG Q3, REV §15.4 | Q3–Q5 | — | gated |
 | AccumulatorSet | SYN step 8, MERGE §6.2 | — | after L1, which defines the interface | pending |
-| Handler M-step at the legacy rule | MIG §1.1, §3 | — | milestone 1 | pending |
-| Registry, ordering, layout | MERGE §4.2, SYN §5 | — | milestone 1 | pending |
+| Handler M-step at the legacy rule | MIG §1.1, §3 | — | — | ready |
+| Registry, ordering, layout | MERGE §4.2, SYN §5 | — | — | ready |
 | Importer, `topology_to_json` | SYN step 4, LAYER §6 | registry ownership, E4 | — | pending |
 
 ### Lane G, generation
 | Node | Source | Hard blocks | Soft | Status |
 |---|---|---|---|---|
-| Markov sampler | GEN §6 | — | — | pending |
-| L7 | MIG §3, GEN §6, SYN step 1 | L0, E1, E4, T2, the Markov sampler, the precision choice | ERR Q5 | pending; moves the `generate` goldens once |
+| Markov sampler | GEN §6 | — | — | ready |
+| L7 | MIG §3, GEN §6, SYN step 1 | L0, E1, E4, the Markov sampler, the precision choice | ERR Q5 | pending; moves the `generate` goldens once |
 | R4 | ITER §6.9 | L7 | — | gated on L7 |
 | T4b | CAP *T4* | FastGenerator kept | — | gated on the decision |
 | T6b | CAP *T6* | T4b, or FastGenerator retired | — | gated |
