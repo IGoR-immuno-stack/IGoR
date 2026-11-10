@@ -539,9 +539,10 @@ Candidates the port will need next:
 | ✅ T7a | Single counts every segment that has a mismatch list, over the ordering; its `[tandem_d]` case is written first, `[!shouldfail]` (capability plan) | yes, measured |
 | ✅ T7a guards | The two hypermutation models and the four V/D/J-shaped counters refuse, at initialisation, a model whose ordering is neither V-D-J nor V-J, with a message naming the segment they cannot place; one case each | yes, measured |
 
-**Delivered Oct 23 2026** on `feature/tandemD-T7a-errors`; the capability plan's *T7a, delivered*
-records it. The guards are a `check_admissible()` that `GenModel::infer_model()` calls before it
-starts, not a refusal inside `initialize()`, which runs in the threads.
+**Delivered Oct 23 2026** on `feature/tandemD-T7a-errors`, and merged into `develop` with
+milestone 1 (#85, Nov 10 2026); the capability plan's *T7a, delivered* records it. The guards are a
+`check_admissible()` that `GenModel::infer_model()` calls before it starts, not a refusal inside
+`initialize()`, which runs in the threads.
 
 ### 4.2 Part I — `Single_error_rate`, after milestone 1, on its own branch
 

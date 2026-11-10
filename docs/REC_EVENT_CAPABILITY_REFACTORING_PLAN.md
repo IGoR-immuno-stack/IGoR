@@ -1,6 +1,6 @@
 # Rec_Event Capability Attributes & Gene_class Correction: Architectural Refactoring Plan
 
-**Last Updated**: October 21, 2026
+**Last Updated**: November 10, 2026
 
 ---
 
@@ -165,6 +165,9 @@ become polynomial first (§7.22, option A). Recorded for R12; not decided.
 
 The order across every plan, with hard and soft blocks told apart, is drawn in
 [IMPLEMENTATION_GRAPH.md](IMPLEMENTATION_GRAPH.md).
+
+**Milestone 1 is merged (Nov 10 2026).** `feature/tandemD`, with T2, T7a and T5 stacked on it,
+merged into `develop` in #85 (`8fc1e54`). Every branch of steps 1–7 below is merged with it.
 
 | Step | Item | Branch | Bitwise |
 |---|---|---|---|
