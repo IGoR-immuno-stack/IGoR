@@ -29,6 +29,7 @@ clang-tools = ">=19.1.7,<22"
 [target.linux.dependencies]
 valgrind = "*"
 gcovr = ">=8.8,<9"  # the unit tests' coverage figure (pixi run coverage_summary)
+diff-cover = ">=11.0.1,<12"  # the coverage of the lines a pull request changes (pixi run coverage_diff)
 
 [target.linux-64.dependencies]
 valgrind = ">=3.26.0,<4"
@@ -80,10 +81,18 @@ configure = "cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release"
 # Coverage of src/ by the tests run so far on a build configured with ENABLE_COVERAGE (CI:
 # pixi run configure_debug -DENABLE_COVERAGE=ON, then build_debug and test_unit_debug). Prints
 # the line, function and branch figures and writes build/coverage/: index.html (by directory and
-# file), coverage.xml (Cobertura) and summary.md. app/ is left out: no unit test runs the CLI.
-coverage_summary = "rm -rf build/coverage && mkdir -p build/coverage && gcovr --root . --filter src/ --exclude-unreachable-branches --exclude-throw-branches -j 0 --print-summary --html-nested build/coverage/index.html --cobertura build/coverage/coverage.xml --markdown-summary build/coverage/summary.md build"
+# file), coverage.xml (Cobertura), summary.json, and comment.md (scripts/tests/coverage_markdown.py).
+# app/ is left out: no unit test runs the CLI.
+coverage_summary = "rm -rf build/coverage && mkdir -p build/coverage && gcovr --root . --filter src/ --exclude-unreachable-branches --exclude-throw-branches --medium-threshold 60 --high-threshold 80 -j 0 --print-summary --html-nested build/coverage/index.html --cobertura build/coverage/coverage.xml --json-summary build/coverage/summary.json build && python3 scripts/tests/coverage_markdown.py"
 memcheck = {cmd="ctest --test-dir build -L unit -T memcheck --timeout 240 -C Release --output-junit ../ctest-memcheck-junit.xml", depends-on = "build"}
 profile = { cmd = "scripts/tests/profile_run.sh", depends-on = ["build"] }
+
+# Coverage of the lines this branch's commits change against a base (default origin/develop),
+# from coverage_summary's coverage.xml. Writes build/coverage/diff.json and adds it to comment.md.
+#   pixi run coverage_diff origin/master
+[target.linux.tasks.coverage_diff]
+args = [{ arg = "base", default = "origin/develop" }]
+cmd = "diff-cover build/coverage/coverage.xml --compare-branch={{ base }} --ignore-staged --ignore-unstaged --format json:build/coverage/diff.json && python3 scripts/tests/coverage_markdown.py"
 
 [tasks.upload]
 args = ["token", { arg = "label", default = "main" },{ arg = "channel", default = "nniclausse" }]

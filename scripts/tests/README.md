@@ -27,8 +27,11 @@ goldens in `data/reference`, through [assert_regression.sh](assert_regression.sh
 
 - on Linux, every track on the conda package the job has just built (`test_regression_conda`);
 - on Linux, the unit tests' coverage of `src/`, from the job's instrumented Debug build
-  (`pixi run coverage_summary`, with gcovr): the figures on the run's summary page, the HTML and
-  Cobertura reports in the `coverage-report` artifact;
+  (`pixi run coverage_summary`, with gcovr), and on a pull request the coverage of the lines it
+  changes (`pixi run coverage_diff`, with diff-cover): the figures, written by
+  [coverage_markdown.py](coverage_markdown.py), on the run's summary page and in a comment on
+  the pull request that every run edits; the HTML and Cobertura reports in the
+  `coverage-report` artifact;
 - on macOS and Windows, the `align` track on the development build;
 - nightly, every track on a Debug build, where assertions and the tensor bounds checks are on.
 

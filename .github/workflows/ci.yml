@@ -34,6 +34,12 @@ jobs:
           - windows-latest
     runs-on: ${{ matrix.os }}
 
+    # pull-requests: write for the coverage comment. Naming any permission sets the others to
+    # none, so contents: read stays for the checkout.
+    permissions:
+      contents: read
+      pull-requests: write
+
     defaults:
       run:
         shell: bash
@@ -103,13 +109,20 @@ jobs:
           path: build/Testing/Temporary/
           retention-days: 7
 
-      # Coverage of src/ by the unit tests just run: the figures go on the run's summary page,
-      # the HTML and Cobertura reports into the coverage-report artifact.
+      # Coverage of src/ by the unit tests just run and, on a pull request, of the lines it
+      # changes: the figures go on the run's summary page and in the pull request comment, the
+      # HTML and Cobertura reports into the coverage-report artifact. The base comes through env,
+      # not into the script text.
       - name: Coverage of the unit tests
         if: matrix.os == 'ubuntu-latest'
+        env:
+          BASE_REF: ${{ github.base_ref }}
         run: |
           pixi run coverage_summary
-          cat build/coverage/summary.md >> "$GITHUB_STEP_SUMMARY"
+          if [[ -n "$BASE_REF" ]]; then
+            pixi run coverage_diff "origin/$BASE_REF"
+          fi
+          cat build/coverage/comment.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload coverage report
         if: matrix.os == 'ubuntu-latest'
@@ -118,6 +131,18 @@ jobs:
           name: coverage-report
           path: build/coverage/
           retention-days: 30
+
+      # One comment per pull request, edited by every run. A pull request from a fork gets a
+      # read-only token, so it has the figures on the run's summary page only.
+      - name: Comment coverage on PR
+        if: >-
+          matrix.os == 'ubuntu-latest' && github.event_name == 'pull_request'
+          && github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const comment = require('./.github/scripts/coverage-comment.js');
+            await comment({ github, context });
 
       - name: Run PARTIAL regression tests
         if: matrix.os != 'ubuntu-latest'
