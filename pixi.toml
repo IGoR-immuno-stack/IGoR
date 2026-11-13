@@ -104,7 +104,8 @@ version = "*"
 #env = { MACOSX_DEPLOYMENT_TARGET = "13.4" }
 
 [package.build.config]
-extra-args = ["-DCMAKE_BUILD_TYPE=Release"]
+# BUILD_TESTING=OFF: the package installs no test, and the backend builds every target.
+extra-args = ["-DCMAKE_BUILD_TYPE=Release", "-DBUILD_TESTING=OFF"]
 env = {
   MACOSX_DEPLOYMENT_TARGET = "13.4"
 }
@@ -125,7 +126,6 @@ env = {
 # Add dependencies on (header-only) libraries at compile time
 cli11 = ">=2.6.2,<3"
 gsl = "*"
-catch2 = "3.*"
 mdspan = "*"  # Kokkos reference implementation
 sparrow-devel = "*"
 arrow-cpp = "*"

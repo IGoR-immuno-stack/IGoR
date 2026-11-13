@@ -209,7 +209,12 @@ endif()
 
 add_subdirectory(src)
 add_subdirectory(app)
-add_subdirectory(tst)
+# BUILD_TESTING is CTest's option, on unless turned off. The conda package turns it off
+# (pixi.toml, [package.build.config]): it installs no test, and the suite is two thirds of
+# the compile.
+if(BUILD_TESTING)
+  add_subdirectory(tst)
+endif()
 if(BUILD_DOC_DOXYGEN)
   add_subdirectory(doc)
 endif()
