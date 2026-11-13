@@ -27,7 +27,7 @@ goldens in `data/reference`, through [assert_regression.sh](assert_regression.sh
 
 - on Linux, every track on the conda package the job has just built (`test_regression_conda`);
 - on macOS and Windows, the `align` track on the development build;
-- nightly, every track on the development build.
+- nightly, every track on a Debug build, where assertions and the tensor bounds checks are on.
 
 ## Other tools
 

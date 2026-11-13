@@ -198,14 +198,18 @@ jobs:
       - name: Clean Pixi Enviroment
         run: pixi run clean
 
+      # Debug, so that assertions and the tensor bounds checks (IGOR_MATH_DEBUG) are on for the
+      # unit and integration tests and for every regression track. The build-and-test job runs
+      # the tracks on the optimized conda package.
       - name: Configure project
-        run: pixi run configure
+        run: pixi run configure_debug
 
       - name: Build project
-        run: pixi run build
+        run: pixi run build_debug
 
       - name: Run all C++ ctests
-        run: pixi run test
+        run: pixi run test_debug
 
+      # test_regression depends on build, whose configure keeps the Debug build type in the cache.
       - name: Run regression tests
         run: pixi run test_regression
