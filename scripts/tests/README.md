@@ -32,6 +32,8 @@ goldens in `data/reference`, through [assert_regression.sh](assert_regression.sh
   [coverage_markdown.py](coverage_markdown.py), on the run's summary page and in a comment on
   the pull request that every run edits; the HTML and Cobertura reports in the
   `coverage-report` artifact;
+- on a push to develop, the README's coverage and unit test badges, drawn by
+  [make_badges.py](make_badges.py) (`pixi run badges`) and published on the `badges` branch;
 - on macOS and Windows, the `align` track on the development build;
 - nightly, every track on a Debug build, where assertions and the tensor bounds checks are on.
 

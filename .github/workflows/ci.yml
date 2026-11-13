@@ -144,6 +144,20 @@ jobs:
             const comment = require('./.github/scripts/coverage-comment.js');
             await comment({ github, context });
 
+      # The README's badges, from a push to develop whose unit tests passed. publish-badges, the
+      # one job allowed to write to the repository, puts them on the badges branch.
+      - name: Draw badges
+        if: matrix.os == 'ubuntu-latest' && github.event_name == 'push' && github.ref == 'refs/heads/develop'
+        run: pixi run badges
+
+      - name: Upload badges
+        if: matrix.os == 'ubuntu-latest' && github.event_name == 'push' && github.ref == 'refs/heads/develop'
+        uses: actions/upload-artifact@v4
+        with:
+          name: badges
+          path: build/badges/
+          retention-days: 1
+
       - name: Run PARTIAL regression tests
         if: matrix.os != 'ubuntu-latest'
         run: pixi run test_align
@@ -190,6 +204,39 @@ jobs:
           echo "- **Runner:** $(hostname)" >> $GITHUB_STEP_SUMMARY
           echo "- **Pixi version:** $(pixi --version)" >> $GITHUB_STEP_SUMMARY
 
+
+  # Publishes the badges the Linux job drew on the badges branch, which README.md reads them
+  # from. It runs whatever the other runners did; when the Linux job drew none (its unit tests
+  # failed), it has nothing to publish and the badges keep their last values.
+  publish-badges:
+    needs: build-and-test
+    if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/develop' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download badges
+        id: download
+        uses: actions/download-artifact@v4
+        with:
+          name: badges
+          path: badges
+        continue-on-error: true
+
+      # One commit on an orphan branch, replaced by every run: the branch holds the latest
+      # badges and no history.
+      - name: Publish on the badges branch
+        if: steps.download.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        working-directory: badges
+        run: |
+          git init -q -b badges
+          git add ./*.svg
+          git -c user.name="github-actions[bot]" \
+              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -q -m "Badges of $GITHUB_SHA"
+          git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" badges
 
   nightly-build:
     runs-on: ubuntu-latest

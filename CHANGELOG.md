@@ -30,6 +30,8 @@ brevity.  Much more detail can be found in the git revision history:
       (`pixi run coverage_summary`, with gcovr), on its run summary and as an HTML artifact,
       and comments on each pull request with it and the coverage of the lines the pull
       request changes (`pixi run coverage_diff`, with diff-cover)
+    - README.md shows develop's unit test count and coverage, as badges CI draws on every
+      push to develop and keeps on the `badges` branch
   - CLI
     - Route the POSIX-style command interface through CLI11 for consistent help, version, and option validation
     - Add full configured pipeline replay and richer reproducibility manifests with runtime and compiler metadata

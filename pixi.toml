@@ -84,6 +84,9 @@ configure = "cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release"
 # file), coverage.xml (Cobertura), summary.json, and comment.md (scripts/tests/coverage_markdown.py).
 # app/ is left out: no unit test runs the CLI.
 coverage_summary = "rm -rf build/coverage && mkdir -p build/coverage && gcovr --root . --filter src/ --exclude-unreachable-branches --exclude-throw-branches --medium-threshold 60 --high-threshold 80 -j 0 --print-summary --html-nested build/coverage/index.html --cobertura build/coverage/coverage.xml --json-summary build/coverage/summary.json build && python3 scripts/tests/coverage_markdown.py"
+# The README's coverage and unit test badges, after coverage_summary: build/badges/*.svg
+# (scripts/tests/make_badges.py).
+badges = "python3 scripts/tests/make_badges.py"
 memcheck = {cmd="ctest --test-dir build -L unit -T memcheck --timeout 240 -C Release --output-junit ../ctest-memcheck-junit.xml", depends-on = "build"}
 profile = { cmd = "scripts/tests/profile_run.sh", depends-on = ["build"] }
 
