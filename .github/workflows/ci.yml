@@ -21,8 +21,41 @@ on:
 #   cancel-in-progress: true
 
 jobs:
+  # A push to a branch with an open pull request is built once, by the pull request's run, which
+  # tests the merge result and posts the coverage comment: this job tells build-and-test to skip
+  # the push run. develop and master always build on push: those runs publish the badges and the
+  # package. Every other event builds.
+  pr-check:
+    name: Open pull request check
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      covered: ${{ steps.pr.outputs.covered }}
+    steps:
+      # Counts the open pull requests from this branch of this repository into a base the
+      # pull_request trigger covers. If the listing fails, the push run builds.
+      - name: Look for an open pull request from this branch
+        id: pr
+        if: github.event_name == 'push' && github.ref_name != 'develop' && github.ref_name != 'master'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          filter='[.[] | select((.isCrossRepository | not) and (.baseRefName | test("^(master|develop|feature/[^/]+)$")))] | length'
+          if n=$(gh pr list -R "$GITHUB_REPOSITORY" --head "$GITHUB_REF_NAME" --state open \
+                   --json baseRefName,isCrossRepository --jq "$filter"); then
+            covered=$([ "$n" -gt 0 ] && echo true || echo false)
+          else
+            echo "::warning::Could not list the open pull requests: the push run builds."
+            covered=false
+          fi
+          echo "Open pull requests from $GITHUB_REF_NAME: ${n:-unknown}; push run skipped: $covered"
+          echo "covered=$covered" >> "$GITHUB_OUTPUT"
+
   build-and-test:
     name: Build, Test & Coverage
+    needs: pr-check
+    if: needs.pr-check.outputs.covered != 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -33,6 +66,12 @@ jobs:
           # - macos-latest
           - windows-latest
     runs-on: ${{ matrix.os }}
+
+    # pull-requests: write for the coverage comment. Naming any permission sets the others to
+    # none, so contents: read stays for the checkout.
+    permissions:
+      contents: read
+      pull-requests: write
 
     defaults:
       run:
@@ -71,9 +110,11 @@ jobs:
         if: matrix.os != 'ubuntu-latest'
         run: pixi run build
 
+      # Debug and instrumented: the unit tests' coverage comes from this build. build_debug's own
+      # configure keeps ENABLE_COVERAGE in the cache.
       - name: Configure project
         if: matrix.os == 'ubuntu-latest'
-        run: pixi run configure_debug
+        run: pixi run configure_debug -DENABLE_COVERAGE=ON
 
       - name: Build project
         if: matrix.os == 'ubuntu-latest'
@@ -101,30 +142,68 @@ jobs:
           path: build/Testing/Temporary/
           retention-days: 7
 
-      - name: Generate coverage report
-        if: matrix.os == 'self-hosted'
-        run: pixi run coverage
-        continue-on-error: true  # do not block if coverage fails
+      # Coverage of src/ by the unit tests just run and, on a pull request, of the lines it
+      # changes: the figures go on the run's summary page and in the pull request comment, the
+      # HTML and Cobertura reports into the coverage-report artifact. The base comes through env,
+      # not into the script text.
+      - name: Coverage of the unit tests
+        if: matrix.os == 'ubuntu-latest'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          pixi run coverage_summary
+          if [[ -n "$BASE_REF" ]]; then
+            pixi run coverage_diff "origin/$BASE_REF"
+          fi
+          cat build/coverage/comment.md >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Upload coverage to GitHub
-        if: matrix.os == 'self-hosted'
+      - name: Upload coverage report
+        if: matrix.os == 'ubuntu-latest'
         uses: actions/upload-artifact@v4
         with:
           name: coverage-report
-          path: |
-            htmlcov/
-            coverage.xml
-            .coverage
+          path: build/coverage/
           retention-days: 30
-          if-no-files-found: warn
 
-      - name: Run regression tests
-        if: matrix.os == 'ubuntu-latest'
-        run: pixi run test_regression -k
+      # One comment per pull request, edited by every run. A pull request from a fork gets a
+      # read-only token, so it has the figures on the run's summary page only.
+      - name: Comment coverage on PR
+        if: >-
+          matrix.os == 'ubuntu-latest' && github.event_name == 'pull_request'
+          && github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const comment = require('./.github/scripts/coverage-comment.js');
+            await comment({ github, context });
+
+      # The README's badges, from a push to develop whose unit tests passed. publish-badges, the
+      # one job allowed to write to the repository, puts them on the badges branch.
+      - name: Draw badges
+        if: matrix.os == 'ubuntu-latest' && github.event_name == 'push' && github.ref == 'refs/heads/develop'
+        run: pixi run badges
+
+      - name: Upload badges
+        if: matrix.os == 'ubuntu-latest' && github.event_name == 'push' && github.ref == 'refs/heads/develop'
+        uses: actions/upload-artifact@v4
+        with:
+          name: badges
+          path: build/badges/
+          retention-days: 1
 
       - name: Run PARTIAL regression tests
         if: matrix.os != 'ubuntu-latest'
         run: pixi run test_align
+
+      - name: Build conda package
+        run: pixi build --output-dir=bundle
+
+      # Every track, on the igor of the package just built: the binary that ships, with the
+      # package's compiler and flags. Optimized, they take about a minute; on this job's Debug
+      # build they took 10 to 20.
+      - name: Run regression tests on the conda package
+        if: matrix.os == 'ubuntu-latest'
+        run: pixi run test_regression_conda -k
 
       - name: Upload regression reports on failure
         if: failure()
@@ -133,9 +212,6 @@ jobs:
           name: regression-reports-${{ matrix.os }}
           path: regression_reports/
           retention-days: 7
-
-      - name: Build conda package
-        run: pixi build --output-dir=bundle
 
       - name: Set label
         run: |
@@ -151,15 +227,6 @@ jobs:
           ANACONDA_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
         run: pixi run upload $ANACONDA_TOKEN $LABEL igor-immuno
 
-      - name: Comment coverage on PR
-        if: ${{ (matrix.os == 'self-hosted') && (github.event_name == 'pull_request') }}
-        uses: py-cov-action/python-coverage-comment-action@v3
-        with:
-          GITHUB_TOKEN: ${{ github.token }}
-          MINIMUM_GREEN: 80
-          MINIMUM_ORANGE: 60
-        continue-on-error: true
-
       - name: Build summary
         if: always()
         run: |
@@ -170,6 +237,39 @@ jobs:
           echo "- **Runner:** $(hostname)" >> $GITHUB_STEP_SUMMARY
           echo "- **Pixi version:** $(pixi --version)" >> $GITHUB_STEP_SUMMARY
 
+
+  # Publishes the badges the Linux job drew on the badges branch, which README.md reads them
+  # from. It runs whatever the other runners did; when the Linux job drew none (its unit tests
+  # failed), it has nothing to publish and the badges keep their last values.
+  publish-badges:
+    needs: build-and-test
+    if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/develop' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download badges
+        id: download
+        uses: actions/download-artifact@v4
+        with:
+          name: badges
+          path: badges
+        continue-on-error: true
+
+      # One commit on an orphan branch, replaced by every run: the branch holds the latest
+      # badges and no history.
+      - name: Publish on the badges branch
+        if: steps.download.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        working-directory: badges
+        run: |
+          git init -q -b badges
+          git add ./*.svg
+          git -c user.name="github-actions[bot]" \
+              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -q -m "Badges of $GITHUB_SHA"
+          git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" badges
 
   nightly-build:
     runs-on: ubuntu-latest
@@ -195,14 +295,18 @@ jobs:
       - name: Clean Pixi Enviroment
         run: pixi run clean
 
+      # Debug, so that assertions and the tensor bounds checks (IGOR_MATH_DEBUG) are on for the
+      # unit and integration tests and for every regression track. The build-and-test job runs
+      # the tracks on the optimized conda package.
       - name: Configure project
-        run: pixi run configure
+        run: pixi run configure_debug
 
       - name: Build project
-        run: pixi run build
+        run: pixi run build_debug
 
       - name: Run all C++ ctests
-        run: pixi run test
+        run: pixi run test_debug
 
+      # test_regression depends on build, whose configure keeps the Debug build type in the cache.
       - name: Run regression tests
         run: pixi run test_regression

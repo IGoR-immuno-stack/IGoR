@@ -1,5 +1,8 @@
 # IGoR: Inference and Generation Of Repertoires
 
+[![Unit tests on develop](https://raw.githubusercontent.com/IGoR-immuno-stack/IGoR/badges/unit-tests.svg)](https://github.com/IGoR-immuno-stack/IGoR/actions/workflows/ci.yml?query=branch%3Adevelop)
+[![Unit test coverage of src/ on develop](https://raw.githubusercontent.com/IGoR-immuno-stack/IGoR/badges/coverage.svg)](https://github.com/IGoR-immuno-stack/IGoR/actions/workflows/ci.yml?query=branch%3Adevelop)
+
 This project is a fork of the original one available on github: https://github.com/qmarcou/IGoR.
 
 The goal is this repository is to present what could be a new organization of the source code and the build tree in order to make it easier to use and modify.

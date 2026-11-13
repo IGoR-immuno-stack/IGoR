@@ -130,17 +130,27 @@ find_package(tomlplusplus REQUIRED)
 find_package(nlohmann_json REQUIRED)
 include(igorSetupJsonSchemaValidator)
 
-# OpenSSL (app/igor and tst/utils) must come from the pixi environment, like every other
+# OpenSSL (app/igor and tst/utils) must come from the conda environment, like every other
 # dependency. Without this hint FindOpenSSL searches /usr before the environment and links
 # the system libcrypto, which on the Linux runner is built against a newer glibc than the
-# conda toolchain's sysroot. On Windows the conda-forge layout puts libraries under Library/.
-if(DEFINED ENV{CONDA_PREFIX} AND NOT DEFINED OPENSSL_ROOT_DIR)
+# conda toolchain's sysroot. The environment is CONDA_PREFIX in a pixi shell or task. In a
+# package build (pixi build, CONDA_BUILD set) CONDA_PREFIX is the build environment, which
+# holds the tools; the libraries are in the host environment, PREFIX, and conda-forge's
+# CMAKE_ARGS confine find_* to it, so a hint at the build environment finds nothing. On
+# Windows the conda-forge layout puts libraries under Library/.
+if(DEFINED ENV{CONDA_BUILD} AND DEFINED ENV{PREFIX})
+  set(_igor_openssl_env "$ENV{PREFIX}")
+elseif(DEFINED ENV{CONDA_PREFIX})
+  set(_igor_openssl_env "$ENV{CONDA_PREFIX}")
+endif()
+if(DEFINED _igor_openssl_env AND NOT DEFINED OPENSSL_ROOT_DIR)
   if(WIN32)
-    set(OPENSSL_ROOT_DIR "$ENV{CONDA_PREFIX}/Library")
+    set(OPENSSL_ROOT_DIR "${_igor_openssl_env}/Library")
   else()
-    set(OPENSSL_ROOT_DIR "$ENV{CONDA_PREFIX}")
+    set(OPENSSL_ROOT_DIR "${_igor_openssl_env}")
   endif()
 endif()
+unset(_igor_openssl_env)
 
 find_package(Arrow REQUIRED)
 find_package(Parquet REQUIRED)
@@ -209,7 +219,12 @@ endif()
 
 add_subdirectory(src)
 add_subdirectory(app)
-add_subdirectory(tst)
+# BUILD_TESTING is CTest's option, on unless turned off. The conda package turns it off
+# (pixi.toml, [package.build.config]): it installs no test, and the suite is two thirds of
+# the compile.
+if(BUILD_TESTING)
+  add_subdirectory(tst)
+endif()
 if(BUILD_DOC_DOXYGEN)
   add_subdirectory(doc)
 endif()

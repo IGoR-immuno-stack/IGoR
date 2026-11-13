@@ -9,6 +9,8 @@ brevity.  Much more detail can be found in the git revision history:
 
   Fixed:
   - Fix Pixi manifest parsing so build and regression tasks can run
+  - The conda package build looks for OpenSSL in its host environment, not in its build
+    environment, where FindOpenSSL found nothing
 
   New features:
   - Build and Dev env:
@@ -20,6 +22,18 @@ brevity.  Much more detail can be found in the git revision history:
       umbrella header per layer; CI checks it (`pixi run test_package`)
     - New ENABLE_BOUND_INSTRUMENTATION option (`pixi run build_instrumented`), building an
       IGoR that reports how far its pruning bound sits above the scenarios it admits
+    - The test suite follows CTest's BUILD_TESTING option. The conda package turns it off
+      and no longer compiles the suite, two thirds of its compile time
+    - `pixi run test_regression_conda` runs the regression tracks with the igor of a built
+      conda package. CI's Linux job runs them there instead of on its Debug build
+    - CI reports the unit tests' line, function and branch coverage of src/ on Linux
+      (`pixi run coverage_summary`, with gcovr), on its run summary and as an HTML artifact,
+      and comments on each pull request with it and the coverage of the lines the pull
+      request changes (`pixi run coverage_diff`, with diff-cover)
+    - README.md shows develop's unit test count and coverage, as badges CI draws on every
+      push to develop and keeps on the `badges` branch
+    - A push to a branch with an open pull request is built once, by the pull request's run;
+      pushes to develop and master always build
   - CLI
     - Route the POSIX-style command interface through CLI11 for consistent help, version, and option validation
     - Add full configured pipeline replay and richer reproducibility manifests with runtime and compiler metadata
