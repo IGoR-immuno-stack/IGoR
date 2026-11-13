@@ -28,6 +28,7 @@ clang-tools = ">=19.1.7,<22"
 
 [target.linux.dependencies]
 valgrind = "*"
+gcovr = ">=8.8,<9"  # the unit tests' coverage figure (pixi run coverage_summary)
 
 [target.linux-64.dependencies]
 valgrind = ">=3.26.0,<4"
@@ -76,6 +77,11 @@ submodule-update = "git submodule update --init --recursive"
 configure = "cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release"
 
 [target.linux.tasks]
+# Coverage of src/ by the tests run so far on a build configured with ENABLE_COVERAGE (CI:
+# pixi run configure_debug -DENABLE_COVERAGE=ON, then build_debug and test_unit_debug). Prints
+# the line, function and branch figures and writes build/coverage/: index.html (by directory and
+# file), coverage.xml (Cobertura) and summary.md. app/ is left out: no unit test runs the CLI.
+coverage_summary = "rm -rf build/coverage && mkdir -p build/coverage && gcovr --root . --filter src/ --exclude-unreachable-branches --exclude-throw-branches -j 0 --print-summary --html-nested build/coverage/index.html --cobertura build/coverage/coverage.xml --markdown-summary build/coverage/summary.md build"
 memcheck = {cmd="ctest --test-dir build -L unit -T memcheck --timeout 240 -C Release --output-junit ../ctest-memcheck-junit.xml", depends-on = "build"}
 profile = { cmd = "scripts/tests/profile_run.sh", depends-on = ["build"] }
 

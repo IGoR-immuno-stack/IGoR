@@ -71,9 +71,11 @@ jobs:
         if: matrix.os != 'ubuntu-latest'
         run: pixi run build
 
+      # Debug and instrumented: the unit tests' coverage comes from this build. build_debug's own
+      # configure keeps ENABLE_COVERAGE in the cache.
       - name: Configure project
         if: matrix.os == 'ubuntu-latest'
-        run: pixi run configure_debug
+        run: pixi run configure_debug -DENABLE_COVERAGE=ON
 
       - name: Build project
         if: matrix.os == 'ubuntu-latest'
@@ -101,22 +103,21 @@ jobs:
           path: build/Testing/Temporary/
           retention-days: 7
 
-      - name: Generate coverage report
-        if: matrix.os == 'self-hosted'
-        run: pixi run coverage
-        continue-on-error: true  # do not block if coverage fails
+      # Coverage of src/ by the unit tests just run: the figures go on the run's summary page,
+      # the HTML and Cobertura reports into the coverage-report artifact.
+      - name: Coverage of the unit tests
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          pixi run coverage_summary
+          cat build/coverage/summary.md >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Upload coverage to GitHub
-        if: matrix.os == 'self-hosted'
+      - name: Upload coverage report
+        if: matrix.os == 'ubuntu-latest'
         uses: actions/upload-artifact@v4
         with:
           name: coverage-report
-          path: |
-            htmlcov/
-            coverage.xml
-            .coverage
+          path: build/coverage/
           retention-days: 30
-          if-no-files-found: warn
 
       - name: Run PARTIAL regression tests
         if: matrix.os != 'ubuntu-latest'
@@ -153,15 +154,6 @@ jobs:
         env:
           ANACONDA_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
         run: pixi run upload $ANACONDA_TOKEN $LABEL igor-immuno
-
-      - name: Comment coverage on PR
-        if: ${{ (matrix.os == 'self-hosted') && (github.event_name == 'pull_request') }}
-        uses: py-cov-action/python-coverage-comment-action@v3
-        with:
-          GITHUB_TOKEN: ${{ github.token }}
-          MINIMUM_GREEN: 80
-          MINIMUM_ORANGE: 60
-        continue-on-error: true
 
       - name: Build summary
         if: always()

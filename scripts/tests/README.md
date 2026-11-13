@@ -26,6 +26,9 @@ goldens in `data/reference`, through [assert_regression.sh](assert_regression.sh
 [ci.yml](../../.github/workflows/ci.yml) runs:
 
 - on Linux, every track on the conda package the job has just built (`test_regression_conda`);
+- on Linux, the unit tests' coverage of `src/`, from the job's instrumented Debug build
+  (`pixi run coverage_summary`, with gcovr): the figures on the run's summary page, the HTML and
+  Cobertura reports in the `coverage-report` artifact;
 - on macOS and Windows, the `align` track on the development build;
 - nightly, every track on a Debug build, where assertions and the tensor bounds checks are on.
 
@@ -37,7 +40,8 @@ goldens in `data/reference`, through [assert_regression.sh](assert_regression.sh
   (`pixi run benchmark`).
 - [profile_run.sh](profile_run.sh): perf profiles of the aligner, on Linux (`pixi run profile`).
 - [coverage_report.py](coverage_report.py): per-function coverage of the event code under
-  migration (`pixi run coverage`), from a GCC coverage build.
+  migration (`pixi run coverage`), from a GCC coverage build. The overall figure CI reports
+  comes from `pixi run coverage_summary` instead.
 - [test_igor_convert.sh](test_igor_convert.sh): the conversions of `igor-convert`; no pixi task
   runs it.
 - `models/`: two monoscenario model parameter files that no script reads.
