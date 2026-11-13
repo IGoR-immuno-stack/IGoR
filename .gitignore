@@ -37,6 +37,7 @@ public
 coverage_report
 default.profdata
 regression_reports/*
+bundle/
 profile_reports/*
 
 ## ###################################################################

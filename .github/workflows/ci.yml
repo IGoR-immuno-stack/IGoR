@@ -118,13 +118,19 @@ jobs:
           retention-days: 30
           if-no-files-found: warn
 
-      - name: Run regression tests
-        if: matrix.os == 'ubuntu-latest'
-        run: pixi run test_regression -k
-
       - name: Run PARTIAL regression tests
         if: matrix.os != 'ubuntu-latest'
         run: pixi run test_align
+
+      - name: Build conda package
+        run: pixi build --output-dir=bundle
+
+      # Every track, on the igor of the package just built: the binary that ships, with the
+      # package's compiler and flags. Optimized, they take about a minute; on this job's Debug
+      # build they took 10 to 20.
+      - name: Run regression tests on the conda package
+        if: matrix.os == 'ubuntu-latest'
+        run: pixi run test_regression_conda -k
 
       - name: Upload regression reports on failure
         if: failure()
@@ -133,9 +139,6 @@ jobs:
           name: regression-reports-${{ matrix.os }}
           path: regression_reports/
           retention-days: 7
-
-      - name: Build conda package
-        run: pixi build --output-dir=bundle
 
       - name: Set label
         run: |

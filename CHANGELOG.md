@@ -24,6 +24,8 @@ brevity.  Much more detail can be found in the git revision history:
       IGoR that reports how far its pruning bound sits above the scenarios it admits
     - The test suite follows CTest's BUILD_TESTING option. The conda package turns it off
       and no longer compiles the suite, two thirds of its compile time
+    - `pixi run test_regression_conda` runs the regression tracks with the igor of a built
+      conda package. CI's Linux job runs them there instead of on its Debug build
   - CLI
     - Route the POSIX-style command interface through CLI11 for consistent help, version, and option validation
     - Add full configured pipeline replay and richer reproducibility manifests with runtime and compiler metadata

@@ -56,6 +56,10 @@ test_cli = { cmd = "scripts/tests/test_cli.sh", depends-on = ["build"] }
 test_align = { cmd = "scripts/tests/test_align.sh", depends-on = ["build"] }
 test_inference = { cmd = "scripts/tests/test_inference.sh", depends-on = ["build"] }
 test_generate = { cmd = "scripts/tests/test_generate.sh", depends-on = ["build"] }
+# The tracks with the igor of the conda package in bundle/ (pixi build --output-dir=bundle),
+# installed in an environment of its own (scripts/tests/test_run_conda.sh). No depends-on: it
+# tests the package that is there.
+test_regression_conda = { cmd = "scripts/tests/test_run_conda.sh" }
 # The installed CMake package, seen from a consumer project. No depends-on: it tests the build
 # that is there, whatever its build type.
 test_package = { cmd = "scripts/tests/test_package.sh" }
