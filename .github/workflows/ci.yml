@@ -21,8 +21,41 @@ on:
 #   cancel-in-progress: true
 
 jobs:
+  # A push to a branch with an open pull request is built once, by the pull request's run, which
+  # tests the merge result and posts the coverage comment: this job tells build-and-test to skip
+  # the push run. develop and master always build on push: those runs publish the badges and the
+  # package. Every other event builds.
+  pr-check:
+    name: Open pull request check
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      covered: ${{ steps.pr.outputs.covered }}
+    steps:
+      # Counts the open pull requests from this branch of this repository into a base the
+      # pull_request trigger covers. If the listing fails, the push run builds.
+      - name: Look for an open pull request from this branch
+        id: pr
+        if: github.event_name == 'push' && github.ref_name != 'develop' && github.ref_name != 'master'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          filter='[.[] | select((.isCrossRepository | not) and (.baseRefName | test("^(master|develop|feature/[^/]+)$")))] | length'
+          if n=$(gh pr list -R "$GITHUB_REPOSITORY" --head "$GITHUB_REF_NAME" --state open \
+                   --json baseRefName,isCrossRepository --jq "$filter"); then
+            covered=$([ "$n" -gt 0 ] && echo true || echo false)
+          else
+            echo "::warning::Could not list the open pull requests: the push run builds."
+            covered=false
+          fi
+          echo "Open pull requests from $GITHUB_REF_NAME: ${n:-unknown}; push run skipped: $covered"
+          echo "covered=$covered" >> "$GITHUB_OUTPUT"
+
   build-and-test:
     name: Build, Test & Coverage
+    needs: pr-check
+    if: needs.pr-check.outputs.covered != 'true'
     strategy:
       fail-fast: false
       matrix:

@@ -32,6 +32,8 @@ brevity.  Much more detail can be found in the git revision history:
       request changes (`pixi run coverage_diff`, with diff-cover)
     - README.md shows develop's unit test count and coverage, as badges CI draws on every
       push to develop and keeps on the `badges` branch
+    - A push to a branch with an open pull request is built once, by the pull request's run;
+      pushes to develop and master always build
   - CLI
     - Route the POSIX-style command interface through CLI11 for consistent help, version, and option validation
     - Add full configured pipeline replay and richer reproducibility manifests with runtime and compiler metadata
