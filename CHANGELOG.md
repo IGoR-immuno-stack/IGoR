@@ -9,6 +9,8 @@ brevity.  Much more detail can be found in the git revision history:
 
   Fixed:
   - Fix Pixi manifest parsing so build and regression tasks can run
+  - The conda package build looks for OpenSSL in its host environment, not in its build
+    environment, where FindOpenSSL found nothing
 
   New features:
   - Build and Dev env:
